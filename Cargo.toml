@@ -15,7 +15,6 @@ crossbeam = "0.8"
 thiserror = "2.0.12"
 lazy_static = "1.4.0"
 backtrace = { version = "0.3", features = ["serde"], optional = true }
-rust_execution_visualizer_macros = { path = "./rust_execution_visualizer_macros" } 
 tokio = { version = "1.0", features = ["full"] }
 
 [lib]
@@ -30,7 +29,6 @@ default = ["tracking-allocator"]
 [dev-dependencies]
 tracing-test = "0.2"
 
-[workspace]
-members = [
-    "rust_execution_visualizer_macros",
-]
+[[example]]
+name = "lifecycles"
+path = "examples/lifecycles.rs"
