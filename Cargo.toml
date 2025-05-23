@@ -1,0 +1,36 @@
+[package]
+name = "trace_tools"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log"] }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+svg = "0.18.0"
+chrono = { version = "0.4", features = ["serde"] }
+crossbeam = "0.8"
+thiserror = "2.0.12"
+lazy_static = "1.4.0"
+backtrace = { version = "0.3", features = ["serde"], optional = true }
+rust_execution_visualizer_macros = { path = "./rust_execution_visualizer_macros" } 
+tokio = { version = "1.0", features = ["full"] }
+
+[lib]
+name = "trace_tools"
+path = "src/lib.rs"
+
+[features]
+backtrace = ["dep:backtrace"]
+tracking-allocator = []
+default = ["tracking-allocator"]
+
+[dev-dependencies]
+tracing-test = "0.2"
+
+[workspace]
+members = [
+    "rust_execution_visualizer_macros",
+]
