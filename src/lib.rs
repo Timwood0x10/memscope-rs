@@ -5,6 +5,7 @@
 //! that tracks all heap allocations and deallocations, and provides utilities
 //! for exporting memory usage data in various formats.
 
+
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 
@@ -28,8 +29,11 @@ pub use allocator::TrackingAllocator;
 
 /// Global allocator for tracking memory allocations
 #[cfg(feature = "tracking-allocator")]
+// Only enable the global allocator when the tracking-allocator feature is enabled
+// and we're not in test mode
+#[cfg(all(feature = "tracking-allocator", not(test)))]
 #[global_allocator]
-pub static GLOBAL: TrackingAllocator = TrackingAllocator;
+static GLOBAL: TrackingAllocator = TrackingAllocator;
 
 /// Initialize the memory tracking system
 ///
@@ -55,10 +59,8 @@ pub fn init() {
 #[macro_export]
 macro_rules! track_var {
     ($var:ident) => {
-        #[allow(unused_imports)]
-        use $crate::Trackable; // Ensure Trackable is in scope for the macro
         if let Err(e) = $crate::__internal_track_var(stringify!($var), &$var) {
-             tracing::error!("Failed to track variable '{}': {}", stringify!($var), e);
+             ::tracing::error!("Failed to track variable '{}': {}", stringify!($var), e);
         }
     };
 }
@@ -133,12 +135,21 @@ impl<T> Trackable for Arc<T> {
 mod tests {
     use super::*; // Brings init, track_var!, Trackable, __internal_track_var, etc. into scope
     use crate::tracker::get_global_tracker; // For accessing the GLOBAL_TRACKER
-                                            // AllocationInfo is in crate::types
     use crate::types::AllocationInfo;
-
+    use std::sync::Once;
+    
+    static INIT: Once = Once::new();
+    
+    // Setup function that runs once before any tests
+    fn setup() {
+        INIT.call_once(|| {
+            // Initialize the global tracker without enabling the global allocator
+            let _ = get_global_tracker();
+        });
+    }
 
     // Helper function to find an allocation by pointer in active allocations
-    fn find_active_allocation_info(ptr: usize) -> Option<AllocationInfo> {
+    fn find_active_allocation_info(ptr: usize) -> Option<crate::tracker::AllocationInfo> {
         let tracker = get_global_tracker();
         tracker.get_active_allocations().into_iter().find(|a| a.ptr == ptr)
     }
@@ -159,16 +170,25 @@ mod tests {
     // This clears active allocations and the log, which is good enough for these tests.
     fn partial_reset_global_tracker() {
         let tracker = get_global_tracker();
-        tracker.active_allocations.lock().unwrap().clear();
-        tracker.allocation_log.lock().unwrap().clear();
+        // Drop the locks immediately after getting the values to avoid holding them
+        // while potentially allocating memory during clear()
+        {
+            let mut active = tracker.active_allocations.lock().unwrap();
+            active.clear();
+        }
+        {
+            let mut log = tracker.allocation_log.lock().unwrap();
+            log.clear();
+        }
     }
 
 
     #[test]
     fn test_track_var_macro_vec() {
-        init(); // Ensures tracing subscriber is set up for error logging if enabled
+        setup(); // Initialize test environment
         partial_reset_global_tracker();
         
+        // Create a vector and get its pointer before tracking
         let my_vec = vec![1, 2, 3];
         let vec_ptr = my_vec.as_ptr() as usize;
 
@@ -182,18 +202,19 @@ mod tests {
             .expect("Vec allocation info not found after track_var!");
 
         assert_eq!(info.var_name.as_deref(), Some("my_vec"), "var_name mismatch for Vec");
-        assert_eq!(info.type_name.as_deref(), Some(std::any::type_name::<Vec<i32>>().as_str()), "type_name mismatch for Vec");
+        assert_eq!(info.type_name.as_deref(), Some(std::any::type_name::<Vec<i32>>().as_ref()), "type_name mismatch for Vec");
 
         cleanup_tracked_var(vec_ptr);
     }
 
     #[test]
     fn test_track_var_macro_string_box_rc_arc() {
-        init();
+        setup();
         partial_reset_global_tracker();
-
+        
         // Test String
-        let my_string = String::from("hello test");
+        let mut my_string = String::with_capacity(20);
+        my_string.push_str("test string");
         let string_ptr = my_string.as_ptr() as usize;
         // For String, capacity is a reasonable proxy for allocated size if non-empty.
         // If empty, get_trackable_raw_ptr returns None, so track_allocation wouldn't be called by allocator.
@@ -204,23 +225,26 @@ mod tests {
         if string_ptr != 0 { // Only assert if we expected it to be tracked
             let string_info = find_active_allocation_info(string_ptr).expect("String info not found");
             assert_eq!(string_info.var_name.as_deref(), Some("my_string"));
-            assert_eq!(string_info.type_name.as_deref(), Some(std::any::type_name::<String>().as_str()));
+            assert_eq!(string_info.type_name.as_deref(), Some(std::any::type_name::<String>().as_ref()));
             cleanup_tracked_var(string_ptr);
         }
 
         // Test Box
         partial_reset_global_tracker(); // Clean before next variable
-        let my_box = Box::new("test content");
-        // For Box<str>, the pointer from Box::as_raw is to the str slice data.
-        // However, Trackable for Box<T> uses `Box::as_ref(self) as *const T as usize`.
-        // For Box<&str>, T is &str. So we need to get the pointer to the &str itself on the heap.
-        // This is more complex than typical Box<SizedType>.
-        // The current Trackable impl for Box<T> gives a pointer to T.
-        // If T is &str, it's a pointer to the fat pointer (data_ptr, length) of &str.
-        // Let's track the data pointer part of the fat pointer for consistency with other string types.
-        let box_inner_ptr = (&**my_box as *const str).as_ptr() as usize;
-        get_global_tracker().track_allocation(box_inner_ptr, std::mem::size_of_val(&**my_box), Some(my_box.get_type_name())).unwrap();
-        track_var!(my_box); // track_var! uses my_box.get_trackable_raw_ptr() which is Box::as_ref(&my_box) as *const &str as usize
+        let my_box = Box::new("boxed string");
+        
+        // Get the pointer that the Trackable implementation would use
+        let box_ptr = my_box.get_trackable_raw_ptr().expect("Box should have a trackable pointer");
+        
+        // Track the allocation manually
+        get_global_tracker().track_allocation(
+            box_ptr, 
+            std::mem::size_of_val(&*my_box), 
+            Some(my_box.get_type_name())
+        ).unwrap();
+        
+        // Use track_var which will use get_trackable_raw_ptr
+        track_var!(my_box);
         
         // The pointer used by track_var for Box<&str> will be the address of the &str fat pointer on the heap.
         // This is different from box_inner_ptr. So we need to use the pointer from the Trackable trait.
@@ -239,7 +263,7 @@ mod tests {
 
         let box_info = find_active_allocation_info(trackable_box_ptr).expect("Box info not found");
         assert_eq!(box_info.var_name.as_deref(), Some("my_box"));
-        assert_eq!(box_info.type_name.as_deref(), Some(std::any::type_name::<Box<&str>>().as_str()));
+        assert_eq!(box_info.type_name.as_deref(), Some(std::any::type_name::<Box<&str>>().as_ref()));
         cleanup_tracked_var(trackable_box_ptr);
 
 
@@ -251,7 +275,7 @@ mod tests {
         track_var!(my_rc);
         let rc_info = find_active_allocation_info(rc_ptr).expect("Rc info not found");
         assert_eq!(rc_info.var_name.as_deref(), Some("my_rc"));
-        assert_eq!(rc_info.type_name.as_deref(), Some(std::any::type_name::<Rc<bool>>().as_str()));
+        assert_eq!(rc_info.type_name.as_deref(), Some(std::any::type_name::<Rc<bool>>().as_ref()));
         cleanup_tracked_var(rc_ptr);
         
         // Test Arc
@@ -262,7 +286,7 @@ mod tests {
         track_var!(my_arc);
         let arc_info = find_active_allocation_info(arc_ptr).expect("Arc info not found");
         assert_eq!(arc_info.var_name.as_deref(), Some("my_arc"));
-        assert_eq!(arc_info.type_name.as_deref(), Some(std::any::type_name::<Arc<f64>>().as_str()));
+        assert_eq!(arc_info.type_name.as_deref(), Some(std::any::type_name::<Arc<f64>>().as_ref()));
         cleanup_tracked_var(arc_ptr);
     }
     

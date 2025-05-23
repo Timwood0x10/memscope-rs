@@ -1,3 +1,8 @@
+//! Memory tracking functionality for the trace_tools library.
+//!
+//! This module provides the core memory tracking capabilities, including allocation
+//! tracking, deallocation monitoring, and memory statistics collection.
+
 use std::{
     backtrace::Backtrace,
     collections::HashMap,
@@ -9,40 +14,73 @@ use std::sync::Mutex;
 use thiserror::Error;
 
 /// Error type for memory tracking operations
+/// Error type for memory tracking operations
+///
+/// This enum represents the different types of errors that can occur
+/// during memory tracking operations.
 #[derive(Error, Debug)]
 pub enum MemoryError {
-    /// Failed to lock a mutex
+    /// Occurs when a mutex lock cannot be acquired
     #[error("Failed to acquire lock: {0}")]
     LockError(String),
 
-    /// Invalid operation on memory tracking
+    /// Occurs when an invalid memory tracking operation is attempted
     #[error("Memory tracking error: {0}")]
     TrackingError(String),
+
 }
 
+/// Represents information about a memory allocation
 #[derive(Debug, Clone)]
 pub struct AllocationInfo {
+    /// Memory address of the allocation
     pub ptr: usize,
+    /// Size of the allocation in bytes
     pub size: usize,
+    /// Timestamp when the allocation occurred (in milliseconds since UNIX_EPOCH)
     pub timestamp_alloc: u128,
+    /// Timestamp when the allocation was deallocated, if it was deallocated
     pub timestamp_dealloc: Option<u128>,
+    /// Optional name of the variable associated with this allocation
     pub var_name: Option<String>,
+    /// Type name of the allocated value
     pub type_name: Option<String>,
+    /// Backtrace captured at the time of allocation
     pub backtrace: String,
+    /// ID of the thread that performed the allocation
     pub thread_id: u64,
 }
 
+
+/// Tracks memory allocations and deallocations
 #[derive(Default)]
+/// Tracks memory allocations and provides statistics
 pub struct MemoryTracker {
-    active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
-    allocation_log: Mutex<Vec<AllocationInfo>>,
+    /// Maps pointer addresses to their allocation info
+    pub active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
+    
+    /// Log of all allocation events
+    pub allocation_log: Mutex<Vec<AllocationInfo>>,
 }
 
 impl MemoryTracker {
+    /// Creates a new, empty MemoryTracker
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Tracks a new memory allocation
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr` - The memory address of the allocation
+    /// * `size` - The size of the allocation in bytes
+    /// * `type_name` - The type name of the allocated value
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the allocation was successfully tracked
+    /// * `Err(MemoryError)` if the allocation could not be tracked
     pub fn track_allocation(
         &self,
         ptr: usize,
@@ -52,10 +90,7 @@ impl MemoryTracker {
         let mut active = self.active_allocations.lock()
             .map_err(|e| MemoryError::LockError(format!("Failed to lock active_allocations: {}", e)))?;
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| MemoryError::TrackingError("System time before UNIX_EPOCH".to_string()))?
-            .as_millis();
+        let timestamp = Self::current_timestamp();
 
         active.insert(
             ptr,
@@ -67,15 +102,7 @@ impl MemoryTracker {
                 var_name: None,
                 type_name,
                 backtrace: format!("{:?}", Backtrace::capture()),
-                thread_id: {
-                    // Stable way to get a unique thread identifier
-                    use std::hash::{Hash, Hasher};
-                    use std::collections::hash_map::DefaultHasher;
-                    
-                    let mut hasher = DefaultHasher::new();
-                    thread::current().id().hash(&mut hasher);
-                    hasher.finish()
-                },
+                thread_id: Self::thread_id(),
             },
         );
         
@@ -87,12 +114,7 @@ impl MemoryTracker {
             .map_err(|e| MemoryError::LockError(format!("Failed to lock active_allocations: {}", e)))?;
             
         if let Some(mut info) = active.remove(&ptr) {
-            info.timestamp_dealloc = Some(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map_err(|_| MemoryError::TrackingError("System time before UNIX_EPOCH".to_string()))?
-                    .as_millis(),
-            );
+            info.timestamp_dealloc = Some(Self::current_timestamp());
             
             let mut log = self.allocation_log.lock()
                 .map_err(|e| MemoryError::LockError(format!("Failed to lock allocation_log: {}", e)))?;
@@ -159,16 +181,33 @@ impl MemoryTracker {
         crate::export::export_to_svg(self, path)
     }
 
+    /// Get the current timestamp in nanoseconds since UNIX_EPOCH
+    fn current_timestamp() -> u128 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+            .as_nanos()
+    }
+
+    /// Get a unique identifier for the current thread
+    fn thread_id() -> u64 {
+        use std::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+        
+        let mut hasher = DefaultHasher::new();
+        thread::current().id().hash(&mut hasher);
+        hasher.finish()
+    }
+
 }
 
+/// Statistics about memory usage
 #[derive(Debug)]
 pub struct MemoryStats {
+    /// Total number of allocations
     pub total_allocations: usize,
+    /// Total memory allocated in bytes
     pub total_memory: usize,
-}
-
-pub fn thread_id() -> std::thread::ThreadId {
-    thread::current().id()
 }
 
 lazy_static::lazy_static! {
@@ -256,7 +295,7 @@ mod tests {
         assert_eq!(alloc_info.var_name.as_deref(), Some("my_var"), "Variable name should be 'my_var'");
         assert_eq!(alloc_info.type_name.as_deref(), Some("SpecificType"), "Type name should be 'SpecificType'");
 
-        let result = tracker.associate_var(0xBAD_PTR, "bad_var".to_string(), "BadType".to_string());
+        let result = tracker.associate_var(0xBAD0BAD0, "bad_var".to_string(), "BadType".to_string());
         assert!(result.is_err(), "Associating var to a bad pointer should return an error");
         matches!(result, Err(MemoryError::TrackingError(_)));
     }

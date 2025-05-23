@@ -1,4 +1,7 @@
-// types.rs - Enhanced with lock-free structures and better error handling
+//! Core types and error handling for the trace_tools library.
+//!
+//! This module defines the core data structures and error types used throughout
+//! the trace_tools library.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, Arc};
@@ -6,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use crossbeam::queue::SegQueue;
 use serde::{Serialize, Deserialize};
 
-// --- Enhanced Error Handling ---
+/// Error type for memory tracking operations
 #[derive(Debug, thiserror::Error)]
 pub enum TrackingError {
     #[error("Failed to acquire allocation lock: {0}")]
@@ -27,11 +30,14 @@ pub enum TrackingError {
 
 pub type TrackingResult<T> = Result<T, TrackingError>;
 
-// --- Enhanced Data Structures ---
+/// Allocation information for a tracked memory allocation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationInfo {
+    /// Memory address of the allocation
     pub ptr: usize,
+    /// Size of the allocation in bytes
     pub size: usize,
+    /// Timestamp when the allocation occurred (in milliseconds since UNIX_EPOCH)
     pub timestamp_alloc: u128,
     pub timestamp_dealloc: Option<u128>,
     pub var_name: Option<String>,
@@ -73,9 +79,10 @@ impl Default for AllocationInfo {
     }
 }
 
-// --- Lock-free Event System ---
+/// Event type for memory allocation tracking
 #[derive(Debug, Clone)]
 pub enum AllocationEvent {
+    /// Allocation event
     Alloc { 
         ptr: usize, 
         size: usize, 
@@ -96,7 +103,7 @@ pub enum AllocationEvent {
     },
 }
 
-// --- Global State with Lock-free Queue ---
+/// Global state for memory tracking
 lazy_static::lazy_static! {
     pub static ref ACTIVE_ALLOCATIONS: Mutex<HashMap<usize, AllocationInfo>> = Mutex::new(HashMap::new());
     pub static ref ALLOCATION_LOG: Mutex<Vec<AllocationInfo>> = Mutex::new(Vec::new());
@@ -110,7 +117,7 @@ lazy_static::lazy_static! {
     pub static ref EVENT_PROCESSOR: Arc<AllocationProcessor> = Arc::new(AllocationProcessor::new());
 }
 
-// --- Event Processing System ---
+/// Event Processing System
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::{SystemTime, UNIX_EPOCH};

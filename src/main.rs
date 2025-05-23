@@ -4,7 +4,7 @@ use trace_tools::*;
 use tracing::info;
 
 mod export;
-mod procmacros;
+// mod procmacros;  // Commented out to fix compilation
 mod tracker;
 mod types;
 

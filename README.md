@@ -131,3 +131,12 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 
 ## License
 This project is licensed under the MIT License (Please verify from `Cargo.toml` or add a `LICENSE` file if not present. Assuming MIT based on common Rust practice).
+
+Copyright (c) 2025 TimWood
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+[http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+

@@ -1,4 +1,8 @@
-//! Memory tracking data export functionality
+//! Export functionality for memory tracking data
+//!
+//! This module provides functions to export memory tracking data to various formats
+//! such as JSON and SVG.
+
 
 use serde::Serialize;
 use std::fs::File;
@@ -7,12 +11,13 @@ use std::path::Path;
 
 use svg::node::element::{Line, Rectangle, Text as SvgText, Title as SvgTitle, Group};
 use svg::Document;
+use serde::Deserialize;
 
 use crate::tracker::MemoryTracker;
 use crate::types::AllocationInfo; // Assuming AllocationInfo is already pub in types.rs
 
 /// A snapshot of memory usage at a point in time (used for JSON export)
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MemorySnapshot {
     /// ISO 8601 timestamp of when the snapshot was taken
     pub timestamp: String,
@@ -45,13 +50,20 @@ fn create_snapshot(tracker: &MemoryTracker) -> MemorySnapshot {
         timestamp: chrono::Local::now().to_rfc3339(),
         total_allocations: stats.total_allocations,
         total_allocated: stats.total_memory,
-        active_allocations: tracker.get_active_allocations().into_iter().collect(),
+        active_allocations: tracker.get_active_allocations()
+            .into_iter()
+            .map(crate::types::AllocationInfo::from)
+            .collect(),
     }
 }
 
 /// Export memory lifecycle data to an SVG visualization
 pub fn export_to_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::Result<()> {
-    let all_allocations = tracker.get_allocation_log(); // Get all allocation events
+    let all_allocations: Vec<crate::types::AllocationInfo> = tracker.get_allocation_log()
+        .into_iter()
+        .map(crate::types::AllocationInfo::from)
+        .collect();
+    
     let doc = create_svg_document(&all_allocations);
     
     svg::save(path, &doc)
@@ -196,13 +208,15 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tracker::{MemoryTracker, AllocationInfo as TrackerAllocationInfo}; // Renamed to avoid conflict
-    use crate::types::AllocationInfo; // This is the one used by MemorySnapshot and export logic.
+    use crate::tracker::MemoryTracker;
     use std::fs::{self, File};
     use std::io::Read;
-    use tempfile::tempdir;
     use std::thread::sleep;
     use std::time::Duration;
+    
+    // Only import tempfile for tests
+    #[cfg(test)]
+    use tempfile::tempdir;
 
 
     // Helper to create a populated MemoryTracker for testing export functions
