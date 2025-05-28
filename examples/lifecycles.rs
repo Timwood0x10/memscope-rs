@@ -3,6 +3,7 @@
 
 use trace_tools::{get_global_tracker, init, track_var}; // Removed Trackable
 
+
 // Function that allocates memory internally
 fn create_and_drop_string() {
     println!("Entering create_and_drop_string()...");

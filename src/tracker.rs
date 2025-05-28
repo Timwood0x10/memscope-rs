@@ -133,12 +133,14 @@ impl MemoryTracker {
                     #[cfg(feature = "backtrace")]
                     {
                         let mut ips = Vec::new();
+                        let mut stack_trace = None;
                         backtrace::trace(|frame| {
                             ips.push(frame.ip() as usize);
+                            stack_trace = Some(format!("{:?}", frame));
                             // Continue tracing
                             true
                         });
-                        ips
+                        (ips, stack_trace)
                     }
                     #[cfg(not(feature = "backtrace"))]
                     {
@@ -408,7 +410,7 @@ impl MemoryTracker {
         }
 
         if folded_lines.is_empty() {
-            return Err(io::Error::new(io.ErrorKind::Other, "No valid stack data for flamegraph after processing"));
+            return Err(io::Error::new(io::ErrorKind::Other, "No valid stack data for flamegraph after processing"));
         }
         
         let output_file = File::create(path)?;
@@ -510,26 +512,47 @@ impl MemoryTracker {
             return Ok(());
         }
 
+        #[derive(Clone)]
         struct TreemapDataItem {
             label: String,
             value: f64,
             original_size: usize,
+            bounds: treemap::Rect,
+        }
+        
+        impl Default for TreemapDataItem {
+            fn default() -> Self {
+                Self {
+                    label: String::new(),
+                    value: 0.0,
+                    original_size: 0,
+                    bounds: treemap::Rect::new(),
+                }
+            }
+        }
+        
+        impl treemap::Mappable for TreemapDataItem {
+            fn size(&self) -> f64 { self.value }
+            fn bounds(&self) -> &treemap::Rect { &self.bounds }
+            fn set_bounds(&mut self, bounds: treemap::Rect) { self.bounds = bounds; }
         }
         let mut items_to_layout: Vec<TreemapDataItem> = type_usages.into_iter()
             .map(|usage| TreemapDataItem {
                 label: usage.type_name,
                 value: usage.total_size as f64,
                 original_size: usage.total_size,
+                bounds: treemap::Rect::new(),
             })
             .collect();
         
         items_to_layout.sort_by(|a, b| b.value.partial_cmp(&a.value).unwrap_or(std::cmp::Ordering::Equal));
 
-        let mut layout = TreemapLayout::new();
-        let target_rect = Rect::new(0.0, 0.0, width as f64, height as f64);
+        let layout = TreemapLayout::new();
+        let mut target_rect = Rect::new();
+        target_rect.w = width as f64;
+        target_rect.h = height as f64;
         
-        let values: Vec<f64> = items_to_layout.iter().map(|item| item.value).collect();
-        let layout_rects = layout.compute_rects(&values, target_rect);
+        layout.layout_items(&mut items_to_layout, target_rect);
 
         let mut document = Document::new()
             .set("width", width)
@@ -546,39 +569,36 @@ impl MemoryTracker {
 
         let colors = vec!["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
         
-        for (i, r) in layout_rects.iter().enumerate() {
-            if i >= items_to_layout.len() { break; } // Should not happen if lengths match
-            let item = &items_to_layout[i];
-            let color = colors[i % colors.len()];
-
-            let rect_element = Rectangle::new()
-                .set("x", r.x())
-                .set("y", r.y())
-                .set("width", r.w())
-                .set("height", r.h())
-                .set("fill", color)
+        for (i, item) in items_to_layout.iter().enumerate() {
+            let bounds = &item.bounds;
+            let tooltip = format!("{} ({} bytes)", item.label, item.original_size);
+            
+            let rect = Rectangle::new()
+                .set("x", bounds.x)
+                .set("y", bounds.y)
+                .set("width", bounds.w)
+                .set("height", bounds.h)
+                .set("fill", colors[i % colors.len()])
                 .set("stroke", "white")
                 .set("stroke-width", 1);
-            
-            let tooltip_text_content = format!("{} ({} bytes)", item.label, item.original_size);
-            let title_element = SvgTitle::new(tooltip_text_content);
 
-            let text_element = if r.w() > 50.0 && r.h() > 15.0 {
-                SvgText::new(item.label.clone())
-                    .set("x", r.x() + r.w() / 2.0)
-                    .set("y", r.y() + r.h() / 2.0)
+            let title = SvgTitle::new(tooltip);
+            
+            let mut group = Group::new()
+                .add(rect)
+                .add(title);
+
+            // Add text if there's enough space
+            if bounds.w > 50.0 && bounds.h > 15.0 {
+                let text = SvgText::new(item.label.clone())
+                    .set("x", bounds.x + bounds.w / 2.0)
+                    .set("y", bounds.y + bounds.h / 2.0)
                     .set("dy", "0.35em")
                     .set("text-anchor", "middle")
-                    .set("font-size", (r.h().min(r.w()) / 5.0).max(8.0).min(12.0))
-                    .set("fill", "white")
-            } else {
-                SvgText::new("")
-            };
-            
-            let group = Group::new()
-                .add(rect_element)
-                .add(text_element)
-                .add(title_element);
+                    .set("font-size", (bounds.h.min(bounds.w) / 5.0).max(8.0).min(12.0))
+                    .set("fill", "white");
+                group = group.add(text);
+            }
 
             document = document.add(group);
         }
@@ -641,8 +661,8 @@ pub fn get_global_tracker() -> Arc<MemoryTracker> {
 pub fn resolve_ips(unique_ips: &HashSet<usize>) -> HashMap<usize, String> {
     let mut resolved_map = HashMap::new();
     for &ip_addr in unique_ips {
-        let mut resolved_name = format!("{:#x}", ip_addr); // Fallback to hex address
-        let ip_void = ip_addr as *mut std::ffi::c_void;
+        let resolved_name = format!("{:#x}", ip_addr); // Fallback to hex address
+        let _ip_void = ip_addr as *mut std::ffi::c_void;
         
         // Ensure the backtrace feature is active for symbol resolution
         #[cfg(feature = "backtrace")]

@@ -28,10 +28,12 @@ path = "src/lib.rs"
 backtrace = ["dep:backtrace"]
 tracking-allocator = []
 default = ["tracking-allocator"]
+test = []
 
 [dev-dependencies]
 tracing-test = "0.2"
 tempfile = "3.10.1" # Or a compatible version
+
 
 [[example]]
 name = "lifecycles"

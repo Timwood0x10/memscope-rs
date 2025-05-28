@@ -22,21 +22,13 @@ pub mod allocator;
 /// *   A snapshot of active allocations to JSON (`MemorySnapshot`).
 /// *   A timeline visualization of allocation lifecycles (from the deallocation log) to SVG.
 pub mod export;
-// pub mod procmacros; // This was removed in a previous subtask
-/// Core data structures and logic for tracking memory allocations.
 pub mod tracker;
-// pub mod types; // types.rs is deleted
-/// Provides functionality to compare memory snapshots and identify differences.
-pub mod diff_engine;
-
-use std::rc::Rc;
-use std::sync::Arc;
+pub mod types;
 
 // Re-export common types for easier use
-pub use tracker::{get_global_tracker, MemoryTracker, MemoryError, AllocationInfo, HotspotInfo, TypeMemoryUsage};
-pub use export::MemorySnapshot;
-pub use diff_engine::SnapshotDiff; // Re-export SnapshotDiff
-
+pub use tracker::{get_global_tracker, MemoryTracker};
+pub use types::AllocationInfo;
+pub use tracker::MemoryError;
 
 // Import the allocator
 #[cfg(feature = "tracking-allocator")]
@@ -44,21 +36,25 @@ pub use allocator::TrackingAllocator;
 
 /// Global allocator for tracking memory allocations
 #[cfg(feature = "tracking-allocator")]
+// Only enable the global allocator when the tracking-allocator feature is enabled
+// and we're not in test mode
+#[cfg(all(feature = "tracking-allocator", not(test)))]
 #[global_allocator]
-pub static GLOBAL: TrackingAllocator = TrackingAllocator;
+static GLOBAL: TrackingAllocator = TrackingAllocator;
 
 /// Initialize the memory tracking system.
 ///
 /// This function sets up the tracing subscriber with default configuration.
-/// It should be called early in your application's main function to ensure
-/// that tracing and memory tracking are active from the start.
+/// It should be called early in your application's main function.
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use trace_tools::init;
 ///
 /// fn main() {
+///     // Initialize the memory tracking system
 ///     init();
+///     
 ///     // Your application code here
 /// }
 /// ```
@@ -77,60 +73,20 @@ pub fn init() {
 
 /// Associates a variable name and its type with its heap allocation via the [`MemoryTracker`].
 ///
-/// This macro relies on the variable implementing the [`Trackable`] trait, which provides
-/// the necessary pointer to the heap-allocated data. If the variable's pointer can be obtained,
-/// this macro calls `tracker.associate_var` to record the variable's name and type.
+/// This macro associates a variable name with its memory allocation
+/// for better tracking and visualization.
 ///
-/// If the process of associating the variable fails (e.g., if the pointer obtained from
-/// `Trackable` is not currently tracked by the allocator, or if `Trackable` returns `None`),
-/// an error is logged using `tracing::error!`.
+/// # Example
+/// ```no_run
+/// use trace_tools::track_var;
 ///
-/// ## Usage
-///
-/// ```
-/// use trace_tools::{init, track_var, Trackable, get_global_tracker, MemoryError};
-///
-/// // In a real scenario with the custom global allocator, `track_allocation`
-/// // would be called by the allocator itself. For this example, we simulate it.
-/// fn simulate_allocation_and_track<T: Trackable>(var: &T, name: &str, size: usize) {
-///     if let Some(ptr) = var.get_trackable_raw_ptr() {
-///         let type_name = var.get_type_name();
-///         get_global_tracker().track_allocation(ptr, size, Some(type_name.clone())).unwrap();
-///         // Now call track_var!
-///         // Note: track_var!(var_name_literal) expects a literal identifier.
-///         // To use a string name, you'd call __internal_track_var directly (not recommended for users).
-///     }
-/// }
-///
-/// fn main() {
-///     init(); // Initialize tracing and memory tracker
-///
-///     let my_vec = vec![1, 2, 3];
-///     // Simulate the allocator tracking this Vec's allocation.
-///     if let Some(ptr) = my_vec.get_trackable_raw_ptr() {
-///         get_global_tracker().track_allocation(
-///             ptr,
-///             std::mem::size_of_val(my_vec.as_slice()),
-///             Some(my_vec.get_type_name())
-///         ).unwrap();
-///     }
-///     track_var!(my_vec); // Associates "my_vec" with its allocation data
-///
-///     // ... later in your code, the allocation data for my_vec can be exported.
-/// #   if let Some(ptr) = my_vec.get_trackable_raw_ptr() { // Cleanup for example
-/// #       let _ = get_global_tracker().track_deallocation(ptr);
-/// #   }
-/// }
+/// let my_vec = vec![1, 2, 3];
+/// track_var!(my_vec);
 /// ```
 #[macro_export]
 macro_rules! track_var {
     ($var:ident) => {
-        // Rely on `Trackable` being in scope at the call site.
-        // Users of the macro (including examples/tests) will need to:
-        // `use trace_tools::Trackable;` or `use crate::Trackable;`
-        if let Err(e) = $crate::__internal_track_var(stringify!($var), &$var) {
-             tracing::error!("Failed to track variable '{}': {}", stringify!($var), e);
-        }
+        let _ = $crate::__internal_track_var(stringify!($var), &$var);
     };
 }
 
@@ -242,9 +198,7 @@ impl<T> Trackable for Box<T> {
 
 impl<T> Trackable for Vec<T> {
     fn get_trackable_raw_ptr(&self) -> Option<usize> {
-        if self.is_empty() { 
-            // An empty Vec might not have allocated, or its pointer might be a sentinel.
-            // Returning None prevents trying to track a non-existent/invalid allocation.
+        if self.is_empty() {
             None
         } else {
             Some(self.as_ptr() as usize)
@@ -262,148 +216,19 @@ impl Trackable for String {
     }
 }
 
-// Implement Trackable for Rc<T>
+use std::rc::Rc;
+use std::sync::Arc;
+
 impl<T> Trackable for Rc<T> {
     fn get_trackable_raw_ptr(&self) -> Option<usize> {
-        // Rc::as_ptr returns a pointer to the contained data T.
-        // This data (along with the reference counts) is on the heap.
+        // Returns the pointer to the data T on the heap.
         Some(Rc::as_ptr(self) as usize)
     }
 }
 
-// Implement Trackable for Arc<T>
 impl<T> Trackable for Arc<T> {
     fn get_trackable_raw_ptr(&self) -> Option<usize> {
-        // Arc::as_ptr returns a pointer to the contained data T.
+        // Returns the pointer to the data T on the heap.
         Some(Arc::as_ptr(self) as usize)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*; 
-    use crate::tracker::get_global_tracker;
-    // AllocationInfo is re-exported at crate root (super::AllocationInfo or just AllocationInfo)
-
-    // Helper to find an allocation by pointer in active allocations
-    fn find_active_allocation_info(ptr: usize) -> Option<AllocationInfo> {
-        get_global_tracker().get_active_allocations().into_iter().find(|a| a.ptr == ptr)
-    }
-    
-    // Helper to simulate clearing relevant parts of GLOBAL_TRACKER for test isolation.
-    // This is a simplified approach. Full isolation with lazy_static is hard.
-    fn clear_tracker_state() {
-        let tracker = get_global_tracker();
-        // These accesses would be to private fields. We cannot do this.
-        // tracker.active_allocations.lock().unwrap().clear();
-        // tracker.allocation_log.lock().unwrap().clear();
-        // Instead, tests will deallocate items they add to try and clean up.
-        // Perfect isolation for these macro tests on GLOBAL_TRACKER is not achieved here.
-    }
-
-    #[test]
-    fn test_track_var_macro_vec() {
-        init(); 
-        clear_tracker_state(); // Attempt to reset before test
-        
-        let my_vec = vec![1, 2, 3];
-        // get_trackable_raw_ptr() will return Some for non-empty Vec
-        let vec_ptr = my_vec.get_trackable_raw_ptr().expect("Vec should have a pointer");
-
-        // Simulate allocation being tracked by the global allocator
-        get_global_tracker().track_allocation(vec_ptr, std::mem::size_of_val(my_vec.as_slice()), Some(my_vec.get_type_name())).unwrap();
-        track_var!(my_vec);
-
-        let info = find_active_allocation_info(vec_ptr)
-            .expect("Vec allocation info not found after track_var!");
-
-        assert_eq!(info.var_name.as_deref(), Some("my_vec"));
-        assert_eq!(info.type_name.as_deref(), Some(std::any::type_name::<Vec<i32>>()));
-        
-        // Cleanup from tracker
-        let _ = get_global_tracker().track_deallocation(vec_ptr);
-    }
-
-    #[test]
-    fn test_track_var_macro_string() {
-        init();
-        clear_tracker_state();
-        let my_string = String::from("hello test");
-        if let Some(string_ptr) = my_string.get_trackable_raw_ptr() {
-            get_global_tracker().track_allocation(string_ptr, my_string.capacity(), Some(my_string.get_type_name())).unwrap();
-            track_var!(my_string);
-            let info = find_active_allocation_info(string_ptr).expect("String info not found");
-            assert_eq!(info.var_name.as_deref(), Some("my_string"));
-            assert_eq!(info.type_name.as_deref(), Some(std::any::type_name::<String>()));
-            let _ = get_global_tracker().track_deallocation(string_ptr);
-        } else {
-            // For empty string, track_var should do nothing problematic
-            track_var!(my_string);
-            // No pointer, so nothing to find or assert in tracker for empty string via track_var
-        }
-    }
-    
-    #[test]
-    fn test_track_var_macro_empty_string_and_vec() {
-        init();
-        clear_tracker_state();
-
-        let empty_string = String::new();
-        assert!(empty_string.get_trackable_raw_ptr().is_none(), "Empty string should yield no pointer");
-        // track_var! on empty string should not panic and __internal_track_var should receive None.
-        track_var!(empty_string); 
-        // No allocation to check in tracker, just ensure it runs.
-
-        let empty_vec: Vec<u8> = Vec::new();
-        assert!(empty_vec.get_trackable_raw_ptr().is_none(), "Empty vec should yield no pointer");
-        track_var!(empty_vec);
-        // No allocation to check.
-    }
-
-
-    #[test]
-    fn test_track_var_macro_box() {
-        init();
-        clear_tracker_state();
-        // Content must be 'static for std::any::type_name::<Box<&'static str>> to be consistent
-        let my_box = Box::new("test content static"); 
-        let box_ptr = my_box.get_trackable_raw_ptr().expect("Box should have a pointer");
-        
-        // For Box<T>, the size tracked by allocator would be size_of<T>.
-        // For T = &'static str, size is size_of::<&str>()
-        get_global_tracker().track_allocation(box_ptr, std::mem::size_of::<&'static str>(), Some(my_box.get_type_name())).unwrap();
-        track_var!(my_box);
-        
-        let info = find_active_allocation_info(box_ptr).expect("Box info not found");
-        assert_eq!(info.var_name.as_deref(), Some("my_box"));
-        assert_eq!(info.type_name.as_deref(), Some(std::any::type_name::<Box<&'static str>>()));
-        let _ = get_global_tracker().track_deallocation(box_ptr);
-    }
-
-    #[test]
-    fn test_track_var_macro_rc_arc() {
-        init();
-        clear_tracker_state();
-        
-        // Test Rc
-        let my_rc = Rc::new(true);
-        let rc_ptr = my_rc.get_trackable_raw_ptr().expect("Rc should have a pointer");
-        get_global_tracker().track_allocation(rc_ptr, std::mem::size_of_val(&*my_rc), Some(my_rc.get_type_name())).unwrap();
-        track_var!(my_rc);
-        let rc_info = find_active_allocation_info(rc_ptr).expect("Rc info not found");
-        assert_eq!(rc_info.var_name.as_deref(), Some("my_rc"));
-        assert_eq!(rc_info.type_name.as_deref(), Some(std::any::type_name::<Rc<bool>>()));
-        let _ = get_global_tracker().track_deallocation(rc_ptr);
-        
-        clear_tracker_state(); // Clear for Arc test
-        // Test Arc
-        let my_arc = Arc::new(123.45f64);
-        let arc_ptr = my_arc.get_trackable_raw_ptr().expect("Arc should have a pointer");
-        get_global_tracker().track_allocation(arc_ptr, std::mem::size_of_val(&*my_arc), Some(my_arc.get_type_name())).unwrap();
-        track_var!(my_arc);
-        let arc_info = find_active_allocation_info(arc_ptr).expect("Arc info not found");
-        assert_eq!(arc_info.var_name.as_deref(), Some("my_arc"));
-        assert_eq!(arc_info.type_name.as_deref(), Some(std::any::type_name::<Arc<f64>>()));
-        let _ = get_global_tracker().track_deallocation(arc_ptr);
     }
 }

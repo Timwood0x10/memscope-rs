@@ -1,4 +1,8 @@
-//! Memory tracking data export functionality
+//! Export functionality for memory tracking data
+//!
+//! This module provides functions to export memory tracking data to various formats
+//! such as JSON and SVG.
+
 
 // use serde::Serialize; // Unused import
 use std::fs::File;
@@ -7,6 +11,7 @@ use std::path::Path;
 
 use svg::node::element::{Line, Rectangle, Text as SvgText, Title as SvgTitle, Group};
 use svg::Document;
+
 
 use crate::tracker::{MemoryTracker, AllocationInfo, HotspotInfo}; // Added HotspotInfo
 
@@ -50,6 +55,7 @@ fn create_snapshot(tracker: &MemoryTracker) -> MemorySnapshot {
         timestamp: chrono::Local::now().to_rfc3339(),
         total_allocations: stats.total_allocations,
         total_allocated: stats.total_memory,
+
         active_allocations: tracker.get_active_allocations(),
         allocation_hotspots: {
             let hotspots = tracker.analyze_hotspots();
@@ -76,7 +82,7 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
     const MARGIN_BOTTOM: u32 = 50;
     const MARGIN_LEFT: u32 = 150; // Increased for labels
     const MARGIN_RIGHT: u32 = 50;
-    // const LABEL_AREA_WIDTH: u32 = MARGIN_LEFT - 10; // Unused const
+    const LABEL_AREA_WIDTH: u32 = MARGIN_LEFT - 10; // Space for var_name/type_name
 
     let num_allocations = all_allocations.len();
     let chart_height = num_allocations as u32 * (HEIGHT_PER_ROW + ROW_SPACING);
@@ -197,6 +203,19 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
         );
         let title_element = SvgTitle::new(tooltip_text);
         group = group.add(title_element);
+    
+        // Add tooltip
+        let tooltip_text = format!(
+            "Ptr: 0x{:x}, Size: {}B\nAlloc: {} ms, Dealloc: {}\nVar: {}, Type: {}",
+            alloc_info.ptr,
+            alloc_info.size,
+            alloc_info.timestamp_alloc,
+            alloc_info.timestamp_dealloc.map_or_else(|| "Active".to_string(), |t| format!("{} ms", t)),
+            alloc_info.var_name.as_deref().unwrap_or("N/A"),
+            alloc_info.type_name.as_deref().unwrap_or("N/A")
+        );
+        let title_element = SvgTitle::new(tooltip_text);
+        group = group.add(title_element);
         
         doc = doc.add(group);
     }
@@ -207,20 +226,19 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // AllocationInfo is brought in by super::* as it's re-exported from lib.rs
-    use crate::tracker::MemoryTracker; // MemoryTracker is not re-exported from lib.rs at top level
+    use crate::tracker::MemoryTracker;
     use std::fs::{self, File};
     use std::io::Read;
-    // tempfile will be added to Cargo.toml's dev-dependencies
-    use tempfile::tempdir; 
     use std::thread::sleep;
     use std::time::Duration;
-
+    
+    #[cfg(test)]
+    use tempfile::tempdir;
 
     // Helper to create a populated MemoryTracker for testing export functions
     fn create_populated_tracker() -> MemoryTracker {
         let tracker = MemoryTracker::new();
-        // let current_time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(); // Unused
+        let current_time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
 
         // Allocation 1: Active
         tracker.track_allocation(0x1000, 100, Some("TypeA".to_string())).unwrap();

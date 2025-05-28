@@ -3,7 +3,7 @@
 
 use std::rc::Rc;
 use std::sync::Arc;
-use trace_tools::{get_global_tracker, init, track_var}; // Removed Trackable
+use trace_tools::{get_global_tracker, init, track_var};
 
 fn main() {
     // 1. Initialize the memory tracking system.

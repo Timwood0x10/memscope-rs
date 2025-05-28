@@ -1,1 +1,7 @@
-/target
+/target/
+**/*.rs.bk
+Cargo.lock
+*.svg
+*.json
+
+.DS_Store
