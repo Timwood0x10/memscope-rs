@@ -57,7 +57,7 @@ impl From<crate::tracker::AllocationInfo> for AllocationInfo {
             var_name: info.var_name,
             type_name: info.type_name,
             fn_context: None,
-            stack_trace: Some(info.backtrace),
+            stack_trace: Some(format!("{:?}", info.backtrace_ips)),
             thread_id: Some(info.thread_id.to_string()),
         }
     }
@@ -103,7 +103,6 @@ pub enum AllocationEvent {
     },
 }
 
-/// Global state for memory tracking
 lazy_static::lazy_static! {
     pub static ref ACTIVE_ALLOCATIONS: Mutex<HashMap<usize, AllocationInfo>> = Mutex::new(HashMap::new());
     pub static ref ALLOCATION_LOG: Mutex<Vec<AllocationInfo>> = Mutex::new(Vec::new());

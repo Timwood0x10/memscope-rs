@@ -1,7 +1,8 @@
 //! examples/lifecycles.rs
 //! Demonstrates how variable lifecycles across different scopes are tracked and visualized.
 
-use trace_tools::{get_global_tracker, init, track_var};
+use trace_tools::{get_global_tracker, init, track_var}; // Removed Trackable
+
 
 // Function that allocates memory internally
 fn create_and_drop_string() {
