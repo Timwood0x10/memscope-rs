@@ -30,6 +30,12 @@ pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::AllocationInfo;
 pub use tracker::MemoryError;
 
+use std::cell::Cell;
+
+thread_local! {
+    static IN_TRACING:Cell<bool> = Cell::new(false);
+}
+
 // Import the allocator
 #[cfg(feature = "tracking-allocator")]
 pub use allocator::TrackingAllocator;
@@ -103,17 +109,97 @@ macro_rules! track_var {
 /// * `Ok(())` if the association was successful or if the variable provided no pointer
 ///   (e.g., an empty `Vec` or `String`, which is not considered an error here).
 /// * `Err(MemoryError)` if the association failed (e.g., pointer not tracked by allocator).
+// local storage for tracking recursion depth
+thread_local! {
+    static RECURSION_DEPTH: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    static MAX_RECURSION_DEPTH: std::cell::Cell<u32> = std::cell::Cell::new(10);
+}
+
 #[doc(hidden)]
 pub fn __internal_track_var<T: Trackable>(name: &str, value: &T) -> Result<(), MemoryError> {
-    if let Some(ptr) = value.get_trackable_raw_ptr() {
+    // check recursion depth
+    let (recursion_depth, recursion_error) = RECURSION_DEPTH.with(|d| {
+        let current = d.get();
+        let max = MAX_RECURSION_DEPTH.with(|m| m.get());
+        if current >= max {
+            (current, Some(MemoryError::TrackingError(
+                format!("Maximum recursion depth ({}) reached in track_var for: {}", max, name)
+            )))
+        } else {
+            let new_depth = current + 1;
+            d.set(new_depth);
+            (new_depth, None)
+        }
+    });
+    
+    // if recursion depth exceeds max, return error
+    if let Some(err) = recursion_error {
+        tracing::error!("{}", err);
+        return Err(err);
+    }
+
+    // ensure recursion depth is reduced when function returns
+    let _guard = scopeguard::guard((), |_| {
+        RECURSION_DEPTH.with(|d| d.set(recursion_depth - 1));
+    });
+
+    tracing::debug!("[Depth: {}] Starting track_var for: {}, type: {}", 
+                  recursion_depth, name, std::any::type_name::<T>());
+
+    let mut tracing = false;
+    IN_TRACING.with(|flag| {
+        tracing = flag.get();
+    });
+    if tracing {
+        tracing::debug!("[Depth: {}] Already in tracing context, skipping track_var for: {}", 
+                      recursion_depth, name);
+        return Ok(());
+    }
+
+    // set tracing flag to prevent reentrancy
+    IN_TRACING.with(|flag| {
+        flag.set(true);
+    });
+
+    // ensure tracing flag is reset when function returns
+    let _tracing_guard = scopeguard::guard((), |_| {
+        IN_TRACING.with(|flag| flag.set(false));
+    });
+
+    let result = if let Some(ptr) = value.get_trackable_raw_ptr() {
+        tracing::debug!("[Depth: {}] Got pointer for {}: 0x{:x}", 
+                      recursion_depth, name, ptr);
+        
         let tracker = get_global_tracker();
-        let type_name = value.get_type_name(); // Use trait method for consistency
-        tracker.associate_var(ptr, name.to_string(), type_name)
+        let type_name = value.get_type_name();
+        tracing::debug!("[Depth: {}] Got type name for {}: {}", 
+                      recursion_depth, name, type_name);
+        
+        // use with_allocations_disabled to prevent allocations during tracking
+        let result = {
+            let _span = tracing::debug_span!("with_allocations_disabled").entered();
+            tracker.with_allocations_disabled(|| {
+                let _span = tracing::debug_span!("associate_var").entered();
+                let res = tracker.associate_var(ptr, name.to_string(), type_name);
+                tracing::debug!("[Depth: {}] associate_var result for {}: {:?}", 
+                              recursion_depth, name, res);
+                res
+            })
+        };
+        
+        tracing::debug!("[Depth: {}] Completed with_allocations_disabled for {}", 
+                      recursion_depth, name);
+        result
     } else {
         // If a type is not heap-allocated or empty (e.g. empty Vec/String), it might return None.
-        // This is not necessarily an error from track_var's perspective.
+        tracing::debug!("[Depth: {}] No pointer to track for {} (type: {})", 
+                      recursion_depth, name, std::any::type_name::<T>());
         Ok(())
-    }
+    };
+    
+    tracing::debug!("[Depth: {}] Completed track_var for: {}", 
+                   recursion_depth, name);
+    result
 }
 
 /// A trait for types whose heap allocations can be tracked by `track_var!`.

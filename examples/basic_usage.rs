@@ -28,6 +28,10 @@ Allocating and tracking variables...");
     let boxed_value = Box::new(100i32);
     track_var!(boxed_value); // Track the Box
     println!("Tracked 'boxed_value'");
+    
+    let boxed_value2 = Box::new(200i32);
+    track_var!(boxed_value2);
+    println!("Tracked 'boxed_value2'");
 
     // 3. Allocate and track reference-counted types.
     let rc_data = Rc::new(vec![10, 20, 30]);
@@ -56,6 +60,7 @@ Allocating and tracking variables...");
 Sum of 'numbers_vec': {}", sum_of_vec);
     println!("Length of 'text_string': {}", text_string.len());
     println!("Value in 'boxed_value': {}", *boxed_value);
+    println!("Value in 'boxed_value2': {}", *boxed_value2);
     println!("First element of 'rc_data': {}", rc_data[0]);
     println!("Content of 'arc_data': {}", *arc_data);
 

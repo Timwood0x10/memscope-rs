@@ -115,3 +115,95 @@ fn test_allocation_types() {
     assert!(found_boxed, "Box allocation not found");
     assert!(found_rc, "Rc allocation not found");
 }
+
+
+#[cfg(test)]
+mod export_tests {
+    use super::*; // Make items from parent module available
+    use std::fs::{self, File};
+    use std::io::Read;
+    use tempfile::tempdir;
+    use trace_tools::{init, get_global_tracker, track_var}; // Redundant if super::* brings them in, but explicit
+    use serde_json; // Ensure serde_json is in scope for Value
+
+    #[test]
+    fn test_json_export_with_data() {
+        init();
+        let tracker = get_global_tracker();
+
+        // Clear tracker state for this test
+        let _ = tracker.get_active_allocations();
+        let _ = tracker.get_allocation_log();
+
+        let v1 = vec![1, 2, 3];
+        track_var!(v1);
+        let s1 = "hello".to_string();
+        track_var!(s1);
+
+        let dir = tempdir().unwrap();
+        let json_path = dir.path().join("integration_output.json");
+        
+        tracker.export_to_json(&json_path).unwrap();
+
+        assert!(json_path.exists(), "JSON file was not created");
+
+        let mut file_content = String::new();
+        File::open(&json_path)
+            .unwrap()
+            .read_to_string(&mut file_content)
+            .unwrap();
+        
+        assert!(!file_content.is_empty(), "JSON file content is empty");
+
+        let json_value: serde_json::Value = serde_json::from_str(&file_content).unwrap();
+        assert!(
+            json_value["active_allocations"].as_array().map_or(false, |a| !a.is_empty()),
+            "JSON active_allocations should not be empty"
+        );
+        assert!(
+            json_value["active_allocations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|alloc| alloc["var_name"].as_str() == Some("v1")),
+            "Tracked variable 'v1' not found in JSON active_allocations"
+        );
+    }
+
+    #[test]
+    fn test_svg_export_with_data() {
+        init();
+        let tracker = get_global_tracker();
+
+        // Clear tracker state for this test
+        let _ = tracker.get_active_allocations();
+        let _ = tracker.get_allocation_log(); // Crucial for SVG
+
+        {
+            let v_svg = vec![10, 20, 30];
+            track_var!(v_svg);
+            // v_svg is dropped here, so it should be in the allocation_log
+        }
+        let s_svg_active = "persistent_string".to_string(); // This will be active
+        track_var!(s_svg_active);
+
+        let dir = tempdir().unwrap();
+        let svg_path = dir.path().join("integration_output.svg");
+
+        tracker.export_to_svg(&svg_path).unwrap();
+
+        assert!(svg_path.exists(), "SVG file was not created");
+
+        let svg_content = fs::read_to_string(&svg_path).unwrap();
+        
+        assert!(!svg_content.is_empty(), "SVG file content is empty");
+        assert!(
+            !svg_content.contains("No allocation data collected."),
+            "SVG content indicates no data was collected"
+        );
+        assert!(
+            svg_content.contains("v_svg"),
+            "SVG content does not contain 'v_svg', which should be in the log"
+        );
+    }
+}

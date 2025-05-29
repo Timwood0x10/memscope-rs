@@ -1,14 +1,17 @@
 use std::{
     // backtrace::Backtrace, // This specific struct is not used directly, backtrace::trace is.
-    collections::{HashMap, HashSet}, // Added HashSet
-    sync::Arc,
-    thread,
-    time::{SystemTime, UNIX_EPOCH},
+    collections::{HashMap, HashSet}, 
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, 
+        Mutex,
+    }, 
+    thread, 
+    time::{SystemTime, UNIX_EPOCH}
 };
 use std::fs::File; // Added for export_flamegraph_svg
 use std::io::{self, BufWriter}; // Added for export_flamegraph_svg
 use std::path::Path; // Added for export_flamegraph_svg
-use std::sync::Mutex;
 use thiserror::Error;
 use inferno::flamegraph::{self, Options as FlamegraphOptions}; // Added for flamegraph
 use svg::node::element::{Rectangle, Text as SvgText, Title as SvgTitle, Group}; // Added for treemap
@@ -82,16 +85,72 @@ pub struct TypeMemoryUsage {
 ///
 /// This tracker is typically accessed via a global instance obtained through
 /// [`get_global_tracker()`].
-#[derive(Default)]
 pub struct MemoryTracker {
     active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
     allocation_log: Mutex<Vec<AllocationInfo>>,
+    tracking_enabled: AtomicBool,
+}
+
+impl Default for MemoryTracker {
+    fn default() -> Self {
+        Self {
+            active_allocations: Mutex::new(HashMap::new()),
+            allocation_log: Mutex::new(Vec::new()),
+            tracking_enabled: AtomicBool::new(true),
+        }
+    }
 }
 
 impl MemoryTracker {
     /// Creates a new, empty `MemoryTracker`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Temporarily disables allocation tracking while executing a closure.
+    ///
+    /// This method is useful when you need to perform operations that might trigger
+    /// allocations (e.g., variable association) without recording those allocations.
+    ///
+    /// # Arguments
+    /// * `f`: A closure that will be executed with allocation tracking disabled.
+    ///
+    /// # Returns
+    /// The result of the closure execution.
+    pub fn with_allocations_disabled<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        use std::sync::atomic::Ordering::SeqCst;
+        
+        let was_enabled = self.tracking_enabled.swap(false, SeqCst);
+        tracing::debug!("with_allocations_disabled: was_enabled={}", was_enabled);
+        
+        // record thread id for debugging
+        let thread_id = std::thread::current().id();
+        tracing::debug!("[Thread {:?}] Entering with_allocations_disabled", thread_id);
+        
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f()
+        }));
+        
+        // restore tracking_enabled
+        if was_enabled {
+            self.tracking_enabled.store(true, SeqCst);
+            tracing::debug!("[Thread {:?}] Restored tracking_enabled to true", thread_id);
+        }
+        
+        
+        match result {
+            Ok(r) => {
+                tracing::debug!("[Thread {:?}] Exiting with_allocations_disabled normally", thread_id);
+                r
+            },
+            Err(panic) => {
+                tracing::error!("[Thread {:?}] Panic in with_allocations_disabled: {:?}", thread_id, panic);
+                std::panic::resume_unwind(panic);
+            }
+        }
     }
 
     /// Records a new memory allocation.
@@ -209,17 +268,36 @@ impl MemoryTracker {
     /// `Ok(())` if successful, or `Err(MemoryError)` if the pointer was not found
     /// in active allocations or if a lock could not be acquired.
     pub fn associate_var(&self, ptr: usize, var_name: String, type_name: String) -> Result<(), MemoryError> {
+        tracing::debug!("Attempting to associate variable: name='{}', type='{}', ptr=0x{:x}", 
+                      var_name, type_name, ptr);
+                      
         let mut active = self.active_allocations.lock()
-            .map_err(|e| MemoryError::LockError(format!("Failed to lock active_allocations: {}", e)))?;
+            .map_err(|e| {
+                let err_msg = format!("Failed to lock active_allocations: {}", e);
+                tracing::error!("{}", err_msg);
+                MemoryError::LockError(err_msg)
+            })?;
             
         if let Some(info) = active.get_mut(&ptr) {
-            info.var_name = Some(var_name);
-            info.type_name = Some(type_name);
+            tracing::debug!("Found allocation: ptr=0x{:x}, current_size={} bytes, current_var={:?}", 
+                          ptr, info.size, info.var_name);
+                          
+            info.var_name = Some(var_name.clone());
+            info.type_name = Some(type_name.clone());
+            
+            tracing::info!("Successfully associated variable: name='{}', type='{}', ptr=0x{:x}", 
+                         var_name, type_name, ptr);
             Ok(())
         } else {
-            Err(MemoryError::TrackingError(
-                format!("No active allocation found for pointer: 0x{:x}", ptr)
-            ))
+            let active_ptrs: Vec<String> = active.keys()
+                .take(5) // Only show first 5 to avoid log spam
+                .map(|p| format!("0x{:x}", p))
+                .collect();
+                
+            let err_msg = format!("No active allocation found for pointer: 0x{:x}. Active pointers (first 5): {:?}", 
+                               ptr, active_ptrs);
+            tracing::error!("{}", err_msg);
+            Err(MemoryError::TrackingError(err_msg))
         }
     }
 
@@ -518,17 +596,6 @@ impl MemoryTracker {
             value: f64,
             original_size: usize,
             bounds: treemap::Rect,
-        }
-        
-        impl Default for TreemapDataItem {
-            fn default() -> Self {
-                Self {
-                    label: String::new(),
-                    value: 0.0,
-                    original_size: 0,
-                    bounds: treemap::Rect::new(),
-                }
-            }
         }
         
         impl treemap::Mappable for TreemapDataItem {
