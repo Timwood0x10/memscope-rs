@@ -3,10 +3,11 @@
 use trace_tools::*;
 use tracing::info;
 
-mod export;
-// mod procmacros;  // Commented out to fix compilation
-mod tracker;
-mod types;
+
+// The modules export, procmacros, tracker, types are part of the library,
+// not separate modules within the binary crate.
+// They are accessible via `trace_tools::` if needed, or `use trace_tools::*`.
+
 
 /// Example function that allocates some memory
 fn allocate_memory() -> Vec<u8> {

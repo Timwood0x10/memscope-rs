@@ -4,20 +4,22 @@
 //! such as JSON and SVG.
 
 
-use serde::Serialize;
+// use serde::Serialize; // Unused import
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
 use svg::node::element::{Line, Rectangle, Text as SvgText, Title as SvgTitle, Group};
 use svg::Document;
-use serde::Deserialize;
 
-use crate::tracker::MemoryTracker;
-use crate::types::AllocationInfo; // Assuming AllocationInfo is already pub in types.rs
 
-/// A snapshot of memory usage at a point in time (used for JSON export)
-#[derive(Serialize, Deserialize, Debug, Clone)]
+use crate::tracker::{MemoryTracker, AllocationInfo, HotspotInfo}; // Added HotspotInfo
+
+/// Represents a snapshot of memory usage at a specific point in time.
+///
+/// This struct is primarily used for JSON export, capturing details about
+/// active allocations and overall memory statistics when the snapshot is created.
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)] // Added Deserialize
 pub struct MemorySnapshot {
     /// ISO 8601 timestamp of when the snapshot was taken
     pub timestamp: String,
@@ -28,8 +30,11 @@ pub struct MemorySnapshot {
     /// Total number of bytes allocated
     pub total_allocated: usize,
     
-    /// Detailed information about active allocations
+    /// Detailed information about active allocations at the time of the snapshot.
     pub active_allocations: Vec<AllocationInfo>,
+    /// Optional list of memory allocation hotspots, if analysis is performed.
+    #[serde(skip_serializing_if = "Option::is_none")] // Don't serialize if None
+    pub allocation_hotspots: Option<Vec<HotspotInfo>>,
 }
 
 /// Export memory usage data to a JSON file
@@ -50,21 +55,19 @@ fn create_snapshot(tracker: &MemoryTracker) -> MemorySnapshot {
         timestamp: chrono::Local::now().to_rfc3339(),
         total_allocations: stats.total_allocations,
         total_allocated: stats.total_memory,
-        active_allocations: tracker.get_active_allocations()
-            .into_iter()
-            .map(crate::types::AllocationInfo::from)
-            .collect(),
+
+        active_allocations: tracker.get_active_allocations(),
+        allocation_hotspots: {
+            let hotspots = tracker.analyze_hotspots();
+            if hotspots.is_empty() { None } else { Some(hotspots) }
+        },
     }
 }
 
 /// Export memory lifecycle data to an SVG visualization
 pub fn export_to_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::Result<()> {
-    let all_allocations: Vec<crate::types::AllocationInfo> = tracker.get_allocation_log()
-        .into_iter()
-        .map(crate::types::AllocationInfo::from)
-        .collect();
-    
-    let doc = create_svg_document(&all_allocations);
+    let all_allocations = tracker.get_allocation_log(); // Get all allocation events (Vec<tracker::AllocationInfo>)
+    let doc = create_svg_document(&all_allocations); // create_svg_document takes &[tracker::AllocationInfo]
     
     svg::save(path, &doc)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
@@ -187,6 +190,21 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
         group = group.add(item_label);
 
         // Add tooltip
+        let tooltip_backtrace_info = format!("Backtrace frames: {}", alloc_info.backtrace_ips.len());
+        let tooltip_text = format!(
+            "Ptr: 0x{:x}, Size: {}B\nAlloc: {} ms, Dealloc: {}\nVar: {}, Type: {}\n{}",
+            alloc_info.ptr,
+            alloc_info.size,
+            alloc_info.timestamp_alloc,
+            alloc_info.timestamp_dealloc.map_or_else(|| "Active".to_string(), |t| format!("{} ms", t)),
+            alloc_info.var_name.as_deref().unwrap_or("N/A"),
+            alloc_info.type_name.as_deref().unwrap_or("N/A"),
+            tooltip_backtrace_info
+        );
+        let title_element = SvgTitle::new(tooltip_text);
+        group = group.add(title_element);
+    
+        // Add tooltip
         let tooltip_text = format!(
             "Ptr: 0x{:x}, Size: {}B\nAlloc: {} ms, Dealloc: {}\nVar: {}, Type: {}",
             alloc_info.ptr,
@@ -214,10 +232,8 @@ mod tests {
     use std::thread::sleep;
     use std::time::Duration;
     
-    // Only import tempfile for tests
     #[cfg(test)]
     use tempfile::tempdir;
-
 
     // Helper to create a populated MemoryTracker for testing export functions
     fn create_populated_tracker() -> MemoryTracker {
