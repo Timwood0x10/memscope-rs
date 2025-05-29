@@ -268,22 +268,17 @@ impl MemoryTracker {
     /// `Ok(())` if successful, or `Err(MemoryError)` if the pointer was not found
     /// in active allocations or if a lock could not be acquired.
     pub fn associate_var(&self, ptr: usize, var_name: String, type_name: String) -> Result<(), MemoryError> {
-        tracing::debug!("Attempting to associate variable: name='{}', type='{}', ptr=0x{:x}", 
-                      var_name, type_name, ptr);
-                      
-        let mut active = self.active_allocations.lock()
-            .map_err(|e| {
-                let err_msg = format!("Failed to lock active_allocations: {}", e);
-                tracing::error!("{}", err_msg);
-                MemoryError::LockError(err_msg)
-            })?;
-            
-        if let Some(info) = active.get_mut(&ptr) {
-            tracing::debug!("Found allocation: ptr=0x{:x}, current_size={} bytes, current_var={:?}", 
-                          ptr, info.size, info.var_name);
-                          
-            info.var_name = Some(var_name.clone());
-            info.type_name = Some(type_name.clone());
+        // Skip if tracking is disabled to prevent deadlocks
+        if !self.tracking_enabled.load(Ordering::SeqCst) {
+            tracing::debug!("Skipping variable association - tracking is disabled");
+            return Ok(());
+        }
+
+        let mut active = self.active_allocations.lock().map_err(|e| MemoryError::LockError(e.to_string()))?;
+
+        if let Some(alloc) = active.get_mut(&ptr) {
+            alloc.var_name = Some(var_name.clone());
+            alloc.type_name = Some(type_name.clone());
             
             tracing::info!("Successfully associated variable: name='{}', type='{}', ptr=0x{:x}", 
                          var_name, type_name, ptr);
