@@ -3,7 +3,6 @@
 
 use trace_tools::{get_global_tracker, init, track_var}; // Removed Trackable
 
-
 // Function that allocates memory internally
 fn create_and_drop_string() {
     println!("Entering create_and_drop_string()...");
@@ -47,7 +46,10 @@ fn main() {
     // (originally named 'heap_vec') with the name 'transferred_vec'.
     // This is generally the desired behavior when ownership is transferred and the variable name changes.
     track_var!(transferred_vec);
-    println!("Tracked 'transferred_vec' (originally 'heap_vec') after ownership transfer: {:?}", transferred_vec);
+    println!(
+        "Tracked 'transferred_vec' (originally 'heap_vec') after ownership transfer: {:?}",
+        transferred_vec
+    );
     println!("Returned from create_vec_on_heap().");
 
     // 5. Create variables within a loop to see multiple short-lived allocations.
@@ -78,7 +80,9 @@ fn main() {
         println!("Successfully exported SVG.");
     }
 
-    println!("\nLifecycle demo finished. Check 'lifecycles_snapshot.json' and 'lifecycles_graph.svg'.");
+    println!(
+        "\nLifecycle demo finished. Check 'lifecycles_snapshot.json' and 'lifecycles_graph.svg'."
+    );
     println!("In the SVG, observe how 'local_string' has a short lifecycle,");
     println!("'heap_vec'/'transferred_vec' has its name updated and persists longer,");
     println!("and multiple 'loop_string' instances appear and disappear.");

@@ -14,8 +14,10 @@ fn main() {
     println!("trace_tools initialized. Tracking memory allocations...");
 
     // 2. Allocate some simple types and track them.
-    println!("
-Allocating and tracking variables...");
+    println!(
+        "
+Allocating and tracking variables..."
+    );
 
     let numbers_vec = vec![1, 2, 3, 4, 5];
     track_var!(numbers_vec); // Track the Vec
@@ -28,7 +30,7 @@ Allocating and tracking variables...");
     let boxed_value = Box::new(100i32);
     track_var!(boxed_value); // Track the Box
     println!("Tracked 'boxed_value'");
-    
+
     let boxed_value2 = Box::new(200i32);
     track_var!(boxed_value2);
     println!("Tracked 'boxed_value2'");
@@ -53,24 +55,27 @@ Allocating and tracking variables...");
     track_var!(rc_data_clone);
     println!("Tracked 'rc_data_clone' (shares allocation with 'rc_data')");
 
-
     // 4. Perform some operations (optional, just to make the program do something)
     let sum_of_vec = numbers_vec.iter().sum::<i32>();
-    println!("
-Sum of 'numbers_vec': {}", sum_of_vec);
+    println!(
+        "
+Sum of 'numbers_vec': {}",
+        sum_of_vec
+    );
     println!("Length of 'text_string': {}", text_string.len());
     println!("Value in 'boxed_value': {}", *boxed_value);
     println!("Value in 'boxed_value2': {}", *boxed_value2);
     println!("First element of 'rc_data': {}", rc_data[0]);
     println!("Content of 'arc_data': {}", *arc_data);
 
-
     // 5. Get a reference to the global tracker to export data.
     let tracker = get_global_tracker();
 
     // 6. Export memory snapshot to JSON.
-    println!("
-Exporting memory snapshot to basic_usage_snapshot.json...");
+    println!(
+        "
+Exporting memory snapshot to basic_usage_snapshot.json..."
+    );
     if let Err(e) = tracker.export_to_json("basic_usage_snapshot.json") {
         eprintln!("Failed to export JSON: {}", e);
     } else {
@@ -78,16 +83,20 @@ Exporting memory snapshot to basic_usage_snapshot.json...");
     }
 
     // 7. Export memory usage visualization to SVG.
-    println!("
-Exporting memory usage visualization to basic_usage_graph.svg...");
+    println!(
+        "
+Exporting memory usage visualization to basic_usage_graph.svg..."
+    );
     if let Err(e) = tracker.export_to_svg("basic_usage_graph.svg") {
         eprintln!("Failed to export SVG: {}", e);
     } else {
         println!("Successfully exported SVG.");
     }
 
-    println!("
-Example finished. Check 'basic_usage_snapshot.json' and 'basic_usage_graph.svg'.");
+    println!(
+        "
+Example finished. Check 'basic_usage_snapshot.json' and 'basic_usage_graph.svg'."
+    );
     println!("Observe the SVG to see the lifecycles of the tracked variables.");
 
     // Variables go out of scope here, and their memory will be deallocated.
