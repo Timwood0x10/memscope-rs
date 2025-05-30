@@ -39,14 +39,17 @@ pub struct MemorySnapshot {
 /// Export memory usage data to a JSON file
 pub fn export_to_json<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::Result<()> {
     let path = path.as_ref();
+    #[cfg(not(test))]
     tracing::info!("Exporting memory snapshot to: {}", path.display());
 
     // Create parent directories if needed and if path has a parent
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
+            #[cfg(not(test))]
             tracing::debug!("Creating parent directory: {}", parent.display());
             if let Err(e) = std::fs::create_dir_all(parent) {
                 let msg = format!("Failed to create directory {}: {}", parent.display(), e);
+                #[cfg(not(test))]
                 tracing::error!("{}", msg);
                 return Err(io::Error::new(io::ErrorKind::Other, msg));
             }
@@ -56,11 +59,13 @@ pub fn export_to_json<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::R
     let snapshot = create_snapshot(tracker);
     let json = serde_json::to_string_pretty(&snapshot).map_err(|e| {
         let msg = format!("Failed to serialize snapshot: {}", e);
+        #[cfg(not(test))]
         tracing::error!("{}", msg);
         io::Error::new(io::ErrorKind::InvalidData, msg)
     })?;
 
     let file_path = path.display().to_string();
+    #[cfg(not(test))]
     tracing::debug!("Creating file: {}", file_path);
 
     // Try to create the file with a temporary name first
@@ -69,6 +74,7 @@ pub fn export_to_json<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::R
         Ok(f) => f,
         Err(e) => {
             let msg = format!("Failed to create file {}: {}", temp_path, e);
+            #[cfg(not(test))]
             tracing::error!("{}", msg);
             return Err(io::Error::new(e.kind(), msg));
         }
@@ -79,6 +85,7 @@ pub fn export_to_json<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::R
         // Clean up the temp file if writing fails
         let _ = std::fs::remove_file(&temp_path);
         let msg = format!("Failed to write to file {}: {}", temp_path, e);
+        #[cfg(not(test))]
         tracing::error!("{}", msg);
         return Err(io::Error::new(e.kind(), msg));
     }
@@ -87,6 +94,7 @@ pub fn export_to_json<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::R
     if let Err(e) = file.sync_all() {
         let _ = std::fs::remove_file(&temp_path);
         let msg = format!("Failed to sync file {}: {}", temp_path, e);
+        #[cfg(not(test))]
         tracing::error!("{}", msg);
         return Err(io::Error::new(e.kind(), msg));
     }
@@ -95,10 +103,12 @@ pub fn export_to_json<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::R
     if let Err(e) = std::fs::rename(&temp_path, path) {
         let _ = std::fs::remove_file(&temp_path);
         let msg = format!("Failed to rename temp file to {}: {}", file_path, e);
+        #[cfg(not(test))]
         tracing::error!("{}", msg);
         return Err(io::Error::new(e.kind(), msg));
     }
 
+    #[cfg(not(test))]
     tracing::info!("Successfully exported memory snapshot to: {}", file_path);
     Ok(())
 }

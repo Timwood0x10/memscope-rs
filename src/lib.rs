@@ -65,16 +65,21 @@ static GLOBAL: TrackingAllocator = TrackingAllocator;
 /// }
 /// ```
 pub fn init() {
-    let _ = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
-        .with_span_events(
-            tracing_subscriber::fmt::format::FmtSpan::ENTER
-                | tracing_subscriber::fmt::format::FmtSpan::EXIT,
-        )
-        .with_thread_names(true)
-        .with_file(true)
-        .with_line_number(true)
-        .try_init();
+    #[cfg(feature = "enable-subscriber")]
+    {
+        // Ensure this part is inside the cfg block.
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .with_span_events(
+                tracing_subscriber::fmt::format::FmtSpan::ENTER
+                    | tracing_subscriber::fmt::format::FmtSpan::EXIT,
+            )
+            .with_thread_names(true)
+            .with_file(true)
+            .with_line_number(true)
+            .try_init();
+    }
+    // If the feature is not enabled, init() does nothing.
 }
 
 /// Associates a variable name and its type with its heap allocation via the [`MemoryTracker`].

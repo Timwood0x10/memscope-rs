@@ -200,14 +200,14 @@ impl MemoryTracker {
                     #[cfg(feature = "backtrace")]
                     {
                         let mut ips = Vec::new();
-                        let mut stack_trace = None;
+                        // let mut stack_trace = None; // Removed as it's unused
                         backtrace::trace(|frame| {
                             ips.push(frame.ip() as usize);
-                            stack_trace = Some(format!("{:?}", frame));
+                            // stack_trace = Some(format!("{:?}", frame)); // Discard stack_trace for now
                             // Continue tracing
                             true
                         });
-                        (ips, stack_trace)
+                        ips // Return only ips
                     }
                     #[cfg(not(feature = "backtrace"))]
                     {
@@ -869,8 +869,8 @@ pub fn get_global_tracker() -> Arc<MemoryTracker> {
 pub fn resolve_ips(unique_ips: &HashSet<usize>) -> HashMap<usize, String> {
     let mut resolved_map = HashMap::new();
     for &ip_addr in unique_ips {
-        let resolved_name = format!("{:#x}", ip_addr); // Fallback to hex address
-        let _ip_void = ip_addr as *mut std::ffi::c_void;
+        let mut resolved_name = format!("{:#x}", ip_addr); // Fallback to hex address, make mutable
+        let ip_void = ip_addr as *mut std::ffi::c_void; // Use ip_void directly
 
         // Ensure the backtrace feature is active for symbol resolution
         #[cfg(feature = "backtrace")]
@@ -878,10 +878,9 @@ pub fn resolve_ips(unique_ips: &HashSet<usize>) -> HashMap<usize, String> {
             if let Some(name) = symbol.name() {
                 if let Some(name_str) = name.as_str() {
                     // Basic demangling attempt for Rust symbols
-                    let demangled_name = rustc_demangle::try_demangle(name_str)
+                    resolved_name = rustc_demangle::try_demangle(name_str) // Assign to mutable resolved_name
                         .map(|d| d.to_string())
                         .unwrap_or_else(|_| name_str.to_string());
-                    resolved_name = demangled_name;
                 }
             }
             // Optionally, append file:line if available
