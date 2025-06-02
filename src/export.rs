@@ -136,8 +136,10 @@ fn create_snapshot(tracker: &MemoryTracker) -> MemorySnapshot {
 
 /// Export memory lifecycle data to an SVG visualization
 pub fn export_to_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> io::Result<()> {
-    let all_allocations = tracker.get_allocation_log(); // Get all allocation events (Vec<tracker::AllocationInfo>)
-    let doc = create_svg_document(&all_allocations); // create_svg_document takes &[tracker::AllocationInfo]
+    let mut combined_allocations = tracker.get_allocation_log(); // Get deallocated items
+    combined_allocations.extend(tracker.get_active_allocations()); // Add active items
+
+    let doc = create_svg_document(&combined_allocations); // Pass combined data
 
     svg::save(path, &doc).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
@@ -184,22 +186,28 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
     sorted_allocations.sort_by_key(|a| a.timestamp_alloc);
 
     let min_time = sorted_allocations.first().map_or(0, |a| a.timestamp_alloc);
-    let max_time = sorted_allocations
-        .iter()
-        .map(|a| {
-            a.timestamp_dealloc.unwrap_or_else(|| {
-                sorted_allocations
-                    .last()
-                    .map_or(a.timestamp_alloc, |last_a| last_a.timestamp_alloc)
-            })
-        }) // If still active, use last alloc time for now
-        .max()
-        .unwrap_or(min_time + 1000); // Add 1s if no deallocs
 
-    let time_range = if max_time > min_time {
-        max_time - min_time
+    // Determine timeline_end_time: the latest point in time any event (allocation or deallocation) occurred.
+    // This ensures the timeline extends to cover all activities.
+    let timeline_end_time = sorted_allocations
+        .iter()
+        .flat_map(|a| {
+            let mut times = vec![a.timestamp_alloc]; // Always consider allocation time
+            if let Some(dealloc_time) = a.timestamp_dealloc {
+                times.push(dealloc_time); // Consider deallocation time if it exists
+            }
+            // For active items, their "duration" effectively goes up to the latest event in the dataset.
+            // So, we don't need to push a.timestamp_alloc again here for active items.
+            // The max of all alloc and dealloc times will define the end of the timeline.
+            times.into_iter()
+        })
+        .max()
+        .unwrap_or(min_time + 1000); // Fallback if no allocations or only one with no dealloc. Add 1s.
+
+    let time_range = if timeline_end_time > min_time {
+        timeline_end_time - min_time
     } else {
-        1
+        1 // Avoid division by zero if all events are at the same millisecond or list is empty
     }; // Avoid division by zero
 
     // Draw time axis
@@ -220,7 +228,7 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
         .set("font-size", 10);
     doc = doc.add(start_time_text);
 
-    let end_time_text = SvgText::new(format!("{} ms", max_time))
+    let end_time_text = SvgText::new(format!("{} ms", timeline_end_time))
         .set("x", WIDTH - MARGIN_RIGHT)
         .set("y", axis_y + 15)
         .set("text-anchor", "middle")
@@ -235,7 +243,8 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
             + (start_x_rel as f64 / time_range as f64 * (WIDTH - MARGIN_LEFT - MARGIN_RIGHT) as f64)
                 as u32;
 
-        let end_time_for_bar = alloc_info.timestamp_dealloc.unwrap_or(max_time); // Extends to max_time if not deallocated
+        // Active items should extend to the globally determined timeline_end_time
+        let end_time_for_bar = alloc_info.timestamp_dealloc.unwrap_or(timeline_end_time);
         let end_x_rel = end_time_for_bar - min_time;
         let end_x = MARGIN_LEFT
             + (end_x_rel as f64 / time_range as f64 * (WIDTH - MARGIN_LEFT - MARGIN_RIGHT) as f64)
@@ -276,11 +285,11 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
             .set("font-family", "monospace");
         group = group.add(item_label);
 
-        // Add tooltip
+        // Add tooltip (consolidated and enhanced)
         let tooltip_backtrace_info =
             format!("Backtrace frames: {}", alloc_info.backtrace_ips.len());
         let tooltip_text = format!(
-            "Ptr: 0x{:x}, Size: {}B\nAlloc: {} ms, Dealloc: {}\nVar: {}, Type: {}\n{}",
+            "Ptr: 0x{:x}\nSize: {}B\nAllocated: {} ms\nDeallocated: {}\nVariable: {}\nType: {}\nThread ID: {}\n{}",
             alloc_info.ptr,
             alloc_info.size,
             alloc_info.timestamp_alloc,
@@ -289,22 +298,8 @@ fn create_svg_document(all_allocations: &[AllocationInfo]) -> Document {
                 .map_or_else(|| "Active".to_string(), |t| format!("{} ms", t)),
             alloc_info.var_name.as_deref().unwrap_or("N/A"),
             alloc_info.type_name.as_deref().unwrap_or("N/A"),
-            tooltip_backtrace_info
-        );
-        let title_element = SvgTitle::new(tooltip_text);
-        group = group.add(title_element);
-
-        // Add tooltip
-        let tooltip_text = format!(
-            "Ptr: 0x{:x}, Size: {}B\nAlloc: {} ms, Dealloc: {}\nVar: {}, Type: {}",
-            alloc_info.ptr,
-            alloc_info.size,
-            alloc_info.timestamp_alloc,
-            alloc_info
-                .timestamp_dealloc
-                .map_or_else(|| "Active".to_string(), |t| format!("{} ms", t)),
-            alloc_info.var_name.as_deref().unwrap_or("N/A"),
-            alloc_info.type_name.as_deref().unwrap_or("N/A")
+            alloc_info.thread_id, // Added thread_id
+            tooltip_backtrace_info // Added backtrace summary
         );
         let title_element = SvgTitle::new(tooltip_text);
         group = group.add(title_element);
@@ -321,135 +316,105 @@ mod tests {
     use crate::tracker::MemoryTracker;
     use std::fs::{self, File};
     use std::io::Read;
-    use std::thread::sleep;
-    use std::time::Duration;
+    // Remove unused sleep and Duration imports if no longer needed after test adjustments
+    // use std::thread::sleep;
+    // use std::time::Duration;
 
     #[cfg(test)]
     use tempfile::tempdir;
 
     // Helper to create a populated MemoryTracker for testing export functions
-    fn create_populated_tracker() -> MemoryTracker {
+    fn create_populated_tracker_for_svg_test() -> MemoryTracker {
         let tracker = MemoryTracker::new();
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-
-        // Allocation 1: Active
-        tracker
-            .track_allocation(0x1000, 100, Some("TypeA".to_string()))
-            .unwrap();
-        tracker
-            .associate_var(0x1000, "varA".to_string(), "TypeA".to_string())
-            .unwrap();
-
-        // Ensure distinct timestamps for the log
-        sleep(Duration::from_millis(5));
-
-        // Allocation 2: Deallocated (will be in the log)
-        tracker
-            .track_allocation(0x2000, 200, Some("TypeB".to_string()))
-            .unwrap();
-        tracker
-            .associate_var(0x2000, "varB".to_string(), "TypeB".to_string())
-            .unwrap();
-        sleep(Duration::from_millis(5));
-        tracker.track_deallocation(0x2000).unwrap();
-
-        // Allocation 3: Active
-        sleep(Duration::from_millis(5));
-        tracker
-            .track_allocation(0x3000, 300, Some("TypeC".to_string()))
-            .unwrap();
-        tracker
-            .associate_var(0x3000, "varC".to_string(), "TypeC".to_string())
-            .unwrap();
-
-        // Use a base time for deterministic timestamps in tests
         let base_time = 1678886400000; // Some fixed time in milliseconds
 
-        // Allocation 1: Active
-        let alloc1 = AllocationInfo {
-            ptr: 0x1000,
-            size: 100,
-            timestamp_alloc: base_time + 100,
-            timestamp_dealloc: None,
-            var_name: Some("varA".to_string()),
-            type_name: Some("TypeA".to_string()),
-            backtrace_ips: vec![1, 2, 3], // Include dummy backtrace for hotspots
-            thread_id: 1,
-        };
-        tracker
-            .add_allocation_for_test(alloc1)
-            .expect("Failed to add alloc1");
-
-        // Allocation 2: Deallocated
-        let alloc2 = AllocationInfo {
-            ptr: 0x2000,
-            size: 200,
-            timestamp_alloc: base_time + 200,
-            timestamp_dealloc: Some(base_time + 300),
-            var_name: Some("varB".to_string()),
-            type_name: Some("TypeB".to_string()),
-            backtrace_ips: vec![4, 5, 6], // Include dummy backtrace for hotspots
-            thread_id: 2,
-        };
-        // For deallocated items, we need to add them to both active (temporarily) and then log them.
-        // However, add_allocation_for_test adds to active. The export_to_svg uses the log.
-        // The simplest way to test export_to_svg with deallocated items using add_allocation_for_test
-        // is to add them directly to the log for the test setup.
-        // Let's modify the test setup slightly for clarity and correctness.
-
-        // Clear any existing data
+        // Clear any existing data that might be there from other tests or setups
         tracker.clear_all_for_test();
 
-        // Add active allocations using the public test helper method
+        // Allocation 1: Active (will be fetched by get_active_allocations)
         tracker
             .add_allocation_for_test(AllocationInfo {
+                ptr: 0x1000,
+                size: 100,
+                timestamp_alloc: base_time + 100, // Allocates at 100ms
+                timestamp_dealloc: None,          // Active
+                var_name: Some("varActive".to_string()),
+                type_name: Some("TypeActive".to_string()),
+                backtrace_ips: vec![1, 2, 3],
+                thread_id: 1,
+            })
+            .unwrap();
+
+        // Allocation 2: Deallocated (will be fetched by get_allocation_log)
+        tracker
+            .add_deallocated_for_test(AllocationInfo {
+                ptr: 0x2000,
+                size: 200,
+                timestamp_alloc: base_time + 50,  // Allocates at 50ms
+                timestamp_dealloc: Some(base_time + 150), // Deallocates at 150ms
+                var_name: Some("varDeallocated".to_string()),
+                type_name: Some("TypeDeallocated".to_string()),
+                backtrace_ips: vec![4, 5, 6],
+                thread_id: 2,
+            })
+            .unwrap();
+
+        // Allocation 3: Active, later allocation (will be fetched by get_active_allocations)
+        tracker
+            .add_allocation_for_test(AllocationInfo {
+                ptr: 0x3000,
+                size: 50,
+                timestamp_alloc: base_time + 200, // Allocates at 200ms
+                timestamp_dealloc: None,          // Active
+                var_name: Some("varActiveLater".to_string()),
+                type_name: Some("TypeActiveLater".to_string()),
+                backtrace_ips: vec![7, 8],
+                thread_id: 1,
+            })
+            .unwrap();
+
+        tracker
+    }
+
+    // Helper for JSON test, may need different setup if it relies on internal state differently
+    fn create_populated_tracker_for_json_test() -> MemoryTracker {
+        let tracker = MemoryTracker::new();
+        let base_time = 1678886400000;
+        tracker.clear_all_for_test();
+
+        // Allocation 1: With var_name, type_name, specific backtrace and thread_id
+        tracker.add_allocation_for_test(AllocationInfo {
                 ptr: 0x1000,
                 size: 100,
                 timestamp_alloc: base_time + 100,
                 timestamp_dealloc: None,
                 var_name: Some("varA".to_string()),
                 type_name: Some("TypeA".to_string()),
-                backtrace_ips: vec![1, 2, 3],
-                thread_id: 1,
-            })
-            .unwrap();
+                backtrace_ips: vec![1, 2, 3, 4, 5],
+                thread_id: 111
+        }).unwrap();
 
-        tracker
-            .add_allocation_for_test(AllocationInfo {
+        // Allocation 2: Without var_name/type_name (None), different backtrace and thread_id
+        tracker.add_allocation_for_test(AllocationInfo {
                 ptr: 0x3000,
                 size: 300,
                 timestamp_alloc: base_time + 400,
                 timestamp_dealloc: None,
-                var_name: Some("varC".to_string()),
-                type_name: Some("TypeC".to_string()),
-                backtrace_ips: vec![1, 2, 3],
-                thread_id: 1,
-            })
-            .unwrap();
-
-        // Add a deallocated item using the public test helper method
+                var_name: None, // Test case with None
+                type_name: None, // Test case with None
+                backtrace_ips: vec![6, 7, 8],
+                thread_id: 222
+        }).unwrap();
+        // JSON export typically shows active allocations, so a deallocated one might not be expected here
+        // unless the test specifically checks for it in a different way (e.g. if JSON also included a log)
+        // For now, keeping it simple for JSON which focuses on active state.
         tracker
-            .add_deallocated_for_test(AllocationInfo {
-                ptr: 0x2000,
-                size: 200,
-                timestamp_alloc: base_time + 200,
-                timestamp_dealloc: Some(base_time + 300),
-                var_name: Some("varB".to_string()),
-                type_name: Some("TypeB".to_string()),
-                backtrace_ips: vec![4, 5, 6],
-                thread_id: 2,
-            })
-            .unwrap();
-
-        tracker // Return the populated tracker
     }
+
 
     #[test]
     fn test_export_to_json_valid_data() {
-        let tracker = create_populated_tracker();
+        let tracker = create_populated_tracker_for_json_test(); // Use JSON specific helper
         let dir = tempdir().unwrap();
         let json_path = dir.path().join("test_snapshot.json");
 
@@ -485,29 +450,31 @@ mod tests {
         let var_a_info = snapshot_data
             .active_allocations
             .iter()
-            .find(|a| a.ptr == 0x1000);
-        assert!(
-            var_a_info.is_some(),
-            "varA (0x1000) not found in JSON active allocations"
-        );
-        assert_eq!(var_a_info.unwrap().var_name.as_deref(), Some("varA"));
-        assert_eq!(var_a_info.unwrap().size, 100);
+            .find(|a| a.ptr == 0x1000)
+            .expect("Allocation with ptr 0x1000 not found in JSON active allocations");
 
-        let var_c_info = snapshot_data
+        assert_eq!(var_a_info.var_name.as_deref(), Some("varA"));
+        assert_eq!(var_a_info.type_name.as_deref(), Some("TypeA"));
+        assert_eq!(var_a_info.size, 100);
+        assert_eq!(var_a_info.backtrace_ips, vec![1, 2, 3, 4, 5]);
+        assert_eq!(var_a_info.thread_id, 111);
+
+        let var_c_info = snapshot_data // Renaming to var_b_info or similar might be clearer if ptrs change
             .active_allocations
             .iter()
-            .find(|a| a.ptr == 0x3000);
-        assert!(
-            var_c_info.is_some(),
-            "varC (0x3000) not found in JSON active allocations"
-        );
-        assert_eq!(var_c_info.unwrap().var_name.as_deref(), Some("varC"));
-        assert_eq!(var_c_info.unwrap().size, 300);
+            .find(|a| a.ptr == 0x3000)
+            .expect("Allocation with ptr 0x3000 not found in JSON active allocations");
+
+        assert_eq!(var_c_info.var_name, None); // Expecting None
+        assert_eq!(var_c_info.type_name, None); // Expecting None
+        assert_eq!(var_c_info.size, 300);
+        assert_eq!(var_c_info.backtrace_ips, vec![6, 7, 8]);
+        assert_eq!(var_c_info.thread_id, 222);
     }
 
     #[test]
     fn test_export_to_svg_generates_file() {
-        let tracker = create_populated_tracker();
+        let tracker = create_populated_tracker_for_svg_test(); // Use SVG specific helper
         let dir = tempdir().unwrap();
         let svg_path = dir.path().join("test_visualization.svg");
 
@@ -531,34 +498,48 @@ mod tests {
             "SVG content should end with </svg>"
         );
 
-        // Check for presence of variable names/types (export_to_svg uses get_allocation_log)
-        // Log contains varA (still active but also in log after others dealloc), varB (deallocated), varC (active)
-        // The SVG renders from the log. The log contains varB (deallocated) and then varA and varC if they are deallocated by end of program.
-        // In create_populated_tracker, varA and varC are not explicitly deallocated, so they are in active_allocations.
-        // The SVG export uses get_allocation_log(), which only contains *deallocated* items.
-        // Let's adjust create_populated_tracker or the test expectations.
-        // For this test, let's assume the SVG should reflect the items that have gone through the full log.
-        // create_populated_tracker already deallocates varB.
-        // Let's check for varB.
+        // With the new logic, SVG should contain both active and deallocated items.
+        // Check for varActive, varDeallocated, and varActiveLater.
         assert!(
-            svg_content.contains("varB"),
-            "SVG should contain text for 'varB'"
+            svg_content.contains("varActive"),
+            "SVG should contain text for 'varActive'"
         );
         assert!(
-            svg_content.contains("(200B)"),
-            "SVG should contain size for 'varB'"
+            svg_content.contains("varDeallocated"),
+            "SVG should contain text for 'varDeallocated'"
+        );
+         assert!(
+            svg_content.contains("varActiveLater"),
+            "SVG should contain text for 'varActiveLater'"
         );
 
-        // Check for varA and varC in the SVG might be flaky if they are not deallocated before SVG generation in this test setup.
-        // The current `create_svg_document` sorts by alloc time and includes all from log.
-        // If we want to see varA and varC, they'd need to be deallocated to be in the log.
-        // The SVG shows items from `get_allocation_log`. Tracker currently puts items in log upon deallocation.
-        // So SVG will show varB. If we want to test active ones, we'd need to modify tracker or export.
-        // For now, testing for varB (which is explicitly deallocated) is robust.
+        // Check for tooltip content (enhanced)
+        assert!(svg_content.contains("Ptr: 0x1000"), "SVG tooltip for 0x1000 missing");
+        assert!(svg_content.contains("Size: 100B"), "SVG tooltip for 0x1000 missing size");
+        assert!(svg_content.contains("Deallocated: Active"), "SVG tooltip for 0x1000 incorrect dealloc status");
+        assert!(svg_content.contains("Thread ID: 1"), "SVG tooltip for 0x1000 missing thread ID");
+        assert!(svg_content.contains("Backtrace frames: 3"), "SVG tooltip for 0x1000 missing backtrace info");
+
+        assert!(svg_content.contains("Ptr: 0x2000"), "SVG tooltip for 0x2000 missing");
+        assert!(svg_content.contains("Size: 200B"), "SVG tooltip for 0x2000 missing size");
+        assert!(svg_content.contains(&format!("Deallocated: {} ms", 1678886400000 + 150)), "SVG tooltip for 0x2000 incorrect dealloc status");
+        assert!(svg_content.contains("Thread ID: 2"), "SVG tooltip for 0x2000 missing thread ID");
+
 
         assert!(
             svg_content.contains("<rect"),
             "SVG should contain <rect> elements for bars"
         );
+
+        // Verify colors - varActive (0x1000) and varActiveLater (0x3000) should be lightcoral, varDeallocated (0x2000) should be steelblue
+        // This requires finding the <rect> elements and checking their fill.
+        // Example check for varActive (ptr 0x1000, active):
+        // <text x="145" y="XY" ...>varActive (100B)</text> ... <rect x="ABC" y="UV" ... fill="lightcoral"><title>Ptr: 0x1000...</title></rect>
+        // Example check for varDeallocated (ptr 0x2000, deallocated):
+        // <text x="145" y="XY" ...>varDeallocated (200B)</text> ... <rect x="DEF" y="WZ" ... fill="steelblue"><title>Ptr: 0x2000...</title></rect>
+
+        // A simplified check: count occurrences of colors. Expect 2 active, 1 deallocated.
+        assert_eq!(svg_content.matches("lightcoral").count(), 2, "Expected 2 active items with lightcoral color");
+        assert_eq!(svg_content.matches("steelblue").count(), 1, "Expected 1 deallocated item with steelblue color");
     }
 }
