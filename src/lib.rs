@@ -24,8 +24,9 @@ pub mod allocator;
 pub mod export;
 pub mod tracker;
 pub mod types;
+mod thread_utils;
 
-// Re-export common types for easier use
+pub use thread_utils::JoinHandleExt;
 pub use tracker::MemoryError;
 pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::AllocationInfo;
@@ -101,19 +102,18 @@ macro_rules! track_var {
     };
 }
 
-/// Internal helper function for `track_var!`. **Not intended for direct public use.**
-///
-/// This function performs the actual work of associating a variable's name and type
-/// with its memory allocation data via the global [`MemoryTracker`].
-///
-/// # Arguments
-/// * `name`: The string representation of the variable's name.
-/// * `value`: A reference to the variable, which must implement [`Trackable`].
-///
-/// # Returns
-/// * `Ok(())` if the association was successful or if the variable provided no pointer
-///   (e.g., an empty `Vec` or `String`, which is not considered an error here).
-/// * `Err(MemoryError)` if the association failed (e.g., pointer not tracked by allocator).
+// Internal helper function for `track_var!`. Not intended for direct public use.
+// This function performs the actual work of associating a variable's name and type
+// with its memory allocation data via the global MemoryTracker.
+//
+// Arguments:
+// - name: The string representation of the variable's name.
+// - value: A reference to the variable, which must implement Trackable.
+//
+// Returns:
+// - Ok(()) if the association was successful or if the variable provided no pointer
+//   (e.g., an empty Vec or String, which is not considered an error here).
+// - Err(MemoryError) if the association failed (e.g., pointer not tracked by allocator).
 // local storage for tracking recursion depth
 thread_local! {
     static RECURSION_DEPTH: std::cell::Cell<u32> = std::cell::Cell::new(0);

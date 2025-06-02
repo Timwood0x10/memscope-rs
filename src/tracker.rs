@@ -380,8 +380,17 @@ impl MemoryTracker {
     ///
     /// # Returns
     /// `Ok(())` if successful, or `std::io::Error` if file I/O or serialization fails.
-    pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        crate::export::export_to_json(self, path)
+    /// Exports a snapshot of currently active memory allocations to a JSON file.
+    ///
+    /// # Arguments
+    /// * `path`: The path to the file where the JSON data will be written.
+    /// * `enable_sync`: If `true`, calls `sync_all()` to ensure data is written to disk.
+    ///                Set to `false` for better performance when atomicity is not critical.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or `std::io::Error` if file I/O or serialization fails.
+    pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P, enable_sync: bool) -> std::io::Result<()> {
+        crate::export::export_to_json(self, path, enable_sync)
     }
 
     /// Exports the memory allocation lifecycle data (from the deallocation log) to an SVG file.
@@ -391,8 +400,17 @@ impl MemoryTracker {
     ///
     /// # Returns
     /// `Ok(())` if successful, or `std::io::Error` if file I/O or SVG generation fails.
-    pub fn export_to_svg<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        crate::export::export_to_svg(self, path)
+    /// Exports the memory allocation lifecycle data (from the deallocation log) to an SVG file.
+    ///
+    /// # Arguments
+    /// * `path`: The path to the file where the SVG data will be written.
+    /// * `enable_sync`: If `true`, calls `sync_all()` to ensure data is written to disk.
+    ///                Set to `false` for better performance when atomicity is not critical.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or `std::io::Error` if file I/O or SVG generation fails.
+    pub fn export_to_svg<P: AsRef<std::path::Path>>(&self, path: P, enable_sync: bool) -> std::io::Result<()> {
+        crate::export::export_to_svg(self, path, enable_sync)
     }
 
     /// Analyzes both active and logged allocations to identify memory allocation hotspots.
@@ -869,8 +887,8 @@ pub fn get_global_tracker() -> Arc<MemoryTracker> {
 pub fn resolve_ips(unique_ips: &HashSet<usize>) -> HashMap<usize, String> {
     let mut resolved_map = HashMap::new();
     for &ip_addr in unique_ips {
-        let mut resolved_name = format!("{:#x}", ip_addr); // Fallback to hex address, make mutable
-        let ip_void = ip_addr as *mut std::ffi::c_void; // Use ip_void directly
+        let resolved_name = format!("{:#x}", ip_addr); // Fallback to hex address
+        let _ip_void = ip_addr as *mut std::ffi::c_void; // Use ip_void directly
 
         // Ensure the backtrace feature is active for symbol resolution
         #[cfg(feature = "backtrace")]
