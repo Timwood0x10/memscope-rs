@@ -88,7 +88,7 @@ pub struct TypeMemoryUsage {
 pub struct MemoryTracker {
     active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
     allocation_log: Mutex<Vec<AllocationInfo>>,
-    tracking_enabled: AtomicBool,
+    pub tracking_enabled: AtomicBool,
 }
 
 impl Default for MemoryTracker {

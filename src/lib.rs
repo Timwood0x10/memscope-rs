@@ -65,16 +65,17 @@ static GLOBAL: TrackingAllocator = TrackingAllocator;
 /// }
 /// ```
 pub fn init() {
-    let _ = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
-        .with_span_events(
-            tracing_subscriber::fmt::format::FmtSpan::ENTER
-                | tracing_subscriber::fmt::format::FmtSpan::EXIT,
-        )
-        .with_thread_names(true)
-        .with_file(true)
-        .with_line_number(true)
-        .try_init();
+    // tracing_subscriber::fmt() initialization commented out for this test
+    // let _ = tracing_subscriber::fmt()
+    //     .with_max_level(tracing::Level::TRACE)
+    //     .with_span_events(
+    //         tracing_subscriber::fmt::format::FmtSpan::ENTER
+    //             | tracing_subscriber::fmt::format::FmtSpan::EXIT,
+    //     )
+    //     .with_thread_names(true)
+    //     .with_file(true)
+    //     .with_line_number(true)
+    //     .try_init();
 }
 
 /// Associates a variable name and its type with its heap allocation via the [`MemoryTracker`].
