@@ -5,10 +5,9 @@
 
 
 // use serde::Serialize; // Unused import
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
-use crate::thread_utils::JoinHandleExt;
 
 use svg::node::element::{Group, Line, Rectangle, Text as SvgText, Title as SvgTitle};
 use svg::Document;
@@ -88,53 +87,45 @@ pub fn export_to_json<P: AsRef<Path>>(
         }
     }
 
-    // 2. Create snapshot (this is the potentially time-consuming part)
-    println!("[EXPORT] Creating memory snapshot...");
+        // 2. Create snapshot with timeout protection
+    println!("[EXPORT] Starting snapshot creation...");
     let snapshot_start = std::time::Instant::now();
     
-    // Create snapshot in the current thread with a timeout
-    // We'll use a channel to communicate the result from the thread
-    let (tx, rx) = std::sync::mpsc::channel();
-    let tracker_clone = tracker.clone();
-    
-    // Spawn a thread to create the snapshot
-    let _thread = std::thread::spawn(move || {
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            create_snapshot(&tracker_clone)
-        }));
-        let _ = tx.send(result);
-    });
-    
-    // Wait for the result with a timeout
-    let snapshot = match rx.recv_timeout(std::time::Duration::from_secs(30)) {
-        Ok(result) => match result {
-            Ok(snapshot) => snapshot,
-            Err(panic) => {
-                let panic_msg = if let Some(s) = panic.downcast_ref::<&str>() {
-                    s.to_string()
-                } else if let Some(s) = panic.downcast_ref::<String>() {
-                    s.clone()
-                } else {
-                    "Unknown panic during snapshot creation".to_string()
-                };
-                println!("[EXPORT] Panic creating snapshot: {}", panic_msg);
-                return Err(io::Error::new(io::ErrorKind::Other, format!("Snapshot creation panicked: {}", panic_msg)));
-            }
+    // Create the snapshot directly in the current thread
+    // to avoid lifetime issues with the tracker reference
+    println!("[EXPORT] Creating snapshot...");
+    let snapshot = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        println!("[EXPORT] Calling create_snapshot...");
+        let snapshot = create_snapshot(tracker);
+        println!("[EXPORT] Snapshot created with {} active allocations", snapshot.active_allocations.len());
+        snapshot
+    })) {
+        Ok(snapshot) => {
+            println!("[EXPORT] Snapshot created in {:?}", snapshot_start.elapsed());
+            snapshot
         },
-        Err(_) => {
-            println!("[EXPORT] Timeout creating snapshot (took >30s)");
-            return Err(io::Error::new(io::ErrorKind::TimedOut, "Snapshot creation timed out after 30 seconds"));
+        Err(panic) => {
+            let panic_msg = if let Some(s) = panic.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "Unknown panic during snapshot creation".to_string()
+            };
+            println!("[EXPORT] ERROR: Panic creating snapshot: {}", panic_msg);
+            return Err(io::Error::new(
+                io::ErrorKind::Other, 
+                format!("Snapshot creation panicked: {}", panic_msg)
+            ));
         }
     };
     
-    println!("[EXPORT] Snapshot created in {:?}", snapshot_start.elapsed());
-    
     println!("[EXPORT] Snapshot contains {} active allocations", snapshot.active_allocations.len());
     
+    // 3. Serialize to JSON with progress reporting
     println!("[EXPORT] Serializing snapshot to JSON...");
     let json_start = std::time::Instant::now();
     
-    // Serialize the snapshot
     let json = match serde_json::to_string_pretty(&snapshot) {
         Ok(json) => {
             let json_size = json.len() as f64 / 1024.0 / 1024.0; // Convert to MB
@@ -147,84 +138,115 @@ pub fn export_to_json<P: AsRef<Path>>(
         },
         Err(e) => {
             let msg = format!("Failed to serialize snapshot: {}", e);
-            println!("[EXPORT] {}", msg);
+            println!("[EXPORT] ERROR: {}", msg);
             return Err(io::Error::new(io::ErrorKind::InvalidData, msg));
         }
     };
 
-    // 3. Write to a temporary file first
+    // 4. Write to a temporary file first
     let temp_path = format!("{}.tmp", file_path);
     println!("[EXPORT] Writing to temporary file: {}", temp_path);
     
-    {
-        let mut file = File::create(&temp_path).map_err(|e| {
-            let msg = format!("Failed to create temporary file {}: {}", temp_path, e);
-            #[cfg(not(test))]
-            tracing::error!("{}", msg);
-            io::Error::new(e.kind(), msg)
-        })?;
+    // Use a block to ensure the file is closed before renaming
+    let write_result = {
+        // Create or truncate the temp file
+        let mut file = match File::create(&temp_path) {
+            Ok(f) => f,
+            Err(e) => {
+                let msg = format!("Failed to create temporary file {}: {}", temp_path, e);
+                println!("[EXPORT] ERROR: {}", msg);
+                return Err(io::Error::new(e.kind(), msg));
+            }
+        };
 
-        // Write the JSON data in chunks to show progress for large files
-        const CHUNK_SIZE: usize = 8 * 1024; // 8KB chunks
+        // Write the JSON data in chunks to show progress
+        const CHUNK_SIZE: usize = 1024 * 1024; // 1MB chunks
         let mut bytes_written = 0;
         let total_bytes = json.len();
+        let mut last_logged_percent = 0;
+        
+        println!("[EXPORT] Writing {} bytes of JSON data...", total_bytes);
         
         for chunk in json.as_bytes().chunks(CHUNK_SIZE) {
-            file.write_all(chunk).map_err(|e| {
-                let _ = std::fs::remove_file(&temp_path);
-                let msg = format!("Failed to write to file {}: {}", temp_path, e);
-                io::Error::new(e.kind(), msg)
-            })?;
-            
-            // Update progress
-            bytes_written += chunk.len();
-            if total_bytes > 0 {
-                let percent = (bytes_written as f64 / total_bytes as f64 * 100.0) as u32;
-                if percent % 10 == 0 { // Log progress every 10%
-                    println!("[EXPORT] Export progress: {}% ({} bytes)", percent, bytes_written);
+            match file.write_all(chunk) {
+                Ok(_) => {
+                    bytes_written += chunk.len();
+                    let percent = (bytes_written as f64 / total_bytes as f64 * 100.0) as u32;
+                    
+                    // Log progress every 5% or for the last chunk
+                    if percent >= last_logged_percent + 5 || bytes_written == total_bytes {
+                        println!(
+                            "[EXPORT] Progress: {}/{} bytes ({}%)", 
+                            bytes_written, 
+                            total_bytes,
+                            percent
+                        );
+                        last_logged_percent = percent;
+                    }
+                },
+                Err(e) => {
+                    let msg = format!("Failed to write chunk to {}: {}", temp_path, e);
+                    println!("[EXPORT] ERROR: {}", msg);
+                    return Err(io::Error::new(e.kind(), msg));
                 }
             }
         }
 
-        // Optional: Flush and sync to disk
-        if enable_sync {
-            #[cfg(not(test))]
-            tracing::debug!("Syncing file to disk...");
-            
-            file.sync_all().map_err(|e| {
-                let _ = std::fs::remove_file(&temp_path);
-                let msg = format!("Failed to sync file {}: {}", temp_path, e);
-                #[cfg(not(test))]
-                tracing::error!("{}", msg);
-                io::Error::new(e.kind(), msg)
-            })?;
-        } else {
-            // Just flush the buffers without waiting for disk sync
-            file.flush().map_err(|e| {
-                let _ = std::fs::remove_file(&temp_path);
+        // Ensure all data is flushed to the file buffer
+        match file.flush() {
+            Ok(_) => {
+                println!(
+                    "[EXPORT] Successfully wrote {} bytes to {}", 
+                    bytes_written, 
+                    temp_path
+                );
+                Ok(())
+            },
+            Err(e) => {
                 let msg = format!("Failed to flush file {}: {}", temp_path, e);
-                #[cfg(not(test))]
-                tracing::error!("{}", msg);
-                io::Error::new(e.kind(), msg)
-            })?;
+                println!("[EXPORT] ERROR: {}", msg);
+                Err(io::Error::new(e.kind(), msg))
+            }
         }
-    } // File handle is dropped here, ensuring it's closed
-
-    // 4. Atomically rename the temp file to the final name
-    #[cfg(not(test))]
-    tracing::debug!("Renaming temporary file to final destination...");
+    };
     
-    match std::fs::rename(&temp_path, path) {
+    // Check if write was successful before proceeding
+    if let Err(e) = write_result {
+        // Clean up the temp file on error
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(e);
+    }
+    
+    // 5. Sync to disk if requested (this can be slow)
+    if enable_sync {
+        println!("[EXPORT] Syncing data to disk...");
+        match File::open(&temp_path)?.sync_all() {
+            Ok(_) => println!("[EXPORT] Data synced to disk"),
+            Err(e) => {
+                let msg = format!("Failed to sync file {}: {}", temp_path, e);
+                println!("[EXPORT] WARNING: {}", msg);
+                // Continue even if sync fails, as the file is still written
+            }
+        }
+    }
+
+    // 6. Rename temp file to target file (atomic on most platforms)
+    println!("[EXPORT] Renaming {} to {}", temp_path, file_path);
+    match fs::rename(&temp_path, path) {
         Ok(_) => {
-            #[cfg(not(test))]
-            tracing::info!("Successfully exported memory snapshot to: {}", file_path);
+            println!("[EXPORT] Successfully exported memory snapshot to {}", file_path);
             Ok(())
         },
         Err(e) => {
+            let msg = format!("Failed to rename {} to {}: {}", temp_path, file_path, e);
+            println!("[EXPORT] ERROR: {}", msg);
+            
+            // Try to clean up the temp file if possible
             let _ = std::fs::remove_file(&temp_path);
-            let msg = format!("Failed to rename temp file to {}: {}", file_path, e);
+            
             #[cfg(not(test))]
             tracing::error!("{}", msg);
+            
             Err(io::Error::new(e.kind(), msg))
         }
     }
@@ -292,10 +314,50 @@ pub fn export_to_svg<P: AsRef<Path>>(
     combined_allocations.extend(tracker.get_active_allocations()); // Add active items
 
     // 3. Create SVG document (this is the potentially time-consuming part)
-    #[cfg(not(test))]
-    tracing::debug!("Generating SVG document...");
-    let doc = create_svg_document(&combined_allocations);
+    tracing::debug!("Generating SVG document (with timeout)...");
+    
+    let (tx, rx) = std::sync::mpsc::channel();
+    // Clone data that needs to be moved into the thread
+    // AllocationInfo is Clone, so this is fine.
+    let allocations_clone = combined_allocations.clone(); 
 
+    let _thread = std::thread::spawn(move || {
+        // Catch panics within the thread
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            create_svg_document(&allocations_clone)
+        }));
+        let _ = tx.send(result); // Send result (Ok(Document) or Err(panic)) back
+    });
+
+    // Wait for the result with a timeout (e.g., 60 seconds)
+    let doc = match rx.recv_timeout(std::time::Duration::from_secs(60)) {
+        Ok(result) => match result { // Received something from the thread
+            Ok(doc) => doc, // Successfully created document
+            Err(panic_err) => { // Thread panicked
+                let panic_msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = panic_err.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic during SVG document creation".to_string()
+                };
+                #[cfg(not(test))]
+                tracing::error!("Panic during SVG creation: {}", panic_msg);
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("SVG creation panicked: {}", panic_msg),
+                ));
+            }
+        },
+        Err(_) => { // Timeout occurred
+            #[cfg(not(test))]
+            tracing::error!("Timeout during SVG document creation (took >60s)");
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "SVG document creation timed out after 60 seconds",
+            ));
+        }
+    };
     // Write the SVG document to a string buffer
     let mut buffer = Vec::new();
     svg::write(&mut buffer, &doc).map_err(|e| {
