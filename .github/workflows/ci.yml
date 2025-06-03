@@ -13,16 +13,46 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+        include:
+          - rust: stable
+            features: ""
+          - rust: stable
+            features: "backtrace"
+          - rust: stable
+            features: "tracking-allocator"
+          - rust: stable
+            features: "backtrace,tracking-allocator"
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     
-    - name: Install stable toolchain
+    - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: ${{ matrix.rust }}
         override: true
+        components: rustfmt, clippy
         
+    - name: Set up cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Build
+      run: cargo build --verbose
+
     - name: Run tests
       run: cargo test --verbose
       
@@ -31,6 +61,37 @@ jobs:
       
     - name: Run clippy
       run: cargo clippy -- -D warnings
+
+    - name: Build documentation
+      run: cargo doc --no-deps
+
+    - name: Test examples
+      run: cargo test --verbose --examples
+
+    - name: Test with features
+      if: matrix.features != ""
+      run: cargo test --verbose --features ${{ matrix.features }}
+
+    - name: Test examples with features
+      if: matrix.features != ""
+      run: cargo test --verbose --examples --features ${{ matrix.features }}
+
+    - name: Test integration
+      run: |
+        cargo build --features="tracking-allocator"
+        cargo run --example basic_usage --features="tracking-allocator"
+        cargo run --example custom_allocator --features="tracking-allocator"
+
+    - name: Validate generated files
+      run: |
+        if [ -f "basic_usage_snapshot.json" ]; then
+          cargo run --example basic_usage --features="tracking-allocator"
+          diff -u basic_usage_snapshot.json examples/basic_usage_snapshot.json
+        fi
+        if [ -f "basic_usage_graph.svg" ]; then
+          cargo run --example basic_usage --features="tracking-allocator"
+          diff -u basic_usage_graph.svg examples/basic_usage_graph.svg
+        fi
       
     - name: Check documentation
       run: cargo doc --no-deps
