@@ -576,35 +576,30 @@ impl MemoryTracker {
     /// # Panics
     /// Panics if either lock is poisoned or cannot be acquired.
     pub fn clear_all_for_test(&self) {
-        // Use `lock().unwrap()` to panic if the lock is poisoned
-        // This helps catch potential deadlocks or other concurrency issues
-        self.active_allocations
-            .lock()
-            .expect("Failed to acquire active_allocations lock")
-            .clear();
-        self.allocation_log
-            .lock()
-            .expect("Failed to acquire allocation_log lock")
-            .clear();
-
-        // Verify the clear was successful
-        let active_count = self
+        let mut active_guard = self
             .active_allocations
             .lock()
-            .expect("Failed to verify active_allocations")
-            .len();
-        let log_count = self
+            .expect("Failed to acquire active_allocations lock");
+        let mut log_guard = self
             .allocation_log
             .lock()
-            .expect("Failed to verify allocation_log")
-            .len();
+            .expect("Failed to acquire allocation_log lock");
 
-        if active_count != 0 || log_count != 0 {
+        active_guard.clear();
+        log_guard.clear();
+
+        // Verification is done while locks are still held
+        if !active_guard.is_empty() || !log_guard.is_empty() {
+            // It's important that this panic occurs while the locks are held if we want to be sure
+            // about the state during the panic. However, the original panic message implies that
+            // this function itself is the source of truth for the "Failed to clear" message.
             panic!(
                 "Failed to clear tracker state. Active: {}, Log: {}",
-                active_count, log_count
+                active_guard.len(),
+                log_guard.len()
             );
         }
+        // Locks are released when active_guard and log_guard go out of scope here.
     }
 
     /// Adds a manually created `AllocationInfo` to the tracker's active allocations.
