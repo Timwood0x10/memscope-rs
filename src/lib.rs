@@ -22,9 +22,9 @@ pub mod allocator;
 /// *   A snapshot of active allocations to JSON (`MemorySnapshot`).
 /// *   A timeline visualization of allocation lifecycles (from the deallocation log) to SVG.
 pub mod export;
+mod thread_utils;
 pub mod tracker;
 pub mod types;
-mod thread_utils;
 
 pub use thread_utils::JoinHandleExt;
 pub use tracker::MemoryError;
@@ -46,8 +46,6 @@ pub use allocator::TrackingAllocator;
 // Only enable the global allocator when the tracking-allocator feature is enabled
 // and we're not in test mode
 #[cfg(all(feature = "tracking-allocator", not(test)))]
-#[global_allocator]
-static GLOBAL: TrackingAllocator = TrackingAllocator;
 
 /// Initialize the memory tracking system.
 ///

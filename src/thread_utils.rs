@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::thread;
 use std::time::Duration;
 
@@ -17,20 +20,20 @@ impl<T: Send + 'static> JoinHandleExt<T> for thread::JoinHandle<T> {
         // Create a flag to track if the thread completed
         let completed = Arc::new(AtomicBool::new(false));
         let completed_clone = completed.clone();
-        
+
         // Spawn a thread that will wait for the original thread
         let handle = thread::spawn(move || {
             let result = self.join();
             completed_clone.store(true, Ordering::SeqCst);
             result
         });
-        
+
         // Wait for the timeout or until the thread completes
         let start = std::time::Instant::now();
         while !completed.load(Ordering::SeqCst) && start.elapsed() < timeout {
             thread::sleep(Duration::from_millis(10));
         }
-        
+
         if completed.load(Ordering::SeqCst) {
             // Thread completed within timeout
             match handle.join() {

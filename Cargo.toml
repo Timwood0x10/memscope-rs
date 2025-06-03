@@ -20,6 +20,7 @@ inferno = "0.11.19" # Removed features = ["flamegraph"]
 rustc-demangle = "0.1" # Corrected: hyphen instead of underscore
 treemap = "0.3.2"     # Changed to an older, available version
 scopeguard = "1.2.0"  # For RAII-style guards
+parking_lot = "0.12"  # Added for reentrant mutex
 
 [lib]
 name = "trace_tools"

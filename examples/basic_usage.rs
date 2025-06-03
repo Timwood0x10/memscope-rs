@@ -76,7 +76,8 @@ Sum of 'numbers_vec': {}",
         "
 Exporting memory snapshot to basic_usage_snapshot.json..."
     );
-    if let Err(e) = tracker.export_to_json("basic_usage_snapshot.json", true) { // Enable sync for reliable file writing
+    if let Err(e) = tracker.export_to_json("basic_usage_snapshot.json", true) {
+        // Enable sync for reliable file writing
         eprintln!("Failed to export JSON: {}", e);
     } else {
         println!("Successfully exported JSON.");
@@ -87,7 +88,8 @@ Exporting memory snapshot to basic_usage_snapshot.json..."
         "
 Exporting memory usage visualization to basic_usage_graph.svg..."
     );
-    if let Err(e) = tracker.export_to_svg("basic_usage_graph.svg", true) { // Enable sync for reliable file writing
+    if let Err(e) = tracker.export_to_svg("basic_usage_graph.svg", true) {
+        // Enable sync for reliable file writing
         eprintln!("Failed to export SVG: {}", e);
     } else {
         println!("Successfully exported SVG.");

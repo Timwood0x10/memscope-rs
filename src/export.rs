@@ -3,7 +3,6 @@
 //! This module provides functions to export memory tracking data to various formats
 //! such as JSON and SVG.
 
-
 // use serde::Serialize; // Unused import
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -52,22 +51,29 @@ pub fn export_to_json<P: AsRef<Path>>(
 ) -> io::Result<()> {
     let path = path.as_ref();
     let file_path = path.display().to_string();
-    
+
     println!("[EXPORT] Starting export to: {}", file_path);
     let _start_time = std::time::Instant::now();
-    
+
     // Print some debug info about the current state
     println!("[EXPORT] Starting export to: {}", file_path);
-    println!("[EXPORT] Number of active allocations: {}", tracker.get_active_allocations().len());
-    println!("[EXPORT] Number of allocation log entries: {}", tracker.get_allocation_log().len());
-    
+    println!(
+        "[EXPORT] Number of active allocations: {}",
+        tracker.get_active_allocations().len()
+    );
+    println!(
+        "[EXPORT] Number of allocation log entries: {}",
+        tracker.get_allocation_log().len()
+    );
+
     // Print first few allocations for debugging
     let active_allocs = tracker.get_active_allocations();
     println!("[EXPORT] First few active allocations (up to 5):");
     for (i, alloc) in active_allocs.iter().enumerate().take(5) {
-        println!("  {}. ptr: {:#x}, size: {}, var: {:?}", 
-            i + 1, 
-            alloc.ptr, 
+        println!(
+            "  {}. ptr: {:#x}, size: {}, var: {:?}",
+            i + 1,
+            alloc.ptr,
             alloc.size,
             alloc.var_name.as_deref().unwrap_or("<unnamed>")
         );
@@ -87,188 +93,203 @@ pub fn export_to_json<P: AsRef<Path>>(
         }
     }
 
-        // 2. Create snapshot with timeout protection
+    // 2. Create snapshot with timeout protection
     println!("[EXPORT] Starting snapshot creation...");
     let snapshot_start = std::time::Instant::now();
-    
-    // Create the snapshot directly in the current thread
-    // to avoid lifetime issues with the tracker reference
-    println!("[EXPORT] Creating snapshot...");
-    let snapshot = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        println!("[EXPORT] Calling create_snapshot...");
-        let snapshot = create_snapshot(tracker);
-        println!("[EXPORT] Snapshot created with {} active allocations", snapshot.active_allocations.len());
-        snapshot
-    })) {
-        Ok(snapshot) => {
-            println!("[EXPORT] Snapshot created in {:?}", snapshot_start.elapsed());
-            snapshot
+
+    // Get the data we need while holding the lock
+    let active_allocations = tracker.get_active_allocations();
+    let allocation_log = tracker.get_allocation_log();
+
+    // Create snapshot in the current thread with a timeout
+    // We'll use a channel to communicate the result from the thread
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    // Spawn a thread to create the snapshot
+    let _thread = std::thread::spawn(move || {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            create_snapshot_from_cloned_data(active_allocations, allocation_log)
+        }));
+        let _ = tx.send(result);
+    });
+
+    // Wait for the result with a timeout
+    let snapshot = match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+        Ok(result) => match result {
+            Ok(snapshot) => snapshot,
+            Err(panic) => {
+                let panic_msg = if let Some(s) = panic.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = panic.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic during snapshot creation".to_string()
+                };
+                println!("[EXPORT] Panic creating snapshot: {}", panic_msg);
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Snapshot creation panicked: {}", panic_msg),
+                ));
+            }
         },
-        Err(panic) => {
-            let panic_msg = if let Some(s) = panic.downcast_ref::<&str>() {
-                s.to_string()
-            } else if let Some(s) = panic.downcast_ref::<String>() {
-                s.clone()
-            } else {
-                "Unknown panic during snapshot creation".to_string()
-            };
-            println!("[EXPORT] ERROR: Panic creating snapshot: {}", panic_msg);
+        Err(_) => {
+            println!("[EXPORT] Timeout creating snapshot (took >30s)");
             return Err(io::Error::new(
-                io::ErrorKind::Other, 
-                format!("Snapshot creation panicked: {}", panic_msg)
+                io::ErrorKind::TimedOut,
+                "Snapshot creation timed out after 30 seconds",
             ));
         }
     };
-    
-    println!("[EXPORT] Snapshot contains {} active allocations", snapshot.active_allocations.len());
-    
-    // 3. Serialize to JSON with progress reporting
+
+    println!(
+        "[EXPORT] Snapshot created in {:?}",
+        snapshot_start.elapsed()
+    );
+
+    println!(
+        "[EXPORT] Snapshot contains {} active allocations",
+        snapshot.active_allocations.len()
+    );
+
     println!("[EXPORT] Serializing snapshot to JSON...");
     let json_start = std::time::Instant::now();
-    
+
+    // Serialize the snapshot
     let json = match serde_json::to_string_pretty(&snapshot) {
         Ok(json) => {
             let json_size = json.len() as f64 / 1024.0 / 1024.0; // Convert to MB
             println!(
-                "[EXPORT] JSON serialized in {:?}, size: {:.2} MB", 
+                "[EXPORT] JSON serialized in {:?}, size: {:.2} MB",
                 json_start.elapsed(),
                 json_size
             );
             json
-        },
+        }
         Err(e) => {
             let msg = format!("Failed to serialize snapshot: {}", e);
-            println!("[EXPORT] ERROR: {}", msg);
+            println!("[EXPORT] {}", msg);
             return Err(io::Error::new(io::ErrorKind::InvalidData, msg));
         }
     };
 
-    // 4. Write to a temporary file first
+    // 3. Write to a temporary file first
     let temp_path = format!("{}.tmp", file_path);
     println!("[EXPORT] Writing to temporary file: {}", temp_path);
-    
-    // Use a block to ensure the file is closed before renaming
-    let write_result = {
-        // Create or truncate the temp file
-        let mut file = match File::create(&temp_path) {
-            Ok(f) => f,
-            Err(e) => {
-                let msg = format!("Failed to create temporary file {}: {}", temp_path, e);
-                println!("[EXPORT] ERROR: {}", msg);
-                return Err(io::Error::new(e.kind(), msg));
-            }
-        };
 
-        // Write the JSON data in chunks to show progress
-        const CHUNK_SIZE: usize = 1024 * 1024; // 1MB chunks
+    {
+        let mut file = File::create(&temp_path).map_err(|e| {
+            let msg = format!("Failed to create temporary file {}: {}", temp_path, e);
+            #[cfg(not(test))]
+            tracing::error!("{}", msg);
+            io::Error::new(e.kind(), msg)
+        })?;
+
+        // Write the JSON data in chunks to show progress for large files
+        const CHUNK_SIZE: usize = 8 * 1024; // 8KB chunks
         let mut bytes_written = 0;
         let total_bytes = json.len();
-        let mut last_logged_percent = 0;
-        
-        println!("[EXPORT] Writing {} bytes of JSON data...", total_bytes);
-        
+
         for chunk in json.as_bytes().chunks(CHUNK_SIZE) {
-            match file.write_all(chunk) {
-                Ok(_) => {
-                    bytes_written += chunk.len();
-                    let percent = (bytes_written as f64 / total_bytes as f64 * 100.0) as u32;
-                    
-                    // Log progress every 5% or for the last chunk
-                    if percent >= last_logged_percent + 5 || bytes_written == total_bytes {
-                        println!(
-                            "[EXPORT] Progress: {}/{} bytes ({}%)", 
-                            bytes_written, 
-                            total_bytes,
-                            percent
-                        );
-                        last_logged_percent = percent;
-                    }
-                },
-                Err(e) => {
-                    let msg = format!("Failed to write chunk to {}: {}", temp_path, e);
-                    println!("[EXPORT] ERROR: {}", msg);
-                    return Err(io::Error::new(e.kind(), msg));
+            file.write_all(chunk).map_err(|e| {
+                let _ = std::fs::remove_file(&temp_path);
+                let msg = format!("Failed to write to file {}: {}", temp_path, e);
+                io::Error::new(e.kind(), msg)
+            })?;
+
+            // Update progress
+            bytes_written += chunk.len();
+            if total_bytes > 0 {
+                let percent = (bytes_written as f64 / total_bytes as f64 * 100.0) as u32;
+                if percent % 10 == 0 {
+                    // Log progress every 10%
+                    println!(
+                        "[EXPORT] Export progress: {}% ({} bytes)",
+                        percent, bytes_written
+                    );
                 }
             }
         }
 
-        // Ensure all data is flushed to the file buffer
-        match file.flush() {
-            Ok(_) => {
-                println!(
-                    "[EXPORT] Successfully wrote {} bytes to {}", 
-                    bytes_written, 
-                    temp_path
-                );
-                Ok(())
-            },
-            Err(e) => {
-                let msg = format!("Failed to flush file {}: {}", temp_path, e);
-                println!("[EXPORT] ERROR: {}", msg);
-                Err(io::Error::new(e.kind(), msg))
-            }
-        }
-    };
-    
-    // Check if write was successful before proceeding
-    if let Err(e) = write_result {
-        // Clean up the temp file on error
-        let _ = std::fs::remove_file(&temp_path);
-        return Err(e);
-    }
-    
-    // 5. Sync to disk if requested (this can be slow)
-    if enable_sync {
-        println!("[EXPORT] Syncing data to disk...");
-        match File::open(&temp_path)?.sync_all() {
-            Ok(_) => println!("[EXPORT] Data synced to disk"),
-            Err(e) => {
-                let msg = format!("Failed to sync file {}: {}", temp_path, e);
-                println!("[EXPORT] WARNING: {}", msg);
-                // Continue even if sync fails, as the file is still written
-            }
-        }
-    }
+        // Optional: Flush and sync to disk
+        if enable_sync {
+            #[cfg(not(test))]
+            tracing::debug!("Syncing file to disk...");
 
-    // 6. Rename temp file to target file (atomic on most platforms)
-    println!("[EXPORT] Renaming {} to {}", temp_path, file_path);
-    match fs::rename(&temp_path, path) {
+            file.sync_all().map_err(|e| {
+                let _ = std::fs::remove_file(&temp_path);
+                let msg = format!("Failed to sync file {}: {}", temp_path, e);
+                #[cfg(not(test))]
+                tracing::error!("{}", msg);
+                io::Error::new(e.kind(), msg)
+            })?;
+        } else {
+            // Just flush the buffers without waiting for disk sync
+            file.flush().map_err(|e| {
+                let _ = std::fs::remove_file(&temp_path);
+                let msg = format!("Failed to flush file {}: {}", temp_path, e);
+                #[cfg(not(test))]
+                tracing::error!("{}", msg);
+                io::Error::new(e.kind(), msg)
+            })?;
+        }
+    } // File handle is dropped here, ensuring it's closed
+
+    // 4. Atomically rename the temp file to the final name
+    #[cfg(not(test))]
+    tracing::debug!("Renaming temporary file to final destination...");
+
+    match std::fs::rename(&temp_path, path) {
         Ok(_) => {
-            println!("[EXPORT] Successfully exported memory snapshot to {}", file_path);
+            #[cfg(not(test))]
+            tracing::info!("Successfully exported memory snapshot to: {}", file_path);
             Ok(())
-        },
+        }
         Err(e) => {
-            let msg = format!("Failed to rename {} to {}: {}", temp_path, file_path, e);
-            println!("[EXPORT] ERROR: {}", msg);
-            
-            // Try to clean up the temp file if possible
             let _ = std::fs::remove_file(&temp_path);
-            
+            let msg = format!("Failed to rename temp file to {}: {}", file_path, e);
             #[cfg(not(test))]
             tracing::error!("{}", msg);
-            
             Err(io::Error::new(e.kind(), msg))
         }
     }
 }
 
-/// Create a memory snapshot from the current state of the tracker (for JSON export)
-fn create_snapshot(tracker: &MemoryTracker) -> MemorySnapshot {
-    let stats = tracker.get_stats();
+/// Creates a memory snapshot from cloned allocation data.
+///
+/// This function is designed to be called from a separate thread where direct access
+/// to the `MemoryTracker`'s internal mutex-protected data is not desired. It operates
+/// on clones of the necessary data.
+///
+/// # Arguments
+/// * `cloned_active_allocations`: A `Vec<AllocationInfo>` of active allocations.
+/// * `cloned_allocation_log`: A `Vec<AllocationInfo>` of the allocation log.
+///
+/// # Returns
+/// A `MemorySnapshot` instance.
+fn create_snapshot_from_cloned_data(
+    cloned_active_allocations: Vec<AllocationInfo>,
+    cloned_allocation_log: Vec<AllocationInfo>,
+) -> MemorySnapshot {
+    // Calculate stats from cloned active allocations
+    let total_allocations = cloned_active_allocations.len();
+    let total_allocated = cloned_active_allocations.iter().map(|a| a.size).sum();
+
+    // Perform hotspot analysis using cloned data
+    // Note: This requires analyze_hotspots_from_data to be available from crate::tracker
+    let hotspots = MemoryTracker::analyze_hotspots_from_data(
+        &cloned_active_allocations,
+        &cloned_allocation_log,
+    );
 
     MemorySnapshot {
         timestamp: chrono::Local::now().to_rfc3339(),
-        total_allocations: stats.total_allocations,
-        total_allocated: stats.total_memory,
-
-        active_allocations: tracker.get_active_allocations(),
-        allocation_hotspots: {
-            let hotspots = tracker.analyze_hotspots();
-            if hotspots.is_empty() {
-                None
-            } else {
-                Some(hotspots)
-            }
+        total_allocations,
+        total_allocated,
+        active_allocations: cloned_active_allocations, // Pass on the cloned active allocations
+        allocation_hotspots: if hotspots.is_empty() {
+            None
+        } else {
+            Some(hotspots)
         },
     }
 }
@@ -289,7 +310,7 @@ pub fn export_to_svg<P: AsRef<Path>>(
 ) -> io::Result<()> {
     let path = path.as_ref();
     let file_path = path.display().to_string();
-    
+
     #[cfg(not(test))]
     tracing::info!("Exporting memory visualization to: {}", file_path);
 
@@ -315,11 +336,11 @@ pub fn export_to_svg<P: AsRef<Path>>(
 
     // 3. Create SVG document (this is the potentially time-consuming part)
     tracing::debug!("Generating SVG document (with timeout)...");
-    
+
     let (tx, rx) = std::sync::mpsc::channel();
     // Clone data that needs to be moved into the thread
     // AllocationInfo is Clone, so this is fine.
-    let allocations_clone = combined_allocations.clone(); 
+    let allocations_clone = combined_allocations.clone();
 
     let _thread = std::thread::spawn(move || {
         // Catch panics within the thread
@@ -331,9 +352,11 @@ pub fn export_to_svg<P: AsRef<Path>>(
 
     // Wait for the result with a timeout (e.g., 60 seconds)
     let doc = match rx.recv_timeout(std::time::Duration::from_secs(60)) {
-        Ok(result) => match result { // Received something from the thread
+        Ok(result) => match result {
+            // Received something from the thread
             Ok(doc) => doc, // Successfully created document
-            Err(panic_err) => { // Thread panicked
+            Err(panic_err) => {
+                // Thread panicked
                 let panic_msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
                     s.to_string()
                 } else if let Some(s) = panic_err.downcast_ref::<String>() {
@@ -349,7 +372,8 @@ pub fn export_to_svg<P: AsRef<Path>>(
                 ));
             }
         },
-        Err(_) => { // Timeout occurred
+        Err(_) => {
+            // Timeout occurred
             #[cfg(not(test))]
             tracing::error!("Timeout during SVG document creation (took >60s)");
             return Err(io::Error::new(
@@ -361,16 +385,19 @@ pub fn export_to_svg<P: AsRef<Path>>(
     // Write the SVG document to a string buffer
     let mut buffer = Vec::new();
     svg::write(&mut buffer, &doc).map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to generate SVG: {}", e))
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to generate SVG: {}", e),
+        )
     })?;
 
     // 4. Write to a temporary file first
     let temp_path = format!("{}.tmp", file_path);
     #[cfg(not(test))]
     tracing::debug!("Writing to temporary file: {}", temp_path);
-    
+
     let _write_start = std::time::Instant::now();
-    
+
     {
         let mut file = File::create(&temp_path).map_err(|e| {
             let msg = format!("Failed to create temporary file {}: {}", temp_path, e);
@@ -383,7 +410,7 @@ pub fn export_to_svg<P: AsRef<Path>>(
         const CHUNK_SIZE: usize = 8 * 1024; // 8KB chunks
         let mut written = 0;
         let total = buffer.len();
-        
+
         for chunk in buffer.chunks(CHUNK_SIZE) {
             file.write_all(chunk).map_err(|e| {
                 let _ = std::fs::remove_file(&temp_path);
@@ -392,12 +419,13 @@ pub fn export_to_svg<P: AsRef<Path>>(
                 tracing::error!("{}", msg);
                 io::Error::new(e.kind(), msg)
             })?;
-            
+
             written += chunk.len();
             #[cfg(not(test))]
             if total > 0 {
                 let percent = (written as f64 / total as f64 * 100.0) as u32;
-                if percent % 10 == 0 { // Log progress every 10%
+                if percent % 10 == 0 {
+                    // Log progress every 10%
                     tracing::debug!("Export progress: {}% ({} bytes)", percent, written);
                 }
             }
@@ -407,7 +435,7 @@ pub fn export_to_svg<P: AsRef<Path>>(
         if enable_sync {
             #[cfg(not(test))]
             tracing::debug!("Syncing file to disk...");
-            
+
             file.sync_all().map_err(|e| {
                 let _ = std::fs::remove_file(&temp_path);
                 let msg = format!("Failed to sync file {}: {}", temp_path, e);
@@ -430,13 +458,16 @@ pub fn export_to_svg<P: AsRef<Path>>(
     // 7. Atomically rename the temp file to the final name
     #[cfg(not(test))]
     tracing::debug!("Renaming temporary file to final destination...");
-    
+
     match std::fs::rename(&temp_path, path) {
         Ok(_) => {
             #[cfg(not(test))]
-            tracing::info!("Successfully exported memory visualization to: {}", file_path);
+            tracing::info!(
+                "Successfully exported memory visualization to: {}",
+                file_path
+            );
             Ok(())
-        },
+        }
         Err(e) => {
             let _ = std::fs::remove_file(&temp_path);
             let msg = format!("Failed to rename temp file to {}: {}", file_path, e);
@@ -653,7 +684,7 @@ mod tests {
             .add_deallocated_for_test(AllocationInfo {
                 ptr: 0x2000,
                 size: 200,
-                timestamp_alloc: base_time + 50,  // Allocates at 50ms
+                timestamp_alloc: base_time + 50, // Allocates at 50ms
                 timestamp_dealloc: Some(base_time + 150), // Deallocates at 150ms
                 var_name: Some("varDeallocated".to_string()),
                 type_name: Some("TypeDeallocated".to_string()),
@@ -686,7 +717,8 @@ mod tests {
         tracker.clear_all_for_test();
 
         // Allocation 1: With var_name, type_name, specific backtrace and thread_id
-        tracker.add_allocation_for_test(AllocationInfo {
+        tracker
+            .add_allocation_for_test(AllocationInfo {
                 ptr: 0x1000,
                 size: 100,
                 timestamp_alloc: base_time + 100,
@@ -694,26 +726,28 @@ mod tests {
                 var_name: Some("varA".to_string()),
                 type_name: Some("TypeA".to_string()),
                 backtrace_ips: vec![1, 2, 3, 4, 5],
-                thread_id: 111
-        }).unwrap();
+                thread_id: 111,
+            })
+            .unwrap();
 
         // Allocation 2: Without var_name/type_name (None), different backtrace and thread_id
-        tracker.add_allocation_for_test(AllocationInfo {
+        tracker
+            .add_allocation_for_test(AllocationInfo {
                 ptr: 0x3000,
                 size: 300,
                 timestamp_alloc: base_time + 400,
                 timestamp_dealloc: None,
-                var_name: None, // Test case with None
+                var_name: None,  // Test case with None
                 type_name: None, // Test case with None
                 backtrace_ips: vec![6, 7, 8],
-                thread_id: 222
-        }).unwrap();
+                thread_id: 222,
+            })
+            .unwrap();
         // JSON export typically shows active allocations, so a deallocated one might not be expected here
         // unless the test specifically checks for it in a different way (e.g. if JSON also included a log)
         // For now, keeping it simple for JSON which focuses on active state.
         tracker
     }
-
 
     #[test]
     fn test_export_to_json_valid_data() {
@@ -776,7 +810,7 @@ mod tests {
     }
 
     #[test]
-   fn test_export_to_svg_generates_file() {
+    fn test_export_to_svg_generates_file() {
         let tracker = create_populated_tracker_for_svg_test(); // Use SVG specific helper
         let dir = tempdir().unwrap();
         let svg_path = dir.path().join("test_visualization.svg");
@@ -811,23 +845,49 @@ mod tests {
             svg_content.contains("varDeallocated"),
             "SVG should contain text for 'varDeallocated'"
         );
-         assert!(
+        assert!(
             svg_content.contains("varActiveLater"),
             "SVG should contain text for 'varActiveLater'"
         );
 
         // Check for tooltip content (enhanced)
-        assert!(svg_content.contains("Ptr: 0x1000"), "SVG tooltip for 0x1000 missing");
-        assert!(svg_content.contains("Size: 100B"), "SVG tooltip for 0x1000 missing size");
-        assert!(svg_content.contains("Deallocated: Active"), "SVG tooltip for 0x1000 incorrect dealloc status");
-        assert!(svg_content.contains("Thread ID: 1"), "SVG tooltip for 0x1000 missing thread ID");
-        assert!(svg_content.contains("Backtrace frames: 3"), "SVG tooltip for 0x1000 missing backtrace info");
+        assert!(
+            svg_content.contains("Ptr: 0x1000"),
+            "SVG tooltip for 0x1000 missing"
+        );
+        assert!(
+            svg_content.contains("Size: 100B"),
+            "SVG tooltip for 0x1000 missing size"
+        );
+        assert!(
+            svg_content.contains("Deallocated: Active"),
+            "SVG tooltip for 0x1000 incorrect dealloc status"
+        );
+        assert!(
+            svg_content.contains("Thread ID: 1"),
+            "SVG tooltip for 0x1000 missing thread ID"
+        );
+        assert!(
+            svg_content.contains("Backtrace frames: 3"),
+            "SVG tooltip for 0x1000 missing backtrace info"
+        );
 
-        assert!(svg_content.contains("Ptr: 0x2000"), "SVG tooltip for 0x2000 missing");
-        assert!(svg_content.contains("Size: 200B"), "SVG tooltip for 0x2000 missing size");
-        assert!(svg_content.contains(&format!("Deallocated: {} ms", 1678886400000i64 + 150)), "SVG tooltip for 0x2000 incorrect dealloc status");
-        assert!(svg_content.contains("Thread ID: 2"), "SVG tooltip for 0x2000 missing thread ID");
-
+        assert!(
+            svg_content.contains("Ptr: 0x2000"),
+            "SVG tooltip for 0x2000 missing"
+        );
+        assert!(
+            svg_content.contains("Size: 200B"),
+            "SVG tooltip for 0x2000 missing size"
+        );
+        assert!(
+            svg_content.contains(&format!("Deallocated: {} ms", 1678886400000i64 + 150)),
+            "SVG tooltip for 0x2000 incorrect dealloc status"
+        );
+        assert!(
+            svg_content.contains("Thread ID: 2"),
+            "SVG tooltip for 0x2000 missing thread ID"
+        );
 
         assert!(
             svg_content.contains("<rect"),
@@ -842,7 +902,15 @@ mod tests {
         // <text x="145" y="XY" ...>varDeallocated (200B)</text> ... <rect x="DEF" y="WZ" ... fill="steelblue"><title>Ptr: 0x2000...</title></rect>
 
         // A simplified check: count occurrences of colors. Expect 2 active, 1 deallocated.
-        assert_eq!(svg_content.matches("lightcoral").count(), 2, "Expected 2 active items with lightcoral color");
-        assert_eq!(svg_content.matches("steelblue").count(), 1, "Expected 1 deallocated item with steelblue color");
+        assert_eq!(
+            svg_content.matches("lightcoral").count(),
+            2,
+            "Expected 2 active items with lightcoral color"
+        );
+        assert_eq!(
+            svg_content.matches("steelblue").count(),
+            1,
+            "Expected 1 deallocated item with steelblue color"
+        );
     }
 }

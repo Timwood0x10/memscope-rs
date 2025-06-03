@@ -1,5 +1,5 @@
-use trace_tools::{init, track_var, get_global_tracker};
-use std::{fs, path::Path, time::Duration, thread};
+use std::{fs, path::Path, thread, time::Duration};
+use trace_tools::{get_global_tracker, init, track_var};
 
 // A simple struct to ensure we are tracking something with a known layout
 struct TrackedData {
@@ -26,7 +26,7 @@ fn main() {
         track_var!(dealloc_var);
         println!("Tracked dealloc_var");
         thread::sleep(Duration::from_millis(50)); // Ensure distinct timestamps
-        // dealloc_var goes out of scope here and is dropped
+                                                  // dealloc_var goes out of scope here and is dropped
         println!("dealloc_var going out of scope.");
     }
     thread::sleep(Duration::from_millis(50)); // Allow time for deallocation to be processed
@@ -43,13 +43,15 @@ fn main() {
     let json_path = Path::new("test_output.json");
     let svg_path = Path::new("test_output.svg");
 
-    if let Err(e) = tracker.export_to_json(json_path, true) { // Enable sync for reliable file writing
+    if let Err(e) = tracker.export_to_json(json_path, true) {
+        // Enable sync for reliable file writing
         eprintln!("Failed to export JSON: {}", e);
         std::process::exit(1);
     }
     println!("Exported JSON to test_output.json");
 
-    if let Err(e) = tracker.export_to_svg(svg_path, true) { // Enable sync for reliable file writing
+    if let Err(e) = tracker.export_to_svg(svg_path, true) {
+        // Enable sync for reliable file writing
         eprintln!("Failed to export SVG: {}", e);
         std::process::exit(1);
     }
@@ -66,8 +68,14 @@ fn main() {
 
     // Basic check for variable names (adjust based on actual naming in tracker)
     // Note: `track_var!` uses the variable identifier as the name.
-    assert!(json_content.contains("active_var"), "JSON missing 'active_var'");
-    assert!(json_content.contains("another_active_vec"), "JSON missing 'another_active_vec'");
+    assert!(
+        json_content.contains("active_var"),
+        "JSON missing 'active_var'"
+    );
+    assert!(
+        json_content.contains("another_active_vec"),
+        "JSON missing 'another_active_vec'"
+    );
     // `dealloc_var` should not be in active_allocations in JSON if JSON shows snapshot of active
     assert!(!json_content.contains("dealloc_var"), "JSON should not list 'dealloc_var' as active. Check if it's in the log instead if JSON format includes it.");
     println!("JSON basic content validated.");
@@ -82,12 +90,24 @@ fn main() {
     assert!(svg_content.contains("</svg>"), "SVG missing </svg> tag.");
 
     // Check for variable names (these should be present as text elements or in tooltips)
-    assert!(svg_content.contains("active_var"), "SVG missing 'active_var'");
-    assert!(svg_content.contains("dealloc_var"), "SVG missing 'dealloc_var'"); // Should be in SVG lifecycle
-    assert!(svg_content.contains("another_active_vec"), "SVG missing 'another_active_vec'");
-    
+    assert!(
+        svg_content.contains("active_var"),
+        "SVG missing 'active_var'"
+    );
+    assert!(
+        svg_content.contains("dealloc_var"),
+        "SVG missing 'dealloc_var'"
+    ); // Should be in SVG lifecycle
+    assert!(
+        svg_content.contains("another_active_vec"),
+        "SVG missing 'another_active_vec'"
+    );
+
     // Check for <rect> elements, indicating 그려진 bars
-    assert!(svg_content.contains("<rect"), "SVG missing <rect> elements for lifecycle bars.");
+    assert!(
+        svg_content.contains("<rect"),
+        "SVG missing <rect> elements for lifecycle bars."
+    );
     println!("SVG basic content validated.");
 
     println!("--- Test Program Completed Successfully ---");

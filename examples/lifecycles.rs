@@ -67,14 +67,16 @@ fn main() {
     // 6. Export data.
     let tracker = get_global_tracker();
     println!("\nExporting memory snapshot to lifecycles_snapshot.json...");
-    if let Err(e) = tracker.export_to_json("lifecycles_snapshot.json", true) { // Enable sync for reliable file writing
+    if let Err(e) = tracker.export_to_json("lifecycles_snapshot.json", true) {
+        // Enable sync for reliable file writing
         eprintln!("Failed to export JSON: {}", e);
     } else {
         println!("Successfully exported JSON.");
     }
 
     println!("\nExporting memory usage visualization to lifecycles_graph.svg...");
-    if let Err(e) = tracker.export_to_svg("lifecycles_graph.svg", true) { // Enable sync for reliable file writing
+    if let Err(e) = tracker.export_to_svg("lifecycles_graph.svg", true) {
+        // Enable sync for reliable file writing
         eprintln!("Failed to export SVG: {}", e);
     } else {
         println!("Successfully exported SVG.");
