@@ -31,15 +31,22 @@ pub use tracker::MemoryError;
 pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::AllocationInfo;
 
+use once_cell::sync::OnceCell;
 use std::cell::Cell;
 
 thread_local! {
     static IN_TRACING:Cell<bool> = Cell::new(false);
 }
 
+static GLOBAL_MEMORY_TRACKER: OnceCell<Arc<MemoryTracker>> = OnceCell::new();
+
 // Import the allocator
 #[cfg(feature = "tracking-allocator")]
 pub use allocator::TrackingAllocator;
+
+pub fn get_global_tracker_for_allocator() -> Option<Arc<MemoryTracker>> {
+    GLOBAL_MEMORY_TRACKER.get().cloned()
+}
 
 /// Global allocator for tracking memory allocations
 #[cfg(feature = "tracking-allocator")]

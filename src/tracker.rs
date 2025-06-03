@@ -26,8 +26,6 @@ use svg::Document;
 use thiserror::Error;
 use treemap::{Rect, TreemapLayout};
 
-// 新增：线程局部标志，用于指示当前线程是否正在全局分配器（TracingAllocator）的临界区内。
-// 这可以帮助避免在分配器内部进行复杂的内存操作（如回溯捕捉），从而防止重入死锁或运行时错误。
 thread_local! {
     /// A thread-local flag indicating that the current thread is executing code
     /// within the global `TrackingAllocator`'s `alloc` or `dealloc` method.
@@ -209,21 +207,27 @@ impl MemoryTracker {
         size: usize,
         type_name: Option<String>,
     ) -> Result<(), MemoryError> {
-        // 在这里，is_reentrant_call 至关重要，它决定了我们能做什么。
         let is_reentrant_call = IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.get());
 
-        // **避免在重入调用中进行任何tracing日志操作。**
-        if !is_reentrant_call {
+        // **在重入调用中，避免任何 tracing 日志和线程ID获取**
+        let current_thread_hashed_id = if !is_reentrant_call {
             let thread_id = std::thread::current().id();
             tracing::debug!(
                 ?thread_id,
                 "Attempting to lock active_allocations for track_allocation"
             );
-        }
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            thread_id.hash(&mut hasher);
+            hasher.finish()
+        } else {
+            // 在重入调用中，不能安全地获取线程ID。使用默认值。
+            0 // 或者一个其他的标记值
+        };
 
         let mut active = self.active_allocations.lock();
 
-        // **避免在重入调用中进行任何tracing日志操作。**
         if !is_reentrant_call {
             let thread_id = std::thread::current().id();
             tracing::debug!(
@@ -253,21 +257,8 @@ impl MemoryTracker {
                 Vec::new() // 如果未启用回溯功能，则返回空 Vec
             }
         } else {
-            // 在重入调用中，跳过回溯捕捉以避免更深层次的递归/死锁/TLS问题。
-            // 不进行任何日志，以避免tracing相关的TLS问题。
+            // 在重入调用中，跳过回溯捕捉。
             Vec::new()
-        };
-
-        // 只有在非重入调用中才尝试获取线程ID的哈希值。
-        let current_thread_hashed_id = if !is_reentrant_call {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            std::thread::current().id().hash(&mut hasher);
-            hasher.finish()
-        } else {
-            // 在重入调用中，不能安全地获取线程ID。使用默认值。
-            0 // 或者一个其他的标记值，例如 `u64::MAX`
         };
 
         active.insert(
@@ -283,7 +274,6 @@ impl MemoryTracker {
                 thread_id: current_thread_hashed_id,
             },
         );
-
         Ok(())
     }
 
@@ -302,7 +292,6 @@ impl MemoryTracker {
     pub fn track_deallocation(&self, ptr: usize) -> Result<(), MemoryError> {
         let is_reentrant_call = IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.get());
 
-        // **避免在重入调用中进行任何tracing日志操作。**
         if !is_reentrant_call {
             let thread_id = std::thread::current().id();
             tracing::debug!(
@@ -310,10 +299,7 @@ impl MemoryTracker {
                 "Attempting to lock active_allocations for track_deallocation"
             );
         }
-
         let mut active = self.active_allocations.lock();
-
-        // **避免在重入调用中进行任何tracing日志操作。**
         if !is_reentrant_call {
             let thread_id = std::thread::current().id();
             tracing::debug!(
@@ -331,12 +317,8 @@ impl MemoryTracker {
                     })?
                     .as_millis(),
             );
-
-            // 显式 drop `active`，释放 `active_allocations` 的锁。
-            // 虽然 `parking_lot::Mutex` 是可重入的，但尽早释放不必要的锁总是一个好习惯。
             drop(active);
 
-            // **避免在重入调用中进行任何tracing日志操作。**
             if !is_reentrant_call {
                 let thread_id = std::thread::current().id();
                 tracing::debug!(
@@ -345,7 +327,6 @@ impl MemoryTracker {
                 );
             }
             let mut log = self.allocation_log.lock();
-            // **避免在重入调用中进行任何tracing日志操作。**
             if !is_reentrant_call {
                 let thread_id = std::thread::current().id();
                 tracing::debug!(
@@ -354,19 +335,37 @@ impl MemoryTracker {
                 );
             }
             log.push(info);
-
             Ok(())
         } else {
-            // 在全局分配器上下文中，eprintln! 是不安全的。
-            // 默认情况下，我们只返回错误。
-            // if !is_reentrant_call { // 如果你需要在这里保留一些调试信息，可以这样做
-            //     eprintln!("Error: No active allocation found for pointer: 0x{:x}", ptr);
-            // }
             Err(MemoryError::TrackingError(format!(
                 "No active allocation found for pointer: 0x{:x}",
                 ptr
             )))
         }
+    }
+
+    pub fn resolve_ips(unique_ips: &HashSet<usize>) -> HashMap<usize, String> {
+        let mut resolved_map = HashMap::new();
+        let old_reentrant_flag = IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.replace(true)); // 设置标志
+        for &ip_addr in unique_ips {
+            let mut resolved_symbol_name = format!("{:#x}", ip_addr);
+            #[cfg(feature = "backtrace")]
+            unsafe {
+                let ip_void = ip_addr as *mut std::ffi::c_void;
+                backtrace::resolve(ip_void, |symbol| {
+                    if let Some(name) = symbol.name() {
+                        if let Some(name_str) = name.as_str() {
+                            resolved_symbol_name = rustc_demangle::try_demangle(name_str)
+                                .map(|d| d.to_string())
+                                .unwrap_or_else(|_| name_str.to_string());
+                        }
+                    }
+                });
+            }
+            resolved_map.insert(ip_addr, resolved_symbol_name);
+        }
+        IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.set(old_reentrant_flag)); // 恢复标志
+        resolved_map
     }
 
     /// Associates a variable name and a more specific type name with an active allocation.

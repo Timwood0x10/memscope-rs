@@ -956,6 +956,7 @@ dependencies = [
  "crossbeam",
  "inferno",
  "lazy_static",
+ "once_cell",
  "parking_lot",
  "rustc-demangle",
  "scopeguard",
