@@ -1,5 +1,7 @@
 # Rust Memory Execution Visualizer (trace_tools)
 
+> **Note:** This project is currently in the testing phase and is still under active development.
+
 ## Overview
 `trace_tools` is a Rust utility designed to help developers understand memory allocation patterns and variable lifecycles within their applications. It provides a custom global allocator to track heap memory operations and offers mechanisms to associate these operations with source code variables. The collected data can be exported into JSON format for detailed analysis or as an SVG image for a visual overview of memory usage.
 
@@ -129,5 +131,29 @@ cargo run --example basic_usage
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs, feature requests, or improvements.
 
 ## License
-This project is licensed under the MIT License
+
+This project is licensed under the MIT License.
+
+```text
+MIT License
+
 Copyright (c) 2025
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
