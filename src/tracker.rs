@@ -1,22 +1,39 @@
+//! Export functionality for memory tracking data
+//!
+//! This module provides functions to export memory tracking data to various formats
+//! such as JSON and SVG.
+
+use inferno::flamegraph::{self, Options as FlamegraphOptions};
+use std::fs::File;
+use std::io::{self, BufWriter};
+use std::path::Path;
+
 use std::{
-    // backtrace::Backtrace, // This specific struct is not used directly, backtrace::trace is.
-    collections::{HashMap, HashSet}, 
+    cell::Cell,
+    collections::{HashMap, HashSet},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, 
-        Mutex,
-    }, 
-    thread, 
-    time::{SystemTime, UNIX_EPOCH}
+        Arc,
+    },
+    thread,
+    time::{SystemTime, UNIX_EPOCH},
 };
-use std::fs::File; // Added for export_flamegraph_svg
-use std::io::{self, BufWriter}; // Added for export_flamegraph_svg
-use std::path::Path; // Added for export_flamegraph_svg
+
+use parking_lot::Mutex;
+
+use svg::node::element::{Group, Rectangle, Text as SvgText, Title as SvgTitle};
+use svg::Document;
 use thiserror::Error;
-use inferno::flamegraph::{self, Options as FlamegraphOptions}; // Added for flamegraph
-use svg::node::element::{Rectangle, Text as SvgText, Title as SvgTitle, Group}; // Added for treemap
-use svg::Document; // Added for treemap
-use treemap::{Rect, TreemapLayout}; // Added for treemap
+use treemap::{Rect, TreemapLayout};
+
+thread_local! {
+    /// A thread-local flag indicating that the current thread is executing code
+    /// within the global `TrackingAllocator`'s `alloc` or `dealloc` method.
+    /// This helps `MemoryTracker` methods (like `track_allocation`) to conditionally
+    /// skip expensive operations (e.g., backtrace capture, thread ID hashing, logging)
+    /// to avoid re-entry deadlocks or "thread-local data access while allocating" runtime errors.
+    pub static IS_ALLOCATOR_REENTRANT_CALL: Cell<bool> = const { Cell::new(false) };
+}
 
 /// Error type for memory tracking operations.
 #[derive(Error, Debug)]
@@ -86,6 +103,7 @@ pub struct TypeMemoryUsage {
 /// This tracker is typically accessed via a global instance obtained through
 /// [`get_global_tracker()`].
 pub struct MemoryTracker {
+    // 更改为 parking_lot::Mutex
     active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
     allocation_log: Mutex<Vec<AllocationInfo>>,
     tracking_enabled: AtomicBool,
@@ -122,32 +140,50 @@ impl MemoryTracker {
         F: FnOnce() -> R,
     {
         use std::sync::atomic::Ordering::SeqCst;
-        
-        let was_enabled = self.tracking_enabled.swap(false, SeqCst);
-        tracing::debug!("with_allocations_disabled: was_enabled={}", was_enabled);
-        
-        // record thread id for debugging
+
+        // 这里通常不会是分配器重入的情况，所以可以保留日志和线程ID
         let thread_id = std::thread::current().id();
-        tracing::debug!("[Thread {:?}] Entering with_allocations_disabled", thread_id);
-        
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            f()
-        }));
-        
-        // restore tracking_enabled
-        if was_enabled {
-            self.tracking_enabled.store(true, SeqCst);
-            tracing::debug!("[Thread {:?}] Restored tracking_enabled to true", thread_id);
+        tracing::debug!(?thread_id, "Entering with_allocations_disabled");
+
+        let was_originally_enabled = self.tracking_enabled.load(SeqCst);
+        if was_originally_enabled {
+            self.tracking_enabled.store(false, SeqCst);
+            tracing::debug!(
+                ?thread_id,
+                "Tracking disabled within with_allocations_disabled"
+            );
+        } else {
+            tracing::debug!(
+                ?thread_id,
+                "Tracking was already disabled on entry to with_allocations_disabled"
+            );
         }
-        
-        
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f()));
+
+        // restore tracking_enabled
+        // Restore tracking_enabled state ONLY if it was enabled upon entering this function.
+        if was_originally_enabled {
+            self.tracking_enabled.store(true, SeqCst);
+            tracing::debug!(
+                ?thread_id,
+                "Tracking re-enabled on exit from with_allocations_disabled"
+            );
+        } else {
+            tracing::debug!(?thread_id, "Tracking remains disabled on exit from with_allocations_disabled (was originally disabled)");
+        }
+
         match result {
             Ok(r) => {
-                tracing::debug!("[Thread {:?}] Exiting with_allocations_disabled normally", thread_id);
+                tracing::debug!(?thread_id, "Exiting with_allocations_disabled normally");
                 r
-            },
+            }
             Err(panic) => {
-                tracing::error!("[Thread {:?}] Panic in with_allocations_disabled: {:?}", thread_id, panic);
+                tracing::error!(
+                    ?thread_id,
+                    "Panic in with_allocations_disabled: {:?}",
+                    panic
+                );
                 std::panic::resume_unwind(panic);
             }
         }
@@ -171,13 +207,59 @@ impl MemoryTracker {
         size: usize,
         type_name: Option<String>,
     ) -> Result<(), MemoryError> {
-        let mut active = self.active_allocations.lock()
-            .map_err(|e| MemoryError::LockError(format!("Failed to lock active_allocations: {}", e)))?;
+        let is_reentrant_call = IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.get());
+
+        // **在重入调用中，避免任何 tracing 日志和线程ID获取**
+        let current_thread_hashed_id = if !is_reentrant_call {
+            let thread_id = std::thread::current().id();
+            tracing::debug!(
+                ?thread_id,
+                "Attempting to lock active_allocations for track_allocation"
+            );
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            thread_id.hash(&mut hasher);
+            hasher.finish()
+        } else {
+            // 在重入调用中，不能安全地获取线程ID。使用默认值。
+            0 // 或者一个其他的标记值
+        };
+
+        let mut active = self.active_allocations.lock();
+
+        if !is_reentrant_call {
+            let thread_id = std::thread::current().id();
+            tracing::debug!(
+                ?thread_id,
+                "Successfully locked active_allocations for track_allocation"
+            );
+        }
 
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| MemoryError::TrackingError("System time before UNIX_EPOCH".to_string()))?
             .as_millis();
+
+        // 只有在非重入调用中才尝试捕获回溯。
+        let backtrace_ips = if !is_reentrant_call {
+            #[cfg(feature = "backtrace")]
+            {
+                let mut ips = Vec::new();
+                backtrace::trace(|frame| {
+                    ips.push(frame.ip() as usize);
+                    true
+                });
+                ips
+            }
+            #[cfg(not(feature = "backtrace"))]
+            {
+                Vec::new() // 如果未启用回溯功能，则返回空 Vec
+            }
+        } else {
+            // 在重入调用中，跳过回溯捕捉。
+            Vec::new()
+        };
 
         active.insert(
             ptr,
@@ -188,35 +270,10 @@ impl MemoryTracker {
                 timestamp_dealloc: None,
                 var_name: None,
                 type_name,
-                backtrace_ips: {
-                    #[cfg(feature = "backtrace")]
-                    {
-                        let mut ips = Vec::new();
-                        let mut stack_trace = None;
-                        backtrace::trace(|frame| {
-                            ips.push(frame.ip() as usize);
-                            stack_trace = Some(format!("{:?}", frame));
-                            // Continue tracing
-                            true
-                        });
-                        (ips, stack_trace)
-                    }
-                    #[cfg(not(feature = "backtrace"))]
-                    {
-                        Vec::new() // Empty vec if backtrace feature is not enabled
-                    }
-                },
-                thread_id: {
-                    use std::hash::{Hash, Hasher};
-                    use std::collections::hash_map::DefaultHasher;
-                    
-                    let mut hasher = DefaultHasher::new();
-                    thread::current().id().hash(&mut hasher);
-                    hasher.finish()
-                },
+                backtrace_ips,
+                thread_id: current_thread_hashed_id,
             },
         );
-        
         Ok(())
     }
 
@@ -233,25 +290,82 @@ impl MemoryTracker {
     /// active allocations, a lock could not be acquired, or there was an issue
     /// generating a timestamp.
     pub fn track_deallocation(&self, ptr: usize) -> Result<(), MemoryError> {
-        let mut active = self.active_allocations.lock()
-            .map_err(|e| MemoryError::LockError(format!("Failed to lock active_allocations: {}", e)))?;
-            
+        let is_reentrant_call = IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.get());
+
+        if !is_reentrant_call {
+            let thread_id = std::thread::current().id();
+            tracing::debug!(
+                ?thread_id,
+                "Attempting to lock active_allocations for track_deallocation"
+            );
+        }
+        let mut active = self.active_allocations.lock();
+        if !is_reentrant_call {
+            let thread_id = std::thread::current().id();
+            tracing::debug!(
+                ?thread_id,
+                "Successfully locked active_allocations for track_deallocation"
+            );
+        }
+
         if let Some(mut info) = active.remove(&ptr) {
             info.timestamp_dealloc = Some(
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
-                    .map_err(|_| MemoryError::TrackingError("System time before UNIX_EPOCH".to_string()))?
+                    .map_err(|_| {
+                        MemoryError::TrackingError("System time before UNIX_EPOCH".to_string())
+                    })?
                     .as_millis(),
             );
-            
-            let mut log = self.allocation_log.lock()
-                .map_err(|e| MemoryError::LockError(format!("Failed to lock allocation_log: {}", e)))?;
+            drop(active);
+
+            if !is_reentrant_call {
+                let thread_id = std::thread::current().id();
+                tracing::debug!(
+                    ?thread_id,
+                    "Attempting to lock allocation_log for track_deallocation"
+                );
+            }
+            let mut log = self.allocation_log.lock();
+            if !is_reentrant_call {
+                let thread_id = std::thread::current().id();
+                tracing::debug!(
+                    ?thread_id,
+                    "Successfully locked allocation_log for track_deallocation"
+                );
+            }
             log.push(info);
-            
             Ok(())
         } else {
-            Err(MemoryError::TrackingError(format!("No active allocation found for pointer: 0x{:x}", ptr)))
+            Err(MemoryError::TrackingError(format!(
+                "No active allocation found for pointer: 0x{:x}",
+                ptr
+            )))
         }
+    }
+
+    pub fn resolve_ips(unique_ips: &HashSet<usize>) -> HashMap<usize, String> {
+        let mut resolved_map = HashMap::new();
+        let old_reentrant_flag = IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.replace(true)); // 设置标志
+        for &ip_addr in unique_ips {
+            let mut resolved_symbol_name = format!("{:#x}", ip_addr);
+            #[cfg(feature = "backtrace")]
+            unsafe {
+                let ip_void = ip_addr as *mut std::ffi::c_void;
+                backtrace::resolve(ip_void, |symbol| {
+                    if let Some(name) = symbol.name() {
+                        if let Some(name_str) = name.as_str() {
+                            resolved_symbol_name = rustc_demangle::try_demangle(name_str)
+                                .map(|d| d.to_string())
+                                .unwrap_or_else(|_| name_str.to_string());
+                        }
+                    }
+                });
+            }
+            resolved_map.insert(ip_addr, resolved_symbol_name);
+        }
+        IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.set(old_reentrant_flag)); // 恢复标志
+        resolved_map
     }
 
     /// Associates a variable name and a more specific type name with an active allocation.
@@ -267,35 +381,54 @@ impl MemoryTracker {
     /// # Returns
     /// `Ok(())` if successful, or `Err(MemoryError)` if the pointer was not found
     /// in active allocations or if a lock could not be acquired.
-    pub fn associate_var(&self, ptr: usize, var_name: String, type_name: String) -> Result<(), MemoryError> {
-        tracing::debug!("Attempting to associate variable: name='{}', type='{}', ptr=0x{:x}", 
-                      var_name, type_name, ptr);
-                      
-        let mut active = self.active_allocations.lock()
-            .map_err(|e| {
-                let err_msg = format!("Failed to lock active_allocations: {}", e);
-                tracing::error!("{}", err_msg);
-                MemoryError::LockError(err_msg)
-            })?;
-            
-        if let Some(info) = active.get_mut(&ptr) {
-            tracing::debug!("Found allocation: ptr=0x{:x}, current_size={} bytes, current_var={:?}", 
-                          ptr, info.size, info.var_name);
-                          
-            info.var_name = Some(var_name.clone());
-            info.type_name = Some(type_name.clone());
-            
-            tracing::info!("Successfully associated variable: name='{}', type='{}', ptr=0x{:x}", 
-                         var_name, type_name, ptr);
+    pub fn associate_var(
+        &self,
+        ptr: usize,
+        var_name: String,
+        type_name: String,
+    ) -> Result<(), MemoryError> {
+        // Skip if tracking is disabled to prevent deadlocks
+        // 这里的 `tracking_enabled` 是独立于 `IS_ALLOCATOR_REENTRANT_CALL` 的控制。
+        if !self.tracking_enabled.load(Ordering::SeqCst) {
+            tracing::debug!("Skipping variable association - tracking is disabled");
+            return Ok(());
+        }
+
+        // `associate_var` 通常不会在分配器内部被直接调用（它由 track_var! 宏调用），
+        // 所以这里可以保留日志和线程ID获取。
+        let thread_id = std::thread::current().id();
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock active_allocations for associate_var"
+        );
+        let mut active = self.active_allocations.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked active_allocations for associate_var"
+        );
+
+        if let Some(alloc) = active.get_mut(&ptr) {
+            alloc.var_name = Some(var_name.clone());
+            alloc.type_name = Some(type_name.clone());
+
+            tracing::info!(
+                "Successfully associated variable: name='{}', type='{}', ptr=0x{:x}",
+                var_name,
+                type_name,
+                ptr
+            );
             Ok(())
         } else {
-            let active_ptrs: Vec<String> = active.keys()
+            let active_ptrs: Vec<String> = active
+                .keys()
                 .take(5) // Only show first 5 to avoid log spam
                 .map(|p| format!("0x{:x}", p))
                 .collect();
-                
-            let err_msg = format!("No active allocation found for pointer: 0x{:x}. Active pointers (first 5): {:?}", 
-                               ptr, active_ptrs);
+
+            let err_msg = format!(
+                "No active allocation found for pointer: 0x{:x}. Active pointers (first 5): {:?}",
+                ptr, active_ptrs
+            );
             tracing::error!("{}", err_msg);
             Err(MemoryError::TrackingError(err_msg))
         }
@@ -307,14 +440,20 @@ impl MemoryTracker {
     /// A `MemoryStats` struct containing the total number of active allocations
     /// and the total memory they occupy.
     pub fn get_stats(&self) -> MemoryStats {
-        let active = match self.active_allocations.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        
+        let thread_id = std::thread::current().id();
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock active_allocations for get_active_allocations"
+        );
+        let active = self.active_allocations.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked active_allocations for get_active_allocations"
+        );
+
         let total_allocations = active.len();
         let total_memory = active.values().map(|a| a.size).sum();
-        
+
         MemoryStats {
             total_allocations,
             total_memory,
@@ -327,11 +466,17 @@ impl MemoryTracker {
     /// A `Vec<AllocationInfo>` containing clones of the information for all allocations
     /// that have been tracked but not yet deallocated.
     pub fn get_active_allocations(&self) -> Vec<AllocationInfo> {
-        let active = match self.active_allocations.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        
+        let thread_id = std::thread::current().id();
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock active_allocations for get_active_allocations"
+        );
+        let active = self.active_allocations.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked active_allocations for get_active_allocations"
+        );
+
         active.values().cloned().collect()
     }
 
@@ -341,10 +486,16 @@ impl MemoryTracker {
     /// A `Vec<AllocationInfo>` containing clones of the information for all allocations
     /// that have been tracked and subsequently deallocated.
     pub fn get_allocation_log(&self) -> Vec<AllocationInfo> {
-        let log = match self.allocation_log.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
+        let thread_id = std::thread::current().id();
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock allocation_log for get_allocation_log"
+        );
+        let log = self.allocation_log.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked allocation_log for get_allocation_log"
+        );
         log.clone()
     }
 
@@ -355,8 +506,21 @@ impl MemoryTracker {
     ///
     /// # Returns
     /// `Ok(())` if successful, or `std::io::Error` if file I/O or serialization fails.
-    pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        crate::export::export_to_json(self, path)
+    /// Exports a snapshot of currently active memory allocations to a JSON file.
+    ///
+    /// # Arguments
+    /// * `path`: The path to the file where the JSON data will be written.
+    /// * `enable_sync`: If `true`, calls `sync_all()` to ensure data is written to disk.
+    ///                Set to `false` for better performance when atomicity is not critical.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or `std::io::Error` if file I/O or serialization fails.
+    pub fn export_to_json<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        enable_sync: bool,
+    ) -> std::io::Result<()> {
+        crate::export::export_to_json(self, path, enable_sync)
     }
 
     /// Exports the memory allocation lifecycle data (from the deallocation log) to an SVG file.
@@ -366,8 +530,21 @@ impl MemoryTracker {
     ///
     /// # Returns
     /// `Ok(())` if successful, or `std::io::Error` if file I/O or SVG generation fails.
-    pub fn export_to_svg<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        crate::export::export_to_svg(self, path)
+    /// Exports the memory allocation lifecycle data (from the deallocation log) to an SVG file.
+    ///
+    /// # Arguments
+    /// * `path`: The path to the file where the SVG data will be written.
+    /// * `enable_sync`: If `true`, calls `sync_all()` to ensure data is written to disk.
+    ///                Set to `false` for better performance when atomicity is not critical.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or `std::io::Error` if file I/O or SVG generation fails.
+    pub fn export_to_svg<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        enable_sync: bool,
+    ) -> std::io::Result<()> {
+        crate::export::export_to_svg(self, path, enable_sync)
     }
 
     /// Analyzes both active and logged allocations to identify memory allocation hotspots.
@@ -380,13 +557,25 @@ impl MemoryTracker {
     /// A `Vec<HotspotInfo>` sorted by `total_size` (descending) and then by `count` (descending).
     /// Allocations with empty backtraces are ignored.
     pub fn analyze_hotspots(&self) -> Vec<HotspotInfo> {
+        println!("[HOTSPOTS] Starting hotspot analysis...");
         let mut hotspots_map: HashMap<Vec<usize>, (usize, usize)> = HashMap::new();
+        let thread_id = std::thread::current().id();
 
         // Process active allocations
-        let active_allocs = self.active_allocations.lock().unwrap_or_else(|e| e.into_inner());
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock active_allocations for analyze_hotspots"
+        );
+        let active_allocs = self.active_allocations.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked active_allocations for analyze_hotspots"
+        );
         for alloc_info in active_allocs.values() {
             if !alloc_info.backtrace_ips.is_empty() {
-                let entry = hotspots_map.entry(alloc_info.backtrace_ips.clone()).or_insert((0, 0));
+                let entry = hotspots_map
+                    .entry(alloc_info.backtrace_ips.clone())
+                    .or_insert((0, 0));
                 entry.0 += 1; // count
                 entry.1 += alloc_info.size; // total_size
             }
@@ -394,17 +583,28 @@ impl MemoryTracker {
         drop(active_allocs); // Release lock early
 
         // Process logged (deallocated) allocations
-        let logged_allocs = self.allocation_log.lock().unwrap_or_else(|e| e.into_inner());
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock allocation_log for analyze_hotspots"
+        );
+        let logged_allocs = self.allocation_log.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked allocation_log for analyze_hotspots"
+        );
         for alloc_info in logged_allocs.iter() {
             if !alloc_info.backtrace_ips.is_empty() {
-                let entry = hotspots_map.entry(alloc_info.backtrace_ips.clone()).or_insert((0, 0));
+                let entry = hotspots_map
+                    .entry(alloc_info.backtrace_ips.clone())
+                    .or_insert((0, 0));
                 entry.0 += 1; // count
                 entry.1 += alloc_info.size; // total_size
             }
         }
         drop(logged_allocs); // Release lock early
 
-        let mut hotspots_vec: Vec<HotspotInfo> = hotspots_map.into_iter()
+        let mut hotspots_vec: Vec<HotspotInfo> = hotspots_map
+            .into_iter()
             .map(|(ips, (count, total_size))| HotspotInfo {
                 backtrace_ips: ips,
                 count,
@@ -414,7 +614,68 @@ impl MemoryTracker {
 
         // Sort by total_size descending, then by count descending
         hotspots_vec.sort_unstable_by(|a, b| {
-            b.total_size.cmp(&a.total_size)
+            b.total_size
+                .cmp(&a.total_size)
+                .then_with(|| b.count.cmp(&a.count))
+        });
+
+        hotspots_vec
+    }
+
+    /// Analyzes cloned active and logged allocations to identify memory allocation hotspots.
+    ///
+    /// This standalone function is similar to `MemoryTracker::analyze_hotspots` but operates
+    /// on provided slices of `AllocationInfo` data, making it suitable for use with cloned data
+    /// outside of a `MemoryTracker` instance (e.g., in a separate thread for export).
+    ///
+    /// # Arguments
+    /// * `cloned_active_allocations`: A slice of `AllocationInfo` representing active allocations.
+    /// * `cloned_allocation_log`: A slice of `AllocationInfo` representing the allocation log.
+    ///
+    /// # Returns
+    /// A `Vec<HotspotInfo>` sorted by `total_size` (descending) and then by `count` (descending).
+    /// Allocations with empty backtraces are ignored.
+    pub fn analyze_hotspots_from_data(
+        cloned_active_allocations: &[AllocationInfo],
+        cloned_allocation_log: &[AllocationInfo],
+    ) -> Vec<HotspotInfo> {
+        let mut hotspots_map: HashMap<Vec<usize>, (usize, usize)> = HashMap::new();
+
+        // Process active allocations
+        for alloc_info in cloned_active_allocations {
+            if !alloc_info.backtrace_ips.is_empty() {
+                let entry = hotspots_map
+                    .entry(alloc_info.backtrace_ips.clone())
+                    .or_insert((0, 0));
+                entry.0 += 1; // count
+                entry.1 += alloc_info.size; // total_size
+            }
+        }
+
+        // Process logged (deallocated) allocations
+        for alloc_info in cloned_allocation_log {
+            if !alloc_info.backtrace_ips.is_empty() {
+                let entry = hotspots_map
+                    .entry(alloc_info.backtrace_ips.clone())
+                    .or_insert((0, 0));
+                entry.0 += 1; // count
+                entry.1 += alloc_info.size; // total_size
+            }
+        }
+
+        let mut hotspots_vec: Vec<HotspotInfo> = hotspots_map
+            .into_iter()
+            .map(|(ips, (count, total_size))| HotspotInfo {
+                backtrace_ips: ips,
+                count,
+                total_size,
+            })
+            .collect();
+
+        // Sort by total_size descending, then by count descending
+        hotspots_vec.sort_unstable_by(|a, b| {
+            b.total_size
+                .cmp(&a.total_size)
                 .then_with(|| b.count.cmp(&a.count))
         });
 
@@ -446,11 +707,14 @@ impl MemoryTracker {
         &self,
         path: P,
         title: &str,
-        use_total_size_as_value: bool, 
+        use_total_size_as_value: bool,
     ) -> io::Result<()> {
         let hotspots = self.analyze_hotspots();
         if hotspots.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::Other, "No hotspot data to generate flamegraph"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "No hotspot data to generate flamegraph",
+            ));
         }
 
         let mut unique_ips = HashSet::new();
@@ -460,22 +724,29 @@ impl MemoryTracker {
             }
         }
 
-        let resolved_symbols = resolve_ips(&unique_ips); 
+        let resolved_symbols = resolve_ips(&unique_ips);
 
         let mut folded_lines = Vec::new();
         for hotspot in hotspots {
-            if hotspot.backtrace_ips.is_empty() { // Skip if backtrace is empty
+            if hotspot.backtrace_ips.is_empty() {
+                // Skip if backtrace is empty
                 continue;
             }
-            let stack_str: String = hotspot.backtrace_ips.iter()
-                .map(|&ip| resolved_symbols.get(&ip)
-                    .cloned()
-                    .unwrap_or_else(|| format!("{:#x}", ip)))
+            let stack_str: String = hotspot
+                .backtrace_ips
+                .iter()
+                .map(|&ip| {
+                    resolved_symbols
+                        .get(&ip)
+                        .cloned()
+                        .unwrap_or_else(|| format!("{:#x}", ip))
+                })
                 .rev() // Reverse to get root;parent;leaf order for flamegraph
                 .collect::<Vec<String>>()
                 .join(";");
 
-            if stack_str.is_empty() { // Should not happen if backtrace_ips was not empty
+            if stack_str.is_empty() {
+                // Should not happen if backtrace_ips was not empty
                 continue;
             }
 
@@ -488,42 +759,141 @@ impl MemoryTracker {
         }
 
         if folded_lines.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::Other, "No valid stack data for flamegraph after processing"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "No valid stack data for flamegraph after processing",
+            ));
         }
-        
+
         let output_file = File::create(path)?;
         let mut writer = BufWriter::new(output_file);
 
         let mut options = FlamegraphOptions::default();
         options.title = title.to_string();
-        options.count_name = if use_total_size_as_value { "bytes".to_string() } else { "samples".to_string() };
-        // options.font_size = 12; 
+        options.count_name = if use_total_size_as_value {
+            "bytes".to_string()
+        } else {
+            "samples".to_string()
+        };
+        // options.font_size = 12;
         // options.flame_chart = true; // For ICicle charts (time based) - not directly applicable here
 
         flamegraph::from_lines(
             &mut options,
             folded_lines.iter().map(|s| s.as_str()),
             &mut writer,
-        ).map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to generate flamegraph: {}", e)))?;
-        
+        )
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to generate flamegraph: {}", e),
+            )
+        })?;
+
         Ok(())
     }
 
-    #[cfg(test)]
-    pub(crate) fn clear_all_for_test(&self) {
-        if let Ok(mut active) = self.active_allocations.lock() {
-            active.clear();
-        }
-        if let Ok(mut log) = self.allocation_log.lock() {
-            log.clear();
+    /// Clears all active allocations and the allocation log.
+    ///
+    /// This is primarily for use in testing scenarios to reset the tracker state.
+    ///
+    /// # Panics
+    /// Panics if either lock is poisoned or cannot be acquired.
+    pub fn clear_all_for_test(&self) {
+        // Test context，可以保留日志
+        let thread_id = std::thread::current().id();
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock active_allocations for clear_all_for_test"
+        );
+        let mut active_guard = self.active_allocations.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked active_allocations for clear_all_for_test"
+        );
+        active_guard.clear();
+        drop(active_guard);
+
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock allocation_log for clear_all_for_test"
+        );
+        let mut log_guard = self.allocation_log.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked allocation_log for clear_all_for_test"
+        );
+        log_guard.clear();
+        drop(log_guard);
+
+        tracing::debug!(
+            ?thread_id,
+            "Verifying clear in clear_all_for_test: Attempting to lock active_allocations"
+        );
+        let active_count = self.active_allocations.lock().len();
+        tracing::debug!(
+            ?thread_id,
+            "Verifying clear in clear_all_for_test: Successfully locked active_allocations"
+        );
+
+        tracing::debug!(
+            ?thread_id,
+            "Verifying clear in clear_all_for_test: Attempting to lock allocation_log"
+        );
+        let log_count = self.allocation_log.lock().len();
+        tracing::debug!(
+            ?thread_id,
+            "Verifying clear in clear_all_for_test: Successfully locked allocation_log"
+        );
+
+        if active_count != 0 || log_count != 0 {
+            panic!(
+                "Failed to clear tracker state. Active: {}, Log: {}",
+                active_count, log_count
+            );
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn add_allocation_for_test(&self, alloc_info: AllocationInfo) -> Result<(), MemoryError> {
-        let mut active = self.active_allocations.lock()
-            .map_err(|e| MemoryError::LockError(format!("Failed to lock active_allocations for test injection: {}", e)))?;
+    /// Adds a manually created `AllocationInfo` to the tracker's active allocations.
+    ///
+    /// This is primarily for use in testing scenarios to simulate allocations
+    /// without relying on the global allocator.
+    ///
+    /// Returns `Ok(())` if successful, or `Err(MemoryError)` if a lock could not be acquired.
+    pub fn add_allocation_for_test(&self, alloc_info: AllocationInfo) -> Result<(), MemoryError> {
+        let thread_id = std::thread::current().id();
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock active_allocations for add_allocation_for_test"
+        );
+        let mut active = self.active_allocations.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked active_allocations for add_allocation_for_test"
+        );
         active.insert(alloc_info.ptr, alloc_info);
+        Ok(())
+    }
+
+    /// Adds a manually created `AllocationInfo` directly to the allocation log.
+    ///
+    /// This is primarily for use in testing scenarios to simulate deallocated
+    /// allocations that should appear in the timeline visualizations.
+    ///
+    /// Returns `Ok(())` if successful, or `Err(MemoryError)` if a lock could not be acquired.
+    pub fn add_deallocated_for_test(&self, alloc_info: AllocationInfo) -> Result<(), MemoryError> {
+        let thread_id = std::thread::current().id();
+        tracing::debug!(
+            ?thread_id,
+            "Attempting to lock allocation_log for add_deallocated_for_test"
+        );
+        let mut log = self.allocation_log.lock();
+        tracing::debug!(
+            ?thread_id,
+            "Successfully locked allocation_log for add_deallocated_for_test"
+        );
+        log.push(alloc_info);
+
         Ok(())
     }
 
@@ -541,12 +911,19 @@ impl MemoryTracker {
         let active_allocs = self.get_active_allocations(); // Uses the existing public method
 
         for alloc_info in active_allocs {
-            let type_key = alloc_info.type_name.clone().unwrap_or_else(|| "UnknownType".to_string());
+            let type_key = alloc_info
+                .type_name
+                .clone()
+                .unwrap_or_else(|| "UnknownType".to_string());
             *usage_map.entry(type_key).or_insert(0) += alloc_info.size;
         }
 
-        usage_map.into_iter()
-            .map(|(type_name, total_size)| TypeMemoryUsage { type_name, total_size })
+        usage_map
+            .into_iter()
+            .map(|(type_name, total_size)| TypeMemoryUsage {
+                type_name,
+                total_size,
+            })
             .filter(|item| item.total_size > 0) // Only include types with size > 0
             .collect()
     }
@@ -582,10 +959,12 @@ impl MemoryTracker {
                 .set("width", width)
                 .set("height", height)
                 .set("viewBox", (0, 0, width, height))
-                .add(SvgText::new("No memory usage data to display for treemap.")
-                    .set("x", width / 2)
-                    .set("y", height / 2)
-                    .set("text-anchor", "middle"));
+                .add(
+                    SvgText::new("No memory usage data to display for treemap.")
+                        .set("x", width / 2)
+                        .set("y", height / 2)
+                        .set("text-anchor", "middle"),
+                );
             svg::save(path, &document)?;
             return Ok(());
         }
@@ -597,13 +976,20 @@ impl MemoryTracker {
             original_size: usize,
             bounds: treemap::Rect,
         }
-        
+
         impl treemap::Mappable for TreemapDataItem {
-            fn size(&self) -> f64 { self.value }
-            fn bounds(&self) -> &treemap::Rect { &self.bounds }
-            fn set_bounds(&mut self, bounds: treemap::Rect) { self.bounds = bounds; }
+            fn size(&self) -> f64 {
+                self.value
+            }
+            fn bounds(&self) -> &treemap::Rect {
+                &self.bounds
+            }
+            fn set_bounds(&mut self, bounds: treemap::Rect) {
+                self.bounds = bounds;
+            }
         }
-        let mut items_to_layout: Vec<TreemapDataItem> = type_usages.into_iter()
+        let mut items_to_layout: Vec<TreemapDataItem> = type_usages
+            .into_iter()
             .map(|usage| TreemapDataItem {
                 label: usage.type_name,
                 value: usage.total_size as f64,
@@ -611,14 +997,18 @@ impl MemoryTracker {
                 bounds: treemap::Rect::new(),
             })
             .collect();
-        
-        items_to_layout.sort_by(|a, b| b.value.partial_cmp(&a.value).unwrap_or(std::cmp::Ordering::Equal));
+
+        items_to_layout.sort_by(|a, b| {
+            b.value
+                .partial_cmp(&a.value)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let layout = TreemapLayout::new();
         let mut target_rect = Rect::new();
         target_rect.w = width as f64;
         target_rect.h = height as f64;
-        
+
         layout.layout_items(&mut items_to_layout, target_rect);
 
         let mut document = Document::new()
@@ -629,17 +1019,20 @@ impl MemoryTracker {
         document = document.add(
             SvgText::new(title)
                 .set("x", width / 2)
-                .set("y", 20) 
+                .set("y", 20)
                 .set("text-anchor", "middle")
                 .set("font-size", 16.0),
         );
 
-        let colors = vec!["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
-        
+        let colors = vec![
+            "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
+            "#bcbd22", "#17becf",
+        ];
+
         for (i, item) in items_to_layout.iter().enumerate() {
             let bounds = &item.bounds;
             let tooltip = format!("{} ({} bytes)", item.label, item.original_size);
-            
+
             let rect = Rectangle::new()
                 .set("x", bounds.x)
                 .set("y", bounds.y)
@@ -650,10 +1043,8 @@ impl MemoryTracker {
                 .set("stroke-width", 1);
 
             let title = SvgTitle::new(tooltip);
-            
-            let mut group = Group::new()
-                .add(rect)
-                .add(title);
+
+            let mut group = Group::new().add(rect).add(title);
 
             // Add text if there's enough space
             if bounds.w > 50.0 && bounds.h > 15.0 {
@@ -661,21 +1052,27 @@ impl MemoryTracker {
                     .set("x", bounds.x + bounds.w / 2.0)
                     .set("y", bounds.y + bounds.h / 2.0)
                     .set("dy", "0.35em")
-                    .set("text-anchor", "middle")
-                    .set("font-size", (bounds.h.min(bounds.w) / 5.0).max(8.0).min(12.0))
+                    .set(
+                        "font-size",
+                        (bounds.h.min(bounds.w) / 5.0).max(8.0).min(12.0),
+                    )
                     .set("fill", "white");
                 group = group.add(text);
             }
 
             document = document.add(group);
         }
-        
+
         let file = File::create(path)?;
         let mut writer = BufWriter::new(file);
         // svg::save uses io::Write, svg::write is for direct writing without path
         // Since we have a BufWriter, svg::write is appropriate.
-        svg::write(&mut writer, &document)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to write SVG treemap: {}", e)))?;
+        svg::write(&mut writer, &document).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to write SVG treemap: {}", e),
+            )
+        })?;
 
         Ok(())
     }
@@ -727,34 +1124,42 @@ pub fn get_global_tracker() -> Arc<MemoryTracker> {
 /// and demangled symbol name (`String`).
 pub fn resolve_ips(unique_ips: &HashSet<usize>) -> HashMap<usize, String> {
     let mut resolved_map = HashMap::new();
+
+    // 临时设置 IS_ALLOCATOR_REENTRANT_CALL 标志，以防 backtrace::resolve 内部触发新的分配。
+    // 这对于在内存敏感的上下文中执行回溯解析非常重要。
+    // 这里使用 `Cell::replace` 避免了 `tracing` 宏的调用。
+    let old_reentrant_flag = IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.replace(true));
+
     for &ip_addr in unique_ips {
-        let resolved_name = format!("{:#x}", ip_addr); // Fallback to hex address
-        let _ip_void = ip_addr as *mut std::ffi::c_void;
-        
-        // Ensure the backtrace feature is active for symbol resolution
+        let mut resolved_symbol_name: Option<String> = None;
+
         #[cfg(feature = "backtrace")]
-        backtrace::resolve(ip_void, |symbol| {
-            if let Some(name) = symbol.name() {
-                if let Some(name_str) = name.as_str() {
-                     // Basic demangling attempt for Rust symbols
-                    let demangled_name = rustc_demangle::try_demangle(name_str)
-                        .map(|d| d.to_string())
-                        .unwrap_or_else(|_| name_str.to_string());
-                    resolved_name = demangled_name;
+        unsafe {
+            // backtrace::resolve 需要 unsafe 块，因为它处理裸指针
+            let ip_void = ip_addr as *mut std::ffi::c_void;
+            backtrace::resolve(ip_void, |symbol| {
+                if let Some(name) = symbol.name() {
+                    if let Some(name_str) = name.as_str() {
+                        // 尝试 Demangle Rust 符号
+                        resolved_symbol_name = Some(
+                            rustc_demangle::try_demangle(name_str)
+                                .map(|d| d.to_string())
+                                .unwrap_or_else(|_| name_str.to_string()),
+                        );
+                    }
                 }
-            }
-            // Optionally, append file:line if available
-            // if let Some(filename) = symbol.filename() {
-            //     if let Some(lineno) = symbol.lineno() {
-            //         resolved_name.push_str(&format!(" ({}:{})", filename.to_string_lossy(), lineno));
-            //     }
-            // }
-        });
-        resolved_map.insert(ip_addr, resolved_name);
+            });
+        }
+        resolved_map.insert(
+            ip_addr,
+            resolved_symbol_name.unwrap_or_else(|| format!("{:#x}", ip_addr)),
+        );
     }
+
+    // 恢复 IS_ALLOCATOR_REENTRANT_CALL 标志的原始值
+    IS_ALLOCATOR_REENTRANT_CALL.with(|cell| cell.set(old_reentrant_flag));
     resolved_map
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -768,91 +1173,163 @@ mod tests {
     #[test]
     fn test_new_tracker() {
         let tracker = MemoryTracker::new();
-        assert!(tracker.get_active_allocations().is_empty(), "New tracker should have no active allocations");
-        assert!(tracker.get_allocation_log().is_empty(), "New tracker should have an empty allocation log");
+        assert!(
+            tracker.get_active_allocations().is_empty(),
+            "New tracker should have no active allocations"
+        );
+        assert!(
+            tracker.get_allocation_log().is_empty(),
+            "New tracker should have an empty allocation log"
+        );
         let stats = tracker.get_stats();
-        assert_eq!(stats.total_allocations, 0, "New tracker should have 0 total allocations");
-        assert_eq!(stats.total_memory, 0, "New tracker should have 0 total memory");
+        assert_eq!(
+            stats.total_allocations, 0,
+            "New tracker should have 0 total allocations"
+        );
+        assert_eq!(
+            stats.total_memory, 0,
+            "New tracker should have 0 total memory"
+        );
     }
 
     #[test]
     fn test_track_allocation_and_stats() {
         let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 100, Some("TestType1".to_string())).unwrap();
-        tracker.track_allocation(0x2000, 200, Some("TestType2".to_string())).unwrap();
+        tracker
+            .track_allocation(0x1000, 100, Some("TestType1".to_string()))
+            .unwrap();
+        tracker
+            .track_allocation(0x2000, 200, Some("TestType2".to_string()))
+            .unwrap();
 
         let active_allocs = tracker.get_active_allocations();
         assert_eq!(active_allocs.len(), 2, "Should have two active allocations");
 
-        let alloc1 = active_allocs.iter().find(|a| a.ptr == 0x1000).expect("Allocation 0x1000 not found");
+        let alloc1 = active_allocs
+            .iter()
+            .find(|a| a.ptr == 0x1000)
+            .expect("Allocation 0x1000 not found");
         assert_eq!(alloc1.size, 100);
         assert_eq!(alloc1.type_name.as_deref(), Some("TestType1"));
 
-        let alloc2 = active_allocs.iter().find(|a| a.ptr == 0x2000).expect("Allocation 0x2000 not found");
+        let alloc2 = active_allocs
+            .iter()
+            .find(|a| a.ptr == 0x2000)
+            .expect("Allocation 0x2000 not found");
         assert_eq!(alloc2.size, 200);
         assert_eq!(alloc2.type_name.as_deref(), Some("TestType2"));
 
         let stats = tracker.get_stats();
-        assert_eq!(stats.total_allocations, 2, "Stats should show 2 total allocations");
-        assert_eq!(stats.total_memory, 300, "Stats should show 300 total memory");
+        assert_eq!(
+            stats.total_allocations, 2,
+            "Stats should show 2 total allocations"
+        );
+        assert_eq!(
+            stats.total_memory, 300,
+            "Stats should show 300 total memory"
+        );
     }
 
     #[test]
     fn test_track_deallocation() {
         let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x3000, 50, Some("TestDealloc".to_string())).unwrap();
-        
+        tracker
+            .track_allocation(0x3000, 50, Some("TestDealloc".to_string()))
+            .unwrap();
+
         // Ensure timestamps are different
-        sleep(Duration::from_millis(1)); 
+        sleep(Duration::from_millis(1));
         tracker.track_deallocation(0x3000).unwrap();
 
-        assert!(tracker.get_active_allocations().iter().find(|a| a.ptr == 0x3000).is_none(), "Allocation 0x3000 should not be active");
-        
+        assert!(
+            tracker
+                .get_active_allocations()
+                .iter()
+                .find(|a| a.ptr == 0x3000)
+                .is_none(),
+            "Allocation 0x3000 should not be active"
+        );
+
         let log = tracker.get_allocation_log();
         assert_eq!(log.len(), 1, "Allocation log should have one entry");
         let logged_alloc = &log[0];
         assert_eq!(logged_alloc.ptr, 0x3000);
-        assert!(logged_alloc.timestamp_dealloc.is_some(), "Deallocation timestamp should be set");
-        assert_ne!(logged_alloc.timestamp_alloc, logged_alloc.timestamp_dealloc.unwrap(), "Alloc and dealloc timestamps should differ");
-
+        assert!(
+            logged_alloc.timestamp_dealloc.is_some(),
+            "Deallocation timestamp should be set"
+        );
+        assert_ne!(
+            logged_alloc.timestamp_alloc,
+            logged_alloc.timestamp_dealloc.unwrap(),
+            "Alloc and dealloc timestamps should differ"
+        );
 
         let stats = tracker.get_stats();
-        assert_eq!(stats.total_allocations, 0, "Stats should show 0 active allocations after deallocation");
+        assert_eq!(
+            stats.total_allocations, 0,
+            "Stats should show 0 active allocations after deallocation"
+        );
     }
 
     #[test]
     fn test_associate_var() {
         let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x4000, 70, Some("BaseType".to_string())).unwrap();
-        tracker.associate_var(0x4000, "my_var".to_string(), "SpecificType".to_string()).unwrap();
+        tracker
+            .track_allocation(0x4000, 70, Some("BaseType".to_string()))
+            .unwrap();
+        tracker
+            .associate_var(0x4000, "my_var".to_string(), "SpecificType".to_string())
+            .unwrap();
 
         let active_allocs = tracker.get_active_allocations();
-        let alloc_info = active_allocs.iter().find(|a| a.ptr == 0x4000).expect("Allocation 0x4000 not found");
-        
-        assert_eq!(alloc_info.var_name.as_deref(), Some("my_var"), "Variable name should be 'my_var'");
-        assert_eq!(alloc_info.type_name.as_deref(), Some("SpecificType"), "Type name should be 'SpecificType'");
+        let alloc_info = active_allocs
+            .iter()
+            .find(|a| a.ptr == 0x4000)
+            .expect("Allocation 0x4000 not found");
+
+        assert_eq!(
+            alloc_info.var_name.as_deref(),
+            Some("my_var"),
+            "Variable name should be 'my_var'"
+        );
+        assert_eq!(
+            alloc_info.type_name.as_deref(),
+            Some("SpecificType"),
+            "Type name should be 'SpecificType'"
+        );
 
         let result = tracker.associate_var(0xBADFFF, "bad_var".to_string(), "BadType".to_string()); // Changed 0xBAD_PTR to 0xBADFFF
-        assert!(result.is_err(), "Associating var to a bad pointer should return an error");
+        assert!(
+            result.is_err(),
+            "Associating var to a bad pointer should return an error"
+        );
         matches!(result, Err(MemoryError::TrackingError(_)));
     }
-    
+
     #[test]
     fn test_deallocation_of_unknown_ptr() {
         let tracker = MemoryTracker::new();
         let result = tracker.track_deallocation(0xDEADBEEF);
-        assert!(result.is_err(), "Deallocating an unknown pointer should return an error");
+        assert!(
+            result.is_err(),
+            "Deallocating an unknown pointer should return an error"
+        );
         matches!(result, Err(MemoryError::TrackingError(_)));
     }
 
     #[test]
     fn test_double_deallocation() {
         let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x5000, 10, Some("DoubleDealloc".to_string())).unwrap();
+        tracker
+            .track_allocation(0x5000, 10, Some("DoubleDealloc".to_string()))
+            .unwrap();
         tracker.track_deallocation(0x5000).unwrap(); // First deallocation should be Ok
 
         let result = tracker.track_deallocation(0x5000); // Second deallocation
-        assert!(result.is_err(), "Double deallocation should return an error");
+        assert!(
+            result.is_err(),
+            "Double deallocation should return an error"
+        );
         matches!(result, Err(MemoryError::TrackingError(_)));
     }
 
@@ -860,7 +1337,10 @@ mod tests {
     fn test_analyze_hotspots_empty() {
         let tracker = MemoryTracker::new();
         let hotspots = tracker.analyze_hotspots();
-        assert!(hotspots.is_empty(), "Hotspots should be empty for a new tracker");
+        assert!(
+            hotspots.is_empty(),
+            "Hotspots should be empty for a new tracker"
+        );
     }
 
     #[test]
@@ -869,30 +1349,73 @@ mod tests {
 
         // Mocking AllocationInfo directly for precise control over backtrace_ips
         // Normally, track_allocation would generate these.
-        let mut active_allocs = tracker.active_allocations.lock().unwrap();
-        active_allocs.insert(0x100, AllocationInfo {
-            ptr: 0x100, size: 10, timestamp_alloc: 0, timestamp_dealloc: None,
-            var_name: None, type_name: None, backtrace_ips: vec![1, 2, 3], thread_id: 1,
-        });
-        active_allocs.insert(0x200, AllocationInfo {
-            ptr: 0x200, size: 20, timestamp_alloc: 0, timestamp_dealloc: None,
-            var_name: None, type_name: None, backtrace_ips: vec![1, 2, 3], thread_id: 1,
-        });
-        active_allocs.insert(0x300, AllocationInfo {
-            ptr: 0x300, size: 30, timestamp_alloc: 0, timestamp_dealloc: None,
-            var_name: None, type_name: None, backtrace_ips: vec![4, 5, 6], thread_id: 1,
-        });
-        active_allocs.insert(0x400, AllocationInfo { // Allocation with empty backtrace
-            ptr: 0x400, size: 5, timestamp_alloc: 0, timestamp_dealloc: None,
-            var_name: None, type_name: None, backtrace_ips: vec![], thread_id: 1,
-        });
+        let mut active_allocs = tracker.active_allocations.lock(); // Used parking_lot lock
+        active_allocs.insert(
+            0x100,
+            AllocationInfo {
+                ptr: 0x100,
+                size: 10,
+                timestamp_alloc: 0,
+                timestamp_dealloc: None,
+                var_name: None,
+                type_name: None,
+                backtrace_ips: vec![1, 2, 3],
+                thread_id: 1,
+            },
+        );
+        active_allocs.insert(
+            0x200,
+            AllocationInfo {
+                ptr: 0x200,
+                size: 20,
+                timestamp_alloc: 0,
+                timestamp_dealloc: None,
+                var_name: None,
+                type_name: None,
+                backtrace_ips: vec![1, 2, 3],
+                thread_id: 1,
+            },
+        );
+        active_allocs.insert(
+            0x300,
+            AllocationInfo {
+                ptr: 0x300,
+                size: 30,
+                timestamp_alloc: 0,
+                timestamp_dealloc: None,
+                var_name: None,
+                type_name: None,
+                backtrace_ips: vec![4, 5, 6],
+                thread_id: 1,
+            },
+        );
+        active_allocs.insert(
+            0x400,
+            AllocationInfo {
+                // Allocation with empty backtrace
+                ptr: 0x400,
+                size: 5,
+                timestamp_alloc: 0,
+                timestamp_dealloc: None,
+                var_name: None,
+                type_name: None,
+                backtrace_ips: vec![],
+                thread_id: 1,
+            },
+        );
         drop(active_allocs); // Release lock
 
         // Deallocated allocation
-        let mut logged_allocs = tracker.allocation_log.lock().unwrap();
+        let mut logged_allocs = tracker.allocation_log.lock(); // Used parking_lot lock
         logged_allocs.push(AllocationInfo {
-            ptr: 0x500, size: 15, timestamp_alloc: 0, timestamp_dealloc: Some(1),
-            var_name: None, type_name: None, backtrace_ips: vec![1, 2, 3], thread_id: 1,
+            ptr: 0x500,
+            size: 15,
+            timestamp_alloc: 0,
+            timestamp_dealloc: Some(1),
+            var_name: None,
+            type_name: None,
+            backtrace_ips: vec![1, 2, 3],
+            thread_id: 1,
         });
         drop(logged_allocs); // Release lock
 
@@ -905,7 +1428,10 @@ mod tests {
         assert!(hotspot1.is_some(), "Hotspot for [1,2,3] not found");
         if let Some(h) = hotspot1 {
             assert_eq!(h.count, 3, "Count for hotspot [1,2,3] should be 3");
-            assert_eq!(h.total_size, 45, "Total size for hotspot [1,2,3] should be 45 (10+20+15)");
+            assert_eq!(
+                h.total_size, 45,
+                "Total size for hotspot [1,2,3] should be 45 (10+20+15)"
+            );
         }
 
         // Hotspot 2: backtrace [4,5,6]
@@ -913,11 +1439,22 @@ mod tests {
         assert!(hotspot2.is_some(), "Hotspot for [4,5,6] not found");
         if let Some(h) = hotspot2 {
             assert_eq!(h.count, 1, "Count for hotspot [4,5,6] should be 1");
-            assert_eq!(h.total_size, 30, "Total size for hotspot [4,5,6] should be 30");
+            assert_eq!(
+                h.total_size, 30,
+                "Total size for hotspot [4,5,6] should be 30"
+            );
         }
-        
+
         // Check order (hotspot1 should be first due to larger total_size)
-        assert_eq!(hotspots[0].backtrace_ips, vec![1, 2, 3], "First hotspot should be [1,2,3] due to size");
-        assert_eq!(hotspots[1].backtrace_ips, vec![4, 5, 6], "Second hotspot should be [4,5,6]");
+        assert_eq!(
+            hotspots[0].backtrace_ips,
+            vec![1, 2, 3],
+            "First hotspot should be [1,2,3] due to size"
+        );
+        assert_eq!(
+            hotspots[1].backtrace_ips,
+            vec![4, 5, 6],
+            "Second hotspot should be [4,5,6]"
+        );
     }
 }

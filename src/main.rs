@@ -3,11 +3,9 @@
 use trace_tools::*;
 use tracing::info;
 
-
 // The modules export, procmacros, tracker, types are part of the library,
 // not separate modules within the binary crate.
 // They are accessible via `trace_tools::` if needed, or `use trace_tools::*`.
-
 
 /// Example function that allocates some memory
 fn allocate_memory() -> Vec<u8> {
@@ -18,46 +16,54 @@ fn allocate_memory() -> Vec<u8> {
 
 fn main() {
     // Initialize the memory tracking system
+    #[cfg(not(test))]
     trace_tools::init();
+    #[cfg(not(test))]
     info!("Starting memory tracking example");
 
     // Allocate some memory
     let data = allocate_memory();
+    #[cfg(not(test))]
     track_var!(data);
 
     // Get memory statistics
-    let stats = get_global_tracker().get_stats();
-    info!(
-        "Memory stats - Allocations: {}, Total bytes: {}",
-        stats.total_allocations, stats.total_memory
-    );
+    // let stats = get_global_tracker().get_stats();
+    // #[cfg(not(test))]
+    // info!(
+    //     "Memory stats - Allocations: {}, Total bytes: {}",
+    //     stats.total_allocations, stats.total_memory
+    // );
 
     // Export to JSON
-    if let Err(e) = get_global_tracker().export_to_json("memory_snapshot.json") {
-        eprintln!("Failed to export to JSON: {}", e);
-    }
+    // if let Err(e) = get_global_tracker().export_to_json("memory_snapshot.json") {
+    //     eprintln!("Failed to export to JSON: {}", e);
+    // }
 
     // Export to SVG
-    if let Err(e) = get_global_tracker().export_to_svg("memory_usage.svg") {
-        eprintln!("Failed to export to SVG: {}", e);
-    }
+    // if let Err(e) = get_global_tracker().export_to_svg("memory_usage.svg") {
+    //     eprintln!("Failed to export to SVG: {}", e);
+    // }
 
-    info!("Example completed. Check memory_snapshot.json and memory_usage.svg for results.");
+    // #[cfg(not(test))]
+    // info!("Example completed. Check memory_snapshot.json and memory_usage.svg for results.");
 
     // Print active allocations at the end
-    let active = get_global_tracker().get_active_allocations();
-    if !active.is_empty() {
-        info!("--- Active Allocations ---");
-        for alloc in active {
-            info!(
-                "Allocation: ptr=0x{:x}, size={}, var={:?}, type={:?}",
-                alloc.ptr,
-                alloc.size,
-                alloc.var_name.unwrap_or_else(|| "<unknown>".to_string()),
-                alloc.type_name.unwrap_or_else(|| "<unknown>".to_string())
-            );
-        }
-    } else {
-        info!("No active allocations at program end");
-    }
+    // let active = get_global_tracker().get_active_allocations();
+    // if !active.is_empty() {
+    //     #[cfg(not(test))]
+    //     info!("--- Active Allocations ---");
+    //     for alloc in active {
+    //         #[cfg(not(test))]
+    //         info!(
+    //             "Allocation: ptr=0x{:x}, size={}, var={:?}, type={:?}",
+    //             alloc.ptr,
+    //             alloc.size,
+    //             alloc.var_name.unwrap_or_else(|| "<unknown>".to_string()),
+    //             alloc.type_name.unwrap_or_else(|| "<unknown>".to_string())
+    //         );
+    //     }
+    // } else {
+    //     #[cfg(not(test))]
+    //     info!("No active allocations at program end");
+    // }
 }
