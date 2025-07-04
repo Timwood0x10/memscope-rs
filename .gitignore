@@ -1,8 +1,74 @@
+# Rust build artifacts
 /target/
 **/*.rs.bk
-Cargo.lock
-*.svg
-*.json
+*.pdb
 
+# Cargo lock file (uncomment if this is a library)
+# Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
 .DS_Store
-.cursor/
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# trace_tools specific output files
+*.json
+*.svg
+memory_*.json
+memory_*.svg
+*_test.json
+*_test.svg
+*_analysis.json
+*_visualization.svg
+
+# Coverage reports
+/target/coverage/
+cobertura.xml
+tarpaulin-report.html
+
+# Temporary files
+tmp_*
+temp_*
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+
+# Documentation build
+/target/doc/
+
+# Local configuration
+.env
+.env.local
+
+# Benchmark results
+/target/criterion/
+
+# Profiling data
+*.profdata
+perf.data*
+
+# Editor temporary files
+.#*
+\#*#
+
+# Rust analyzer
+.rust-analyzer/
+
+# Local development scripts
+dev_*
+local_*
