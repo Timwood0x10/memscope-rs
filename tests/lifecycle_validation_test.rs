@@ -43,14 +43,14 @@ fn main() {
     let json_path = Path::new("test_output.json");
     let svg_path = Path::new("test_output.svg");
 
-    if let Err(e) = tracker.export_to_json(json_path, true) {
+    if let Err(e) = tracker.export_to_json(json_path) {
         // Enable sync for reliable file writing
         eprintln!("Failed to export JSON: {}", e);
         std::process::exit(1);
     }
     println!("Exported JSON to test_output.json");
 
-    if let Err(e) = tracker.export_to_svg(svg_path, true) {
+    if let Err(e) = tracker.export_to_svg(svg_path) {
         // Enable sync for reliable file writing
         eprintln!("Failed to export SVG: {}", e);
         std::process::exit(1);
