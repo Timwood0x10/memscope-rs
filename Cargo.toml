@@ -2,24 +2,19 @@
 name = "trace_tools"
 version = "0.1.0"
 edition = "2021"
+authors = ["TimWood"]
+license = "MIT OR Apache-2.0"
+description = "Memory tracking and visualization tools for Rust applications."
 
 [dependencies]
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log"] }
-anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 svg = "0.18.0"
 chrono = { version = "0.4", features = ["serde"] }
-crossbeam = "0.8"
-thiserror = "2.0.12"
-lazy_static = "1.4.0"
+thiserror = "1.0"
 backtrace = { version = "0.3", features = ["serde"], optional = true }
-tokio = { version = "1.0", features = ["full"] }
-inferno = "0.11.19" # Removed features = ["flamegraph"]
-rustc-demangle = "0.1" # Corrected: hyphen instead of underscore
-treemap = "0.3.2"     # Changed to an older, available version
-scopeguard = "1.2.0"  # For RAII-style guards
 
 [lib]
 name = "trace_tools"
