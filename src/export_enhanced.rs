@@ -529,13 +529,13 @@ fn add_memory_timeline(
     let label_width = 200; // Reserved space for labels
     let timeline_width = chart_width - label_width - 40;
     let max_items = 8; // Limit items to prevent overcrowding
-    
+
     // Draw timeline for tracked variables with proper spacing
     for (i, allocation) in tracked_allocs.iter().take(max_items).enumerate() {
         // Distribute items evenly across timeline instead of by timestamp
         let x = chart_x + 20 + (i * timeline_width / max_items.max(1));
         let y = chart_y + 50 + (i * 25); // Increased vertical spacing
-        
+
         // Ensure x position stays within timeline bounds
         let x = x.min(chart_x + timeline_width).max(chart_x + 20);
 
@@ -584,7 +584,7 @@ fn add_memory_timeline(
             document = document.add(label);
         }
     }
-    
+
     // Add timeline axis
     let axis_y = chart_y + chart_height - 40;
     let axis_line = svg::node::element::Line::new()
