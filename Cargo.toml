@@ -27,6 +27,11 @@ default = ["tracking-allocator"]
 test = []
 
 [dev-dependencies]
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+crossbeam = "0.8"
+rayon = "1.7"
+parking_lot = "0.12"
 tracing-test = "0.2"
 tempfile = "3.10.1" # Or a compatible version
 

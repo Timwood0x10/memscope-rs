@@ -58,6 +58,7 @@ help:
 	@echo "  run-basic      - Run basic usage example"
 	@echo "  run-lifecycle  - Run lifecycle example"
 	@echo "  run-main       - Run main application"
+	@echo "  run-memory-stress - Run memory stress test example"
 	@echo ""
 	@echo "$(GREEN)CI/CD:$(NC)"
 	@echo "  ci             - Run full CI pipeline locally"
@@ -187,6 +188,11 @@ doc-check:
 run-basic:
 	@echo "$(BLUE)Running basic usage example...$(NC)"
 	$(CARGO) run --example basic_usage
+
+.PHONY: run-memory-stress
+run-memory-stress:
+	@echo "$(BLUE)Running memory stress test example...$(NC)"
+	$(CARGO) run --example memory_stress_test
 
 .PHONY: run-lifecycle
 run-lifecycle:
