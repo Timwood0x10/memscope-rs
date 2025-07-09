@@ -541,8 +541,8 @@ This project is licensed under the Apache License, Version 2.0 - see the [LICENS
 ## 📞 Support
 
 - **Documentation**: [docs.rs/memtrack-rs](https://docs.rs/memtrack-rs)
-- **Issues**: [GitHub Issues](https://github.com/your-username/memtrack-rs/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/memtrack-rs/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Timwood0x10/memtrack-rs/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Timwood0x10/memtrack-rs/discussions)
 
 ---
 
