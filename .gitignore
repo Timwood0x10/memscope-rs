@@ -22,7 +22,7 @@
 ehthumbs.db
 Thumbs.db
 
-# trace_tools specific output files
+# memtrack-rs specific output files
 *.json
 *.svg
 memory_*.json

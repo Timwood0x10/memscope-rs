@@ -1,13 +1,13 @@
-//! Basic usage example for trace_tools memory visualizer.
+//! Basic usage example for memtrack-rs memory visualizer.
 
 use std::rc::Rc;
 use std::sync::Arc;
-use trace_tools::{get_global_tracker, init, track_var};
+use memtrack_rs::{get_global_tracker, init, track_var};
 
 fn main() {
     // Initialize the memory tracking system
     init();
-    println!("trace_tools initialized. Tracking memory allocations...");
+    println!("memtrack-rs initialized. Tracking memory allocations...");
 
     // Allocate and track simple types
     println!("\nAllocating and tracking variables...");

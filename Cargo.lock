@@ -403,6 +403,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
+name = "memtrack-rs"
+version = "0.1.0"
+dependencies = [
+ "backtrace",
+ "chrono",
+ "crossbeam",
+ "futures",
+ "parking_lot",
+ "rayon",
+ "serde",
+ "serde_json",
+ "svg",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-test",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -798,27 +819,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "trace_tools"
-version = "0.1.0"
-dependencies = [
- "backtrace",
- "chrono",
- "crossbeam",
- "futures",
- "parking_lot",
- "rayon",
- "serde",
- "serde_json",
- "svg",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "tracing-test",
 ]
 
 [[package]]

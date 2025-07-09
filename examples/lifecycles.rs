@@ -1,7 +1,7 @@
-//! Lifecycle tracking example for trace_tools.
+//! Lifecycle tracking example for memtrack-rs.
 //! Demonstrates how variable lifecycles across different scopes are tracked.
 
-use trace_tools::{get_global_tracker, init, track_var};
+use memtrack_rs::{get_global_tracker, init, track_var};
 
 /// Function that allocates memory internally
 fn create_and_drop_string() {
@@ -26,7 +26,7 @@ fn create_vec_on_heap() -> Vec<i32> {
 fn main() {
     // Initialize the memory tracking system
     init();
-    println!("trace_tools initialized for lifecycle demo.");
+    println!("memtrack-rs initialized for lifecycle demo.");
 
     // Track a variable in the main scope
     println!("\nAllocating 'main_scope_vec'...");

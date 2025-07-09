@@ -103,7 +103,7 @@ impl<T> Trackable for std::sync::Arc<T> {
 ///
 /// # Example
 /// ```rust
-/// use trace_tools::track_var;
+/// use memtrack_rs::track_var;
 ///
 /// let my_vec = vec![1, 2, 3, 4, 5];
 /// track_var!(my_vec);
@@ -135,7 +135,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
 ///
 /// # Example
 /// ```rust
-/// trace_tools::init();
+/// memtrack_rs::init();
 /// // Your application code here
 /// ```
 pub fn init() {
@@ -144,10 +144,10 @@ pub fn init() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "trace_tools=info".into()),
+                .unwrap_or_else(|_| "memtrack_rs=info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("trace_tools initialized");
+    tracing::info!("memtrack-rs initialized");
 }

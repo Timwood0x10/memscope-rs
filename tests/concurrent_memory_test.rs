@@ -1,4 +1,4 @@
-//! Comprehensive concurrency tests for trace_tools.
+//! Comprehensive concurrency tests for memtrack-rs.
 //! Tests thread safety, parallel allocations, and concurrent data structures.
 
 use crossbeam::thread;
@@ -7,7 +7,7 @@ use parking_lot::{Mutex, RwLock};
 use std::sync::{Arc, Barrier};
 use std::thread as std_thread;
 use std::time::{Duration, Instant};
-use trace_tools::{get_global_tracker, init, track_var, Trackable};
+use memtrack_rs::{get_global_tracker, init, track_var, Trackable};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 

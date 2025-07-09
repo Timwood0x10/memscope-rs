@@ -1,8 +1,8 @@
-//! Safety tests for trace_tools to verify memory safety and error handling.
+//! Safety tests for memtrack-rs to verify memory safety and error handling.
 
 use std::sync::Once;
 use std::thread;
-use trace_tools::{get_global_tracker, init, track_var};
+use memtrack_rs::{get_global_tracker, init, track_var};
 
 static INIT: Once = Once::new();
 

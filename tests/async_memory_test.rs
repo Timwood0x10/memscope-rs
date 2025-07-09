@@ -1,10 +1,10 @@
-//! Comprehensive async memory tracking tests for trace_tools.
+//! Comprehensive async memory tracking tests for memtrack-rs.
 //! Tests async/await patterns, futures, and async runtime interactions.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
-use trace_tools::{get_global_tracker, init, track_var};
+use memtrack_rs::{get_global_tracker, init, track_var};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 

@@ -1,4 +1,4 @@
-//! Advanced memory scenarios and patterns testing for trace_tools.
+//! Advanced memory scenarios and patterns testing for memtrack-rs.
 //! Tests complex allocation patterns, smart pointers, and memory-intensive operations.
 
 use std::cell::{Cell, RefCell};
@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
-use trace_tools::{get_global_tracker, init, track_var, Trackable};
+use memtrack_rs::{get_global_tracker, init, track_var, Trackable};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 

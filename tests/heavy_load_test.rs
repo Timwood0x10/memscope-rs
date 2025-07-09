@@ -1,10 +1,10 @@
-//! Simple heavy load test for trace_tools
+//! Simple heavy load test for memtrack-rs
 //! Tests basic functionality under load without external dependencies
 
 use std::sync::{Arc, Barrier, Mutex, Once};
 use std::thread;
 use std::time::{Duration, Instant};
-use trace_tools::{get_global_tracker, init, track_var};
+use memtrack_rs::{get_global_tracker, init, track_var};
 
 static INIT: Once = Once::new();
 
