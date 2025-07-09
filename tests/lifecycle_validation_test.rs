@@ -16,14 +16,14 @@ fn main() {
 
     // Variable 1: Stays active
     let active_var = Box::new(TrackedData { _data: 1 });
-    track_var!(active_var);
+    track_var!(active_var).unwrap();
     println!("Tracked active_var");
     thread::sleep(Duration::from_millis(50)); // Ensure distinct timestamps
 
     // Variable 2: Allocated and then deallocated
     {
         let dealloc_var = String::from("This string will be deallocated");
-        track_var!(dealloc_var);
+        track_var!(dealloc_var).unwrap();
         println!("Tracked dealloc_var");
         thread::sleep(Duration::from_millis(50)); // Ensure distinct timestamps
                                                   // dealloc_var goes out of scope here and is dropped
@@ -33,7 +33,7 @@ fn main() {
 
     // Variable 3: Another active variable, different type
     let another_active_vec = vec![10, 20, 30, 40, 50];
-    track_var!(another_active_vec);
+    track_var!(another_active_vec).unwrap();
     println!("Tracked another_active_vec");
     thread::sleep(Duration::from_millis(50));
 
