@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Safety](https://img.shields.io/badge/safety-tested-green.svg)](#safety--security)
 
-**memtrack-rs** is a comprehensive Rust memory analysis toolkit that provides real-time tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, intuitive variable tracking, and beautiful SVG visualizations.
+[**memtrack-rs**](https://github.com/Timwood0x10/memtrack-rs.git) is a comprehensive Rust memory analysis toolkit that provides real-time tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, intuitive variable tracking, and beautiful SVG visualizations.
 
 ## 🌟 Key Features
 
