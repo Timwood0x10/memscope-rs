@@ -93,23 +93,23 @@ The `track_var!` macro works with these Rust types:
 ```rust
 // Collections
 let numbers = vec![1, 2, 3, 4, 5];
-track_var!(numbers)?;
+track_var!(numbers).ok();
 
 // Text
 let message = String::from("Hello, trace_tools!");
-track_var!(message)?;
+track_var!(message).ok();
 
 // Smart Pointers
 let boxed_data = Box::new(42);
-track_var!(boxed_data)?;
+track_var!(boxed_data).ok();
 
 // Reference Counted
 let shared_data = std::rc::Rc::new(vec![1, 2, 3]);
-track_var!(shared_data)?;
+track_var!(shared_data).ok();
 
 // Thread-Safe Shared
 let arc_data = std::sync::Arc::new(String::from("Shared"));
-track_var!(arc_data)?;
+track_var!(arc_data).ok();
 ```
 
 ### Advanced Usage
@@ -119,7 +119,7 @@ track_var!(arc_data)?;
 ```rust
 fn process_user_request() -> Vec<u8> {
     let request_data = vec![0u8; 1024];
-    track_var!(request_data)?;
+    track_var!(request_data).ok();
     
     // Process data...
     request_data // Ownership transferred
@@ -129,11 +129,11 @@ fn main() {
     init();
     
     let response = process_user_request();
-    track_var!(response)?; // Track the transferred data
+    track_var!(response).ok(); // Track the transferred data
     
     // Analyze memory patterns
     let tracker = get_global_tracker();
-    let memory_by_type = tracker.get_memory_by_type()?;
+    let memory_by_type = tracker.get_memory_by_type().expect("Failed to get memory by type");
     
     for type_info in memory_by_type {
         println!("{}: {} bytes ({} allocations)", 
@@ -154,7 +154,7 @@ fn main() {
     init();
     
     let shared_config = Arc::new(String::from("shared_configuration"));
-    track_var!(shared_config)?;
+    track_var!(shared_config).ok();
     
     let handles: Vec<_> = (0..4).map(|i| {
         let config = Arc::clone(&shared_config);
@@ -172,7 +172,7 @@ fn main() {
     
     // Analyze cross-thread memory usage
     let tracker = get_global_tracker();
-    tracker.export_to_svg("concurrent_analysis.svg")?;
+    tracker.export_to_svg("concurrent_analysis.svg").expect("Export failed");
 }
 ```
 
@@ -289,6 +289,11 @@ cargo test --test edge_cases_test
 
 # Comprehensive integration tests
 cargo test --test comprehensive_integration_test
+
+// or 
+make test
+make run-stress-test
+make run-main
 ```
 
 ### Test Coverage
@@ -300,7 +305,100 @@ cargo test --test comprehensive_integration_test
 - **Performance Tests**: Overhead and bottleneck analysis
 - **Edge Cases**: Unusual inputs and boundary conditions
 
-## 📊 Examples
+## 📊 Visual Memory Analysis
+
+trace_tools generates comprehensive SVG visualizations that provide deep insights into your application's memory usage patterns. Here's what each section of the generated report shows:
+
+![Memory Analysis Visualization](stress_test_visualization.svg)
+
+### 🎯 Performance Dashboard (Top Section)
+Four key performance gauges displaying:
+- **Memory Efficiency**: Allocation/deallocation ratio (35.7% in example)
+- **Average Allocation Size**: Mean size per allocation (1.0K bytes)
+- **Memory Utilization**: Current vs peak memory usage (100.0%)
+- **Active Allocations**: Number of currently tracked allocations (25.0K)
+
+### 🔥 Memory Allocation Heatmap (Second Section)
+A 20x8 grid showing allocation density patterns:
+- **X-axis**: Allocation size (small to large)
+- **Y-axis**: Time progression
+- **Color intensity**: Number of allocations (blue=cold, red=hot)
+- **Numbers in cells**: Exact allocation counts
+
+### 📊 Memory Usage by Type & Fragmentation Analysis (Third Row)
+**Left side - Type Usage Chart**: Pie chart showing memory distribution by data types
+**Right side - Fragmentation Analysis**: Histogram of allocation sizes:
+- **Green bars**: Small allocations (good for performance)
+- **Orange bars**: Medium allocations (moderate impact)
+- **Red bars**: Large allocations (potential fragmentation risk)
+
+### 🔍 Categorized Allocations & Call Stack Analysis (Fourth Row)
+**Left side - Categorized Allocations**: Memory usage grouped by allocation categories
+**Right side - Call Stack Analysis**: Tree visualization showing:
+- **Colored nodes**: Different source locations
+- **Node size**: Proportional to memory usage
+- **Labels**: Source location with allocation count and total bytes
+
+### 📈 Memory Growth Trends (Fifth Section)
+Time-series visualization showing:
+- **Green trend line**: Memory usage progression over time
+- **Data points**: Specific measurement points
+- **Red dashed line**: Peak memory usage indicator
+- **Trend analysis**: Growth patterns and memory behavior
+
+### 📱 Memory Timeline (Sixth Section)
+Detailed timeline showing:
+- **Variable lifecycles**: When variables are allocated and deallocated
+- **Memory blocks**: Visual representation of active allocations
+- **Time progression**: Left to right temporal flow
+
+### 🎨 Interactive Legend & Summary (Bottom Section)
+**Left side - Legend**: Color coding explanation for all chart elements
+**Right side - Summary**: Key statistics including:
+- Total active allocations
+- Tracked variables percentage
+- Average allocation size
+- Memory efficiency metrics
+- Peak vs current memory comparison
+
+## 📊 Examples & Use Cases
+
+The `examples/` directory contains comprehensive demonstration programs showcasing different memory usage patterns:
+
+### 🚀 Basic Examples
+- **`basic_usage.rs`** - Simple tracking example showing fundamental usage
+- **`lifecycles.rs`** - Variable lifecycle tracking with scope management
+
+### 💪 Advanced Examples  
+- **`heavy_workload.rs`** - Complex application simulation with:
+  - Web server session management (1,000 sessions)
+  - Data pipeline processing (10,000+ records)
+  - LRU cache system with hit/miss patterns
+  - Concurrent worker pool (8 threads, 2,000 tasks)
+
+- **`memory_stress_test.rs`** - Extreme stress testing scenarios including:
+  - **Massive Allocation Burst**: 50,000+ rapid allocations
+  - **Memory Fragmentation**: Complex fragmentation patterns
+  - **Concurrent Storm**: 16 threads with 80,000+ allocations
+  - **Large Object Stress**: Objects up to 10MB each
+  - **Rapid Cycles**: 100,000+ allocation/deallocation cycles
+
+### 🎯 Running Examples
+```bash
+# Basic usage demonstration
+cargo run --example basic_usage
+
+# Variable lifecycle tracking
+cargo run --example lifecycles
+
+# Complex workload simulation
+cargo run --example heavy_workload
+
+# Extreme stress testing (generates rich visualizations)
+cargo run --example memory_stress_test
+```
+
+Each example generates detailed JSON snapshots and beautiful SVG visualizations showing memory usage patterns, performance metrics, and allocation analysis.
 
 ### Example 1: Web Server Memory Analysis
 
@@ -323,17 +421,17 @@ fn main() {
     // Simulate handling requests
     for i in 0..100 {
         let connection = format!("Connection {}", i);
-        track_var!(connection)?;
+        track_var!(connection).ok();
         server.connections.push(connection);
         
         let response_data = vec![0u8; 1024];
-        track_var!(response_data)?;
+        track_var!(response_data).ok();
         server.cache.insert(format!("key_{}", i), response_data);
     }
     
     // Analyze server memory usage
     let tracker = get_global_tracker();
-    tracker.export_to_svg("webserver_memory.svg")?;
+    tracker.export_to_svg("webserver_memory.svg").expect("Export failed");
     
     println!("Web server memory analysis exported!");
 }
@@ -349,37 +447,37 @@ fn process_data_pipeline() -> Result<(), Box<dyn std::error::Error>> {
     
     // Stage 1: Load raw data
     let raw_data = vec![0u8; 1_000_000]; // 1MB of raw data
-    track_var!(raw_data)?;
+    track_var!(raw_data).ok();
     
     // Stage 2: Parse into structured data
     let parsed_data: Vec<i32> = raw_data.chunks(4)
         .map(|chunk| i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect();
-    track_var!(parsed_data)?;
+    track_var!(parsed_data).ok();
     
     // Stage 3: Process and filter
     let processed_data: Vec<i32> = parsed_data.into_iter()
         .filter(|&x| x > 0)
         .map(|x| x * 2)
         .collect();
-    track_var!(processed_data)?;
+    track_var!(processed_data).ok();
     
     // Stage 4: Generate results
     let results = processed_data.iter()
         .map(|&x| format!("Result: {}", x))
         .collect::<Vec<_>>();
-    track_var!(results)?;
+    track_var!(results).ok();
     
     // Analyze pipeline memory usage
     let tracker = get_global_tracker();
-    let stats = tracker.get_stats()?;
+    let stats = tracker.get_stats().expect("Failed to get stats");
     
     println!("Pipeline Memory Usage:");
     println!("  Peak memory: {} bytes", stats.peak_memory);
     println!("  Active allocations: {}", stats.active_allocations);
     
-    tracker.export_to_json("pipeline_analysis.json")?;
-    tracker.export_to_svg("pipeline_visualization.svg")?;
+    tracker.export_to_json("pipeline_analysis.json").expect("Export failed");
+    tracker.export_to_svg("pipeline_visualization.svg").expect("Export failed");
     
     Ok(())
 }
