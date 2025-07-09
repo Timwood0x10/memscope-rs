@@ -522,7 +522,7 @@ We welcome contributions! Please see our contributing guidelines:
 ### Development Setup
 
 ```bash
-git clone https://github.com/your-username/memtrack-rs.git
+git clone https://github.com/Timwood0x10/memtrack-rs.git
 cd memtrack-rs
 cargo build
 cargo test
