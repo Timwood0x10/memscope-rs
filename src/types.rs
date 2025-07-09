@@ -1,4 +1,4 @@
-//! Core types and error handling for the memtrack-rs library.
+//! Core types and error handling for the memscope-rs library.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,13 +1,13 @@
-//! Basic usage example for memtrack-rs memory visualizer.
+//! Basic usage example for memscope-rs memory visualizer.
 
 use std::rc::Rc;
 use std::sync::Arc;
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 fn main() {
     // Initialize the memory tracking system
     init();
-    println!("memtrack-rs initialized. Tracking memory allocations...");
+    println!("memscope-rs initialized. Tracking memory allocations...");
 
     // Allocate and track simple types
     println!("\nAllocating and tracking variables...");

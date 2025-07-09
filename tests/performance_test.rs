@@ -1,8 +1,8 @@
-//! Performance tests for memtrack-rs to measure overhead and identify bottlenecks.
+//! Performance tests for memscope-rs to measure overhead and identify bottlenecks.
 
 use std::sync::Once;
 use std::time::{Duration, Instant};
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: Once = Once::new();
 

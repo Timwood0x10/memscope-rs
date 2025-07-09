@@ -1,4 +1,4 @@
-//! Complex example demonstrating memtrack-rs capabilities
+//! Complex example demonstrating memscope-rs capabilities
 //!
 //! This example simulates a realistic application with multiple components:
 //! - Web server with request handling
@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 /// Simulates a user session with associated data
 #[derive(Debug, Clone)]
@@ -187,7 +187,7 @@ fn data_processing_pipeline() -> Vec<Vec<f64>> {
 
 /// Main application simulation
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize memtrack-rs
+    // Initialize memscope-rs
     init();
     println!("Starting Complex Application Memory Analysis Demo");
     println!("{}", "=".repeat(60));

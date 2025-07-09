@@ -1,9 +1,9 @@
-//! Stress tests for memtrack-rs memory tracking under high load.
+//! Stress tests for memscope-rs memory tracking under high load.
 
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 

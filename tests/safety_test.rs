@@ -1,8 +1,8 @@
-//! Safety tests for memtrack-rs to verify memory safety and error handling.
+//! Safety tests for memscope-rs to verify memory safety and error handling.
 
 use std::sync::Once;
 use std::thread;
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: Once = Once::new();
 

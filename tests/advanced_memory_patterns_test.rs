@@ -1,11 +1,11 @@
-//! Advanced memory pattern tests for memtrack-rs.
+//! Advanced memory pattern tests for memscope-rs.
 //! Tests smart pointers, custom allocators, memory layouts, and complex data structures.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
-use memtrack_rs::{get_global_tracker, init, track_var, Trackable};
+use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 

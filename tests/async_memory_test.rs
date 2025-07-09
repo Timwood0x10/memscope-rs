@@ -1,10 +1,10 @@
-//! Comprehensive async memory tracking tests for memtrack-rs.
+//! Comprehensive async memory tracking tests for memscope-rs.
 //! Tests async/await patterns, futures, and async runtime interactions.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 

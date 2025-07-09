@@ -1,10 +1,10 @@
-# 🦀 memtrack-rs - Advanced Rust Memory Analysis & Visualization
+# 🦀 memscope-rs - Advanced Rust Memory Analysis & Visualization
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Safety](https://img.shields.io/badge/safety-tested-green.svg)](#safety--security)
 
-[**memtrack-rs**](https://github.com/Timwood0x10/memtrack-rs.git) is a comprehensive Rust memory analysis toolkit that provides real-time tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, intuitive variable tracking, and beautiful SVG visualizations.
+[**memscope-rs**](https://github.com/Timwood0x10/memscope-rs.git) is a comprehensive Rust memory analysis toolkit that provides real-time tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, intuitive variable tracking, and beautiful SVG visualizations.
 
 ## 🌟 Key Features
 
@@ -40,16 +40,16 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-memtrack-rs = "0.1.0"
+memscope-rs = "0.1.0"
 
 # Optional: Enable backtrace support
-memtrack-rs = { version = "0.1.0", features = ["backtrace"] }
+memscope-rs = { version = "0.1.0", features = ["backtrace"] }
 ```
 
 ### Basic Usage
 
 ```rust
-use memtrack_rs::{init, track_var, get_global_tracker};
+use memscope_rs::{init, track_var, get_global_tracker};
 
 fn main() {
     // Initialize the memory tracking system
@@ -95,7 +95,7 @@ let numbers = vec![1, 2, 3, 4, 5];
 track_var!(numbers).ok();
 
 // Text
-let message = String::from("Hello, memtrack-rs!");
+let message = String::from("Hello, memscope-rs!");
 track_var!(message).ok();
 
 // Smart Pointers
@@ -261,11 +261,11 @@ See [SECURITY_ANALYSIS.md](SECURITY_ANALYSIS.md) for detailed analysis.
 ```rust
 # Disable tracking in release builds
 #[cfg(debug_assertions)]
-memtrack_rs::init();
+memscope_rs::init();
 
 # Or use conditional compilation
 #[cfg(feature = "memory-tracking")]
-memtrack_rs::init();
+memscope_rs::init();
 ```
 
 ## 🧪 Testing
@@ -308,7 +308,7 @@ make run-main
 
 ## 📊 Visual Memory Analysis
 
-memtrack-rs generates comprehensive SVG visualizations that provide deep insights into your application's memory usage patterns. Here's what each section of the generated report shows:
+memscope-rs generates comprehensive SVG visualizations that provide deep insights into your application's memory usage patterns. Here's what each section of the generated report shows:
 
 ![Memory Analysis Visualization](stress_test_visualization.svg)
 
@@ -404,7 +404,7 @@ Each example generates detailed JSON snapshots and beautiful SVG visualizations 
 ### Example 1: Web Server Memory Analysis
 
 ```rust
-use memtrack_rs::{init, track_var, get_global_tracker};
+use memscope_rs::{init, track_var, get_global_tracker};
 
 struct WebServer {
     connections: Vec<String>,
@@ -441,7 +441,7 @@ fn main() {
 ### Example 2: Data Processing Pipeline
 
 ```rust
-use memtrack_rs::{init, track_var, get_global_tracker};
+use memscope_rs::{init, track_var, get_global_tracker};
 
 fn process_data_pipeline() -> Result<(), Box<dyn std::error::Error>> {
     init();
@@ -490,7 +490,7 @@ fn process_data_pipeline() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-memtrack-rs = { version = "0.1.0", features = ["backtrace"] }
+memscope-rs = { version = "0.1.0", features = ["backtrace"] }
 ```
 
 Available features:
@@ -501,7 +501,7 @@ Available features:
 
 ```bash
 # Set logging level
-RUST_LOG=memtrack_rs=debug cargo run
+RUST_LOG=memscope_rs=debug cargo run
 
 # Disable tracking at runtime
 TRACE_TOOLS_DISABLED=1 cargo run
@@ -522,8 +522,8 @@ We welcome contributions! Please see our contributing guidelines:
 ### Development Setup
 
 ```bash
-git clone https://github.com/Timwood0x10/memtrack-rs.git
-cd memtrack-rs
+git clone https://github.com/Timwood0x10/memscope-rs.git
+cd memscope-rs
 cargo build
 cargo test
 ```
@@ -540,9 +540,9 @@ This project is licensed under the Apache License, Version 2.0 - see the [LICENS
 
 ## 📞 Support
 
-- **Documentation**: [docs.rs/memtrack-rs](https://docs.rs/memtrack-rs)
-- **Issues**: [GitHub Issues](https://github.com/Timwood0x10/memtrack-rs/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Timwood0x10/memtrack-rs/discussions)
+- **Documentation**: Run `cargo doc --open` to view local documentation
+- **Issues**: [GitHub Issues](https://github.com/Timwood0x10/memscope-rs/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Timwood0x10/memscope-rs/discussions)
 
 ---
 

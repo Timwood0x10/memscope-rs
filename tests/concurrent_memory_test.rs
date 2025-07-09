@@ -1,4 +1,4 @@
-//! Comprehensive concurrency tests for memtrack-rs.
+//! Comprehensive concurrency tests for memscope-rs.
 //! Tests thread safety, parallel allocations, and concurrent data structures.
 
 use crossbeam::thread;
@@ -7,7 +7,7 @@ use parking_lot::{Mutex, RwLock};
 use std::sync::{Arc, Barrier};
 use std::thread as std_thread;
 use std::time::{Duration, Instant};
-use memtrack_rs::{get_global_tracker, init, track_var, Trackable};
+use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 

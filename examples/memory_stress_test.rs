@@ -1,13 +1,13 @@
-//! Memory stress test example showing memtrack-rs under extreme load
+//! Memory stress test example showing memscope-rs under extreme load
 //! This pushes the memory tracking system to its limits
 
 use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 fn main() {
-    println!("🔥 Memory Stress Test - Pushing memtrack-rs to the limit!");
+    println!("🔥 Memory Stress Test - Pushing memscope-rs to the limit!");
     println!("This example demonstrates extreme memory usage patterns\n");
 
     init();
@@ -265,7 +265,7 @@ fn rapid_alloc_dealloc_cycles() {
 }
 
 /// Print comprehensive stress test results
-fn print_final_analysis(tracker: &memtrack_rs::MemoryTracker, duration: Duration) {
+fn print_final_analysis(tracker: &memscope_rs::MemoryTracker, duration: Duration) {
     println!("\n🔥 STRESS TEST COMPLETE 🔥");
     println!("Total execution time: {:?}", duration);
 
@@ -325,7 +325,7 @@ fn print_final_analysis(tracker: &memtrack_rs::MemoryTracker, duration: Duration
     println!("📁 Generated files:");
     println!("  • stress_test_snapshot.json - Complete memory allocation data");
     println!("  • stress_test_visualization.svg - Visual memory usage analysis");
-    println!("\n💪 memtrack-rs successfully handled extreme memory stress!");
+    println!("\n💪 memscope-rs successfully handled extreme memory stress!");
     println!("This test pushed the limits with:");
     println!("  • 50,000+ rapid allocations");
     println!("  • Complex memory fragmentation patterns");

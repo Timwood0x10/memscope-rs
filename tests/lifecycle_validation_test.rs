@@ -1,5 +1,5 @@
 use std::{fs, path::Path, thread, time::Duration};
-use memtrack_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init, track_var};
 
 // A simple struct to ensure we are tracking something with a known layout
 struct TrackedData {
