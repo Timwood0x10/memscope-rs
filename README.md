@@ -82,7 +82,6 @@ fn main() {
 }
 ```
 
-![Example Output](./images/memory_tools.png)
 
 ## 📖 Comprehensive Guide
 
@@ -179,6 +178,8 @@ fn main() {
 ### Understanding the Visualizations
 
 #### SVG Output Features
+
+![Example Output](./images/memory_tools.png)
 
 The enhanced SVG visualization includes:
 
