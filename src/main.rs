@@ -88,7 +88,7 @@ impl DatabasePool {
         }
 
         // Simulate query result
-        let result = format!("Result for: {}", query).into_bytes();
+        let result = format!("Result for: {query}").into_bytes();
         self.query_cache.insert(query.to_string(), result.clone());
         result
     }
@@ -112,7 +112,7 @@ impl WebServer {
 
     fn handle_request(&mut self, user_id: &str, endpoint: &str) -> Vec<u8> {
         // Log the request
-        let log_entry = format!("User {} accessed {}", user_id, endpoint);
+        let log_entry = format!("User {user_id} accessed {endpoint}");
         self.request_log.push(log_entry);
 
         // Get or create user session
@@ -125,13 +125,13 @@ impl WebServer {
         session.add_to_cache(endpoint.to_string());
 
         // Generate response
-        let response_key = format!("{}:{}", user_id, endpoint);
+        let response_key = format!("{user_id}:{endpoint}");
         if let Some(cached_response) = self.response_cache.get(&response_key) {
             return cached_response.clone();
         }
 
         let response = match endpoint {
-            "/api/profile" => format!("Profile data for {}", user_id).into_bytes(),
+            "/api/profile" => format!("Profile data for {user_id}").into_bytes(),
             "/api/dashboard" => vec![1u8; 8192], // 8KB dashboard data
             "/api/analytics" => vec![2u8; 16384], // 16KB analytics data
             _ => b"404 Not Found".to_vec(),
@@ -268,7 +268,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     track_var!(large_dataset)?;
 
     let string_collection: Vec<String> = (0..1000)
-        .map(|i| format!("String item number {} with some additional content", i))
+        .map(|i| format!("String item number {i} with some additional content"))
         .collect();
     track_var!(string_collection)?;
 
@@ -302,7 +302,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Access shared config
                 let _config = config_clone.lock().unwrap();
 
-                format!("Thread {} completed", thread_id)
+                format!("Thread {thread_id} completed")
             })
         })
         .collect();
@@ -353,8 +353,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracker.export_to_svg(svg_filename)?;
 
     println!("Exported detailed analysis to:");
-    println!("   JSON: {}", json_filename);
-    println!("   SVG:  {}", svg_filename);
+    println!("   JSON: {json_filename}");
+    println!("   SVG:  {svg_filename}");
 
     // 9. Performance summary
     let elapsed = start_time.elapsed();
@@ -366,14 +366,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nComplex Application Demo Completed Successfully!");
     println!("{}", "=".repeat(60));
     println!("Check the exported files for detailed memory analysis:");
-    println!(
-        "   • {} - Detailed JSON data for programmatic analysis",
-        json_filename
-    );
-    println!(
-        "   • {} - Visual SVG charts for human analysis",
-        svg_filename
-    );
+    println!("   • {json_filename} - Detailed JSON data for programmatic analysis");
+    println!("   • {svg_filename} - Visual SVG charts for human analysis");
     println!("\nThis demo showcased:");
     println!("   ✓ Web server simulation with user sessions");
     println!("   ✓ Database connection pooling");

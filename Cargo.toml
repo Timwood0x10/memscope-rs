@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2021"
 authors = ["TimWood"]
 license = "MIT OR Apache-2.0"
-description = "Memory tracking and visualization tools for Rust applications."
+description = "Memory tracking and visualization tools for Rust applications with custom allocator, variable tracking, and beautiful SVG reports."
+homepage = "https://github.com/TimWood/trace_tools"
+repository = "https://github.com/TimWood/trace_tools"
+documentation = "https://docs.rs/trace_tools"
+readme = "README.md"
+keywords = ["memory", "tracking", "allocator", "visualization", "profiling"]
+categories = ["development-tools::profiling", "memory-management", "visualization"]
 
 [dependencies]
 tracing = "0.1"

@@ -818,9 +818,12 @@ fn add_callstack_analysis(
 
     // Sort by total size and take top 10
     let mut sorted_sources: Vec<_> = source_stats.iter().collect();
-    sorted_sources.sort_by(|a, b| b.1.1.cmp(&a.1.1));
+    sorted_sources.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
 
-    let max_size = sorted_sources.first().map(|(_, (_, size))| *size).unwrap_or(1);
+    let max_size = sorted_sources
+        .first()
+        .map(|(_, (_, size))| *size)
+        .unwrap_or(1);
 
     // Draw tree-like visualization
     for (i, (source, (count, total_size))) in sorted_sources.iter().take(10).enumerate() {
@@ -842,7 +845,7 @@ fn add_callstack_analysis(
         document = document.add(node);
 
         // Source label
-        let source_text = format!("{} ({} allocs, {} bytes)", source, count, total_size);
+        let source_text = format!("{source} ({count} allocs, {total_size} bytes)");
 
         let label = SvgText::new(source_text)
             .set("x", chart_x + 80)
@@ -911,7 +914,10 @@ fn add_memory_growth_trends(
     for i in 0..time_points {
         let x = chart_x + 50 + i * point_width;
         let simulated_memory = stats.active_memory / time_points * (i + 1);
-        let y = chart_y + chart_height - 50 - ((simulated_memory as f64 / stats.peak_memory as f64) * (chart_height - 100) as f64) as i32;
+        let y = chart_y + chart_height
+            - 50
+            - ((simulated_memory as f64 / stats.peak_memory as f64) * (chart_height - 100) as f64)
+                as i32;
 
         // Draw data points
         let point = Circle::new()
@@ -928,7 +934,10 @@ fn add_memory_growth_trends(
         if i > 0 {
             let prev_x = chart_x + 50 + (i - 1) * point_width;
             let prev_memory = stats.active_memory / time_points * i;
-            let prev_y = chart_y + chart_height - 50 - ((prev_memory as f64 / stats.peak_memory as f64) * (chart_height - 100) as f64) as i32;
+            let prev_y = chart_y + chart_height
+                - 50
+                - ((prev_memory as f64 / stats.peak_memory as f64) * (chart_height - 100) as f64)
+                    as i32;
 
             let line = svg::node::element::Line::new()
                 .set("x1", prev_x)
@@ -1074,7 +1083,7 @@ fn add_comprehensive_summary(
 
     // Calculate summary metrics
     let tracked_vars = allocations.iter().filter(|a| a.var_name.is_some()).count();
-    let avg_size = if allocations.len() > 0 {
+    let avg_size = if !allocations.is_empty() {
         allocations.iter().map(|a| a.size).sum::<usize>() / allocations.len()
     } else {
         0
@@ -1082,12 +1091,28 @@ fn add_comprehensive_summary(
 
     let summary_items = [
         format!("Total Active Allocations: {}", stats.active_allocations),
-        format!("Tracked Variables: {} ({:.1}%)", tracked_vars, 
-                if stats.active_allocations > 0 { tracked_vars as f64 / stats.active_allocations as f64 * 100.0 } else { 0.0 }),
-        format!("Average Allocation Size: {} bytes", avg_size),
-        format!("Memory Efficiency: {:.1}%", 
-                if stats.total_allocations > 0 { stats.total_deallocations as f64 / stats.total_allocations as f64 * 100.0 } else { 0.0 }),
-        format!("Peak vs Current: {} vs {} bytes", stats.peak_memory, stats.active_memory),
+        format!(
+            "Tracked Variables: {} ({:.1}%)",
+            tracked_vars,
+            if stats.active_allocations > 0 {
+                tracked_vars as f64 / stats.active_allocations as f64 * 100.0
+            } else {
+                0.0
+            }
+        ),
+        format!("Average Allocation Size: {avg_size} bytes"),
+        format!(
+            "Memory Efficiency: {:.1}%",
+            if stats.total_allocations > 0 {
+                stats.total_deallocations as f64 / stats.total_allocations as f64 * 100.0
+            } else {
+                0.0
+            }
+        ),
+        format!(
+            "Peak vs Current: {} vs {} bytes",
+            stats.peak_memory, stats.active_memory
+        ),
     ];
 
     for (i, item) in summary_items.iter().enumerate() {
@@ -1106,7 +1131,8 @@ fn add_comprehensive_summary(
 
 /// Add CSS styles for interactive elements
 fn add_css_styles(mut document: Document) -> TrackingResult<Document> {
-    let style = svg::node::element::Style::new(r#"
+    let style = svg::node::element::Style::new(
+        r#"
         .tooltip { opacity: 0; transition: opacity 0.3s; }
         .chart-element:hover .tooltip { opacity: 1; }
         .interactive-bar:hover { opacity: 0.8; cursor: pointer; }
@@ -1116,8 +1142,9 @@ fn add_css_styles(mut document: Document) -> TrackingResult<Document> {
         @keyframes dash { to { stroke-dashoffset: -10; } }
         .performance-gauge { filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3)); }
         .callstack-node:hover { transform: scale(1.1); transform-origin: center; }
-    "#);
-    
+    "#,
+    );
+
     document = document.add(style);
     Ok(document)
 }
@@ -1182,7 +1209,12 @@ fn add_performance_dashboard(
         ("Memory Efficiency", efficiency, "%", "#e74c3c"),
         ("Avg Alloc Size", avg_allocation_size as f64, "B", "#f39c12"),
         ("Memory Utilization", memory_utilization, "%", "#27ae60"),
-        ("Active Allocs", stats.active_allocations as f64, "", "#9b59b6"),
+        (
+            "Active Allocs",
+            stats.active_allocations as f64,
+            "",
+            "#9b59b6",
+        ),
     ];
 
     for (i, (label, value, unit, color)) in gauges.iter().enumerate() {
@@ -1216,7 +1248,7 @@ fn add_performance_dashboard(
             .set("stroke", *color)
             .set("stroke-width", 8)
             .set("stroke-dasharray", format!("{} {}", arc_length, 300.0))
-            .set("transform", format!("rotate(-90 {} {})", gauge_x, gauge_y));
+            .set("transform", format!("rotate(-90 {gauge_x} {gauge_y})"));
 
         document = document.add(gauge_arc);
 
@@ -1224,7 +1256,7 @@ fn add_performance_dashboard(
         let value_text = if *unit == "B" && *value > 1024.0 {
             format!("{:.1}K", value / 1024.0)
         } else {
-            format!("{:.1}{}", value, unit)
+            format!("{value:.1}{unit}")
         };
 
         let text = SvgText::new(value_text)
@@ -1311,15 +1343,16 @@ fn add_memory_heatmap(
         // Map allocation to grid position based on size and timestamp
         let size_ratio = allocation.size as f64 / max_size as f64;
         let time_ratio = (allocation.timestamp_alloc % 1000) as f64 / 1000.0;
-        
+
         let col = ((size_ratio * (grid_cols - 1) as f64) as usize).min(grid_cols - 1);
         let row = ((time_ratio * (grid_rows - 1) as f64) as usize).min(grid_rows - 1);
-        
+
         density_grid[row][col] += 1;
     }
 
     // Find max density for color scaling
-    let max_density = density_grid.iter()
+    let max_density = density_grid
+        .iter()
         .flat_map(|row| row.iter())
         .max()
         .copied()
@@ -1344,7 +1377,7 @@ fn add_memory_heatmap(
                 // Heat colors from blue (cold) to red (hot)
                 let red = (255.0 * intensity) as u8;
                 let blue = (255.0 * (1.0 - intensity)) as u8;
-                format!("rgb({}, 100, {})", red, blue)
+                format!("rgb({red}, 100, {blue})")
             };
 
             let cell = Rectangle::new()
@@ -1387,7 +1420,10 @@ fn add_memory_heatmap(
         .set("y", heatmap_y + 40)
         .set("font-size", 10)
         .set("fill", "#7f8c8d")
-        .set("transform", format!("rotate(-90 {} {})", heatmap_x + 10, heatmap_y + 40));
+        .set(
+            "transform",
+            format!("rotate(-90 {} {})", heatmap_x + 10, heatmap_y + 40),
+        );
     document = document.add(legend_text2);
 
     Ok(document)
