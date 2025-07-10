@@ -450,16 +450,26 @@ fn add_categorized_allocations(
 
         document = document.add(name_text);
 
-        // Size and count
-        let size_text = SvgText::new(format!(
-            "{} ({} vars)",
-            format_bytes(category.total_size),
-            category.allocations.len()
-        ))
-        .set("x", chart_x + 160)
-        .set("y", y + bar_height / 2 + 4)
-        .set("font-size", 10)
-        .set("fill", "white");
+        // Show variable names and memory usage
+        let var_names: Vec<String> = category.allocations.iter()
+            .filter_map(|a| a.var_name.as_ref())
+            .take(3)
+            .map(|name| format!("{}({})", name, format_bytes(category.allocations.iter()
+                .find(|a| a.var_name.as_ref() == Some(name))
+                .map(|a| a.size).unwrap_or(0))))
+            .collect();
+        
+        let display_text = if var_names.is_empty() {
+            format!("{} ({} vars)", format_bytes(category.total_size), category.allocations.len())
+        } else {
+            format!("{} - {}", format_bytes(category.total_size), var_names.join(", "))
+        };
+
+        let size_text = SvgText::new(display_text)
+            .set("x", chart_x + 160)
+            .set("y", y + bar_height / 2 + 4)
+            .set("font-size", 10)
+            .set("fill", "white");
 
         document = document.add(size_text);
     }
@@ -589,9 +599,11 @@ fn add_memory_timeline(
 
         document = document.add(line);
 
-        // Add variable name in dedicated label area
+        // Add variable name and type in dedicated label area
         if let Some(var_name) = &allocation.var_name {
-            let label_text = format!("{} ({})", var_name, format_bytes(allocation.size));
+            let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
+            let (simplified_type, _) = simplify_type_name(type_name);
+            let label_text = format!("{}({}) memory: {}", var_name, simplified_type, format_bytes(allocation.size));
             let label = SvgText::new(label_text)
                 .set("x", label_start_x + 5)
                 .set("y", y + 4)

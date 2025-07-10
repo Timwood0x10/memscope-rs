@@ -44,7 +44,7 @@ fn main() {
 
     // Perform some operations
     let sum_of_vec = numbers_vec.iter().sum::<i32>();
-    println!("\nSum of 'numbers_vec': {}", sum_of_vec);
+    println!("\nSum of 'numbers_vec': {sum_of_vec}");
     println!("Length of 'text_string': {}", text_string.len());
     println!("Value in 'boxed_value': {}", *boxed_value);
     println!("Value in 'boxed_value2': {}", *boxed_value2);
@@ -64,7 +64,7 @@ fn main() {
     // Export memory snapshot to JSON
     println!("\nExporting memory snapshot to basic_usage_snapshot.json...");
     if let Err(e) = tracker.export_to_json("basic_usage_snapshot.json") {
-        eprintln!("Failed to export JSON: {}", e);
+        eprintln!("Failed to export JSON: {e}");
     } else {
         println!("Successfully exported JSON.");
     }
@@ -72,7 +72,7 @@ fn main() {
     // Export memory usage visualization to SVG
     println!("\nExporting memory usage visualization to basic_usage_graph.svg...");
     if let Err(e) = tracker.export_to_svg("basic_usage_graph.svg") {
-        eprintln!("Failed to export SVG: {}", e);
+        eprintln!("Failed to export SVG: {e}");
     } else {
         println!("Successfully exported SVG.");
     }

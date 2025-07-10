@@ -367,7 +367,7 @@ fn test_rwlock_concurrent_access() {
     }
 
     let final_data = shared_data.read();
-    assert!(final_data.len() > 0, "Should have written some data");
+    assert!(!final_data.is_empty(), "Should have written some data");
 
     let tracker = get_global_tracker();
     let stats = tracker.get_stats();

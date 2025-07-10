@@ -217,12 +217,64 @@ impl MemoryTracker {
 
     /// Export memory data to JSON format.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        crate::export::export_to_json(self, path)
+        // Simple JSON export implementation
+        use std::fs::File;
+        let path = path.as_ref();
+        let active_allocations = self.get_active_allocations()?;
+        let stats = self.get_stats()?;
+        
+        let data = serde_json::json!({
+            "timestamp": chrono::Utc::now(),
+            "stats": stats,
+            "allocations": active_allocations
+        });
+        
+        let file = File::create(path)?;
+        serde_json::to_writer_pretty(file, &data)
+            .map_err(|e| crate::types::TrackingError::SerializationError(format!("JSON export failed: {}", e)))?;
+        Ok(())
     }
+
 
     /// Export memory visualization to SVG format.
     pub fn export_to_svg<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        crate::export::export_to_svg(self, path)
+        crate::export_enhanced::export_enhanced_svg(self, path)
+    }
+
+    /// Export lifecycle timeline visualization to SVG format.
+    /// 
+    /// # Arguments
+    /// * `path` - Output path for the SVG file (recommended: "program_name_lifecycle_timeline.svg")
+    pub fn export_lifecycle_timeline<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        // Use the simple lifecycle visualization for now
+        crate::lifecycle_viz::export_simple_lifecycle(self, path)
+    }
+
+    /// Export simple lifecycle visualization to SVG format.
+    /// This creates a separate, easy-to-understand visualization showing variable lifecycles.
+    /// 
+    /// # Arguments
+    /// * `path` - Output path for the lifecycle SVG file (recommended: "program_name_lifecycle.svg")
+    pub fn export_simple_lifecycle<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        crate::lifecycle_viz::export_simple_lifecycle(self, path)
+    }
+
+    /// Export memory analysis visualization to SVG format with enhanced variable information.
+    /// This creates a comprehensive memory analysis showing variable names and types clearly.
+    /// 
+    /// # Arguments
+    /// * `path` - Output path for the memory analysis SVG file (recommended: "program_name_memory_analysis.svg")
+    pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        crate::export_enhanced::export_enhanced_svg(self, path)
+    }
+
+    /// Export lifecycle visualization to SVG format with detailed timeline and hierarchy.
+    /// This creates a comprehensive lifecycle visualization showing variable birth, life, and death.
+    /// 
+    /// # Arguments
+    /// * `path` - Output path for the lifecycle SVG file (recommended: "program_name_lifecycle.svg")
+    pub fn export_lifecycle<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        crate::lifecycle_viz::export_comprehensive_lifecycle(self, path)
     }
 }
 

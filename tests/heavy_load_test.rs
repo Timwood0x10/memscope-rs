@@ -65,7 +65,7 @@ fn test_simple_concurrent_allocations() {
 
     // Check tracker stats
     let stats = tracker.get_stats();
-    println!("Concurrent test stats: {:?}", stats);
+    println!("Concurrent test stats: {stats:?}");
 
     println!("Simple concurrent allocations test passed!");
 }
@@ -122,10 +122,10 @@ fn test_memory_pressure() {
     }
 
     let duration = start_time.elapsed();
-    println!("Memory pressure test completed in {:?}", duration);
+    println!("Memory pressure test completed in {duration:?}");
 
     let stats = tracker.get_stats();
-    println!("Memory pressure stats: {:?}", stats);
+    println!("Memory pressure stats: {stats:?}");
 
     // Keep allocations alive
     drop(large_allocs);

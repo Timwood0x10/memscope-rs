@@ -15,9 +15,10 @@
 - **Type Recognition**: Intelligent Rust type detection and categorization
 
 ### 📊 **Rich Visualizations**
-- **Enhanced SVG Reports**: Beautiful, professional memory usage charts
+- **Enhanced SVG Reports**: Beautiful, professional memory usage charts with performance dashboards
+- **Lifecycle Timeline**: Visual timeline showing variable lifecycles and scope relationships
 - **Type Categorization**: Groups allocations by Collections, Text, Smart Pointers, etc.
-- **Timeline Views**: Visual allocation lifecycle tracking
+- **Dual SVG Output**: Memory analysis + lifecycle timeline for comprehensive insights
 - **Human-Readable Formats**: Displays "1.2 KB", "5.4 MB" instead of raw bytes
 
 ### 🛡️ **Production Ready**
@@ -28,9 +29,46 @@
 
 ### 📈 **Export & Analysis**
 - **JSON Export**: Detailed memory snapshots for programmatic analysis
-- **SVG Visualization**: Intuitive charts for human analysis
-- **Statistics**: Peak memory, allocation counts, type breakdowns
-- **Lifecycle Tracking**: Variable creation and destruction patterns
+- **Dual SVG Output**: Memory analysis + lifecycle timeline visualizations
+- **Statistics**: Peak memory, allocation counts, type breakdowns, lifecycle metrics
+- **Lifecycle Tracking**: Variable creation, destruction, and scope relationship patterns
+- **Flexible Naming**: Recommended `program_name_memory_analysis.svg` and `program_name_lifecycle_timeline.svg` format
+
+## 🎨 Lifecycle Timeline Visualization
+
+The lifecycle timeline SVG provides a visual representation of memory allocation events over time, showing when variables are created and how they relate to each other in terms of scope and lifetime.
+
+![Lifecycle Timeline Example](demo_lifecycle_timeline.svg)
+
+### 📊 Lifecycle Timeline Analysis
+
+The lifecycle timeline visualization offers several key insights:
+
+**🔍 Timeline Structure:**
+- **Horizontal Timeline**: Shows the chronological progression of memory allocation events
+- **Event Markers**: Green circles represent allocation events for tracked variables
+- **Variable Labels**: Each allocation shows the variable name and its Rust type
+- **Scope Relationships**: Visual positioning indicates variable scope levels and relationships
+
+**📈 Key Metrics Displayed:**
+- **Total Allocations**: Complete count of memory allocation events
+- **Peak Memory**: Maximum memory usage reached during execution
+- **Active Memory**: Current memory usage at the time of export
+- **Timeline Span**: Duration from first to last allocation event
+
+**🎯 Use Cases:**
+- **Memory Leak Detection**: Identify variables that persist longer than expected
+- **Scope Analysis**: Understand variable lifetime patterns and scope relationships
+- **Performance Optimization**: Spot allocation hotspots and memory usage patterns
+- **Debugging**: Trace memory allocation sequences and identify problematic patterns
+
+**🔧 Interpretation Guide:**
+- **Dense Clusters**: Indicate rapid allocation sequences (loops, bulk operations)
+- **Isolated Events**: Show individual variable allocations
+- **Vertical Positioning**: Represents different execution contexts or scope levels
+- **Color Coding**: Green markers for allocations (red for deallocations when available)
+
+This visualization complements the memory analysis SVG by focusing on the temporal aspects of memory usage rather than just the final state.
 
 ## 🚀 Quick Start
 
@@ -74,11 +112,15 @@ fn main() {
     println!("  Active memory: {} bytes", stats.active_memory);
     println!("  Peak memory: {} bytes", stats.peak_memory);
 
-    // Export detailed analysis
-    tracker.export_to_json("memory_analysis.json").expect("JSON export failed");
-    tracker.export_to_svg("memory_visualization.svg").expect("SVG export failed");
+    // Export detailed analysis with recommended naming
+    tracker.export_to_json("my_program_data.json").expect("JSON export failed");
+    tracker.export_memory_analysis("my_program_memory_analysis.svg").expect("Memory analysis export failed");
+    tracker.export_lifecycle_timeline("my_program_lifecycle_timeline.svg").expect("Lifecycle timeline export failed");
 
-    println!("Analysis exported! Check memory_analysis.json and memory_visualization.svg");
+    println!("Analysis exported! Check the generated files:");
+    println!("📊 my_program_memory_analysis.svg - Memory usage analysis");
+    println!("⏱️  my_program_lifecycle_timeline.svg - Lifecycle timeline");
+    println!("📄 my_program_data.json - Detailed data");
 }
 ```
 
@@ -171,7 +213,8 @@ fn main() {
     
     // Analyze cross-thread memory usage
     let tracker = get_global_tracker();
-    tracker.export_to_svg("concurrent_analysis.svg").expect("Export failed");
+    tracker.export_memory_analysis("concurrent_memory_analysis.svg").expect("Memory analysis export failed");
+    tracker.export_lifecycle_timeline("concurrent_lifecycle_timeline.svg").expect("Lifecycle timeline export failed");
 }
 ```
 
@@ -308,7 +351,27 @@ make run-main
 
 ## 📊 Visual Memory Analysis
 
-memscope-rs generates comprehensive SVG visualizations that provide deep insights into your application's memory usage patterns. Here's what each section of the generated report shows:
+memscope-rs generates **two comprehensive SVG visualizations** that provide deep insights into your application's memory usage patterns:
+
+### 🎯 **Dual SVG Output System**
+
+#### 1. **Memory Analysis SVG** (`program_name_memory_analysis.svg`)
+Comprehensive memory usage analysis including:
+- **Performance Dashboard**: Real-time memory metrics and efficiency indicators
+- **Memory Usage by Type**: Categorized breakdown with `varType(Type)` format
+- **Variable Allocation Timeline**: Chronological allocation patterns
+- **Call Stack Analysis**: Specific variable tracking (no more "Unknown"!)
+- **Memory Fragmentation**: Visual fragmentation analysis
+- **Hot Spots**: Memory allocation frequency analysis
+
+#### 2. **Lifecycle Timeline SVG** (`program_name_lifecycle_timeline.svg`) 
+Beautiful timeline visualization showing:
+- **Variable Lifecycles**: Each variable displayed as `varName(Type)` with colored bars
+- **Scope Hierarchy**: Indented display showing function/scope relationships
+- **Time Progression**: Horizontal timeline with precise timestamps
+- **Active Status**: Red "LIVE" indicators for variables still in memory
+- **Relationship Lines**: Dotted lines connecting variables to their parent scopes
+- **Modern Design**: White background, shadows, and professional styling
 
 ![Memory Analysis Visualization](stress_test_visualization.svg)
 
@@ -432,7 +495,8 @@ fn main() {
     
     // Analyze server memory usage
     let tracker = get_global_tracker();
-    tracker.export_to_svg("webserver_memory.svg").expect("Export failed");
+    tracker.export_memory_analysis("webserver_memory_analysis.svg").expect("Memory analysis export failed");
+    tracker.export_lifecycle_timeline("webserver_lifecycle_timeline.svg").expect("Lifecycle timeline export failed");
     
     println!("Web server memory analysis exported!");
 }

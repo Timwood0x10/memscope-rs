@@ -8,13 +8,14 @@
 #![warn(missing_docs)]
 
 pub mod allocator;
-pub mod export;
 pub mod export_enhanced;
+pub mod lifecycle_viz;
 pub mod tracker;
 pub mod types;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
+pub use lifecycle_viz::{export_simple_lifecycle, export_comprehensive_lifecycle};
 pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
 

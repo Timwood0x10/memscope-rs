@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2024-01-15
+## [0.1.0] - 2025-07-09
 
 ### Added
 - **Core Memory Tracking System**
@@ -57,6 +57,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Non-blocking tracking operations where possible
 - Memory overhead of ~50-100 bytes per tracked allocation
 - Export operations complete in < 10 seconds for 10,000+ allocations
+
+## [0.1.1] - 2025-07-10
+
+### Added
+- **Enhanced Lifecycle Timeline Visualization**
+  - New `export_lifecycle_timeline()` method for generating timeline SVGs
+  - Chronological visualization of memory allocation events
+  - Variable scope and lifetime relationship analysis
+  - Timeline-based memory usage patterns and hotspot detection
+
+- **Improved SVG Visualizations**
+  - Updated legend system with clearer color coding and categorization
+  - Enhanced type recognition and simplified type name display
+  - Professional gradient backgrounds and improved visual styling
+  - Better layout and spacing for complex memory usage patterns
+
+- **Standardized Naming Conventions**
+  - Recommended naming format: `program_name_memory_analysis.svg` for memory analysis
+  - Recommended naming format: `program_name_lifecycle_timeline.svg` for timeline visualization
+  - Consistent file naming across all export functions
+  - Clear separation between memory state analysis and temporal lifecycle tracking
+
+### Changed
+- **Code Cleanup and Optimization**
+  - Removed redundant `src/export.rs` file (functionality merged into `export_enhanced.rs`)
+  - Removed example `src/main.rs` file to reduce codebase complexity
+  - Fixed all clippy warnings for better code quality
+  - Improved error handling and type safety
+
+- **Enhanced Documentation**
+  - Added comprehensive lifecycle timeline analysis guide to README
+  - Detailed interpretation guide for timeline visualizations
+  - Updated examples with lifecycle timeline generation
+  - Improved use case descriptions and optimization guidance
+
+### Fixed
+- All clippy warnings resolved (format string optimization, range checks, etc.)
+- Improved type inference and error handling
+- Better memory timestamp handling for timeline generation
+- Enhanced thread safety and performance optimizations
 
 ## [Unreleased]
 

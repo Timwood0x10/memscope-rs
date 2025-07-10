@@ -18,7 +18,7 @@ fn create_vec_on_heap() -> Vec<i32> {
     println!("\nEntering create_vec_on_heap()...");
     let heap_vec = vec![100, 200, 300];
     track_var!(heap_vec).expect("Failed to track heap_vec");
-    println!("Tracked 'heap_vec' with content: {:?}", heap_vec);
+    println!("Tracked 'heap_vec' with content: {heap_vec:?}");
     println!("Exiting create_vec_on_heap()...");
     heap_vec // Ownership transferred to caller
 }
@@ -53,7 +53,7 @@ fn main() {
     // Create variables within a loop to see multiple short-lived allocations
     println!("\nCreating variables inside a loop...");
     for i in 0..3 {
-        let loop_string = format!("Loop string #{}", i);
+        let loop_string = format!("Loop string #{i}");
         track_var!(loop_string).expect("Failed to track loop_string");
         println!("Tracked 'loop_string' iteration {}: \"{}\"", i, loop_string);
         // loop_string is deallocated at the end of each iteration
@@ -74,7 +74,7 @@ fn main() {
     println!("\nExporting memory snapshot to lifecycles_snapshot.json...");
     if let Err(e) = tracker.export_to_json("lifecycles_snapshot.json") {
         // Enable sync for reliable file writing
-        eprintln!("Failed to export JSON: {}", e);
+        eprintln!("Failed to export JSON: {e}");
     } else {
         println!("Successfully exported JSON.");
     }
@@ -82,9 +82,41 @@ fn main() {
     println!("\nExporting memory usage visualization to lifecycles_graph.svg...");
     if let Err(e) = tracker.export_to_svg("lifecycles_graph.svg") {
         // Enable sync for reliable file writing
-        eprintln!("Failed to export SVG: {}", e);
+        eprintln!("Failed to export SVG: {e}");
     } else {
         println!("Successfully exported SVG.");
+    }
+
+    // Export lifecycle timeline visualization
+    println!("Exporting lifecycle timeline to lifecycles_lifecycle_timeline.svg...");
+    if let Err(e) = tracker.export_lifecycle_timeline("lifecycles_lifecycle_timeline.svg") {
+        eprintln!("Failed to export lifecycle timeline: {e}");
+    } else {
+        println!("Successfully exported lifecycle timeline SVG.");
+    }
+
+    // Export simple lifecycle visualization (NEW - independent from memory analysis)
+    println!("Exporting simple lifecycle visualization to lifecycles_simple_lifecycle.svg...");
+    if let Err(e) = tracker.export_simple_lifecycle("lifecycles_simple_lifecycle.svg") {
+        eprintln!("Failed to export simple lifecycle: {e}");
+    } else {
+        println!("Successfully exported simple lifecycle SVG.");
+    }
+
+    // Export enhanced memory analysis with variable names and types
+    println!("Exporting enhanced memory analysis to lifecycles_memory_analysis.svg...");
+    if let Err(e) = tracker.export_memory_analysis("lifecycles_memory_analysis.svg") {
+        eprintln!("Failed to export memory analysis: {e}");
+    } else {
+        println!("Successfully exported memory analysis SVG.");
+    }
+
+    // Export comprehensive lifecycle visualization
+    println!("Exporting comprehensive lifecycle to lifecycles_lifecycle.svg...");
+    if let Err(e) = tracker.export_lifecycle("lifecycles_lifecycle.svg") {
+        eprintln!("Failed to export comprehensive lifecycle: {e}");
+    } else {
+        println!("Successfully exported comprehensive lifecycle SVG.");
     }
 
     println!(

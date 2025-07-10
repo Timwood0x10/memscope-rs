@@ -271,7 +271,7 @@ async fn test_async_select_macro() {
 
     // One of the branches should have completed
     assert!(
-        data1.len() > 0 || data2.len() > 0,
+        !data1.is_empty() || !data2.is_empty(),
         "At least one branch should have made progress"
     );
 

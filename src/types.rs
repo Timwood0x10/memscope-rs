@@ -122,6 +122,8 @@ pub struct MemoryStats {
     pub peak_allocations: usize,
     /// Peak memory usage in bytes
     pub peak_memory: usize,
+    /// Lifecycle statistics
+    pub lifecycle_stats: LifecycleStats,
 }
 
 /// Memory usage by type
@@ -146,4 +148,70 @@ pub struct HotspotInfo {
     pub total_size: usize,
     /// Average allocation size
     pub average_size: f64,
+}
+
+/// Lifecycle statistics for memory allocations
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LifecycleStats {
+    /// Number of completed allocations (with deallocation timestamps)
+    pub completed_allocations: usize,
+    /// Average lifetime in milliseconds
+    pub average_lifetime_ms: f64,
+    /// Median lifetime in milliseconds
+    pub median_lifetime_ms: f64,
+    /// Lifecycle percentiles
+    pub lifetime_percentiles: LifecyclePercentiles,
+    /// Shortest lifetime in milliseconds
+    pub min_lifetime_ms: u128,
+    /// Longest lifetime in milliseconds
+    pub max_lifetime_ms: u128,
+    /// Number of instant allocations (< 1ms)
+    pub instant_allocations: usize,
+    /// Number of short-term allocations (1ms - 100ms)
+    pub short_term_allocations: usize,
+    /// Number of medium-term allocations (100ms - 1s)
+    pub medium_term_allocations: usize,
+    /// Number of long-term allocations (> 1s)
+    pub long_term_allocations: usize,
+    /// Number of suspected memory leaks (active > 10s)
+    pub suspected_leaks: usize,
+}
+
+/// Lifecycle percentile statistics
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LifecyclePercentiles {
+    /// 50th percentile (median)
+    pub p50: f64,
+    /// 90th percentile
+    pub p90: f64,
+    /// 95th percentile
+    pub p95: f64,
+    /// 99th percentile
+    pub p99: f64,
+}
+
+/// Lifecycle statistics by type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeLifecycleStats {
+    /// Type name
+    pub type_name: String,
+    /// Average lifetime for this type
+    pub average_lifetime_ms: f64,
+    /// Number of allocations for this type
+    pub allocation_count: usize,
+    /// Lifecycle category
+    pub category: LifecycleCategory,
+}
+
+/// Categories for lifecycle duration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LifecycleCategory {
+    /// Very short-lived (< 1ms)
+    Instant,
+    /// Short-lived (1ms - 100ms)
+    ShortTerm,
+    /// Medium-lived (100ms - 1s)
+    MediumTerm,
+    /// Long-lived (> 1s)
+    LongTerm,
 }

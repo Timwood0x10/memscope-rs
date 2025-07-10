@@ -213,7 +213,7 @@ fn test_collection_types() {
             a.get(0)
                 .and_then(|info| info.var_name.as_ref())
                 .as_ref()
-                .map_or(false, |var_name| var_name == name)
+                .is_some_and(|var_name| var_name == name)
         });
         // Note: Collection allocation tracking might not work without global allocator feature
         println!("Tracking {} - found: {}", name, found);
@@ -333,14 +333,14 @@ fn test_custom_drop_implementations() {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "custom1")
+                .is_some_and(|name| name == "custom1")
         })
     });
     let has_custom2 = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "custom2")
+                .is_some_and(|name| name == "custom2")
         })
     });
 
@@ -364,7 +364,7 @@ fn test_custom_drop_implementations() {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "custom1")
+                .is_some_and(|name| name == "custom1")
         })
     });
 
@@ -437,21 +437,21 @@ fn test_large_allocations() {
         .filter(|a| a.iter().map(|info| info.size).sum::<usize>() > 100 * 1024) // > 100KB
         .collect();
 
-    assert!(large_allocs.len() > 0, "Should have some large allocations");
+    assert!(!large_allocs.is_empty(), "Should have some large allocations");
 
     // Verify specific large allocations
     let has_large_vec = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "large_vec")
+                .is_some_and(|name| name == "large_vec")
         })
     });
     let has_large_string = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "large_string")
+                .is_some_and(|name| name == "large_string")
         })
     });
 
@@ -544,7 +544,7 @@ fn test_slice_and_array_patterns() {
             a.get(0)
                 .and_then(|info| info.var_name.as_ref())
                 .as_ref()
-                .map_or(false, |var_name| var_name == name)
+                .is_some_and(|var_name| var_name == name)
         });
         // Note: Slice allocation tracking might not work without global allocator feature
         println!("Tracking {} - found: {}", name, found);
