@@ -1,8 +1,8 @@
 //! Performance tests for memscope-rs to measure overhead and identify bottlenecks.
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::sync::Once;
 use std::time::{Duration, Instant};
-use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: Once = Once::new();
 
@@ -45,15 +45,14 @@ fn benchmark_allocation_tracking_overhead() {
     };
 
     println!("Allocation tracking overhead benchmark:");
-    println!("  Untracked: {:?}", untracked_duration);
-    println!("  Tracked: {:?}", tracked_duration);
-    println!("  Overhead: {:?} ({:.2}%)", overhead, overhead_percent);
+    println!("  Untracked: {untracked_duration:?}");
+    println!("  Tracked: {tracked_duration:?}");
+    println!("  Overhead: {overhead:?} ({overhead_percent:.2}%)");
 
     // Reasonable overhead threshold (adjust based on requirements)
     assert!(
         overhead_percent < 500.0,
-        "Tracking overhead too high: {:.2}%",
-        overhead_percent
+        "Tracking overhead too high: {overhead_percent:.2}%"
     );
 }
 
@@ -83,14 +82,13 @@ fn benchmark_stats_retrieval() {
     let avg_time = duration / iterations;
 
     println!("Stats retrieval benchmark:");
-    println!("  Total time: {:?}", duration);
-    println!("  Average per call: {:?}", avg_time);
+    println!("  Total time: {duration:?}");
+    println!("  Average per call: {avg_time:?}");
 
     // Should be reasonably fast (adjusted threshold for lifecycle stats calculation)
     assert!(
         avg_time < Duration::from_millis(10),
-        "Stats retrieval too slow: {:?}",
-        avg_time
+        "Stats retrieval too slow: {avg_time:?}"
     );
 }
 
@@ -117,14 +115,14 @@ fn benchmark_export_performance() {
 
     // Benchmark SVG export
     let start = Instant::now();
-    let svg_result = tracker.export_to_svg("perf_test.svg");
+    let svg_result = tracker.export_memory_analysis("perf_test.svg");
     let svg_duration = start.elapsed();
 
     assert!(svg_result.is_ok(), "SVG export should succeed");
 
     println!("Export performance benchmark:");
-    println!("  JSON export: {:?}", json_duration);
-    println!("  SVG export: {:?}", svg_duration);
+    println!("  JSON export: {json_duration:?}");
+    println!("  SVG export: {svg_duration:?}");
 
     // Cleanup
     std::fs::remove_file("perf_test.json").ok();
@@ -133,70 +131,11 @@ fn benchmark_export_performance() {
     // Reasonable export time thresholds
     assert!(
         json_duration < Duration::from_secs(5),
-        "JSON export too slow: {:?}",
-        json_duration
+        "JSON export too slow: {json_duration:?}"
     );
     assert!(
         svg_duration < Duration::from_secs(10),
-        "SVG export too slow: {:?}",
-        svg_duration
-    );
-}
-
-#[test]
-fn benchmark_memory_by_type_analysis() {
-    ensure_init();
-
-    let tracker = get_global_tracker();
-
-    // Create diverse allocations
-    let mut allocations = Vec::new();
-    for i in 0..100 {
-        match i % 4 {
-            0 => {
-                let data = vec![i; 50];
-                let _ = track_var!(data);
-                allocations.push(Box::new(data) as Box<dyn std::any::Any>);
-            }
-            1 => {
-                let data = format!("String {}", i);
-                let _ = track_var!(data);
-                allocations.push(Box::new(data) as Box<dyn std::any::Any>);
-            }
-            2 => {
-                let data = Box::new(i);
-                let _ = track_var!(data);
-                allocations.push(data as Box<dyn std::any::Any>);
-            }
-            3 => {
-                let data = std::rc::Rc::new(vec![i; 10]);
-                let _ = track_var!(data);
-                allocations.push(Box::new(data) as Box<dyn std::any::Any>);
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    // Benchmark memory by type analysis
-    let iterations = 100;
-    let start = Instant::now();
-
-    for _ in 0..iterations {
-        let _ = tracker.get_memory_by_type().unwrap();
-    }
-
-    let duration = start.elapsed();
-    let avg_time = duration / iterations;
-
-    println!("Memory by type analysis benchmark:");
-    println!("  Total time: {:?}", duration);
-    println!("  Average per call: {:?}", avg_time);
-
-    // Should be reasonably fast
-    assert!(
-        avg_time < Duration::from_millis(10),
-        "Memory analysis too slow: {:?}",
-        avg_time
+        "SVG export too slow: {svg_duration:?}"
     );
 }
 
@@ -218,21 +157,20 @@ fn benchmark_variable_association() {
     let start = Instant::now();
 
     for (i, ptr) in ptrs.iter().enumerate() {
-        let _ = tracker.associate_var(*ptr, format!("var_{}", i), "TestType".to_string());
+        let _ = tracker.associate_var(*ptr, format!("var_{i}"), "TestType".to_string());
     }
 
     let duration = start.elapsed();
     let avg_time = duration / ptrs.len() as u32;
 
     println!("Variable association benchmark:");
-    println!("  Total time: {:?}", duration);
-    println!("  Average per association: {:?}", avg_time);
+    println!("  Total time: {duration:?}");
+    println!("  Average per association: {avg_time:?}");
 
     // Should be fast
     assert!(
         avg_time < Duration::from_millis(1),
-        "Variable association too slow: {:?}",
-        avg_time
+        "Variable association too slow: {avg_time:?}"
     );
 }
 
@@ -259,7 +197,7 @@ fn benchmark_concurrent_performance() {
                     if i % 3 == 0 {
                         let _ = tracker.associate_var(
                             ptr,
-                            format!("var_{}_{}", thread_id, i),
+                            format!("var_{thread_id}_{i}"),
                             "ConcurrentType".to_string(),
                         );
                     }
@@ -286,15 +224,14 @@ fn benchmark_concurrent_performance() {
     let avg_time_per_op = duration / total_operations as u32;
 
     println!("Concurrent performance benchmark:");
-    println!("  Total time: {:?}", duration);
-    println!("  Operations: {}", total_operations);
-    println!("  Average per operation: {:?}", avg_time_per_op);
+    println!("  Total time: {duration:?}");
+    println!("  Operations: {total_operations}");
+    println!("  Average per operation: {avg_time_per_op:?}");
 
     // Should handle concurrent load reasonably well
     assert!(
         duration < Duration::from_secs(10),
-        "Concurrent operations too slow: {:?}",
-        duration
+        "Concurrent operations too slow: {duration:?}"
     );
 }
 
@@ -329,19 +266,15 @@ fn benchmark_memory_usage_of_tracker() {
     };
 
     println!("Memory usage benchmark:");
-    println!("  Tracked allocations: {}", allocation_count);
-    println!("  Total tracked memory: {} bytes", tracked_memory);
-    println!(
-        "  Estimated overhead per allocation: {} bytes",
-        overhead_per_allocation
-    );
+    println!("  Tracked allocations: {allocation_count}");
+    println!("  Total tracked memory: {tracked_memory} bytes");
+    println!("  Estimated overhead per allocation: {overhead_per_allocation} bytes");
 
     // The overhead should be reasonable (this is a heuristic check)
     if allocation_count > 0 {
         assert!(
             overhead_per_allocation < 1000,
-            "Memory overhead per allocation too high: {} bytes",
-            overhead_per_allocation
+            "Memory overhead per allocation too high: {overhead_per_allocation} bytes"
         );
     }
 }

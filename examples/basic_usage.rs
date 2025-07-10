@@ -1,8 +1,8 @@
 //! Basic usage example for memscope-rs memory visualizer.
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::rc::Rc;
 use std::sync::Arc;
-use memscope_rs::{get_global_tracker, init, track_var};
 
 fn main() {
     // Initialize the memory tracking system
@@ -71,7 +71,7 @@ fn main() {
 
     // Export memory usage visualization to SVG
     println!("\nExporting memory usage visualization to basic_usage_graph.svg...");
-    if let Err(e) = tracker.export_to_svg("basic_usage_graph.svg") {
+    if let Err(e) = tracker.export_memory_analysis("basic_usage_graph.svg") {
         eprintln!("Failed to export SVG: {e}");
     } else {
         println!("Successfully exported SVG.");

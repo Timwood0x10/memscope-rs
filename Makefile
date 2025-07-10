@@ -197,7 +197,7 @@ run-memory-stress:
 .PHONY: run-lifecycle
 run-lifecycle:
 	@echo "$(BLUE)Running lifecycle example...$(NC)"
-	$(CARGO) run --example lifecycles
+	$(CARGO) run --example lifecycles_simple
 
 .PHONY: run-main
 run-main:

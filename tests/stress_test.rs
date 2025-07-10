@@ -1,9 +1,9 @@
 //! Stress tests for memscope-rs memory tracking under high load.
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
-use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 
@@ -31,7 +31,7 @@ fn test_high_frequency_allocations() {
     }
 
     let duration = start.elapsed();
-    println!("High frequency allocation test completed in {:?}", duration);
+    println!("High frequency allocation test completed in {duration:?}");
 
     // Verify system is still responsive
     let tracker = get_global_tracker();
@@ -44,8 +44,7 @@ fn test_high_frequency_allocations() {
     // Should complete within reasonable time (adjust based on system)
     assert!(
         duration < Duration::from_secs(5),
-        "Test took too long: {:?}",
-        duration
+        "Test took too long: {duration:?}"
     );
 }
 
@@ -84,7 +83,7 @@ fn test_concurrent_allocations() {
 
     // Verify all threads completed successfully
     for (i, result) in results.iter().enumerate() {
-        assert_eq!(*result, allocations_per_thread, "Thread {} failed", i);
+        assert_eq!(*result, allocations_per_thread, "Thread {i} failed");
     }
 
     // Verify tracker is still functional
@@ -181,7 +180,7 @@ fn test_mixed_type_allocations() {
                 let _ = track_var!(data);
             }
             1 => {
-                let data = format!("String number {}", i);
+                let data = format!("String number {i}");
                 let _ = track_var!(data);
             }
             2 => {
@@ -193,7 +192,7 @@ fn test_mixed_type_allocations() {
                 let _ = track_var!(data);
             }
             4 => {
-                let data = std::sync::Arc::new(format!("Arc {}", i));
+                let data = std::sync::Arc::new(format!("Arc {i}"));
                 let _ = track_var!(data);
             }
             _ => unreachable!(),
@@ -236,11 +235,11 @@ fn test_export_under_load() {
     assert!(json_result.is_ok(), "JSON export should succeed under load");
 
     // SVG export
-    let svg_result = tracker.export_to_svg("stress_test_output.svg");
+    let svg_result = tracker.export_memory_analysis("stress_test_output.svg");
     assert!(svg_result.is_ok(), "SVG export should succeed under load");
 
     let export_duration = export_start.elapsed();
-    println!("Export under load completed in {:?}", export_duration);
+    println!("Export under load completed in {export_duration:?}");
 
     // Cleanup
     std::fs::remove_file("stress_test_output.json").ok();
@@ -280,7 +279,7 @@ fn test_memory_growth_bounds() {
     // Verify reasonable memory usage (this is a heuristic check)
     let growth_ratio =
         final_stats.total_allocations as f64 / initial_stats.total_allocations.max(1) as f64;
-    println!("Memory growth ratio: {:.2}", growth_ratio);
+    println!("Memory growth ratio: {growth_ratio:.2}");
 
     // The tracker itself shouldn't use excessive memory
     // This is a basic sanity check - in production you'd want more sophisticated monitoring

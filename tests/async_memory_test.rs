@@ -1,10 +1,10 @@
 //! Comprehensive async memory tracking tests for memscope-rs.
 //! Tests async/await patterns, futures, and async runtime interactions.
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
-use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 
@@ -58,27 +58,24 @@ async fn test_async_allocation_across_await_points() {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "before_await")
+                .is_some_and(|name| name == "before_await")
         })
     });
     let has_vec = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "after_await")
+                .is_some_and(|name| name == "after_await")
         })
     });
 
     // Note: String allocation tracking might not work without global allocator feature
-    println!(
-        "String allocation across await point - found: {}",
-        has_string
-    );
+    println!("String allocation across await point - found: {has_string}");
     if !has_string {
         println!("String allocation not found after await, but test continues");
     }
     // Note: Vector allocation tracking across await might not work without global allocator feature
-    println!("Vector allocation across await - found: {}", has_vec);
+    println!("Vector allocation across await - found: {has_vec}");
     if !has_vec {
         println!("Vector allocation not found after await, but test continues");
     }
@@ -138,7 +135,7 @@ async fn test_async_stream_processing() {
     // Create a stream that allocates memory for each item
     let stream = stream::iter(0..10)
         .map(|i| async move {
-            let data = format!("Item {}", i);
+            let data = format!("Item {i}");
             // Simulate async processing
             sleep(Duration::from_millis(1)).await;
             data
@@ -261,7 +258,7 @@ async fn test_async_select_macro() {
         }
         _ = async {
             for i in 0..5 {
-                data2.push(format!("Item {}", i));
+                data2.push(format!("Item {i}"));
                 sleep(Duration::from_millis(3)).await;
             }
         } => {
@@ -296,7 +293,7 @@ async fn test_async_recursive_futures() {
             }
 
             let mut result = recursive_allocator(depth - 1).await;
-            result.push(format!("depth_{}", depth));
+            result.push(format!("depth_{depth}"));
 
             // Add some async work
             sleep(Duration::from_millis(1)).await;
@@ -344,7 +341,7 @@ async fn test_async_with_blocking_operations() {
     // Continue with async work
     sleep(Duration::from_millis(5)).await;
 
-    let final_data = format!("Result: {}", blocking_result);
+    let final_data = format!("Result: {blocking_result}");
     track_var!(final_data).unwrap();
 
     let tracker = get_global_tracker();
@@ -355,24 +352,24 @@ async fn test_async_with_blocking_operations() {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "async_data")
+                .is_some_and(|name| name == "async_data")
         })
     });
     let has_final = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "final_data")
+                .is_some_and(|name| name == "final_data")
         })
     });
 
     // Note: Async allocation tracking might not work without global allocator feature
-    println!("Async allocation tracking - found: {}", has_async);
+    println!("Async allocation tracking - found: {has_async}");
     if !has_async {
         println!("Async allocation not found, but test continues");
     }
     // Note: Final allocation tracking might not work without global allocator feature
-    println!("Final allocation tracking - found: {}", has_final);
+    println!("Final allocation tracking - found: {has_final}");
     if !has_final {
         println!("Final allocation not found, but test continues");
     }

@@ -9,15 +9,15 @@
 
 pub mod allocator;
 pub mod export_enhanced;
-pub mod lifecycle_viz;
 pub mod tracker;
 pub mod types;
+pub mod visualization;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
-pub use lifecycle_viz::{export_simple_lifecycle, export_comprehensive_lifecycle};
 pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
+pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
 
 // Set up the global allocator when the tracking-allocator feature is enabled
 #[cfg(feature = "tracking-allocator")]

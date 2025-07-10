@@ -4,10 +4,10 @@
 use crossbeam::thread;
 use parking_lot::{Mutex, RwLock};
 // use rayon::prelude::*; // Unused import
+use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 use std::sync::{Arc, Barrier};
 use std::thread as std_thread;
 use std::time::{Duration, Instant};
-use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 
@@ -78,7 +78,7 @@ fn test_concurrent_variable_tracking() {
 
                 // Each thread creates and tracks variables with unique names
                 let data = vec![thread_id; 50];
-                let var_name = format!("thread_{}_data", thread_id);
+                let var_name = format!("thread_{thread_id}_data");
 
                 // We can't use track_var! macro across threads with dynamic names,
                 // so we'll test the underlying tracking mechanism
@@ -110,7 +110,7 @@ fn test_concurrent_variable_tracking() {
     let unique_threads: std::collections::HashSet<_> = active_allocs
         .iter()
         .map(|a| {
-            a.get(0)
+            a.first()
                 .map(|info| info.thread_id.clone())
                 .unwrap_or_default()
         })
@@ -140,7 +140,7 @@ fn test_shared_data_structures() {
             let shared_data = Arc::clone(&shared_data);
             std_thread::spawn(move || {
                 for i in 0..items_per_thread {
-                    let item = format!("thread_{}_item_{}", thread_id, i);
+                    let item = format!("thread_{thread_id}_item_{i}");
                     {
                         shared_data.lock().push(item);
                     } // Release lock immediately
@@ -276,7 +276,7 @@ fn test_parking_lot_synchronization() {
                     // Add data
                     {
                         let mut vec = data.lock().unwrap();
-                        vec.push(format!("thread_{}_item_{}", thread_id, i));
+                        vec.push(format!("thread_{thread_id}_item_{i}"));
                     } // Release lock immediately
                 }
             })
@@ -348,10 +348,7 @@ fn test_rwlock_concurrent_access() {
         let handle = std_thread::spawn(move || {
             for i in 0..25 {
                 let mut write_guard = data.write();
-                write_guard.insert(
-                    format!("key_{}", i),
-                    format!("value_from_writer_{}", writer_id),
-                );
+                write_guard.insert(format!("key_{i}"), format!("value_from_writer_{writer_id}"));
 
                 // Simulate write work
                 std_thread::sleep(Duration::from_micros(200));
@@ -391,7 +388,7 @@ fn test_channel_communication() {
             let tx = tx.clone();
             std_thread::spawn(move || {
                 for i in 0..messages_per_sender {
-                    let message = format!("Message from sender {} - {}", sender_id, i);
+                    let message = format!("Message from sender {sender_id} - {i}");
                     tx.send(message).expect("Failed to send message");
                 }
             })
@@ -498,7 +495,7 @@ fn test_thread_local_storage() {
     ensure_init();
 
     thread_local! {
-        static THREAD_DATA: std::cell::RefCell<Vec<String>> = std::cell::RefCell::new(Vec::new());
+        static THREAD_DATA: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
     }
 
     let num_threads = 4;
@@ -510,7 +507,7 @@ fn test_thread_local_storage() {
                 THREAD_DATA.with(|data| {
                     let mut vec = data.borrow_mut();
                     for i in 0..items_per_thread {
-                        vec.push(format!("thread_{}_item_{}", thread_id, i));
+                        vec.push(format!("thread_{thread_id}_item_{i}"));
                     }
                     vec.len()
                 })

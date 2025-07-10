@@ -450,13 +450,18 @@ fn add_categorized_allocations(
 
         document = document.add(name_text);
 
-        // Show variable names and memory usage
+        // Show variable names with types and memory usage
         let var_names: Vec<String> = category.allocations.iter()
-            .filter_map(|a| a.var_name.as_ref())
+            .filter_map(|a| {
+                if let Some(var_name) = &a.var_name {
+                    let type_name = a.type_name.as_deref().unwrap_or("Unknown");
+                    let (simplified_type, _) = simplify_type_name(type_name);
+                    Some(format!("{}({})", var_name, simplified_type))
+                } else {
+                    None
+                }
+            })
             .take(3)
-            .map(|name| format!("{}({})", name, format_bytes(category.allocations.iter()
-                .find(|a| a.var_name.as_ref() == Some(name))
-                .map(|a| a.size).unwrap_or(0))))
             .collect();
         
         let display_text = if var_names.is_empty() {
@@ -464,7 +469,7 @@ fn add_categorized_allocations(
         } else {
             format!("{} - {}", format_bytes(category.total_size), var_names.join(", "))
         };
-
+        
         let size_text = SvgText::new(display_text)
             .set("x", chart_x + 160)
             .set("y", y + bar_height / 2 + 4)
@@ -599,7 +604,7 @@ fn add_memory_timeline(
 
         document = document.add(line);
 
-        // Add variable name and type in dedicated label area
+        // Add variable name with type in dedicated label area
         if let Some(var_name) = &allocation.var_name {
             let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
             let (simplified_type, _) = simplify_type_name(type_name);
@@ -797,21 +802,41 @@ fn add_callstack_analysis(
 
     document = document.add(title);
 
-    // Group allocations by type
+    // Group allocations by variable name and type with better categorization
     let mut source_stats: HashMap<String, (usize, usize)> = HashMap::new();
 
     for allocation in allocations {
-        let source = if let Some(type_name) = &allocation.type_name {
-            if type_name.len() > 30 {
-                format!("{}...", &type_name[..27])
+        // Create a more descriptive key that helps identify allocations
+        let source_key = if let Some(var_name) = &allocation.var_name {
+            // Tracked variables - show variable name and type
+            if let Some(type_name) = &allocation.type_name {
+                let (simplified_type, _) = simplify_type_name(type_name);
+                format!("{}({}) memory: {}", var_name, simplified_type, format_bytes(allocation.size))
             } else {
-                type_name.clone()
+                format!("{}(Unknown Type) memory: {}", var_name, format_bytes(allocation.size))
+            }
+        } else if let Some(type_name) = &allocation.type_name {
+            // Untracked allocations with known type - categorize by type and source
+            let (simplified_type, _) = simplify_type_name(type_name);
+            
+            // Try to identify the source of untracked allocations
+            if type_name.contains("std::") || type_name.contains("alloc::") {
+                format!("System/Runtime {} (untracked)", simplified_type)
+            } else if simplified_type.contains("Vec") {
+                "Internal Vec allocations (untracked)".to_string()
+            } else if simplified_type.contains("String") {
+                "Internal String allocations (untracked)".to_string()
+            } else if simplified_type.contains("HashMap") {
+                "Internal HashMap allocations (untracked)".to_string()
+            } else {
+                format!("Internal {} allocations (untracked)", simplified_type)
             }
         } else {
-            "Unknown".to_string()
+            // Completely unknown allocations
+            "System/Runtime allocations (no type info)".to_string()
         };
 
-        let entry = source_stats.entry(source).or_insert((0, 0));
+        let entry = source_stats.entry(source_key).or_insert((0, 0));
         entry.0 += 1;
         entry.1 += allocation.size;
     }

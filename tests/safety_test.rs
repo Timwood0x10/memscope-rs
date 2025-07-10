@@ -1,8 +1,8 @@
 //! Safety tests for memscope-rs to verify memory safety and error handling.
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::sync::Once;
 use std::thread;
-use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: Once = Once::new();
 
@@ -79,7 +79,7 @@ fn test_extremely_large_allocation() {
 
     let _stats = tracker.get_stats().unwrap();
     // Note: This might overflow in real scenarios, but our tracking should handle it
-    println!("Large allocation tracked: {} bytes", large_size);
+    println!("Large allocation tracked: {large_size} bytes");
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn test_concurrent_tracker_access() {
                     if j % 2 == 0 {
                         let _ = tracker.associate_var(
                             ptr,
-                            format!("var_{}_{}", i, j),
+                            format!("var_{i}_{j}"),
                             "TestType".to_string(),
                         );
                     }
@@ -142,7 +142,7 @@ fn test_export_with_no_data() {
     let json_result = tracker.export_to_json("empty_test.json");
     assert!(json_result.is_ok(), "Should export empty data successfully");
 
-    let svg_result = tracker.export_to_svg("empty_test.svg");
+    let svg_result = tracker.export_memory_analysis("empty_test.svg");
     assert!(svg_result.is_ok(), "Should export empty SVG successfully");
 
     // Verify files were created
@@ -169,7 +169,7 @@ fn test_export_to_invalid_path() {
     // Should handle gracefully (might succeed if path is created, or fail gracefully)
     match json_result {
         Ok(_) => println!("Export succeeded (path was created)"),
-        Err(e) => println!("Export failed gracefully: {}", e),
+        Err(e) => println!("Export failed gracefully: {e}"),
     }
 
     // Test with relative path that should work
@@ -275,14 +275,14 @@ fn test_thread_local_recursion_prevention() {
 
     for i in 0..100 {
         // Rapid allocations that might trigger internal allocations
-        let data = format!("Test string number {} with some content", i);
+        let data = format!("Test string number {i} with some content");
         let _ = track_var!(data);
         allocations.push(data);
 
         // Also create some vectors (but store as strings for consistency)
         let vec_data = vec![i; 10];
         let _ = track_var!(vec_data);
-        allocations.push(format!("Vec data: {:?}", vec_data));
+        allocations.push(format!("Vec data: {vec_data:?}"));
     }
 
     // If we get here without hanging or crashing, recursion prevention is working
@@ -338,8 +338,7 @@ fn test_error_handling_robustness() {
     for (i, result) in results.iter().enumerate() {
         assert!(
             result.is_ok(),
-            "Operation {} should handle edge case gracefully",
-            i
+            "Operation {i} should handle edge case gracefully"
         );
     }
 

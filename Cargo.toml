@@ -42,6 +42,3 @@ tracing-test = "0.2"
 tempfile = "3.10.1" # Or a compatible version
 
 
-[[example]]
-name = "lifecycles"
-path = "examples/lifecycles.rs"

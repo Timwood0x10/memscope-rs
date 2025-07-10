@@ -1,12 +1,12 @@
 //! Advanced memory scenarios and patterns testing for memscope-rs.
 //! Tests complex allocation patterns, smart pointers, and memory-intensive operations.
 
+use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
-use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 
@@ -45,10 +45,10 @@ fn test_smart_pointer_tracking() {
     let smart_pointer_allocs = active_allocs
         .iter()
         .filter(|a| {
-            a.get(0)
+            a.first()
                 .and_then(|info| info.var_name.as_ref())
                 .as_ref()
-                .map_or(false, |name| {
+                .is_some_and(|name| {
                     name.contains("boxed_data")
                         || name.contains("rc_data")
                         || name.contains("arc_data")
@@ -58,7 +58,7 @@ fn test_smart_pointer_tracking() {
         .count();
 
     // Note: Smart pointer tracking might not work without global allocator feature
-    println!("Smart pointer allocations: {}", smart_pointer_allocs);
+    println!("Smart pointer allocations: {smart_pointer_allocs}");
     if smart_pointer_allocs == 0 {
         println!("No smart pointer allocations found, but test continues");
     }
@@ -133,21 +133,21 @@ fn test_collection_types() {
     // Test various collection types
     let mut hash_map = HashMap::new();
     for i in 0..100 {
-        hash_map.insert(format!("key_{}", i), vec![i; 10]);
+        hash_map.insert(format!("key_{i}"), vec![i; 10]);
     }
     let boxed_map = Box::new(hash_map);
     track_var!(boxed_map).unwrap();
 
     let mut hash_set = HashSet::new();
     for i in 0..50 {
-        hash_set.insert(format!("item_{}", i));
+        hash_set.insert(format!("item_{i}"));
     }
     let boxed_set = Box::new(hash_set);
     track_var!(boxed_set).unwrap();
 
     let mut btree_map = BTreeMap::new();
     for i in 0..75 {
-        btree_map.insert(i, format!("value_{}", i));
+        btree_map.insert(i, format!("value_{i}"));
     }
     let boxed_map = Box::new(btree_map);
     track_var!(boxed_map).unwrap();
@@ -186,7 +186,7 @@ fn test_string_and_text_operations() {
 
     // String growth operations
     for i in 0..100 {
-        string_data.push_str(&format!("Item {} ", i));
+        string_data.push_str(&format!("Item {i} "));
     }
 
     // String from various sources
@@ -216,15 +216,15 @@ fn test_string_and_text_operations() {
     let string_allocs = active_allocs
         .iter()
         .filter(|a| {
-            a.get(0)
+            a.first()
                 .and_then(|info| info.var_name.as_ref())
                 .as_ref()
-                .map_or(false, |name| name.contains("string"))
+                .is_some_and(|name| name.contains("string"))
         })
         .count();
 
     // Note: String allocation tracking might not work without global allocator feature
-    println!("String allocations: {}", string_allocs);
+    println!("String allocations: {string_allocs}");
     if string_allocs == 0 {
         println!("No string allocations found, but test continues");
     }
@@ -319,6 +319,7 @@ fn test_recursive_data_structures() {
     #[derive(Debug, Clone)]
     struct TreeNode {
         _value: String,
+        #[allow(clippy::vec_box)]
         children: Vec<Box<TreeNode>>,
     }
 
@@ -339,9 +340,9 @@ fn test_recursive_data_structures() {
     track_var!(root).unwrap();
 
     for i in 0..5 {
-        let mut child = TreeNode::new(format!("child_{}", i));
+        let mut child = TreeNode::new(format!("child_{i}"));
         for j in 0..3 {
-            child.add_child(TreeNode::new(format!("grandchild_{}_{}", i, j)));
+            child.add_child(TreeNode::new(format!("grandchild_{i}_{j}")));
         }
         root.add_child(child);
     }
@@ -536,7 +537,10 @@ fn test_large_allocation_patterns() {
         .count();
     // Note: Large allocations might not be tracked if global allocator feature is not enabled
     // Let's check if we have any meaningful allocations instead
-    assert!(!active_allocs.is_empty(), "Should have some tracked allocations");
+    assert!(
+        !active_allocs.is_empty(),
+        "Should have some tracked allocations"
+    );
 
     let stats = tracker.get_stats();
     // Note: Large memory tracking might not work without global allocator feature

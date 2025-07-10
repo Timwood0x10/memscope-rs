@@ -1,10 +1,10 @@
 //! Simple heavy load test for memscope-rs
 //! Tests basic functionality under load without external dependencies
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::sync::{Arc, Barrier, Mutex, Once};
 use std::thread;
 use std::time::{Duration, Instant};
-use memscope_rs::{get_global_tracker, init, track_var};
 
 static INIT: Once = Once::new();
 
@@ -41,7 +41,7 @@ fn test_simple_concurrent_allocations() {
                     }
 
                     // String allocations
-                    let text = format!("thread_{}_item_{}", thread_id, i);
+                    let text = format!("thread_{thread_id}_item_{i}");
                     if track_var!(text).is_ok() {
                         allocations.push(text.into_bytes());
                     }
@@ -100,7 +100,7 @@ fn test_memory_pressure() {
     for i in 0..100 {
         match i % 3 {
             0 => {
-                let data = format!("string_data_{}", i);
+                let data = format!("string_data_{i}");
                 if track_var!(data).is_ok() {
                     mixed_allocs.push(data.into_bytes());
                 }
@@ -162,7 +162,7 @@ fn test_rapid_cycles() {
 
         // More allocations
         for i in 0..25 {
-            let data = format!("cycle_{}_item_{}", cycle, i);
+            let data = format!("cycle_{cycle}_item_{i}");
             if track_var!(data).is_ok() {
                 cycle_allocs.push(data.into_bytes());
             }
@@ -173,15 +173,15 @@ fn test_rapid_cycles() {
 
         if cycle % 10 == 0 {
             let _stats = tracker.get_stats();
-            println!("Cycle {} completed", cycle);
+            println!("Cycle {cycle} completed");
         }
     }
 
     let duration = start_time.elapsed();
-    println!("Rapid cycles test completed in {:?}", duration);
+    println!("Rapid cycles test completed in {duration:?}");
 
     let final_stats = tracker.get_stats();
-    println!("Final rapid cycles stats: {:?}", final_stats);
+    println!("Final rapid cycles stats: {final_stats:?}");
 
     println!("Rapid cycles test passed!");
 }
@@ -232,7 +232,7 @@ fn test_mixed_operations() {
                     3 => {
                         // Mixed operations thread
                         for i in 0..100 {
-                            let data = format!("thread_{}_data_{}", thread_id, i);
+                            let data = format!("thread_{thread_id}_data_{i}");
                             if track_var!(data).is_ok() {
                                 shared_data.lock().unwrap().push(data.into_bytes());
                             }
@@ -254,7 +254,7 @@ fn test_mixed_operations() {
     }
 
     let final_stats = tracker.get_stats();
-    println!("Mixed operations test stats: {:?}", final_stats);
+    println!("Mixed operations test stats: {final_stats:?}");
 
     let final_data = shared_data.lock().unwrap();
     println!("Shared data length: {}", final_data.len());
