@@ -57,7 +57,6 @@ fn main() {
     println!("• Custom structs and complex data patterns");
     println!("• Memory growth, ownership transfers, and borrowing");
     println!();
-    keep_alive
 
     // Keep all variables alive until the end by collecting them
     let mut _keep_alive: Vec<Box<dyn std::any::Any>> = Vec::new();
@@ -220,7 +219,6 @@ fn demonstrate_smart_pointers() -> Vec<Box<dyn std::any::Any>> {
     keep_alive.push(Box::new(mutable_data) as Box<dyn std::any::Any>);
     
     println!();
-    keep_alive
     keep_alive
 }
 
@@ -537,16 +535,16 @@ fn generate_final_analysis() {
     // Export enhanced visualizations
     println!("\n🎨 Exporting Visualizations:");
     
-    if let Err(e) = tracker.export_memory_analysis("examples/complex_memory_analysis.svg") {
+    if let Err(e) = tracker.export_memory_analysis("./complex_memory_analysis.svg") {
         println!("❌ Memory analysis export failed: {}", e);
     } else {
-        println!("✅ Memory analysis exported to: examples/complex_memory_analysis.svg");
+        println!("✅ Memory analysis exported to: ./complex_memory_analysis.svg");
     }
     
-    if let Err(e) = tracker.export_lifecycle_timeline("examples/complex_lifecycle_timeline.svg") {
+    if let Err(e) = tracker.export_lifecycle_timeline("./complex_lifecycle_timeline.svg") {
         println!("❌ Lifecycle timeline export failed: {}", e);
     } else {
-        println!("✅ Enhanced lifecycle timeline exported to: examples/complex_lifecycle_timeline.svg");
+        println!("✅ Enhanced lifecycle timeline exported to: ./complex_lifecycle_timeline.svg");
     }
     
     println!("\n🎯 Showcase Complete!");

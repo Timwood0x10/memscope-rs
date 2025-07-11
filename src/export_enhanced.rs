@@ -9,8 +9,8 @@ use std::path::Path;
 use svg::node::element::{Circle, Rectangle, Text as SvgText};
 use svg::Document;
 
-/// Enhanced type information processing
-fn enhance_type_information(memory_by_type: &[TypeMemoryUsage]) -> Vec<EnhancedTypeInfo> {
+/// Enhanced type information processing with variable names
+fn enhance_type_information(memory_by_type: &[TypeMemoryUsage], allocations: &[AllocationInfo]) -> Vec<EnhancedTypeInfo> {
     memory_by_type
         .iter()
         .filter_map(|usage| {
@@ -22,11 +22,30 @@ fn enhance_type_information(memory_by_type: &[TypeMemoryUsage]) -> Vec<EnhancedT
             // Simplify and categorize type names
             let (simplified_name, category) = simplify_type_name(&usage.type_name);
 
+            // Collect variable names for this type
+            let variable_names: Vec<String> = allocations
+                .iter()
+                .filter_map(|alloc| {
+                    if let (Some(var_name), Some(type_name)) = (&alloc.var_name, &alloc.type_name) {
+                        let (alloc_simplified, _) = simplify_type_name(type_name);
+                        if alloc_simplified == simplified_name {
+                            Some(var_name.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .take(5) // Limit to 5 variable names
+                .collect();
+
             Some(EnhancedTypeInfo {
                 simplified_name,
                 category,
                 total_size: usage.total_size,
                 allocation_count: usage.allocation_count,
+                variable_names,
             })
         })
         .collect()
@@ -133,6 +152,7 @@ struct EnhancedTypeInfo {
     category: String,
     total_size: usize,
     allocation_count: usize,
+    variable_names: Vec<String>, // Add variable names
 }
 
 #[derive(Debug, Clone)]
@@ -177,7 +197,7 @@ pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> 
     let stats = tracker.get_stats()?;
 
     // Filter out unknown types and enhance type information
-    let enhanced_memory_by_type = enhance_type_information(&memory_by_type);
+    let enhanced_memory_by_type = enhance_type_information(&memory_by_type, &active_allocations);
     let categorized_allocations = categorize_allocations(&active_allocations);
 
     // Create optimized SVG document with better layout
@@ -356,16 +376,25 @@ fn add_enhanced_type_chart(
 
         document = document.add(name_text);
 
-        // Size and count
+        // Size and count with variable names - exactly what you wanted!
+        let var_names_text = if type_info.variable_names.is_empty() {
+            "no tracked vars".to_string()
+        } else {
+            type_info.variable_names.join(", ")
+        };
+        
         let size_text = SvgText::new(format!(
-            "{} ({} allocs)",
+            "{} ({} allocs) - Variables: {}",
             format_bytes(type_info.total_size),
-            type_info.allocation_count
+            type_info.allocation_count,
+            var_names_text
         ))
         .set("x", chart_x + 160)
         .set("y", y + bar_height / 2 + 4)
-        .set("font-size", 10)
-        .set("fill", "white");
+        .set("font-size", 12)
+        .set("font-weight", "bold")
+        .set("fill", "#FFFFFF")
+        .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
 
         document = document.add(size_text);
     }
@@ -450,7 +479,7 @@ fn add_categorized_allocations(
 
         document = document.add(name_text);
 
-        // Show variable names with types and memory usage
+        // Enhanced variable names display - more prominent and detailed
         let var_names: Vec<String> = category.allocations.iter()
             .filter_map(|a| {
                 if let Some(var_name) = &a.var_name {
@@ -461,20 +490,22 @@ fn add_categorized_allocations(
                     None
                 }
             })
-            .take(3)
+            .take(5) // Show more variables
             .collect();
         
         let display_text = if var_names.is_empty() {
             format!("{} ({} vars)", format_bytes(category.total_size), category.allocations.len())
         } else {
-            format!("{} - {}", format_bytes(category.total_size), var_names.join(", "))
+            format!("{} - Variables: {}", format_bytes(category.total_size), var_names.join(" | "))
         };
         
         let size_text = SvgText::new(display_text)
             .set("x", chart_x + 160)
             .set("y", y + bar_height / 2 + 4)
-            .set("font-size", 10)
-            .set("fill", "white");
+            .set("font-size", 12)
+            .set("font-weight", "bold")
+            .set("fill", "#FFFFFF")
+            .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
 
         document = document.add(size_text);
     }
@@ -558,9 +589,9 @@ fn add_memory_timeline(
         .unwrap_or(min_time + 1);
     let _time_range = (max_time - min_time).max(1);
 
-    // Calculate layout parameters for better alignment
-    let label_width = 200; // Reserved space for labels
-    let timeline_width = chart_width - label_width - 40;
+    // Calculate layout parameters for better alignment and prevent text overflow
+    let label_width = 400; // Increased reserved space for labels to prevent overflow
+    let timeline_width = chart_width - label_width - 60; // More margin
     let max_items = 8; // Limit items to prevent overcrowding
 
     // Draw timeline for tracked variables with proper spacing
@@ -604,15 +635,21 @@ fn add_memory_timeline(
 
         document = document.add(line);
 
-        // Add variable name with type in dedicated label area
+        // Add variable name with type in dedicated label area - prevent overflow
         if let Some(var_name) = &allocation.var_name {
             let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
             let (simplified_type, _) = simplify_type_name(type_name);
-            let label_text = format!("{}({}) memory: {}", var_name, simplified_type, format_bytes(allocation.size));
+            let mut label_text = format!("{}({}) memory: {}", var_name, simplified_type, format_bytes(allocation.size));
+            
+            // Truncate text if too long to prevent overflow
+            if label_text.len() > 45 {
+                label_text = format!("{}...", &label_text[..42]);
+            }
+            
             let label = SvgText::new(label_text)
                 .set("x", label_start_x + 5)
                 .set("y", y + 4)
-                .set("font-size", 11)
+                .set("font-size", 10) // Slightly smaller font
                 .set("font-weight", "500")
                 .set("fill", "#2c3e50");
 
