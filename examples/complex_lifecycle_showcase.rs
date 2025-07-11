@@ -10,15 +10,20 @@ use std::cell::RefCell;
 // Custom data structures to demonstrate tracking
 #[derive(Debug, Clone)]
 struct User {
+    #[allow(dead_code)]
     id: u64,
+    #[allow(dead_code)]
     name: String,
+    #[allow(dead_code)]
     email: String,
     preferences: HashMap<String, String>,
 }
 
 #[derive(Debug)]
 struct DatabaseConnection {
+    #[allow(dead_code)]
     host: String,
+    #[allow(dead_code)]
     port: u16,
     connection_pool: Vec<String>,
     active_queries: VecDeque<String>,
@@ -26,15 +31,21 @@ struct DatabaseConnection {
 
 #[derive(Debug)]
 struct CacheEntry<T> {
+    #[allow(dead_code)]
     key: String,
+    #[allow(dead_code)]
     value: T,
+    #[allow(dead_code)]
     timestamp: u64,
+    #[allow(dead_code)]
     access_count: usize,
 }
 
 #[derive(Debug)]
 struct GraphNode {
+    #[allow(dead_code)]
     id: usize,
+    #[allow(dead_code)]
     data: String,
     neighbors: Vec<usize>,
     metadata: BTreeMap<String, i32>,
@@ -61,9 +72,9 @@ fn main() {
 
     // Global scope variables
     let global_app_config = String::from("app_config_v2.0");
-    track_var!(global_app_config);
+    track_var!(global_app_config).unwrap();
     let global_session_store = Box::new(HashMap::<String, String>::new());
-    track_var!(global_session_store);
+    track_var!(global_session_store).unwrap();
 
     // Keep all variables alive until the end by collecting them
     let mut _keep_alive: Vec<Box<dyn std::any::Any>> = Vec::new();
@@ -94,7 +105,7 @@ fn main() {
     
     // Global cleanup
     let global_cleanup_log = Vec::<String>::new();
-    track_var!(global_cleanup_log);
+    track_var!(global_cleanup_log).unwrap();
     
     // Generate comprehensive analysis with all variables still alive
     generate_final_analysis();
@@ -235,7 +246,7 @@ fn demonstrate_smart_pointers() -> Vec<Box<dyn std::any::Any>> {
     keep_alive
 }
 
-fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> { let mut keep_alive = Vec::new();
+fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> { let keep_alive = Vec::new();
     println!("🏗️  Phase 3: Custom Data Structures");
     println!("===================================");
     
@@ -320,7 +331,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> { let mut keep
     keep_alive
 }
 
-fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> { let mut keep_alive = Vec::new();
+fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> { let keep_alive = Vec::new();
     println!("🌀 Phase 4: Complex Memory Patterns");
     println!("===================================");
     
@@ -378,7 +389,7 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> { let mut keep_
     keep_alive
 }
 
-fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> { let mut keep_alive = Vec::new();
+fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> { let keep_alive = Vec::new();
     println!("🌐 Phase 5a: Web Server Simulation");
     println!("==================================");
     
@@ -430,7 +441,7 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> { let mut keep_
     keep_alive
 }
 
-fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> { let mut keep_alive = Vec::new();
+fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> { let keep_alive = Vec::new();
     println!("⚙️  Phase 5b: Data Processing Pipeline");
     println!("=====================================");
     

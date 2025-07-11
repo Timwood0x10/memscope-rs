@@ -656,6 +656,42 @@ fn get_simple_type(type_name: &str) -> String {
     }
 }
 
+/// Get color based on duration ratio (0.0 to 1.0)
+/// 根据相对生命周期长度分配颜色：最长时间=深色，最短时间=白色，全局作用域=特殊深蓝色
+fn get_duration_color(ratio: f64, is_global: bool) -> String {
+    if is_global {
+        // 全局作用域使用特殊的深蓝色
+        return "#0A2540".to_string();
+    }
+    
+    // 创建从白色到深蓝色的渐变
+    // ratio = 0.0 (最短时间) -> 接近白色
+    // ratio = 1.0 (最长时间) -> 深蓝色
+    
+    if ratio <= 0.01 {
+        // 极短时间或无时间差 -> 浅灰白色
+        "#F8FAFC".to_string()
+    } else {
+        // 计算RGB值，从浅蓝白色渐变到深蓝色
+        let base_r = 248; // 起始红色值 (接近白色)
+        let base_g = 250; // 起始绿色值
+        let base_b = 252; // 起始蓝色值
+        
+        let target_r = 30;  // 目标红色值 (深蓝色)
+        let target_g = 64;  // 目标绿色值
+        let target_b = 175; // 目标蓝色值
+        
+        // 使用平滑的渐变函数
+        let smooth_ratio = ratio.powf(0.7); // 使渐变更平滑
+        
+        let r = (base_r as f64 + (target_r as f64 - base_r as f64) * smooth_ratio) as u8;
+        let g = (base_g as f64 + (target_g as f64 - base_g as f64) * smooth_ratio) as u8;
+        let b = (base_b as f64 + (target_b as f64 - base_b as f64) * smooth_ratio) as u8;
+        
+        format!("#{:02X}{:02X}{:02X}", r, g, b)
+    }
+}
+
 /// Format bytes
 fn format_bytes(bytes: usize) -> String {
     if bytes < 1024 {
@@ -680,6 +716,20 @@ fn add_matrix_layout_section(
         let scope = identify_precise_scope(var);
         scope_groups.entry(scope).or_default().push(*var);
     }
+    
+    // Calculate maximum duration across all scopes for relative color scaling
+    let max_duration = scope_groups.values()
+        .map(|vars| {
+            if !vars.is_empty() {
+                let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
+                let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
+                (end - start) as u64
+            } else {
+                0
+            }
+        })
+        .max()
+        .unwrap_or(1); // Avoid division by zero
     
     // Matrix layout parameters with proper spacing to prevent overlap
     let base_matrix_width = 350;
@@ -715,10 +765,10 @@ fn add_matrix_layout_section(
         }
     }
     
-    // Render scope matrices
+    // Render scope matrices with relative color scaling
     for (scope_name, x, y) in positions {
         if let Some(vars) = scope_groups.get(&scope_name) {
-            document = render_scope_matrix_fixed(document, &scope_name, vars, x, y, base_matrix_width, base_matrix_height)?;
+            document = render_scope_matrix_fixed(document, &scope_name, vars, x, y, base_matrix_width, base_matrix_height, max_duration)?;
         }
     }
     
@@ -734,26 +784,44 @@ fn render_scope_matrix_fixed(
     y: i32,
     width: i32,
     height: i32,
+    max_duration: u64,  // Maximum duration across all scopes for normalization
 ) -> TrackingResult<Document> {
     let mut matrix_group = Group::new()
         .set("transform", format!("translate({}, {})", x, y));
+    
+    // Calculate duration for this scope
+    let (start_ts, end_ts, duration) = if !vars.is_empty() {
+        let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
+        let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
+        (start, end, (end - start) as u64)
+    } else {
+        (0, 0, 0)
+    };
+    
+    // Calculate duration ratio (0.0 to 1.0)
+    let duration_ratio = if max_duration > 0 {
+        duration as f64 / max_duration as f64
+    } else {
+        0.0
+    };
+    
+    // Get border color based on duration ratio and scope type
+    let is_global = scope_name == "Global";
+    let border_color = get_duration_color(duration_ratio, is_global);
     
     // Matrix container with template style
     let container = Rectangle::new()
         .set("width", width)
         .set("height", height)
-        .set("fill", "rgba(30, 64, 175, 0.2)")
-        .set("stroke", "#BDC3C7")
+        .set("fill", "rgba(30, 64, 175, 0.1)")
+        .set("stroke", border_color.as_str())  // 使用计算出的颜色
         .set("stroke-width", 3)
         .set("stroke-dasharray", if scope_name != "Global" { "8,4" } else { "none" })
         .set("rx", 12);
     matrix_group = matrix_group.add(container);
     
     // Timestamp annotation in timeA---timeB format
-    let duration_estimate = vars.len() as u64 * 20;
-    let start_ts = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
-    let end_ts = start_ts + duration_estimate as u128;
-    let timestamp_text = format!("{}---{} lifetime {}ms", start_ts, end_ts, duration_estimate);
+    let timestamp_text = format!("{}---{} lifetime {}ms", start_ts, end_ts, duration);
     let timestamp = SvgText::new(timestamp_text)
         .set("x", width - 10)
         .set("y", 15)
