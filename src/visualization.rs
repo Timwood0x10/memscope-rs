@@ -175,8 +175,19 @@ fn create_lifecycle_timeline_svg(
         .filter(|a| a.var_name.is_some())
         .collect();
 
+    tracing::info!("Found {} total allocations, {} with variable names", 
+                   allocations.len(), tracked_vars.len());
+    
+    // Debug: Print the tracked variables we found
+    for (i, var) in tracked_vars.iter().enumerate() {
+        tracing::info!("Tracked var {}: {} ({})", 
+                      i + 1, 
+                      var.var_name.as_ref().unwrap_or(&"None".to_string()),
+                      var.type_name.as_ref().unwrap_or(&"Unknown".to_string()));
+    }
+
     if tracked_vars.is_empty() {
-        let no_data = SvgText::new("No tracked variables found")
+        let no_data = SvgText::new(format!("No tracked variables found (checked {} allocations)", allocations.len()))
             .set("x", width / 2)
             .set("y", height / 2)
             .set("text-anchor", "middle")
