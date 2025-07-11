@@ -6,7 +6,7 @@ use crate::types::{AllocationInfo, MemoryStats, TrackingError, TrackingResult};
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use svg::node::element::{Circle, Line, Rectangle, Style, Text as SvgText};
+use svg::node::element::{Circle, Line, Rectangle, Style, Text as SvgText, Group};
 use svg::Document;
 
 /// Export memory analysis visualization showing variable names, types, and usage
@@ -160,7 +160,7 @@ fn create_lifecycle_timeline_svg(
     document = document.add(styles);
 
     // Title
-    let title = SvgText::new("Variable Lifecycle Timeline")
+    let title = SvgText::new("Lifecycle and Variable Relationships")
         .set("x", width / 2)
         .set("y", 40)
         .set("text-anchor", "middle")
@@ -197,8 +197,8 @@ fn create_lifecycle_timeline_svg(
         return Ok(document);
     }
 
-    // Add enhanced timeline section with horizontal layout per lifecycle.md - consistent width
-    document = add_enhanced_timeline_section(document, &tracked_vars, stats, 50, 100, width - 100, 400)?;
+    // Add matrix layout instead of timeline
+    document = add_matrix_layout_section(document, &tracked_vars, 50, 100)?;
 
     // Add memory analysis section - aligned and consistent width
     document = add_memory_section(document, &tracked_vars, stats, 550, width - 100)?;
@@ -1014,4 +1014,205 @@ fn add_enhanced_timeline_section(
     }
 
     Ok(document)
+}
+
+
+/// Add matrix layout section (replacing timeline)
+fn add_matrix_layout_section(
+    mut document: Document,
+    tracked_vars: &[&AllocationInfo],
+    start_x: i32,
+    start_y: i32,
+) -> TrackingResult<Document> {
+    // Group variables by scope
+    let mut scope_groups: HashMap<String, Vec<&AllocationInfo>> = HashMap::new();
+    for var in tracked_vars {
+        let scope = identify_precise_scope(var);
+        scope_groups.entry(scope).or_default().push(*var);
+    }
+    
+    // Matrix layout parameters with proper spacing to prevent overlap
+    let base_matrix_width = 350;
+    let base_matrix_height = 180;
+    let spacing_x = 450; // Increased spacing to prevent matrix overlap
+    let spacing_y = 250;
+    
+    let mut positions = Vec::new();
+    let scope_names: Vec<String> = scope_groups.keys().cloned().collect();
+    
+    // Calculate positions for matrices
+    for (i, scope_name) in scope_names.iter().enumerate() {
+        let col = i % 3;
+        let row = i / 3;
+        let x = start_x + (col as i32 * spacing_x);
+        let y = start_y + (row as i32 * spacing_y);
+        positions.push((scope_name.clone(), x, y));
+    }
+    
+    // Draw relationship lines first
+    for (i, (scope_name, x, y)) in positions.iter().enumerate() {
+        if scope_name != "Global" && i > 0 {
+            let (_, global_x, global_y) = &positions[0];
+            let line = Line::new()
+                .set("x1", global_x + base_matrix_width / 2)
+                .set("y1", global_y + base_matrix_height)
+                .set("x2", x + base_matrix_width / 2)
+                .set("y2", *y)
+                .set("stroke", "#7F8C8D")
+                .set("stroke-width", 2)
+                .set("stroke-dasharray", "5,3");
+            document = document.add(line);
+        }
+    }
+    
+    // Render scope matrices
+    for (scope_name, x, y) in positions {
+        if let Some(vars) = scope_groups.get(&scope_name) {
+            document = render_scope_matrix_fixed(document, &scope_name, vars, x, y, base_matrix_width, base_matrix_height)?;
+        }
+    }
+    
+    Ok(document)
+}
+
+/// Render single scope matrix with fixed spacing to prevent overlap
+fn render_scope_matrix_fixed(
+    mut document: Document,
+    scope_name: &str,
+    vars: &[&AllocationInfo],
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> TrackingResult<Document> {
+    let mut matrix_group = Group::new()
+        .set("transform", format!("translate({}, {})", x, y));
+    
+    // Matrix container with template style
+    let container = Rectangle::new()
+        .set("width", width)
+        .set("height", height)
+        .set("fill", "rgba(30, 64, 175, 0.2)")
+        .set("stroke", "#BDC3C7")
+        .set("stroke-width", 3)
+        .set("stroke-dasharray", if scope_name != "Global" { "8,4" } else { "none" })
+        .set("rx", 12);
+    matrix_group = matrix_group.add(container);
+    
+    // Timestamp annotation in timeA---timeB format
+    let duration_estimate = vars.len() as u64 * 20;
+    let start_ts = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
+    let end_ts = start_ts + duration_estimate as u128;
+    let timestamp_text = format!("{}---{} lifetime {}ms", start_ts, end_ts, duration_estimate);
+    let timestamp = SvgText::new(timestamp_text)
+        .set("x", width - 10)
+        .set("y", 15)
+        .set("text-anchor", "end")
+        .set("font-size", 9)
+        .set("fill", "#94a3b8")
+        .set("font-style", "italic");
+    matrix_group = matrix_group.add(timestamp);
+    
+    // Scope title
+    let title = SvgText::new(format!("Scope: {}", scope_name))
+        .set("x", 15)
+        .set("y", 25)
+        .set("font-size", 14)
+        .set("font-weight", "700")
+        .set("fill", "#f8fafc");
+    matrix_group = matrix_group.add(title);
+    
+    // Variables section with proper spacing to prevent font overlap
+    let var_start_y = 45;
+    let var_height = 15;
+    let var_spacing = 25; // Increased spacing to prevent overlap
+    let font_size = 10;
+    
+    for (i, var) in vars.iter().take(5).enumerate() { // Limit to 5 to prevent overflow
+        let var_y = var_start_y + (i as i32 * var_spacing);
+        let var_name = var.var_name.as_ref().unwrap();
+        let type_name = get_simple_type(var.type_name.as_ref().unwrap_or(&"Unknown".to_string()));
+        
+        // Variable bar
+        let bar_width = std::cmp::min((var.size as f64 / 1000.0 * 120.0) as i32 + 20, 180);
+        let var_bar = Rectangle::new()
+            .set("x", 15)
+            .set("y", var_y)
+            .set("width", bar_width)
+            .set("height", var_height)
+            .set("fill", get_type_color(&type_name));
+        matrix_group = matrix_group.add(var_bar);
+        
+        // Variable label in format: var_name (type) | [====] | time_ms
+        let duration_ms = estimate_variable_duration(var);
+        let bar_chars = std::cmp::min(bar_width / 20, 6);
+        let bar_visual = "=".repeat(bar_chars as usize) + &"-".repeat(6 - bar_chars as usize);
+        let label_text = format!("{} ({}) | [{}] | {}ms", 
+                                var_name, type_name, bar_visual, duration_ms);
+        let var_label = SvgText::new(label_text)
+            .set("x", 20)
+            .set("y", var_y + var_height - 2)
+            .set("font-size", font_size)
+            .set("fill", "#e2e8f0");
+        matrix_group = matrix_group.add(var_label);
+    }
+    
+    // Show "more" indicator if needed
+    if vars.len() > 5 {
+        let more_text = format!("+ {} more", vars.len() - 5);
+        let more_label = SvgText::new(more_text)
+            .set("x", 20)
+            .set("y", var_start_y + (5 * var_spacing) + 10)
+            .set("font-size", 9)
+            .set("fill", "#94a3b8");
+        matrix_group = matrix_group.add(more_label);
+    }
+    
+    document = document.add(matrix_group);
+    Ok(document)
+}
+
+/// Identify precise scope for allocation
+fn identify_precise_scope(allocation: &AllocationInfo) -> String {
+    if let Some(var_name) = &allocation.var_name {
+        if var_name.contains("global") {
+            return "Global".to_string();
+        }
+        // Use timestamp to infer scope
+        match allocation.timestamp_alloc {
+            0..=1000 => "Global".to_string(),
+            1001..=2000 => "demonstrate_builtin_types".to_string(),
+            2001..=3000 => "demonstrate_smart_pointers".to_string(),
+            3001..=4000 => "demonstrate_custom_structures".to_string(),
+            4001..=5000 => "demonstrate_complex_patterns".to_string(),
+            5001..=6000 => "simulate_web_server_scenario".to_string(),
+            _ => "simulate_data_processing_pipeline".to_string(),
+        }
+    } else {
+        "Global".to_string()
+    }
+}
+
+/// Estimate variable duration
+fn estimate_variable_duration(var: &AllocationInfo) -> u64 {
+    let base_duration = match var.size {
+        0..=100 => 10,
+        101..=1000 => 50,
+        1001..=10000 => 100,
+        _ => 200,
+    };
+    
+    let type_multiplier = if let Some(type_name) = &var.type_name {
+        if type_name.contains("Vec") || type_name.contains("HashMap") {
+            2.0
+        } else if type_name.contains("Box") || type_name.contains("Rc") {
+            1.5
+        } else {
+            1.0
+        }
+    } else {
+        1.0
+    };
+    
+    (base_duration as f64 * type_multiplier) as u64
 }

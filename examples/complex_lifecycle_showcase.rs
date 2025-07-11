@@ -49,19 +49,26 @@ struct StreamProcessor {
 
 fn main() {
     init();
-    println!("🚀 Complex Lifecycle Showcase");
-    println!("==============================");
+    println!("🚀 Complex Multi-Scope Lifecycle Showcase");
+    println!("==========================================");
     println!("Demonstrating enhanced lifecycle tracking with:");
+    println!("• Multiple nested scopes and function calls");
     println!("• Built-in types (Vec, String, HashMap, etc.)");
     println!("• Smart pointers (Box, Rc, Arc, RefCell)");
     println!("• Custom structs and complex data patterns");
     println!("• Memory growth, ownership transfers, and borrowing");
     println!();
 
+    // Global scope variables
+    let global_app_config = String::from("app_config_v2.0");
+    track_var!(global_app_config);
+    let global_session_store = Box::new(HashMap::<String, String>::new());
+    track_var!(global_session_store);
+
     // Keep all variables alive until the end by collecting them
     let mut _keep_alive: Vec<Box<dyn std::any::Any>> = Vec::new();
 
-    // Phase 1: Basic built-in types
+    // Phase 1: Basic built-in types with nested scopes
     let vars1 = demonstrate_builtin_types();
     _keep_alive.extend(vars1);
     
@@ -77,11 +84,17 @@ fn main() {
     let vars4 = demonstrate_complex_patterns();
     _keep_alive.extend(vars4);
     
-    // Phase 5: Simulated real-world scenarios
+    // Phase 5: Web server simulation
     let vars5 = simulate_web_server_scenario();
     _keep_alive.extend(vars5);
+    
+    // Phase 6: Data processing pipeline
     let vars6 = simulate_data_processing_pipeline();
     _keep_alive.extend(vars6);
+    
+    // Global cleanup
+    let global_cleanup_log = Vec::<String>::new();
+    track_var!(global_cleanup_log);
     
     // Generate comprehensive analysis with all variables still alive
     generate_final_analysis();
