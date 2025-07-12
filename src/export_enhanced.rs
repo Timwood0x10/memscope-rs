@@ -200,55 +200,163 @@ pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> 
     let enhanced_memory_by_type = enhance_type_information(&memory_by_type, &active_allocations);
     let categorized_allocations = categorize_allocations(&active_allocations);
 
-    // Create optimized SVG document with better layout
+    // Create COMPACT SVG document - REDUCED HEIGHT for space efficiency
     let mut document = Document::new()
-        .set("viewBox", (0, 0, 1800, 2400))
-        .set("width", 1800)
-        .set("height", 2400)
+        .set("viewBox", (0, 0, 1400, 400))
+        .set("width", 1400)
+        .set("height", 400)
         .set(
             "style",
-            "background-color: #f8f9fa; font-family: 'Segoe UI', Arial, sans-serif;",
+            "background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%); font-family: 'Segoe UI', Arial, sans-serif;",
         );
 
-    // Add CSS styles for interactive elements
-    document = add_css_styles(document)?;
+    // COMPACT LAYOUT - Only essential components for 400px height
+    
+    // Title (y: 0-50)
+    let title = SvgText::new("Top 3 Memory Analysis - Compact View")
+        .set("x", 700)
+        .set("y", 30)
+        .set("text-anchor", "middle")
+        .set("font-size", 24)
+        .set("font-weight", "bold")
+        .set("fill", "#FFFFFF");
+    document = document.add(title);
 
-    // Header section (y: 0-150)
-    document = add_enhanced_header(document, &stats)?;
-
-    // Row 1: Performance Dashboard (y: 170-390)
-    document = add_performance_dashboard(document, &stats, &active_allocations)?;
-
-    // Row 2: Memory Heatmap (y: 420-640)
-    document = add_memory_heatmap(document, &active_allocations)?;
-
-    // Row 3: Type Chart and Fragmentation Analysis side by side (y: 670-990)
+    // Only show TOP 3 type chart (y: 60-350)
     if !enhanced_memory_by_type.is_empty() {
-        document = add_enhanced_type_chart(document, &enhanced_memory_by_type)?;
+        document = add_compact_type_chart(document, &enhanced_memory_by_type)?;
     }
-    document = add_fragmentation_analysis(document, &active_allocations)?;
 
-    // Row 4: Categorized Allocations and Call Stack Analysis (y: 1020-1340)
-    if !categorized_allocations.is_empty() {
-        document = add_categorized_allocations(document, &categorized_allocations)?;
-    }
-    document = add_callstack_analysis(document, &active_allocations)?;
-
-    // Row 5: Memory Growth Trends (y: 1370-1690)
-    document = add_memory_growth_trends(document, &active_allocations, &stats)?;
-
-    // Row 6: Memory Timeline (y: 1720-2040)
-    document = add_memory_timeline(document, &active_allocations, &stats)?;
-
-    // Row 7: Legend and Summary (y: 2070-2350)
-    document = add_interactive_legend(document)?;
-    document = add_comprehensive_summary(document, &stats, &active_allocations)?;
+    // Compact summary (y: 350-400)
+    document = add_compact_summary(document, &stats, &active_allocations)?;
 
     // Write SVG to file
     let mut file = File::create(path)?;
     write!(file, "{document}")?;
 
     Ok(())
+}
+
+/// Add compact type chart - TOP 3 ONLY with progress bars
+fn add_compact_type_chart(
+    mut document: Document,
+    types: &[EnhancedTypeInfo],
+) -> TrackingResult<Document> {
+    let chart_x = 100;
+    let chart_y = 60;
+    let chart_width = 1200;
+    
+    if types.is_empty() {
+        let no_data = SvgText::new("No tracked variables found")
+            .set("x", chart_x + chart_width / 2)
+            .set("y", 200)
+            .set("text-anchor", "middle")
+            .set("font-size", 16)
+            .set("fill", "#E74C3C");
+        document = document.add(no_data);
+        return Ok(document);
+    }
+
+    let max_size = types.iter().map(|t| t.total_size).max().unwrap_or(1);
+    
+    // Show TOP 3 ONLY
+    for (i, type_info) in types.iter().take(3).enumerate() {
+        let y = chart_y + (i as i32) * 80;
+        
+        // Progress bar background
+        let bg_bar = Rectangle::new()
+            .set("x", chart_x)
+            .set("y", y)
+            .set("width", 600)
+            .set("height", 30)
+            .set("fill", "#34495E")
+            .set("stroke", "#ECF0F1")
+            .set("stroke-width", 1)
+            .set("rx", 6);
+        document = document.add(bg_bar);
+        
+        // Progress bar fill
+        let bar_width = ((type_info.total_size as f64 / max_size as f64) * 600.0) as i32;
+        let color = get_category_color(&type_info.category);
+        let progress_bar = Rectangle::new()
+            .set("x", chart_x)
+            .set("y", y)
+            .set("width", bar_width)
+            .set("height", 30)
+            .set("fill", color)
+            .set("rx", 6);
+        document = document.add(progress_bar);
+        
+        // Type and size info
+        let content_text = format!(
+            "{} ({} vars) | Total: {}",
+            type_info.simplified_name, 
+            type_info.allocation_count, 
+            format_bytes(type_info.total_size)
+        );
+        
+        let content_label = SvgText::new(content_text)
+            .set("x", chart_x + 10)
+            .set("y", y + 20)
+            .set("font-size", 12)
+            .set("font-weight", "600")
+            .set("fill", "#FFFFFF")
+            .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
+        document = document.add(content_label);
+        
+        // Progress percentage
+        let percentage = (type_info.total_size as f64 / max_size as f64 * 100.0) as i32;
+        let percent_label = SvgText::new(format!("{}%", percentage))
+            .set("x", chart_x + 720)
+            .set("y", y + 20)
+            .set("font-size", 14)
+            .set("font-weight", "bold")
+            .set("fill", "#ECF0F1");
+        document = document.add(percent_label);
+        
+        // Variable names below
+        let var_names_text = if type_info.variable_names.is_empty() {
+            "no tracked vars".to_string()
+        } else {
+            format!("Variables: {}", type_info.variable_names.join(", "))
+        };
+        
+        let vars_label = SvgText::new(var_names_text)
+            .set("x", chart_x + 10)
+            .set("y", y + 45)
+            .set("font-size", 9)
+            .set("fill", "#94A3B8")
+            .set("font-style", "italic");
+        document = document.add(vars_label);
+    }
+
+    Ok(document)
+}
+
+/// Add compact summary
+fn add_compact_summary(
+    mut document: Document,
+    stats: &MemoryStats,
+    allocations: &[AllocationInfo],
+) -> TrackingResult<Document> {
+    let tracked_vars = allocations.iter().filter(|a| a.var_name.is_some()).count();
+    
+    let summary_text = format!(
+        "Showing TOP 3 memory-consuming types | Total tracked: {} variables | Active memory: {}",
+        tracked_vars,
+        format_bytes(stats.active_memory)
+    );
+    
+    let summary = SvgText::new(summary_text)
+        .set("x", 700)
+        .set("y", 370)
+        .set("text-anchor", "middle")
+        .set("font-size", 14)
+        .set("font-weight", "bold")
+        .set("fill", "#ECF0F1");
+    document = document.add(summary);
+
+    Ok(document)
 }
 
 /// Add enhanced header with statistics
