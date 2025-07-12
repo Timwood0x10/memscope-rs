@@ -198,7 +198,7 @@ pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> 
 
     // Filter out unknown types and enhance type information
     let enhanced_memory_by_type = enhance_type_information(&memory_by_type, &active_allocations);
-    let categorized_allocations = categorize_allocations(&active_allocations);
+    let _categorized_allocations = categorize_allocations(&active_allocations);
 
     // Create COMPACT SVG document - REDUCED HEIGHT for space efficiency
     let mut document = Document::new()
