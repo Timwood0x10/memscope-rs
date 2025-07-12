@@ -327,30 +327,25 @@ pub fn add_enhanced_header(
     let median_alloc_size = avg_alloc_size; // Simplified - in real implementation would calculate actual median
     let p95_alloc_size = (avg_alloc_size as f64 * 1.5) as usize; // Simplified - in real implementation would calculate actual P95
 
-    // 6 core metric boxes in 2 rows, 3 columns
+    // 6 core metric boxes in 1 row, 6 columns - 优化布局节省垂直空间
     let metrics = [
-        // Row 1
-        ("Memory Efficiency", format!("{:.1}%", memory_efficiency), "Active Memory / Peak Memory"),
-        ("Active Memory", format_bytes(stats.active_memory), "Memory currently in use"),
-        ("Peak Memory", format_bytes(stats.peak_memory), "Highest memory usage watermark"),
-        // Row 2  
-        ("Active Allocations", format!("{}", stats.active_allocations), "Current number of live allocations"),
-        ("Median Alloc Size", format_bytes(median_alloc_size), "50th percentile of allocation sizes"),
-        ("P95 Alloc Size", format_bytes(p95_alloc_size), "95th percentile of allocation sizes"),
+        ("Memory Efficiency", format!("{:.1}%", memory_efficiency)),
+        ("Active Memory", format_bytes(stats.active_memory)),
+        ("Peak Memory", format_bytes(stats.peak_memory)),
+        ("Active Allocations", format!("{}", stats.active_allocations)),
+        ("Median Alloc Size", format_bytes(median_alloc_size)),
+        ("P95 Alloc Size", format_bytes(p95_alloc_size)),
     ];
 
-    let box_width = 280;
-    let box_height = 80;
+    let box_width = 180; // 减小宽度以适应6列
+    let box_height = 50;  // 减小高度
     let start_x = 60;
     let start_y = 70;
-    let spacing_x = 300;
-    let spacing_y = 100;
+    let spacing_x = 200; // 列间距
 
-    for (i, (title, value, subtitle)) in metrics.iter().enumerate() {
-        let row = i / 3;
-        let col = i % 3;
-        let x = start_x + col * spacing_x;
-        let y = start_y + row * spacing_y;
+    for (i, (title, value)) in metrics.iter().enumerate() {
+        let x = start_x + i * spacing_x;
+        let y = start_y;
 
         // Metric box background
         let box_bg = Rectangle::new()
@@ -366,25 +361,25 @@ pub fn add_enhanced_header(
 
         document = document.add(box_bg);
 
-        // Main title
-        let main_title = SvgText::new(format!("{}: {}", title, value))
-            .set("x", x + 15)
-            .set("y", y + 30)
-            .set("font-size", 16)
+        // Title
+        let title_text = SvgText::new(*title)
+            .set("x", x + box_width / 2)
+            .set("y", y + 18)
+            .set("text-anchor", "middle")
+            .set("font-size", 10)
+            .set("font-weight", "600")
+            .set("fill", "#7f8c8d");
+        document = document.add(title_text);
+
+        // Value
+        let value_text = SvgText::new(value)
+            .set("x", x + box_width / 2)
+            .set("y", y + 35)
+            .set("text-anchor", "middle")
+            .set("font-size", 12)
             .set("font-weight", "bold")
             .set("fill", "#2c3e50");
-
-        document = document.add(main_title);
-
-        // Subtitle (small, italic)
-        let sub_title = SvgText::new(*subtitle)
-            .set("x", x + 15)
-            .set("y", y + 55)
-            .set("font-size", 11)
-            .set("font-style", "italic")
-            .set("fill", "#7f8c8d");
-
-        document = document.add(sub_title);
+        document = document.add(value_text);
     }
 
     Ok(document)
@@ -1359,9 +1354,9 @@ pub fn add_performance_dashboard(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 280;
+    let chart_y = 140; // 向上移动，为压缩后的单行header留出空间
     let chart_width = 1700;
-    let chart_height = 300;
+    let chart_height = 350; // 减少高度，避免被下面模块遮挡
 
     // Chart background
     let bg = Rectangle::new()
@@ -1376,12 +1371,12 @@ pub fn add_performance_dashboard(
 
     document = document.add(bg);
 
-    // Chart title
-    let title = SvgText::new("Memory Allocation Timeline")
+    // Chart title with explanation of gray dots
+    let title = SvgText::new("Memory Allocation Timeline (Gray dots = Unknown type allocations)")
         .set("x", chart_x + chart_width / 2)
         .set("y", chart_y - 15)
         .set("text-anchor", "middle")
-        .set("font-size", 18)
+        .set("font-size", 16)
         .set("font-weight", "bold")
         .set("fill", "#2c3e50");
 
@@ -1401,10 +1396,10 @@ pub fn add_performance_dashboard(
     let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(1024) as f64;
     let min_size = allocations.iter().map(|a| a.size).filter(|&s| s > 0).min().unwrap_or(1) as f64;
 
-    // Plot area dimensions
+    // Plot area dimensions - 为右侧图例预留空间，防止溢出
     let plot_x = chart_x + 80;
     let plot_y = chart_y + 30;
-    let plot_width = chart_width - 160;
+    let plot_width = chart_width - 250; // 增加右侧边距，为图例留出空间
     let plot_height = chart_height - 80;
 
     // X-axis (Time)
@@ -1427,24 +1422,93 @@ pub fn add_performance_dashboard(
         .set("stroke-width", 2);
     document = document.add(y_axis);
 
-    // X-axis label
-    let x_label = SvgText::new("Execution Time (ms)")
+    // X-axis label - 清晰标注横坐标含义
+    let x_label = SvgText::new("Execution Time (milliseconds)")
         .set("x", plot_x + plot_width / 2)
         .set("y", plot_y + plot_height + 40)
         .set("text-anchor", "middle")
         .set("font-size", 12)
+        .set("font-weight", "bold")
         .set("fill", "#2c3e50");
     document = document.add(x_label);
 
-    // Y-axis label
-    let y_label = SvgText::new("Allocation Size (Bytes, Logarithmic Scale)")
+    // Y-axis label - 清晰标注纵坐标含义
+    let y_label = SvgText::new("Memory Allocation Size (Bytes)")
         .set("x", plot_x - 60)
         .set("y", plot_y + plot_height / 2)
         .set("text-anchor", "middle")
         .set("font-size", 12)
+        .set("font-weight", "bold")
         .set("fill", "#2c3e50")
         .set("transform", format!("rotate(-90 {} {})", plot_x - 60, plot_y + plot_height / 2));
     document = document.add(y_label);
+
+    // Add Y-axis scale markers for better readability
+    let scale_markers = [
+        (16, "16B"),
+        (256, "256B"), 
+        (1024, "1KB"),
+        (4096, "4KB"),
+        (16384, "16KB"),
+    ];
+    
+    for (size, label) in scale_markers.iter() {
+        if *size >= min_size as usize && *size <= max_size as usize {
+            let log_size = (*size as f64).ln();
+            let log_min = min_size.ln();
+            let log_max = max_size.ln();
+            let log_range = log_max - log_min;
+            
+            if log_range > 0.0 {
+                let y_pos = plot_y + plot_height - ((log_size - log_min) / log_range * plot_height as f64) as i32;
+                
+                // Scale marker line
+                let marker_line = svg::node::element::Line::new()
+                    .set("x1", plot_x - 5)
+                    .set("y1", y_pos)
+                    .set("x2", plot_x + 5)
+                    .set("y2", y_pos)
+                    .set("stroke", "#7f8c8d")
+                    .set("stroke-width", 1);
+                document = document.add(marker_line);
+                
+                // Scale marker label
+                let marker_label = SvgText::new(*label)
+                    .set("x", plot_x - 15)
+                    .set("y", y_pos + 3)
+                    .set("text-anchor", "end")
+                    .set("font-size", 10)
+                    .set("fill", "#7f8c8d");
+                document = document.add(marker_label);
+            }
+        }
+    }
+
+    // 添加X轴时间刻度标记 - 让用户能简单明了看时间数据
+    let time_markers = 5;
+    for i in 0..=time_markers {
+        let time_point = min_time + (time_range * i as f64 / time_markers as f64);
+        let x_pos = plot_x + (i * plot_width / time_markers);
+        
+        // Time marker line
+        let time_marker_line = svg::node::element::Line::new()
+            .set("x1", x_pos)
+            .set("y1", plot_y + plot_height - 5)
+            .set("x2", x_pos)
+            .set("y2", plot_y + plot_height + 5)
+            .set("stroke", "#7f8c8d")
+            .set("stroke-width", 1);
+        document = document.add(time_marker_line);
+        
+        // Time marker label
+        let time_label = SvgText::new(format!("{:.0}ms", time_point))
+            .set("x", x_pos)
+            .set("y", plot_y + plot_height + 20)
+            .set("text-anchor", "middle")
+            .set("font-size", 9)
+            .set("fill", "#7f8c8d");
+        document = document.add(time_label);
+    }
 
     // Categorize allocations and get colors
     let categorized = categorize_allocations(allocations);
@@ -1453,8 +1517,18 @@ pub fn add_performance_dashboard(
         category_colors.insert(category.name.clone(), category.color.clone());
     }
 
-    // Plot data points
-    for allocation in allocations.iter().take(200) { // Limit points for readability
+    // Calculate P95 threshold for larger dots
+    let mut sizes: Vec<usize> = allocations.iter().map(|a| a.size).filter(|&s| s > 0).collect();
+    sizes.sort_unstable();
+    let p95_threshold = if !sizes.is_empty() {
+        let p95_index = (sizes.len() as f64 * 0.95) as usize;
+        sizes[p95_index.min(sizes.len() - 1)]
+    } else {
+        0
+    };
+
+    // Plot data points with ENHANCED VISIBILITY
+    for allocation in allocations.iter().take(500) { // Increased from 200 to 500 points
         if allocation.size > 0 {
             // Calculate position
             let timestamp = allocation.timestamp_alloc;
@@ -1464,45 +1538,66 @@ pub fn add_performance_dashboard(
                 plot_x + plot_width / 2
             };
 
-                // Logarithmic Y scaling
-                let log_size = (allocation.size as f64).ln();
-                let log_min = min_size.ln();
-                let log_max = max_size.ln();
-                let log_range = log_max - log_min;
-                
-                let y_pos = if log_range > 0.0 {
-                    plot_y + plot_height - ((log_size - log_min) / log_range * plot_height as f64) as i32
-                } else {
-                    plot_y + plot_height / 2
-                };
+            // Logarithmic Y scaling
+            let log_size = (allocation.size as f64).ln();
+            let log_min = min_size.ln();
+            let log_max = max_size.ln();
+            let log_range = log_max - log_min;
+            
+            let y_pos = if log_range > 0.0 {
+                plot_y + plot_height - ((log_size - log_min) / log_range * plot_height as f64) as i32
+            } else {
+                plot_y + plot_height / 2
+            };
 
-                // Get category color
-                let color = if let Some(type_name) = &allocation.type_name {
-                    let (_, category) = simplify_type_name(type_name);
-                    category_colors.get(&category).cloned().unwrap_or_else(|| "#95a5a6".to_string())
-                } else {
-                    "#95a5a6".to_string()
-                };
+            // Get category color - USE SAME LOGIC AS LEGEND
+            let color = if let Some(type_name) = &allocation.type_name {
+                // Use the same categorization logic as the legend
+                let (_, category) = simplify_type_name(type_name);
+                get_category_color(&category)
+            } else {
+                "#95a5a6".to_string() // Gray for unknown types
+            };
 
-                // Draw point
-                let point = Circle::new()
-                    .set("cx", x_pos)
-                    .set("cy", y_pos)
-                    .set("r", 3)
-                    .set("fill", color)
-                    .set("stroke", "#2c3e50")
-                    .set("stroke-width", 0.5)
-                    .set("opacity", 0.7);
+            // LARGER DOTS with P95+ emphasis
+            let radius = if allocation.size >= p95_threshold {
+                8 // P95+ allocations get 8px radius
+            } else {
+                6  // Regular allocations get 6px radius (doubled from 3px)
+            };
 
-                document = document.add(point);
+            // Draw point with enhanced visibility
+            let point = Circle::new()
+                .set("cx", x_pos)
+                .set("cy", y_pos)
+                .set("r", radius)
+                .set("fill", color)
+                .set("stroke", "#2c3e50")
+                .set("stroke-width", 1)
+                .set("opacity", 0.8); // Increased opacity
+
+            document = document.add(point);
         }
     }
 
-    // Add legend
+    // 优化后的图例 - 防止右侧边界溢出
     let legend_x = plot_x + plot_width + 20;
     let legend_y = plot_y + 20;
+    let legend_width = 140; // 限制图例宽度
     
-    let legend_title = SvgText::new("Categories")
+    // 图例背景框，防止内容溢出
+    let legend_bg = Rectangle::new()
+        .set("x", legend_x - 10)
+        .set("y", legend_y - 15)
+        .set("width", legend_width)
+        .set("height", 200)
+        .set("fill", "rgba(255,255,255,0.9)")
+        .set("stroke", "#bdc3c7")
+        .set("stroke-width", 1)
+        .set("rx", 5);
+    document = document.add(legend_bg);
+    
+    let legend_title = SvgText::new("Type Categories")
         .set("x", legend_x)
         .set("y", legend_y)
         .set("font-size", 12)
@@ -1510,23 +1605,38 @@ pub fn add_performance_dashboard(
         .set("fill", "#2c3e50");
     document = document.add(legend_title);
 
+    // 添加灰色点说明
+    let gray_explanation = SvgText::new("Gray = Unknown Type")
+        .set("x", legend_x)
+        .set("y", legend_y + 20)
+        .set("font-size", 10)
+        .set("font-style", "italic")
+        .set("fill", "#95a5a6");
+    document = document.add(gray_explanation);
+
     for (i, category) in categorized.iter().take(6).enumerate() {
-        let legend_item_y = legend_y + 25 + (i as i32) * 20;
+        let legend_item_y = legend_y + 40 + (i as i32) * 18;
         
         // Color square
         let color_square = Rectangle::new()
             .set("x", legend_x)
             .set("y", legend_item_y - 8)
-            .set("width", 12)
-            .set("height", 12)
+            .set("width", 10)
+            .set("height", 10)
             .set("fill", category.color.as_str());
         document = document.add(color_square);
 
-        // Category name
-        let category_text = SvgText::new(&category.name)
-            .set("x", legend_x + 18)
-            .set("y", legend_item_y + 3)
-            .set("font-size", 10)
+        // Category name - 截断长名称避免溢出
+        let category_name = if category.name.len() > 12 {
+            format!("{}...", &category.name[..9])
+        } else {
+            category.name.clone()
+        };
+        
+        let category_text = SvgText::new(category_name)
+            .set("x", legend_x + 15)
+            .set("y", legend_item_y - 1)
+            .set("font-size", 9)
             .set("fill", "#2c3e50");
         document = document.add(category_text);
     }
