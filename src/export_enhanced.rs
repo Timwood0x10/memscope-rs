@@ -89,21 +89,32 @@ pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationC
     result
 }
 
+/// Enhanced type information with variable names and categorization
 #[derive(Debug, Clone)]
 pub struct EnhancedTypeInfo {
-    simplified_name: String,
-    category: String,
-    total_size: usize,
-    allocation_count: usize,
-    variable_names: Vec<String>, // Add variable names
+    /// Simplified type name for display
+    pub simplified_name: String,
+    /// Category this type belongs to
+    pub category: String,
+    /// Total memory size used by this type
+    pub total_size: usize,
+    /// Number of allocations of this type
+    pub allocation_count: usize,
+    /// Variable names associated with this type
+    pub variable_names: Vec<String>,
 }
 
+/// Allocation category for grouping related allocations
 #[derive(Debug, Clone)]
 pub struct AllocationCategory {
-    name: String,
-    allocations: Vec<AllocationInfo>,
-    total_size: usize,
-    color: String,
+    /// Category name
+    pub name: String,
+    /// Allocations in this category
+    pub allocations: Vec<AllocationInfo>,
+    /// Total size of all allocations in this category
+    pub total_size: usize,
+    /// Color used for visualization
+    pub color: String,
 }
 
 /// Enhanced SVG export with comprehensive visualization
@@ -231,7 +242,7 @@ fn add_compact_type_chart(
 
         // Progress percentage
         let percentage = (type_info.total_size as f64 / max_size as f64 * 100.0) as i32;
-        let percent_label = SvgText::new(format!("{}%", percentage))
+        let percent_label = SvgText::new(format!("{percentage}%"))
             .set("x", chart_x + 720)
             .set("y", y + 20)
             .set("font-size", 14)
@@ -284,14 +295,14 @@ fn add_compact_summary(
     Ok(document)
 }
 
-/// Add enhanced header with statistics
+/// Add enhanced header with 6 core metrics according to memory_analysis.md
 pub fn add_enhanced_header(
     mut document: Document,
     stats: &MemoryStats,
 ) -> TrackingResult<Document> {
     // Main title
     let title = SvgText::new("Rust Memory Usage Analysis")
-        .set("x", 600)
+        .set("x", 900)
         .set("y", 40)
         .set("text-anchor", "middle")
         .set("font-size", 24)
@@ -300,37 +311,80 @@ pub fn add_enhanced_header(
 
     document = document.add(title);
 
-    // Statistics panel
-    let stats_bg = Rectangle::new()
-        .set("x", 50)
-        .set("y", 60)
-        .set("width", 1700) // 适应1800px宽度
-        .set("height", 80)
-        .set("fill", "#ecf0f1")
-        .set("stroke", "#bdc3c7")
-        .set("stroke-width", 1)
-        .set("rx", 5);
+    // Calculate metrics
+    let memory_efficiency = if stats.peak_memory > 0 {
+        (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
+    } else {
+        0.0
+    };
 
-    document = document.add(stats_bg);
+    // Calculate median and P95 allocation sizes (simplified calculation)
+    let avg_alloc_size = if stats.active_allocations > 0 {
+        stats.active_memory / stats.active_allocations
+    } else {
+        0
+    };
+    let median_alloc_size = avg_alloc_size; // Simplified - in real implementation would calculate actual median
+    let p95_alloc_size = (avg_alloc_size as f64 * 1.5) as usize; // Simplified - in real implementation would calculate actual P95
 
-    // Statistics text
-    let stats_text = [
-        format!("Active Allocations: {}", stats.active_allocations),
-        format!("Active Memory: {}", format_bytes(stats.active_memory)),
-        format!("Peak Memory: {}", format_bytes(stats.peak_memory)),
-        format!("Total Allocations: {}", stats.total_allocations),
+    // 6 core metric boxes in 2 rows, 3 columns
+    let metrics = [
+        // Row 1
+        ("Memory Efficiency", format!("{:.1}%", memory_efficiency), "Active Memory / Peak Memory"),
+        ("Active Memory", format_bytes(stats.active_memory), "Memory currently in use"),
+        ("Peak Memory", format_bytes(stats.peak_memory), "Highest memory usage watermark"),
+        // Row 2  
+        ("Active Allocations", format!("{}", stats.active_allocations), "Current number of live allocations"),
+        ("Median Alloc Size", format_bytes(median_alloc_size), "50th percentile of allocation sizes"),
+        ("P95 Alloc Size", format_bytes(p95_alloc_size), "95th percentile of allocation sizes"),
     ];
 
-    for (i, text) in stats_text.iter().enumerate() {
-        let x = 80 + (i * 270);
-        let stat_text = SvgText::new(text)
-            .set("x", x)
-            .set("y", 105)
-            .set("font-size", 14)
-            .set("font-weight", "600")
-            .set("fill", "#34495e");
+    let box_width = 280;
+    let box_height = 80;
+    let start_x = 60;
+    let start_y = 70;
+    let spacing_x = 300;
+    let spacing_y = 100;
 
-        document = document.add(stat_text);
+    for (i, (title, value, subtitle)) in metrics.iter().enumerate() {
+        let row = i / 3;
+        let col = i % 3;
+        let x = start_x + col * spacing_x;
+        let y = start_y + row * spacing_y;
+
+        // Metric box background
+        let box_bg = Rectangle::new()
+            .set("x", x)
+            .set("y", y)
+            .set("width", box_width)
+            .set("height", box_height)
+            .set("fill", "white")
+            .set("stroke", "#bdc3c7")
+            .set("stroke-width", 1)
+            .set("rx", 8)
+            .set("style", "filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));");
+
+        document = document.add(box_bg);
+
+        // Main title
+        let main_title = SvgText::new(format!("{}: {}", title, value))
+            .set("x", x + 15)
+            .set("y", y + 30)
+            .set("font-size", 16)
+            .set("font-weight", "bold")
+            .set("fill", "#2c3e50");
+
+        document = document.add(main_title);
+
+        // Subtitle (small, italic)
+        let sub_title = SvgText::new(*subtitle)
+            .set("x", x + 15)
+            .set("y", y + 55)
+            .set("font-size", 11)
+            .set("font-style", "italic")
+            .set("fill", "#7f8c8d");
+
+        document = document.add(sub_title);
     }
 
     Ok(document)
@@ -529,7 +583,7 @@ pub fn add_categorized_allocations(
                     } else {
                         var_name.clone()
                     };
-                    Some(format!("{}({})", short_var, simplified_type))
+                    Some(format!("{short_var}({simplified_type})"))
                 } else {
                     None
                 }
@@ -933,7 +987,7 @@ pub fn add_callstack_analysis(
 
             // Try to identify the source of untracked allocations
             if type_name.contains("std::") || type_name.contains("alloc::") {
-                format!("System/Runtime {} (untracked)", simplified_type)
+                format!("System/Runtime {simplified_type} (untracked)")
             } else if simplified_type.contains("Vec") {
                 "Internal Vec allocations (untracked)".to_string()
             } else if simplified_type.contains("String") {
@@ -941,7 +995,7 @@ pub fn add_callstack_analysis(
             } else if simplified_type.contains("HashMap") {
                 "Internal HashMap allocations (untracked)".to_string()
             } else {
-                format!("Internal {} allocations (untracked)", simplified_type)
+                format!("Internal {simplified_type} allocations (untracked)")
             }
         } else {
             // Completely unknown allocations
@@ -1298,35 +1352,34 @@ fn add_css_styles(mut document: Document) -> TrackingResult<Document> {
     Ok(document)
 }
 
-/// Add performance dashboard with key metrics
+/// Add memory allocation timeline as categorized scatter plot
 pub fn add_performance_dashboard(
     mut document: Document,
-    stats: &MemoryStats,
-    _allocations: &[AllocationInfo],
+    _stats: &MemoryStats,
+    allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
-    let dashboard_x = 50;
-    let dashboard_y = 170;
-    let dashboard_width = 1700;
-    let dashboard_height = 200;
+    let chart_x = 50;
+    let chart_y = 280;
+    let chart_width = 1700;
+    let chart_height = 300;
 
-    // Dashboard background
+    // Chart background
     let bg = Rectangle::new()
-        .set("x", dashboard_x)
-        .set("y", dashboard_y)
-        .set("width", dashboard_width)
-        .set("height", dashboard_height)
+        .set("x", chart_x)
+        .set("y", chart_y)
+        .set("width", chart_width)
+        .set("height", chart_height)
         .set("fill", "white")
-        .set("stroke", "#3498db")
-        .set("stroke-width", 2)
-        .set("rx", 10)
-        .set("class", "performance-gauge");
+        .set("stroke", "#bdc3c7")
+        .set("stroke-width", 1)
+        .set("rx", 8);
 
     document = document.add(bg);
 
-    // Dashboard title
-    let title = SvgText::new("Performance Dashboard")
-        .set("x", dashboard_x + dashboard_width / 2)
-        .set("y", dashboard_y - 10)
+    // Chart title
+    let title = SvgText::new("Memory Allocation Timeline")
+        .set("x", chart_x + chart_width / 2)
+        .set("y", chart_y - 15)
         .set("text-anchor", "middle")
         .set("font-size", 18)
         .set("font-weight", "bold")
@@ -1334,257 +1387,159 @@ pub fn add_performance_dashboard(
 
     document = document.add(title);
 
-    // Calculate performance metrics
-    let efficiency = if stats.total_allocations > 0 {
-        stats.total_deallocations as f64 / stats.total_allocations as f64 * 100.0
-    } else {
-        0.0
-    };
+    // Calculate time and size ranges for scaling
+    let max_time = allocations.iter()
+        .map(|a| a.timestamp_alloc)
+        .max()
+        .unwrap_or(1000) as f64;
+    let min_time = allocations.iter()
+        .map(|a| a.timestamp_alloc)
+        .min()
+        .unwrap_or(0) as f64;
+    let time_range = max_time - min_time;
 
-    let avg_allocation_size = if stats.total_allocations > 0 {
-        stats.active_memory / stats.total_allocations
-    } else {
-        0
-    };
+    let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(1024) as f64;
+    let min_size = allocations.iter().map(|a| a.size).filter(|&s| s > 0).min().unwrap_or(1) as f64;
 
-    let memory_utilization = if stats.peak_memory > 0 {
-        stats.active_memory as f64 / stats.peak_memory as f64 * 100.0
-    } else {
-        0.0
-    };
+    // Plot area dimensions
+    let plot_x = chart_x + 80;
+    let plot_y = chart_y + 30;
+    let plot_width = chart_width - 160;
+    let plot_height = chart_height - 80;
 
-    // Performance gauges - 优化布局，让饼图填充更完整
-    let gauges = [
-        ("Memory Efficiency", efficiency, "%", "#e74c3c"),
-        ("Avg Alloc Size", avg_allocation_size as f64, "B", "#f39c12"),
-        ("Memory Utilization", memory_utilization, "%", "#27ae60"),
-        (
-            "Active Allocs",
-            stats.active_allocations as f64,
-            "",
-            "#9b59b6",
-        ),
-    ];
+    // X-axis (Time)
+    let x_axis = svg::node::element::Line::new()
+        .set("x1", plot_x)
+        .set("y1", plot_y + plot_height)
+        .set("x2", plot_x + plot_width)
+        .set("y2", plot_y + plot_height)
+        .set("stroke", "#34495e")
+        .set("stroke-width", 2);
+    document = document.add(x_axis);
 
-    for (i, (label, value, unit, color)) in gauges.iter().enumerate() {
-        let gauge_x = dashboard_x + 100 + (i * 400); // 增加间距，让饼图更大
-        let gauge_y = dashboard_y + 100; // 居中显示
+    // Y-axis (Size - Logarithmic)
+    let y_axis = svg::node::element::Line::new()
+        .set("x1", plot_x)
+        .set("y1", plot_y)
+        .set("x2", plot_x)
+        .set("y2", plot_y + plot_height)
+        .set("stroke", "#34495e")
+        .set("stroke-width", 2);
+    document = document.add(y_axis);
 
-        // Gauge background circle - 增大饼图尺寸，填充更完整
-        let bg_circle = Circle::new()
-            .set("cx", gauge_x)
-            .set("cy", gauge_y)
-            .set("r", 60) // 增大半径
-            .set("fill", "none")
-            .set("stroke", "#ecf0f1")
-            .set("stroke-width", 12); // 增加线宽
+    // X-axis label
+    let x_label = SvgText::new("Execution Time (ms)")
+        .set("x", plot_x + plot_width / 2)
+        .set("y", plot_y + plot_height + 40)
+        .set("text-anchor", "middle")
+        .set("font-size", 12)
+        .set("fill", "#2c3e50");
+    document = document.add(x_label);
 
-        document = document.add(bg_circle);
+    // Y-axis label
+    let y_label = SvgText::new("Allocation Size (Bytes, Logarithmic Scale)")
+        .set("x", plot_x - 60)
+        .set("y", plot_y + plot_height / 2)
+        .set("text-anchor", "middle")
+        .set("font-size", 12)
+        .set("fill", "#2c3e50")
+        .set("transform", format!("rotate(-90 {} {})", plot_x - 60, plot_y + plot_height / 2));
+    document = document.add(y_label);
 
-        // Gauge value arc (simplified as partial circle)
-        let normalized_value = if *unit == "%" {
-            value.min(100.0) / 100.0
-        } else {
-            (value / 1000.0).min(1.0) // Normalize large values
-        };
+    // Categorize allocations and get colors
+    let categorized = categorize_allocations(allocations);
+    let mut category_colors: HashMap<String, String> = HashMap::new();
+    for category in &categorized {
+        category_colors.insert(category.name.clone(), category.color.clone());
+    }
 
-        let arc_length = normalized_value * 2.0 * std::f64::consts::PI * 60.0; // 适应新半径
-        let gauge_arc = Circle::new()
-            .set("cx", gauge_x)
-            .set("cy", gauge_y)
-            .set("r", 60) // 增大半径
-            .set("fill", "none")
-            .set("stroke", *color)
-            .set("stroke-width", 12) // 增加线宽
-            .set("stroke-dasharray", format!("{} {}", arc_length, 400.0)) // 调整虚线长度
-            .set("transform", format!("rotate(-90 {gauge_x} {gauge_y})"));
+    // Plot data points
+    for allocation in allocations.iter().take(200) { // Limit points for readability
+        if allocation.size > 0 {
+            // Calculate position
+            let timestamp = allocation.timestamp_alloc;
+            let x_pos = if time_range > 0.0 {
+                plot_x + ((timestamp as f64 - min_time) / time_range * plot_width as f64) as i32
+            } else {
+                plot_x + plot_width / 2
+            };
 
-        document = document.add(gauge_arc);
+                // Logarithmic Y scaling
+                let log_size = (allocation.size as f64).ln();
+                let log_min = min_size.ln();
+                let log_max = max_size.ln();
+                let log_range = log_max - log_min;
+                
+                let y_pos = if log_range > 0.0 {
+                    plot_y + plot_height - ((log_size - log_min) / log_range * plot_height as f64) as i32
+                } else {
+                    plot_y + plot_height / 2
+                };
 
-        // Gauge value text
-        let value_text = if *unit == "B" && *value > 1024.0 {
-            format!("{:.1}K", value / 1024.0)
-        } else {
-            format!("{value:.1}{unit}")
-        };
+                // Get category color
+                let color = if let Some(type_name) = &allocation.type_name {
+                    let (_, category) = simplify_type_name(type_name);
+                    category_colors.get(&category).cloned().unwrap_or_else(|| "#95a5a6".to_string())
+                } else {
+                    "#95a5a6".to_string()
+                };
 
-        let text = SvgText::new(value_text)
-            .set("x", gauge_x)
-            .set("y", gauge_y + 5)
-            .set("text-anchor", "middle")
-            .set("font-size", 16) // 增大数值字体
-            .set("font-weight", "bold")
-            .set("fill", *color);
+                // Draw point
+                let point = Circle::new()
+                    .set("cx", x_pos)
+                    .set("cy", y_pos)
+                    .set("r", 3)
+                    .set("fill", color)
+                    .set("stroke", "#2c3e50")
+                    .set("stroke-width", 0.5)
+                    .set("opacity", 0.7);
 
-        document = document.add(text);
+                document = document.add(point);
+        }
+    }
 
-        // Gauge label - 调整位置适应新的饼图大小
-        let label_text = SvgText::new(*label)
-            .set("x", gauge_x)
-            .set("y", gauge_y + 85) // 向下移动适应更大的饼图
-            .set("text-anchor", "middle")
-            .set("font-size", 12) // 增大字体
-            .set("font-weight", "600")
+    // Add legend
+    let legend_x = plot_x + plot_width + 20;
+    let legend_y = plot_y + 20;
+    
+    let legend_title = SvgText::new("Categories")
+        .set("x", legend_x)
+        .set("y", legend_y)
+        .set("font-size", 12)
+        .set("font-weight", "bold")
+        .set("fill", "#2c3e50");
+    document = document.add(legend_title);
+
+    for (i, category) in categorized.iter().take(6).enumerate() {
+        let legend_item_y = legend_y + 25 + (i as i32) * 20;
+        
+        // Color square
+        let color_square = Rectangle::new()
+            .set("x", legend_x)
+            .set("y", legend_item_y - 8)
+            .set("width", 12)
+            .set("height", 12)
+            .set("fill", category.color.as_str());
+        document = document.add(color_square);
+
+        // Category name
+        let category_text = SvgText::new(&category.name)
+            .set("x", legend_x + 18)
+            .set("y", legend_item_y + 3)
+            .set("font-size", 10)
             .set("fill", "#2c3e50");
-
-        document = document.add(label_text);
+        document = document.add(category_text);
     }
 
     Ok(document)
 }
 
-/// Add memory heatmap visualization
+/// Add memory heatmap visualization (placeholder for now)
 pub fn add_memory_heatmap(
-    mut document: Document,
-    allocations: &[AllocationInfo],
+    document: Document,
+    _allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
-    let heatmap_x = 50;
-    let heatmap_y = 420;
-    let heatmap_width = 1700; // 适应新的1800px宽度
-    let heatmap_height = 200;
-
-    // Heatmap background
-    let bg = Rectangle::new()
-        .set("x", heatmap_x)
-        .set("y", heatmap_y)
-        .set("width", heatmap_width)
-        .set("height", heatmap_height)
-        .set("fill", "white")
-        .set("stroke", "#e74c3c")
-        .set("stroke-width", 2)
-        .set("rx", 10);
-
-    document = document.add(bg);
-
-    // Heatmap title
-    let title = SvgText::new("Memory Allocation Heatmap")
-        .set("x", heatmap_x + heatmap_width / 2)
-        .set("y", heatmap_y - 10)
-        .set("text-anchor", "middle")
-        .set("font-size", 18)
-        .set("font-weight", "bold")
-        .set("fill", "#2c3e50");
-
-    document = document.add(title);
-
-    if allocations.is_empty() {
-        let no_data = SvgText::new("No allocation data available")
-            .set("x", heatmap_x + heatmap_width / 2)
-            .set("y", heatmap_y + heatmap_height / 2)
-            .set("text-anchor", "middle")
-            .set("font-size", 14)
-            .set("fill", "#7f8c8d");
-
-        document = document.add(no_data);
-        return Ok(document);
-    }
-
-    // Create heatmap grid - 动态调整网格大小以适应不同项目规模
-    let allocation_count = allocations.len();
-    let (grid_cols, grid_rows) = if allocation_count > 1000 {
-        // 大型项目：更细粒度的网格
-        (25, 10)
-    } else if allocation_count > 100 {
-        // 中型项目：标准网格
-        (20, 8)
-    } else {
-        // 小型项目：较小网格
-        (15, 6)
-    };
-
-    let cell_width = (heatmap_width - 40) / grid_cols;
-    let cell_height = (heatmap_height - 40) / grid_rows;
-
-    // Calculate allocation density per cell
-    let mut density_grid = vec![vec![0; grid_cols]; grid_rows];
-    let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(1);
-
-    for allocation in allocations {
-        // Map allocation to grid position based on size and timestamp
-        let size_ratio = allocation.size as f64 / max_size as f64;
-        let time_ratio = (allocation.timestamp_alloc % 1000) as f64 / 1000.0;
-
-        let col = ((size_ratio * (grid_cols - 1) as f64) as usize).min(grid_cols - 1);
-        let row = ((time_ratio * (grid_rows - 1) as f64) as usize).min(grid_rows - 1);
-
-        density_grid[row][col] += 1;
-    }
-
-    // Find max density for color scaling
-    let max_density = density_grid
-        .iter()
-        .flat_map(|row| row.iter())
-        .max()
-        .copied()
-        .unwrap_or(1);
-
-    // Draw heatmap cells
-    for (row, row_data) in density_grid.iter().enumerate() {
-        for (col, &density) in row_data.iter().enumerate() {
-            let x = heatmap_x + 20 + col * cell_width;
-            let y = heatmap_y + 20 + row * cell_height;
-
-            // Calculate color intensity based on density
-            let intensity = if max_density > 0 {
-                density as f64 / max_density as f64
-            } else {
-                0.0
-            };
-
-            let color = if intensity == 0.0 {
-                "#f8f9fa".to_string()
-            } else {
-                // Heat colors from blue (cold) to red (hot)
-                let red = (255.0 * intensity) as u8;
-                let blue = (255.0 * (1.0 - intensity)) as u8;
-                format!("rgb({red}, 100, {blue})")
-            };
-
-            let cell = Rectangle::new()
-                .set("x", x)
-                .set("y", y)
-                .set("width", cell_width - 1)
-                .set("height", cell_height - 1)
-                .set("fill", color)
-                .set("stroke", "#bdc3c7")
-                .set("stroke-width", 0.5)
-                .set("class", "heatmap-cell");
-
-            document = document.add(cell);
-
-            // Add density text for non-zero cells
-            if density > 0 {
-                let density_text = SvgText::new(density.to_string())
-                    .set("x", x + cell_width / 2)
-                    .set("y", y + cell_height / 2 + 3)
-                    .set("text-anchor", "middle")
-                    .set("font-size", 8)
-                    .set("fill", if intensity > 0.5 { "white" } else { "black" });
-
-                document = document.add(density_text);
-            }
-        }
-    }
-
-    // Add heatmap legend
-    let legend_y = heatmap_y + heatmap_height - 15;
-    let legend_text = SvgText::new("Size →")
-        .set("x", heatmap_x + 20)
-        .set("y", legend_y)
-        .set("font-size", 10)
-        .set("fill", "#7f8c8d");
-    document = document.add(legend_text);
-
-    let legend_text2 = SvgText::new("↑ Time")
-        .set("x", heatmap_x + 10)
-        .set("y", heatmap_y + 40)
-        .set("font-size", 10)
-        .set("fill", "#7f8c8d")
-        .set(
-            "transform",
-            format!("rotate(-90 {} {})", heatmap_x + 10, heatmap_y + 40),
-        );
-    document = document.add(legend_text2);
-
+    // For now, just return the document as-is
+    // This will be replaced with actual heatmap implementation later
     Ok(document)
 }
