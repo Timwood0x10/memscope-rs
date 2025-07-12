@@ -984,6 +984,201 @@ fn get_type_color(type_name: &str) -> &'static str {
     }
 }
 
+/// Get gradient colors for variable type (start_color, end_color)
+fn get_type_gradient_colors(type_name: &str) -> (&'static str, &'static str) {
+    match type_name {
+        "String" => ("#00BCD4", "#00ACC1"), // Enhanced Teal gradient
+        "Vec" => ("#2196F3", "#1976D2"),    // Enhanced Blue gradient
+        "Box" => ("#F44336", "#D32F2F"),    // Enhanced Red gradient
+        "Rc" | "Arc" => ("#FF9800", "#F57C00"), // Enhanced Orange gradient
+        "HashMap" => ("#4CAF50", "#388E3C"), // Enhanced Green gradient
+        "i32" | "u32" | "i64" | "u64" | "usize" => ("#9C27B0", "#673AB7"), // Purple gradient for numbers
+        "f32" | "f64" => ("#FF5722", "#D84315"), // Deep Orange gradient for floats
+        "bool" => ("#8BC34A", "#689F38"),   // Light Green gradient for booleans
+        "char" => ("#E91E63", "#C2185B"),   // Pink gradient for chars
+        _ => ("#607D8B", "#455A64"),        // Blue Gray gradient for custom/unknown types
+    }
+}
+
+/// Calculate dynamic matrix size based on variable count
+fn calculate_dynamic_matrix_size(var_count: usize) -> (i32, i32) {
+    let base_width = 320;
+    let base_height = 200;
+    let standard_vars = 5;
+    
+    let width = if var_count > standard_vars {
+        base_width + ((var_count - standard_vars) * 60) as i32
+    } else if var_count < standard_vars {
+        base_width - ((standard_vars - var_count) * 20) as i32
+    } else {
+        base_width
+    };
+    
+    let height = base_height + (var_count * 40) as i32;
+    (width.max(280), height.max(180)) // Minimum size protection
+}
+
+/// Calculate scope lifetime with enhanced logic for Global scope
+fn calculate_scope_lifetime(scope_name: &str, vars: &[&AllocationInfo]) -> u64 {
+    if vars.is_empty() {
+        return 0;
+    }
+    
+    if scope_name == "Global" {
+        // Global scope: calculate total program span
+        let all_times: Vec<_> = vars.iter().map(|v| v.timestamp_alloc).collect();
+        if all_times.len() > 1 {
+            let min_time = all_times.iter().min().unwrap();
+            let max_time = all_times.iter().max().unwrap();
+            (max_time - min_time) as u64
+        } else {
+            // Single variable in global scope - estimate reasonable lifetime
+            1000 // Default 1 second for global variables
+        }
+    } else {
+        // Local scope: calculate based on variable lifetimes
+        let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
+        let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
+        (end - start) as u64
+    }
+}
+
+/// Prioritize scopes for display based on importance
+fn prioritize_scopes_for_display<'a>(
+    scope_groups: &'a HashMap<String, Vec<&'a AllocationInfo>>
+) -> Vec<(String, Vec<&'a AllocationInfo>)> {
+    let mut scopes_with_priority: Vec<_> = scope_groups
+        .iter()
+        .map(|(name, vars)| {
+            let priority = calculate_scope_priority(name, vars);
+            let total_memory: usize = vars.iter().map(|v| v.size).sum();
+            (name.clone(), vars.clone(), priority, total_memory)
+        })
+        .collect();
+    
+    // Sort by priority (higher first), then by memory usage (larger first)
+    scopes_with_priority.sort_by(|a, b| {
+        b.2.cmp(&a.2).then(b.3.cmp(&a.3))
+    });
+    
+    scopes_with_priority
+        .into_iter()
+        .map(|(name, vars, _, _)| (name, vars))
+        .collect()
+}
+
+/// Calculate scope priority based on name patterns and characteristics
+fn calculate_scope_priority(scope_name: &str, vars: &[&AllocationInfo]) -> u8 {
+    let name_lower = scope_name.to_lowercase();
+    
+    // CRITICAL SCOPES (Priority: 100)
+    if name_lower == "global" || name_lower == "main" || 
+       name_lower.contains("error") || name_lower.contains("panic") {
+        return 100;
+    }
+    
+    // HIGH PRIORITY (Priority: 80)
+    if name_lower.contains("process") || name_lower.contains("parse") ||
+       name_lower.contains("compute") || name_lower.contains("algorithm") ||
+       name_lower.contains("core") || name_lower.contains("engine") {
+        return 80;
+    }
+    
+    // MEDIUM PRIORITY (Priority: 60)
+    if name_lower.contains("util") || name_lower.contains("helper") ||
+       name_lower.contains("format") || name_lower.contains("convert") {
+        return 60;
+    }
+    
+    // LOW PRIORITY (Priority: 40)
+    if name_lower.contains("test") || name_lower.contains("debug") ||
+       name_lower.contains("macro") || name_lower.contains("generated") {
+        return 40;
+    }
+    
+    // DEFAULT PRIORITY based on memory usage and variable count
+    let total_memory: usize = vars.iter().map(|v| v.size).sum();
+    let var_count = vars.len();
+    
+    if total_memory > 1024 || var_count > 3 {
+        70 // High memory/variable count
+    } else if total_memory > 256 || var_count > 1 {
+        50 // Medium memory/variable count
+    } else {
+        30 // Low memory/variable count
+    }
+}
+
+/// Export complete scope analysis to JSON file
+fn export_scope_analysis_json(
+    all_scopes: &HashMap<String, Vec<&AllocationInfo>>,
+    displayed_scopes: &[(String, Vec<&AllocationInfo>)]
+) -> TrackingResult<()> {
+    use serde_json::{Map, Value};
+    
+    let mut analysis = Map::new();
+    
+    // Project analysis summary
+    let mut project_analysis = Map::new();
+    project_analysis.insert("total_scopes".to_string(), Value::Number((all_scopes.len() as u64).into()));
+    project_analysis.insert("displayed_in_svg".to_string(), Value::Number((displayed_scopes.len() as u64).into()));
+    project_analysis.insert("exported_to_json".to_string(), Value::Number(((all_scopes.len() - displayed_scopes.len()) as u64).into()));
+    project_analysis.insert("layout_strategy".to_string(), Value::String("hierarchical_priority".to_string()));
+    project_analysis.insert("generation_timestamp".to_string(), Value::String(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string()
+    ));
+    analysis.insert("project_analysis".to_string(), Value::Object(project_analysis));
+    
+    // All scopes data
+    let mut all_scopes_data = Vec::new();
+    for (scope_name, vars) in all_scopes {
+        let total_memory: usize = vars.iter().map(|v| v.size).sum();
+        let is_displayed = displayed_scopes.iter().any(|(name, _)| name == scope_name);
+        
+        let mut scope_data = Map::new();
+        scope_data.insert("scope_name".to_string(), Value::String(scope_name.clone()));
+        scope_data.insert("total_memory".to_string(), Value::Number((total_memory as u64).into()));
+        scope_data.insert("variable_count".to_string(), Value::Number((vars.len() as u64).into()));
+        scope_data.insert("display_status".to_string(), Value::String(
+            if is_displayed { "shown_in_svg".to_string() } else { "json_only".to_string() }
+        ));
+        scope_data.insert("priority".to_string(), Value::Number((calculate_scope_priority(scope_name, vars) as u64).into()));
+        
+        // Variables in this scope
+        let mut variables = Vec::new();
+        for var in vars {
+            if let Some(var_name) = &var.var_name {
+                let mut var_data = Map::new();
+                var_data.insert("name".to_string(), Value::String(var_name.clone()));
+                var_data.insert("type".to_string(), Value::String(
+                    var.type_name.as_deref().unwrap_or("Unknown").to_string()
+                ));
+                var_data.insert("size_bytes".to_string(), Value::Number((var.size as u64).into()));
+                var_data.insert("timestamp".to_string(), Value::Number((var.timestamp_alloc as u64).into()));
+                variables.push(Value::Object(var_data));
+            }
+        }
+        scope_data.insert("variables".to_string(), Value::Array(variables));
+        
+        all_scopes_data.push(Value::Object(scope_data));
+    }
+    analysis.insert("all_scopes".to_string(), Value::Array(all_scopes_data));
+    
+    // Write to JSON file
+    let json_content = serde_json::to_string_pretty(&Value::Object(analysis))
+        .map_err(|e| TrackingError::SerializationError(format!("JSON serialization failed: {}", e)))?;
+    
+    std::fs::write("scope_analysis.json", json_content)
+        .map_err(|e| TrackingError::IoError(e))?;
+    
+    tracing::info!("Exported complete scope analysis to scope_analysis.json");
+    Ok(())
+}
+
 /// Get simple type name
 fn get_simple_type(type_name: &str) -> String {
     if type_name.contains("String") {
@@ -1054,7 +1249,7 @@ fn format_bytes(bytes: usize) -> String {
     }
 }
 
-/// Add matrix layout section (replacing timeline)
+/// Add matrix layout section with INTELLIGENT 15-SCOPE LIMITATION
 fn add_matrix_layout_section(
     mut document: Document,
     tracked_vars: &[&AllocationInfo],
@@ -1067,10 +1262,17 @@ fn add_matrix_layout_section(
         let scope = identify_precise_scope(var);
         scope_groups.entry(scope).or_default().push(*var);
     }
+
+    // INTELLIGENT SCOPE PRIORITIZATION - Maximum 15 scopes
+    let prioritized_scopes = prioritize_scopes_for_display(&scope_groups);
+    let selected_scopes: Vec<_> = prioritized_scopes.into_iter().take(15).collect();
     
-    // Calculate maximum duration across all scopes for relative color scaling
-    let max_duration = scope_groups.values()
-        .map(|vars| {
+    tracing::info!("Total scopes found: {}, displaying: {}", 
+                   scope_groups.len(), selected_scopes.len());
+    
+    // Calculate maximum duration across all SELECTED scopes for relative color scaling
+    let max_duration = selected_scopes.iter()
+        .map(|(_, vars)| {
             if !vars.is_empty() {
                 let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
                 let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
@@ -1082,17 +1284,16 @@ fn add_matrix_layout_section(
         .max()
         .unwrap_or(1); // Avoid division by zero
     
-    // Matrix layout parameters with proper spacing to prevent overlap
+    // DYNAMIC GRID LAYOUT - 3 columns, up to 5 rows
     let base_matrix_width = 350;
     let base_matrix_height = 180;
     let spacing_x = 450; // Increased spacing to prevent matrix overlap
     let spacing_y = 250;
     
     let mut positions = Vec::new();
-    let scope_names: Vec<String> = scope_groups.keys().cloned().collect();
     
-    // Calculate positions for matrices
-    for (i, scope_name) in scope_names.iter().enumerate() {
+    // Calculate positions for SELECTED matrices only
+    for (i, (scope_name, _)) in selected_scopes.iter().enumerate() {
         let col = i % 3;
         let row = i / 3;
         let x = start_x + (col as i32 * spacing_x);
@@ -1100,33 +1301,38 @@ fn add_matrix_layout_section(
         positions.push((scope_name.clone(), x, y));
     }
     
-    // Draw relationship lines first
+    // Draw relationship lines first (only for displayed scopes)
     for (i, (scope_name, x, y)) in positions.iter().enumerate() {
         if scope_name != "Global" && i > 0 {
-            let (_, global_x, global_y) = &positions[0];
-            let line = Line::new()
-                .set("x1", global_x + base_matrix_width / 2)
-                .set("y1", global_y + base_matrix_height)
-                .set("x2", x + base_matrix_width / 2)
-                .set("y2", *y)
-                .set("stroke", "#7F8C8D")
-                .set("stroke-width", 2)
-                .set("stroke-dasharray", "5,3");
-            document = document.add(line);
+            // Find Global scope position
+            if let Some((_, global_x, global_y)) = positions.iter().find(|(name, _, _)| name == "Global") {
+                let line = Line::new()
+                    .set("x1", global_x + base_matrix_width / 2)
+                    .set("y1", global_y + base_matrix_height)
+                    .set("x2", x + base_matrix_width / 2)
+                    .set("y2", *y)
+                    .set("stroke", "#7F8C8D")
+                    .set("stroke-width", 2)
+                    .set("stroke-dasharray", "5,3");
+                document = document.add(line);
+            }
         }
     }
     
-    // Render scope matrices with relative color scaling
-    for (scope_name, x, y) in positions {
-        if let Some(vars) = scope_groups.get(&scope_name) {
-            document = render_scope_matrix_fixed(document, &scope_name, vars, x, y, base_matrix_width, base_matrix_height, max_duration)?;
-        }
+    // Render SELECTED scope matrices with relative color scaling
+    for ((scope_name, vars), (_, x, y)) in selected_scopes.iter().zip(positions.iter()) {
+        document = render_scope_matrix_fixed(document, scope_name, vars, *x, *y, base_matrix_width, base_matrix_height, max_duration)?;
+    }
+    
+    // Export complete data to JSON if there are overflow scopes
+    if scope_groups.len() > 15 {
+        export_scope_analysis_json(&scope_groups, &selected_scopes)?;
     }
     
     Ok(document)
 }
 
-/// Render single scope matrix with fixed spacing to prevent overlap - NO EXPLICIT TIME AXIS
+/// Render single scope matrix with DYNAMIC SIZING and ENHANCED MEMORY VISUALIZATION
 fn render_scope_matrix_fixed(
     mut document: Document,
     scope_name: &str,
@@ -1137,17 +1343,19 @@ fn render_scope_matrix_fixed(
     height: i32,
     max_duration: u64,  // Maximum duration across all scopes for normalization
 ) -> TrackingResult<Document> {
+    // DYNAMIC MATRIX SIZING based on variable count
+    let (dynamic_width, dynamic_height) = calculate_dynamic_matrix_size(vars.len());
+    let actual_width = dynamic_width.max(width);
+    let actual_height = dynamic_height.max(height);
+    
     let mut matrix_group = Group::new()
         .set("transform", format!("translate({}, {})", x, y));
     
-    // Calculate duration for this scope - NO EXPLICIT TIME DISPLAY
-    let (start_ts, end_ts, duration) = if !vars.is_empty() {
-        let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
-        let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
-        (start, end, (end - start) as u64)
-    } else {
-        (0, 0, 0)
-    };
+    // ENHANCED SCOPE LIFETIME CALCULATION
+    let duration = calculate_scope_lifetime(scope_name, vars);
+    let total_memory = vars.iter().map(|v| v.size).sum::<usize>();
+    let peak_memory = vars.iter().map(|v| v.size).max().unwrap_or(0);
+    let active_vars = vars.len();
     
     // Calculate duration ratio (0.0 to 1.0)
     let duration_ratio = if max_duration > 0 {
@@ -1160,82 +1368,155 @@ fn render_scope_matrix_fixed(
     let is_global = scope_name == "Global";
     let border_color = get_duration_color(duration_ratio, is_global);
     
-    // Matrix container with template style
+    // ENHANCED MATRIX CONTAINER with dynamic sizing
     let container = Rectangle::new()
-        .set("width", width)
-        .set("height", height)
+        .set("width", actual_width)
+        .set("height", actual_height)
         .set("fill", "rgba(30, 64, 175, 0.1)")
-        .set("stroke", border_color.as_str())  // 使用计算出的颜色
+        .set("stroke", border_color.as_str())
         .set("stroke-width", 3)
         .set("stroke-dasharray", if scope_name != "Global" { "8,4" } else { "none" })
         .set("rx", 12);
     matrix_group = matrix_group.add(container);
     
-    // STRICTLY REMOVE EXPLICIT TIME AXIS - Use English lifecycle annotation instead
-    let lifecycle_text = format!("Scope: {} | Life: {}ms", scope_name, duration);
-    let lifecycle_annotation = SvgText::new(lifecycle_text)
-        .set("x", width - 10)
-        .set("y", 15)
-        .set("text-anchor", "end")
-        .set("font-size", 9)
-        .set("fill", "#94a3b8")
-        .set("font-style", "italic");
-    matrix_group = matrix_group.add(lifecycle_annotation);
-    
-    // Scope title
-    let title = SvgText::new(format!("Scope: {}", scope_name))
+    // ENHANCED SCOPE HEADER with comprehensive memory overview - ENGLISH ONLY
+    let header_text = format!("Scope: {} | Memory: {} | Variables: {} | Lifetime: {}ms", 
+                             scope_name, 
+                             format_bytes(total_memory), 
+                             active_vars, 
+                             duration);
+    let enhanced_title = SvgText::new(header_text)
         .set("x", 15)
         .set("y", 25)
-        .set("font-size", 14)
+        .set("font-size", 11)
         .set("font-weight", "700")
         .set("fill", "#f8fafc");
-    matrix_group = matrix_group.add(title);
+    matrix_group = matrix_group.add(enhanced_title);
     
-    // Variables section with proper spacing to prevent font overlap
+    // Variables section with ENHANCED MODERN CARD DESIGN
     let var_start_y = 45;
-    let var_height = 15;
-    let var_spacing = 25; // Increased spacing to prevent overlap
+    let card_height = 35; // Increased height for card design
+    let var_spacing = 40; // More spacing for cards
     let font_size = 10;
     
-    for (i, var) in vars.iter().take(5).enumerate() { // Limit to 5 to prevent overflow
+    for (i, var) in vars.iter().take(4).enumerate() { // Limit to 4 for better layout
         let var_y = var_start_y + (i as i32 * var_spacing);
         let var_name = var.var_name.as_ref().unwrap();
         let type_name = get_simple_type(var.type_name.as_ref().unwrap_or(&"Unknown".to_string()));
-        
-        // Variable bar
-        let bar_width = std::cmp::min((var.size as f64 / 1000.0 * 120.0) as i32 + 20, 180);
-        let var_bar = Rectangle::new()
-            .set("x", 15)
-            .set("y", var_y)
-            .set("width", bar_width)
-            .set("height", var_height)
-            .set("fill", get_type_color(&type_name));
-        matrix_group = matrix_group.add(var_bar);
-        
-        // Variable label in format: var_name (type) | [====] | time_ms
         let duration_ms = estimate_variable_duration(var);
-        let bar_chars = std::cmp::min(bar_width / 20, 6);
-        let bar_visual = "=".repeat(bar_chars as usize) + &"-".repeat(6 - bar_chars as usize);
-        let label_text = format!("{} ({}) | [{}] | {}ms", 
-                                var_name, type_name, bar_visual, duration_ms);
-        let var_label = SvgText::new(label_text)
-            .set("x", 20)
-            .set("y", var_y + var_height - 2)
-            .set("font-size", font_size)
-            .set("fill", "#e2e8f0");
+        
+        // Calculate progress percentage for the progress bar
+        let max_size_in_scope = vars.iter().map(|v| v.size).max().unwrap_or(1);
+        let progress_ratio = var.size as f64 / max_size_in_scope as f64;
+        let progress_width = (progress_ratio * 180.0) as i32;
+        
+        // ENHANCED MODERN CARD with dynamic width
+        let card_width = actual_width - 20;
+        let card_bg = Rectangle::new()
+            .set("x", 10)
+            .set("y", var_y - 5)
+            .set("width", card_width)
+            .set("height", card_height)
+            .set("fill", "rgba(255, 255, 255, 0.08)")
+            .set("stroke", "rgba(255, 255, 255, 0.15)")
+            .set("stroke-width", 1)
+            .set("rx", 8)
+            .set("ry", 8);
+        matrix_group = matrix_group.add(card_bg);
+        
+        // Variable name with enhanced styling
+        let var_label = SvgText::new(var_name.clone())
+            .set("x", 18)
+            .set("y", var_y + 8)
+            .set("font-size", 12)
+            .set("font-weight", "bold")
+            .set("fill", "#FFFFFF")
+            .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
         matrix_group = matrix_group.add(var_label);
+        
+        // Type label with enhanced color coding
+        let (type_start_color, _) = get_type_gradient_colors(&type_name);
+        let type_label = SvgText::new(format!("({})", type_name))
+            .set("x", 18)
+            .set("y", var_y + 22)
+            .set("font-size", 9)
+            .set("fill", type_start_color)
+            .set("font-weight", "600");
+        matrix_group = matrix_group.add(type_label);
+        
+        // ENHANCED PROGRESS BAR with better proportions
+        let progress_bar_width = (card_width as f64 * 0.4) as i32; // 40% of card width
+        let progress_bg = Rectangle::new()
+            .set("x", card_width / 2 - 20)
+            .set("y", var_y + 5)
+            .set("width", progress_bar_width)
+            .set("height", 10)
+            .set("fill", "rgba(255, 255, 255, 0.1)")
+            .set("stroke", "rgba(255, 255, 255, 0.2)")
+            .set("stroke-width", 1)
+            .set("rx", 5)
+            .set("ry", 5);
+        matrix_group = matrix_group.add(progress_bg);
+        
+        // ENHANCED GRADIENT PROGRESS BAR with type-specific colors
+        let (start_color, end_color) = get_type_gradient_colors(&type_name);
+        let progress_fill_width = (progress_ratio * progress_bar_width as f64) as i32;
+        let progress_fill = Rectangle::new()
+            .set("x", card_width / 2 - 20)
+            .set("y", var_y + 5)
+            .set("width", progress_fill_width)
+            .set("height", 10)
+            .set("fill", start_color) // Enhanced with gradient colors
+            .set("rx", 5)
+            .set("ry", 5);
+        matrix_group = matrix_group.add(progress_fill);
+        
+        // DIRECT SIZE DISPLAY instead of percentage - MORE INTUITIVE
+        let size_display = format!("{} / {}", 
+                                  format_bytes(var.size), 
+                                  format_bytes(max_size_in_scope));
+        let size_label = SvgText::new(size_display)
+            .set("x", card_width / 2 + progress_bar_width / 2 + 10)
+            .set("y", var_y + 12)
+            .set("font-size", 9)
+            .set("font-weight", "bold")
+            .set("fill", "#E2E8F0");
+        matrix_group = matrix_group.add(size_label);
+        
+        // ENHANCED TIME ANNOTATION with activity status - ENGLISH ONLY
+        let time_label = SvgText::new(format!("Active {}ms", duration_ms))
+            .set("x", card_width - 80)
+            .set("y", var_y + 12)
+            .set("font-size", 8)
+            .set("fill", "#FCD34D")
+            .set("font-weight", "500");
+        matrix_group = matrix_group.add(time_label);
     }
     
     // Show "more" indicator if needed
-    if vars.len() > 5 {
-        let more_text = format!("+ {} more", vars.len() - 5);
+    if vars.len() > 4 {
+        let more_text = format!("+ {} more variables", vars.len() - 4);
         let more_label = SvgText::new(more_text)
             .set("x", 20)
-            .set("y", var_start_y + (5 * var_spacing) + 10)
+            .set("y", var_start_y + (4 * var_spacing) + 10)
             .set("font-size", 9)
-            .set("fill", "#94a3b8");
+            .set("font-weight", "500")
+            .set("fill", "#94A3B8")
+            .set("font-style", "italic");
         matrix_group = matrix_group.add(more_label);
     }
+
+    // INTUITIVE EXPLANATION at bottom of matrix - ENGLISH ONLY
+    let explanation_y = actual_height - 15;
+    let explanation_text = "Progress Bar: Current Size / Max Size in Scope";
+    let explanation = SvgText::new(explanation_text)
+        .set("x", 15)
+        .set("y", explanation_y)
+        .set("font-size", 8)
+        .set("font-weight", "500")
+        .set("fill", "#FCD34D")
+        .set("font-style", "italic");
+    matrix_group = matrix_group.add(explanation);
     
     document = document.add(matrix_group);
     Ok(document)
