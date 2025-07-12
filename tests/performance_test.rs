@@ -58,9 +58,9 @@ fn benchmark_allocation_tracking_overhead() {
     let threshold = if cfg!(debug_assertions) {
         2000.0 // Allow higher overhead in debug builds
     } else {
-        500.0  // Stricter threshold for release builds
+        500.0 // Stricter threshold for release builds
     };
-    
+
     assert!(
         overhead_percent < threshold,
         "Tracking overhead too high: {overhead_percent:.2}% (threshold: {threshold:.2}%)"

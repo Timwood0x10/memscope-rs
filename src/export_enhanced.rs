@@ -2,6 +2,7 @@
 
 use crate::tracker::MemoryTracker;
 use crate::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage};
+use crate::utils::{format_bytes, get_category_color, simplify_type_name};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
@@ -10,7 +11,10 @@ use svg::node::element::{Circle, Rectangle, Text as SvgText};
 use svg::Document;
 
 /// Enhanced type information processing with variable names
-pub fn enhance_type_information(memory_by_type: &[TypeMemoryUsage], allocations: &[AllocationInfo]) -> Vec<EnhancedTypeInfo> {
+pub fn enhance_type_information(
+    memory_by_type: &[TypeMemoryUsage],
+    allocations: &[AllocationInfo],
+) -> Vec<EnhancedTypeInfo> {
     memory_by_type
         .iter()
         .filter_map(|usage| {
@@ -85,67 +89,6 @@ pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationC
     result
 }
 
-/// Simplify Rust type names for better readability
-fn simplify_type_name(type_name: &str) -> (String, String) {
-    if type_name.starts_with("alloc::vec::Vec<") || type_name.starts_with("std::vec::Vec<") {
-        let inner = extract_generic_type(type_name, "Vec");
-        (format!("Vec<{inner}>"), "Collections".to_string())
-    } else if type_name.starts_with("alloc::string::String") || type_name == "String" {
-        ("String".to_string(), "Text".to_string())
-    } else if type_name.starts_with("alloc::boxed::Box<")
-        || type_name.starts_with("std::boxed::Box<")
-    {
-        let inner = extract_generic_type(type_name, "Box");
-        (format!("Box<{inner}>"), "Smart Pointers".to_string())
-    } else if type_name.starts_with("alloc::rc::Rc<") || type_name.starts_with("std::rc::Rc<") {
-        let inner = extract_generic_type(type_name, "Rc");
-        (format!("Rc<{inner}>"), "Reference Counted".to_string())
-    } else if type_name.starts_with("alloc::sync::Arc<") || type_name.starts_with("std::sync::Arc<")
-    {
-        let inner = extract_generic_type(type_name, "Arc");
-        (format!("Arc<{inner}>"), "Thread-Safe Shared".to_string())
-    } else if type_name.contains("HashMap") {
-        ("HashMap".to_string(), "Collections".to_string())
-    } else if type_name.contains("BTreeMap") {
-        ("BTreeMap".to_string(), "Collections".to_string())
-    } else if type_name.contains("VecDeque") {
-        ("VecDeque".to_string(), "Collections".to_string())
-    } else {
-        // For other types, try to extract the last component
-        let simplified = type_name
-            .split("::")
-            .last()
-            .unwrap_or(type_name)
-            .to_string();
-        (simplified, "Other".to_string())
-    }
-}
-
-/// Extract generic type parameter for display
-fn extract_generic_type(type_name: &str, container: &str) -> String {
-    if let Some(start) = type_name.find(&format!("{container}<")) {
-        let start = start + container.len() + 1;
-        if let Some(end) = type_name[start..].rfind('>') {
-            let inner = &type_name[start..start + end];
-            // Simplify the inner type too
-            return inner.split("::").last().unwrap_or(inner).to_string();
-        }
-    }
-    "?".to_string()
-}
-
-/// Get color for category
-fn get_category_color(category: &str) -> String {
-    match category {
-        "Collections" => "#3498db".to_string(),        // Blue
-        "Text" => "#2ecc71".to_string(),               // Green
-        "Smart Pointers" => "#e74c3c".to_string(),     // Red
-        "Reference Counted" => "#f39c12".to_string(),  // Orange
-        "Thread-Safe Shared" => "#9b59b6".to_string(), // Purple
-        _ => "#95a5a6".to_string(),                    // Gray
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct EnhancedTypeInfo {
     simplified_name: String,
@@ -161,24 +104,6 @@ pub struct AllocationCategory {
     allocations: Vec<AllocationInfo>,
     total_size: usize,
     color: String,
-}
-
-/// Format bytes in human readable format
-fn format_bytes(bytes: usize) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
-    let mut size = bytes as f64;
-    let mut unit_index = 0;
-
-    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit_index += 1;
-    }
-
-    if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
-    } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
-    }
 }
 
 /// Enhanced SVG export with comprehensive visualization
@@ -211,7 +136,7 @@ pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> 
         );
 
     // COMPACT LAYOUT - Only essential components for 400px height
-    
+
     // Title (y: 0-50)
     let title = SvgText::new("Top 3 Memory Analysis - Compact View")
         .set("x", 700)
@@ -245,7 +170,7 @@ fn add_compact_type_chart(
     let chart_x = 100;
     let chart_y = 60;
     let chart_width = 1200;
-    
+
     if types.is_empty() {
         let no_data = SvgText::new("No tracked variables found")
             .set("x", chart_x + chart_width / 2)
@@ -258,11 +183,11 @@ fn add_compact_type_chart(
     }
 
     let max_size = types.iter().map(|t| t.total_size).max().unwrap_or(1);
-    
+
     // Show TOP 3 ONLY
     for (i, type_info) in types.iter().take(3).enumerate() {
         let y = chart_y + (i as i32) * 80;
-        
+
         // Progress bar background
         let bg_bar = Rectangle::new()
             .set("x", chart_x)
@@ -274,7 +199,7 @@ fn add_compact_type_chart(
             .set("stroke-width", 1)
             .set("rx", 6);
         document = document.add(bg_bar);
-        
+
         // Progress bar fill
         let bar_width = ((type_info.total_size as f64 / max_size as f64) * 600.0) as i32;
         let color = get_category_color(&type_info.category);
@@ -286,15 +211,15 @@ fn add_compact_type_chart(
             .set("fill", color)
             .set("rx", 6);
         document = document.add(progress_bar);
-        
+
         // Type and size info
         let content_text = format!(
             "{} ({} vars) | Total: {}",
-            type_info.simplified_name, 
-            type_info.allocation_count, 
+            type_info.simplified_name,
+            type_info.allocation_count,
             format_bytes(type_info.total_size)
         );
-        
+
         let content_label = SvgText::new(content_text)
             .set("x", chart_x + 10)
             .set("y", y + 20)
@@ -303,7 +228,7 @@ fn add_compact_type_chart(
             .set("fill", "#FFFFFF")
             .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
         document = document.add(content_label);
-        
+
         // Progress percentage
         let percentage = (type_info.total_size as f64 / max_size as f64 * 100.0) as i32;
         let percent_label = SvgText::new(format!("{}%", percentage))
@@ -313,14 +238,14 @@ fn add_compact_type_chart(
             .set("font-weight", "bold")
             .set("fill", "#ECF0F1");
         document = document.add(percent_label);
-        
+
         // Variable names below
         let var_names_text = if type_info.variable_names.is_empty() {
             "no tracked vars".to_string()
         } else {
             format!("Variables: {}", type_info.variable_names.join(", "))
         };
-        
+
         let vars_label = SvgText::new(var_names_text)
             .set("x", chart_x + 10)
             .set("y", y + 45)
@@ -340,13 +265,13 @@ fn add_compact_summary(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let tracked_vars = allocations.iter().filter(|a| a.var_name.is_some()).count();
-    
+
     let summary_text = format!(
         "Showing TOP 3 memory-consuming types | Total tracked: {} variables | Active memory: {}",
         tracked_vars,
         format_bytes(stats.active_memory)
     );
-    
+
     let summary = SvgText::new(summary_text)
         .set("x", 700)
         .set("y", 370)
@@ -360,7 +285,10 @@ fn add_compact_summary(
 }
 
 /// Add enhanced header with statistics
-pub fn add_enhanced_header(mut document: Document, stats: &MemoryStats) -> TrackingResult<Document> {
+pub fn add_enhanced_header(
+    mut document: Document,
+    stats: &MemoryStats,
+) -> TrackingResult<Document> {
     // Main title
     let title = SvgText::new("Rust Memory Usage Analysis")
         .set("x", 600)
@@ -490,7 +418,7 @@ pub fn add_enhanced_type_chart(
         } else {
             type_info.variable_names.join(", ")
         };
-        
+
         let size_text = SvgText::new(format!(
             "{} ({} allocs) - Variables: {}",
             format_bytes(type_info.total_size),
@@ -588,7 +516,9 @@ pub fn add_categorized_allocations(
         document = document.add(name_text);
 
         // Enhanced variable names display - 优化文字溢出问题
-        let var_names: Vec<String> = category.allocations.iter()
+        let var_names: Vec<String> = category
+            .allocations
+            .iter()
             .filter_map(|a| {
                 if let Some(var_name) = &a.var_name {
                     let type_name = a.type_name.as_deref().unwrap_or("Unknown");
@@ -606,22 +536,30 @@ pub fn add_categorized_allocations(
             })
             .take(3) // 减少显示的变量数量，避免溢出
             .collect();
-        
+
         let mut display_text = if var_names.is_empty() {
-            format!("{} ({} vars)", format_bytes(category.total_size), category.allocations.len())
+            format!(
+                "{} ({} vars)",
+                format_bytes(category.total_size),
+                category.allocations.len()
+            )
         } else {
-            format!("{} - Vars: {}", format_bytes(category.total_size), var_names.join(", "))
+            format!(
+                "{} - Vars: {}",
+                format_bytes(category.total_size),
+                var_names.join(", ")
+            )
         };
-        
+
         // 动态截断文字，确保不超出图表边界
         let max_text_width = chart_width - 180; // 预留边距
         let estimated_char_width = 7; // 估算每个字符宽度
         let max_chars = (max_text_width / estimated_char_width) as usize;
-        
+
         if display_text.len() > max_chars {
             display_text = format!("{}...", &display_text[..max_chars.saturating_sub(3)]);
         }
-        
+
         let size_text = SvgText::new(display_text)
             .set("x", chart_x + 160)
             .set("y", y + bar_height / 2 + 4)
@@ -762,13 +700,18 @@ pub fn add_memory_timeline(
         if let Some(var_name) = &allocation.var_name {
             let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
             let (simplified_type, _) = simplify_type_name(type_name);
-            let mut label_text = format!("{}({}) memory: {}", var_name, simplified_type, format_bytes(allocation.size));
-            
+            let mut label_text = format!(
+                "{}({}) memory: {}",
+                var_name,
+                simplified_type,
+                format_bytes(allocation.size)
+            );
+
             // Truncate text if too long to prevent overflow
             if label_text.len() > 45 {
                 label_text = format!("{}...", &label_text[..42]);
             }
-            
+
             let label = SvgText::new(label_text)
                 .set("x", label_start_x + 5)
                 .set("y", y + 4)
@@ -971,14 +914,23 @@ pub fn add_callstack_analysis(
             // Tracked variables - show variable name and type
             if let Some(type_name) = &allocation.type_name {
                 let (simplified_type, _) = simplify_type_name(type_name);
-                format!("{}({}) memory: {}", var_name, simplified_type, format_bytes(allocation.size))
+                format!(
+                    "{}({}) memory: {}",
+                    var_name,
+                    simplified_type,
+                    format_bytes(allocation.size)
+                )
             } else {
-                format!("{}(Unknown Type) memory: {}", var_name, format_bytes(allocation.size))
+                format!(
+                    "{}(Unknown Type) memory: {}",
+                    var_name,
+                    format_bytes(allocation.size)
+                )
             }
         } else if let Some(type_name) = &allocation.type_name {
             // Untracked allocations with known type - categorize by type and source
             let (simplified_type, _) = simplify_type_name(type_name);
-            
+
             // Try to identify the source of untracked allocations
             if type_name.contains("std::") || type_name.contains("alloc::") {
                 format!("System/Runtime {} (untracked)", simplified_type)
@@ -1539,7 +1491,7 @@ pub fn add_memory_heatmap(
         // 小型项目：较小网格
         (15, 6)
     };
-    
+
     let cell_width = (heatmap_width - 40) / grid_cols;
     let cell_height = (heatmap_height - 40) / grid_rows;
 

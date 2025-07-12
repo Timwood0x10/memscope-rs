@@ -119,7 +119,11 @@ impl MemoryTracker {
                 if let Some(allocation) = active.get_mut(&ptr) {
                     allocation.var_name = Some(var_name.clone());
                     allocation.type_name = Some(type_name.clone());
-                    tracing::debug!("Associated variable '{}' with existing allocation at {:x}", var_name, ptr);
+                    tracing::debug!(
+                        "Associated variable '{}' with existing allocation at {:x}",
+                        var_name,
+                        ptr
+                    );
                     Ok(())
                 } else {
                     // For smart pointers and other complex types, create a synthetic allocation entry
@@ -127,11 +131,11 @@ impl MemoryTracker {
                     let mut synthetic_allocation = AllocationInfo::new(ptr, 0); // Size will be estimated
                     synthetic_allocation.var_name = Some(var_name.clone());
                     synthetic_allocation.type_name = Some(type_name.clone());
-                    
+
                     // Estimate size based on type
                     let estimated_size = estimate_type_size(&type_name);
                     synthetic_allocation.size = estimated_size;
-                    
+
                     // Add to active allocations for tracking
                     active.insert(ptr, synthetic_allocation);
                     tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
@@ -142,7 +146,7 @@ impl MemoryTracker {
             Err(_) => {
                 // If we can't get the lock immediately, it's likely the allocator is busy
                 // We'll just skip the association to avoid deadlock
-                tracing::warn!("Failed to associate variable '{}' - tracker busy", var_name);
+                tracing::debug!("Failed to associate variable '{}' - tracker busy", var_name);
                 Ok(())
             }
         }

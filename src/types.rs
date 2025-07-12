@@ -56,7 +56,7 @@ pub struct AllocationInfo {
     /// Backtrace information (if available)
     #[cfg(feature = "backtrace")]
     pub backtrace: Option<Vec<String>>,
-    
+
     // Enhanced lifecycle tracking fields
     /// Peak memory size reached during lifetime (for growable types)
     pub peak_size: Option<usize>,
@@ -100,7 +100,7 @@ impl AllocationInfo {
             thread_id,
             #[cfg(feature = "backtrace")]
             backtrace: None,
-            
+
             // Initialize enhanced lifecycle fields
             peak_size: Some(size), // Initially same as size
             growth_events: 0,
@@ -135,7 +135,7 @@ impl AllocationInfo {
         self.timestamp_dealloc
             .map(|dealloc| dealloc - self.timestamp_alloc)
     }
-    
+
     /// Record a memory growth event (reallocation)
     pub fn record_growth(&mut self, new_size: usize) {
         self.growth_events += 1;
@@ -144,13 +144,13 @@ impl AllocationInfo {
         } else {
             self.peak_size = Some(new_size);
         }
-        
+
         // Update efficiency score
         if let Some(peak) = self.peak_size {
             self.efficiency_score = Some(self.size as f64 / peak as f64);
         }
     }
-    
+
     /// Record a borrowing event
     pub fn record_borrow(&mut self, is_mutable: bool) {
         if is_mutable {
@@ -159,19 +159,19 @@ impl AllocationInfo {
             self.borrow_count += 1;
         }
     }
-    
+
     /// Record an ownership transfer
     pub fn record_transfer(&mut self) {
         self.transfer_count += 1;
     }
-    
+
     /// Add a metadata tag
     pub fn add_metadata_tag(&mut self, tag: String) {
         if !self.metadata_tags.contains(&tag) {
             self.metadata_tags.push(tag);
         }
     }
-    
+
     /// Calculate memory growth factor
     pub fn memory_growth_factor(&self) -> f64 {
         if let Some(peak) = self.peak_size {
@@ -180,12 +180,12 @@ impl AllocationInfo {
             1.0
         }
     }
-    
+
     /// Classify the risk level of this allocation
     pub fn classify_risk(&mut self) {
         let growth_factor = self.memory_growth_factor();
         let lifetime = self.lifetime_ms().unwrap_or(0) as f64;
-        
+
         self.risk_level = Some(if self.size > 1024 * 1024 || growth_factor > 3.0 {
             RiskLevel::Critical
         } else if self.size > 1024 || growth_factor > 2.0 || lifetime > 10000.0 {
@@ -196,19 +196,20 @@ impl AllocationInfo {
             RiskLevel::Low
         });
     }
-    
+
     /// Determine ownership pattern based on type
     pub fn determine_ownership_pattern(&mut self) {
         if let Some(type_name) = &self.type_name {
-            self.ownership_pattern = Some(if type_name.contains("Rc") || type_name.contains("Arc") {
-                OwnershipPattern::Shared
-            } else if type_name.starts_with('&') {
-                OwnershipPattern::Borrowed
-            } else if self.transfer_count > 0 && self.borrow_count > 0 {
-                OwnershipPattern::Mixed
-            } else {
-                OwnershipPattern::Owned
-            });
+            self.ownership_pattern =
+                Some(if type_name.contains("Rc") || type_name.contains("Arc") {
+                    OwnershipPattern::Shared
+                } else if type_name.starts_with('&') {
+                    OwnershipPattern::Borrowed
+                } else if self.transfer_count > 0 && self.borrow_count > 0 {
+                    OwnershipPattern::Mixed
+                } else {
+                    OwnershipPattern::Owned
+                });
         }
     }
 }
@@ -285,7 +286,7 @@ pub struct LifecycleStats {
     pub long_term_allocations: usize,
     /// Number of suspected memory leaks (active > 10s)
     pub suspected_leaks: usize,
-    
+
     // Enhanced metrics per lifecycle.md
     /// Memory growth events (reallocations, expansions)
     pub memory_growth_events: usize,
