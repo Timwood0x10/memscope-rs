@@ -254,7 +254,7 @@ impl MemoryTracker {
     /// # Arguments
     /// * `path` - Output path for the memory analysis SVG file (recommended: "program_name_memory_analysis.svg")
     pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        crate::export_enhanced::export_enhanced_svg(self, path)
+        crate::visualization::export_memory_analysis(self, path)
     }
 
     /// Export interactive lifecycle timeline showing variable lifecycles and relationships.

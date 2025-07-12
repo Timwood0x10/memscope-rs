@@ -10,7 +10,7 @@ use svg::node::element::{Circle, Rectangle, Text as SvgText};
 use svg::Document;
 
 /// Enhanced type information processing with variable names
-fn enhance_type_information(memory_by_type: &[TypeMemoryUsage], allocations: &[AllocationInfo]) -> Vec<EnhancedTypeInfo> {
+pub fn enhance_type_information(memory_by_type: &[TypeMemoryUsage], allocations: &[AllocationInfo]) -> Vec<EnhancedTypeInfo> {
     memory_by_type
         .iter()
         .filter_map(|usage| {
@@ -52,7 +52,7 @@ fn enhance_type_information(memory_by_type: &[TypeMemoryUsage], allocations: &[A
 }
 
 /// Categorize allocations for better visualization
-fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationCategory> {
+pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationCategory> {
     let mut categories: HashMap<String, AllocationCategory> = HashMap::new();
 
     for allocation in allocations {
@@ -147,7 +147,7 @@ fn get_category_color(category: &str) -> String {
 }
 
 #[derive(Debug, Clone)]
-struct EnhancedTypeInfo {
+pub struct EnhancedTypeInfo {
     simplified_name: String,
     category: String,
     total_size: usize,
@@ -156,7 +156,7 @@ struct EnhancedTypeInfo {
 }
 
 #[derive(Debug, Clone)]
-struct AllocationCategory {
+pub struct AllocationCategory {
     name: String,
     allocations: Vec<AllocationInfo>,
     total_size: usize,
@@ -360,7 +360,7 @@ fn add_compact_summary(
 }
 
 /// Add enhanced header with statistics
-fn add_enhanced_header(mut document: Document, stats: &MemoryStats) -> TrackingResult<Document> {
+pub fn add_enhanced_header(mut document: Document, stats: &MemoryStats) -> TrackingResult<Document> {
     // Main title
     let title = SvgText::new("Rust Memory Usage Analysis")
         .set("x", 600)
@@ -409,7 +409,7 @@ fn add_enhanced_header(mut document: Document, stats: &MemoryStats) -> TrackingR
 }
 
 /// Add enhanced type chart with categories
-fn add_enhanced_type_chart(
+pub fn add_enhanced_type_chart(
     mut document: Document,
     types: &[EnhancedTypeInfo],
 ) -> TrackingResult<Document> {
@@ -511,7 +511,7 @@ fn add_enhanced_type_chart(
 }
 
 /// Add categorized allocations visualization
-fn add_categorized_allocations(
+pub fn add_categorized_allocations(
     mut document: Document,
     categories: &[AllocationCategory],
 ) -> TrackingResult<Document> {
@@ -622,7 +622,7 @@ fn add_categorized_allocations(
 }
 
 /// Add memory timeline visualization
-fn add_memory_timeline(
+pub fn add_memory_timeline(
     mut document: Document,
     allocations: &[AllocationInfo],
     _stats: &MemoryStats,
@@ -791,7 +791,7 @@ fn add_memory_timeline(
 }
 
 /// Add fragmentation analysis chart
-fn add_fragmentation_analysis(
+pub fn add_fragmentation_analysis(
     mut document: Document,
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
@@ -914,7 +914,7 @@ fn add_fragmentation_analysis(
 }
 
 /// Add call stack analysis visualization
-fn add_callstack_analysis(
+pub fn add_callstack_analysis(
     mut document: Document,
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
@@ -1043,7 +1043,7 @@ fn add_callstack_analysis(
 }
 
 /// Add memory growth trends visualization
-fn add_memory_growth_trends(
+pub fn add_memory_growth_trends(
     mut document: Document,
     allocations: &[AllocationInfo],
     stats: &MemoryStats,
@@ -1159,7 +1159,7 @@ fn add_memory_growth_trends(
 }
 
 /// Add interactive legend
-fn add_interactive_legend(mut document: Document) -> TrackingResult<Document> {
+pub fn add_interactive_legend(mut document: Document) -> TrackingResult<Document> {
     let legend_x = 50;
     let legend_y = 2070;
     let legend_width = 850;
@@ -1229,7 +1229,7 @@ fn add_interactive_legend(mut document: Document) -> TrackingResult<Document> {
 }
 
 /// Add comprehensive summary
-fn add_comprehensive_summary(
+pub fn add_comprehensive_summary(
     mut document: Document,
     stats: &MemoryStats,
     allocations: &[AllocationInfo],
@@ -1332,7 +1332,7 @@ fn add_css_styles(mut document: Document) -> TrackingResult<Document> {
 }
 
 /// Add performance dashboard with key metrics
-fn add_performance_dashboard(
+pub fn add_performance_dashboard(
     mut document: Document,
     stats: &MemoryStats,
     _allocations: &[AllocationInfo],
@@ -1466,7 +1466,7 @@ fn add_performance_dashboard(
 }
 
 /// Add memory heatmap visualization
-fn add_memory_heatmap(
+pub fn add_memory_heatmap(
     mut document: Document,
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {

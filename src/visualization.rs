@@ -63,160 +63,55 @@ pub fn export_lifecycle_timeline<P: AsRef<Path>>(
     Ok(())
 }
 
-/// Create COMPACT memory analysis SVG - OPTIMIZED for space efficiency
+/// Create comprehensive memory analysis SVG with original 12-section layout
 fn create_memory_analysis_svg(
     allocations: &[AllocationInfo],
     stats: &MemoryStats,
 ) -> TrackingResult<Document> {
-    let width = 1400;
-    let height = 400; // REDUCED from 800 to 400 for space efficiency
+    // Create comprehensive memory analysis using the original enhanced export logic
+    let width = 1200;
+    let height = 2400; // Tall document for comprehensive analysis
 
     let mut document = Document::new()
         .set("viewBox", (0, 0, width, height))
         .set("width", width)
         .set("height", height)
-        .set("style", "background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%); font-family: 'Segoe UI', Arial, sans-serif;");
+        .set("style", "background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%); font-family: 'Segoe UI', Arial, sans-serif;");
 
-    // Title
-    let title = SvgText::new("Top 3 Memory Analysis - Progress Bar Visualization")
-        .set("x", width / 2)
-        .set("y", 40)
-        .set("text-anchor", "middle")
-        .set("font-size", 28)
-        .set("font-weight", "bold")
-        .set("fill", "#ECF0F1");
-    document = document.add(title);
+    // 1. Title: Rust Memory Usage Analysis (handled by add_enhanced_header)
+    document = crate::export_enhanced::add_enhanced_header(document, stats)?;
 
-    // Filter tracked variables
-    let tracked_vars: Vec<_> = allocations
-        .iter()
-        .filter(|a| a.var_name.is_some())
-        .collect();
+    // 3. Performance Dashboard
+    document = crate::export_enhanced::add_performance_dashboard(document, stats, allocations)?;
 
-    if tracked_vars.is_empty() {
-        let no_data =
-            SvgText::new("No tracked variables found - Use track_var! macro to track variables")
-                .set("x", width / 2)
-                .set("y", height / 2)
-                .set("text-anchor", "middle")
-                .set("font-size", 16)
-                .set("fill", "#E74C3C");
-        document = document.add(no_data);
-        return Ok(document);
-    }
+    // 4. Memory Allocation Heatmap
+    document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
 
-    // Group by type and get TOP 3 ONLY
-    let mut type_stats: HashMap<String, (usize, usize, Vec<String>)> = HashMap::new();
-    for allocation in &tracked_vars {
-        if let Some(var_name) = &allocation.var_name {
-            let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
-            let simple_type = get_simple_type(type_name);
+    // 5. Left side: Memory Usage by Type
+    let memory_by_type = crate::export_enhanced::enhance_type_information(&[], allocations);
+    document = crate::export_enhanced::add_enhanced_type_chart(document, &memory_by_type)?;
 
-            let entry = type_stats.entry(simple_type).or_insert((0, 0, Vec::new()));
-            entry.0 += 1;
-            entry.1 += allocation.size;
-            entry
-                .2
-                .push(format!("{}({})", var_name, format_bytes(allocation.size)));
-        }
-    }
+    // 6. Right side: Memory Fragmentation Analysis
+    document = crate::export_enhanced::add_fragmentation_analysis(document, allocations)?;
 
-    // Sort by total size and take TOP 3 ONLY
-    let mut sorted_types: Vec<_> = type_stats.into_iter().collect();
-    sorted_types.sort_by(|a, b| b.1.1.cmp(&a.1.1)); // Sort by total size descending
-    sorted_types.truncate(3); // STRICTLY TOP 3
+    // 7. Left side: Tracked Variables by Category
+    let categorized = crate::export_enhanced::categorize_allocations(allocations);
+    document = crate::export_enhanced::add_categorized_allocations(document, &categorized)?;
 
-    if sorted_types.is_empty() {
-        let no_data = SvgText::new("No memory data available")
-            .set("x", width / 2)
-            .set("y", height / 2)
-            .set("text-anchor", "middle")
-            .set("font-size", 16)
-            .set("fill", "#E74C3C");
-        document = document.add(no_data);
-        return Ok(document);
-    }
+    // 8. Right side: Call Stack Analysis
+    document = crate::export_enhanced::add_callstack_analysis(document, allocations)?;
 
-    // COMPACT PROGRESS BAR FORMAT - Optimized for reduced height
-    let max_size = sorted_types.iter().map(|(_, (_, size, _))| *size).max().unwrap_or(1);
-    let start_y = 100; // Reduced start position
-    
-    for (i, (type_name, (count, total_size, vars))) in sorted_types.iter().enumerate() {
-        let y = start_y + (i as i32) * 80; // Reduced spacing from 120 to 80
-        
-        // COMPACT progress bar background
-        let bg_bar = Rectangle::new()
-            .set("x", 100)
-            .set("y", y)
-            .set("width", 600) // Reduced width from 800 to 600
-            .set("height", 30) // Reduced height from 40 to 30
-            .set("fill", "#34495E")
-            .set("stroke", "#ECF0F1")
-            .set("stroke-width", 1)
-            .set("rx", 6);
-        document = document.add(bg_bar);
-        
-        // Progress bar fill - proportional to size
-        let bar_width = ((*total_size as f64 / max_size as f64) * 600.0) as i32;
-        let (color, _) = get_type_gradient_colors(type_name);
-        let progress_bar = Rectangle::new()
-            .set("x", 100)
-            .set("y", y)
-            .set("width", bar_width)
-            .set("height", 30)
-            .set("fill", color)
-            .set("rx", 6);
-        document = document.add(progress_bar);
-        
-        // SIMPLIFIED content format - Type and size only
-        let content_text = format!(
-            "{} ({} vars) | Total: {}",
-            type_name, count, format_bytes(*total_size)
-        );
-        
-        let content_label = SvgText::new(content_text)
-            .set("x", 110)
-            .set("y", y + 20)
-            .set("font-size", 12) // Reduced font size
-            .set("font-weight", "600")
-            .set("fill", "#FFFFFF")
-            .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
-        document = document.add(content_label);
-        
-        // Progress percentage - moved to right side
-        let percentage = (*total_size as f64 / max_size as f64 * 100.0) as i32;
-        let percent_label = SvgText::new(format!("{}%", percentage))
-            .set("x", 720)
-            .set("y", y + 20)
-            .set("font-size", 14)
-            .set("font-weight", "bold")
-            .set("fill", "#ECF0F1");
-        document = document.add(percent_label);
-        
-        // Top variables list below the bar
-        let top_3_vars = vars.iter().take(3).cloned().collect::<Vec<_>>().join(" | ");
-        let vars_label = SvgText::new(format!("Top vars: {}", top_3_vars))
-            .set("x", 110)
-            .set("y", y + 45)
-            .set("font-size", 9)
-            .set("fill", "#94A3B8")
-            .set("font-style", "italic");
-        document = document.add(vars_label);
-    }
+    // 9. Memory Growth Trends
+    document = crate::export_enhanced::add_memory_growth_trends(document, allocations, stats)?;
 
-    // COMPACT Summary - STRICTLY TOP 3
-    let summary_text = format!(
-        "Showing TOP 3 memory-consuming variable types (Total tracked: {})",
-        tracked_vars.len()
-    );
-    let summary = SvgText::new(summary_text)
-        .set("x", width / 2)
-        .set("y", height - 30) // Adjusted for reduced height
-        .set("text-anchor", "middle")
-        .set("font-size", 14) // Reduced font size
-        .set("font-weight", "bold")
-        .set("fill", "#ECF0F1");
-    document = document.add(summary);
+    // 10. Variable Allocation Timeline
+    document = crate::export_enhanced::add_memory_timeline(document, allocations, stats)?;
+
+    // 11. Bottom left: Interactive Legend & Guide
+    document = crate::export_enhanced::add_interactive_legend(document)?;
+
+    // 12. Bottom right: Memory Analysis Summary
+    document = crate::export_enhanced::add_comprehensive_summary(document, stats, allocations)?;
 
     Ok(document)
 }
