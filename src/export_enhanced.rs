@@ -202,8 +202,8 @@ pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> 
 
     // Create COMPACT SVG document - REDUCED HEIGHT for space efficiency
     let mut document = Document::new()
-        .set("viewBox", (0, 0, 1400, 400))
-        .set("width", 1400)
+        .set("viewBox", (0, 0, 1800, 400))
+        .set("width", 1800)
         .set("height", 400)
         .set(
             "style",
@@ -376,7 +376,7 @@ pub fn add_enhanced_header(mut document: Document, stats: &MemoryStats) -> Track
     let stats_bg = Rectangle::new()
         .set("x", 50)
         .set("y", 60)
-        .set("width", 1100)
+        .set("width", 1700) // 适应1800px宽度
         .set("height", 80)
         .set("fill", "#ecf0f1")
         .set("stroke", "#bdc3c7")
@@ -587,30 +587,45 @@ pub fn add_categorized_allocations(
 
         document = document.add(name_text);
 
-        // Enhanced variable names display - more prominent and detailed
+        // Enhanced variable names display - 优化文字溢出问题
         let var_names: Vec<String> = category.allocations.iter()
             .filter_map(|a| {
                 if let Some(var_name) = &a.var_name {
                     let type_name = a.type_name.as_deref().unwrap_or("Unknown");
                     let (simplified_type, _) = simplify_type_name(type_name);
-                    Some(format!("{}({})", var_name, simplified_type))
+                    // 缩短变量名显示，避免溢出
+                    let short_var = if var_name.len() > 12 {
+                        format!("{}...", &var_name[..9])
+                    } else {
+                        var_name.clone()
+                    };
+                    Some(format!("{}({})", short_var, simplified_type))
                 } else {
                     None
                 }
             })
-            .take(5) // Show more variables
+            .take(3) // 减少显示的变量数量，避免溢出
             .collect();
         
-        let display_text = if var_names.is_empty() {
+        let mut display_text = if var_names.is_empty() {
             format!("{} ({} vars)", format_bytes(category.total_size), category.allocations.len())
         } else {
-            format!("{} - Variables: {}", format_bytes(category.total_size), var_names.join(" | "))
+            format!("{} - Vars: {}", format_bytes(category.total_size), var_names.join(", "))
         };
+        
+        // 动态截断文字，确保不超出图表边界
+        let max_text_width = chart_width - 180; // 预留边距
+        let estimated_char_width = 7; // 估算每个字符宽度
+        let max_chars = (max_text_width / estimated_char_width) as usize;
+        
+        if display_text.len() > max_chars {
+            display_text = format!("{}...", &display_text[..max_chars.saturating_sub(3)]);
+        }
         
         let size_text = SvgText::new(display_text)
             .set("x", chart_x + 160)
             .set("y", y + bar_height / 2 + 4)
-            .set("font-size", 12)
+            .set("font-size", 11) // 稍微减小字体避免溢出
             .set("font-weight", "bold")
             .set("fill", "#FFFFFF")
             .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
@@ -796,8 +811,8 @@ pub fn add_fragmentation_analysis(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 950;
-    let chart_y = 670;
-    let chart_width = 800;
+    let chart_y = 650; // 修复：向上移动20px，避免下移问题
+    let chart_width = 750; // 修复：适应新的1600px宽度
     let chart_height = 300;
 
     // Chart background
@@ -919,8 +934,8 @@ pub fn add_callstack_analysis(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 950;
-    let chart_y = 1020;
-    let chart_width = 800;
+    let chart_y = 1000; // 修复：向上移动20px，避免下移问题
+    let chart_width = 750; // 修复：适应新的1600px宽度
     let chart_height = 300;
 
     // Chart background
@@ -1386,7 +1401,7 @@ pub fn add_performance_dashboard(
         0.0
     };
 
-    // Performance gauges
+    // Performance gauges - 优化布局，让饼图填充更完整
     let gauges = [
         ("Memory Efficiency", efficiency, "%", "#e74c3c"),
         ("Avg Alloc Size", avg_allocation_size as f64, "B", "#f39c12"),
@@ -1400,17 +1415,17 @@ pub fn add_performance_dashboard(
     ];
 
     for (i, (label, value, unit, color)) in gauges.iter().enumerate() {
-        let gauge_x = dashboard_x + 50 + (i * 170);
-        let gauge_y = dashboard_y + 50;
+        let gauge_x = dashboard_x + 100 + (i * 400); // 增加间距，让饼图更大
+        let gauge_y = dashboard_y + 100; // 居中显示
 
-        // Gauge background circle
+        // Gauge background circle - 增大饼图尺寸，填充更完整
         let bg_circle = Circle::new()
             .set("cx", gauge_x)
             .set("cy", gauge_y)
-            .set("r", 40)
+            .set("r", 60) // 增大半径
             .set("fill", "none")
             .set("stroke", "#ecf0f1")
-            .set("stroke-width", 8);
+            .set("stroke-width", 12); // 增加线宽
 
         document = document.add(bg_circle);
 
@@ -1421,15 +1436,15 @@ pub fn add_performance_dashboard(
             (value / 1000.0).min(1.0) // Normalize large values
         };
 
-        let arc_length = normalized_value * 2.0 * std::f64::consts::PI * 40.0;
+        let arc_length = normalized_value * 2.0 * std::f64::consts::PI * 60.0; // 适应新半径
         let gauge_arc = Circle::new()
             .set("cx", gauge_x)
             .set("cy", gauge_y)
-            .set("r", 40)
+            .set("r", 60) // 增大半径
             .set("fill", "none")
             .set("stroke", *color)
-            .set("stroke-width", 8)
-            .set("stroke-dasharray", format!("{} {}", arc_length, 300.0))
+            .set("stroke-width", 12) // 增加线宽
+            .set("stroke-dasharray", format!("{} {}", arc_length, 400.0)) // 调整虚线长度
             .set("transform", format!("rotate(-90 {gauge_x} {gauge_y})"));
 
         document = document.add(gauge_arc);
@@ -1445,19 +1460,20 @@ pub fn add_performance_dashboard(
             .set("x", gauge_x)
             .set("y", gauge_y + 5)
             .set("text-anchor", "middle")
-            .set("font-size", 12)
+            .set("font-size", 16) // 增大数值字体
             .set("font-weight", "bold")
             .set("fill", *color);
 
         document = document.add(text);
 
-        // Gauge label
+        // Gauge label - 调整位置适应新的饼图大小
         let label_text = SvgText::new(*label)
             .set("x", gauge_x)
-            .set("y", gauge_y + 60)
+            .set("y", gauge_y + 85) // 向下移动适应更大的饼图
             .set("text-anchor", "middle")
-            .set("font-size", 10)
-            .set("fill", "#7f8c8d");
+            .set("font-size", 12) // 增大字体
+            .set("font-weight", "600")
+            .set("fill", "#2c3e50");
 
         document = document.add(label_text);
     }
@@ -1472,7 +1488,7 @@ pub fn add_memory_heatmap(
 ) -> TrackingResult<Document> {
     let heatmap_x = 50;
     let heatmap_y = 420;
-    let heatmap_width = 1700;
+    let heatmap_width = 1700; // 适应新的1800px宽度
     let heatmap_height = 200;
 
     // Heatmap background
@@ -1511,9 +1527,19 @@ pub fn add_memory_heatmap(
         return Ok(document);
     }
 
-    // Create heatmap grid (20x8 cells)
-    let grid_cols = 20;
-    let grid_rows = 8;
+    // Create heatmap grid - 动态调整网格大小以适应不同项目规模
+    let allocation_count = allocations.len();
+    let (grid_cols, grid_rows) = if allocation_count > 1000 {
+        // 大型项目：更细粒度的网格
+        (25, 10)
+    } else if allocation_count > 100 {
+        // 中型项目：标准网格
+        (20, 8)
+    } else {
+        // 小型项目：较小网格
+        (15, 6)
+    };
+    
     let cell_width = (heatmap_width - 40) / grid_cols;
     let cell_height = (heatmap_height - 40) / grid_rows;
 
