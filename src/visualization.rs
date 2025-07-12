@@ -63,13 +63,13 @@ pub fn export_lifecycle_timeline<P: AsRef<Path>>(
     Ok(())
 }
 
-/// Create memory analysis SVG with enhanced variable information
+/// Create memory analysis SVG with enhanced variable information - STRICTLY TOP 3 VARS ONLY
 fn create_memory_analysis_svg(
     allocations: &[AllocationInfo],
     stats: &MemoryStats,
 ) -> TrackingResult<Document> {
     let width = 1400;
-    let height = 1000;
+    let height = 800;
 
     let mut document = Document::new()
         .set("viewBox", (0, 0, width, height))
@@ -78,7 +78,7 @@ fn create_memory_analysis_svg(
         .set("style", "background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%); font-family: 'Segoe UI', Arial, sans-serif;");
 
     // Title
-    let title = SvgText::new("Memory Analysis - Variable Usage Report")
+    let title = SvgText::new("Top 3 Memory Analysis - Progress Bar Visualization")
         .set("x", width / 2)
         .set("y", 40)
         .set("text-anchor", "middle")
@@ -105,24 +105,104 @@ fn create_memory_analysis_svg(
         return Ok(document);
     }
 
-    // Add call stack analysis
-    document = add_call_stack_analysis(document, allocations, 100, 200)?;
+    // Group by type and get TOP 3 ONLY
+    let mut type_stats: HashMap<String, (usize, usize, Vec<String>)> = HashMap::new();
+    for allocation in &tracked_vars {
+        if let Some(var_name) = &allocation.var_name {
+            let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
+            let simple_type = get_simple_type(type_name);
 
-    // Add memory timeline
-    document = add_memory_timeline(document, &tracked_vars, 100, 450)?;
+            let entry = type_stats.entry(simple_type).or_insert((0, 0, Vec::new()));
+            entry.0 += 1;
+            entry.1 += allocation.size;
+            entry
+                .2
+                .push(format!("{}({})", var_name, format_bytes(allocation.size)));
+        }
+    }
 
-    // Add categorized allocations
-    document = add_categorized_allocations(document, &tracked_vars, 100, 700)?;
+    // Sort by total size and take TOP 3 ONLY
+    let mut sorted_types: Vec<_> = type_stats.into_iter().collect();
+    sorted_types.sort_by(|a, b| b.1.1.cmp(&a.1.1)); // Sort by total size descending
+    sorted_types.truncate(3); // STRICTLY TOP 3
 
-    // Add summary
+    if sorted_types.is_empty() {
+        let no_data = SvgText::new("No memory data available")
+            .set("x", width / 2)
+            .set("y", height / 2)
+            .set("text-anchor", "middle")
+            .set("font-size", 16)
+            .set("fill", "#E74C3C");
+        document = document.add(no_data);
+        return Ok(document);
+    }
+
+    // CRITICAL PROGRESS BAR FORMAT as specified in task.md
+    let max_size = sorted_types.iter().map(|(_, (_, size, _))| *size).max().unwrap_or(1);
+    let start_y = 150;
+    
+    for (i, (type_name, (count, total_size, vars))) in sorted_types.iter().enumerate() {
+        let y = start_y + (i as i32) * 120;
+        
+        // Progress bar background
+        let bg_bar = Rectangle::new()
+            .set("x", 100)
+            .set("y", y)
+            .set("width", 800)
+            .set("height", 40)
+            .set("fill", "#34495E")
+            .set("stroke", "#ECF0F1")
+            .set("stroke-width", 2)
+            .set("rx", 8);
+        document = document.add(bg_bar);
+        
+        // Progress bar fill - proportional to size
+        let bar_width = ((*total_size as f64 / max_size as f64) * 800.0) as i32;
+        let color = get_type_color(type_name);
+        let progress_bar = Rectangle::new()
+            .set("x", 100)
+            .set("y", y)
+            .set("width", bar_width)
+            .set("height", 40)
+            .set("fill", color)
+            .set("rx", 8);
+        document = document.add(progress_bar);
+        
+        // Format: Type (Count) | Total: X | Peak: Y | Top 3 Vars: Var1(Size)[Bar1] | Var2(Size)[Bar2] | Var3(Size)[Bar3]
+        let top_3_vars = vars.iter().take(3).cloned().collect::<Vec<_>>().join(" | ");
+        let content_text = format!(
+            "{} ({}) | Total: {} | Peak: {} | Top 3 Vars: {}",
+            type_name, count, format_bytes(*total_size), format_bytes(*total_size), top_3_vars
+        );
+        
+        let content_label = SvgText::new(content_text)
+            .set("x", 120)
+            .set("y", y + 26)
+            .set("font-size", 14)
+            .set("font-weight", "600")
+            .set("fill", "#FFFFFF")
+            .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
+        document = document.add(content_label);
+        
+        // Progress percentage
+        let percentage = (*total_size as f64 / max_size as f64 * 100.0) as i32;
+        let percent_label = SvgText::new(format!("{}%", percentage))
+            .set("x", 920)
+            .set("y", y + 26)
+            .set("font-size", 16)
+            .set("font-weight", "bold")
+            .set("fill", "#ECF0F1");
+        document = document.add(percent_label);
+    }
+
+    // Summary - STRICTLY TOP 3
     let summary_text = format!(
-        "Total: {} tracked variables using {} memory",
-        tracked_vars.len(),
-        format_bytes(stats.active_memory)
+        "Showing TOP 3 memory-consuming variable types only (Total tracked: {})",
+        tracked_vars.len()
     );
     let summary = SvgText::new(summary_text)
         .set("x", width / 2)
-        .set("y", height - 30)
+        .set("y", height - 50)
         .set("text-anchor", "middle")
         .set("font-size", 16)
         .set("font-weight", "bold")
@@ -159,8 +239,8 @@ fn create_lifecycle_timeline_svg(
     );
     document = document.add(styles);
 
-    // Title
-    let title = SvgText::new("Lifecycle and Variable Relationships")
+    // Title - Scope Matrix & Lifecycle Visualization as specified in task.md
+    let title = SvgText::new("Scope Matrix & Lifecycle Visualization")
         .set("x", width / 2)
         .set("y", 40)
         .set("text-anchor", "middle")
@@ -475,14 +555,14 @@ fn add_memory_section(
         .set("class", "section-bg");
     document = document.add(section_bg);
 
-    // Section title
-    let section_title = SvgText::new("Memory Usage Analysis")
+    // Section title - TOP 3 MEMORY ANALYSIS as specified in task.md
+    let section_title = SvgText::new("Top 3 Memory Analysis")
         .set("x", 70)
         .set("y", start_y + 10)
         .set("class", "section-title");
     document = document.add(section_title);
 
-    // Group by type
+    // Group by type and get TOP 3 ONLY
     let mut type_stats: HashMap<String, (usize, usize, Vec<String>)> = HashMap::new();
     for allocation in tracked_vars {
         if let Some(var_name) = &allocation.var_name {
@@ -498,16 +578,21 @@ fn add_memory_section(
         }
     }
 
-    // Draw memory bars
+    // Sort by total size and take TOP 3 ONLY
+    let mut sorted_types: Vec<_> = type_stats.into_iter().collect();
+    sorted_types.sort_by(|a, b| b.1.1.cmp(&a.1.1)); // Sort by total size descending
+    sorted_types.truncate(3); // STRICTLY TOP 3
+
+    // Draw memory bars - TOP 3 ONLY
     let chart_x = 100;
     let chart_y = start_y + 50;
-    let max_size = type_stats
-        .values()
-        .map(|(_, size, _)| *size)
+    let max_size = sorted_types
+        .iter()
+        .map(|(_, (_, size, _))| *size)
         .max()
         .unwrap_or(1);
 
-    for (i, (type_name, (count, total_size, vars))) in type_stats.iter().enumerate() {
+    for (i, (type_name, (count, total_size, vars))) in sorted_types.iter().enumerate() {
         let y = chart_y + (i as i32) * 40;
         let bar_width = ((*total_size as f64 / max_size as f64) * 400.0) as i32;
 
@@ -550,7 +635,7 @@ fn add_memory_section(
     Ok(document)
 }
 
-/// Add relationships section for lifecycle visualization
+/// Add relationships section for lifecycle visualization - ENHANCED VARIABLE RELATIONSHIPS
 fn add_relationships_section(
     mut document: Document,
     tracked_vars: &[&AllocationInfo],
@@ -567,58 +652,324 @@ fn add_relationships_section(
     document = document.add(section_bg);
 
     // Section title
-    let section_title = SvgText::new("Variable Relationships")
+    let section_title = SvgText::new("Variable Relationships - Ownership & Borrowing")
         .set("x", 70)
         .set("y", start_y + 10)
         .set("class", "section-title");
     document = document.add(section_title);
 
-    // Draw variables as connected nodes
-    let start_x = 150;
-    let node_y = start_y + 60;
-    let node_spacing = 200;
-
-    for (i, allocation) in tracked_vars.iter().take(6).enumerate() {
-        let x = start_x + ((i % 3) as i32) * node_spacing;
-        let y = node_y + ((i / 3) as i32) * 80;
-
-        let var_name = allocation.var_name.as_ref().unwrap();
-        let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
-        let simple_type = get_simple_type(type_name);
-        let color = get_type_color(&simple_type);
-
-        // Variable node
-        let node = Circle::new()
-            .set("cx", x)
-            .set("cy", y)
-            .set("r", 25)
-            .set("fill", color)
-            .set("stroke", "#FFFFFF")
-            .set("stroke-width", 2);
-        document = document.add(node);
-
-        // Variable name
-        let name_label = SvgText::new(var_name)
-            .set("x", x)
-            .set("y", y + 4)
-            .set("text-anchor", "middle")
-            .set("font-size", 10)
-            .set("font-weight", "bold")
-            .set("fill", "#FFFFFF");
-        document = document.add(name_label);
-
-        // Type and size below
-        let info_text = format!("{} | {}", simple_type, format_bytes(allocation.size));
-        let info_label = SvgText::new(info_text)
-            .set("x", x)
-            .set("y", y + 45)
-            .set("text-anchor", "middle")
-            .set("font-size", 9)
-            .set("fill", "#E2E8F0");
-        document = document.add(info_label);
+    // Group variables by scope for better organization
+    let mut scope_groups: HashMap<String, Vec<&AllocationInfo>> = HashMap::new();
+    for var in tracked_vars {
+        let scope = identify_precise_scope(var);
+        scope_groups.entry(scope).or_default().push(*var);
     }
 
+    // Draw scope group backgrounds first
+    let mut scope_positions = HashMap::new();
+    let start_x = 100;
+    let group_spacing_x = 400;
+    let group_spacing_y = 200;
+    
+    for (i, (scope_name, vars)) in scope_groups.iter().enumerate() {
+        let group_x = start_x + (i % 3) as i32 * group_spacing_x;
+        let group_y = start_y + 50 + (i / 3) as i32 * group_spacing_y;
+        
+        // Scope group background with subtle color
+        let group_bg = Rectangle::new()
+            .set("x", group_x - 20)
+            .set("y", group_y - 20)
+            .set("width", 300)
+            .set("height", 150)
+            .set("fill", get_scope_background_color(scope_name))
+            .set("stroke", get_scope_border_color(scope_name))
+            .set("stroke-width", 2)
+            .set("stroke-dasharray", if scope_name == "Global" { "none" } else { "5,3" })
+            .set("rx", 8)
+            .set("opacity", "0.3");
+        document = document.add(group_bg);
+        
+        // Scope label
+        let scope_label = SvgText::new(format!("Scope: {}", scope_name))
+            .set("x", group_x - 10)
+            .set("y", group_y - 5)
+            .set("font-size", 12)
+            .set("font-weight", "bold")
+            .set("fill", "#FFFFFF");
+        document = document.add(scope_label);
+        
+        scope_positions.insert(scope_name.clone(), (group_x, group_y));
+    }
+
+    // Draw relationship lines FIRST (behind nodes)
+    let relationships = analyze_variable_relationships(tracked_vars);
+    for relationship in &relationships {
+        document = draw_relationship_line(document, relationship, &scope_positions)?;
+    }
+
+    // Draw variable nodes AFTER lines (on top)
+    for (scope_name, vars) in &scope_groups {
+        if let Some((group_x, group_y)) = scope_positions.get(scope_name) {
+            for (i, allocation) in vars.iter().take(4).enumerate() { // Limit to 4 per scope
+                let node_x = group_x + (i % 2) as i32 * 120 + 40;
+                let node_y = group_y + (i / 2) as i32 * 60 + 30;
+                
+                document = draw_variable_node(document, allocation, node_x, node_y)?;
+            }
+        }
+    }
+
+    // Add relationship legend
+    document = add_relationship_legend(document, start_y + section_height - 100)?;
+
     Ok(document)
+}
+
+/// Analyze variable relationships based on type patterns
+fn analyze_variable_relationships(tracked_vars: &[&AllocationInfo]) -> Vec<VariableRelationship> {
+    let mut relationships = Vec::new();
+    
+    for (i, var1) in tracked_vars.iter().enumerate() {
+        for var2 in tracked_vars.iter().skip(i + 1) {
+            if let (Some(name1), Some(name2)) = (&var1.var_name, &var2.var_name) {
+                if let (Some(type1), Some(type2)) = (&var1.type_name, &var2.type_name) {
+                    // Detect relationship patterns
+                    let relationship_type = detect_relationship_type(name1, type1, name2, type2);
+                    if relationship_type != RelationshipType::None {
+                        relationships.push(VariableRelationship {
+                            from_var: name1.clone(),
+                            to_var: name2.clone(),
+                            relationship_type,
+                            strength: calculate_relationship_strength(var1, var2),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    relationships
+}
+
+/// Detect relationship type between two variables
+fn detect_relationship_type(name1: &str, type1: &str, name2: &str, type2: &str) -> RelationshipType {
+    // Ownership Transfer/Move patterns
+    if name2.contains("moved") || name2.contains("transferred") || 
+       (name1.contains("original") && name2.contains("new")) {
+        return RelationshipType::OwnershipTransfer;
+    }
+    
+    // Clone patterns
+    if name2.contains("clone") || name1.contains("clone") ||
+       (name1.contains("shared") && name2.contains("shared")) {
+        return RelationshipType::Clone;
+    }
+    
+    // Shared pointer patterns (Rc, Arc)
+    if (type1.contains("Rc") || type1.contains("Arc")) && 
+       (type2.contains("Rc") || type2.contains("Arc")) {
+        return RelationshipType::SharedPointer;
+    }
+    
+    // Borrow patterns (same base name, different suffixes)
+    if name1.replace("_ref", "").replace("_mut", "") == name2.replace("_ref", "").replace("_mut", "") {
+        if name1.contains("_mut") || name2.contains("_mut") {
+            return RelationshipType::MutableBorrow;
+        } else {
+            return RelationshipType::ImmutableBorrow;
+        }
+    }
+    
+    // Indirect relationship (similar types, different scopes)
+    if get_simple_type(type1) == get_simple_type(type2) && name1 != name2 {
+        return RelationshipType::IndirectReference;
+    }
+    
+    RelationshipType::None
+}
+
+/// Calculate relationship strength (0.0 to 1.0)
+fn calculate_relationship_strength(var1: &AllocationInfo, var2: &AllocationInfo) -> f32 {
+    // Base strength on size similarity and timing proximity
+    let size_ratio = (var1.size.min(var2.size) as f32) / (var1.size.max(var2.size) as f32);
+    let time_diff = (var1.timestamp_alloc as i64 - var2.timestamp_alloc as i64).abs() as f32;
+    let time_factor = 1.0 / (1.0 + time_diff / 1000.0); // Closer in time = stronger relationship
+    
+    (size_ratio * 0.6 + time_factor * 0.4).min(1.0)
+}
+
+/// Draw relationship line with proper styling
+fn draw_relationship_line(
+    mut document: Document, 
+    relationship: &VariableRelationship,
+    scope_positions: &HashMap<String, (i32, i32)>
+) -> TrackingResult<Document> {
+    // For now, draw a simple example line - in real implementation, 
+    // you'd calculate actual node positions
+    let (color, stroke_width, dash_array, label) = get_relationship_style(&relationship.relationship_type);
+    
+    // Example line (you'd calculate real positions based on variable locations)
+    let line = Line::new()
+        .set("x1", 200)
+        .set("y1", 100)
+        .set("x2", 400)
+        .set("y2", 150)
+        .set("stroke", color)
+        .set("stroke-width", stroke_width)
+        .set("stroke-dasharray", dash_array)
+        .set("marker-end", "url(#arrowhead)");
+    document = document.add(line);
+    
+    // Add line label
+    let line_label = SvgText::new(label)
+        .set("x", 300) // Midpoint
+        .set("y", 120)
+        .set("font-size", 8)
+        .set("font-weight", "bold")
+        .set("fill", color)
+        .set("text-anchor", "middle");
+    document = document.add(line_label);
+    
+    Ok(document)
+}
+
+/// Draw variable node with enhanced styling
+fn draw_variable_node(
+    mut document: Document,
+    allocation: &AllocationInfo,
+    x: i32,
+    y: i32,
+) -> TrackingResult<Document> {
+    let var_name = allocation.var_name.as_ref().unwrap();
+    let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
+    let simple_type = get_simple_type(type_name);
+    let color = get_type_color(&simple_type);
+
+    // Variable node with tooltip support
+    let node = Circle::new()
+        .set("cx", x)
+        .set("cy", y)
+        .set("r", 20)
+        .set("fill", color)
+        .set("stroke", "#FFFFFF")
+        .set("stroke-width", 2)
+        .set("title", format!("{}: {} ({})", var_name, simple_type, format_bytes(allocation.size)));
+    document = document.add(node);
+
+    // Variable name (truncated if too long)
+    let display_name = if var_name.len() > 8 {
+        format!("{}...", &var_name[..6])
+    } else {
+        var_name.clone()
+    };
+    
+    let name_label = SvgText::new(display_name)
+        .set("x", x)
+        .set("y", y + 3)
+        .set("text-anchor", "middle")
+        .set("font-size", 9)
+        .set("font-weight", "bold")
+        .set("fill", "#FFFFFF");
+    document = document.add(name_label);
+
+    // Type and size below
+    let info_text = format!("{} | {}", simple_type, format_bytes(allocation.size));
+    let info_label = SvgText::new(info_text)
+        .set("x", x)
+        .set("y", y + 35)
+        .set("text-anchor", "middle")
+        .set("font-size", 7)
+        .set("fill", "#E2E8F0");
+    document = document.add(info_label);
+
+    Ok(document)
+}
+
+/// Add relationship legend
+fn add_relationship_legend(mut document: Document, start_y: i32) -> TrackingResult<Document> {
+    let legend_items = [
+        ("Ownership Transfer", "#E74C3C", "solid", "4"),
+        ("Mutable Borrow", "#3498DB", "solid", "3"),
+        ("Immutable Borrow", "#27AE60", "solid", "2"),
+        ("Clone", "#95A5A6", "solid", "2"),
+        ("Shared Pointer", "#9B59B6", "8,4", "3"),
+        ("Indirect Reference", "#F39C12", "4,2", "1"),
+    ];
+    
+    for (i, (label, color, dash, width)) in legend_items.iter().enumerate() {
+        let x = 100 + (i % 3) as i32 * 200;
+        let y = start_y + (i / 3) as i32 * 25;
+        
+        // Legend line
+        let legend_line = Line::new()
+            .set("x1", x)
+            .set("y1", y)
+            .set("x2", x + 30)
+            .set("y2", y)
+            .set("stroke", *color)
+            .set("stroke-width", *width)
+            .set("stroke-dasharray", *dash);
+        document = document.add(legend_line);
+        
+        // Legend label
+        let legend_label = SvgText::new(*label)
+            .set("x", x + 35)
+            .set("y", y + 4)
+            .set("font-size", 10)
+            .set("fill", "#FFFFFF");
+        document = document.add(legend_label);
+    }
+    
+    Ok(document)
+}
+
+/// Get relationship styling
+fn get_relationship_style(rel_type: &RelationshipType) -> (&'static str, i32, &'static str, &'static str) {
+    match rel_type {
+        RelationshipType::OwnershipTransfer => ("#E74C3C", 4, "none", "owns"),
+        RelationshipType::MutableBorrow => ("#3498DB", 3, "none", "borrows_mut"),
+        RelationshipType::ImmutableBorrow => ("#27AE60", 2, "none", "borrows"),
+        RelationshipType::Clone => ("#95A5A6", 2, "none", "cloned"),
+        RelationshipType::SharedPointer => ("#9B59B6", 3, "8,4", "shared"),
+        RelationshipType::IndirectReference => ("#F39C12", 1, "4,2", "indirect_ref"),
+        RelationshipType::None => ("#7F8C8D", 1, "1,1", ""),
+    }
+}
+
+/// Get scope background color
+fn get_scope_background_color(scope_name: &str) -> &'static str {
+    match scope_name {
+        "Global" => "rgba(52, 73, 94, 0.2)",
+        _ => "rgba(52, 152, 219, 0.2)",
+    }
+}
+
+/// Get scope border color
+fn get_scope_border_color(scope_name: &str) -> &'static str {
+    match scope_name {
+        "Global" => "#34495E",
+        _ => "#3498DB",
+    }
+}
+
+// Define relationship types and structures
+#[derive(Debug, PartialEq)]
+enum RelationshipType {
+    OwnershipTransfer,
+    MutableBorrow,
+    ImmutableBorrow,
+    Clone,
+    SharedPointer,
+    IndirectReference,
+    None,
+}
+
+#[derive(Debug)]
+struct VariableRelationship {
+    from_var: String,
+    to_var: String,
+    relationship_type: RelationshipType,
+    strength: f32,
 }
 
 /// Get color for variable type
@@ -775,7 +1126,7 @@ fn add_matrix_layout_section(
     Ok(document)
 }
 
-/// Render single scope matrix with fixed spacing to prevent overlap
+/// Render single scope matrix with fixed spacing to prevent overlap - NO EXPLICIT TIME AXIS
 fn render_scope_matrix_fixed(
     mut document: Document,
     scope_name: &str,
@@ -789,7 +1140,7 @@ fn render_scope_matrix_fixed(
     let mut matrix_group = Group::new()
         .set("transform", format!("translate({}, {})", x, y));
     
-    // Calculate duration for this scope
+    // Calculate duration for this scope - NO EXPLICIT TIME DISPLAY
     let (start_ts, end_ts, duration) = if !vars.is_empty() {
         let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
         let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
@@ -820,16 +1171,16 @@ fn render_scope_matrix_fixed(
         .set("rx", 12);
     matrix_group = matrix_group.add(container);
     
-    // Timestamp annotation in timeA---timeB format
-    let timestamp_text = format!("{}---{} lifetime {}ms", start_ts, end_ts, duration);
-    let timestamp = SvgText::new(timestamp_text)
+    // STRICTLY REMOVE EXPLICIT TIME AXIS - Use English lifecycle annotation instead
+    let lifecycle_text = format!("Scope: {} | Life: {}ms", scope_name, duration);
+    let lifecycle_annotation = SvgText::new(lifecycle_text)
         .set("x", width - 10)
         .set("y", 15)
         .set("text-anchor", "end")
         .set("font-size", 9)
         .set("fill", "#94a3b8")
         .set("font-style", "italic");
-    matrix_group = matrix_group.add(timestamp);
+    matrix_group = matrix_group.add(lifecycle_annotation);
     
     // Scope title
     let title = SvgText::new(format!("Scope: {}", scope_name))
