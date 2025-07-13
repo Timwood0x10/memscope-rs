@@ -231,25 +231,213 @@ impl MemoryTracker {
         Ok(result)
     }
 
-    /// Export memory data to JSON format.
+    /// Export memory data to hierarchical JSON format organized by scopes.
+    /// This creates a structured JSON with scopes as top-level containers,
+    /// variables within scopes, and relationships between them.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        // Simple JSON export implementation
         use std::fs::File;
+        use std::collections::HashMap;
+        
         let path = path.as_ref();
         let active_allocations = self.get_active_allocations()?;
         let stats = self.get_stats()?;
 
-        let data = serde_json::json!({
-            "timestamp": chrono::Utc::now(),
-            "stats": stats,
-            "allocations": active_allocations
+        // Group allocations by scope
+        let mut scopes: HashMap<String, Vec<&crate::types::AllocationInfo>> = HashMap::new();
+        
+        for allocation in &active_allocations {
+            let scope_name = allocation.scope_name
+                .as_ref()
+                .unwrap_or(&"Global".to_string())
+                .clone();
+            scopes.entry(scope_name).or_insert_with(Vec::new).push(allocation);
+        }
+
+        // Build hierarchical structure
+        let mut scope_data = Vec::new();
+        
+        for (scope_name, allocations) in scopes {
+            // Calculate scope-level statistics
+            let total_memory: usize = allocations.iter().map(|a| a.size).sum();
+            let variable_count = allocations.len();
+            let avg_lifetime = if allocations.is_empty() {
+                0.0
+            } else {
+                let total_lifetime: u128 = allocations.iter()
+                    .filter_map(|a| a.lifetime_ms())
+                    .sum();
+                total_lifetime as f64 / allocations.len() as f64
+            };
+
+            // Group variables by type within scope
+            let mut variables_by_type: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
+            
+            for allocation in &allocations {
+                let type_name = allocation.type_name
+                    .as_ref()
+                    .unwrap_or(&"Unknown".to_string())
+                    .clone();
+                
+                let variable_data = serde_json::json!({
+                    "name": allocation.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", allocation.ptr)),
+                    "ptr": format!("0x{:x}", allocation.ptr),
+                    "size": allocation.size,
+                    "peak_size": allocation.peak_size,
+                    "timestamp_alloc": allocation.timestamp_alloc,
+                    "timestamp_dealloc": allocation.timestamp_dealloc,
+                    "lifetime_ms": allocation.lifetime_ms(),
+                    "thread_id": allocation.thread_id,
+                    "growth_events": allocation.growth_events,
+                    "ownership_pattern": allocation.ownership_pattern,
+                    "risk_level": allocation.risk_level,
+                    "efficiency_score": allocation.efficiency_score,
+                    "borrow_count": allocation.borrow_count,
+                    "mut_borrow_count": allocation.mut_borrow_count,
+                    "transfer_count": allocation.transfer_count,
+                    "metadata_tags": allocation.metadata_tags,
+                    "memory_growth_factor": allocation.memory_growth_factor()
+                });
+                
+                variables_by_type.entry(type_name).or_insert_with(Vec::new).push(variable_data);
+            }
+
+            // Calculate relationships within scope
+            let mut relationships = Vec::new();
+            
+            // Find shared ownership relationships (Rc/Arc clones)
+            for allocation in &allocations {
+                if let Some(type_name) = &allocation.type_name {
+                    if type_name.contains("Rc<") || type_name.contains("Arc<") {
+                        // Look for other variables with the same type (potential clones)
+                        for other in &allocations {
+                            if other.ptr != allocation.ptr 
+                                && other.type_name.as_ref() == Some(type_name) {
+                                relationships.push(serde_json::json!({
+                                    "type": "shared_ownership",
+                                    "from": allocation.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", allocation.ptr)),
+                                    "to": other.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", other.ptr)),
+                                    "relationship": "clone",
+                                    "strength": 0.9
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Find size-based relationships (containers and their contents)
+            for allocation in &allocations {
+                if let Some(type_name) = &allocation.type_name {
+                    if type_name.contains("Box<") {
+                        // Box contains another allocation
+                        relationships.push(serde_json::json!({
+                            "type": "containment",
+                            "from": allocation.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", allocation.ptr)),
+                            "to": "heap_data",
+                            "relationship": "owns",
+                            "strength": 1.0
+                        }));
+                    }
+                }
+            }
+
+            let scope_info = serde_json::json!({
+                "scope_name": scope_name,
+                "summary": {
+                    "variable_count": variable_count,
+                    "total_memory_bytes": total_memory,
+                    "avg_lifetime_ms": avg_lifetime,
+                    "types_count": variables_by_type.len()
+                },
+                "variables_by_type": variables_by_type,
+                "relationships": relationships,
+                "scope_metrics": {
+                    "memory_efficiency": if total_memory > 0 {
+                        allocations.iter()
+                            .filter_map(|a| a.efficiency_score)
+                            .sum::<f64>() / allocations.len() as f64
+                    } else { 1.0 },
+                    "growth_events_total": allocations.iter().map(|a| a.growth_events).sum::<usize>(),
+                    "ownership_transfers_total": allocations.iter().map(|a| a.transfer_count).sum::<usize>(),
+                    "borrow_events_total": allocations.iter().map(|a| a.borrow_count + a.mut_borrow_count).sum::<usize>()
+                }
+            });
+            
+            scope_data.push(scope_info);
+        }
+
+        // Sort scopes by memory usage (largest first)
+        scope_data.sort_by(|a, b| {
+            let a_memory = a["summary"]["total_memory_bytes"].as_u64().unwrap_or(0);
+            let b_memory = b["summary"]["total_memory_bytes"].as_u64().unwrap_or(0);
+            b_memory.cmp(&a_memory)
+        });
+
+        // Build final hierarchical structure
+        let hierarchical_data = serde_json::json!({
+            "metadata": {
+                "export_timestamp": chrono::Utc::now(),
+                "format_version": "1.0",
+                "description": "Hierarchical memory analysis organized by scopes and variable relationships"
+            },
+            "global_stats": stats,
+            "scope_summary": {
+                "total_scopes": scope_data.len(),
+                "total_variables": active_allocations.len(),
+                "total_memory": active_allocations.iter().map(|a| a.size).sum::<usize>(),
+                "scopes_by_memory": scope_data.iter().map(|s| serde_json::json!({
+                    "name": s["scope_name"],
+                    "memory": s["summary"]["total_memory_bytes"],
+                    "variables": s["summary"]["variable_count"]
+                })).collect::<Vec<_>>()
+            },
+            "scopes": scope_data,
+            "cross_scope_relationships": {
+                "description": "Relationships that span across different scopes",
+                "global_shared_types": {
+                    "description": "Types that appear in multiple scopes",
+                    "types": self.analyze_cross_scope_types(&active_allocations)
+                }
+            }
         });
 
         let file = File::create(path)?;
-        serde_json::to_writer_pretty(file, &data).map_err(|e| {
-            crate::types::TrackingError::SerializationError(format!("JSON export failed: {e}"))
+        serde_json::to_writer_pretty(file, &hierarchical_data).map_err(|e| {
+            crate::types::TrackingError::SerializationError(format!("Hierarchical JSON export failed: {e}"))
         })?;
         Ok(())
+    }
+
+
+    /// Analyze types that appear across multiple scopes
+    fn analyze_cross_scope_types(&self, allocations: &[crate::types::AllocationInfo]) -> serde_json::Value {
+        use std::collections::HashMap;
+        
+        let mut type_scope_map: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+        
+        for allocation in allocations {
+            if let Some(type_name) = &allocation.type_name {
+                let scope_name = allocation.scope_name
+                    .as_ref()
+                    .unwrap_or(&"Global".to_string())
+                    .clone();
+                
+                type_scope_map.entry(type_name.clone())
+                    .or_insert_with(std::collections::HashSet::new)
+                    .insert(scope_name);
+            }
+        }
+        
+        let cross_scope_types: Vec<_> = type_scope_map.iter()
+            .filter(|(_, scopes)| scopes.len() > 1)
+            .map(|(type_name, scopes)| serde_json::json!({
+                "type_name": type_name,
+                "scopes": scopes.iter().collect::<Vec<_>>(),
+                "scope_count": scopes.len()
+            }))
+            .collect();
+            
+        serde_json::json!(cross_scope_types)
     }
 
     /// Export memory analysis visualization showing variable names, types, and usage patterns.

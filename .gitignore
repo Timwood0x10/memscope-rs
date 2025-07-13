@@ -24,7 +24,14 @@ Thumbs.db
 
 # memscope-rs specific output files
 *.json
-# *.svg
+
+# Ignore all SVG files
+*.svg
+
+# But keep these specific SVG files
+!images/lifecycle_timeline.svg
+!images/memory_analysis.svg
+
 memory_*.json
 memory_*.svg
 *_test.json
