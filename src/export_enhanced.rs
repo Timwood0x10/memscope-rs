@@ -326,184 +326,201 @@ fn add_compact_summary(
     Ok(document)
 }
 
-/// Add enhanced header with 8 core metrics - 4 basic + 4 advanced
+/// Add enhanced header with 8 core metrics - Modern Dashboard Style
 pub fn add_enhanced_header(
     mut document: Document,
     stats: &MemoryStats,
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
-    // Main title
+    // Main title with modern styling
     let title = SvgText::new("Rust Memory Usage Analysis")
         .set("x", 900)
         .set("y", 40)
         .set("text-anchor", "middle")
-        .set("font-size", 24)
-        .set("font-weight", "bold")
-        .set("fill", "#2c3e50");
+        .set("font-size", 28)
+        .set("font-weight", "300")
+        .set("fill", "#2c3e50")
+        .set("style", "letter-spacing: 1px;");
 
     document = document.add(title);
 
-    // Calculate 8 core metrics - 4 basic + 4 advanced
-    
-    // Basic Metrics (Row 1)
+    // Calculate 8 core metrics with percentage values for progress rings
     let active_memory = stats.active_memory;
     let peak_memory = stats.peak_memory;
     let active_allocations = stats.active_allocations;
     
-    // Memory Reclamation Rate = (total_deallocated / total_allocated) * 100%
     let memory_reclamation_rate = if stats.total_allocated > 0 {
         (stats.total_deallocated as f64 / stats.total_allocated as f64) * 100.0
     } else {
         0.0
     };
 
-    // Advanced Metrics (Row 2)
-    
-    // Allocator Efficiency - estimated as (active_memory / peak_memory) * 100%
-    // TODO: Implement true allocator overhead tracking
     let allocator_efficiency = if stats.peak_memory > 0 {
         (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
     } else {
         0.0
     };
     
-    // Calculate real median and P95 allocation sizes
     let (median_alloc_size, p95_alloc_size) = calculate_allocation_percentiles(allocations);
     
-    // Memory Fragmentation Rate = (peak_memory - active_memory) / peak_memory * 100%
     let memory_fragmentation = if stats.peak_memory > 0 {
         ((stats.peak_memory - stats.active_memory) as f64 / stats.peak_memory as f64) * 100.0
     } else {
         0.0
     };
 
-    // 8 core metrics in 2 rows, 4 columns layout
-    let basic_metrics = [
-        ("Active Memory", format_bytes(active_memory)),
-        ("Peak Memory", format_bytes(peak_memory)),
-        ("Active Allocations", format!("{}", active_allocations)),
-        ("Memory Reclamation Rate", format!("{:.1}%", memory_reclamation_rate)),
+    // Define metrics with their display values and progress percentages
+    let metrics = [
+        ("Active Memory", format_bytes(active_memory), 
+         (active_memory as f64 / peak_memory.max(1) as f64 * 100.0).min(100.0), "#3498db"),
+        ("Peak Memory", format_bytes(peak_memory), 100.0, "#e74c3c"),
+        ("Active Allocs", format!("{}", active_allocations), 
+         (active_allocations as f64 / 1000.0 * 100.0).min(100.0), "#2ecc71"),
+        ("Reclamation", format!("{:.1}%", memory_reclamation_rate), 
+         memory_reclamation_rate, "#f39c12"),
+        ("Efficiency", format!("{:.1}%", allocator_efficiency), 
+         allocator_efficiency, "#9b59b6"),
+        ("Median Size", format_bytes(median_alloc_size), 
+         (median_alloc_size as f64 / 1024.0 * 100.0).min(100.0), "#1abc9c"),
+        ("P95 Size", format_bytes(p95_alloc_size), 
+         (p95_alloc_size as f64 / 4096.0 * 100.0).min(100.0), "#e67e22"),
+        ("Fragmentation", format!("{:.1}%", memory_fragmentation), 
+         memory_fragmentation, "#95a5a6"),
     ];
-    
-    let advanced_metrics = [
-        ("Allocator Efficiency", format!("{:.1}%", allocator_efficiency)),
-        ("Median Alloc Size", format_bytes(median_alloc_size)),
-        ("P95 Alloc Size", format_bytes(p95_alloc_size)),
-        ("Memory Fragmentation", format!("{:.1}%", memory_fragmentation)),
-    ];
 
-    let box_width = 220;  // Width for 4 columns
-    let box_height = 65;  // Height for each metric box
-    let start_x = 60;
-    let start_y = 70;
-    let spacing_x = 280;  // Horizontal spacing between columns
-    let spacing_y = 85;   // Vertical spacing between rows
+    // Single row layout parameters
+    let card_width = 200;
+    let card_height = 120;
+    let start_x = 50;
+    let start_y = 130;
+    let spacing_x = 220;
 
-    // Add section headers
-    let basic_header = SvgText::new("Basic Metrics")
-        .set("x", start_x)
-        .set("y", start_y - 10)
-        .set("font-size", 12)
-        .set("font-weight", "bold")
-        .set("fill", "#2c3e50");
-    document = document.add(basic_header);
+    // Add single section header for all metrics
+    let header = SvgText::new("KEY PERFORMANCE METRICS")
+        .set("x", 900)
+        .set("y", start_y - 20)
+        .set("text-anchor", "middle")
+        .set("font-size", 11)
+        .set("font-weight", "600")
+        .set("fill", "#7f8c8d")
+        .set("style", "letter-spacing: 2px;");
+    document = document.add(header);
 
-    let advanced_header = SvgText::new("Advanced Metrics")
-        .set("x", start_x)
-        .set("y", start_y + spacing_y - 10)
-        .set("font-size", 12)
-        .set("font-weight", "bold")
-        .set("fill", "#2c3e50");
-    document = document.add(advanced_header);
-
-    // Render basic metrics (Row 1)
-    for (i, (title, value)) in basic_metrics.iter().enumerate() {
+    // Render all 8 metrics in a single row
+    for (i, (title, value, percentage, color)) in metrics.iter().enumerate() {
         let x = start_x + i * spacing_x;
         let y = start_y;
 
-        // Metric box background
-        let box_bg = Rectangle::new()
+        // Modern card background with gradient and shadow
+        let card_bg = Rectangle::new()
             .set("x", x)
             .set("y", y)
-            .set("width", box_width)
-            .set("height", box_height)
-            .set("fill", "white")
-            .set("stroke", "#bdc3c7")
-            .set("stroke-width", 1)
-            .set("rx", 8)
-            .set("style", "filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));");
+            .set("width", card_width)
+            .set("height", card_height)
+            .set("fill", "#ffffff")
+            .set("stroke", "none")
+            .set("rx", 12)
+            .set("style", "filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));");
 
-        document = document.add(box_bg);
+        // Use simple solid color instead of gradient to avoid SVG compatibility issues
+        if i == 0 {
+            // Skip gradient definition for now - use solid colors
+        }
 
-        // Metric box background with blue border for basic metrics
-        let box_bg = Rectangle::new()
-            .set("x", x)
-            .set("y", y)
-            .set("width", box_width)
-            .set("height", box_height)
-            .set("fill", "white")
-            .set("stroke", "#3498db")  // Blue border for basic metrics
-            .set("stroke-width", 2)
-            .set("rx", 6);
-        document = document.add(box_bg);
+        document = document.add(card_bg);
 
-        // Title
-        let title_text = SvgText::new(*title)
-            .set("x", x + box_width / 2)
-            .set("y", y + 20)
+        // Progress ring background
+        let ring_center_x = x + 40;
+        let ring_center_y = y + 60;
+        let ring_radius = 25;
+        
+        let ring_bg = Circle::new()
+            .set("cx", ring_center_x)
+            .set("cy", ring_center_y)
+            .set("r", ring_radius)
+            .set("fill", "none")
+            .set("stroke", "#ecf0f1")
+            .set("stroke-width", 6);
+        document = document.add(ring_bg);
+
+        // Progress ring foreground
+        let circumference = 2.0 * std::f64::consts::PI * ring_radius as f64;
+        let progress_offset = circumference * (1.0 - percentage / 100.0);
+        
+        let progress_ring = Circle::new()
+            .set("cx", ring_center_x)
+            .set("cy", ring_center_y)
+            .set("r", ring_radius)
+            .set("fill", "none")
+            .set("stroke", *color)
+            .set("stroke-width", 6)
+            .set("stroke-linecap", "round")
+            .set("stroke-dasharray", format!("{} {}", circumference, circumference))
+            .set("stroke-dashoffset", progress_offset)
+            .set("transform", format!("rotate(-90 {} {})", ring_center_x, ring_center_y))
+            .set("style", "transition: stroke-dashoffset 0.5s ease;");
+        document = document.add(progress_ring);
+
+        // Percentage text in center of ring
+        let percent_text = SvgText::new(format!("{:.0}%", percentage))
+            .set("x", ring_center_x)
+            .set("y", ring_center_y + 4)
             .set("text-anchor", "middle")
-            .set("font-size", 10)
+            .set("font-size", 12)
+            .set("font-weight", "bold")
+            .set("fill", *color);
+        document = document.add(percent_text);
+
+        // Metric title
+        let title_text = SvgText::new(*title)
+            .set("x", x + 90)
+            .set("y", y + 35)
+            .set("font-size", 12)
             .set("font-weight", "600")
-            .set("fill", "#7f8c8d");
+            .set("fill", "#2c3e50");
         document = document.add(title_text);
 
-        // Value
+        // Metric value with larger, prominent display
         let value_text = SvgText::new(value)
-            .set("x", x + box_width / 2)
-            .set("y", y + 40)
-            .set("text-anchor", "middle")
-            .set("font-size", 13)
+            .set("x", x + 90)
+            .set("y", y + 55)
+            .set("font-size", 16)
             .set("font-weight", "bold")
             .set("fill", "#2c3e50");
         document = document.add(value_text);
-    }
 
-    // Render advanced metrics (Row 2)
-    for (i, (title, value)) in advanced_metrics.iter().enumerate() {
-        let x = start_x + i * spacing_x;
-        let y = start_y + spacing_y;
+        // Status indicator based on percentage
+        let status_color = if *percentage >= 80.0 {
+            "#e74c3c"  // Red for high values
+        } else if *percentage >= 50.0 {
+            "#f39c12"  // Orange for medium values
+        } else {
+            "#27ae60"  // Green for low values
+        };
 
-        // Metric box background with orange border for advanced metrics
-        let box_bg = Rectangle::new()
-            .set("x", x)
-            .set("y", y)
-            .set("width", box_width)
-            .set("height", box_height)
-            .set("fill", "white")
-            .set("stroke", "#e67e22")  // Orange border for advanced metrics
-            .set("stroke-width", 2)
-            .set("rx", 6);
-        document = document.add(box_bg);
+        let status_dot = Circle::new()
+            .set("cx", x + 90)
+            .set("cy", y + 75)
+            .set("r", 4)
+            .set("fill", status_color);
+        document = document.add(status_dot);
 
-        // Title
-        let title_text = SvgText::new(*title)
-            .set("x", x + box_width / 2)
-            .set("y", y + 20)
-            .set("text-anchor", "middle")
-            .set("font-size", 10)
+        // Status text
+        let status_text = if *percentage >= 80.0 {
+            "HIGH"
+        } else if *percentage >= 50.0 {
+            "MEDIUM"
+        } else {
+            "OPTIMAL"
+        };
+
+        let status_label = SvgText::new(status_text)
+            .set("x", x + 105)
+            .set("y", y + 79)
+            .set("font-size", 9)
             .set("font-weight", "600")
-            .set("fill", "#7f8c8d");
-        document = document.add(title_text);
-
-        // Value
-        let value_text = SvgText::new(value)
-            .set("x", x + box_width / 2)
-            .set("y", y + 40)
-            .set("text-anchor", "middle")
-            .set("font-size", 13)
-            .set("font-weight", "bold")
-            .set("fill", "#2c3e50");
-        document = document.add(value_text);
+            .set("fill", status_color);
+        document = document.add(status_label);
     }
 
     Ok(document)
@@ -515,7 +532,7 @@ pub fn add_enhanced_type_chart(
     types: &[EnhancedTypeInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 670;
+    let chart_y = 730;
     let chart_width = 850;
     let chart_height = 300;
 
@@ -617,7 +634,7 @@ pub fn add_categorized_allocations(
     categories: &[AllocationCategory],
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 1020;
+    let chart_y = 1080;
     let chart_width = 850;
     let chart_height = 300;
 
@@ -688,7 +705,7 @@ pub fn add_categorized_allocations(
 
         document = document.add(name_text);
 
-        // Enhanced variable names display - 优化文字溢出问题
+        // Enhanced variable names display - optimize text overflow issues
         let var_names: Vec<String> = category
             .allocations
             .iter()
@@ -696,7 +713,7 @@ pub fn add_categorized_allocations(
                 if let Some(var_name) = &a.var_name {
                     let type_name = a.type_name.as_deref().unwrap_or("Unknown");
                     let (simplified_type, _) = simplify_type_name(type_name);
-                    // 缩短变量名显示，避免溢出
+                    // Shorten variable name display to avoid overflow
                     let short_var = if var_name.len() > 12 {
                         format!("{}...", &var_name[..9])
                     } else {
@@ -707,7 +724,7 @@ pub fn add_categorized_allocations(
                     None
                 }
             })
-            .take(3) // 减少显示的变量数量，避免溢出
+            .take(3) // Reduce number of displayed variables to avoid overflow
             .collect();
 
         let mut display_text = if var_names.is_empty() {
@@ -724,9 +741,9 @@ pub fn add_categorized_allocations(
             )
         };
 
-        // 动态截断文字，确保不超出图表边界
-        let max_text_width = chart_width - 180; // 预留边距
-        let estimated_char_width = 7; // 估算每个字符宽度
+        // Dynamically truncate text to ensure it doesn't exceed chart boundaries
+        let max_text_width = chart_width - 180; // Reserve margin
+        let estimated_char_width = 7; // Estimate character width
         let max_chars = (max_text_width / estimated_char_width) as usize;
 
         if display_text.len() > max_chars {
@@ -736,7 +753,7 @@ pub fn add_categorized_allocations(
         let size_text = SvgText::new(display_text)
             .set("x", chart_x + 160)
             .set("y", y + bar_height / 2 + 4)
-            .set("font-size", 11) // 稍微减小字体避免溢出
+            .set("font-size", 11) // Slightly reduce font size to avoid overflow
             .set("font-weight", "bold")
             .set("fill", "#FFFFFF")
             .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
@@ -754,7 +771,7 @@ pub fn add_memory_timeline(
     _stats: &MemoryStats,
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 1720;
+    let chart_y = 1780;
     let chart_width = 1700;
     let chart_height = 300;
 
@@ -927,7 +944,7 @@ pub fn add_fragmentation_analysis(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 950;
-    let chart_y = 650; // 修复：向上移动20px，避免下移问题
+    let chart_y = 710; // Fix: adjust position to avoid overlap
     let chart_width = 750; // 修复：适应新的1600px宽度
     let chart_height = 300;
 
@@ -1050,7 +1067,7 @@ pub fn add_callstack_analysis(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 950;
-    let chart_y = 1000; // 修复：向上移动20px，避免下移问题
+    let chart_y = 1060; // Fix: adjust position to avoid overlap
     let chart_width = 750; // 修复：适应新的1600px宽度
     let chart_height = 300;
 
@@ -1189,7 +1206,7 @@ pub fn add_memory_growth_trends(
     stats: &MemoryStats,
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 1370;
+    let chart_y = 1430;
     let chart_width = 1700;
     let chart_height = 300;
 
@@ -1301,7 +1318,7 @@ pub fn add_memory_growth_trends(
 /// Add interactive legend
 pub fn add_interactive_legend(mut document: Document) -> TrackingResult<Document> {
     let legend_x = 50;
-    let legend_y = 2070;
+    let legend_y = 2130;
     let legend_width = 850;
     let legend_height = 250;
 
@@ -1375,7 +1392,7 @@ pub fn add_comprehensive_summary(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let summary_x = 950;
-    let summary_y = 2070;
+    let summary_y = 2130;
     let summary_width = 800;
     let summary_height = 250;
 
@@ -1478,9 +1495,9 @@ pub fn add_performance_dashboard(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 240; // Move down to accommodate 2-row metrics layout
+    let chart_y = 300; // Move down to avoid overlapping with header section
     let chart_width = 1700;
-    let chart_height = 350; // 减少高度，避免被下面模块遮挡
+    let chart_height = 350; // Reduce height to avoid being blocked by modules below
 
     // Chart background
     let bg = Rectangle::new()
@@ -1495,8 +1512,8 @@ pub fn add_performance_dashboard(
 
     document = document.add(bg);
 
-    // Chart title with explanation of gray dots
-    let title = SvgText::new("Memory Allocation Timeline (Gray dots = Unknown type allocations)")
+    // Chart title
+    let title = SvgText::new("Memory Allocation Timeline")
         .set("x", chart_x + chart_width / 2)
         .set("y", chart_y - 15)
         .set("text-anchor", "middle")
@@ -1520,10 +1537,10 @@ pub fn add_performance_dashboard(
     let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(1024) as f64;
     let min_size = allocations.iter().map(|a| a.size).filter(|&s| s > 0).min().unwrap_or(1) as f64;
 
-    // Plot area dimensions - 为右侧图例预留空间，防止溢出
+    // Plot area dimensions - reserve space for right-side legend to prevent overflow
     let plot_x = chart_x + 80;
     let plot_y = chart_y + 30;
-    let plot_width = chart_width - 250; // 增加右侧边距，为图例留出空间
+    let plot_width = chart_width - 250; // Increase right margin to leave space for legend
     let plot_height = chart_height - 80;
 
     // X-axis (Time)
@@ -1546,7 +1563,7 @@ pub fn add_performance_dashboard(
         .set("stroke-width", 2);
     document = document.add(y_axis);
 
-    // X-axis label - 清晰标注横坐标含义
+    // X-axis label - clearly indicate horizontal axis meaning
     let x_label = SvgText::new("Execution Time (milliseconds)")
         .set("x", plot_x + plot_width / 2)
         .set("y", plot_y + plot_height + 40)
@@ -1556,7 +1573,7 @@ pub fn add_performance_dashboard(
         .set("fill", "#2c3e50");
     document = document.add(x_label);
 
-    // Y-axis label - 清晰标注纵坐标含义
+    // Y-axis label - clearly indicate vertical axis meaning
     let y_label = SvgText::new("Memory Allocation Size (Bytes)")
         .set("x", plot_x - 60)
         .set("y", plot_y + plot_height / 2)
@@ -1608,7 +1625,7 @@ pub fn add_performance_dashboard(
         }
     }
 
-    // 添加X轴时间刻度标记 - 让用户能简单明了看时间数据
+    // Add X-axis time scale markers - allow users to easily see time data
     let time_markers = 5;
     for i in 0..=time_markers {
         let time_point = min_time + (time_range * i as f64 / time_markers as f64);
@@ -1704,12 +1721,12 @@ pub fn add_performance_dashboard(
         }
     }
 
-    // 优化后的图例 - 防止右侧边界溢出
+    // Optimized legend - prevent right border overflow
     let legend_x = plot_x + plot_width + 20;
     let legend_y = plot_y + 20;
-    let legend_width = 140; // 限制图例宽度
+    let legend_width = 140; // Limit legend width
     
-    // 图例背景框，防止内容溢出
+    // Legend background box to prevent content overflow
     let legend_bg = Rectangle::new()
         .set("x", legend_x - 10)
         .set("y", legend_y - 15)
@@ -1729,15 +1746,15 @@ pub fn add_performance_dashboard(
         .set("fill", "#2c3e50");
     document = document.add(legend_title);
 
-    // 添加灰色点说明
-    // 统计Unknown Type的数量，提供更精确的信息
+    // Add gray dot explanation
+    // Count Unknown Type allocations for more precise information
     let unknown_count = allocations.iter()
         .filter(|a| a.type_name.as_ref().map_or(true, |t| t == "Unknown" || t.is_empty()))
         .count();
     
     let unknown_legend_y = legend_y + 20;
     
-    // Unknown Type color square - 按照图例样式
+    // Unknown Type color square - following legend style
     let unknown_color_square = Rectangle::new()
         .set("x", legend_x)
         .set("y", unknown_legend_y - 8)
@@ -1746,7 +1763,7 @@ pub fn add_performance_dashboard(
         .set("fill", "#95a5a6");
     document = document.add(unknown_color_square);
     
-    // 更精确的Unknown Type标签，显示数量和可能原因
+    // More precise Unknown Type label showing count and possible causes
     let unknown_label = if unknown_count > 0 {
         format!("Unknown ({} allocs)", unknown_count)
     } else {
@@ -1772,7 +1789,7 @@ pub fn add_performance_dashboard(
             .set("fill", category.color.as_str());
         document = document.add(color_square);
 
-        // Category name - 截断长名称避免溢出
+        // Category name - truncate long names to avoid overflow
         let category_name = if category.name.len() > 12 {
             format!("{}...", &category.name[..9])
         } else {

@@ -24,7 +24,7 @@ Thumbs.db
 
 # memscope-rs specific output files
 *.json
-*.svg
+# *.svg
 memory_*.json
 memory_*.svg
 *_test.json

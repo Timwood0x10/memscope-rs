@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Safety](https://img.shields.io/badge/safety-tested-green.svg)](#safety--security)
 
-[**memscope-rs**](https://github.com/Timwood0x10/memscope-rs.git) is a comprehensive Rust memory analysis toolkit that provides real-time tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, intuitive variable tracking, and beautiful SVG visualizations.
+[**memscope-rs**](https://github.com/Timwood0x10/memscope-rs.git) is a comprehensive Rust memory analysis toolkit that provides real-time tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, intuitive variable tracking, and beautiful SVG visualizations with enhanced layout and comprehensive memory insights.
 
 ## 🌟 Key Features
 
@@ -222,7 +222,50 @@ fn main() {
 
 #### SVG Output Features
 
-![Example Output](./images/memory_tools.png)
+![Example Output](./images/memory_analysis.svg)
+
+## 📊 Eight Core Memory Metrics
+
+Our visualization provides eight key metrics to comprehensively analyze your Rust application's memory usage:
+
+### 🔵 Basic Metrics (Central & Ring Display)
+1. **Active Memory** - Current memory in use by your application
+   - `stats.active_memory` (bytes)
+   - Displayed in central blue circle
+
+2. **Peak Memory** - Maximum memory usage reached during execution  
+   - `stats.peak_memory` (bytes)
+   - Displayed in central blue circle
+
+3. **Active Allocations** - Number of currently active memory allocations
+   - `stats.active_allocations` (count)
+   - Displayed in red satellite circle
+
+4. **Memory Reclamation Rate** - Percentage of allocated memory that has been freed
+   - `(stats.total_deallocated / stats.total_allocated) × 100%`
+   - Displayed in green satellite circle
+
+### 🟠 Advanced Metrics (Ring & Linear Display)
+5. **Allocator Efficiency** - How well memory is being utilized vs peak usage
+   - `(stats.active_memory / stats.peak_memory) × 100%`
+   - Displayed in orange satellite circle
+
+6. **Median Allocation Size** - Middle value of all allocation sizes (50th percentile)
+   - Calculated from sorted allocation sizes: `sizes[len/2]`
+   - Displayed as blue linear bar
+
+7. **P95 Allocation Size** - 95th percentile of allocation sizes (large allocations)
+   - Calculated as: `sizes[(len × 0.95) as usize]`
+   - Displayed as orange linear bar (full length)
+
+8. **Memory Fragmentation** - Percentage of peak memory not currently in use
+   - `((stats.peak_memory - stats.active_memory) / stats.peak_memory) × 100%`
+   - Displayed in purple satellite circle
+
+### 🎯 Visualization Layout
+- **Central Circle**: Most critical metrics (Active/Peak Memory)
+- **Satellite Circles**: Performance and efficiency metrics with connecting lines
+- **Linear Bars**: Size comparison metrics for intuitive understanding
 
 The enhanced SVG visualization includes:
 
@@ -246,6 +289,71 @@ The enhanced SVG visualization includes:
    - Visual timeline of when variables were allocated
    - Shows variable names and sizes
    - Helps understand allocation patterns
+
+![Example Output](./images/lifecycle_timeline.svg)
+
+### 🎯 Lifecycle Timeline SVG Detailed Analysis
+
+The lifecycle timeline visualization provides a comprehensive view of variable lifecycles and scope relationships in your Rust application:
+
+#### **📊 Timeline Structure & Components**
+
+**🔝 Header Section:**
+- **Title**: "Scope Matrix & Lifecycle Visualization" - Professional gradient styling
+- **Global Legend**: Prominent progress bar explanation showing lifecycle progression patterns
+- **Scope Information**: Total scopes found and variables being displayed
+
+**🎨 Matrix Layout Section:**
+- **Variable Nodes**: Each tracked variable displayed as colored circles with variable names
+- **Type Information**: Shows complete Rust type information (e.g., `alloc::boxed::Box<Vec<u8>>`)
+- **Scope Grouping**: Variables organized by their scope context (Global, Function, Block)
+- **Visual Hierarchy**: Indentation and positioning indicate scope relationships
+
+**📈 Top 3 Memory Analysis:**
+- **Memory Bars**: Horizontal bars showing relative memory usage by type
+- **Variable Details**: Each bar shows variable names and their memory consumption
+- **Type Categorization**: Groups similar types together (Collections, Smart Pointers, etc.)
+- **Size Comparison**: Visual comparison of memory usage across different variable types
+
+**🔗 Variable Relationships Section:**
+- **Ownership & Borrowing**: Visual representation of Rust ownership patterns
+- **Scope Backgrounds**: Different colored backgrounds for different scopes
+- **Relationship Lines**: Connecting lines showing variable dependencies and references
+- **Interactive Elements**: Hover effects and visual feedback for better understanding
+
+#### **🎨 Visual Design Features**
+
+**Color Coding System:**
+- **Blue Gradient**: Represents different variable lifetimes (darker = longer lived)
+- **Scope Colors**: Different background colors for Global, Function, and Block scopes
+- **Type Colors**: Consistent color scheme matching the memory analysis SVG
+- **Relationship Lines**: Dotted and solid lines indicating different relationship types
+
+**Layout Optimization:**
+- **Responsive Design**: Adapts to different numbers of variables and scopes
+- **Overflow Prevention**: Smart text truncation and layout adjustments
+- **Professional Styling**: Modern shadows, gradients, and typography
+- **Clear Hierarchy**: Visual separation between different analysis sections
+
+#### **🔧 Interpretation Guide**
+
+**Understanding Variable Lifecycles:**
+- **Node Position**: Higher positions indicate earlier allocation times
+- **Node Size**: Larger nodes represent variables with more memory usage
+- **Color Intensity**: Darker colors indicate longer-lived variables
+- **Scope Grouping**: Variables in the same scope are visually grouped together
+
+**Relationship Analysis:**
+- **Ownership Transfer**: Solid lines showing move semantics
+- **Borrowing Patterns**: Dashed lines indicating reference relationships
+- **Shared Ownership**: Special indicators for `Rc` and `Arc` patterns
+- **Scope Boundaries**: Clear visual separation between different scopes
+
+**Practical Applications:**
+- Understanding variable scope relationships in complex Rust applications
+- Identifying memory ownership patterns and potential optimizations
+- Visualizing the lifecycle of smart pointers and reference-counted data
+- Debugging scope-related memory issues and lifetime conflicts
 
 #### JSON Output Structure
 
