@@ -13,61 +13,116 @@ pub fn format_bytes(bytes: usize) -> String {
 
 /// Simplify Rust type names for better readability - Enhanced Unknown Type identification
 pub fn simplify_type_name(type_name: &str) -> (String, String) {
-    if type_name.starts_with("alloc::vec::Vec<") || type_name.starts_with("std::vec::Vec<") {
-        let inner = extract_generic_type(type_name, "Vec");
+    // Handle empty or explicitly unknown types first
+    if type_name.is_empty() || type_name == "Unknown" {
+        return ("Unknown Type".to_string(), "Unknown".to_string());
+    }
+    
+    // Clean up the type name - remove extra whitespace and normalize
+    let clean_type = type_name.trim();
+    
+    // Enhanced pattern matching with more comprehensive coverage
+    if clean_type.contains("Vec<") || clean_type.contains("vec::Vec") {
+        let inner = extract_generic_type(clean_type, "Vec");
         (format!("Vec<{inner}>"), "Collections".to_string())
-    } else if type_name.starts_with("alloc::string::String") || type_name == "String" {
-        ("String".to_string(), "Text".to_string())
-    } else if type_name.starts_with("alloc::boxed::Box<")
-        || type_name.starts_with("std::boxed::Box<")
-    {
-        let inner = extract_generic_type(type_name, "Box");
-        (format!("Box<{inner}>"), "Smart Pointers".to_string())
-    } else if type_name.starts_with("alloc::rc::Rc<") || type_name.starts_with("std::rc::Rc<") {
-        let inner = extract_generic_type(type_name, "Rc");
-        (format!("Rc<{inner}>"), "Reference Counted".to_string())
-    } else if type_name.starts_with("alloc::sync::Arc<") || type_name.starts_with("std::sync::Arc<")
-    {
-        let inner = extract_generic_type(type_name, "Arc");
-        (format!("Arc<{inner}>"), "Thread-Safe Shared".to_string())
-    } else if type_name.contains("HashMap") {
-        ("HashMap".to_string(), "Collections".to_string())
-    } else if type_name.contains("BTreeMap") {
-        ("BTreeMap".to_string(), "Collections".to_string())
-    } else if type_name.contains("VecDeque") {
-        ("VecDeque".to_string(), "Collections".to_string())
-    } else if type_name.is_empty() || type_name == "Unknown" {
-        ("Unknown Type".to_string(), "Unknown".to_string())
-    } else if type_name.contains("i32") || type_name.contains("u32") || type_name.contains("i64") || type_name.contains("u64") || type_name.contains("f64") || type_name.contains("f32") {
-        (type_name.split("::").last().unwrap_or(type_name).to_string(), "Primitives".to_string())
-    } else if type_name.contains("[") && type_name.contains("]") {
-        ("Array".to_string(), "Arrays".to_string())
-    } else if type_name.starts_with("(") && type_name.ends_with(")") {
-        ("Tuple".to_string(), "Tuples".to_string())
-    } else if type_name.contains("Option<") {
-        ("Option".to_string(), "Optionals".to_string())
-    } else if type_name.contains("Result<") {
-        ("Result".to_string(), "Results".to_string())
-    } else if type_name.starts_with("std::") || type_name.starts_with("alloc::") {
-        let simplified = type_name.split("::").last().unwrap_or(type_name);
-        (format!("std::{}", simplified), "Standard Library".to_string())
-    } else if type_name.contains("::") {
-        let parts: Vec<&str> = type_name.split("::").collect();
-        if parts.len() >= 2 {
-            let module = parts[parts.len() - 2];
-            let type_part = parts[parts.len() - 1];
-            (format!("{}::{}", module, type_part), "Custom Types".to_string())
+    } else if clean_type.contains("String") || clean_type.contains("string::String") {
+        ("String".to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("Box<") || clean_type.contains("boxed::Box") {
+        let inner = extract_generic_type(clean_type, "Box");
+        // Check if the inner type is a collection - if so, categorize as collection
+        if inner.contains("HashMap") || inner.contains("hash_map") {
+            ("HashMap<K,V>".to_string(), "Collections".to_string())
+        } else if inner.contains("BTreeMap") || inner.contains("btree_map") {
+            ("BTreeMap<K,V>".to_string(), "Collections".to_string())
+        } else if inner.contains("BTreeSet") || inner.contains("btree_set") {
+            ("BTreeSet<T>".to_string(), "Collections".to_string())
+        } else if inner.contains("HashSet") || inner.contains("hash_set") {
+            ("HashSet<T>".to_string(), "Collections".to_string())
+        } else if inner.contains("VecDeque") || inner.contains("vec_deque") {
+            ("VecDeque<T>".to_string(), "Collections".to_string())
+        } else if inner.contains("Vec") || inner.contains("vec::Vec") {
+            let vec_inner = extract_generic_type(&inner, "Vec");
+            (format!("Vec<{vec_inner}>"), "Collections".to_string())
         } else {
-            (parts.last().map_or(type_name, |v| v).to_string(), "Custom Types".to_string())
+            (format!("Box<{inner}>"), "Smart Pointers".to_string())
+        }
+    } else if clean_type.contains("Rc<") || clean_type.contains("rc::Rc") {
+        let inner = extract_generic_type(clean_type, "Rc");
+        (format!("Rc<{inner}>"), "Smart Pointers".to_string())
+    } else if clean_type.contains("Arc<") || clean_type.contains("sync::Arc") {
+        let inner = extract_generic_type(clean_type, "Arc");
+        (format!("Arc<{inner}>"), "Smart Pointers".to_string())
+    } else if clean_type.contains("HashMap") || clean_type.contains("hash_map") {
+        ("HashMap<K,V>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("BTreeMap") || clean_type.contains("btree_map") {
+        ("BTreeMap<K,V>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("BTreeSet") || clean_type.contains("btree_set") {
+        ("BTreeSet<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("HashSet") || clean_type.contains("hash_set") {
+        ("HashSet<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("VecDeque") || clean_type.contains("vec_deque") {
+        ("VecDeque<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("LinkedList") {
+        ("LinkedList<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("&str") || clean_type == "str" {
+        ("&str".to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("CString") || clean_type.contains("CStr") {
+        ("CString".to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("OsString") || clean_type.contains("OsStr") {
+        ("OsString".to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("PathBuf") || clean_type.contains("Path") {
+        ("PathBuf".to_string(), "Basic Types".to_string())
+    } else if clean_type.matches("i32").count() > 0 || clean_type.matches("u32").count() > 0 || 
+              clean_type.matches("i64").count() > 0 || clean_type.matches("u64").count() > 0 || 
+              clean_type.matches("f64").count() > 0 || clean_type.matches("f32").count() > 0 ||
+              clean_type.matches("i8").count() > 0 || clean_type.matches("u8").count() > 0 ||
+              clean_type.matches("i16").count() > 0 || clean_type.matches("u16").count() > 0 ||
+              clean_type.matches("isize").count() > 0 || clean_type.matches("usize").count() > 0 ||
+              clean_type.matches("bool").count() > 0 || clean_type.matches("char").count() > 0 {
+        let primitive = clean_type.split("::").last().unwrap_or(clean_type);
+        (primitive.to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("[") && clean_type.contains("]") {
+        ("Array".to_string(), "Arrays".to_string())
+    } else if clean_type.starts_with("(") && clean_type.ends_with(")") {
+        ("Tuple".to_string(), "Tuples".to_string())
+    } else if clean_type.contains("Option<") {
+        ("Option<T>".to_string(), "Optionals".to_string())
+    } else if clean_type.contains("Result<") {
+        ("Result<T,E>".to_string(), "Results".to_string())
+    } else if clean_type.contains("Mutex<") || clean_type.contains("RwLock<") {
+        ("Mutex/RwLock".to_string(), "Synchronization".to_string())
+    } else if clean_type.contains("Cell<") || clean_type.contains("RefCell<") {
+        ("Cell/RefCell".to_string(), "Interior Mutability".to_string())
+    } else if clean_type.contains("Weak<") {
+        ("Weak<T>".to_string(), "Smart Pointers".to_string())
+    } else if clean_type.starts_with("std::") || clean_type.starts_with("alloc::") || clean_type.starts_with("core::") {
+        let simplified = clean_type.split("::").last().unwrap_or(clean_type);
+        (simplified.to_string(), "Standard Library".to_string())
+    } else if clean_type.contains("::") {
+        // Handle custom types with namespaces
+        let parts: Vec<&str> = clean_type.split("::").collect();
+        if parts.len() >= 2 {
+            let type_part = parts.last().unwrap();
+            // Try to categorize based on common patterns
+            if type_part.ends_with("Error") || type_part.contains("Err") {
+                (type_part.to_string(), "Error Types".to_string())
+            } else if type_part.ends_with("Config") || type_part.ends_with("Settings") {
+                (type_part.to_string(), "Configuration".to_string())
+            } else if type_part.ends_with("Builder") {
+                (type_part.to_string(), "Builders".to_string())
+            } else {
+                (type_part.to_string(), "Custom Types".to_string())
+            }
+        } else {
+            (clean_type.to_string(), "Custom Types".to_string())
         }
     } else {
-        // For other types, try to extract the last component
-        let simplified = type_name
-            .split("::")
-            .last()
-            .unwrap_or(type_name)
-            .to_string();
-        (simplified, "Custom Types".to_string())
+        // For simple type names without namespace
+        if clean_type.len() > 0 {
+            (clean_type.to_string(), "Custom Types".to_string())
+        } else {
+            ("Unknown Type".to_string(), "Unknown".to_string())
+        }
     }
 }
 
@@ -111,19 +166,27 @@ pub fn get_simple_type(type_name: &str) -> String {
 pub fn get_category_color(category: &str) -> String {
     match category {
         "Collections" => "#3498db".to_string(),        // Blue
-        "Text" => "#2ecc71".to_string(),               // Green  
+        "Basic Types" => "#27ae60".to_string(),        // Green for Basic Types
+        "Strings" => "#27ae60".to_string(),            // Green (legacy support)
+        "Text" => "#27ae60".to_string(),               // Green (legacy support)
         "Smart Pointers" => "#e74c3c".to_string(),     // Red
         "Reference Counted" => "#f39c12".to_string(),  // Orange
         "Thread-Safe Shared" => "#9b59b6".to_string(), // Purple
         "Primitives" => "#1abc9c".to_string(),         // Teal
         "Arrays" => "#34495e".to_string(),             // Dark Gray
         "Tuples" => "#16a085".to_string(),             // Dark Teal
-        "Optionals" => "#27ae60".to_string(),          // Dark Green
-        "Results" => "#8e44ad".to_string(),            // Dark Purple
+        "Optionals" => "#8e44ad".to_string(),          // Dark Purple
+        "Results" => "#d35400".to_string(),            // Dark Orange
         "Standard Library" => "#2980b9".to_string(),   // Dark Blue
-        "Custom Types" => "#d35400".to_string(),       // Dark Orange
-        "Unknown" => "#95a5a6".to_string(),            // Gray
-        _ => "#7f8c8d".to_string(),                    // Darker Gray
+        "Custom Types" => "#c0392b".to_string(),       // Dark Red
+        "Synchronization" => "#e67e22".to_string(),    // Orange
+        "Interior Mutability" => "#95a5a6".to_string(), // Light Gray
+        "Error Types" => "#e74c3c".to_string(),        // Red
+        "Configuration" => "#3498db".to_string(),      // Blue
+        "Builders" => "#9b59b6".to_string(),           // Purple
+        "Runtime/System Allocation" => "#bdc3c7".to_string(), // Light Gray for system allocations
+        "Unknown" => "#bdc3c7".to_string(),            // Light Gray (legacy support)
+        _ => "#7f8c8d".to_string(),                    // Medium Gray for other unknowns
     }
 }
 

@@ -161,8 +161,8 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
 
     // Collections (using Box to make them trackable)
     let mut hash_map = HashMap::new();
-    for i in 0..50 {
-        hash_map.insert(format!("key_{}", i), i * 2);
+    for i in 0..500 {  // Increased from 50 to 500
+        hash_map.insert(format!("key_with_longer_string_{}", i), i * 2);
     }
     let boxed_hash_map = Box::new(hash_map);
     track_var!(boxed_hash_map).unwrap();
@@ -170,8 +170,8 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     keep_alive.push(boxed_hash_map as Box<dyn std::any::Any>);
 
     let mut hash_set = HashSet::new();
-    for i in 0..30 {
-        hash_set.insert(format!("unique_{}", i));
+    for i in 0..250 {  // Increased from 30 to 250
+        hash_set.insert(format!("unique_item_with_longer_name_{}", i));
     }
     let boxed_hash_set = Box::new(hash_set);
     track_var!(boxed_hash_set).unwrap();
@@ -179,8 +179,8 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     keep_alive.push(boxed_hash_set as Box<dyn std::any::Any>);
 
     let mut btree_map = BTreeMap::new();
-    for i in 0..25 {
-        btree_map.insert(i, format!("value_{}", i));
+    for i in 0..300 {  // Increased from 25 to 300
+        btree_map.insert(i, format!("value_with_much_longer_string_data_{}", i));
     }
     let boxed_btree_map = Box::new(btree_map);
     track_var!(boxed_btree_map).unwrap();
@@ -188,7 +188,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     keep_alive.push(boxed_btree_map as Box<dyn std::any::Any>);
 
     let mut vec_deque = VecDeque::new();
-    for i in 0..20 {
+    for i in 0..400 {  // Increased from 20 to 400
         if i % 2 == 0 {
             vec_deque.push_back(i);
         } else {

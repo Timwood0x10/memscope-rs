@@ -84,7 +84,7 @@ fn create_memory_analysis_svg(
     document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
     // 3. Performance Dashboard
-    document = crate::export_enhanced::add_performance_dashboard(document, stats, allocations)?;
+    document = crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
 
     // 4. Memory Allocation Heatmap
     document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
@@ -100,7 +100,8 @@ fn create_memory_analysis_svg(
     document = crate::export_enhanced::add_fragmentation_analysis(document, allocations)?;
 
     // 7. Left side: Tracked Variables by Category
-    let categorized = crate::export_enhanced::categorize_allocations(allocations);
+    // FIXED: Use same enhanced data source as Memory Usage by Type for consistency
+    let categorized = crate::export_enhanced::categorize_enhanced_allocations(&memory_by_type);
     document = crate::export_enhanced::add_categorized_allocations(document, &categorized)?;
 
     // 8. Right side: Call Stack Analysis

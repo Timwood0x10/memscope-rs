@@ -227,22 +227,20 @@ impl MemoryTracker {
         Ok(result)
     }
 
-    /// Export memory data to JSON format.
+    /// Export memory data to JSON format with hierarchical structure.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        // Simple JSON export implementation
         use std::fs::File;
         let path = path.as_ref();
         let active_allocations = self.get_active_allocations()?;
+        let memory_by_type = self.get_memory_by_type()?;
         let stats = self.get_stats()?;
 
-        let data = serde_json::json!({
-            "timestamp": chrono::Utc::now(),
-            "stats": stats,
-            "allocations": active_allocations
-        });
+        // Build hierarchical structure using enhanced type information
+        let enhanced_types = crate::export_enhanced::enhance_type_information(&memory_by_type, &active_allocations);
+        let hierarchical_data = build_hierarchical_json_structure(&enhanced_types, &active_allocations, &stats);
 
         let file = File::create(path)?;
-        serde_json::to_writer_pretty(file, &data).map_err(|e| {
+        serde_json::to_writer_pretty(file, &hierarchical_data).map_err(|e| {
             crate::types::TrackingError::SerializationError(format!("JSON export failed: {e}"))
         })?;
         Ok(())
@@ -320,4 +318,130 @@ fn estimate_type_size(type_name: &str) -> usize {
         // Default estimate for unknown types
         24
     }
+}
+
+/// Build hierarchical JSON structure with categories and subcategories
+fn build_hierarchical_json_structure(
+    enhanced_types: &[crate::export_enhanced::EnhancedTypeInfo],
+    active_allocations: &[AllocationInfo],
+    stats: &MemoryStats,
+) -> serde_json::Value {
+    use std::collections::HashMap;
+    
+    // Group enhanced types by category and subcategory
+    let mut categories: HashMap<String, HashMap<String, Vec<&crate::export_enhanced::EnhancedTypeInfo>>> = HashMap::new();
+    
+    for enhanced_type in enhanced_types {
+        categories
+            .entry(enhanced_type.category.clone())
+            .or_insert_with(HashMap::new)
+            .entry(enhanced_type.subcategory.clone())
+            .or_insert_with(Vec::new)
+            .push(enhanced_type);
+    }
+    
+    // Build hierarchical structure
+    let mut category_data = serde_json::Map::new();
+    let total_memory: usize = enhanced_types.iter().map(|t| t.total_size).sum();
+    
+    for (category_name, subcategories) in categories {
+        let category_total: usize = subcategories.values()
+            .flat_map(|types| types.iter())
+            .map(|t| t.total_size)
+            .sum();
+        
+        let category_percentage = if total_memory > 0 {
+            (category_total as f64 / total_memory as f64) * 100.0
+        } else {
+            0.0
+        };
+        
+        let mut subcategory_data = serde_json::Map::new();
+        let subcategory_count = subcategories.len();
+        
+        for (subcategory_name, types) in subcategories {
+            let subcategory_total: usize = types.iter().map(|t| t.total_size).sum();
+            let subcategory_percentage = if category_total > 0 {
+                (subcategory_total as f64 / category_total as f64) * 100.0
+            } else {
+                0.0
+            };
+            
+            let mut type_details = Vec::new();
+            let type_count = types.len();
+            for type_info in &types {
+                let type_percentage = if subcategory_total > 0 {
+                    (type_info.total_size as f64 / subcategory_total as f64) * 100.0
+                } else {
+                    0.0
+                };
+                
+                // Find allocations for this specific type
+                let type_allocations: Vec<_> = active_allocations
+                    .iter()
+                    .filter(|alloc| {
+                        if let Some(type_name) = &alloc.type_name {
+                            // Use the same logic as in enhance_type_information to match types
+                            alloc.var_name.as_ref().map_or(false, |var_name| {
+                                type_info.variable_names.contains(var_name)
+                            }) || type_name.contains(&type_info.simplified_name)
+                        } else {
+                            false
+                        }
+                    })
+                    .map(|alloc| serde_json::json!({
+                        "variable_name": alloc.var_name,
+                        "size_bytes": alloc.size,
+                        "allocation_time": alloc.timestamp_alloc,
+                        "type_name": alloc.type_name
+                    }))
+                    .collect();
+                
+                type_details.push(serde_json::json!({
+                    "type_name": type_info.simplified_name,
+                    "size_bytes": type_info.total_size,
+                    "allocation_count": type_info.allocation_count,
+                    "percentage_of_subcategory": format!("{:.1}%", type_percentage),
+                    "percentage_of_total": format!("{:.1}%", (type_info.total_size as f64 / total_memory as f64) * 100.0),
+                    "variable_names": type_info.variable_names,
+                    "allocations": type_allocations
+                }));
+            }
+            
+            subcategory_data.insert(subcategory_name, serde_json::json!({
+                "summary": {
+                    "total_size_bytes": subcategory_total,
+                    "percentage_of_category": format!("{:.1}%", subcategory_percentage),
+                    "percentage_of_total": format!("{:.1}%", (subcategory_total as f64 / total_memory as f64) * 100.0),
+                    "type_count": type_count
+                },
+                "types": type_details
+            }));
+        }
+        
+        category_data.insert(category_name, serde_json::json!({
+            "summary": {
+                "total_size_bytes": category_total,
+                "percentage_of_total": format!("{:.1}%", category_percentage),
+                "subcategory_count": subcategory_count
+            },
+            "subcategories": subcategory_data
+        }));
+    }
+    
+    serde_json::json!({
+        "metadata": {
+            "timestamp": chrono::Utc::now(),
+            "format_version": "1.0",
+            "description": "Hierarchical memory analysis with categories and subcategories"
+        },
+        "summary": {
+            "total_memory_bytes": total_memory,
+            "total_allocations": stats.total_allocations,
+            "active_allocations": stats.active_allocations,
+            "active_memory_bytes": stats.active_memory,
+            "peak_memory_bytes": stats.peak_memory
+        },
+        "memory_hierarchy": category_data
+    })
 }
