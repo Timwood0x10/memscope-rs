@@ -222,7 +222,7 @@ fn main() {
 
 #### SVG Output Features
 
-![Example Output](./images/memory_analysis.svg)
+![Memory Analysis](./images/memoryAnalysis.svg)
 
 ## 📊 Eight Core Memory Metrics
 
@@ -290,7 +290,7 @@ The enhanced SVG visualization includes:
    - Shows variable names and sizes
    - Helps understand allocation patterns
 
-![Example Output](./images/lifecycle_timeline.svg)
+![Lifecycle Timeline](./images/lifecycle_timeline.svg)
 
 ### 🎯 Lifecycle Timeline SVG Detailed Analysis
 

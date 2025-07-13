@@ -71,7 +71,7 @@ fn create_memory_analysis_svg(
     tracker: &MemoryTracker,
 ) -> TrackingResult<Document> {
     // Create comprehensive memory analysis using the original enhanced export logic
-    let width = 1800; // 进一步增加宽度，让布局更宽敞
+    let width = 1800; 
     let height = 2400; // Tall document for comprehensive analysis
 
     let mut document = Document::new()

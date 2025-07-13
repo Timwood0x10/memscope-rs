@@ -29,8 +29,8 @@ Thumbs.db
 *.svg
 
 # But keep these specific SVG files
-!images/lifecycle_timeline.svg
-!images/memory_analysis.svg
+!images/*.svg
+!images/*.json
 
 memory_*.json
 memory_*.svg
