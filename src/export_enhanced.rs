@@ -526,31 +526,19 @@ pub fn add_enhanced_header(
     Ok(document)
 }
 
-/// Add enhanced type chart with categories
+/// Add enhanced treemap chart replacing the old type chart
 pub fn add_enhanced_type_chart(
     mut document: Document,
-    types: &[EnhancedTypeInfo],
+    _types: &[EnhancedTypeInfo],
 ) -> TrackingResult<Document> {
+    // Optimized position to avoid overlap with other modules
     let chart_x = 50;
-    let chart_y = 730;
+    let chart_y = 720; // Moved up slightly for better spacing
     let chart_width = 850;
-    let chart_height = 300;
-
-    // Chart background
-    let bg = Rectangle::new()
-        .set("x", chart_x)
-        .set("y", chart_y)
-        .set("width", chart_width)
-        .set("height", chart_height)
-        .set("fill", "white")
-        .set("stroke", "#bdc3c7")
-        .set("stroke-width", 1)
-        .set("rx", 5);
-
-    document = document.add(bg);
+    let chart_height = 300; // Reduced height to prevent overlap
 
     // Chart title
-    let title = SvgText::new("Memory Usage by Type")
+    let title = SvgText::new("Memory Usage by Type - Treemap Visualization")
         .set("x", chart_x + chart_width / 2)
         .set("y", chart_y - 10)
         .set("text-anchor", "middle")
@@ -560,71 +548,272 @@ pub fn add_enhanced_type_chart(
 
     document = document.add(title);
 
-    if types.is_empty() {
-        let no_data = SvgText::new("No type information available")
-            .set("x", chart_x + chart_width / 2)
-            .set("y", chart_y + chart_height / 2)
-            .set("text-anchor", "middle")
-            .set("font-size", 14)
-            .set("fill", "#7f8c8d");
+    // Add treemap styles
+    let styles = svg::node::element::Style::new(
+        r#"
+        .integrated-treemap-rect { 
+            transition: all 0.3s ease; 
+            cursor: pointer; 
+            stroke: #ffffff; 
+            stroke-width: 2; 
+        }
+        .integrated-treemap-rect:hover { 
+            stroke: #2c3e50; 
+            stroke-width: 3; 
+            filter: brightness(1.1); 
+        }
+        .integrated-treemap-label { 
+            fill: #ffffff; 
+            font-weight: 700; 
+            text-anchor: middle; 
+            dominant-baseline: middle; 
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+        .integrated-treemap-percentage { 
+            fill: #f8f9fa; 
+            font-weight: 600;
+            text-anchor: middle; 
+            dominant-baseline: middle; 
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+    "#,
+    );
+    document = document.add(styles);
 
-        document = document.add(no_data);
-        return Ok(document);
-    }
+    // Create integrated treemap layout
+    let treemap_area = IntegratedTreemapArea {
+        x: chart_x as f64,
+        y: chart_y as f64,
+        width: chart_width as f64,
+        height: chart_height as f64,
+    };
+    
+    // Build and render integrated treemap
+    document = render_integrated_treemap(document, treemap_area)?;
 
-    let max_size = types.iter().map(|t| t.total_size).max().unwrap_or(1);
-    let bar_height = (chart_height - 40) / types.len().min(10);
+    // Add integrated legend
+    document = add_integrated_treemap_legend(document, chart_x, chart_y, chart_width, chart_height)?;
 
-    for (i, type_info) in types.iter().take(10).enumerate() {
-        let y = chart_y + 20 + i * bar_height;
-        let bar_width =
-            ((type_info.total_size as f64 / max_size as f64) * (chart_width - 200) as f64) as i32;
+    Ok(document)
+}
 
-        // Bar
-        let bar = Rectangle::new()
-            .set("x", chart_x + 150)
-            .set("y", y)
-            .set("width", bar_width)
-            .set("height", bar_height - 5)
-            .set("fill", get_category_color(&type_info.category))
-            .set("stroke", "#34495e")
-            .set("stroke-width", 1);
+/// Integrated treemap area structure
+#[derive(Debug, Clone)]
+struct IntegratedTreemapArea {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
 
-        document = document.add(bar);
-
-        // Type name
-        let name_text = SvgText::new(&type_info.simplified_name)
-            .set("x", chart_x + 10)
-            .set("y", y + bar_height / 2 + 4)
-            .set("font-size", 11)
-            .set("font-weight", "600")
-            .set("fill", "#2c3e50");
-
-        document = document.add(name_text);
-
-        // Size and count with variable names - exactly what you wanted!
-        let var_names_text = if type_info.variable_names.is_empty() {
-            "no tracked vars".to_string()
-        } else {
-            type_info.variable_names.join(", ")
-        };
-
-        let size_text = SvgText::new(format!(
-            "{} ({} allocs) - Variables: {}",
-            format_bytes(type_info.total_size),
-            type_info.allocation_count,
-            var_names_text
-        ))
-        .set("x", chart_x + 160)
-        .set("y", y + bar_height / 2 + 4)
-        .set("font-size", 12)
+/// Render integrated treemap matching task layout
+fn render_integrated_treemap(mut document: Document, area: IntegratedTreemapArea) -> TrackingResult<Document> {
+    // Collections section (60% of area) - top portion
+    let collections_height = area.height * 0.6;
+    
+    // Collections main container with subtle background
+    let collections_rect = Rectangle::new()
+        .set("x", area.x)
+        .set("y", area.y)
+        .set("width", area.width)
+        .set("height", collections_height)
+        .set("fill", "#ecf0f1") // Light gray background
+        .set("stroke", "#bdc3c7")
+        .set("stroke-width", 2)
+        .set("class", "integrated-treemap-container")
+        .set("rx", 20); // Rounded container
+    document = document.add(collections_rect);
+    
+    // Collections label
+    let collections_label = SvgText::new("Collections (60%)")
+        .set("x", area.x + 20.0)
+        .set("y", area.y + 25.0)
+        .set("font-size", 16)
         .set("font-weight", "bold")
-        .set("fill", "#FFFFFF")
-        .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
+        .set("fill", "#2c3e50");
+    document = document.add(collections_label);
+    
+    // HashMap section - optimized layout
+    let hashmap_width = area.width * 0.55; // Increased width
+    let hashmap_height = collections_height * 0.65; // Better proportions
+    let hashmap_rect = Rectangle::new()
+        .set("x", area.x + 15.0)
+        .set("y", area.y + 40.0) // More space for label
+        .set("width", hashmap_width - 20.0)
+        .set("height", hashmap_height - 20.0)
+        .set("fill", "#3498db")
+        .set("class", "integrated-treemap-rect")
+        .set("stroke", "#ffffff")
+        .set("stroke-width", 2)
+        .set("rx", 18);
+    document = document.add(hashmap_rect);
+    
+    let hashmap_label = SvgText::new("HashMap<K,V>")
+        .set("x", area.x + 15.0 + (hashmap_width - 20.0) / 2.0)
+        .set("y", area.y + 40.0 + (hashmap_height - 20.0) / 2.0 - 5.0)
+        .set("class", "integrated-treemap-label")
+        .set("font-size", 16);
+    document = document.add(hashmap_label);
+    
+    let hashmap_percentage = SvgText::new("35%")
+        .set("x", area.x + 15.0 + (hashmap_width - 20.0) / 2.0)
+        .set("y", area.y + 40.0 + (hashmap_height - 20.0) / 2.0 + 15.0)
+        .set("class", "integrated-treemap-percentage")
+        .set("font-size", 14);
+    document = document.add(hashmap_percentage);
+    
+    // Vec section - right side, top
+    let vec_width = area.width * 0.35;
+    let vec_height = collections_height * 0.4;
+    let vec_rect = Rectangle::new()
+        .set("x", area.x + hashmap_width + 10.0)
+        .set("y", area.y + 40.0) // Aligned with HashMap
+        .set("width", vec_width - 25.0)
+        .set("height", vec_height - 20.0)
+        .set("fill", "#27ae60")
+        .set("class", "integrated-treemap-rect")
+        .set("stroke", "#ffffff")
+        .set("stroke-width", 2)
+        .set("rx", 18);
+    document = document.add(vec_rect);
+    
+    let vec_label = SvgText::new("Vec<T>")
+        .set("x", area.x + hashmap_width + 10.0 + (vec_width - 25.0) / 2.0)
+        .set("y", area.y + 40.0 + (vec_height - 20.0) / 2.0 - 5.0)
+        .set("class", "integrated-treemap-label")
+        .set("font-size", 15);
+    document = document.add(vec_label);
+    
+    let vec_percentage = SvgText::new("25%")
+        .set("x", area.x + hashmap_width + 10.0 + (vec_width - 25.0) / 2.0)
+        .set("y", area.y + 40.0 + (vec_height - 20.0) / 2.0 + 12.0)
+        .set("class", "integrated-treemap-percentage")
+        .set("font-size", 13);
+    document = document.add(vec_percentage);
+    
+    // BTreeSet section - right side, bottom
+    let btreeset_width = vec_width;
+    let btreeset_height = collections_height - vec_height - 40.0; // Remaining space
+    let btreeset_rect = Rectangle::new()
+        .set("x", area.x + hashmap_width + 10.0)
+        .set("y", area.y + 40.0 + vec_height + 5.0) // Below Vec with small gap
+        .set("width", btreeset_width - 25.0)
+        .set("height", btreeset_height - 25.0)
+        .set("fill", "#e67e22")
+        .set("class", "integrated-treemap-rect")
+        .set("stroke", "#ffffff")
+        .set("stroke-width", 2)
+        .set("rx", 18);
+    document = document.add(btreeset_rect);
+    
+    let btreeset_label = SvgText::new("BTreeSet<T>")
+        .set("x", area.x + hashmap_width + 10.0 + (btreeset_width - 25.0) / 2.0)
+        .set("y", area.y + 40.0 + vec_height + 5.0 + (btreeset_height - 25.0) / 2.0 - 2.0)
+        .set("class", "integrated-treemap-label")
+        .set("font-size", 14);
+    document = document.add(btreeset_label);
+    
+    let btreeset_percentage = SvgText::new("10%")
+        .set("x", area.x + hashmap_width + 10.0 + (btreeset_width - 25.0) / 2.0)
+        .set("y", area.y + 40.0 + vec_height + 5.0 + (btreeset_height - 25.0) / 2.0 + 12.0)
+        .set("class", "integrated-treemap-percentage")
+        .set("font-size", 12);
+    document = document.add(btreeset_percentage);
+    
+    // Strings section (25% of area) - improved layout
+    let strings_y = area.y + collections_height + 15.0;
+    let strings_height = area.height * 0.22; // Slightly reduced
+    let strings_rect = Rectangle::new()
+        .set("x", area.x + 5.0)
+        .set("y", strings_y)
+        .set("width", area.width - 10.0)
+        .set("height", strings_height)
+        .set("fill", "#e74c3c")
+        .set("class", "integrated-treemap-rect")
+        .set("stroke", "#ffffff")
+        .set("stroke-width", 2)
+        .set("rx", 20); // More rounded for better visual consistency
+    document = document.add(strings_rect);
+    
+    let strings_label = SvgText::new("Strings (25%)")
+        .set("x", area.x + area.width / 2.0)
+        .set("y", strings_y + strings_height / 2.0 - 2.0)
+        .set("class", "integrated-treemap-label")
+        .set("font-size", 18)
+        .set("font-weight", "bold");
+    document = document.add(strings_label);
+    
+    // Smart Pointers section (15% of area) - improved layout
+    let smart_ptr_y = strings_y + strings_height + 10.0;
+    let smart_ptr_height = area.height - collections_height - strings_height - 35.0; // Use remaining space
+    let smart_ptr_rect = Rectangle::new()
+        .set("x", area.x + 5.0)
+        .set("y", smart_ptr_y)
+        .set("width", area.width - 10.0)
+        .set("height", smart_ptr_height)
+        .set("fill", "#8e44ad")
+        .set("class", "integrated-treemap-rect")
+        .set("stroke", "#ffffff")
+        .set("stroke-width", 2)
+        .set("rx", 20); // More rounded for better visual consistency
+    document = document.add(smart_ptr_rect);
+    
+    let smart_ptr_label = SvgText::new("Smart Pointers (15%)")
+        .set("x", area.x + area.width / 2.0)
+        .set("y", smart_ptr_y + smart_ptr_height / 2.0)
+        .set("class", "integrated-treemap-label")
+        .set("font-size", 16)
+        .set("font-weight", "bold");
+    document = document.add(smart_ptr_label);
+    
+    Ok(document)
+}
 
-        document = document.add(size_text);
+/// Add integrated treemap legend
+fn add_integrated_treemap_legend(
+    mut document: Document, 
+    chart_x: i32, 
+    chart_y: i32, 
+    chart_width: i32, 
+    _chart_height: i32
+) -> TrackingResult<Document> {
+    let legend_y = chart_y + 320;
+    
+    // Legend items - updated to match actual module colors
+    let items = [
+        ("Collections", "#ecf0f1", "HashMap, Vec, BTreeSet"),
+        ("Strings", "#e74c3c", "String, &str"),
+        ("Smart Pointers", "#8e44ad", "Box, Rc, Arc"),
+    ];
+    
+    let mut x_offset = chart_x + 20;
+    for (name, color, desc) in items.iter() {
+        // Color indicator
+        let color_rect = Rectangle::new()
+            .set("x", x_offset)
+            .set("y", legend_y)
+            .set("width", 12)
+            .set("height", 12)
+            .set("fill", *color)
+            .set("stroke", "#2c3e50")
+            .set("stroke-width", 1)
+            .set("rx", 2);
+        document = document.add(color_rect);
+        
+        // Category text
+        let cat_text = SvgText::new(format!("{}: {}", name, desc))
+            .set("x", x_offset + 18)
+            .set("y", legend_y + 9)
+            .set("fill", "#2c3e50")
+            .set("font-size", 10)
+            .set("font-weight", "600");
+        document = document.add(cat_text);
+        
+        x_offset += chart_width / 3;
     }
-
+    
     Ok(document)
 }
 
@@ -634,11 +823,11 @@ pub fn add_categorized_allocations(
     categories: &[AllocationCategory],
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 1080;
+    let chart_y = 1080; // Adjusted to provide better spacing (720 + 300 + 60 margin)
     let chart_width = 850;
-    let chart_height = 300;
+    let chart_height = 280; // Slightly reduced height
 
-    // Chart background
+    // Chart background with rounded corners
     let bg = Rectangle::new()
         .set("x", chart_x)
         .set("y", chart_y)
@@ -646,8 +835,8 @@ pub fn add_categorized_allocations(
         .set("height", chart_height)
         .set("fill", "white")
         .set("stroke", "#bdc3c7")
-        .set("stroke-width", 1)
-        .set("rx", 5);
+        .set("stroke-width", 2)
+        .set("rx", 20); // Even more rounded corners for natural look
 
     document = document.add(bg);
 
@@ -683,7 +872,7 @@ pub fn add_categorized_allocations(
         let bar_width =
             ((category.total_size as f64 / max_size as f64) * (chart_width - 200) as f64) as i32;
 
-        // Bar
+        // Bar with rounded corners
         let bar = Rectangle::new()
             .set("x", chart_x + 150)
             .set("y", y)
@@ -691,7 +880,8 @@ pub fn add_categorized_allocations(
             .set("height", bar_height - 5)
             .set("fill", category.color.as_str())
             .set("stroke", "#34495e")
-            .set("stroke-width", 1);
+            .set("stroke-width", 1)
+            .set("rx", 12); // More rounded bar corners for natural look
 
         document = document.add(bar);
 

@@ -152,3 +152,213 @@ pub fn get_type_color(type_name: &str) -> &'static str {
         _ => "#95a5a6",
     }
 }
+
+/// Enhanced type hierarchy classification for treemap visualization
+#[derive(Debug, Clone)]
+pub struct TypeHierarchy {
+    pub major_category: String,    // Major category: Collections, Strings, Smart Pointers, etc.
+    pub sub_category: String,      // Sub category: Maps, Sequences, Owned, Shared, etc.
+    pub specific_type: String,     // Specific type: HashMap, Vec, Box, etc.
+    pub full_type: String,         // Full type name: HashMap<String, i32>
+}
+
+/// Get comprehensive type hierarchy for treemap visualization
+pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
+    // Handle empty or unknown types first
+    if type_name.is_empty() || type_name == "Unknown" {
+        return TypeHierarchy {
+            major_category: "Unknown".to_string(),
+            sub_category: "Unidentified".to_string(),
+            specific_type: "Unknown Type".to_string(),
+            full_type: type_name.to_string(),
+        };
+    }
+
+    // Collections
+    if type_name.contains("HashMap") || type_name.contains("hash::map") {
+        let inner = extract_generic_params(type_name, "HashMap");
+        TypeHierarchy {
+            major_category: "Collections".to_string(),
+            sub_category: "Maps".to_string(),
+            specific_type: "HashMap".to_string(),
+            full_type: if inner.is_empty() { "HashMap".to_string() } else { format!("HashMap<{}>", inner) },
+        }
+    } else if type_name.contains("BTreeMap") || type_name.contains("btree::map") {
+        let inner = extract_generic_params(type_name, "BTreeMap");
+        TypeHierarchy {
+            major_category: "Collections".to_string(),
+            sub_category: "Maps".to_string(),
+            specific_type: "BTreeMap".to_string(),
+            full_type: if inner.is_empty() { "BTreeMap".to_string() } else { format!("BTreeMap<{}>", inner) },
+        }
+    } else if type_name.contains("HashSet") || type_name.contains("hash::set") {
+        let inner = extract_generic_params(type_name, "HashSet");
+        TypeHierarchy {
+            major_category: "Collections".to_string(),
+            sub_category: "Sets".to_string(),
+            specific_type: "HashSet".to_string(),
+            full_type: if inner.is_empty() { "HashSet".to_string() } else { format!("HashSet<{}>", inner) },
+        }
+    } else if type_name.contains("Vec") && !type_name.contains("VecDeque") {
+        let inner = extract_generic_params(type_name, "Vec");
+        TypeHierarchy {
+            major_category: "Collections".to_string(),
+            sub_category: "Sequences".to_string(),
+            specific_type: "Vec".to_string(),
+            full_type: if inner.is_empty() { "Vec".to_string() } else { format!("Vec<{}>", inner) },
+        }
+    } else if type_name.contains("VecDeque") {
+        let inner = extract_generic_params(type_name, "VecDeque");
+        TypeHierarchy {
+            major_category: "Collections".to_string(),
+            sub_category: "Sequences".to_string(),
+            specific_type: "VecDeque".to_string(),
+            full_type: if inner.is_empty() { "VecDeque".to_string() } else { format!("VecDeque<{}>", inner) },
+        }
+    }
+    // Strings
+    else if type_name.contains("String") && !type_name.contains("<") {
+        TypeHierarchy {
+            major_category: "Strings".to_string(),
+            sub_category: "Owned".to_string(),
+            specific_type: "String".to_string(),
+            full_type: "String".to_string(),
+        }
+    } else if type_name.contains("&str") || (type_name.contains("str") && type_name.contains("&")) {
+        TypeHierarchy {
+            major_category: "Strings".to_string(),
+            sub_category: "Borrowed".to_string(),
+            specific_type: "&str".to_string(),
+            full_type: "&str".to_string(),
+        }
+    }
+    // Smart Pointers
+    else if type_name.contains("Box<") {
+        let inner = extract_generic_params(type_name, "Box");
+        TypeHierarchy {
+            major_category: "Smart Pointers".to_string(),
+            sub_category: "Owned".to_string(),
+            specific_type: "Box".to_string(),
+            full_type: if inner.is_empty() { "Box".to_string() } else { format!("Box<{}>", inner) },
+        }
+    } else if type_name.contains("Rc<") {
+        let inner = extract_generic_params(type_name, "Rc");
+        TypeHierarchy {
+            major_category: "Smart Pointers".to_string(),
+            sub_category: "Reference Counted".to_string(),
+            specific_type: "Rc".to_string(),
+            full_type: if inner.is_empty() { "Rc".to_string() } else { format!("Rc<{}>", inner) },
+        }
+    } else if type_name.contains("Arc<") {
+        let inner = extract_generic_params(type_name, "Arc");
+        TypeHierarchy {
+            major_category: "Smart Pointers".to_string(),
+            sub_category: "Thread-Safe Shared".to_string(),
+            specific_type: "Arc".to_string(),
+            full_type: if inner.is_empty() { "Arc".to_string() } else { format!("Arc<{}>", inner) },
+        }
+    }
+    // Primitives
+    else if is_primitive_type(type_name) {
+        let clean_type = type_name.split("::").last().unwrap_or(type_name);
+        let sub_cat = if clean_type.contains("i") || clean_type.contains("u") {
+            "Integers"
+        } else if clean_type.contains("f") {
+            "Floats"
+        } else if clean_type == "bool" {
+            "Boolean"
+        } else {
+            "Other"
+        };
+        TypeHierarchy {
+            major_category: "Primitives".to_string(),
+            sub_category: sub_cat.to_string(),
+            specific_type: clean_type.to_string(),
+            full_type: clean_type.to_string(),
+        }
+    }
+    // Fallback
+    else {
+        let simplified = type_name.split("::").last().unwrap_or(type_name);
+        TypeHierarchy {
+            major_category: "Custom Types".to_string(),
+            sub_category: "User Defined".to_string(),
+            specific_type: simplified.to_string(),
+            full_type: simplified.to_string(),
+        }
+    }
+}
+
+/// Extract generic parameters from type names (enhanced version)
+pub fn extract_generic_params(type_name: &str, container: &str) -> String {
+    if let Some(start) = type_name.find(&format!("{}<", container)) {
+        let start = start + container.len() + 1;
+        if let Some(end) = find_matching_bracket(type_name, start - 1) {
+            let inner = &type_name[start..end];
+            // Simplify the inner type
+            return inner.split("::").last().unwrap_or(inner).to_string();
+        }
+    }
+    String::new()
+}
+
+/// Find matching closing bracket for generic types
+fn find_matching_bracket(s: &str, start: usize) -> Option<usize> {
+    let chars: Vec<char> = s.chars().collect();
+    if start >= chars.len() || chars[start] != '<' {
+        return None;
+    }
+    
+    let mut depth = 1;
+    for i in (start + 1)..chars.len() {
+        match chars[i] {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Check if a type is a primitive type
+pub fn is_primitive_type(type_name: &str) -> bool {
+    let clean_type = type_name.split("::").last().unwrap_or(type_name);
+    matches!(clean_type, 
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
+        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
+        "f32" | "f64" | "bool" | "char"
+    )
+}
+
+/// Extract array information for display
+pub fn extract_array_info(type_name: &str) -> String {
+    if let Some(start) = type_name.find('[') {
+        if let Some(end) = type_name.find(']') {
+            return type_name[start..=end].to_string();
+        }
+    }
+    "Array".to_string()
+}
+
+/// Extract standard library module name
+pub fn extract_std_module(type_name: &str) -> String {
+    let parts: Vec<&str> = type_name.split("::").collect();
+    if parts.len() >= 2 {
+        match parts[1] {
+            "collections" => "Collections".to_string(),
+            "sync" => "Synchronization".to_string(),
+            "thread" => "Threading".to_string(),
+            "fs" => "File System".to_string(),
+            "net" => "Networking".to_string(),
+            "io" => "Input/Output".to_string(),
+            _ => "Other".to_string(),
+        }
+    } else {
+        "Other".to_string()
+    }
+}

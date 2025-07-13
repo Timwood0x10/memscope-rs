@@ -461,6 +461,18 @@ impl MemoryTracker {
         crate::visualization::export_lifecycle_timeline(self, path)
     }
 
+    /// Export treemap visualization showing memory usage by type hierarchy.
+    /// This creates a hierarchical treemap with major categories, sub-categories, and specific types.
+    ///
+    /// # Arguments
+    /// * `path` - Output path for the treemap SVG file (recommended: "program_name_treemap.svg")
+    pub fn export_treemap_analysis<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> TrackingResult<()> {
+        crate::visualization::export_treemap_analysis(self, path)
+    }
+
     /// Legacy export method for backward compatibility.
     /// Redirects to the new memory analysis export.
     ///

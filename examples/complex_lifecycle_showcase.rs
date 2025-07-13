@@ -683,6 +683,12 @@ fn generate_final_analysis() {
         println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");
     }
 
+    if let Err(e) = tracker.export_treemap_analysis("./complex_treemap_analysis.svg") {
+        println!("❌ Treemap analysis export failed: {}", e);
+    } else {
+        println!("✅ Treemap analysis exported to: ./complex_treemap_analysis.svg");
+    }
+
     println!("\n🎯 Showcase Complete!");
     println!("=====================");
     println!("This demonstration showcased:");
@@ -692,11 +698,13 @@ fn generate_final_analysis() {
     println!("✓ Complex patterns: Nested collections, circular references, large datasets");
     println!("✓ Real scenarios: Web server simulation, data processing pipeline");
     println!("✓ Enhanced metrics: Growth tracking, ownership analysis, risk assessment");
-    println!("✓ Three output formats: Memory analysis SVG, lifecycle timeline SVG, and JSON snapshot");
+    println!("✓ Four output formats: Memory analysis SVG, lifecycle timeline SVG, treemap SVG, and JSON snapshot");
     println!("\nGenerated files:");
     println!("  1. complex_memory_analysis.svg - Visual memory usage analysis");
     println!("  2. complex_lifecycle_timeline.svg - Enhanced lifecycle timeline");
-    println!("  3. complex_lifecycle_snapshot.json - Hierarchical memory data organized by scopes");
+    println!("  3. complex_treemap_analysis.svg - Hierarchical treemap visualization");
+    println!("  4. complex_lifecycle_snapshot.json - Hierarchical memory data organized by scopes");
     println!("\nCheck these files for comprehensive memory analysis!");
+    println!("The treemap shows memory usage by type hierarchy as requested in task.md!");
     println!("The JSON file contains scope-based organization with variable relationships!");
 }
