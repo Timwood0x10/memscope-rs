@@ -3,6 +3,37 @@
 use crate::tracker::MemoryTracker;
 use crate::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage};
 use crate::utils::{format_bytes, get_category_color, simplify_type_name};
+
+/// Calculate real median and P95 percentiles from allocation sizes
+/// Returns (median_size, p95_size)
+fn calculate_allocation_percentiles(allocations: &[AllocationInfo]) -> (usize, usize) {
+    if allocations.is_empty() {
+        return (0, 0);
+    }
+
+    // Collect all allocation sizes
+    let mut sizes: Vec<usize> = allocations.iter().map(|a| a.size).collect();
+    sizes.sort_unstable();
+
+    let len = sizes.len();
+    
+    // Calculate median (50th percentile)
+    let median = if len % 2 == 0 {
+        (sizes[len / 2 - 1] + sizes[len / 2]) / 2
+    } else {
+        sizes[len / 2]
+    };
+
+    // Calculate P95 (95th percentile)
+    let p95_index = ((len as f64) * 0.95) as usize;
+    let p95 = if p95_index >= len {
+        sizes[len - 1]
+    } else {
+        sizes[p95_index]
+    };
+
+    (median, p95)
+}
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
@@ -295,10 +326,11 @@ fn add_compact_summary(
     Ok(document)
 }
 
-/// Add enhanced header with 6 core metrics according to memory_analysis.md
+/// Add enhanced header with 8 core metrics - 4 basic + 4 advanced
 pub fn add_enhanced_header(
     mut document: Document,
     stats: &MemoryStats,
+    allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     // Main title
     let title = SvgText::new("Rust Memory Usage Analysis")
@@ -311,39 +343,81 @@ pub fn add_enhanced_header(
 
     document = document.add(title);
 
-    // Calculate metrics
-    let memory_efficiency = if stats.peak_memory > 0 {
-        (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
+    // Calculate 8 core metrics - 4 basic + 4 advanced
+    
+    // Basic Metrics (Row 1)
+    let active_memory = stats.active_memory;
+    let peak_memory = stats.peak_memory;
+    let active_allocations = stats.active_allocations;
+    
+    // Memory Reclamation Rate = (total_deallocated / total_allocated) * 100%
+    let memory_reclamation_rate = if stats.total_allocated > 0 {
+        (stats.total_deallocated as f64 / stats.total_allocated as f64) * 100.0
     } else {
         0.0
     };
 
-    // Calculate median and P95 allocation sizes (simplified calculation)
-    let avg_alloc_size = if stats.active_allocations > 0 {
-        stats.active_memory / stats.active_allocations
+    // Advanced Metrics (Row 2)
+    
+    // Allocator Efficiency - estimated as (active_memory / peak_memory) * 100%
+    // TODO: Implement true allocator overhead tracking
+    let allocator_efficiency = if stats.peak_memory > 0 {
+        (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
     } else {
-        0
+        0.0
     };
-    let median_alloc_size = avg_alloc_size; // Simplified - in real implementation would calculate actual median
-    let p95_alloc_size = (avg_alloc_size as f64 * 1.5) as usize; // Simplified - in real implementation would calculate actual P95
+    
+    // Calculate real median and P95 allocation sizes
+    let (median_alloc_size, p95_alloc_size) = calculate_allocation_percentiles(allocations);
+    
+    // Memory Fragmentation Rate = (peak_memory - active_memory) / peak_memory * 100%
+    let memory_fragmentation = if stats.peak_memory > 0 {
+        ((stats.peak_memory - stats.active_memory) as f64 / stats.peak_memory as f64) * 100.0
+    } else {
+        0.0
+    };
 
-    // 6 core metric boxes in 1 row, 6 columns - 优化布局节省垂直空间
-    let metrics = [
-        ("Memory Efficiency", format!("{:.1}%", memory_efficiency)),
-        ("Active Memory", format_bytes(stats.active_memory)),
-        ("Peak Memory", format_bytes(stats.peak_memory)),
-        ("Active Allocations", format!("{}", stats.active_allocations)),
+    // 8 core metrics in 2 rows, 4 columns layout
+    let basic_metrics = [
+        ("Active Memory", format_bytes(active_memory)),
+        ("Peak Memory", format_bytes(peak_memory)),
+        ("Active Allocations", format!("{}", active_allocations)),
+        ("Memory Reclamation Rate", format!("{:.1}%", memory_reclamation_rate)),
+    ];
+    
+    let advanced_metrics = [
+        ("Allocator Efficiency", format!("{:.1}%", allocator_efficiency)),
         ("Median Alloc Size", format_bytes(median_alloc_size)),
         ("P95 Alloc Size", format_bytes(p95_alloc_size)),
+        ("Memory Fragmentation", format!("{:.1}%", memory_fragmentation)),
     ];
 
-    let box_width = 180; // 减小宽度以适应6列
-    let box_height = 50;  // 减小高度
+    let box_width = 220;  // Width for 4 columns
+    let box_height = 65;  // Height for each metric box
     let start_x = 60;
     let start_y = 70;
-    let spacing_x = 200; // 列间距
+    let spacing_x = 280;  // Horizontal spacing between columns
+    let spacing_y = 85;   // Vertical spacing between rows
 
-    for (i, (title, value)) in metrics.iter().enumerate() {
+    // Add section headers
+    let basic_header = SvgText::new("Basic Metrics")
+        .set("x", start_x)
+        .set("y", start_y - 10)
+        .set("font-size", 12)
+        .set("font-weight", "bold")
+        .set("fill", "#2c3e50");
+    document = document.add(basic_header);
+
+    let advanced_header = SvgText::new("Advanced Metrics")
+        .set("x", start_x)
+        .set("y", start_y + spacing_y - 10)
+        .set("font-size", 12)
+        .set("font-weight", "bold")
+        .set("fill", "#2c3e50");
+    document = document.add(advanced_header);
+
+    // Render basic metrics (Row 1)
+    for (i, (title, value)) in basic_metrics.iter().enumerate() {
         let x = start_x + i * spacing_x;
         let y = start_y;
 
@@ -361,10 +435,22 @@ pub fn add_enhanced_header(
 
         document = document.add(box_bg);
 
+        // Metric box background with blue border for basic metrics
+        let box_bg = Rectangle::new()
+            .set("x", x)
+            .set("y", y)
+            .set("width", box_width)
+            .set("height", box_height)
+            .set("fill", "white")
+            .set("stroke", "#3498db")  // Blue border for basic metrics
+            .set("stroke-width", 2)
+            .set("rx", 6);
+        document = document.add(box_bg);
+
         // Title
         let title_text = SvgText::new(*title)
             .set("x", x + box_width / 2)
-            .set("y", y + 18)
+            .set("y", y + 20)
             .set("text-anchor", "middle")
             .set("font-size", 10)
             .set("font-weight", "600")
@@ -374,9 +460,47 @@ pub fn add_enhanced_header(
         // Value
         let value_text = SvgText::new(value)
             .set("x", x + box_width / 2)
-            .set("y", y + 35)
+            .set("y", y + 40)
             .set("text-anchor", "middle")
-            .set("font-size", 12)
+            .set("font-size", 13)
+            .set("font-weight", "bold")
+            .set("fill", "#2c3e50");
+        document = document.add(value_text);
+    }
+
+    // Render advanced metrics (Row 2)
+    for (i, (title, value)) in advanced_metrics.iter().enumerate() {
+        let x = start_x + i * spacing_x;
+        let y = start_y + spacing_y;
+
+        // Metric box background with orange border for advanced metrics
+        let box_bg = Rectangle::new()
+            .set("x", x)
+            .set("y", y)
+            .set("width", box_width)
+            .set("height", box_height)
+            .set("fill", "white")
+            .set("stroke", "#e67e22")  // Orange border for advanced metrics
+            .set("stroke-width", 2)
+            .set("rx", 6);
+        document = document.add(box_bg);
+
+        // Title
+        let title_text = SvgText::new(*title)
+            .set("x", x + box_width / 2)
+            .set("y", y + 20)
+            .set("text-anchor", "middle")
+            .set("font-size", 10)
+            .set("font-weight", "600")
+            .set("fill", "#7f8c8d");
+        document = document.add(title_text);
+
+        // Value
+        let value_text = SvgText::new(value)
+            .set("x", x + box_width / 2)
+            .set("y", y + 40)
+            .set("text-anchor", "middle")
+            .set("font-size", 13)
             .set("font-weight", "bold")
             .set("fill", "#2c3e50");
         document = document.add(value_text);
@@ -1354,7 +1478,7 @@ pub fn add_performance_dashboard(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 140; // 向上移动，为压缩后的单行header留出空间
+    let chart_y = 240; // Move down to accommodate 2-row metrics layout
     let chart_width = 1700;
     let chart_height = 350; // 减少高度，避免被下面模块遮挡
 
@@ -1606,13 +1730,35 @@ pub fn add_performance_dashboard(
     document = document.add(legend_title);
 
     // 添加灰色点说明
-    let gray_explanation = SvgText::new("Gray = Unknown Type")
+    // 统计Unknown Type的数量，提供更精确的信息
+    let unknown_count = allocations.iter()
+        .filter(|a| a.type_name.as_ref().map_or(true, |t| t == "Unknown" || t.is_empty()))
+        .count();
+    
+    let unknown_legend_y = legend_y + 20;
+    
+    // Unknown Type color square - 按照图例样式
+    let unknown_color_square = Rectangle::new()
         .set("x", legend_x)
-        .set("y", legend_y + 20)
-        .set("font-size", 10)
-        .set("font-style", "italic")
+        .set("y", unknown_legend_y - 8)
+        .set("width", 10)
+        .set("height", 10)
         .set("fill", "#95a5a6");
-    document = document.add(gray_explanation);
+    document = document.add(unknown_color_square);
+    
+    // 更精确的Unknown Type标签，显示数量和可能原因
+    let unknown_label = if unknown_count > 0 {
+        format!("Unknown ({} allocs)", unknown_count)
+    } else {
+        "No Unknown Types".to_string()
+    };
+    
+    let unknown_text = SvgText::new(unknown_label)
+        .set("x", legend_x + 15)
+        .set("y", unknown_legend_y - 1)
+        .set("font-size", 9)
+        .set("fill", "#2c3e50");
+    document = document.add(unknown_text);
 
     for (i, category) in categorized.iter().take(6).enumerate() {
         let legend_item_y = legend_y + 40 + (i as i32) * 18;

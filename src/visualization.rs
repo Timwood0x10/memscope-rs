@@ -81,7 +81,7 @@ fn create_memory_analysis_svg(
         .set("style", "background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%); font-family: 'Segoe UI', Arial, sans-serif;");
 
     // 1. Title: Rust Memory Usage Analysis (handled by add_enhanced_header)
-    document = crate::export_enhanced::add_enhanced_header(document, stats)?;
+    document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
     // 3. Performance Dashboard
     document = crate::export_enhanced::add_performance_dashboard(document, stats, allocations)?;
