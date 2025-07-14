@@ -91,7 +91,7 @@ fn create_memory_analysis_svg(
     document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
 
     // 5. Left side: Memory Usage by Type
-    // 修复：获取实际的内存类型数据而不是空数组
+    // Fixed: Get actual memory type data instead of empty array
     let memory_by_type_data = tracker.get_memory_by_type().unwrap_or_default();
     let memory_by_type =
         crate::export_enhanced::enhance_type_information(&memory_by_type_data, allocations);
@@ -814,32 +814,32 @@ fn export_scope_analysis_json(
 /// Get simple type name
 
 /// Get color based on duration ratio (0.0 to 1.0)
-/// 根据相对生命周期长度分配颜色：最长时间=深色，最短时间=白色，全局作用域=特殊深蓝色
+/// Assign colors based on relative lifecycle length: longest time=dark color, shortest time=white, global scope=special deep blue
 fn get_duration_color(ratio: f64, is_global: bool) -> String {
     if is_global {
-        // 全局作用域使用特殊的深蓝色
+        // Global scope uses special deep blue color
         return "#0A2540".to_string();
     }
 
-    // 创建从白色到深蓝色的渐变
-    // ratio = 0.0 (最短时间) -> 接近白色
-    // ratio = 1.0 (最长时间) -> 深蓝色
+    // Create gradient from white to deep blue
+    // ratio = 0.0 (shortest time) -> close to white
+    // ratio = 1.0 (longest time) -> deep blue
 
     if ratio <= 0.01 {
-        // 极短时间或无时间差 -> 浅灰白色
+        // Very short time or no time difference -> light gray-white
         "#F8FAFC".to_string()
     } else {
-        // 计算RGB值，从浅蓝白色渐变到深蓝色
-        let base_r = 248; // 起始红色值 (接近白色)
-        let base_g = 250; // 起始绿色值
-        let base_b = 252; // 起始蓝色值
+        // Calculate RGB values, gradient from light blue-white to deep blue
+        let base_r = 248; // Starting red value (close to white)
+        let base_g = 250; // Starting green value
+        let base_b = 252; // Starting blue value
 
-        let target_r = 30; // 目标红色值 (深蓝色)
-        let target_g = 64; // 目标绿色值
-        let target_b = 175; // 目标蓝色值
+        let target_r = 30; // Target red value (deep blue)
+        let target_g = 64; // Target green value
+        let target_b = 175; // Target blue value
 
-        // 使用平滑的渐变函数
-        let smooth_ratio = ratio.powf(0.7); // 使渐变更平滑
+        // Use smooth gradient function
+        let smooth_ratio = ratio.powf(0.7); // Make gradient smoother
 
         let r = (base_r as f64 + (target_r as f64 - base_r as f64) * smooth_ratio) as u8;
         let g = (base_g as f64 + (target_g as f64 - base_g as f64) * smooth_ratio) as u8;

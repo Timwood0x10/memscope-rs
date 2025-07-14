@@ -2031,12 +2031,24 @@ pub fn add_memory_timeline(
         return Ok(document);
     }
 
-    // Filter and sort tracked allocations
+    // Filter and sort tracked allocations by memory usage and lifecycle
     let mut tracked_allocs: Vec<_> = allocations
         .iter()
         .filter(|a| a.var_name.is_some())
         .collect();
-    tracked_allocs.sort_by_key(|a| a.timestamp_alloc);
+    
+    // Sort by memory size (descending) and then by lifecycle duration (descending)
+    tracked_allocs.sort_by(|a, b| {
+        let size_cmp = b.size.cmp(&a.size);
+        if size_cmp == std::cmp::Ordering::Equal {
+            // If sizes are equal, sort by lifecycle duration (timestamp difference as proxy)
+            let a_duration = a.timestamp_dealloc.unwrap_or(a.timestamp_alloc + 1000) - a.timestamp_alloc;
+            let b_duration = b.timestamp_dealloc.unwrap_or(b.timestamp_alloc + 1000) - b.timestamp_alloc;
+            b_duration.cmp(&a_duration)
+        } else {
+            size_cmp
+        }
+    });
 
     if tracked_allocs.is_empty() {
         let no_data = SvgText::new("No tracked variables found")
@@ -2051,28 +2063,40 @@ pub fn add_memory_timeline(
     }
 
     let min_time = tracked_allocs
-        .first()
+        .iter()
         .map(|a| a.timestamp_alloc)
+        .min()
         .unwrap_or(0);
     let max_time = tracked_allocs
-        .last()
+        .iter()
         .map(|a| a.timestamp_alloc)
+        .max()
         .unwrap_or(min_time + 1);
     let _time_range = (max_time - min_time).max(1);
 
-    // Calculate layout parameters for better alignment and prevent text overflow
-    let label_width = 400; // Increased reserved space for labels to prevent overflow
-    let timeline_width = chart_width - label_width - 60; // More margin
-    let max_items = 8; // Limit items to prevent overcrowding
+    // Optimized layout parameters to prevent overflow
+    let label_width = 500; // More space for variable names
+    let timeline_width = chart_width - label_width - 80; // Better margin
+    let max_items = 10; // Show top 10 variables with highest memory usage and longest lifecycles
+    
+    // Calculate optimal row height based on available space
+    let available_height = chart_height - 120; // Reserve space for title, axis, and note
+    let row_height = (available_height / max_items as i32).min(22).max(18);
 
-    // Draw timeline for tracked variables with proper spacing
+    // Draw timeline for tracked variables with optimized spacing
     for (i, allocation) in tracked_allocs.iter().take(max_items).enumerate() {
-        // Distribute items evenly across timeline instead of by timestamp
-        let x = chart_x + 20 + (i * timeline_width / max_items.max(1));
-        let y = chart_y + 50 + (i * 25); // Increased vertical spacing
+        // Use time-based positioning for better timeline representation
+        let time_ratio = if max_time > min_time {
+            let alloc_time = allocation.timestamp_alloc.max(min_time); // Prevent underflow
+            (alloc_time - min_time) as f64 / (max_time - min_time) as f64
+        } else {
+            0.5 // Center if no time range
+        };
+        let x = chart_x + 30 + (time_ratio * timeline_width as f64) as i32;
+        let y = chart_y + 40 + (i as i32 * row_height);
 
         // Ensure x position stays within timeline bounds
-        let x = x.min(chart_x + timeline_width).max(chart_x + 20);
+        let x = x.min(chart_x + timeline_width - 10).max(chart_x + 30);
 
         // Get color based on type category
         let color = if let Some(type_name) = &allocation.type_name {
@@ -2093,39 +2117,47 @@ pub fn add_memory_timeline(
 
         document = document.add(point);
 
-        // Draw connecting line to label area
-        let label_start_x = chart_x + timeline_width + 20;
+        // Draw connecting line to label area with better positioning
+        let label_start_x = chart_x + timeline_width + 40;
         let line = svg::node::element::Line::new()
             .set("x1", x + 5)
             .set("y1", y)
-            .set("x2", label_start_x)
+            .set("x2", label_start_x - 5)
             .set("y2", y)
             .set("stroke", "#bdc3c7")
             .set("stroke-width", 1)
-            .set("stroke-dasharray", "3,3");
+            .set("stroke-dasharray", "2,3");
 
         document = document.add(line);
 
-        // Add variable name with type in dedicated label area - prevent overflow
+        // Optimized variable label with smart truncation to prevent overflow
         if let Some(var_name) = &allocation.var_name {
             let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
             let (simplified_type, _) = simplify_type_name(type_name);
-            let mut label_text = format!(
-                "{}({}) memory: {}",
-                var_name,
-                simplified_type,
-                format_bytes(allocation.size)
-            );
-
-            // Truncate text if too long to prevent overflow
-            if label_text.len() > 45 {
-                label_text = format!("{}...", &label_text[..42]);
-            }
+            let size_info = format_bytes(allocation.size);
+            
+            // Smart truncation based on available space
+            let max_var_name_length = 20;
+            let max_type_length = 12;
+            
+            let truncated_var_name = if var_name.len() > max_var_name_length {
+                format!("{}...", &var_name[..max_var_name_length - 3])
+            } else {
+                var_name.clone()
+            };
+            
+            let truncated_type = if simplified_type.len() > max_type_length {
+                format!("{}...", &simplified_type[..max_type_length - 3])
+            } else {
+                simplified_type
+            };
+            
+            let label_text = format!("{} ({}) {}", truncated_var_name, truncated_type, size_info);
 
             let label = SvgText::new(label_text)
-                .set("x", label_start_x + 5)
+                .set("x", label_start_x)
                 .set("y", y + 4)
-                .set("font-size", 10) // Slightly smaller font
+                .set("font-size", 9) // Smaller font for better fit
                 .set("font-weight", "500")
                 .set("fill", "#2c3e50");
 
@@ -2154,6 +2186,19 @@ pub fn add_memory_timeline(
         .set("fill", "#7f8c8d");
 
     document = document.add(start_label);
+
+    // Add note about data limitation
+    let total_tracked = tracked_allocs.len();
+    if total_tracked > max_items {
+        let note_text = format!("Note: Showing top {} variables with highest memory usage and longest lifecycles (out of {} total tracked variables)", max_items, total_tracked);
+        let note = SvgText::new(note_text)
+            .set("x", chart_x + 20)
+            .set("y", chart_y + chart_height - 10)
+            .set("font-size", 11)
+            .set("font-style", "italic")
+            .set("fill", "#7f8c8d");
+        document = document.add(note);
+    }
 
     Ok(document)
 }
@@ -2742,10 +2787,28 @@ pub fn add_enhanced_timeline_dashboard(
         return Ok(document);
     }
 
-    // Group variables by scope (extract scope from variable names)
+    // Sort tracked variables by memory size and lifecycle duration, then limit to top 10
+    let mut sorted_tracked_vars: Vec<_> = tracked_vars.clone();
+    sorted_tracked_vars.sort_by(|a, b| {
+        let size_cmp = b.size.cmp(&a.size);
+        if size_cmp == std::cmp::Ordering::Equal {
+            // If sizes are equal, sort by lifecycle duration (timestamp difference as proxy)
+            let a_duration = a.timestamp_dealloc.unwrap_or(a.timestamp_alloc + 1000) - a.timestamp_alloc;
+            let b_duration = b.timestamp_dealloc.unwrap_or(b.timestamp_alloc + 1000) - b.timestamp_alloc;
+            b_duration.cmp(&a_duration)
+        } else {
+            size_cmp
+        }
+    });
+    
+    // Limit to top 10 variables to prevent overflow
+    let max_vars_to_show = 10;
+    let limited_tracked_vars: Vec<_> = sorted_tracked_vars.into_iter().take(max_vars_to_show).collect();
+    
+    // Group limited variables by scope (extract scope from variable names)
     let mut scope_groups: std::collections::HashMap<String, Vec<&AllocationInfo>> =
         std::collections::HashMap::new();
-    for var in &tracked_vars {
+    for var in &limited_tracked_vars {
         let scope_name = extract_scope_name(var.var_name.as_ref().unwrap());
         scope_groups
             .entry(scope_name)
@@ -2757,13 +2820,13 @@ pub fn add_enhanced_timeline_dashboard(
     let mut sorted_scopes: Vec<_> = scope_groups.into_iter().collect();
     sorted_scopes.sort_by(|a, b| a.0.cmp(&b.0));
 
-    // Calculate time ranges for tracked variables
-    let max_time = tracked_vars
+    // Calculate time ranges for limited tracked variables
+    let max_time = limited_tracked_vars
         .iter()
         .map(|a| a.timestamp_alloc)
         .max()
         .unwrap_or(1000) as f64;
-    let min_time = tracked_vars
+    let min_time = limited_tracked_vars
         .iter()
         .map(|a| a.timestamp_alloc)
         .min()
@@ -3118,6 +3181,19 @@ pub fn add_enhanced_timeline_dashboard(
             .set("font-size", 8) // Smaller font
             .set("fill", "#2c3e50");
         document = document.add(category_text);
+    }
+
+    // Add note about data limitation for Memory Allocation Timeline
+    let total_tracked = tracked_vars.len();
+    if total_tracked > max_vars_to_show {
+        let note_text = format!("Note: Showing top {} variables with highest memory usage and longest lifecycles (out of {} total tracked variables)", max_vars_to_show, total_tracked);
+        let note = SvgText::new(note_text)
+            .set("x", chart_x + 20)
+            .set("y", chart_y + chart_height - 10)
+            .set("font-size", 11)
+            .set("font-style", "italic")
+            .set("fill", "#7f8c8d");
+        document = document.add(note);
     }
 
     Ok(document)
