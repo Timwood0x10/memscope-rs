@@ -1,10 +1,51 @@
 # 🦀 memscope-rs - Advanced Rust Memory Analysis & Visualization
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Safety](https://img.shields.io/badge/safety-tested-green.svg)](#safety--security)
+[![Crates.io](https://img.shields.io/crates/v/memscope-rs.svg)](https://crates.io/crates/memscope-rs)
 
-[**memscope-rs**](https://github.com/Timwood0x10/memscope-rs.git) is a comprehensive Rust memory analysis toolkit that provides real-time tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, intuitive variable tracking, and beautiful SVG visualizations with enhanced layout and comprehensive memory insights.
+**memscope-rs** is an experimental Rust memory analysis toolkit that provides tracking, visualization, and analysis of memory allocations in Rust applications. It features a custom global allocator, variable tracking, and SVG visualizations.
+
+ ⚠️ **Rigorous & Pragmatic Disclaimer**
+
+This project adheres to rigorous and pragmatic development principles:
+- 🔬 **Experimental Nature**: Early-stage experimental project requiring further validation
+- 📊 **Honest Data**: All performance claims based on actual testing, no exaggerated marketing
+- 🚫 **Not Production-Ready**: Currently not recommended for production use
+- 📈 **Continuous Improvement**: Committed to ongoing improvement and honest status reporting
+- 🤝 **Community-Driven**: Welcoming feedback and contributions for quality enhancement
+
+## 🚀 Quick Start
+
+Add to your `Cargo.toml`:
+```toml
+[dependencies]
+memscope-rs = "0.1.0"
+```
+
+Basic usage:
+```rust
+use memscope_rs::{init, track_var, get_global_tracker};
+
+fn main() {
+    // Initialize memory tracking
+    init();
+    
+    // Create and track variables
+    let my_vec = vec![1, 2, 3, 4, 5];
+    track_var!(my_vec);
+    
+    let my_string = String::from("Hello, memscope!");
+    track_var!(my_string);
+    
+    // Export visualizations
+    let tracker = get_global_tracker();
+    tracker.export_memory_analysis("memory_analysis.svg").unwrap();
+    tracker.export_lifecycle_timeline("lifecycle_timeline.svg").unwrap();
+    tracker.export_to_json("memory_snapshot.json").unwrap();
+}
+```
 
 ## 🌟 Key Features
 
@@ -21,109 +62,454 @@
 - **Dual SVG Output**: Memory analysis + lifecycle timeline for comprehensive insights
 - **Human-Readable Formats**: Displays "1.2 KB", "5.4 MB" instead of raw bytes
 
-### 🛡️ **Production Ready**
-- **Deadlock-Free**: Advanced lock ordering and `try_lock` strategies
-- **Performance Optimized**: Minimal overhead with graceful degradation
-- **Error Resilient**: Comprehensive error handling and recovery
-- **Memory Safe**: Extensive safety testing and validation
-
 ### 📈 **Export & Analysis**
 - **JSON Export**: Detailed memory snapshots for programmatic analysis
 - **Dual SVG Output**: Memory analysis + lifecycle timeline visualizations
 - **Statistics**: Peak memory, allocation counts, type breakdowns, lifecycle metrics
 - **Lifecycle Tracking**: Variable creation, destruction, and scope relationship patterns
-- **Flexible Naming**: Recommended `program_name_memory_analysis.svg` and `program_name_lifecycle_timeline.svg` format
 
-## 🎨 Lifecycle Timeline Visualization
+## 📊 Output Files Overview
 
-The lifecycle timeline SVG provides a visual representation of memory allocation events over time, showing when variables are created and how they relate to each other in terms of scope and lifetime.
+memscope-rs generates three types of output files that provide comprehensive memory analysis:
 
-![Lifecycle Timeline Example](demo_lifecycle_timeline.svg)
+### 1. 🎯 Memory Analysis SVG 
 
-### 📊 Lifecycle Timeline Analysis
+![Memory Analysis Visualization](./images/memoryAnalysis.svg)
 
-The lifecycle timeline visualization offers several key insights:
+A comprehensive visual dashboard showing:
 
-**🔍 Timeline Structure:**
-- **Horizontal Timeline**: Shows the chronological progression of memory allocation events
-- **Event Markers**: Green circles represent allocation events for tracked variables
-- **Variable Labels**: Each allocation shows the variable name and its Rust type
-- **Scope Relationships**: Visual positioning indicates variable scope levels and relationships
+**📈 Performance Dashboard**
+- **Active Memory**: Current memory usage with optimization status
+- **Peak Memory**: Maximum memory reached during execution  
+- **Active Allocations**: Number of currently allocated objects
+- **Memory Efficiency**: Calculated efficiency metrics
 
-**📈 Key Metrics Displayed:**
-- **Total Allocations**: Complete count of memory allocation events
-- **Peak Memory**: Maximum memory usage reached during execution
-- **Active Memory**: Current memory usage at the time of export
-- **Timeline Span**: Duration from first to last allocation event
+**🗺️ Memory Usage Treemap**
+The treemap visualization shows memory distribution by type categories:
 
-**🎯 Use Cases:**
-- **Memory Leak Detection**: Identify variables that persist longer than expected
-- **Scope Analysis**: Understand variable lifetime patterns and scope relationships
-- **Performance Optimization**: Spot allocation hotspots and memory usage patterns
-- **Debugging**: Trace memory allocation sequences and identify problematic patterns
-
-**🔧 Interpretation Guide:**
-- **Dense Clusters**: Indicate rapid allocation sequences (loops, bulk operations)
-- **Isolated Events**: Show individual variable allocations
-- **Vertical Positioning**: Represents different execution contexts or scope levels
-- **Color Coding**: Green markers for allocations (red for deallocations when available)
-
-This visualization complements the memory analysis SVG by focusing on the temporal aspects of memory usage rather than just the final state.
-
-## 🚀 Quick Start
-
-### Installation
-
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-memscope-rs = "0.1.0"
-
-# Optional: Enable backtrace support
-memscope-rs = { version = "0.1.0", features = ["backtrace"] }
+```
++--------------------------------------------------+
+|      Collections - 42.2%                        |
+| +------------------------+-----------------------+
+| |                        |       Vec<T>          |
+| |      HashMap<K,V>      |                       |
+| |                        |       (28.1%)         |
+| |       (14.1%)          +-----------------------+
+| |                        | BTreeSet<T> (8.3%)    |
+| +------------------------+-----------------------+
++--------------------------------------------------+
+|          Basic Types - 53.3%                    |    
+| +------------------------+-----------------------+
+| |      Strings           |      Integers         |
+| |      (31.2%)           |      (22.1%)          |
+| +------------------------+-----------------------+
++--------------------------------------------------+
+| Smart Pointers - 4.5%                           |
++--------------------------------------------------+
 ```
 
-### Basic Usage
+**🔍 Key Features:**
+- **Hierarchical Layout**: Major categories (Collections, Basic Types, Smart Pointers) with subcategories
+- **Size Proportional**: Rectangle sizes represent actual memory usage
+- **Color Coded**: Each type category has distinct colors for easy identification
+- **Percentage Labels**: Shows both absolute sizes and relative percentages
+- **Variable Names**: Displays actual variable names associated with each allocation
+
+### 📊 Eight Core Memory Metrics (Based on Actual Code Implementation)
+
+The memory analysis SVG calculates and displays eight key metrics using real algorithms from `src/export_enhanced.rs`:
+
+1. **Active Memory** - Current memory in use
+   ```rust
+   stats.active_memory  // Direct from MemoryStats
+   ```
+
+2. **Peak Memory** - Maximum memory usage reached
+   ```rust
+   stats.peak_memory    // Direct from MemoryStats
+   ```
+
+3. **Active Allocations** - Number of currently active allocations
+   ```rust
+   stats.active_allocations  // Direct from MemoryStats
+   ```
+
+4. **Memory Efficiency** - Ratio of active to peak memory
+   ```rust
+   (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
+   ```
+
+5. **Median Allocation Size** - 50th percentile of allocation sizes
+   ```rust
+   fn calculate_allocation_percentiles(allocations: &[AllocationInfo]) -> (usize, usize) {
+       let mut sizes: Vec<usize> = allocations.iter().map(|a| a.size).collect();
+       sizes.sort_unstable();
+       let len = sizes.len();
+       let median = if len % 2 == 0 {
+           (sizes[len / 2 - 1] + sizes[len / 2]) / 2
+       } else {
+           sizes[len / 2]
+       };
+       (median, p95)
+   }
+   ```
+
+6. **P95 Allocation Size** - 95th percentile for large allocation detection
+   ```rust
+   let p95_index = ((len as f64) * 0.95) as usize;
+   let p95 = if p95_index >= len { sizes[len - 1] } else { sizes[p95_index] };
+   ```
+
+7. **Memory Fragmentation** - Percentage of peak memory not currently in use
+   ```rust
+   ((stats.peak_memory - stats.active_memory) as f64 / stats.peak_memory as f64) * 100.0
+   ```
+
+8. **Allocation Density** - Average allocations per tracked variable
+   ```rust
+   stats.total_allocations as f64 / tracked_variables_count as f64
+   ```
+
+### 🎨 Design Philosophy & Module Architecture
+
+**Treemap Visualization Design** (from `src/visualization.rs`):
+- **Adaptive Layout**: Uses `analyze_data_distribution()` to choose optimal layout strategy
+- **Hierarchical Categorization**: Three-tier system (Category → Subcategory → Type)
+- **Enhanced Type Analysis**: `analyze_type_with_detailed_subcategory()` provides precise type classification
+- **Variable Association**: Links memory allocations to actual variable names via `track_var!` macro
+
+**Memory Analysis Modules** (from `src/export_enhanced.rs`):
+- **12-Section Layout**: Comprehensive analysis divided into logical sections
+- **Real-time Calculation**: All metrics calculated from live allocation data
+- **Type Enhancement**: `enhance_type_information()` extracts inner types from complex generics
+- **Smart Categorization**: Automatic grouping of Collections, Basic Types, Smart Pointers
+
+### 2. 🕒 Lifecycle Timeline SVG 
+
+![Lifecycle Timeline Visualization](./images/lifecycleTimeline.svg)
+
+An interactive timeline showing variable lifecycles and scope relationships:
+
+**🔍 Timeline Structure:**
+- **Scope Matrices**: Up to 10 scope containers showing variable relationships
+- **Progress Bars**: Show variable size relative to largest in same scope (e.g., "2.4KB / 5.6KB")
+- **Color Coding**: Type-specific gradient colors:
+  - String: Teal gradient `#00BCD4 → #00ACC1`
+  - Vec: Blue gradient `#2196F3 → #1976D2`
+  - Box: Red gradient `#F44336 → #D32F2F`
+  - HashMap: Green gradient `#4CAF50 → #388E3C`
+  - Custom: Blue-gray gradient `#607D8B → #455A64`
+
+**📈 Scope Information:**
+Each scope matrix displays:
+- **Scope Name**: Function or block name
+- **Total Memory**: Combined memory usage in scope
+- **Variable Count**: Number of tracked variables
+- **Lifetime Duration**: How long the scope was active
+
+**🎯 Relationship Visualization:**
+- **Ownership Lines**: Show variable ownership transfers
+- **Borrowing Indicators**: Visualize reference relationships
+- **Clone Relationships**: Display cloned data connections
+
+### 3. 📄 Memory Snapshot JSON 
+
+Based on actual structure from `./images/lifecycle_snapshot.json`:
+
+```json
+{
+  "memory_hierarchy": {
+    "Basic Types": {
+      "subcategories": {
+        "Integers": {
+          "summary": {
+            "percentage_of_category": "33.5%",
+            "percentage_of_total": "11.8%",
+            "total_size_bytes": 64,
+            "type_count": 2
+          },
+          "types": [
+            {
+              "allocation_count": 5,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 72,
+                  "type_name": "alloc::rc::Rc<core::cell::RefCell<alloc::vec::Vec<i32>>>",
+                  "variable_name": "mutable_data"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                  "variable_name": "boxed_hash_map"
+                }
+              ],
+              "percentage_of_subcategory": "90.6%",
+              "percentage_of_total": "10.7%",
+              "size_bytes": 58,
+              "type_name": "i32"
+            }
+          ]
+        }
+      },
+      "summary": {
+        "percentage_of_total": "64.8%",
+        "subcategory_count": 5,
+        "total_size_bytes": 352
+      }
+    }
+  },
+  "metadata": {
+    "description": "Hierarchical memory analysis with categories and subcategories",
+    "format_version": "1.0",
+    "timestamp": "2025-07-13T10:15:49.878950Z"
+  },
+  "summary": {
+    "active_allocations": 3742,
+    "active_memory_bytes": 411735,
+    "peak_memory_bytes": 679218,
+    "total_allocations": 57380,
+    "total_memory_bytes": 543
+  }
+}
+```
+
+**📋 JSON Structure:**
+- **memory_hierarchy**: Memory organized by categories and subcategories
+- **allocation_time**: Unix timestamp (e.g., 1752401749778)
+- **variable_name**: Associated variable names (e.g., "mutable_data", "boxed_hash_map")
+- **type_name**: Complete Rust type information (e.g., "alloc::rc::Rc<core::cell::RefCell<alloc::vec::Vec<i32>>>")
+- **summary**: Overall memory usage metrics (active allocations: 3742, peak memory: 679218 bytes)
+- **metadata**: Format version and timestamp information
+
+### 📸 Example Output Files
+
+The project includes example output files in the `./images/` directory:
+- `lifecycle_timeline.svg` - Interactive timeline visualization
+- `lifecycle_snapshot.json` - Complete memory analysis data
+
+![Lifecycle Timeline Example](images/lifecycle_timeline.svg)
+
+
+## 🎯 Use Cases & Benefits
+
+### 🔍 **Memory Leak Detection**
+- **Identify Persistent Variables**: Spot variables that persist longer than expected
+- **Scope Analysis**: Understand variable lifetime patterns and scope relationships
+- **Resource Management**: Track when resources are allocated and deallocated
+
+### ⚡ **Performance Optimization**
+- **Allocation Hotspots**: Identify functions or loops with excessive allocations
+- **Memory Usage Patterns**: Understand which data types consume the most memory
+- **Efficiency Metrics**: Monitor memory usage efficiency and fragmentation
+
+### 🐛 **Debugging & Development**
+- **Variable Tracking**: Associate memory allocations with actual variable names
+- **Type Analysis**: See detailed breakdown of memory usage by Rust types
+- **Timeline Analysis**: Trace memory allocation sequences and identify problematic patterns
+
+### 📊 **Production Monitoring**
+- **Memory Profiling**: Generate reports for production memory analysis
+- **Capacity Planning**: Understand memory requirements for scaling
+- **Regression Detection**: Compare memory usage across different versions
+
+## 📖 Comprehensive Examples
+
+### 🎯 Basic Usage Example
 
 ```rust
 use memscope_rs::{init, track_var, get_global_tracker};
+use std::collections::HashMap;
 
 fn main() {
     // Initialize the memory tracking system
     init();
+    println!("memscope-rs initialized. Tracking memory allocations...");
 
-    // Create and track variables
-    let user_data = vec![1, 2, 3, 4, 5];
+    // Allocate and track simple types
+    let numbers_vec = vec![1, 2, 3, 4, 5];
+    track_var!(numbers_vec).expect("Failed to track numbers_vec");
+    
+    let text_string = String::from("Hello, memscope!");
+    track_var!(text_string).expect("Failed to track text_string");
+    
+    let boxed_value = Box::new(100i32);
+    track_var!(boxed_value).expect("Failed to track boxed_value");
+
+    // Track collections
+    let mut user_data = HashMap::new();
+    user_data.insert("name".to_string(), "Alice".to_string());
+    user_data.insert("role".to_string(), "Developer".to_string());
     track_var!(user_data).expect("Failed to track user_data");
-
-    let config = String::from("app_config=production");
-    track_var!(config).expect("Failed to track config");
-
-    let cache = Box::new([0u8; 1024]);
-    track_var!(cache).expect("Failed to track cache");
 
     // Get memory statistics
     let tracker = get_global_tracker();
-    let stats = tracker.get_stats().expect("Failed to get stats");
+    if let Ok(stats) = tracker.get_stats() {
+        println!("Memory Statistics:");
+        println!("  Active allocations: {}", stats.active_allocations);
+        println!("  Active memory: {} bytes", stats.active_memory);
+        println!("  Peak memory: {} bytes", stats.peak_memory);
+    }
+
+    // Export all three output formats
+    tracker.export_memory_analysis("basic_memory_analysis.svg").unwrap();
+    tracker.export_lifecycle_timeline("basic_lifecycle_timeline.svg").unwrap();
+    tracker.export_to_json("basic_memory_snapshot.json").unwrap();
     
-    println!("Memory Usage:");
-    println!("  Active allocations: {}", stats.active_allocations);
-    println!("  Active memory: {} bytes", stats.active_memory);
-    println!("  Peak memory: {} bytes", stats.peak_memory);
-
-    // Export detailed analysis with recommended naming
-    tracker.export_to_json("my_program_data.json").expect("JSON export failed");
-    tracker.export_memory_analysis("my_program_memory_analysis.svg").expect("Memory analysis export failed");
-    tracker.export_lifecycle_timeline("my_program_lifecycle_timeline.svg").expect("Lifecycle timeline export failed");
-
-    println!("Analysis exported! Check the generated files:");
-    println!("📊 my_program_memory_analysis.svg - Memory usage analysis");
-    println!("⏱️  my_program_lifecycle_timeline.svg - Lifecycle timeline");
-    println!("📄 my_program_data.json - Detailed data");
+    println!("Analysis complete! Check the generated files:");
+    println!("  - basic_memory_analysis.svg: Visual memory dashboard");
+    println!("  - basic_lifecycle_timeline.svg: Interactive timeline");
+    println!("  - basic_memory_snapshot.json: Complete data export");
 }
 ```
 
+### 🔄 Lifecycle Tracking Example
+
+```rust
+use memscope_rs::{init, track_var, get_global_tracker};
+
+fn create_and_drop_string() -> String {
+    println!("Entering create_and_drop_string()...");
+    let local_string = String::from("This string is local to the function");
+    track_var!(local_string).expect("Failed to track local_string");
+    
+    // Create a string to return (ownership transfer)
+    let return_string = String::from("This string will be returned");
+    track_var!(return_string).expect("Failed to track return_string");
+    
+    println!("Exiting create_and_drop_string()...");
+    return_string // Ownership transferred to caller
+    // local_string goes out of scope here and memory is deallocated
+}
+
+fn process_data_in_loop() {
+    println!("Processing data in loop...");
+    for i in 0..5 {
+        let loop_vec = vec![i; 100]; // Create vector with 100 elements
+        track_var!(loop_vec).expect("Failed to track loop_vec");
+        
+        // Simulate some processing
+        let sum: i32 = loop_vec.iter().sum();
+        println!("Iteration {}: sum = {}", i, sum);
+        
+        // loop_vec is deallocated at the end of each iteration
+    }
+    println!("Loop processing complete.");
+}
+
+fn main() {
+    init();
+    println!("Lifecycle tracking example started...");
+
+    // Track a variable in the main scope
+    let main_scope_vec = vec![1, 2, 3];
+    track_var!(main_scope_vec).expect("Failed to track main_scope_vec");
+
+    // Call function that creates and transfers ownership
+    let transferred_string = create_and_drop_string();
+    track_var!(transferred_string).expect("Failed to track transferred_string");
+
+    // Call function with loop allocations
+    process_data_in_loop();
+
+    // Export lifecycle analysis
+    let tracker = get_global_tracker();
+    tracker.export_lifecycle_timeline("lifecycle_example.svg").unwrap();
+    tracker.export_memory_analysis("lifecycle_memory_analysis.svg").unwrap();
+    
+    println!("Lifecycle analysis exported to lifecycle_example.svg");
+    println!("Check the timeline to see variable lifecycles across different scopes!");
+}
+```
+
+### 🏗️ Complex Data Structures Example
+
+```rust
+use memscope_rs::{init, track_var, get_global_tracker};
+use std::collections::{HashMap, BTreeSet, VecDeque};
+use std::rc::Rc;
+use std::sync::Arc;
+
+#[derive(Debug)]
+struct User {
+    id: u64,
+    name: String,
+    email: String,
+    preferences: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+struct Database {
+    users: HashMap<u64, User>,
+    active_sessions: BTreeSet<String>,
+    request_queue: VecDeque<String>,
+}
+
+fn main() {
+    init();
+    println!("Complex data structures example...");
+
+    // Create complex nested data structures
+    let mut database = Database {
+        users: HashMap::new(),
+        active_sessions: BTreeSet::new(),
+        request_queue: VecDeque::new(),
+    };
+    track_var!(database).expect("Failed to track database");
+
+    // Add users to database
+    let user1 = User {
+        id: 1,
+        name: "Alice Johnson".to_string(),
+        email: "alice@example.com".to_string(),
+        preferences: {
+            let mut prefs = HashMap::new();
+            prefs.insert("theme".to_string(), "dark".to_string());
+            prefs.insert("language".to_string(), "en".to_string());
+            prefs
+        },
+    };
+    track_var!(user1).expect("Failed to track user1");
+    
+    // Smart pointers for shared data
+    let shared_config = Rc::new(vec!["setting1", "setting2", "setting3"]);
+    track_var!(shared_config).expect("Failed to track shared_config");
+    
+    let shared_config_clone = Rc::clone(&shared_config);
+    track_var!(shared_config_clone).expect("Failed to track shared_config_clone");
+    
+    // Thread-safe shared data
+    let thread_safe_data = Arc::new(String::from("Shared across threads"));
+    track_var!(thread_safe_data).expect("Failed to track thread_safe_data");
+
+    // Large data allocation
+    let large_buffer: Vec<u8> = vec![0; 1024 * 1024]; // 1MB buffer
+    track_var!(large_buffer).expect("Failed to track large_buffer");
+
+    // Get comprehensive statistics
+    let tracker = get_global_tracker();
+    if let Ok(stats) = tracker.get_stats() {
+        println!("\nComplex Data Structure Analysis:");
+        println!("  Active allocations: {}", stats.active_allocations);
+        println!("  Active memory: {:.2} MB", stats.active_memory as f64 / 1024.0 / 1024.0);
+        println!("  Peak memory: {:.2} MB", stats.peak_memory as f64 / 1024.0 / 1024.0);
+        println!("  Total allocations: {}", stats.total_allocations);
+    }
+
+    // Export comprehensive analysis
+    tracker.export_memory_analysis("complex_memory_analysis.svg").unwrap();
+    tracker.export_lifecycle_timeline("complex_lifecycle_timeline.svg").unwrap();
+    tracker.export_to_json("complex_memory_snapshot.json").unwrap();
+    
+    println!("\nComplex analysis exported!");
+    println!("The treemap will show detailed breakdown of:");
+    println!("  - Collections (HashMap, BTreeSet, VecDeque)");
+    println!("  - Basic Types (Strings, integers)");
+    println!("  - Smart Pointers (Rc, Arc, Box)");
+    println!("  - Large allocations and their relationships");
+}
+```
 
 ## 📖 Comprehensive Guide
 
@@ -218,174 +604,7 @@ fn main() {
 }
 ```
 
-### Understanding the Visualizations
 
-#### SVG Output Features
-
-![Memory Analysis](./images/memoryAnalysis.svg)
-
-## 📊 Eight Core Memory Metrics
-
-Our visualization provides eight key metrics to comprehensively analyze your Rust application's memory usage:
-
-### 🔵 Basic Metrics (Central & Ring Display)
-1. **Active Memory** - Current memory in use by your application
-   - `stats.active_memory` (bytes)
-   - Displayed in central blue circle
-
-2. **Peak Memory** - Maximum memory usage reached during execution  
-   - `stats.peak_memory` (bytes)
-   - Displayed in central blue circle
-
-3. **Active Allocations** - Number of currently active memory allocations
-   - `stats.active_allocations` (count)
-   - Displayed in red satellite circle
-
-4. **Memory Reclamation Rate** - Percentage of allocated memory that has been freed
-   - `(stats.total_deallocated / stats.total_allocated) × 100%`
-   - Displayed in green satellite circle
-
-### 🟠 Advanced Metrics (Ring & Linear Display)
-5. **Allocator Efficiency** - How well memory is being utilized vs peak usage
-   - `(stats.active_memory / stats.peak_memory) × 100%`
-   - Displayed in orange satellite circle
-
-6. **Median Allocation Size** - Middle value of all allocation sizes (50th percentile)
-   - Calculated from sorted allocation sizes: `sizes[len/2]`
-   - Displayed as blue linear bar
-
-7. **P95 Allocation Size** - 95th percentile of allocation sizes (large allocations)
-   - Calculated as: `sizes[(len × 0.95) as usize]`
-   - Displayed as orange linear bar (full length)
-
-8. **Memory Fragmentation** - Percentage of peak memory not currently in use
-   - `((stats.peak_memory - stats.active_memory) / stats.peak_memory) × 100%`
-   - Displayed in purple satellite circle
-
-### 🎯 Visualization Layout
-- **Central Circle**: Most critical metrics (Active/Peak Memory)
-- **Satellite Circles**: Performance and efficiency metrics with connecting lines
-- **Linear Bars**: Size comparison metrics for intuitive understanding
-
-The enhanced SVG visualization includes:
-
-1. **Header Statistics Panel**
-   - Active allocations count
-   - Current memory usage (human-readable)
-   - Peak memory usage
-   - Total allocation count
-
-2. **Memory Usage by Type Chart**
-   - Bar chart showing memory consumption per type
-   - Color-coded by category (Collections=Blue, Text=Green, etc.)
-   - Shows both size and allocation count
-
-3. **Tracked Variables by Category**
-   - Groups your tracked variables by type category
-   - Shows which variables consume the most memory
-   - Helps identify memory hotspots
-
-4. **Allocation Timeline**
-   - Visual timeline of when variables were allocated
-   - Shows variable names and sizes
-   - Helps understand allocation patterns
-
-![Lifecycle Timeline](./images/lifecycle_timeline.svg)
-
-### 🎯 Lifecycle Timeline SVG Detailed Analysis
-
-The lifecycle timeline visualization provides a comprehensive view of variable lifecycles and scope relationships in your Rust application:
-
-#### **📊 Timeline Structure & Components**
-
-**🔝 Header Section:**
-- **Title**: "Scope Matrix & Lifecycle Visualization" - Professional gradient styling
-- **Global Legend**: Prominent progress bar explanation showing lifecycle progression patterns
-- **Scope Information**: Total scopes found and variables being displayed
-
-**🎨 Matrix Layout Section:**
-- **Variable Nodes**: Each tracked variable displayed as colored circles with variable names
-- **Type Information**: Shows complete Rust type information (e.g., `alloc::boxed::Box<Vec<u8>>`)
-- **Scope Grouping**: Variables organized by their scope context (Global, Function, Block)
-- **Visual Hierarchy**: Indentation and positioning indicate scope relationships
-
-**📈 Top 3 Memory Analysis:**
-- **Memory Bars**: Horizontal bars showing relative memory usage by type
-- **Variable Details**: Each bar shows variable names and their memory consumption
-- **Type Categorization**: Groups similar types together (Collections, Smart Pointers, etc.)
-- **Size Comparison**: Visual comparison of memory usage across different variable types
-
-**🔗 Variable Relationships Section:**
-- **Ownership & Borrowing**: Visual representation of Rust ownership patterns
-- **Scope Backgrounds**: Different colored backgrounds for different scopes
-- **Relationship Lines**: Connecting lines showing variable dependencies and references
-- **Interactive Elements**: Hover effects and visual feedback for better understanding
-
-#### **🎨 Visual Design Features**
-
-**Color Coding System:**
-- **Blue Gradient**: Represents different variable lifetimes (darker = longer lived)
-- **Scope Colors**: Different background colors for Global, Function, and Block scopes
-- **Type Colors**: Consistent color scheme matching the memory analysis SVG
-- **Relationship Lines**: Dotted and solid lines indicating different relationship types
-
-**Layout Optimization:**
-- **Responsive Design**: Adapts to different numbers of variables and scopes
-- **Overflow Prevention**: Smart text truncation and layout adjustments
-- **Professional Styling**: Modern shadows, gradients, and typography
-- **Clear Hierarchy**: Visual separation between different analysis sections
-
-#### **🔧 Interpretation Guide**
-
-**Understanding Variable Lifecycles:**
-- **Node Position**: Higher positions indicate earlier allocation times
-- **Node Size**: Larger nodes represent variables with more memory usage
-- **Color Intensity**: Darker colors indicate longer-lived variables
-- **Scope Grouping**: Variables in the same scope are visually grouped together
-
-**Relationship Analysis:**
-- **Ownership Transfer**: Solid lines showing move semantics
-- **Borrowing Patterns**: Dashed lines indicating reference relationships
-- **Shared Ownership**: Special indicators for `Rc` and `Arc` patterns
-- **Scope Boundaries**: Clear visual separation between different scopes
-
-**Practical Applications:**
-- Understanding variable scope relationships in complex Rust applications
-- Identifying memory ownership patterns and potential optimizations
-- Visualizing the lifecycle of smart pointers and reference-counted data
-- Debugging scope-related memory issues and lifetime conflicts
-
-#### JSON Output Structure
-
-```json
-{
-  "timestamp": "2024-01-15T10:30:00Z",
-  "total_allocations": 150,
-  "total_allocated": 2048576,
-  "active_allocations": [
-    {
-      "ptr": 140234567890,
-      "size": 1024,
-      "timestamp_alloc": 1705312200000,
-      "var_name": "user_data",
-      "type_name": "Vec<i32>",
-      "thread_id": "ThreadId(1)"
-    }
-  ],
-  "memory_by_type": [
-    {
-      "type_name": "Vec<i32>",
-      "total_size": 4096,
-      "allocation_count": 4
-    }
-  ],
-  "stats": {
-    "total_allocations": 150,
-    "active_allocations": 45,
-    "peak_memory": 3145728
-  }
-}
-```
 
 ## 🛡️ Safety & Security
 
@@ -398,7 +617,6 @@ We've conducted comprehensive security analysis covering:
 - **Resource Management**: Memory leak detection and bounds checking
 - **Error Handling**: Graceful failure modes and recovery
 
-See [SECURITY_ANALYSIS.md](SECURITY_ANALYSIS.md) for detailed analysis.
 
 ### Performance Characteristics
 
@@ -409,42 +627,38 @@ See [SECURITY_ANALYSIS.md](SECURITY_ANALYSIS.md) for detailed analysis.
 
 ### Production Considerations
 
+**Note**: The following code patterns are recommended but not currently implemented in the codebase. Use with caution:
+
 ```rust
-# Disable tracking in release builds
+// Recommended pattern (not yet implemented):
 #[cfg(debug_assertions)]
 memscope_rs::init();
 
-# Or use conditional compilation
+// Alternative feature-based approach (requires adding feature to Cargo.toml):
 #[cfg(feature = "memory-tracking")]
 memscope_rs::init();
 ```
+
+**Current Reality**: memscope-rs currently initializes in all builds. For production use, you would need to manually wrap initialization calls.
 
 ## 🧪 Testing
 
 ### Running Tests
 
 ```bash
-# Basic tests
-cargo test
-
-# Stress tests
-cargo test --test stress_test
-
-# Safety tests
-cargo test --test safety_test
-
-# Performance benchmarks
-cargo test --test performance_test --release
-
-# Edge cases
-cargo test --test edge_cases_test
-
-# Comprehensive integration tests
-cargo test --test comprehensive_integration_test
-
-// or 
+# Run all tests
 make test
-make run-stress-test
+
+# Run specific test suites
+make test-stress
+make test-safety
+make test-performance
+make test-edge
+
+# Run comprehensive integration tests
+make test-integration
+
+# Run main application
 make run-main
 ```
 
@@ -457,120 +671,45 @@ make run-main
 - **Performance Tests**: Overhead and bottleneck analysis
 - **Edge Cases**: Unusual inputs and boundary conditions
 
-## 📊 Visual Memory Analysis
 
-memscope-rs generates **two comprehensive SVG visualizations** that provide deep insights into your application's memory usage patterns:
 
-### 🎯 **Dual SVG Output System**
+## 🚀 Getting Started
 
-#### 1. **Memory Analysis SVG** (`program_name_memory_analysis.svg`)
-Comprehensive memory usage analysis including:
-- **Performance Dashboard**: Real-time memory metrics and efficiency indicators
-- **Memory Usage by Type**: Categorized breakdown with `varType(Type)` format
-- **Variable Allocation Timeline**: Chronological allocation patterns
-- **Call Stack Analysis**: Specific variable tracking (no more "Unknown"!)
-- **Memory Fragmentation**: Visual fragmentation analysis
-- **Hot Spots**: Memory allocation frequency analysis
+### Installation
 
-#### 2. **Lifecycle Timeline SVG** (`program_name_lifecycle_timeline.svg`) 
-Beautiful timeline visualization showing:
-- **Variable Lifecycles**: Each variable displayed as `varName(Type)` with colored bars
-- **Scope Hierarchy**: Indented display showing function/scope relationships
-- **Time Progression**: Horizontal timeline with precise timestamps
-- **Active Status**: Red "LIVE" indicators for variables still in memory
-- **Relationship Lines**: Dotted lines connecting variables to their parent scopes
-- **Modern Design**: White background, shadows, and professional styling
+Add memscope-rs to your `Cargo.toml`:
 
-![Memory Analysis Visualization](stress_test_visualization.svg)
-
-### 🎯 Performance Dashboard (Top Section)
-Four key performance gauges displaying:
-- **Memory Efficiency**: Allocation/deallocation ratio (35.7% in example)
-- **Average Allocation Size**: Mean size per allocation (1.0K bytes)
-- **Memory Utilization**: Current vs peak memory usage (100.0%)
-- **Active Allocations**: Number of currently tracked allocations (25.0K)
-
-### 🔥 Memory Allocation Heatmap (Second Section)
-A 20x8 grid showing allocation density patterns:
-- **X-axis**: Allocation size (small to large)
-- **Y-axis**: Time progression
-- **Color intensity**: Number of allocations (blue=cold, red=hot)
-- **Numbers in cells**: Exact allocation counts
-
-### 📊 Memory Usage by Type & Fragmentation Analysis (Third Row)
-**Left side - Type Usage Chart**: Pie chart showing memory distribution by data types
-**Right side - Fragmentation Analysis**: Histogram of allocation sizes:
-- **Green bars**: Small allocations (good for performance)
-- **Orange bars**: Medium allocations (moderate impact)
-- **Red bars**: Large allocations (potential fragmentation risk)
-
-### 🔍 Categorized Allocations & Call Stack Analysis (Fourth Row)
-**Left side - Categorized Allocations**: Memory usage grouped by allocation categories
-**Right side - Call Stack Analysis**: Tree visualization showing:
-- **Colored nodes**: Different source locations
-- **Node size**: Proportional to memory usage
-- **Labels**: Source location with allocation count and total bytes
-
-### 📈 Memory Growth Trends (Fifth Section)
-Time-series visualization showing:
-- **Green trend line**: Memory usage progression over time
-- **Data points**: Specific measurement points
-- **Red dashed line**: Peak memory usage indicator
-- **Trend analysis**: Growth patterns and memory behavior
-
-### 📱 Memory Timeline (Sixth Section)
-Detailed timeline showing:
-- **Variable lifecycles**: When variables are allocated and deallocated
-- **Memory blocks**: Visual representation of active allocations
-- **Time progression**: Left to right temporal flow
-
-### 🎨 Interactive Legend & Summary (Bottom Section)
-**Left side - Legend**: Color coding explanation for all chart elements
-**Right side - Summary**: Key statistics including:
-- Total active allocations
-- Tracked variables percentage
-- Average allocation size
-- Memory efficiency metrics
-- Peak vs current memory comparison
-
-## 📊 Examples & Use Cases
-
-The `examples/` directory contains comprehensive demonstration programs showcasing different memory usage patterns:
-
-### 🚀 Basic Examples
-- **`basic_usage.rs`** - Simple tracking example showing fundamental usage
-- **`lifecycles.rs`** - Variable lifecycle tracking with scope management
-
-### 💪 Advanced Examples  
-- **`heavy_workload.rs`** - Complex application simulation with:
-  - Web server session management (1,000 sessions)
-  - Data pipeline processing (10,000+ records)
-  - LRU cache system with hit/miss patterns
-  - Concurrent worker pool (8 threads, 2,000 tasks)
-
-- **`memory_stress_test.rs`** - Extreme stress testing scenarios including:
-  - **Massive Allocation Burst**: 50,000+ rapid allocations
-  - **Memory Fragmentation**: Complex fragmentation patterns
-  - **Concurrent Storm**: 16 threads with 80,000+ allocations
-  - **Large Object Stress**: Objects up to 10MB each
-  - **Rapid Cycles**: 100,000+ allocation/deallocation cycles
-
-### 🎯 Running Examples
-```bash
-# Basic usage demonstration
-cargo run --example basic_usage
-
-# Variable lifecycle tracking
-cargo run --example lifecycles
-
-# Complex workload simulation
-cargo run --example heavy_workload
-
-# Extreme stress testing (generates rich visualizations)
-cargo run --example memory_stress_test
+```toml
+[dependencies]
+memscope-rs = "0.1.0"
 ```
 
-Each example generates detailed JSON snapshots and beautiful SVG visualizations showing memory usage patterns, performance metrics, and allocation analysis.
+### Running the Examples
+
+To see memscope-rs in action, run the provided examples:
+
+```bash
+# Clone the repository
+git clone https://github.com/TimWood0x10/memscope-rs.git
+cd memscope-rs
+
+# Run basic usage example - demonstrates core functionality
+make run-basic
+
+# Run lifecycle tracking example - shows variable lifecycles
+make run-lifecycle
+
+# Run complex showcase - demonstrates advanced features
+make run-complex-lifecycle-showcase
+
+# Run stress test - shows performance under load
+make run-memory-stress
+```
+
+Each example generates three output files:
+- `*_memory_analysis.svg` - Visual memory dashboard with treemap
+- `*_lifecycle_timeline.svg` - Interactive timeline with scope matrices  
+- `*_snapshot.json` - Complete data export for programmatic analysis
 
 ### Example 1: Web Server Memory Analysis
 
@@ -656,65 +795,174 @@ fn process_data_pipeline() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## 🔧 Configuration
-
-### Features
+### 🔧 Configuration & Features
 
 ```toml
 [dependencies]
 memscope-rs = { version = "0.1.0", features = ["backtrace"] }
 ```
 
-Available features:
-- `backtrace`: Enable backtrace capture for allocations (requires `backtrace` crate)
-- `tracking-allocator`: Enable custom global allocator (default)
+**Available Features:**
+- `tracking-allocator` (default): Enables the global allocator for automatic tracking
+- `backtrace`: Includes stack trace information in allocations
+- `test`: Additional utilities for testing (development only)
 
-### Environment Variables
+### 🎨 Advanced Usage
 
-```bash
-# Set logging level
-RUST_LOG=memscope_rs=debug cargo run
+#### Custom Export Paths
+```rust
+use memscope_rs::{get_global_tracker};
 
-# Disable tracking at runtime
-TRACE_TOOLS_DISABLED=1 cargo run
+let tracker = get_global_tracker();
+
+// Export with custom filenames and paths
+tracker.export_memory_analysis("reports/memory_analysis.svg")?;
+tracker.export_lifecycle_timeline("reports/lifecycle_timeline.svg")?;
+tracker.export_to_json("data/memory_snapshot.json")?;
 ```
+
+#### Conditional Tracking
+```rust
+use memscope_rs::{init, track_var, get_global_tracker};
+
+fn main() {
+    // Only initialize in debug builds
+    #[cfg(debug_assertions)]
+    init();
+    
+    let my_data = vec![1, 2, 3, 4, 5];
+    
+    // Only track in debug builds
+    #[cfg(debug_assertions)]
+    track_var!(my_data);
+    
+    // Your application logic here...
+}
+```
+
+#### Integration with Existing Applications
+```rust
+use memscope_rs::{init, get_global_tracker};
+
+fn setup_memory_tracking() {
+    init();
+    
+    // Set up periodic exports
+    std::thread::spawn(|| {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(60));
+            
+            let tracker = get_global_tracker();
+            let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+            
+            let _ = tracker.export_memory_analysis(&format!("memory_{}.svg", timestamp));
+            let _ = tracker.export_to_json(&format!("memory_{}.json", timestamp));
+        }
+    });
+}
+```
+
+## 🛡️ Safety & Performance
+
+### Memory Safety
+- **Zero Unsafe Code**: Core tracking uses only safe Rust primitives
+- **Deadlock Prevention**: Advanced lock ordering and `try_lock` strategies
+- **Graceful Degradation**: Continues working even if tracking operations fail
+- **Memory Corruption Detection**: Validates pointer integrity before operations
+
+### Performance Characteristics
+- **Overhead**: Performance impact varies significantly based on allocation patterns (needs comprehensive benchmarking)
+- **Non-Blocking**: Uses timeout-based locking to avoid blocking critical paths
+- **Configurable**: Can be completely disabled in release builds
+- **Scalability**: Performance with large numbers of allocations requires further testing and optimization
+
+### Production Readiness
+- **Error Resilient**: Comprehensive error handling and recovery
+- **Thread Safe**: Full multi-threading support with no data races
+- **Resource Efficient**: Automatic cleanup and memory management
+- **Monitoring Friendly**: Provides metrics for operational monitoring
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our contributing guidelines:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Add tests** for your changes
-4. **Run** the full test suite (`cargo test`)
-5. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-6. **Push** to the branch (`git push origin feature/amazing-feature`)
-7. **Open** a Pull Request
+We welcome contributions! Here's how to get started:
 
 ### Development Setup
 
 ```bash
-git clone https://github.com/Timwood0x10/memscope-rs.git
+# Clone and setup
+git clone https://github.com/TimWood0x10/memscope-rs.git
 cd memscope-rs
-cargo build
-cargo test
+
+# Run the full test suite
+make test
+
+# Run examples to verify functionality
+make run-basic
+make run-lifecycles
+ake run-complex-lifecycle-showcase
+# Check code quality
+make check
 ```
+
+### Contribution Areas
+- 🎨 **Visualizations**: New chart types, improved layouts, interactive features
+- ⚡ **Performance**: Optimization, reduced overhead, better algorithms  
+- 🔧 **Features**: New tracking capabilities, export formats, analysis tools
+- 📚 **Documentation**: Examples, tutorials, API documentation
+- 🧪 **Testing**: Edge cases, stress testing, platform compatibility
+- 🌐 **Platform Support**: Windows, macOS, embedded systems
+
+### Code Style
+- Follow standard Rust formatting (`cargo fmt`)
+- Add documentation for public APIs
+- Include tests for new functionality
+- Update examples when adding features
+
+## 📊 Comparison with Other Tools
+
+| Feature | memscope-rs | valgrind | heaptrack | jemalloc |
+|---------|-------------|----------|-----------|----------|
+| **Rust Native** | ✅ | ❌ | ❌ | ✅ |
+| **Variable Names** | ✅ | ❌ | ❌ | ❌ |
+| **Visual Reports** | ✅ | ❌ | ✅ | ❌ |
+| **Real-time Tracking** | ⚠️ | ❌ | ❌ | ✅ |
+| **Zero Runtime Deps** | ❌ | ❌ | ❌ | ❌ |
+| **Production Ready** | ⚠️ | ✅ | ⚠️ | ✅ |
+| **Interactive Timeline** | ✅ | ❌ | ❌ | ❌ |
+| **Mature Ecosystem** | ❌ | ✅ | ✅ | ✅ |
+| **Low Overhead** | ⚠️ | ❌ | ⚠️ | ✅ |
+
+**Honest Assessment:**
+- **memscope-rs**: Experimental tool with unique Rust-specific features, but still in early development
+- **valgrind**: Industry-standard, battle-tested, but not optimized for Rust and has significant overhead
+- **heaptrack**: Mature profiling tool with excellent visualizations, works well with Rust
+- **jemalloc**: Production-grade allocator with built-in profiling, widely used in Rust ecosystem
 
 ## 📄 License
 
-This project is licensed under the Apache License, Version 2.0 - see the [LICENSE](LICENSE) file for details.
+Licensed under either of:
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT License ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
 ## 🙏 Acknowledgments
 
-- Rust community for excellent tooling and libraries
-- Contributors to the `serde`, `svg`, and `tracing` crates
-- Memory analysis research and best practices from the systems programming community
+- **Rust Community**: For excellent memory management primitives and ecosystem
+- **SVG.rs**: Powerful SVG generation capabilities
+- **Serde**: Robust serialization and data export support  
+- **Contributors**: All developers who have contributed code, documentation, and feedback
+- **Users**: Everyone using memscope-rs and providing valuable feedback
 
-## 📞 Support
+## 📞 Support & Community
 
-- **Documentation**: Run `cargo doc --open` to view local documentation
-- **Issues**: [GitHub Issues](https://github.com/Timwood0x10/memscope-rs/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Timwood0x10/memscope-rs/discussions)
+- **GitHub Issues**: [Report bugs and request features](https://github.com/TimWood0x10/memscope-rs/issues)
+- **Discussions**: [Community discussions and Q&A](https://github.com/TimWood0x10/memscope-rs/discussions)
+- **Documentation**: [API docs on docs.rs](https://docs.rs/memscope-rs)
+- **Examples**: Check the `examples/` directory for comprehensive usage examples
 
 ---
 
