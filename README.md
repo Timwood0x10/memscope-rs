@@ -188,6 +188,8 @@ The memory analysis SVG calculates and displays eight key metrics using real alg
 
 ![Lifecycle Timeline Visualization](./images/lifecycleTimeline.svg)
 
+**⚠️ This is a preliminary implementation, I will make adjustments later ⚠️**
+
 An interactive timeline showing variable lifecycles and scope relationships:
 
 **🔍 Timeline Structure:**
