@@ -59,6 +59,7 @@ help:
 	@echo "  run-lifecycle  - Run lifecycle example"
 	@echo "  run-main       - Run main application"
 	@echo "  run-memory-stress - Run memory stress test example"
+	@echo "  run-complex-lifecycle-showcase - Run complex lifecycle showcase example"
 	@echo ""
 	@echo "$(GREEN)CI/CD:$(NC)"
 	@echo "  ci             - Run full CI pipeline locally"
@@ -197,12 +198,17 @@ run-memory-stress:
 .PHONY: run-lifecycle
 run-lifecycle:
 	@echo "$(BLUE)Running lifecycle example...$(NC)"
-	$(CARGO) run --example lifecycles
+	$(CARGO) run --example lifecycles_simple
 
 .PHONY: run-main
 run-main:
 	@echo "$(BLUE)Running main application...$(NC)"
 	$(CARGO) run
+
+.PHONY: run-complex-lifecycle-showcase
+run-complex-lifecycle-showcase:
+	@echo "$(BLUE)Running complex lifecycle showcase example...$(NC)"
+	$(CARGO) run --example complex_lifecycle_showcase
 
 # CI/CD targets
 .PHONY: ci

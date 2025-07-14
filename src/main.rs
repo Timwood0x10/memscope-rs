@@ -7,11 +7,11 @@
 //! - Background task processing
 //! - Memory-intensive data processing pipeline
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use memscope_rs::{get_global_tracker, init, track_var};
 
 /// Simulates a user session with associated data
 #[derive(Debug, Clone)]
@@ -350,7 +350,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let svg_filename = "complex_app_visualization.svg";
 
     tracker.export_to_json(json_filename)?;
-    tracker.export_to_svg(svg_filename)?;
+    tracker.export_memory_analysis(svg_filename)?;
 
     println!("Exported detailed analysis to:");
     println!("   JSON: {json_filename}");

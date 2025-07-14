@@ -1,11 +1,11 @@
 //! Advanced memory pattern tests for memscope-rs.
 //! Tests smart pointers, custom allocators, memory layouts, and complex data structures.
 
+use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
-use memscope_rs::{get_global_tracker, init, track_var, Trackable};
 
 static INIT: std::sync::Once = std::sync::Once::new();
 
@@ -48,29 +48,23 @@ fn test_smart_pointer_tracking() {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "boxed_data")
+                .is_some_and(|name| name == "boxed_data")
         })
     });
     let has_rc = active_allocs.iter().any(|a| {
-        a.iter().any(|info| {
-            info.var_name
-                .as_ref()
-                .map_or(false, |name| name == "rc_data")
-        })
+        a.iter()
+            .any(|info| info.var_name.as_ref().is_some_and(|name| name == "rc_data"))
     });
     let has_arc = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "arc_data")
+                .is_some_and(|name| name == "arc_data")
         })
     });
 
     // Note: Smart pointer tracking might not work without global allocator feature
-    println!(
-        "Smart pointer tracking - Box: {}, Rc: {}, Arc: {}",
-        has_box, has_rc, has_arc
-    );
+    println!("Smart pointer tracking - Box: {has_box}, Rc: {has_rc}, Arc: {has_arc}");
     if !has_box || !has_rc || !has_arc {
         println!("Some smart pointer allocations not found, but test continues");
     }
@@ -170,7 +164,7 @@ fn test_collection_types() {
     // Test HashMap<K, V>
     let mut hash_map = HashMap::new();
     for i in 0..20 {
-        hash_map.insert(format!("key_{}", i), i * 2);
+        hash_map.insert(format!("key_{i}"), i * 2);
     }
     let boxed_map = Box::new(hash_map);
     track_var!(boxed_map).unwrap();
@@ -178,7 +172,7 @@ fn test_collection_types() {
     // Test BTreeMap<K, V>
     let mut btree_map = BTreeMap::new();
     for i in 0..15 {
-        btree_map.insert(i, format!("value_{}", i));
+        btree_map.insert(i, format!("value_{i}"));
     }
     let boxed_map = Box::new(btree_map);
     track_var!(boxed_map).unwrap();
@@ -186,7 +180,7 @@ fn test_collection_types() {
     // Test HashSet<T>
     let mut hash_set = HashSet::new();
     for i in 0..25 {
-        hash_set.insert(format!("item_{}", i));
+        hash_set.insert(format!("item_{i}"));
     }
     let boxed_set = Box::new(hash_set);
     track_var!(boxed_set).unwrap();
@@ -210,15 +204,15 @@ fn test_collection_types() {
     let collection_names = ["vector", "hash_map", "btree_map", "hash_set", "deque"];
     for name in &collection_names {
         let found = active_allocs.iter().any(|a| {
-            a.get(0)
+            a.first()
                 .and_then(|info| info.var_name.as_ref())
                 .as_ref()
-                .map_or(false, |var_name| var_name == name)
+                .is_some_and(|var_name| var_name == name)
         });
         // Note: Collection allocation tracking might not work without global allocator feature
-        println!("Tracking {} - found: {}", name, found);
+        println!("Tracking {name} - found: {found}");
         if !found {
-            println!("{} allocation not found, but test continues", name);
+            println!("{name} allocation not found, but test continues");
         }
     }
 }
@@ -240,11 +234,12 @@ fn test_nested_data_structures() {
 
             for k in 0..2 {
                 let inner_vec = vec![i, j, k, i + j + k];
+                #[allow(clippy::arc_with_non_send_sync)]
                 let arc_refcell = Arc::new(RefCell::new(inner_vec));
                 vec_of_arcs.push(arc_refcell);
             }
 
-            map.insert(format!("key_{}_{}", i, j), vec_of_arcs);
+            map.insert(format!("key_{i}_{j}"), vec_of_arcs);
         }
 
         nested.push(map);
@@ -259,7 +254,7 @@ fn test_nested_data_structures() {
         assert_eq!(map.len(), 2, "Each map should have 2 entries");
 
         for j in 0..2 {
-            let key = format!("key_{}_{}", i, j);
+            let key = format!("key_{i}_{j}");
             let vec_of_arcs = map.get(&key).expect("Key should exist");
             assert_eq!(vec_of_arcs.len(), 2, "Should have 2 Arc<RefCell<Vec<i32>>>");
 
@@ -330,27 +325,21 @@ fn test_custom_drop_implementations() {
     let active_allocs = tracker.get_active_allocations();
 
     let has_custom1 = active_allocs.iter().any(|a| {
-        a.iter().any(|info| {
-            info.var_name
-                .as_ref()
-                .map_or(false, |name| name == "custom1")
-        })
+        a.iter()
+            .any(|info| info.var_name.as_ref().is_some_and(|name| name == "custom1"))
     });
     let has_custom2 = active_allocs.iter().any(|a| {
-        a.iter().any(|info| {
-            info.var_name
-                .as_ref()
-                .map_or(false, |name| name == "custom2")
-        })
+        a.iter()
+            .any(|info| info.var_name.as_ref().is_some_and(|name| name == "custom2"))
     });
 
     // Note: Custom drop tracking might not work without global allocator feature
-    println!("Custom drop tracking - found custom1: {}", has_custom1);
+    println!("Custom drop tracking - found custom1: {has_custom1}");
     if !has_custom1 {
         println!("Custom1 allocation not found, but test continues");
     }
     // Note: Custom drop tracking might not work without global allocator feature
-    println!("Custom drop tracking - found custom2: {}", has_custom2);
+    println!("Custom drop tracking - found custom2: {has_custom2}");
     if !has_custom2 {
         println!("Custom2 allocation not found, but test continues");
     }
@@ -361,11 +350,8 @@ fn test_custom_drop_implementations() {
     // Verify it's no longer in active allocations
     let active_allocs_after = tracker.get_active_allocations();
     let still_has_custom1 = active_allocs_after.iter().any(|a| {
-        a.iter().any(|info| {
-            info.var_name
-                .as_ref()
-                .map_or(false, |name| name == "custom1")
-        })
+        a.iter()
+            .any(|info| info.var_name.as_ref().is_some_and(|name| name == "custom1"))
     });
 
     assert!(
@@ -437,37 +423,34 @@ fn test_large_allocations() {
         .filter(|a| a.iter().map(|info| info.size).sum::<usize>() > 100 * 1024) // > 100KB
         .collect();
 
-    assert!(large_allocs.len() > 0, "Should have some large allocations");
+    assert!(
+        !large_allocs.is_empty(),
+        "Should have some large allocations"
+    );
 
     // Verify specific large allocations
     let has_large_vec = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "large_vec")
+                .is_some_and(|name| name == "large_vec")
         })
     });
     let has_large_string = active_allocs.iter().any(|a| {
         a.iter().any(|info| {
             info.var_name
                 .as_ref()
-                .map_or(false, |name| name == "large_string")
+                .is_some_and(|name| name == "large_string")
         })
     });
 
     // Note: Large allocation tracking might not work without global allocator feature
-    println!(
-        "Large allocation tracking - found large vec: {}",
-        has_large_vec
-    );
+    println!("Large allocation tracking - found large vec: {has_large_vec}");
     if !has_large_vec {
         println!("Large vec allocation not found, but test continues");
     }
     // Note: Large string tracking might not work without global allocator feature
-    println!(
-        "Large string tracking - found large string: {}",
-        has_large_string
-    );
+    println!("Large string tracking - found large string: {has_large_string}");
     if !has_large_string {
         println!("Large string allocation not found, but test continues");
     }
@@ -541,15 +524,15 @@ fn test_slice_and_array_patterns() {
     let slice_names = ["boxed_slice", "vec_from_slice", "large_array"];
     for name in &slice_names {
         let found = active_allocs.iter().any(|a| {
-            a.get(0)
+            a.first()
                 .and_then(|info| info.var_name.as_ref())
                 .as_ref()
-                .map_or(false, |var_name| var_name == name)
+                .is_some_and(|var_name| var_name == name)
         });
         // Note: Slice allocation tracking might not work without global allocator feature
-        println!("Tracking {} - found: {}", name, found);
+        println!("Tracking {name} - found: {found}");
         if !found {
-            println!("{} allocation not found, but test continues", name);
+            println!("{name} allocation not found, but test continues");
         }
     }
 }
@@ -602,17 +585,20 @@ fn test_trait_objects() {
     assert_eq!(trait_obj2.get_value(), 84, "Trait object 2 should work");
 
     // Vec of trait objects
-    let mut trait_objects: Vec<Box<dyn TestTrait>> = Vec::new();
-    trait_objects.push(Box::new(Impl1 {
-        value: 1,
-        _data: vec![1; 50],
-    }));
-    trait_objects.push(Box::new(Impl2 {
-        value: 2,
-        _name: "two".to_string(),
-    }));
+    #[allow(clippy::vec_init_then_push)]
+    {
+        let mut trait_objects: Vec<Box<dyn TestTrait>> = Vec::new();
+        trait_objects.push(Box::new(Impl1 {
+            value: 1,
+            _data: vec![1; 50],
+        }));
+        trait_objects.push(Box::new(Impl2 {
+            value: 2,
+            _name: "two".to_string(),
+        }));
 
-    track_var!(trait_objects).unwrap();
+        track_var!(trait_objects).unwrap();
+    }
 
     let tracker = get_global_tracker();
     let stats = tracker.get_stats();

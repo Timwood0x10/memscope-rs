@@ -1,10 +1,10 @@
 //! Memory stress test example showing memscope-rs under extreme load
 //! This pushes the memory tracking system to its limits
 
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
-use memscope_rs::{get_global_tracker, init, track_var};
 
 fn main() {
     println!("🔥 Memory Stress Test - Pushing memscope-rs to the limit!");
@@ -45,23 +45,23 @@ fn massive_allocation_burst() {
     let mut allocations = Vec::new();
     let target_count = 50_000;
 
-    println!("  Allocating {} objects rapidly...", target_count);
+    println!("  Allocating {target_count} objects rapidly...");
     let start = Instant::now();
 
     for i in 0..target_count {
         let payload = vec![i as u8; 256];
-        let metadata = format!("Object {} created during burst test", i);
+        let metadata = format!("Object {i} created during burst test");
         track_var!(payload).ok();
         track_var!(metadata).ok();
         allocations.push((payload, metadata));
 
         if i % 10_000 == 0 && i > 0 {
-            println!("    Allocated {} objects...", i);
+            println!("    Allocated {i} objects...");
         }
     }
 
     let duration = start.elapsed();
-    println!("  Allocated {} objects in {:?}", target_count, duration);
+    println!("  Allocated {target_count} objects in {duration:?}");
     println!(
         "  Rate: {:.0} allocations/second",
         target_count as f64 / duration.as_secs_f64()
@@ -88,7 +88,7 @@ fn memory_fragmentation_test() {
             }
             1 => {
                 let data = vec![i as u8; 512];
-                let name = format!("medium_{}", i);
+                let name = format!("medium_{i}");
                 track_var!(data).ok();
                 track_var!(name).ok();
                 medium_objects.push((data, name));
@@ -140,7 +140,7 @@ fn concurrent_allocation_storm() {
                     1 => {
                         let mut map = HashMap::new();
                         for j in 0..10 {
-                            let key = format!("key_{}_{}", thread_id, j);
+                            let key = format!("key_{thread_id}_{j}");
                             let value = vec![j as u8; 64];
                             track_var!(key).ok();
                             track_var!(value).ok();
@@ -151,7 +151,7 @@ fn concurrent_allocation_storm() {
                     2 => {
                         let mut items = Vec::new();
                         for j in 0..20 {
-                            let item = format!("item_{}_{}_{}", thread_id, i, j);
+                            let item = format!("item_{thread_id}_{i}_{j}");
                             track_var!(item).ok();
                             items.push(item);
                         }
@@ -187,10 +187,7 @@ fn concurrent_allocation_storm() {
         total_allocated += handle.join().unwrap();
     }
 
-    println!(
-        "  {} threads allocated {} objects total",
-        num_threads, total_allocated
-    );
+    println!("  {num_threads} threads allocated {total_allocated} objects total");
 }
 
 /// Test 4: Allocate very large objects
@@ -201,7 +198,7 @@ fn large_object_stress_test() {
     for i in 0..100 {
         let size = 1024 * 1024 * (i + 1) / 10; // Up to ~10MB objects
         let massive_data = vec![i as u8; size];
-        let description = format!("Very large object {} with {} bytes", i, size);
+        let description = format!("Very large object {i} with {size} bytes");
         track_var!(massive_data).ok();
         track_var!(description).ok();
 
@@ -243,7 +240,7 @@ fn rapid_alloc_dealloc_cycles() {
         // Rapid allocation
         for i in 0..objects_per_cycle {
             let data = vec![(cycle + i) as u8; 1024];
-            let metadata = format!("cycle_{}_object_{}", cycle, i);
+            let metadata = format!("cycle_{cycle}_object_{i}");
             track_var!(data).ok();
             track_var!(metadata).ok();
 
@@ -254,20 +251,17 @@ fn rapid_alloc_dealloc_cycles() {
         drop(cycle_objects);
 
         if cycle % 100 == 0 {
-            println!("  Completed {} allocation/deallocation cycles", cycle);
+            println!("  Completed {cycle} allocation/deallocation cycles");
         }
     }
 
-    println!(
-        "  Completed {} rapid cycles with {} objects each",
-        cycles, objects_per_cycle
-    );
+    println!("  Completed {cycles} rapid cycles with {objects_per_cycle} objects each");
 }
 
 /// Print comprehensive stress test results
 fn print_final_analysis(tracker: &memscope_rs::MemoryTracker, duration: Duration) {
     println!("\n🔥 STRESS TEST COMPLETE 🔥");
-    println!("Total execution time: {:?}", duration);
+    println!("Total execution time: {duration:?}");
 
     if let Ok(stats) = tracker.get_stats() {
         println!("\n📊 Final Memory Statistics:");
@@ -288,7 +282,7 @@ fn print_final_analysis(tracker: &memscope_rs::MemoryTracker, duration: Duration
         } else {
             0.0
         };
-        println!("  🎯 Memory cleanup efficiency: {:.1}%", efficiency);
+        println!("  🎯 Memory cleanup efficiency: {efficiency:.1}%");
     }
 
     // Memory breakdown by type
@@ -310,13 +304,13 @@ fn print_final_analysis(tracker: &memscope_rs::MemoryTracker, duration: Duration
     // Export stress test results
     println!("\n📄 Exporting stress test analysis...");
     if let Err(e) = tracker.export_to_json("stress_test_snapshot.json") {
-        eprintln!("❌ Failed to export JSON: {}", e);
+        eprintln!("❌ Failed to export JSON: {e}");
     } else {
         println!("✅ Exported detailed snapshot to stress_test_snapshot.json");
     }
 
-    if let Err(e) = tracker.export_to_svg("stress_test_visualization.svg") {
-        eprintln!("❌ Failed to export SVG: {}", e);
+    if let Err(e) = tracker.export_memory_analysis("stress_test_visualization.svg") {
+        eprintln!("❌ Failed to export SVG: {e}");
     } else {
         println!("✅ Exported visualization to stress_test_visualization.svg");
     }

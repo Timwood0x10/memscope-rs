@@ -8,15 +8,18 @@
 #![warn(missing_docs)]
 
 pub mod allocator;
-pub mod export;
 pub mod export_enhanced;
 pub mod tracker;
 pub mod types;
+pub mod utils;
+pub mod visualization;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
 pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
+pub use utils::{format_bytes, get_simple_type, simplify_type_name};
+pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
 
 // Set up the global allocator when the tracking-allocator feature is enabled
 #[cfg(feature = "tracking-allocator")]
@@ -121,9 +124,20 @@ macro_rules! track_var {
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
     if let Some(ptr) = var.get_heap_ptr() {
         let tracker = get_global_tracker();
-        tracker.associate_var(ptr, var_name.to_string(), var.get_type_name().to_string())
+        let type_name = var.get_type_name().to_string();
+
+        // Debug: Print tracking attempt
+        // tracing::debug!(
+        //     "Tracking variable '{}' of type '{}' at ptr {:x}",
+        //     var_name,
+        //     type_name,
+        //     ptr
+        // );
+
+        tracker.associate_var(ptr, var_name.to_string(), type_name)
     } else {
         // Variable doesn't have a heap allocation (e.g., empty Vec)
+        // tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
         Ok(())
     }
 }

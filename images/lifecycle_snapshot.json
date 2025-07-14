@@ -1,0 +1,521 @@
+{
+  "memory_hierarchy": {
+    "Basic Types": {
+      "subcategories": {
+        "Integers": {
+          "summary": {
+            "percentage_of_category": "33.5%",
+            "percentage_of_total": "11.8%",
+            "total_size_bytes": 64,
+            "type_count": 2
+          },
+          "types": [
+            {
+              "allocation_count": 5,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 72,
+                  "type_name": "alloc::rc::Rc<core::cell::RefCell<alloc::vec::Vec<i32>>>",
+                  "variable_name": "mutable_data"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 32,
+                  "type_name": "alloc::boxed::Box<alloc::collections::vec_deque::VecDeque<i32>>",
+                  "variable_name": "boxed_vec_deque"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                  "variable_name": "boxed_hash_map"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 56,
+                  "type_name": "alloc::rc::Rc<alloc::vec::Vec<i32>>",
+                  "variable_name": "shared_clone2"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::collections::btree::map::BTreeMap<i32, alloc::string::String>>",
+                  "variable_name": "boxed_btree_map"
+                }
+              ],
+              "percentage_of_subcategory": "90.6%",
+              "percentage_of_total": "10.7%",
+              "size_bytes": 58,
+              "type_name": "i32",
+              "variable_names": [
+                "from alloc::rc::Rc<core::cell::RefCell<alloc::vec::Vec<i32>>>",
+                "from alloc::rc::Rc<alloc::vec::Vec<i32>>",
+                "from alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                "from alloc::boxed::Box<alloc::collections::vec_deque::VecDeque<i32>>",
+                "from alloc::boxed::Box<alloc::collections::btree::map::BTreeMap<i32, alloc::string::String>>"
+              ]
+            },
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::vec::Vec<u8>>",
+                  "variable_name": "boxed_large_data"
+                }
+              ],
+              "percentage_of_subcategory": "9.4%",
+              "percentage_of_total": "1.1%",
+              "size_bytes": 6,
+              "type_name": "u8",
+              "variable_names": [
+                "from alloc::boxed::Box<alloc::vec::Vec<u8>>"
+              ]
+            }
+          ]
+        },
+        "Strings": {
+          "summary": {
+            "percentage_of_category": "66.5%",
+            "percentage_of_total": "23.4%",
+            "total_size_bytes": 127,
+            "type_count": 3
+          },
+          "types": [
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 15,
+                  "type_name": "String",
+                  "variable_name": "global_app_config"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                  "variable_name": "boxed_hash_map"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::string::String>",
+                  "variable_name": "boxed_string"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 56,
+                  "type_name": "alloc::sync::Arc<alloc::string::String>",
+                  "variable_name": "arc_clone"
+                },
+                {
+                  "allocation_time": 1752401749776,
+                  "size_bytes": 32,
+                  "type_name": "String",
+                  "variable_name": "static_string"
+                },
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>>",
+                  "variable_name": "global_session_store"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::collections::btree::map::BTreeMap<i32, alloc::string::String>>",
+                  "variable_name": "boxed_btree_map"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::set::HashSet<alloc::string::String>>",
+                  "variable_name": "boxed_hash_set"
+                }
+              ],
+              "percentage_of_subcategory": "44.1%",
+              "percentage_of_total": "10.3%",
+              "size_bytes": 56,
+              "type_name": "String",
+              "variable_names": [
+                "global_app_config",
+                "boxed_string",
+                "arc_clone",
+                "static_string"
+              ]
+            },
+            {
+              "allocation_count": 2,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 15,
+                  "type_name": "String",
+                  "variable_name": "global_app_config"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                  "variable_name": "boxed_hash_map"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::string::String>",
+                  "variable_name": "boxed_string"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 56,
+                  "type_name": "alloc::sync::Arc<alloc::string::String>",
+                  "variable_name": "arc_clone"
+                },
+                {
+                  "allocation_time": 1752401749776,
+                  "size_bytes": 32,
+                  "type_name": "String",
+                  "variable_name": "static_string"
+                },
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>>",
+                  "variable_name": "global_session_store"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::collections::btree::map::BTreeMap<i32, alloc::string::String>>",
+                  "variable_name": "boxed_btree_map"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::set::HashSet<alloc::string::String>>",
+                  "variable_name": "boxed_hash_set"
+                }
+              ],
+              "percentage_of_subcategory": "37.0%",
+              "percentage_of_total": "8.7%",
+              "size_bytes": 47,
+              "type_name": "String",
+              "variable_names": [
+                "global_app_config",
+                "boxed_string",
+                "arc_clone",
+                "static_string"
+              ]
+            },
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 15,
+                  "type_name": "String",
+                  "variable_name": "global_app_config"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                  "variable_name": "boxed_hash_map"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::string::String>",
+                  "variable_name": "boxed_string"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 56,
+                  "type_name": "alloc::sync::Arc<alloc::string::String>",
+                  "variable_name": "arc_clone"
+                },
+                {
+                  "allocation_time": 1752401749776,
+                  "size_bytes": 32,
+                  "type_name": "String",
+                  "variable_name": "static_string"
+                },
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>>",
+                  "variable_name": "global_session_store"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::collections::btree::map::BTreeMap<i32, alloc::string::String>>",
+                  "variable_name": "boxed_btree_map"
+                },
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::set::HashSet<alloc::string::String>>",
+                  "variable_name": "boxed_hash_set"
+                }
+              ],
+              "percentage_of_subcategory": "18.9%",
+              "percentage_of_total": "4.4%",
+              "size_bytes": 24,
+              "type_name": "String",
+              "variable_names": [
+                "global_app_config",
+                "boxed_string",
+                "arc_clone",
+                "static_string"
+              ]
+            }
+          ]
+        }
+      },
+      "summary": {
+        "percentage_of_total": "35.2%",
+        "subcategory_count": 2,
+        "total_size_bytes": 191
+      }
+    },
+    "Collections": {
+      "subcategories": {
+        "BTreeMap<K,V>": {
+          "summary": {
+            "percentage_of_category": "6.8%",
+            "percentage_of_total": "4.4%",
+            "total_size_bytes": 24,
+            "type_count": 1
+          },
+          "types": [
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::collections::btree::map::BTreeMap<i32, alloc::string::String>>",
+                  "variable_name": "boxed_btree_map"
+                }
+              ],
+              "percentage_of_subcategory": "100.0%",
+              "percentage_of_total": "4.4%",
+              "size_bytes": 24,
+              "type_name": "BTreeMap<K,V>",
+              "variable_names": [
+                "boxed_btree_map"
+              ]
+            }
+          ]
+        },
+        "HashMap<K,V>": {
+          "summary": {
+            "percentage_of_category": "27.3%",
+            "percentage_of_total": "17.7%",
+            "total_size_bytes": 96,
+            "type_count": 2
+          },
+          "types": [
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                  "variable_name": "boxed_hash_map"
+                },
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>>",
+                  "variable_name": "global_session_store"
+                }
+              ],
+              "percentage_of_subcategory": "50.0%",
+              "percentage_of_total": "8.8%",
+              "size_bytes": 48,
+              "type_name": "HashMap<K,V>",
+              "variable_names": [
+                "boxed_hash_map",
+                "global_session_store"
+              ]
+            },
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, i32>>",
+                  "variable_name": "boxed_hash_map"
+                },
+                {
+                  "allocation_time": 1752401749774,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>>",
+                  "variable_name": "global_session_store"
+                }
+              ],
+              "percentage_of_subcategory": "50.0%",
+              "percentage_of_total": "8.8%",
+              "size_bytes": 48,
+              "type_name": "HashMap<K,V>",
+              "variable_names": [
+                "boxed_hash_map",
+                "global_session_store"
+              ]
+            }
+          ]
+        },
+        "HashSet<T>": {
+          "summary": {
+            "percentage_of_category": "13.6%",
+            "percentage_of_total": "8.8%",
+            "total_size_bytes": 48,
+            "type_count": 1
+          },
+          "types": [
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749777,
+                  "size_bytes": 48,
+                  "type_name": "alloc::boxed::Box<std::collections::hash::set::HashSet<alloc::string::String>>",
+                  "variable_name": "boxed_hash_set"
+                }
+              ],
+              "percentage_of_subcategory": "100.0%",
+              "percentage_of_total": "8.8%",
+              "size_bytes": 48,
+              "type_name": "HashSet<T>",
+              "variable_names": [
+                "boxed_hash_set"
+              ]
+            }
+          ]
+        },
+        "Vec<T>": {
+          "summary": {
+            "percentage_of_category": "43.2%",
+            "percentage_of_total": "28.0%",
+            "total_size_bytes": 152,
+            "type_count": 3
+          },
+          "types": [
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 72,
+                  "type_name": "alloc::rc::Rc<core::cell::RefCell<alloc::vec::Vec<i32>>>",
+                  "variable_name": "mutable_data"
+                }
+              ],
+              "percentage_of_subcategory": "47.4%",
+              "percentage_of_total": "13.3%",
+              "size_bytes": 72,
+              "type_name": "Vec<i32>>>",
+              "variable_names": [
+                "mutable_data"
+              ]
+            },
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 72,
+                  "type_name": "alloc::rc::Rc<core::cell::RefCell<alloc::vec::Vec<i32>>>",
+                  "variable_name": "mutable_data"
+                },
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 56,
+                  "type_name": "alloc::rc::Rc<alloc::vec::Vec<i32>>",
+                  "variable_name": "shared_clone2"
+                }
+              ],
+              "percentage_of_subcategory": "36.8%",
+              "percentage_of_total": "10.3%",
+              "size_bytes": 56,
+              "type_name": "Vec<i32>>",
+              "variable_names": [
+                "shared_clone2"
+              ]
+            },
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 24,
+                  "type_name": "alloc::boxed::Box<alloc::vec::Vec<u8>>",
+                  "variable_name": "boxed_large_data"
+                }
+              ],
+              "percentage_of_subcategory": "15.8%",
+              "percentage_of_total": "4.4%",
+              "size_bytes": 24,
+              "type_name": "Vec<u8>>",
+              "variable_names": [
+                "boxed_large_data"
+              ]
+            }
+          ]
+        },
+        "VecDeque<T>": {
+          "summary": {
+            "percentage_of_category": "9.1%",
+            "percentage_of_total": "5.9%",
+            "total_size_bytes": 32,
+            "type_count": 1
+          },
+          "types": [
+            {
+              "allocation_count": 1,
+              "allocations": [
+                {
+                  "allocation_time": 1752401749778,
+                  "size_bytes": 32,
+                  "type_name": "alloc::boxed::Box<alloc::collections::vec_deque::VecDeque<i32>>",
+                  "variable_name": "boxed_vec_deque"
+                }
+              ],
+              "percentage_of_subcategory": "100.0%",
+              "percentage_of_total": "5.9%",
+              "size_bytes": 32,
+              "type_name": "VecDeque<T>",
+              "variable_names": [
+                "boxed_vec_deque"
+              ]
+            }
+          ]
+        }
+      },
+      "summary": {
+        "percentage_of_total": "64.8%",
+        "subcategory_count": 5,
+        "total_size_bytes": 352
+      }
+    }
+  },
+  "metadata": {
+    "description": "Hierarchical memory analysis with categories and subcategories",
+    "format_version": "1.0",
+    "timestamp": "2025-07-13T10:15:49.878950Z"
+  },
+  "summary": {
+    "active_allocations": 3742,
+    "active_memory_bytes": 411735,
+    "peak_memory_bytes": 679218,
+    "total_allocations": 57380,
+    "total_memory_bytes": 543
+  }
+}

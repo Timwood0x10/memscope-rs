@@ -1,5 +1,5 @@
-//! Lifecycle tracking example for memscope-rs.
-//! Demonstrates how variable lifecycles across different scopes are tracked.
+//! Simplified lifecycle tracking example for memscope-rs.
+//! Only exports the two essential SVG files.
 
 use memscope_rs::{get_global_tracker, init, track_var};
 
@@ -8,7 +8,7 @@ fn create_and_drop_string() {
     println!("Entering create_and_drop_string()...");
     let local_string = String::from("This string is local to create_and_drop_string");
     track_var!(local_string).expect("Failed to track local_string");
-    println!("Tracked 'local_string' with value: \"{}\"", local_string);
+    println!("Tracked 'local_string' with value: \"{local_string}\"");
     println!("Exiting create_and_drop_string()...");
     // local_string goes out of scope here and memory is deallocated
 }
@@ -18,7 +18,7 @@ fn create_vec_on_heap() -> Vec<i32> {
     println!("\nEntering create_vec_on_heap()...");
     let heap_vec = vec![100, 200, 300];
     track_var!(heap_vec).expect("Failed to track heap_vec");
-    println!("Tracked 'heap_vec' with content: {:?}", heap_vec);
+    println!("Tracked 'heap_vec' with content: {heap_vec:?}");
     println!("Exiting create_vec_on_heap()...");
     heap_vec // Ownership transferred to caller
 }
@@ -45,17 +45,16 @@ fn main() {
     // Re-associate the pointer with the new variable name
     track_var!(transferred_vec).expect("Failed to track transferred_vec");
     println!(
-        "Tracked 'transferred_vec' (originally 'heap_vec') after ownership transfer: {:?}",
-        transferred_vec
+        "Tracked 'transferred_vec' (originally 'heap_vec') after ownership transfer: {transferred_vec:?}"
     );
     println!("Returned from create_vec_on_heap().");
 
     // Create variables within a loop to see multiple short-lived allocations
     println!("\nCreating variables inside a loop...");
     for i in 0..3 {
-        let loop_string = format!("Loop string #{}", i);
+        let loop_string = format!("Loop string #{i}");
         track_var!(loop_string).expect("Failed to track loop_string");
-        println!("Tracked 'loop_string' iteration {}: \"{}\"", i, loop_string);
+        println!("Tracked 'loop_string' iteration {i}: \"{loop_string}\"");
         // loop_string is deallocated at the end of each iteration
     }
     println!("Finished loop.");
@@ -70,31 +69,30 @@ fn main() {
         println!("  Total deallocations: {}", stats.total_deallocations);
     }
 
-    // Export data
-    println!("\nExporting memory snapshot to lifecycles_snapshot.json...");
-    if let Err(e) = tracker.export_to_json("lifecycles_snapshot.json") {
-        // Enable sync for reliable file writing
-        eprintln!("Failed to export JSON: {}", e);
+    // Export only the two essential SVG files
+    println!("\n=== Exporting Essential Visualizations ===");
+
+    // Export 1: Memory Analysis - Shows variable names, types, and memory usage
+    println!("1. Exporting memory analysis to program_memory_analysis.svg...");
+    if let Err(e) = tracker.export_memory_analysis("program_memory_analysis.svg") {
+        eprintln!("Failed to export memory analysis: {e}");
     } else {
-        println!("Successfully exported JSON.");
+        println!("   Memory analysis SVG exported successfully.");
     }
 
-    println!("\nExporting memory usage visualization to lifecycles_graph.svg...");
-    if let Err(e) = tracker.export_to_svg("lifecycles_graph.svg") {
-        // Enable sync for reliable file writing
-        eprintln!("Failed to export SVG: {}", e);
+    // Export 2: Lifecycle Timeline - Interactive timeline with variable lifecycles
+    println!("2. Exporting lifecycle timeline to program_lifecycle.svg...");
+    if let Err(e) = tracker.export_lifecycle_timeline("program_lifecycle.svg") {
+        eprintln!("Failed to export lifecycle timeline: {e}");
     } else {
-        println!("Successfully exported SVG.");
+        println!("   Lifecycle timeline SVG exported successfully.");
     }
 
-    println!(
-        "\nLifecycle demo finished. Check 'lifecycles_snapshot.json' and 'lifecycles_graph.svg'."
-    );
-    println!("In the exports, observe how:");
-    println!("- 'local_string' was allocated and deallocated within the function");
-    println!("- 'heap_vec'/'transferred_vec' had its name updated after ownership transfer");
-    println!("- Multiple 'loop_string' instances were created and destroyed");
-    println!("- 'main_scope_vec' and 'transferred_vec' remain active until program end");
+    println!("\n=== Export Complete ===");
+    println!("Generated files:");
+    println!("  - program_memory_analysis.svg: Memory usage with variable names and types");
+    println!("  - program_lifecycle.svg: Interactive timeline showing variable lifecycles");
+    println!("\nLifecycle demo finished. Check the two SVG files for complete analysis.");
 
     // All remaining tracked variables go out of scope here
 }

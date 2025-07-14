@@ -1,5 +1,5 @@
-use std::{fs, path::Path, thread, time::Duration};
 use memscope_rs::{get_global_tracker, init, track_var};
+use std::{fs, path::Path, thread, time::Duration};
 
 // A simple struct to ensure we are tracking something with a known layout
 struct TrackedData {
@@ -45,14 +45,14 @@ fn main() {
 
     if let Err(e) = tracker.export_to_json(json_path) {
         // Enable sync for reliable file writing
-        eprintln!("Failed to export JSON: {}", e);
+        eprintln!("Failed to export JSON: {e}");
         std::process::exit(1);
     }
     println!("Exported JSON to test_output.json");
 
-    if let Err(e) = tracker.export_to_svg(svg_path) {
+    if let Err(e) = tracker.export_memory_analysis(svg_path) {
         // Enable sync for reliable file writing
-        eprintln!("Failed to export SVG: {}", e);
+        eprintln!("Failed to export SVG: {e}");
         std::process::exit(1);
     }
     println!("Exported SVG to test_output.svg");
