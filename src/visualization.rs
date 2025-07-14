@@ -90,7 +90,7 @@ fn create_memory_analysis_svg(
     document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
 
     // 5. Left side: Memory Usage by Type
-    // 修复：获取实际的内存类型数据而不是空数组
+    // Fixed: Get actual memory type data instead of empty array
     let memory_by_type_data = tracker.get_memory_by_type().unwrap_or_default();
     let memory_by_type =
         crate::export_enhanced::enhance_type_information(&memory_by_type_data, allocations);
@@ -406,64 +406,7 @@ fn add_relationships_section(
 }
 
 
-/// Detect relationship type between two variables
-fn detect_relationship_type(
-    name1: &str,
-    type1: &str,
-    name2: &str,
-    type2: &str,
-) -> RelationshipType {
-    // Ownership Transfer/Move patterns
-    if name2.contains("moved")
-        || name2.contains("transferred")
-        || (name1.contains("original") && name2.contains("new"))
-    {
-        return RelationshipType::OwnershipTransfer;
-    }
 
-    // Clone patterns
-    if name2.contains("clone")
-        || name1.contains("clone")
-        || (name1.contains("shared") && name2.contains("shared"))
-    {
-        return RelationshipType::Clone;
-    }
-
-    // Shared pointer patterns (Rc, Arc)
-    if (type1.contains("Rc") || type1.contains("Arc"))
-        && (type2.contains("Rc") || type2.contains("Arc"))
-    {
-        return RelationshipType::SharedPointer;
-    }
-
-    // Borrow patterns (same base name, different suffixes)
-    if name1.replace("_ref", "").replace("_mut", "")
-        == name2.replace("_ref", "").replace("_mut", "")
-    {
-        if name1.contains("_mut") || name2.contains("_mut") {
-            return RelationshipType::MutableBorrow;
-        } else {
-            return RelationshipType::ImmutableBorrow;
-        }
-    }
-
-    // Indirect relationship (similar types, different scopes)
-    if get_simple_type(type1) == get_simple_type(type2) && name1 != name2 {
-        return RelationshipType::IndirectReference;
-    }
-
-    RelationshipType::None
-}
-
-/// Calculate relationship strength (0.0 to 1.0)
-fn calculate_relationship_strength(var1: &AllocationInfo, var2: &AllocationInfo) -> f32 {
-    // Base strength on size similarity and timing proximity
-    let size_ratio = (var1.size.min(var2.size) as f32) / (var1.size.max(var2.size) as f32);
-    let time_diff = (var1.timestamp_alloc as i64 - var2.timestamp_alloc as i64).abs() as f32;
-    let time_factor = 1.0 / (1.0 + time_diff / 1000.0); // Closer in time = stronger relationship
-
-    (size_ratio * 0.6 + time_factor * 0.4).min(1.0)
-}
 
 
 /// Draw variable node with enhanced styling
@@ -564,20 +507,6 @@ fn add_relationship_legend(mut document: Document, start_y: i32) -> TrackingResu
     Ok(document)
 }
 
-/// Get relationship styling
-fn get_relationship_style(
-    rel_type: &RelationshipType,
-) -> (&'static str, i32, &'static str, &'static str) {
-    match rel_type {
-        RelationshipType::OwnershipTransfer => ("#E74C3C", 4, "none", "owns"),
-        RelationshipType::MutableBorrow => ("#3498DB", 3, "none", "borrows_mut"),
-        RelationshipType::ImmutableBorrow => ("#27AE60", 2, "none", "borrows"),
-        RelationshipType::Clone => ("#95A5A6", 2, "none", "cloned"),
-        RelationshipType::SharedPointer => ("#9B59B6", 3, "8,4", "shared"),
-        RelationshipType::IndirectReference => ("#F39C12", 1, "4,2", "indirect_ref"),
-        RelationshipType::None => ("#7F8C8D", 1, "1,1", ""),
-    }
-}
 
 /// Get scope background color
 fn get_scope_background_color(scope_name: &str) -> &'static str {
@@ -595,17 +524,6 @@ fn get_scope_border_color(scope_name: &str) -> &'static str {
     }
 }
 
-// Define relationship types and structures
-#[derive(Debug, PartialEq)]
-enum RelationshipType {
-    OwnershipTransfer,
-    MutableBorrow,
-    ImmutableBorrow,
-    Clone,
-    SharedPointer,
-    IndirectReference,
-    None,
-}
 
 
 /// Calculate matrix size based on 5-variable standard with dynamic shrinking
@@ -905,32 +823,32 @@ fn export_scope_analysis_json(
 /// Get simple type name
 
 /// Get color based on duration ratio (0.0 to 1.0)
-/// 根据相对生命周期长度分配颜色：最长时间=深色，最短时间=白色，全局作用域=特殊深蓝色
+/// Assign colors based on relative lifecycle length: longest time=dark color, shortest time=white, global scope=special deep blue
 fn get_duration_color(ratio: f64, is_global: bool) -> String {
     if is_global {
-        // 全局作用域使用特殊的深蓝色
+        // Global scope uses special deep blue color
         return "#0A2540".to_string();
     }
 
-    // 创建从白色到深蓝色的渐变
-    // ratio = 0.0 (最短时间) -> 接近白色
-    // ratio = 1.0 (最长时间) -> 深蓝色
+    // Create gradient from white to deep blue
+    // ratio = 0.0 (shortest time) -> close to white
+    // ratio = 1.0 (longest time) -> deep blue
 
     if ratio <= 0.01 {
-        // 极短时间或无时间差 -> 浅灰白色
+        // Very short time or no time difference -> light gray-white
         "#F8FAFC".to_string()
     } else {
-        // 计算RGB值，从浅蓝白色渐变到深蓝色
-        let base_r = 248; // 起始红色值 (接近白色)
-        let base_g = 250; // 起始绿色值
-        let base_b = 252; // 起始蓝色值
+        // Calculate RGB values, gradient from light blue-white to deep blue
+        let base_r = 248; // Starting red value (close to white)
+        let base_g = 250; // Starting green value
+        let base_b = 252; // Starting blue value
 
-        let target_r = 30; // 目标红色值 (深蓝色)
-        let target_g = 64; // 目标绿色值
-        let target_b = 175; // 目标蓝色值
+        let target_r = 30; // Target red value (deep blue)
+        let target_g = 64; // Target green value
+        let target_b = 175; // Target blue value
 
-        // 使用平滑的渐变函数
-        let smooth_ratio = ratio.powf(0.7); // 使渐变更平滑
+        // Use smooth gradient function
+        let smooth_ratio = ratio.powf(0.7); // Make gradient smoother
 
         let r = (base_r as f64 + (target_r as f64 - base_r as f64) * smooth_ratio) as u8;
         let g = (base_g as f64 + (target_g as f64 - base_g as f64) * smooth_ratio) as u8;

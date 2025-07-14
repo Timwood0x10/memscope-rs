@@ -11,6 +11,8 @@ pub mod allocator;
 pub mod export_enhanced;
 pub mod tracker;
 pub mod types;
+pub mod unsafe_ffi_tracker;
+pub mod unsafe_ffi_visualization;
 pub mod utils;
 pub mod visualization;
 
@@ -18,6 +20,7 @@ pub mod visualization;
 pub use allocator::TrackingAllocator;
 pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
+pub use unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
 
