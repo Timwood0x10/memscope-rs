@@ -71,7 +71,7 @@ fn create_memory_analysis_svg(
     tracker: &MemoryTracker,
 ) -> TrackingResult<Document> {
     // Create comprehensive memory analysis using the original enhanced export logic
-    let width = 1800;
+    let width = 1800; 
     let height = 2400; // Tall document for comprehensive analysis
 
     let mut document = Document::new()
@@ -84,8 +84,7 @@ fn create_memory_analysis_svg(
     document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
     // 3. Performance Dashboard
-    document =
-        crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
+    document = crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
 
     // 4. Memory Allocation Heatmap
     document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
@@ -210,6 +209,9 @@ fn create_lifecycle_timeline_svg(
 
     Ok(document)
 }
+
+
+
 
 /// Add memory section for lifecycle visualization
 fn add_memory_section(
@@ -403,6 +405,67 @@ fn add_relationships_section(
     Ok(document)
 }
 
+
+/// Detect relationship type between two variables
+fn detect_relationship_type(
+    name1: &str,
+    type1: &str,
+    name2: &str,
+    type2: &str,
+) -> RelationshipType {
+    // Ownership Transfer/Move patterns
+    if name2.contains("moved")
+        || name2.contains("transferred")
+        || (name1.contains("original") && name2.contains("new"))
+    {
+        return RelationshipType::OwnershipTransfer;
+    }
+
+    // Clone patterns
+    if name2.contains("clone")
+        || name1.contains("clone")
+        || (name1.contains("shared") && name2.contains("shared"))
+    {
+        return RelationshipType::Clone;
+    }
+
+    // Shared pointer patterns (Rc, Arc)
+    if (type1.contains("Rc") || type1.contains("Arc"))
+        && (type2.contains("Rc") || type2.contains("Arc"))
+    {
+        return RelationshipType::SharedPointer;
+    }
+
+    // Borrow patterns (same base name, different suffixes)
+    if name1.replace("_ref", "").replace("_mut", "")
+        == name2.replace("_ref", "").replace("_mut", "")
+    {
+        if name1.contains("_mut") || name2.contains("_mut") {
+            return RelationshipType::MutableBorrow;
+        } else {
+            return RelationshipType::ImmutableBorrow;
+        }
+    }
+
+    // Indirect relationship (similar types, different scopes)
+    if get_simple_type(type1) == get_simple_type(type2) && name1 != name2 {
+        return RelationshipType::IndirectReference;
+    }
+
+    RelationshipType::None
+}
+
+/// Calculate relationship strength (0.0 to 1.0)
+fn calculate_relationship_strength(var1: &AllocationInfo, var2: &AllocationInfo) -> f32 {
+    // Base strength on size similarity and timing proximity
+    let size_ratio = (var1.size.min(var2.size) as f32) / (var1.size.max(var2.size) as f32);
+    let time_diff = (var1.timestamp_alloc as i64 - var2.timestamp_alloc as i64).abs() as f32;
+    let time_factor = 1.0 / (1.0 + time_diff / 1000.0); // Closer in time = stronger relationship
+
+    (size_ratio * 0.6 + time_factor * 0.4).min(1.0)
+}
+
+
 /// Draw variable node with enhanced styling
 fn draw_variable_node(
     mut document: Document,
@@ -501,6 +564,21 @@ fn add_relationship_legend(mut document: Document, start_y: i32) -> TrackingResu
     Ok(document)
 }
 
+/// Get relationship styling
+fn get_relationship_style(
+    rel_type: &RelationshipType,
+) -> (&'static str, i32, &'static str, &'static str) {
+    match rel_type {
+        RelationshipType::OwnershipTransfer => ("#E74C3C", 4, "none", "owns"),
+        RelationshipType::MutableBorrow => ("#3498DB", 3, "none", "borrows_mut"),
+        RelationshipType::ImmutableBorrow => ("#27AE60", 2, "none", "borrows"),
+        RelationshipType::Clone => ("#95A5A6", 2, "none", "cloned"),
+        RelationshipType::SharedPointer => ("#9B59B6", 3, "8,4", "shared"),
+        RelationshipType::IndirectReference => ("#F39C12", 1, "4,2", "indirect_ref"),
+        RelationshipType::None => ("#7F8C8D", 1, "1,1", ""),
+    }
+}
+
 /// Get scope background color
 fn get_scope_background_color(scope_name: &str) -> &'static str {
     match scope_name {
@@ -516,6 +594,19 @@ fn get_scope_border_color(scope_name: &str) -> &'static str {
         _ => "#3498DB",
     }
 }
+
+// Define relationship types and structures
+#[derive(Debug, PartialEq)]
+enum RelationshipType {
+    OwnershipTransfer,
+    MutableBorrow,
+    ImmutableBorrow,
+    Clone,
+    SharedPointer,
+    IndirectReference,
+    None,
+}
+
 
 /// Calculate matrix size based on 5-variable standard with dynamic shrinking
 fn calculate_dynamic_matrix_size(var_count: usize) -> (i32, i32) {
@@ -1195,3 +1286,10 @@ fn estimate_variable_duration(var: &AllocationInfo) -> u64 {
 
     (base_duration as f64 * type_multiplier) as u64
 }
+
+
+
+
+
+
+

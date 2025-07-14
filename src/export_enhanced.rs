@@ -2031,12 +2031,11 @@ pub fn add_memory_timeline(
         return Ok(document);
     }
 
-    // Filter and sort tracked allocations
+    // Filter tracked allocations
     let mut tracked_allocs: Vec<_> = allocations
         .iter()
         .filter(|a| a.var_name.is_some())
         .collect();
-    tracked_allocs.sort_by_key(|a| a.timestamp_alloc);
 
     if tracked_allocs.is_empty() {
         let no_data = SvgText::new("No tracked variables found")
@@ -2050,26 +2049,82 @@ pub fn add_memory_timeline(
         return Ok(document);
     }
 
+    // Calculate time range for lifetime scoring
     let min_time = tracked_allocs
-        .first()
+        .iter()
         .map(|a| a.timestamp_alloc)
+        .min()
         .unwrap_or(0);
     let max_time = tracked_allocs
-        .last()
-        .map(|a| a.timestamp_alloc)
+        .iter()
+        .map(|a| a.timestamp_dealloc.unwrap_or(a.timestamp_alloc + 1000))
+        .max()
         .unwrap_or(min_time + 1);
-    let _time_range = (max_time - min_time).max(1);
 
-    // Calculate layout parameters for better alignment and prevent text overflow
-    let label_width = 400; // Increased reserved space for labels to prevent overflow
-    let timeline_width = chart_width - label_width - 60; // More margin
-    let max_items = 8; // Limit items to prevent overcrowding
+    // SMART FILTERING: Sort by importance score (memory size × lifetime)
+    tracked_allocs.sort_by(|a, b| {
+        let lifetime_a = a.timestamp_dealloc.unwrap_or(max_time) - a.timestamp_alloc;
+        let lifetime_b = b.timestamp_dealloc.unwrap_or(max_time) - b.timestamp_alloc;
+        
+        // Importance score = memory_size × lifetime (higher is more important)
+        // Convert to u64 to avoid overflow and ensure compatibility
+        let score_a = (a.size as u64) * (lifetime_a.max(1) as u64);
+        let score_b = (b.size as u64) * (lifetime_b.max(1) as u64);
+        
+        score_b.cmp(&score_a) // Sort descending (most important first)
+    });
 
-    // Draw timeline for tracked variables with proper spacing
+    // ADAPTIVE DISPLAY LIMITS: More space for fewer, more important variables
+    let total_vars = tracked_allocs.len();
+    let (max_items, item_height, display_mode) = if total_vars <= 8 {
+        (total_vars, 30, "Full Display") // Spacious layout for few variables
+    } else if total_vars <= 20 {
+        (12, 25, "Selective Display") // Medium density
+    } else {
+        (8, 25, "Top Variables Only") // High density, most important only
+    };
+
+    // Calculate layout parameters with overflow protection
+    let label_width = 400;
+    let timeline_width = chart_width - label_width - 60;
+    let available_height = chart_height - 80;
+    let max_items = max_items.min(available_height / item_height).max(1);
+
+    // Add smart filtering indicator
+    if tracked_allocs.len() > max_items {
+        let filter_text = SvgText::new(format!(
+            "[SMART] {} - Showing top {} of {} variables (sorted by memory x lifetime)",
+            display_mode,
+            max_items,
+            tracked_allocs.len()
+        ))
+        .set("x", chart_x + 20)
+        .set("y", chart_y + chart_height - 10)
+        .set("font-size", 12)
+        .set("fill", "#27ae60")
+        .set("font-style", "italic");
+        
+        document = document.add(filter_text);
+    } else {
+        let full_display_text = SvgText::new(format!(
+            "[FULL] {} - All {} variables displayed",
+            display_mode,
+            tracked_allocs.len()
+        ))
+        .set("x", chart_x + 20)
+        .set("y", chart_y + chart_height - 10)
+        .set("font-size", 12)
+        .set("fill", "#27ae60")
+        .set("font-style", "italic");
+        
+        document = document.add(full_display_text);
+    }
+
+    // Draw timeline for tracked variables with adaptive spacing
     for (i, allocation) in tracked_allocs.iter().take(max_items).enumerate() {
         // Distribute items evenly across timeline instead of by timestamp
         let x = chart_x + 20 + (i * timeline_width / max_items.max(1));
-        let y = chart_y + 50 + (i * 25); // Increased vertical spacing
+        let y = chart_y + 50 + (i * item_height); // Use adaptive spacing
 
         // Ensure x position stays within timeline bounds
         let x = x.min(chart_x + timeline_width).max(chart_x + 20);
