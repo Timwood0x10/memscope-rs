@@ -292,8 +292,6 @@ The project includes example output files in the `./images/` directory:
 - `lifecycle_timeline.svg` - Interactive timeline visualization
 - `lifecycle_snapshot.json` - Complete memory analysis data
 
-![Lifecycle Timeline Example](images/lifecycle_timeline.svg)
-
 
 ## 🎯 Use Cases & Benefits
 
