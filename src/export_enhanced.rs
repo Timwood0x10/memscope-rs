@@ -16,7 +16,7 @@ fn calculate_allocation_percentiles(allocations: &[AllocationInfo]) -> (usize, u
     sizes.sort_unstable();
 
     let len = sizes.len();
-    
+
     // Calculate median (50th percentile)
     let median = if len % 2 == 0 {
         (sizes[len / 2 - 1] + sizes[len / 2]) / 2
@@ -47,7 +47,8 @@ pub fn enhance_type_information(
     allocations: &[AllocationInfo],
 ) -> Vec<EnhancedTypeInfo> {
     let mut enhanced_types = Vec::new();
-    let mut inner_type_stats: std::collections::HashMap<String, (usize, usize, Vec<String>)> = std::collections::HashMap::new();
+    let mut inner_type_stats: std::collections::HashMap<String, (usize, usize, Vec<String>)> =
+        std::collections::HashMap::new();
 
     for usage in memory_by_type {
         // Skip unknown types
@@ -56,14 +57,16 @@ pub fn enhance_type_information(
         }
 
         // Use enhanced type analysis for better categorization
-        let (simplified_name, category, subcategory) = analyze_type_with_detailed_subcategory(&usage.type_name);
+        let (simplified_name, category, subcategory) =
+            analyze_type_with_detailed_subcategory(&usage.type_name);
 
         // Collect variable names for this type
         let variable_names: Vec<String> = allocations
             .iter()
             .filter_map(|alloc| {
                 if let (Some(var_name), Some(type_name)) = (&alloc.var_name, &alloc.type_name) {
-                    let (alloc_simplified, _, _) = analyze_type_with_detailed_subcategory(type_name);
+                    let (alloc_simplified, _, _) =
+                        analyze_type_with_detailed_subcategory(type_name);
                     if alloc_simplified == simplified_name {
                         Some(var_name.clone())
                     } else {
@@ -87,14 +90,20 @@ pub fn enhance_type_information(
         });
 
         // Extract and accumulate inner types (e.g., i32 from Vec<i32>, u8 from Vec<u8>)
-        extract_and_accumulate_inner_types_enhanced(&usage.type_name, usage.total_size, usage.allocation_count, &mut inner_type_stats);
+        extract_and_accumulate_inner_types_enhanced(
+            &usage.type_name,
+            usage.total_size,
+            usage.allocation_count,
+            &mut inner_type_stats,
+        );
     }
 
     // Add accumulated inner types as separate entries
     for (inner_type, (total_size, allocation_count, var_names)) in inner_type_stats {
-        let (simplified_name, category, subcategory) = analyze_type_with_detailed_subcategory(&inner_type);
-        tracing::info!("Adding inner type: '{}' -> '{}' ({}), size: {}, category: {}, subcategory: {}", 
-                      inner_type, simplified_name, allocation_count, total_size, category, subcategory);
+        let (simplified_name, category, subcategory) =
+            analyze_type_with_detailed_subcategory(&inner_type);
+        // tracing::info!("Adding inner type: '{}' -> '{}' ({}), size: {}, category: {}, subcategory: {}",
+        //               inner_type, simplified_name, allocation_count, total_size, category, subcategory);
         enhanced_types.push(EnhancedTypeInfo {
             simplified_name,
             category,
@@ -106,10 +115,10 @@ pub fn enhance_type_information(
     }
 
     // Debug: Print final enhanced types
-    tracing::info!("Final enhanced types count: {}", enhanced_types.len());
-    for (i, t) in enhanced_types.iter().enumerate() {
-        tracing::info!("Type {}: {} ({} -> {}) - {} bytes", i, t.simplified_name, t.category, t.subcategory, t.total_size);
-    }
+    // tracing::info!("Final enhanced types count: {}", enhanced_types.len());
+    // for (i, t) in enhanced_types.iter().enumerate() {
+    //     tracing::info!("Type {}: {} ({} -> {}) - {} bytes", i, t.simplified_name, t.category, t.subcategory, t.total_size);
+    // }
 
     enhanced_types
 }
@@ -117,115 +126,223 @@ pub fn enhance_type_information(
 /// Enhanced type analysis with detailed subcategory detection
 fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, String) {
     let clean_type = type_name.trim();
-    
+
     // Handle empty or explicitly unknown types first
     if clean_type.is_empty() || clean_type == "Unknown" {
-        return ("Unknown Type".to_string(), "Unknown".to_string(), "Other".to_string());
+        return (
+            "Unknown Type".to_string(),
+            "Unknown".to_string(),
+            "Other".to_string(),
+        );
     }
-    
+
     // Collections analysis with precise subcategorization
     if clean_type.contains("Vec<") || clean_type.contains("vec::Vec") {
         let inner = extract_generic_inner_type(clean_type, "Vec");
-        return (format!("Vec<{}>", inner), "Collections".to_string(), "Vec<T>".to_string());
+        return (
+            format!("Vec<{}>", inner),
+            "Collections".to_string(),
+            "Vec<T>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("HashMap") || clean_type.contains("hash_map") {
-        return ("HashMap<K,V>".to_string(), "Collections".to_string(), "HashMap<K,V>".to_string());
+        return (
+            "HashMap<K,V>".to_string(),
+            "Collections".to_string(),
+            "HashMap<K,V>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("HashSet") || clean_type.contains("hash_set") {
-        return ("HashSet<T>".to_string(), "Collections".to_string(), "HashSet<T>".to_string());
+        return (
+            "HashSet<T>".to_string(),
+            "Collections".to_string(),
+            "HashSet<T>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("BTreeMap") || clean_type.contains("btree_map") {
-        return ("BTreeMap<K,V>".to_string(), "Collections".to_string(), "BTreeMap<K,V>".to_string());
+        return (
+            "BTreeMap<K,V>".to_string(),
+            "Collections".to_string(),
+            "BTreeMap<K,V>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("BTreeSet") || clean_type.contains("btree_set") {
-        return ("BTreeSet<T>".to_string(), "Collections".to_string(), "BTreeSet<T>".to_string());
+        return (
+            "BTreeSet<T>".to_string(),
+            "Collections".to_string(),
+            "BTreeSet<T>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("VecDeque") || clean_type.contains("vec_deque") {
-        return ("VecDeque<T>".to_string(), "Collections".to_string(), "VecDeque<T>".to_string());
+        return (
+            "VecDeque<T>".to_string(),
+            "Collections".to_string(),
+            "VecDeque<T>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("LinkedList") {
-        return ("LinkedList<T>".to_string(), "Collections".to_string(), "LinkedList<T>".to_string());
+        return (
+            "LinkedList<T>".to_string(),
+            "Collections".to_string(),
+            "LinkedList<T>".to_string(),
+        );
     }
-    
+
     // Basic Types analysis with precise subcategorization
     if clean_type.contains("String") || clean_type.contains("string::String") {
-        return ("String".to_string(), "Basic Types".to_string(), "Strings".to_string());
+        return (
+            "String".to_string(),
+            "Basic Types".to_string(),
+            "Strings".to_string(),
+        );
     }
-    
+
     if clean_type.contains("&str") || clean_type == "str" {
-        return ("&str".to_string(), "Basic Types".to_string(), "Strings".to_string());
+        return (
+            "&str".to_string(),
+            "Basic Types".to_string(),
+            "Strings".to_string(),
+        );
     }
-    
+
     // Integer types - exact matching
     if clean_type == "i32" || clean_type.ends_with("::i32") {
-        return ("i32".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "i32".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "i64" || clean_type.ends_with("::i64") {
-        return ("i64".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "i64".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "u32" || clean_type.ends_with("::u32") {
-        return ("u32".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "u32".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "u64" || clean_type.ends_with("::u64") {
-        return ("u64".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "u64".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "usize" || clean_type.ends_with("::usize") {
-        return ("usize".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "usize".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "isize" || clean_type.ends_with("::isize") {
-        return ("isize".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "isize".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "i8" || clean_type.ends_with("::i8") {
-        return ("i8".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "i8".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "u8" || clean_type.ends_with("::u8") {
-        return ("u8".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "u8".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "i16" || clean_type.ends_with("::i16") {
-        return ("i16".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "i16".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
     if clean_type == "u16" || clean_type.ends_with("::u16") {
-        return ("u16".to_string(), "Basic Types".to_string(), "Integers".to_string());
+        return (
+            "u16".to_string(),
+            "Basic Types".to_string(),
+            "Integers".to_string(),
+        );
     }
-    
+
     // Float types
     if clean_type == "f32" || clean_type.ends_with("::f32") {
-        return ("f32".to_string(), "Basic Types".to_string(), "Floats".to_string());
+        return (
+            "f32".to_string(),
+            "Basic Types".to_string(),
+            "Floats".to_string(),
+        );
     }
     if clean_type == "f64" || clean_type.ends_with("::f64") {
-        return ("f64".to_string(), "Basic Types".to_string(), "Floats".to_string());
+        return (
+            "f64".to_string(),
+            "Basic Types".to_string(),
+            "Floats".to_string(),
+        );
     }
-    
+
     // Other basic types
     if clean_type == "bool" || clean_type.ends_with("::bool") {
-        return ("bool".to_string(), "Basic Types".to_string(), "Booleans".to_string());
+        return (
+            "bool".to_string(),
+            "Basic Types".to_string(),
+            "Booleans".to_string(),
+        );
     }
     if clean_type == "char" || clean_type.ends_with("::char") {
-        return ("char".to_string(), "Basic Types".to_string(), "Characters".to_string());
+        return (
+            "char".to_string(),
+            "Basic Types".to_string(),
+            "Characters".to_string(),
+        );
     }
-    
+
     // Smart Pointers
     if clean_type.contains("Box<") {
         let inner = extract_generic_inner_type(clean_type, "Box");
-        return (format!("Box<{}>", inner), "Smart Pointers".to_string(), "Box<T>".to_string());
+        return (
+            format!("Box<{}>", inner),
+            "Smart Pointers".to_string(),
+            "Box<T>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("Rc<") {
         let inner = extract_generic_inner_type(clean_type, "Rc");
-        return (format!("Rc<{}>", inner), "Smart Pointers".to_string(), "Rc<T>".to_string());
+        return (
+            format!("Rc<{}>", inner),
+            "Smart Pointers".to_string(),
+            "Rc<T>".to_string(),
+        );
     }
-    
+
     if clean_type.contains("Arc<") {
         let inner = extract_generic_inner_type(clean_type, "Arc");
-        return (format!("Arc<{}>", inner), "Smart Pointers".to_string(), "Arc<T>".to_string());
+        return (
+            format!("Arc<{}>", inner),
+            "Smart Pointers".to_string(),
+            "Arc<T>".to_string(),
+        );
     }
-    
+
     // Fall back to original logic for other types
     let (simplified_name, category) = simplify_type_name(clean_type);
     (simplified_name, category.clone(), "Other".to_string())
@@ -252,90 +369,46 @@ fn extract_and_accumulate_inner_types_enhanced(
 ) {
     // Extract inner types from generic containers
     let inner_types = extract_inner_primitive_types_enhanced(type_name);
-    
-    // Debug: Print what we found
-    if !inner_types.is_empty() {
-        tracing::info!("Found inner types in '{}': {:?}", type_name, inner_types);
-    }
-    
-    for inner_type in inner_types {
-        let entry = stats.entry(inner_type.clone()).or_insert((0, 0, Vec::new()));
-        entry.0 += size / 4; // Rough estimation of inner type contribution
-        entry.1 += count;
-        entry.2.push(format!("from {}", type_name));
-        tracing::info!("Accumulated {} bytes for inner type '{}' from '{}'", size / 4, inner_type, type_name);
-    }
-}
 
-/// Extract inner types from complex types and accumulate their statistics
-fn extract_and_accumulate_inner_types(
-    type_name: &str,
-    size: usize,
-    count: usize,
-    stats: &mut std::collections::HashMap<String, (usize, usize, Vec<String>)>,
-) {
-    // Extract inner types from generic containers
-    let inner_types = extract_inner_primitive_types(type_name);
-    
     // Debug: Print what we found
-    if !inner_types.is_empty() {
-        tracing::info!("Found inner types in '{}': {:?}", type_name, inner_types);
-    }
-    
+    // if !inner_types.is_empty() {
+    // tracing::info!("Found inner types in '{}': {:?}", type_name, inner_types);
+    // }
+
     for inner_type in inner_types {
-        let entry = stats.entry(inner_type.clone()).or_insert((0, 0, Vec::new()));
+        let entry = stats
+            .entry(inner_type.clone())
+            .or_insert((0, 0, Vec::new()));
         entry.0 += size / 4; // Rough estimation of inner type contribution
         entry.1 += count;
         entry.2.push(format!("from {}", type_name));
-        tracing::info!("Accumulated {} bytes for inner type '{}' from '{}'", size / 4, inner_type, type_name);
+        // tracing::info!("Accumulated {} bytes for inner type '{}' from '{}'", size / 4, inner_type, type_name);
     }
 }
 
 /// Extract primitive types from complex type signatures (enhanced version)
 fn extract_inner_primitive_types_enhanced(type_name: &str) -> Vec<String> {
     let mut inner_types = Vec::new();
-    
-    // Common primitive type patterns
-    let primitives = ["i8", "i16", "i32", "i64", "i128", "isize", 
-                     "u8", "u16", "u32", "u64", "u128", "usize",
-                     "f32", "f64", "bool", "char"];
-    
-    for primitive in &primitives {
-        if type_name.contains(primitive) {
-            // Make sure it's actually the primitive type, not part of another word
-            if type_name.contains(&format!("{}>", primitive)) || 
-               type_name.contains(&format!("{},", primitive)) ||
-               type_name.contains(&format!(" {}", primitive)) ||
-               type_name.ends_with(primitive) {
-                inner_types.push(primitive.to_string());
-            }
-        }
-    }
-    
-    inner_types
-}
 
-/// Extract primitive types from complex type signatures
-fn extract_inner_primitive_types(type_name: &str) -> Vec<String> {
-    let mut inner_types = Vec::new();
-    
     // Common primitive type patterns
-    let primitives = ["i8", "i16", "i32", "i64", "i128", "isize", 
-                     "u8", "u16", "u32", "u64", "u128", "usize",
-                     "f32", "f64", "bool", "char"];
-    
+    let primitives = [
+        "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
+        "f32", "f64", "bool", "char",
+    ];
+
     for primitive in &primitives {
         if type_name.contains(primitive) {
             // Make sure it's actually the primitive type, not part of another word
-            if type_name.contains(&format!("{}>", primitive)) || 
-               type_name.contains(&format!("{},", primitive)) ||
-               type_name.contains(&format!(" {}", primitive)) ||
-               type_name.ends_with(primitive) {
+            if type_name.contains(&format!("{}>", primitive))
+                || type_name.contains(&format!("{},", primitive))
+                || type_name.contains(&format!(" {}", primitive))
+                || type_name.ends_with(primitive)
+            {
                 inner_types.push(primitive.to_string());
             }
         }
     }
-    
+
     inner_types
 }
 
@@ -375,7 +448,9 @@ pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationC
 
 /// Categorize enhanced type information for consistent visualization
 /// This ensures "Tracked Variables by Category" uses the same data as "Memory Usage by Type"
-pub fn categorize_enhanced_allocations(enhanced_types: &[EnhancedTypeInfo]) -> Vec<AllocationCategory> {
+pub fn categorize_enhanced_allocations(
+    enhanced_types: &[EnhancedTypeInfo],
+) -> Vec<AllocationCategory> {
     let mut categories: HashMap<String, AllocationCategory> = HashMap::new();
 
     for enhanced_type in enhanced_types {
@@ -640,7 +715,7 @@ pub fn add_enhanced_header(
     let active_memory = stats.active_memory;
     let peak_memory = stats.peak_memory;
     let active_allocations = stats.active_allocations;
-    
+
     let memory_reclamation_rate = if stats.total_allocated > 0 {
         (stats.total_deallocated as f64 / stats.total_allocated as f64) * 100.0
     } else {
@@ -652,9 +727,9 @@ pub fn add_enhanced_header(
     } else {
         0.0
     };
-    
+
     let (median_alloc_size, p95_alloc_size) = calculate_allocation_percentiles(allocations);
-    
+
     let memory_fragmentation = if stats.peak_memory > 0 {
         ((stats.peak_memory - stats.active_memory) as f64 / stats.peak_memory as f64) * 100.0
     } else {
@@ -663,21 +738,49 @@ pub fn add_enhanced_header(
 
     // Define metrics with their display values and progress percentages
     let metrics = [
-        ("Active Memory", format_bytes(active_memory), 
-         (active_memory as f64 / peak_memory.max(1) as f64 * 100.0).min(100.0), "#3498db"),
+        (
+            "Active Memory",
+            format_bytes(active_memory),
+            (active_memory as f64 / peak_memory.max(1) as f64 * 100.0).min(100.0),
+            "#3498db",
+        ),
         ("Peak Memory", format_bytes(peak_memory), 100.0, "#e74c3c"),
-        ("Active Allocs", format!("{}", active_allocations), 
-         (active_allocations as f64 / 1000.0 * 100.0).min(100.0), "#2ecc71"),
-        ("Reclamation", format!("{:.1}%", memory_reclamation_rate), 
-         memory_reclamation_rate, "#f39c12"),
-        ("Efficiency", format!("{:.1}%", allocator_efficiency), 
-         allocator_efficiency, "#9b59b6"),
-        ("Median Size", format_bytes(median_alloc_size), 
-         (median_alloc_size as f64 / 1024.0 * 100.0).min(100.0), "#1abc9c"),
-        ("P95 Size", format_bytes(p95_alloc_size), 
-         (p95_alloc_size as f64 / 4096.0 * 100.0).min(100.0), "#e67e22"),
-        ("Fragmentation", format!("{:.1}%", memory_fragmentation), 
-         memory_fragmentation, "#95a5a6"),
+        (
+            "Active Allocs",
+            format!("{}", active_allocations),
+            (active_allocations as f64 / 1000.0 * 100.0).min(100.0),
+            "#2ecc71",
+        ),
+        (
+            "Reclamation",
+            format!("{:.1}%", memory_reclamation_rate),
+            memory_reclamation_rate,
+            "#f39c12",
+        ),
+        (
+            "Efficiency",
+            format!("{:.1}%", allocator_efficiency),
+            allocator_efficiency,
+            "#9b59b6",
+        ),
+        (
+            "Median Size",
+            format_bytes(median_alloc_size),
+            (median_alloc_size as f64 / 1024.0 * 100.0).min(100.0),
+            "#1abc9c",
+        ),
+        (
+            "P95 Size",
+            format_bytes(p95_alloc_size),
+            (p95_alloc_size as f64 / 4096.0 * 100.0).min(100.0),
+            "#e67e22",
+        ),
+        (
+            "Fragmentation",
+            format!("{:.1}%", memory_fragmentation),
+            memory_fragmentation,
+            "#95a5a6",
+        ),
     ];
 
     // Single row layout parameters
@@ -725,7 +828,7 @@ pub fn add_enhanced_header(
         let ring_center_x = x + 40;
         let ring_center_y = y + 60;
         let ring_radius = 25;
-        
+
         let ring_bg = Circle::new()
             .set("cx", ring_center_x)
             .set("cy", ring_center_y)
@@ -738,7 +841,7 @@ pub fn add_enhanced_header(
         // Progress ring foreground
         let circumference = 2.0 * std::f64::consts::PI * ring_radius as f64;
         let progress_offset = circumference * (1.0 - percentage / 100.0);
-        
+
         let progress_ring = Circle::new()
             .set("cx", ring_center_x)
             .set("cy", ring_center_y)
@@ -747,9 +850,15 @@ pub fn add_enhanced_header(
             .set("stroke", *color)
             .set("stroke-width", 6)
             .set("stroke-linecap", "round")
-            .set("stroke-dasharray", format!("{} {}", circumference, circumference))
+            .set(
+                "stroke-dasharray",
+                format!("{} {}", circumference, circumference),
+            )
             .set("stroke-dashoffset", progress_offset)
-            .set("transform", format!("rotate(-90 {} {})", ring_center_x, ring_center_y))
+            .set(
+                "transform",
+                format!("rotate(-90 {} {})", ring_center_x, ring_center_y),
+            )
             .set("style", "transition: stroke-dashoffset 0.5s ease;");
         document = document.add(progress_ring);
 
@@ -783,11 +892,11 @@ pub fn add_enhanced_header(
 
         // Status indicator based on percentage
         let status_color = if *percentage >= 80.0 {
-            "#e74c3c"  // Red for high values
+            "#e74c3c" // Red for high values
         } else if *percentage >= 50.0 {
-            "#f39c12"  // Orange for medium values
+            "#f39c12" // Orange for medium values
         } else {
-            "#27ae60"  // Green for low values
+            "#27ae60" // Green for low values
         };
 
         let status_dot = Circle::new()
@@ -881,7 +990,7 @@ pub fn add_enhanced_type_chart(
         width: chart_width as f64,
         height: chart_height as f64,
     };
-    
+
     // Build and render real data treemap
     document = render_real_data_treemap(document, treemap_area, types)?;
 
@@ -900,32 +1009,13 @@ struct IntegratedTreemapArea {
 }
 
 /// Render integrated treemap with real data - placeholder function
-fn render_integrated_treemap(mut document: Document, area: IntegratedTreemapArea) -> TrackingResult<Document> {
-    // This function is not used anymore - replaced by render_real_data_treemap
-    let no_data_rect = Rectangle::new()
-        .set("x", area.x)
-        .set("y", area.y)
-        .set("width", area.width)
-        .set("height", area.height)
-        .set("fill", "#f8f9fa")
-        .set("stroke", "#dee2e6")
-        .set("stroke-width", 2)
-        .set("rx", 10);
-    document = document.add(no_data_rect);
-    
-    let no_data_text = SvgText::new("This function is deprecated")
-        .set("x", area.x + area.width / 2.0)
-        .set("y", area.y + area.height / 2.0)
-        .set("text-anchor", "middle")
-        .set("font-size", 16)
-        .set("fill", "#6c757d");
-    document = document.add(no_data_text);
-    
-    Ok(document)
-}
 
 /// Render treemap with real memory data matching task.md layout
-fn render_real_data_treemap(mut document: Document, area: IntegratedTreemapArea, types: &[EnhancedTypeInfo]) -> TrackingResult<Document> {
+fn render_real_data_treemap(
+    mut document: Document,
+    area: IntegratedTreemapArea,
+    types: &[EnhancedTypeInfo],
+) -> TrackingResult<Document> {
     if types.is_empty() {
         let no_data_rect = Rectangle::new()
             .set("x", area.x)
@@ -937,7 +1027,7 @@ fn render_real_data_treemap(mut document: Document, area: IntegratedTreemapArea,
             .set("stroke-width", 2)
             .set("rx", 10);
         document = document.add(no_data_rect);
-        
+
         let no_data_text = SvgText::new("No Memory Type Data Available")
             .set("x", area.x + area.width / 2.0)
             .set("y", area.y + area.height / 2.0)
@@ -946,22 +1036,22 @@ fn render_real_data_treemap(mut document: Document, area: IntegratedTreemapArea,
             .set("font-weight", "bold")
             .set("fill", "#6c757d");
         document = document.add(no_data_text);
-        
+
         return Ok(document);
     }
-    
+
     // Calculate total memory for percentage calculations
     let total_memory: usize = types.iter().map(|t| t.total_size).sum();
     if total_memory == 0 {
         return Ok(document);
     }
-    
+
     // Group types by category to match task.md structure
     let mut collections_types = Vec::new();
     let mut basic_types = Vec::new();
     let mut smart_pointers_types = Vec::new();
     let mut other_types = Vec::new();
-    
+
     for type_info in types {
         match type_info.category.as_str() {
             "Collections" => collections_types.push(type_info),
@@ -971,35 +1061,35 @@ fn render_real_data_treemap(mut document: Document, area: IntegratedTreemapArea,
             _ => other_types.push(type_info),
         }
     }
-    
+
     // Calculate category totals
     let _collections_total: usize = collections_types.iter().map(|t| t.total_size).sum();
     let _basic_types_total: usize = basic_types.iter().map(|t| t.total_size).sum();
     let _smart_pointers_total: usize = smart_pointers_types.iter().map(|t| t.total_size).sum();
     let _other_total: usize = other_types.iter().map(|t| t.total_size).sum();
-    
+
     // Analyze data distribution for intelligent layout decision
     let layout_strategy = analyze_data_distribution(
-        &collections_types, 
-        &basic_types, 
-        &smart_pointers_types, 
-        &other_types, 
-        total_memory
+        &collections_types,
+        &basic_types,
+        &smart_pointers_types,
+        &other_types,
+        total_memory,
     );
-    
+
     // Build treemap structure based on intelligent analysis
     let treemap_data = build_adaptive_treemap_data(
-        collections_types, 
-        basic_types, 
-        smart_pointers_types, 
-        other_types, 
+        collections_types,
+        basic_types,
+        smart_pointers_types,
+        other_types,
         total_memory,
-        &layout_strategy
+        &layout_strategy,
     );
-    
+
     // Render treemap using adaptive algorithm
     document = render_adaptive_treemap(document, area, &treemap_data, &layout_strategy)?;
-    
+
     Ok(document)
 }
 
@@ -1039,18 +1129,33 @@ fn analyze_data_distribution(
     let collections_total: usize = collections_types.iter().map(|t| t.total_size).sum();
     let basic_types_total: usize = basic_types.iter().map(|t| t.total_size).sum();
     let smart_pointers_total: usize = smart_pointers_types.iter().map(|t| t.total_size).sum();
-    
-    let collections_percentage = if total_memory > 0 { (collections_total as f64 / total_memory as f64) * 100.0 } else { 0.0 };
-    let basic_types_percentage = if total_memory > 0 { (basic_types_total as f64 / total_memory as f64) * 100.0 } else { 0.0 };
-    let smart_pointers_percentage = if total_memory > 0 { (smart_pointers_total as f64 / total_memory as f64) * 100.0 } else { 0.0 };
-    
+
+    let collections_percentage = if total_memory > 0 {
+        (collections_total as f64 / total_memory as f64) * 100.0
+    } else {
+        0.0
+    };
+    let basic_types_percentage = if total_memory > 0 {
+        (basic_types_total as f64 / total_memory as f64) * 100.0
+    } else {
+        0.0
+    };
+    let smart_pointers_percentage = if total_memory > 0 {
+        (smart_pointers_total as f64 / total_memory as f64) * 100.0
+    } else {
+        0.0
+    };
+
     // Count non-zero categories
     let active_categories = [
         (collections_total > 0, "Collections"),
         (basic_types_total > 0, "Basic Types"),
         (smart_pointers_total > 0, "Smart Pointers"),
-    ].iter().filter(|(active, _)| *active).count();
-    
+    ]
+    .iter()
+    .filter(|(active, _)| *active)
+    .count();
+
     match active_categories {
         0 => TreemapLayoutStrategy::MinimalLayout,
         1 => {
@@ -1061,32 +1166,39 @@ fn analyze_data_distribution(
                 TreemapLayoutStrategy::BasicTypesOnlyLayout
             } else {
                 TreemapLayoutStrategy::DominantCategoryLayout {
-                    dominant_category: if collections_total > basic_types_total && collections_total > smart_pointers_total {
+                    dominant_category: if collections_total > basic_types_total
+                        && collections_total > smart_pointers_total
+                    {
                         "Collections".to_string()
                     } else if basic_types_total > smart_pointers_total {
                         "Basic Types".to_string()
                     } else {
                         "Smart Pointers".to_string()
-                    }
+                    },
                 }
             }
-        },
+        }
         2 => {
             // Two categories - use simplified layout
-            if collections_percentage > 70.0 || basic_types_percentage > 70.0 || smart_pointers_percentage > 70.0 {
+            if collections_percentage > 70.0
+                || basic_types_percentage > 70.0
+                || smart_pointers_percentage > 70.0
+            {
                 TreemapLayoutStrategy::DominantCategoryLayout {
-                    dominant_category: if collections_total > basic_types_total && collections_total > smart_pointers_total {
+                    dominant_category: if collections_total > basic_types_total
+                        && collections_total > smart_pointers_total
+                    {
                         "Collections".to_string()
                     } else if basic_types_total > smart_pointers_total {
                         "Basic Types".to_string()
                     } else {
                         "Smart Pointers".to_string()
-                    }
+                    },
                 }
             } else {
                 TreemapLayoutStrategy::FullLayout
             }
-        },
+        }
         _ => TreemapLayoutStrategy::FullLayout, // 3+ categories - use full layout
     }
 }
@@ -1101,7 +1213,7 @@ fn build_adaptive_treemap_data(
     strategy: &TreemapLayoutStrategy,
 ) -> Vec<TreemapNode> {
     let mut treemap_nodes = Vec::new();
-    
+
     match strategy {
         TreemapLayoutStrategy::MinimalLayout => {
             // Show a simple "No significant data" message
@@ -1112,65 +1224,90 @@ fn build_adaptive_treemap_data(
                 color: "#95a5a6".to_string(),
                 children: Vec::new(),
             });
-        },
+        }
         TreemapLayoutStrategy::CollectionsOnlyLayout => {
             // Show only Collections with detailed subcategories
             let collections_total: usize = collections_types.iter().map(|t| t.total_size).sum();
             if collections_total > 0 {
                 treemap_nodes.push(build_collections_node(&collections_types, total_memory));
             }
-        },
+        }
         TreemapLayoutStrategy::BasicTypesOnlyLayout => {
             // Show only Basic Types with detailed subcategories
             let basic_types_total: usize = basic_types.iter().map(|t| t.total_size).sum();
             if basic_types_total > 0 {
                 treemap_nodes.push(build_basic_types_node(&basic_types, total_memory));
             }
-        },
+        }
         TreemapLayoutStrategy::DominantCategoryLayout { dominant_category } => {
             // Show dominant category with details, others simplified
             match dominant_category.as_str() {
                 "Collections" => {
-                    let collections_total: usize = collections_types.iter().map(|t| t.total_size).sum();
+                    let collections_total: usize =
+                        collections_types.iter().map(|t| t.total_size).sum();
                     if collections_total > 0 {
-                        treemap_nodes.push(build_collections_node(&collections_types, total_memory));
+                        treemap_nodes
+                            .push(build_collections_node(&collections_types, total_memory));
                     }
                     // Add other categories as simple nodes
-                    add_simple_categories(&mut treemap_nodes, &basic_types, &smart_pointers_types, total_memory);
-                },
+                    add_simple_categories(
+                        &mut treemap_nodes,
+                        &basic_types,
+                        &smart_pointers_types,
+                        total_memory,
+                    );
+                }
                 "Basic Types" => {
                     let basic_types_total: usize = basic_types.iter().map(|t| t.total_size).sum();
                     if basic_types_total > 0 {
                         treemap_nodes.push(build_basic_types_node(&basic_types, total_memory));
                     }
                     // Add other categories as simple nodes
-                    add_simple_categories_alt(&mut treemap_nodes, &collections_types, &smart_pointers_types, total_memory);
-                },
+                    add_simple_categories_alt(
+                        &mut treemap_nodes,
+                        &collections_types,
+                        &smart_pointers_types,
+                        total_memory,
+                    );
+                }
                 _ => {
                     // Smart Pointers dominant - use full layout
-                    build_full_layout(&mut treemap_nodes, &collections_types, &basic_types, &smart_pointers_types, total_memory);
+                    build_full_layout(
+                        &mut treemap_nodes,
+                        &collections_types,
+                        &basic_types,
+                        &smart_pointers_types,
+                        total_memory,
+                    );
                 }
             }
-        },
+        }
         TreemapLayoutStrategy::FullLayout => {
             // Show all categories with full details
-            build_full_layout(&mut treemap_nodes, &collections_types, &basic_types, &smart_pointers_types, total_memory);
+            build_full_layout(
+                &mut treemap_nodes,
+                &collections_types,
+                &basic_types,
+                &smart_pointers_types,
+                total_memory,
+            );
         }
     }
-    
+
     treemap_nodes
 }
 
 /// Build Collections node with comprehensive subcategories using enhanced type info
-fn build_collections_node(collections_types: &[&EnhancedTypeInfo], total_memory: usize) -> TreemapNode {
+fn build_collections_node(
+    collections_types: &[&EnhancedTypeInfo],
+    total_memory: usize,
+) -> TreemapNode {
     let collections_total: usize = collections_types.iter().map(|t| t.total_size).sum();
-    
+
     // Debug: Print what collections we received
-    tracing::info!("build_collections_node received {} types, total: {} bytes", collections_types.len(), collections_total);
-    for (i, ct) in collections_types.iter().enumerate() {
-        tracing::info!("  Collection type {}: '{}' (subcategory: '{}') - {} bytes", i, ct.simplified_name, ct.subcategory, ct.total_size);
-    }
-    
+    // tracing::info!("build_collections_node received {} types, total: {} bytes", collections_types.len(), collections_total);
+    // 2
+
     if collections_total == 0 {
         return TreemapNode {
             name: "Collections".to_string(),
@@ -1180,44 +1317,52 @@ fn build_collections_node(collections_types: &[&EnhancedTypeInfo], total_memory:
             children: Vec::new(),
         };
     }
-    
+
     // Group by subcategory for more accurate classification
-    let mut subcategory_groups: std::collections::HashMap<String, Vec<&EnhancedTypeInfo>> = std::collections::HashMap::new();
-    
+    let mut subcategory_groups: std::collections::HashMap<String, Vec<&EnhancedTypeInfo>> =
+        std::collections::HashMap::new();
+
     for collection_type in collections_types {
-        subcategory_groups.entry(collection_type.subcategory.clone())
+        subcategory_groups
+            .entry(collection_type.subcategory.clone())
             .or_insert_with(Vec::new)
             .push(collection_type);
     }
-    
+
     let mut collections_children = Vec::new();
-    
+
     // Define colors for each subcategory
     let subcategory_colors = [
         ("Vec<T>", "#e74c3c"),
-        ("HashMap<K,V>", "#3498db"), 
+        ("HashMap<K,V>", "#3498db"),
         ("HashSet<T>", "#9b59b6"),
         ("BTreeMap<K,V>", "#2ecc71"),
         ("BTreeSet<T>", "#27ae60"),
         ("VecDeque<T>", "#f39c12"),
         ("LinkedList<T>", "#e67e22"),
         ("Other", "#95a5a6"),
-    ].iter().cloned().collect::<std::collections::HashMap<&str, &str>>();
-    
+    ]
+    .iter()
+    .cloned()
+    .collect::<std::collections::HashMap<&str, &str>>();
+
     for (subcategory, types) in subcategory_groups {
         let category_total: usize = types.iter().map(|t| t.total_size).sum();
-        
+
         // Debug: Print subcategory details
-        tracing::info!("Collections Subcategory '{}': {} types, total: {} bytes", 
-                      subcategory, types.len(), category_total);
-        for t in &types {
-            tracing::info!("  - '{}' - {} bytes", t.simplified_name, t.total_size);
-        }
-        
+        // tracing::info!("Collections Subcategory '{}': {} types, total: {} bytes",
+        //               subcategory, types.len(), category_total);
+        // for t in &types {
+        //     tracing::info!("  - '{}' - {} bytes", t.simplified_name, t.total_size);
+        // }
+
         if category_total > 0 {
             let relative_percentage = (category_total as f64 / collections_total as f64) * 100.0;
-            let color = subcategory_colors.get(subcategory.as_str()).unwrap_or(&"#95a5a6").to_string();
-            
+            let color = subcategory_colors
+                .get(subcategory.as_str())
+                .unwrap_or(&"#95a5a6")
+                .to_string();
+
             collections_children.push(TreemapNode {
                 name: format!("{} ({:.1}%)", subcategory, relative_percentage),
                 size: category_total,
@@ -1227,12 +1372,15 @@ fn build_collections_node(collections_types: &[&EnhancedTypeInfo], total_memory:
             });
         }
     }
-    
+
     // Sort children by size (largest first) for better visual hierarchy
     collections_children.sort_by(|a, b| b.size.cmp(&a.size));
-    
+
     TreemapNode {
-        name: format!("Collections ({:.1}%)", (collections_total as f64 / total_memory as f64) * 100.0),
+        name: format!(
+            "Collections ({:.1}%)",
+            (collections_total as f64 / total_memory as f64) * 100.0
+        ),
         size: collections_total,
         percentage: (collections_total as f64 / total_memory as f64) * 100.0,
         color: "#ecf0f1".to_string(),
@@ -1243,13 +1391,13 @@ fn build_collections_node(collections_types: &[&EnhancedTypeInfo], total_memory:
 /// Build Basic Types node with comprehensive subcategories using enhanced type info
 fn build_basic_types_node(basic_types: &[&EnhancedTypeInfo], total_memory: usize) -> TreemapNode {
     let basic_types_total: usize = basic_types.iter().map(|t| t.total_size).sum();
-    
+
     // Debug: Print what basic types we received
-    tracing::info!("build_basic_types_node received {} types, total: {} bytes", basic_types.len(), basic_types_total);
-    for (i, bt) in basic_types.iter().enumerate() {
-        tracing::info!("  Basic type {}: '{}' (subcategory: '{}') - {} bytes", i, bt.simplified_name, bt.subcategory, bt.total_size);
-    }
-    
+    // tracing::info!("build_basic_types_node received {} types, total: {} bytes", basic_types.len(), basic_types_total);
+    // for (i, bt) in basic_types.iter().enumerate() {
+    //     tracing::info!("  Basic type {}: '{}' (subcategory: '{}') - {} bytes", i, bt.simplified_name, bt.subcategory, bt.total_size);
+    // }
+
     if basic_types_total == 0 {
         return TreemapNode {
             name: "Basic Types".to_string(),
@@ -1259,18 +1407,20 @@ fn build_basic_types_node(basic_types: &[&EnhancedTypeInfo], total_memory: usize
             children: Vec::new(),
         };
     }
-    
+
     // Group by subcategory for more accurate classification
-    let mut subcategory_groups: std::collections::HashMap<String, Vec<&EnhancedTypeInfo>> = std::collections::HashMap::new();
-    
+    let mut subcategory_groups: std::collections::HashMap<String, Vec<&EnhancedTypeInfo>> =
+        std::collections::HashMap::new();
+
     for basic_type in basic_types {
-        subcategory_groups.entry(basic_type.subcategory.clone())
+        subcategory_groups
+            .entry(basic_type.subcategory.clone())
             .or_insert_with(Vec::new)
             .push(basic_type);
     }
-    
+
     let mut basic_types_children = Vec::new();
-    
+
     // Define colors for each subcategory
     let subcategory_colors = [
         ("Strings", "#2ecc71"),
@@ -1281,22 +1431,28 @@ fn build_basic_types_node(basic_types: &[&EnhancedTypeInfo], total_memory: usize
         ("Arrays", "#1abc9c"),
         ("References", "#e67e22"),
         ("Other", "#95a5a6"),
-    ].iter().cloned().collect::<std::collections::HashMap<&str, &str>>();
-    
+    ]
+    .iter()
+    .cloned()
+    .collect::<std::collections::HashMap<&str, &str>>();
+
     for (subcategory, types) in subcategory_groups {
         let category_total: usize = types.iter().map(|t| t.total_size).sum();
-        
+
         // Debug: Print subcategory details
-        tracing::info!("Basic Types Subcategory '{}': {} types, total: {} bytes", 
-                      subcategory, types.len(), category_total);
-        for t in &types {
-            tracing::info!("  - '{}' - {} bytes", t.simplified_name, t.total_size);
-        }
-        
+        // tracing::info!("Basic Types Subcategory '{}': {} types, total: {} bytes",
+        //               subcategory, types.len(), category_total);
+        // for t in &types {
+        //     tracing::info!("  - '{}' - {} bytes", t.simplified_name, t.total_size);
+        // }
+
         if category_total > 0 {
             let relative_percentage = (category_total as f64 / basic_types_total as f64) * 100.0;
-            let color = subcategory_colors.get(subcategory.as_str()).unwrap_or(&"#95a5a6").to_string();
-            
+            let color = subcategory_colors
+                .get(subcategory.as_str())
+                .unwrap_or(&"#95a5a6")
+                .to_string();
+
             basic_types_children.push(TreemapNode {
                 name: format!("{} ({:.1}%)", subcategory, relative_percentage),
                 size: category_total,
@@ -1306,18 +1462,21 @@ fn build_basic_types_node(basic_types: &[&EnhancedTypeInfo], total_memory: usize
             });
         }
     }
-    
+
     // Sort children by size (largest first) for better visual hierarchy
     basic_types_children.sort_by(|a, b| b.size.cmp(&a.size));
-    
+
     // Debug: Print final children
-    tracing::info!("Basic Types node will have {} children:", basic_types_children.len());
-    for (i, child) in basic_types_children.iter().enumerate() {
-        tracing::info!("  Child {}: '{}' - {} bytes", i, child.name, child.size);
-    }
-    
+    // tracing::info!("Basic Types node will have {} children:", basic_types_children.len());
+    // for (i, child) in basic_types_children.iter().enumerate() {
+    //     tracing::info!("  Child {}: '{}' - {} bytes", i, child.name, child.size);
+    // }
+
     TreemapNode {
-        name: format!("Basic Types ({:.1}%)", (basic_types_total as f64 / total_memory as f64) * 100.0),
+        name: format!(
+            "Basic Types ({:.1}%)",
+            (basic_types_total as f64 / total_memory as f64) * 100.0
+        ),
         size: basic_types_total,
         percentage: (basic_types_total as f64 / total_memory as f64) * 100.0,
         color: "#ecf0f1".to_string(),
@@ -1342,7 +1501,7 @@ fn add_simple_categories(
             children: Vec::new(),
         });
     }
-    
+
     let smart_pointers_total: usize = smart_pointers_types.iter().map(|t| t.total_size).sum();
     if smart_pointers_total > 0 {
         treemap_nodes.push(TreemapNode {
@@ -1372,7 +1531,7 @@ fn add_simple_categories_alt(
             children: Vec::new(),
         });
     }
-    
+
     let smart_pointers_total: usize = smart_pointers_types.iter().map(|t| t.total_size).sum();
     if smart_pointers_total > 0 {
         treemap_nodes.push(TreemapNode {
@@ -1397,12 +1556,12 @@ fn build_full_layout(
     if collections_total > 0 {
         treemap_nodes.push(build_collections_node(collections_types, total_memory));
     }
-    
+
     let basic_types_total: usize = basic_types.iter().map(|t| t.total_size).sum();
     if basic_types_total > 0 {
         treemap_nodes.push(build_basic_types_node(basic_types, total_memory));
     }
-    
+
     let smart_pointers_total: usize = smart_pointers_types.iter().map(|t| t.total_size).sum();
     if smart_pointers_total > 0 {
         treemap_nodes.push(TreemapNode {
@@ -1435,7 +1594,7 @@ fn render_squarified_treemap(
     if nodes.is_empty() {
         return render_empty_treemap(document, area);
     }
-    
+
     // Container background
     let container_bg = Rectangle::new()
         .set("class", "integrated-treemap-container")
@@ -1448,29 +1607,30 @@ fn render_squarified_treemap(
         .set("stroke-width", 2)
         .set("rx", 20);
     document = document.add(container_bg);
-    
+
     // Calculate total size for proportional height allocation
     let total_size: usize = nodes.iter().map(|n| n.size).sum();
     if total_size == 0 {
         return render_empty_treemap(document, area);
     }
-    
+
     // Layout parameters
     let padding = 15.0;
     let band_spacing = 10.0;
     let available_width = area.width - (padding * 2.0);
-    let available_height = area.height - (padding * 2.0) - (band_spacing * (nodes.len() - 1) as f64);
-    
+    let available_height =
+        area.height - (padding * 2.0) - (band_spacing * (nodes.len() - 1) as f64);
+
     let mut current_y = area.y + padding;
-    
+
     // Sort nodes by size (largest first) for better visual hierarchy
     let mut sorted_nodes = nodes.to_vec();
     sorted_nodes.sort_by(|a, b| b.size.cmp(&a.size));
-    
+
     for node in &sorted_nodes {
         // Calculate proportional height for this band
         let band_height = (node.size as f64 / total_size as f64) * available_height;
-        
+
         // Render the band based on whether it has children
         if !node.children.is_empty() {
             document = render_smart_horizontal_band(
@@ -1491,17 +1651,20 @@ fn render_squarified_treemap(
                 node,
             )?;
         }
-        
+
         current_y += band_height + band_spacing;
     }
-    
+
     // Note: No separate legend needed - information is embedded in treemap labels
-    
+
     Ok(document)
 }
 
 /// Render empty treemap when no data available
-fn render_empty_treemap(mut document: Document, area: IntegratedTreemapArea) -> TrackingResult<Document> {
+fn render_empty_treemap(
+    mut document: Document,
+    area: IntegratedTreemapArea,
+) -> TrackingResult<Document> {
     let container_bg = Rectangle::new()
         .set("class", "integrated-treemap-container")
         .set("x", area.x)
@@ -1513,7 +1676,7 @@ fn render_empty_treemap(mut document: Document, area: IntegratedTreemapArea) -> 
         .set("stroke-width", 2)
         .set("rx", 20);
     document = document.add(container_bg);
-    
+
     let no_data_text = SvgText::new("No Memory Type Data Available")
         .set("x", area.x + area.width / 2.0)
         .set("y", area.y + area.height / 2.0)
@@ -1522,7 +1685,7 @@ fn render_empty_treemap(mut document: Document, area: IntegratedTreemapArea) -> 
         .set("font-weight", "bold")
         .set("fill", "#6c757d");
     document = document.add(no_data_text);
-    
+
     Ok(document)
 }
 
@@ -1545,7 +1708,7 @@ fn render_smart_horizontal_band(
         .set("fill", node.color.as_str())
         .set("rx", 18);
     document = document.add(band_bg);
-    
+
     // Band title
     let title_y = y + 20.0;
     let title = SvgText::new(format!("{} - {:.0}%", node.name, node.percentage))
@@ -1554,25 +1717,26 @@ fn render_smart_horizontal_band(
         .set("y", title_y)
         .set("font-size", 16);
     document = document.add(title);
-    
+
     // Children layout area
     let children_y = title_y + 10.0;
     let children_height = height - 30.0;
     let children_padding = 10.0;
     let available_children_width = width - (children_padding * 2.0);
-    
+
     // Calculate total children size for proportional width allocation
     let total_children_size: usize = node.children.iter().map(|c| c.size).sum();
     if total_children_size == 0 {
         return Ok(document);
     }
-    
+
     let mut current_x = x + children_padding;
-    
+
     for child in &node.children {
         // Calculate proportional width for this child
-        let child_width = (child.size as f64 / total_children_size as f64) * available_children_width;
-        
+        let child_width =
+            (child.size as f64 / total_children_size as f64) * available_children_width;
+
         // Child rectangle
         let child_rect = Rectangle::new()
             .set("class", "integrated-treemap-rect")
@@ -1583,10 +1747,10 @@ fn render_smart_horizontal_band(
             .set("fill", child.color.as_str())
             .set("rx", 18);
         document = document.add(child_rect);
-        
+
         // Child label (extract percentage from name if present)
         let (child_name, child_relative_percentage) = extract_name_and_percentage(&child.name);
-        
+
         let child_label = SvgText::new(child_name)
             .set("class", "integrated-treemap-label")
             .set("x", current_x + child_width / 2.0)
@@ -1594,24 +1758,27 @@ fn render_smart_horizontal_band(
             .set("font-size", calculate_font_size(child_width))
             .set("font-weight", "bold");
         document = document.add(child_label);
-        
+
         // Child percentage
         let percentage_text = if let Some(pct) = child_relative_percentage {
             format!("({})", pct)
         } else {
-            format!("({:.0}%)", (child.size as f64 / total_children_size as f64) * 100.0)
+            format!(
+                "({:.0}%)",
+                (child.size as f64 / total_children_size as f64) * 100.0
+            )
         };
-        
+
         let child_percentage = SvgText::new(percentage_text)
             .set("class", "integrated-treemap-percentage")
             .set("x", current_x + child_width / 2.0)
             .set("y", children_y + children_height / 2.0 + 15.0)
             .set("font-size", calculate_font_size(child_width) - 2);
         document = document.add(child_percentage);
-        
+
         current_x += child_width;
     }
-    
+
     Ok(document)
 }
 
@@ -1634,7 +1801,7 @@ fn render_simple_horizontal_band(
         .set("fill", node.color.as_str())
         .set("rx", 18);
     document = document.add(band_rect);
-    
+
     // Band label
     let label = SvgText::new(&node.name)
         .set("class", "integrated-treemap-label")
@@ -1643,7 +1810,7 @@ fn render_simple_horizontal_band(
         .set("font-size", 16)
         .set("font-weight", "bold");
     document = document.add(label);
-    
+
     // Band percentage
     let percentage_label = SvgText::new(format!("{:.0}%", node.percentage))
         .set("class", "integrated-treemap-percentage")
@@ -1651,51 +1818,7 @@ fn render_simple_horizontal_band(
         .set("y", y + height / 2.0 + 15.0)
         .set("font-size", 12);
     document = document.add(percentage_label);
-    
-    Ok(document)
-}
 
-/// Render smart legend based on actual data
-fn render_smart_legend(
-    mut document: Document,
-    area: IntegratedTreemapArea,
-    nodes: &[TreemapNode],
-) -> TrackingResult<Document> {
-    let legend_y = area.y + area.height - 25.0;
-    let legend_item_width = 250.0;
-    let mut legend_x = area.x + 20.0;
-    
-    for node in nodes {
-        // Legend color box
-        let color_box = Rectangle::new()
-            .set("fill", node.color.as_str())
-            .set("height", 12)
-            .set("rx", 2)
-            .set("stroke", "#2c3e50")
-            .set("stroke-width", 1)
-            .set("width", 12)
-            .set("x", legend_x)
-            .set("y", legend_y);
-        document = document.add(color_box);
-        
-        // Legend text with smart description
-        let description = generate_smart_description(node);
-        let legend_text = SvgText::new(description)
-            .set("fill", "#2c3e50")
-            .set("font-size", 10)
-            .set("font-weight", "600")
-            .set("x", legend_x + 18.0)
-            .set("y", legend_y + 9.0);
-        document = document.add(legend_text);
-        
-        legend_x += legend_item_width;
-        
-        // Wrap to next line if needed
-        if legend_x + legend_item_width > area.x + area.width {
-            break;
-        }
-    }
-    
     Ok(document)
 }
 
@@ -1713,162 +1836,15 @@ fn extract_name_and_percentage(formatted_name: &str) -> (&str, Option<&str>) {
 
 /// Calculate appropriate font size based on available width
 fn calculate_font_size(width: f64) -> i32 {
-    if width > 200.0 { 15 }
-    else if width > 100.0 { 13 }
-    else if width > 50.0 { 11 }
-    else { 9 }
-}
-
-/// Generate smart description for legend
-fn generate_smart_description(node: &TreemapNode) -> String {
-    match node.name.as_str() {
-        name if name.starts_with("Collections") => {
-            let child_names: Vec<String> = node.children.iter()
-                .map(|c| extract_name_and_percentage(&c.name).0.to_string())
-                .collect();
-            if child_names.is_empty() {
-                "Collections: HashMap, Vec, BTreeSet".to_string()
-            } else {
-                format!("Collections: {}", child_names.join(", "))
-            }
-        },
-        name if name.starts_with("Basic Types") => {
-            let child_names: Vec<String> = node.children.iter()
-                .map(|c| extract_name_and_percentage(&c.name).0.to_string())
-                .collect();
-            if child_names.is_empty() {
-                "Basic Types: Integers, Floats, Strings, Bools".to_string()
-            } else {
-                format!("Basic Types: {}", child_names.join(", "))
-            }
-        },
-        name if name.starts_with("Smart Pointers") => {
-            "Smart Pointers: Box, Rc, Arc".to_string()
-        },
-        _ => node.name.clone()
+    if width > 200.0 {
+        15
+    } else if width > 100.0 {
+        13
+    } else if width > 50.0 {
+        11
+    } else {
+        9
     }
-}
-
-/// Render hierarchical treemap with subdivisions (for Collections and Basic Types)
-fn render_hierarchical_treemap(
-    mut document: Document,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-    parent_node: &TreemapNode,
-) -> TrackingResult<Document> {
-    // Parent container
-    let parent_rect = Rectangle::new()
-        .set("class", "integrated-treemap-rect")
-        .set("x", x)
-        .set("y", y)
-        .set("width", width)
-        .set("height", height)
-        .set("fill", parent_node.color.as_str())
-        .set("rx", 18);
-    document = document.add(parent_rect);
-    
-    // Parent title
-    let title = SvgText::new(format!("{} - {:.0}%", parent_node.name, parent_node.percentage))
-        .set("class", "integrated-treemap-label")
-        .set("x", x + width / 2.0)
-        .set("y", y + 20.0)
-        .set("font-size", 16);
-    document = document.add(title);
-    
-    // Layout children using horizontal split
-    let child_y = y + 30.0;
-    let child_height = height - 40.0;
-    let total_child_size: usize = parent_node.children.iter().map(|c| c.size).sum();
-    
-    let mut current_x = x + 10.0;
-    let available_width = width - 20.0;
-    
-    for child in &parent_node.children {
-        let child_width = if total_child_size > 0 {
-            (child.size as f64 / total_child_size as f64) * available_width
-        } else {
-            available_width / parent_node.children.len() as f64
-        };
-        
-        // Child rectangle
-        let child_rect = Rectangle::new()
-            .set("class", "integrated-treemap-rect")
-            .set("x", current_x)
-            .set("y", child_y)
-            .set("width", child_width - 5.0)
-            .set("height", child_height - 10.0)
-            .set("fill", child.color.as_str())
-            .set("rx", 18);
-        document = document.add(child_rect);
-        
-        // Child label
-        let child_label = SvgText::new(&child.name)
-            .set("class", "integrated-treemap-label")
-            .set("x", current_x + child_width / 2.0)
-            .set("y", child_y + child_height / 2.0 - 5.0)
-            .set("font-size", if child_width > 100.0 { 15 } else { 13 });
-        document = document.add(child_label);
-        
-        // Child percentage
-        let child_percentage = SvgText::new(format!("({:.0}%)", child.percentage))
-            .set("class", "integrated-treemap-percentage")
-            .set("x", current_x + child_width / 2.0)
-            .set("y", child_y + child_height / 2.0 + 10.0)
-            .set("font-size", if child_width > 100.0 { 13 } else { 11 });
-        document = document.add(child_percentage);
-        
-        current_x += child_width;
-    }
-    
-    Ok(document)
-}
-
-/// Add integrated treemap legend
-fn add_integrated_treemap_legend(
-    mut document: Document, 
-    chart_x: i32, 
-    chart_y: i32, 
-    chart_width: i32, 
-    _chart_height: i32
-) -> TrackingResult<Document> {
-    let legend_y = chart_y + 320;
-    
-    // Legend items - updated to match actual module colors
-    let items = [
-        ("Collections", "#ecf0f1", "HashMap, Vec, BTreeSet"),
-        ("Basic Types", "#ecf0f1", "Integers, Floats, Strings, Bools"),
-        ("Smart Pointers", "#9b59b6", "Box, Rc, Arc"),
-    ];
-    
-    let mut x_offset = chart_x + 20;
-    for (name, color, desc) in items.iter() {
-        // Color indicator
-        let color_rect = Rectangle::new()
-            .set("x", x_offset)
-            .set("y", legend_y)
-            .set("width", 12)
-            .set("height", 12)
-            .set("fill", *color)
-            .set("stroke", "#2c3e50")
-            .set("stroke-width", 1)
-            .set("rx", 2);
-        document = document.add(color_rect);
-        
-        // Category text
-        let cat_text = SvgText::new(format!("{}: {}", name, desc))
-            .set("x", x_offset + 18)
-            .set("y", legend_y + 9)
-            .set("fill", "#2c3e50")
-            .set("font-size", 10)
-            .set("font-weight", "600");
-        document = document.add(cat_text);
-        
-        x_offset += chart_width / 3;
-    }
-    
-    Ok(document)
 }
 
 /// Add categorized allocations visualization
@@ -2713,24 +2689,6 @@ pub fn add_comprehensive_summary(
 }
 
 /// Add CSS styles for interactive elements
-fn add_css_styles(mut document: Document) -> TrackingResult<Document> {
-    let style = svg::node::element::Style::new(
-        r#"
-        .tooltip { opacity: 0; transition: opacity 0.3s; }
-        .chart-element:hover .tooltip { opacity: 1; }
-        .interactive-bar:hover { opacity: 0.8; cursor: pointer; }
-        .legend-item:hover { background-color: #ecf0f1; }
-        .heatmap-cell:hover { stroke-width: 2; }
-        .trend-line { stroke-dasharray: 5,5; animation: dash 1s linear infinite; }
-        @keyframes dash { to { stroke-dashoffset: -10; } }
-        .performance-gauge { filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3)); }
-        .callstack-node:hover { transform: scale(1.1); transform-origin: center; }
-    "#,
-    );
-
-    document = document.add(style);
-    Ok(document)
-}
 
 /// Add enhanced memory allocation timeline with multiple visualization options
 pub fn add_enhanced_timeline_dashboard(
@@ -2768,10 +2726,11 @@ pub fn add_enhanced_timeline_dashboard(
     document = document.add(title);
 
     // Group tracked variables by scope for better visualization
-    let tracked_vars: Vec<&AllocationInfo> = allocations.iter()
+    let tracked_vars: Vec<&AllocationInfo> = allocations
+        .iter()
         .filter(|a| a.var_name.is_some())
         .collect();
-    
+
     if tracked_vars.is_empty() {
         let no_data = SvgText::new("No tracked variables found for timeline visualization")
             .set("x", chart_x + chart_width / 2)
@@ -2782,24 +2741,30 @@ pub fn add_enhanced_timeline_dashboard(
         document = document.add(no_data);
         return Ok(document);
     }
-    
+
     // Group variables by scope (extract scope from variable names)
-    let mut scope_groups: std::collections::HashMap<String, Vec<&AllocationInfo>> = std::collections::HashMap::new();
+    let mut scope_groups: std::collections::HashMap<String, Vec<&AllocationInfo>> =
+        std::collections::HashMap::new();
     for var in &tracked_vars {
         let scope_name = extract_scope_name(var.var_name.as_ref().unwrap());
-        scope_groups.entry(scope_name).or_insert_with(Vec::new).push(*var);
+        scope_groups
+            .entry(scope_name)
+            .or_insert_with(Vec::new)
+            .push(*var);
     }
-    
+
     // Sort scopes for consistent display
     let mut sorted_scopes: Vec<_> = scope_groups.into_iter().collect();
     sorted_scopes.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Calculate time ranges for tracked variables
-    let max_time = tracked_vars.iter()
+    let max_time = tracked_vars
+        .iter()
         .map(|a| a.timestamp_alloc)
         .max()
         .unwrap_or(1000) as f64;
-    let min_time = tracked_vars.iter()
+    let min_time = tracked_vars
+        .iter()
         .map(|a| a.timestamp_alloc)
         .min()
         .unwrap_or(0) as f64;
@@ -2810,8 +2775,10 @@ pub fn add_enhanced_timeline_dashboard(
     let plot_y = chart_y + 50;
     let plot_width = chart_width - 350; // Space for names and legend
     let plot_height = chart_height - 100;
-    
-    let row_height = (plot_height as f64 / sorted_scopes.len().max(1) as f64).min(40.0).max(25.0); // Ensure minimum spacing for scopes
+
+    let row_height = (plot_height as f64 / sorted_scopes.len().max(1) as f64)
+        .min(40.0)
+        .max(25.0); // Ensure minimum spacing for scopes
 
     // Time axis (horizontal)
     let time_axis = svg::node::element::Line::new()
@@ -2827,7 +2794,7 @@ pub fn add_enhanced_timeline_dashboard(
     let time_units = ["0ms", "0.25ms", "0.5ms", "0.75ms", "1ms"];
     for i in 0..=4 {
         let x = plot_x + (i * plot_width / 4);
-        
+
         let tick = svg::node::element::Line::new()
             .set("x1", x)
             .set("y1", plot_y + plot_height)
@@ -2836,7 +2803,7 @@ pub fn add_enhanced_timeline_dashboard(
             .set("stroke", "#34495e")
             .set("stroke-width", 1);
         document = document.add(tick);
-        
+
         // Better formatted time labels
         let time_label = time_units[i];
         let label = SvgText::new(time_label)
@@ -2864,12 +2831,12 @@ pub fn add_enhanced_timeline_dashboard(
     // Add Y-axis scale markers for better readability
     let scale_markers = [
         (16, "16B"),
-        (256, "256B"), 
+        (256, "256B"),
         (1024, "1KB"),
         (4096, "4KB"),
         (16384, "16KB"),
     ];
-    
+
     for (size, label) in scale_markers.iter() {
         // Skip size filtering for now - just show all scale markers
         {
@@ -2877,10 +2844,11 @@ pub fn add_enhanced_timeline_dashboard(
             let log_min = 1.0_f64.ln();
             let log_max = 16384.0_f64.ln();
             let log_range = log_max - log_min;
-            
+
             if log_range > 0.0 {
-                let y_pos = plot_y + plot_height - ((log_size - log_min) / log_range * plot_height as f64) as i32;
-                
+                let y_pos = plot_y + plot_height
+                    - ((log_size - log_min) / log_range * plot_height as f64) as i32;
+
                 // Scale marker line
                 let marker_line = svg::node::element::Line::new()
                     .set("x1", plot_x - 5)
@@ -2890,7 +2858,7 @@ pub fn add_enhanced_timeline_dashboard(
                     .set("stroke", "#7f8c8d")
                     .set("stroke-width", 1);
                 document = document.add(marker_line);
-                
+
                 // Scale marker label
                 let marker_label = SvgText::new(*label)
                     .set("x", plot_x - 15)
@@ -2908,7 +2876,7 @@ pub fn add_enhanced_timeline_dashboard(
     for i in 0..=time_markers {
         let time_point = min_time + (time_range * i as f64 / time_markers as f64);
         let x_pos = plot_x + (i * plot_width / time_markers);
-        
+
         // Time marker line
         let time_marker_line = svg::node::element::Line::new()
             .set("x1", x_pos)
@@ -2918,7 +2886,7 @@ pub fn add_enhanced_timeline_dashboard(
             .set("stroke", "#7f8c8d")
             .set("stroke-width", 1);
         document = document.add(time_marker_line);
-        
+
         // Format time more readably
         let formatted_time = if time_point < 1000.0 {
             format!("{:.1}ms", time_point)
@@ -2927,7 +2895,7 @@ pub fn add_enhanced_timeline_dashboard(
         } else {
             format!("{:.1}m", time_point / 60000.0)
         };
-        
+
         let time_label = SvgText::new(formatted_time)
             .set("x", x_pos)
             .set("y", plot_y + plot_height + 20)
@@ -2946,7 +2914,11 @@ pub fn add_enhanced_timeline_dashboard(
     }
 
     // Calculate P95 threshold for larger dots
-    let mut sizes: Vec<usize> = allocations.iter().map(|a| a.size).filter(|&s| s > 0).collect();
+    let mut sizes: Vec<usize> = allocations
+        .iter()
+        .map(|a| a.size)
+        .filter(|&s| s > 0)
+        .collect();
     sizes.sort_unstable();
     let _p95_threshold = if !sizes.is_empty() {
         let p95_index = (sizes.len() as f64 * 0.95) as usize;
@@ -2958,11 +2930,13 @@ pub fn add_enhanced_timeline_dashboard(
     // Draw scope-based Gantt chart - move scopes up slightly
     for (scope_index, (scope_name, scope_vars)) in sorted_scopes.iter().enumerate() {
         let scope_y = plot_y + 10 + (scope_index as f64 * row_height) as i32; // Moved up by 10px
-        
+
         // Get scope color (different color for each scope)
-        let scope_colors = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"];
+        let scope_colors = [
+            "#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c",
+        ];
         let scope_color = scope_colors[scope_index % scope_colors.len()];
-        
+
         // Draw scope background bar (full timeline)
         let scope_bg = Rectangle::new()
             .set("x", plot_x)
@@ -2973,7 +2947,7 @@ pub fn add_enhanced_timeline_dashboard(
             .set("opacity", 0.2)
             .set("rx", 5);
         document = document.add(scope_bg);
-        
+
         // Scope name label
         let scope_label = SvgText::new(format!("Scope: {}", scope_name))
             .set("x", plot_x - 15)
@@ -2983,40 +2957,53 @@ pub fn add_enhanced_timeline_dashboard(
             .set("font-weight", "bold")
             .set("fill", scope_color);
         document = document.add(scope_label);
-        
+
         // Draw variables within this scope
         for (var_index, alloc) in scope_vars.iter().enumerate() {
             let var_name = alloc.var_name.as_ref().unwrap();
-            
+
             // Calculate variable bar position
-            let start_x = plot_x as i32 + ((alloc.timestamp_alloc as f64 - min_time) / time_range * plot_width as f64) as i32;
+            let start_x = plot_x as i32
+                + ((alloc.timestamp_alloc as f64 - min_time) / time_range * plot_width as f64)
+                    as i32;
             let var_y = scope_y + 5 + (var_index as f64 * 8.0) as i32; // Stack variables within scope
-            
+
             // Get variable type color
             let (_, category) = if let Some(type_name) = &alloc.type_name {
                 simplify_type_name(type_name)
             } else {
-                ("Unknown".to_string(), "Runtime/System Allocation".to_string())
+                (
+                    "Unknown".to_string(),
+                    "Runtime/System Allocation".to_string(),
+                )
             };
             let var_color = get_category_color(&category);
-            
+
             // Variable bar width based on memory size
             let max_size = scope_vars.iter().map(|a| a.size).max().unwrap_or(1024) as f64;
-            let min_size = scope_vars.iter().map(|a| a.size).filter(|&s| s > 0).min().unwrap_or(1) as f64;
+            let min_size = scope_vars
+                .iter()
+                .map(|a| a.size)
+                .filter(|&s| s > 0)
+                .min()
+                .unwrap_or(1) as f64;
             let size_ratio = if max_size > min_size {
                 ((alloc.size as f64).ln() - min_size.ln()) / (max_size.ln() - min_size.ln())
             } else {
                 0.5
             };
             let bar_width = ((plot_width as f64 * 0.4 * size_ratio) + 30.0) as i32;
-            
+
             // Draw variable bar
             let plot_x_i32 = plot_x as i32;
             let plot_width_i32 = plot_width as i32;
             let var_bar = Rectangle::new()
                 .set("x", start_x.max(plot_x_i32))
                 .set("y", var_y)
-                .set("width", bar_width.min(plot_x_i32 + plot_width_i32 - start_x.max(plot_x_i32)))
+                .set(
+                    "width",
+                    bar_width.min(plot_x_i32 + plot_width_i32 - start_x.max(plot_x_i32)),
+                )
                 .set("height", 6)
                 .set("fill", var_color)
                 .set("stroke", "#ffffff")
@@ -3024,7 +3011,7 @@ pub fn add_enhanced_timeline_dashboard(
                 .set("rx", 2)
                 .set("opacity", 0.9);
             document = document.add(var_bar);
-            
+
             // Variable info label
             let var_info = format!("{}: {}", var_name, format_bytes(alloc.size));
             let var_label = SvgText::new(if var_info.len() > 25 {
@@ -3032,11 +3019,11 @@ pub fn add_enhanced_timeline_dashboard(
             } else {
                 var_info
             })
-                .set("x", start_x.max(plot_x_i32) + 5)
-                .set("y", var_y + 4)
-                .set("font-size", 7)
-                .set("font-weight", "500")
-                .set("fill", "#2c3e50");
+            .set("x", start_x.max(plot_x_i32) + 5)
+            .set("y", var_y + 4)
+            .set("font-size", 7)
+            .set("font-weight", "500")
+            .set("fill", "#2c3e50");
             document = document.add(var_label);
         }
     }
@@ -3046,7 +3033,7 @@ pub fn add_enhanced_timeline_dashboard(
     let legend_y = chart_y + 20;
     let legend_width = 200; // Scaled proportionally
     let legend_height = 120; // Scaled proportionally
-    
+
     // Legend background box - completely transparent with no border
     let legend_bg = Rectangle::new()
         .set("x", legend_x - 10)
@@ -3058,7 +3045,7 @@ pub fn add_enhanced_timeline_dashboard(
         .set("stroke-width", 0)
         .set("rx", 5);
     document = document.add(legend_bg);
-    
+
     let legend_title = SvgText::new("Type Categories")
         .set("x", legend_x)
         .set("y", legend_y)
@@ -3068,7 +3055,8 @@ pub fn add_enhanced_timeline_dashboard(
     document = document.add(legend_title);
 
     // Add compact system allocation info
-    let unknown_count = allocations.iter()
+    let unknown_count = allocations
+        .iter()
         .filter(|a| {
             if let Some(type_name) = &a.type_name {
                 let (_, category) = simplify_type_name(type_name);
@@ -3078,9 +3066,9 @@ pub fn add_enhanced_timeline_dashboard(
             }
         })
         .count();
-    
+
     let unknown_legend_y = legend_y + 15;
-    
+
     // System allocation color square - smaller
     let unknown_color_square = Rectangle::new()
         .set("x", legend_x)
@@ -3089,14 +3077,14 @@ pub fn add_enhanced_timeline_dashboard(
         .set("height", 8)
         .set("fill", "#95a5a6");
     document = document.add(unknown_color_square);
-    
+
     // Compact system allocation label
     let unknown_label = if unknown_count > 0 {
         format!("System ({} allocs)", unknown_count)
     } else {
         "No System Allocs".to_string()
     };
-    
+
     let unknown_text = SvgText::new(unknown_label)
         .set("x", legend_x + 12)
         .set("y", unknown_legend_y - 1)
@@ -3104,9 +3092,10 @@ pub fn add_enhanced_timeline_dashboard(
         .set("fill", "#2c3e50");
     document = document.add(unknown_text);
 
-    for (i, category) in categorized.iter().take(4).enumerate() { // Reduce to 4 items for compact legend
+    for (i, category) in categorized.iter().take(4).enumerate() {
+        // Reduce to 4 items for compact legend
         let legend_item_y = legend_y + 30 + (i as i32) * 15; // Reduce spacing
-        
+
         // Color square - smaller size
         let color_square = Rectangle::new()
             .set("x", legend_x)
@@ -3122,7 +3111,7 @@ pub fn add_enhanced_timeline_dashboard(
         } else {
             category.name.clone()
         };
-        
+
         let category_text = SvgText::new(category_name)
             .set("x", legend_x + 12)
             .set("y", legend_item_y - 1)

@@ -127,17 +127,17 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         let type_name = var.get_type_name().to_string();
 
         // Debug: Print tracking attempt
-        tracing::debug!(
-            "Tracking variable '{}' of type '{}' at ptr {:x}",
-            var_name,
-            type_name,
-            ptr
-        );
+        // tracing::debug!(
+        //     "Tracking variable '{}' of type '{}' at ptr {:x}",
+        //     var_name,
+        //     type_name,
+        //     ptr
+        // );
 
         tracker.associate_var(ptr, var_name.to_string(), type_name)
     } else {
         // Variable doesn't have a heap allocation (e.g., empty Vec)
-        tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
+        // tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
         Ok(())
     }
 }

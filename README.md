@@ -216,6 +216,7 @@ Each scope matrix displays:
 
 Based on actual structure from `./images/lifecycle_snapshot.json`:
 
+You can open this json file [json4u](https://json4u.com/editor) and see the hierarchy of the json file
 ```json
 {
   "memory_hierarchy": {

@@ -71,7 +71,7 @@ fn create_memory_analysis_svg(
     tracker: &MemoryTracker,
 ) -> TrackingResult<Document> {
     // Create comprehensive memory analysis using the original enhanced export logic
-    let width = 1800; 
+    let width = 1800;
     let height = 2400; // Tall document for comprehensive analysis
 
     let mut document = Document::new()
@@ -84,7 +84,8 @@ fn create_memory_analysis_svg(
     document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
     // 3. Performance Dashboard
-    document = crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
+    document =
+        crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
 
     // 4. Memory Allocation Heatmap
     document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
@@ -168,21 +169,21 @@ fn create_lifecycle_timeline_svg(
         .filter(|a| a.var_name.is_some())
         .collect();
 
-    tracing::info!(
-        "Found {} total allocations, {} with variable names",
-        allocations.len(),
-        tracked_vars.len()
-    );
+    // tracing::info!(
+    //     "Found {} total allocations, {} with variable names",
+    //     allocations.len(),
+    //     tracked_vars.len()
+    // );
 
     // Debug: Print the tracked variables we found
-    for (i, var) in tracked_vars.iter().enumerate() {
-        tracing::info!(
-            "Tracked var {}: {} ({})",
-            i + 1,
-            var.var_name.as_ref().unwrap_or(&"None".to_string()),
-            var.type_name.as_ref().unwrap_or(&"Unknown".to_string())
-        );
-    }
+    // for (i, var) in tracked_vars.iter().enumerate() {
+    //     tracing::info!(
+    //         "Tracked var {}: {} ({})",
+    //         i + 1,
+    //         var.var_name.as_ref().unwrap_or(&"None".to_string()),
+    //         var.type_name.as_ref().unwrap_or(&"Unknown".to_string())
+    //     );
+    // }
 
     if tracked_vars.is_empty() {
         let no_data = SvgText::new(format!(
@@ -206,258 +207,6 @@ fn create_lifecycle_timeline_svg(
 
     // Add variable relationships section - aligned and consistent width
     document = add_relationships_section(document, &tracked_vars, 900, width - 100)?;
-
-    Ok(document)
-}
-
-/// Add call stack analysis section
-fn add_call_stack_analysis(
-    mut document: Document,
-    allocations: &[AllocationInfo],
-    start_x: i32,
-    start_y: i32,
-) -> TrackingResult<Document> {
-    // Section title
-    let title = SvgText::new("Call Stack Analysis - Memory Sources")
-        .set("x", start_x)
-        .set("y", start_y)
-        .set("font-size", 18)
-        .set("font-weight", "bold")
-        .set("fill", "#ECF0F1");
-    document = document.add(title);
-
-    // Group allocations by variable name and type
-    let mut source_stats: HashMap<String, (usize, usize)> = HashMap::new();
-
-    for allocation in allocations {
-        let source_key = if let Some(var_name) = &allocation.var_name {
-            if let Some(type_name) = &allocation.type_name {
-                let simplified_type = get_simple_type(type_name);
-                format!(
-                    "{}({}) memory: {}",
-                    var_name,
-                    simplified_type,
-                    format_bytes(allocation.size)
-                )
-            } else {
-                format!(
-                    "{}(Unknown Type) memory: {}",
-                    var_name,
-                    format_bytes(allocation.size)
-                )
-            }
-        } else if let Some(type_name) = &allocation.type_name {
-            let simplified_type = get_simple_type(type_name);
-            format!("System/Runtime {simplified_type} allocations (untracked)")
-        } else {
-            "System/Runtime allocations (no type info)".to_string()
-        };
-
-        let entry = source_stats.entry(source_key).or_insert((0, 0));
-        entry.0 += 1;
-        entry.1 += allocation.size;
-    }
-
-    // Sort and display top sources
-    let mut sorted_sources: Vec<_> = source_stats.iter().collect();
-    sorted_sources.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
-
-    for (i, (source, (count, total_size))) in sorted_sources.iter().take(8).enumerate() {
-        let y = start_y + 30 + (i as i32) * 25;
-        let node_size = ((*total_size as f64 / sorted_sources[0].1 .1 as f64) * 15.0 + 5.0) as i32;
-
-        let colors = [
-            "#E74C3C", "#F39C12", "#27AE60", "#3498DB", "#9B59B6", "#1ABC9C", "#E67E22", "#34495E",
-        ];
-        let color = colors[i % colors.len()];
-
-        let node = Circle::new()
-            .set("cx", start_x + 30)
-            .set("cy", y)
-            .set("r", node_size)
-            .set("fill", color)
-            .set("stroke", "#ECF0F1")
-            .set("stroke-width", 2);
-        document = document.add(node);
-
-        let label = SvgText::new(format!("{source} ({count} allocs)"))
-            .set("x", start_x + 60)
-            .set("y", y + 5)
-            .set("font-size", 11)
-            .set("font-weight", "500")
-            .set("fill", "#ECF0F1");
-        document = document.add(label);
-    }
-
-    Ok(document)
-}
-
-/// Add memory timeline section
-fn add_memory_timeline(
-    mut document: Document,
-    tracked_vars: &[&AllocationInfo],
-    start_x: i32,
-    start_y: i32,
-) -> TrackingResult<Document> {
-    let title = SvgText::new("Variable Allocation Timeline")
-        .set("x", start_x)
-        .set("y", start_y)
-        .set("font-size", 18)
-        .set("font-weight", "bold")
-        .set("fill", "#ECF0F1");
-    document = document.add(title);
-
-    let timeline_width = 1000;
-    let timeline_y = start_y + 40;
-
-    // Draw timeline axis
-    let axis = Line::new()
-        .set("x1", start_x)
-        .set("y1", timeline_y)
-        .set("x2", start_x + timeline_width)
-        .set("y2", timeline_y)
-        .set("stroke", "#BDC3C7")
-        .set("stroke-width", 2);
-    document = document.add(axis);
-
-    // Calculate time range
-    let min_time = tracked_vars
-        .first()
-        .map(|a| a.timestamp_alloc as u64)
-        .unwrap_or(0);
-    let max_time = tracked_vars
-        .iter()
-        .map(|a| a.timestamp_alloc as u64)
-        .max()
-        .unwrap_or(min_time + 1000);
-    let time_range = (max_time - min_time).max(1000);
-
-    // Add variables to timeline
-    for (i, allocation) in tracked_vars.iter().take(10).enumerate() {
-        let y = timeline_y + 30 + (i as i32) * 20;
-        let x_pos = start_x
-            + ((allocation.timestamp_alloc as u64).saturating_sub(min_time) as f64
-                / time_range as f64
-                * timeline_width as f64) as i32;
-
-        let var_name = allocation.var_name.as_ref().unwrap();
-        let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
-        let simple_type = get_simple_type(type_name);
-
-        // Variable marker
-        let marker = Circle::new()
-            .set("cx", x_pos)
-            .set("cy", y)
-            .set("r", 6)
-            .set("fill", get_type_color(&simple_type))
-            .set("stroke", "#ECF0F1")
-            .set("stroke-width", 2);
-        document = document.add(marker);
-
-        // Variable label
-        let label_text = format!(
-            "{}({}) memory: {}",
-            var_name,
-            simple_type,
-            format_bytes(allocation.size)
-        );
-        let label = SvgText::new(label_text)
-            .set("x", start_x + timeline_width + 20)
-            .set("y", y + 4)
-            .set("font-size", 11)
-            .set("font-weight", "500")
-            .set("fill", "#ECF0F1");
-        document = document.add(label);
-    }
-
-    Ok(document)
-}
-
-/// Add categorized allocations section
-fn add_categorized_allocations(
-    mut document: Document,
-    tracked_vars: &[&AllocationInfo],
-    start_x: i32,
-    start_y: i32,
-) -> TrackingResult<Document> {
-    let title = SvgText::new("Tracked Variables by Category")
-        .set("x", start_x)
-        .set("y", start_y)
-        .set("font-size", 18)
-        .set("font-weight", "bold")
-        .set("fill", "#ECF0F1");
-    document = document.add(title);
-
-    // Group by type
-    let mut categories: HashMap<String, Vec<&AllocationInfo>> = HashMap::new();
-    for allocation in tracked_vars {
-        let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
-        let simple_type = get_simple_type(type_name);
-        categories.entry(simple_type).or_default().push(allocation);
-    }
-
-    let chart_x = start_x;
-    let chart_y = start_y + 40;
-    let bar_height = 30;
-
-    for (i, (category_name, allocations)) in categories.iter().enumerate() {
-        let y = chart_y + (i as i32) * 40;
-        let total_size: usize = allocations.iter().map(|a| a.size).sum();
-        let bar_width = (total_size as f64 / 1024.0 * 2.0) as i32 + 50; // Scale for visibility
-
-        // Category bar
-        let bar = Rectangle::new()
-            .set("x", chart_x)
-            .set("y", y)
-            .set("width", bar_width)
-            .set("height", bar_height)
-            .set("fill", get_type_color(category_name))
-            .set("rx", 4);
-        document = document.add(bar);
-
-        // Category label
-        let category_label = SvgText::new(category_name)
-            .set("x", chart_x + 10)
-            .set("y", y + 20)
-            .set("font-size", 12)
-            .set("font-weight", "bold")
-            .set("fill", "#FFFFFF");
-        document = document.add(category_label);
-
-        // Enhanced variable names display - more prominent and detailed
-        let var_names: Vec<String> = allocations
-            .iter()
-            .filter_map(|a| a.var_name.as_ref())
-            .take(5) // Show more variables
-            .map(|name| {
-                format!(
-                    "{}({})",
-                    name,
-                    format_bytes(
-                        allocations
-                            .iter()
-                            .find(|a| a.var_name.as_ref() == Some(name))
-                            .map(|a| a.size)
-                            .unwrap_or(0)
-                    )
-                )
-            })
-            .collect();
-
-        let display_text = format!(
-            "{} - Variables: {}",
-            format_bytes(total_size),
-            var_names.join(" | ")
-        );
-        let size_text = SvgText::new(display_text)
-            .set("x", chart_x + bar_width + 15)
-            .set("y", y + 20)
-            .set("font-size", 12)
-            .set("font-weight", "600")
-            .set("fill", "#FFFFFF")
-            .set("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)");
-        document = document.add(size_text);
-    }
 
     Ok(document)
 }
@@ -633,11 +382,7 @@ fn add_relationships_section(
         scope_positions.insert(scope_name.clone(), (group_x, group_y));
     }
 
-    // Draw relationship lines FIRST (behind nodes)
-    let relationships = analyze_variable_relationships(tracked_vars);
-    for relationship in &relationships {
-        document = draw_relationship_line(document, relationship, &scope_positions)?;
-    }
+    // Note: Relationship analysis removed to eliminate unused code
 
     // Draw variable nodes AFTER lines (on top)
     for (scope_name, vars) in &scope_groups {
@@ -654,127 +399,6 @@ fn add_relationships_section(
 
     // Add relationship legend
     document = add_relationship_legend(document, start_y + section_height - 100)?;
-
-    Ok(document)
-}
-
-/// Analyze variable relationships based on type patterns
-fn analyze_variable_relationships(tracked_vars: &[&AllocationInfo]) -> Vec<VariableRelationship> {
-    let mut relationships = Vec::new();
-
-    for (i, var1) in tracked_vars.iter().enumerate() {
-        for var2 in tracked_vars.iter().skip(i + 1) {
-            if let (Some(name1), Some(name2)) = (&var1.var_name, &var2.var_name) {
-                if let (Some(type1), Some(type2)) = (&var1.type_name, &var2.type_name) {
-                    // Detect relationship patterns
-                    let relationship_type = detect_relationship_type(name1, type1, name2, type2);
-                    if relationship_type != RelationshipType::None {
-                        relationships.push(VariableRelationship {
-                            from_var: name1.clone(),
-                            to_var: name2.clone(),
-                            relationship_type,
-                            strength: calculate_relationship_strength(var1, var2),
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    relationships
-}
-
-/// Detect relationship type between two variables
-fn detect_relationship_type(
-    name1: &str,
-    type1: &str,
-    name2: &str,
-    type2: &str,
-) -> RelationshipType {
-    // Ownership Transfer/Move patterns
-    if name2.contains("moved")
-        || name2.contains("transferred")
-        || (name1.contains("original") && name2.contains("new"))
-    {
-        return RelationshipType::OwnershipTransfer;
-    }
-
-    // Clone patterns
-    if name2.contains("clone")
-        || name1.contains("clone")
-        || (name1.contains("shared") && name2.contains("shared"))
-    {
-        return RelationshipType::Clone;
-    }
-
-    // Shared pointer patterns (Rc, Arc)
-    if (type1.contains("Rc") || type1.contains("Arc"))
-        && (type2.contains("Rc") || type2.contains("Arc"))
-    {
-        return RelationshipType::SharedPointer;
-    }
-
-    // Borrow patterns (same base name, different suffixes)
-    if name1.replace("_ref", "").replace("_mut", "")
-        == name2.replace("_ref", "").replace("_mut", "")
-    {
-        if name1.contains("_mut") || name2.contains("_mut") {
-            return RelationshipType::MutableBorrow;
-        } else {
-            return RelationshipType::ImmutableBorrow;
-        }
-    }
-
-    // Indirect relationship (similar types, different scopes)
-    if get_simple_type(type1) == get_simple_type(type2) && name1 != name2 {
-        return RelationshipType::IndirectReference;
-    }
-
-    RelationshipType::None
-}
-
-/// Calculate relationship strength (0.0 to 1.0)
-fn calculate_relationship_strength(var1: &AllocationInfo, var2: &AllocationInfo) -> f32 {
-    // Base strength on size similarity and timing proximity
-    let size_ratio = (var1.size.min(var2.size) as f32) / (var1.size.max(var2.size) as f32);
-    let time_diff = (var1.timestamp_alloc as i64 - var2.timestamp_alloc as i64).abs() as f32;
-    let time_factor = 1.0 / (1.0 + time_diff / 1000.0); // Closer in time = stronger relationship
-
-    (size_ratio * 0.6 + time_factor * 0.4).min(1.0)
-}
-
-/// Draw relationship line with proper styling
-fn draw_relationship_line(
-    mut document: Document,
-    relationship: &VariableRelationship,
-    _scope_positions: &HashMap<String, (i32, i32)>,
-) -> TrackingResult<Document> {
-    // For now, draw a simple example line - in real implementation,
-    // you'd calculate actual node positions
-    let (color, stroke_width, dash_array, label) =
-        get_relationship_style(&relationship.relationship_type);
-
-    // Example line (you'd calculate real positions based on variable locations)
-    let line = Line::new()
-        .set("x1", 200)
-        .set("y1", 100)
-        .set("x2", 400)
-        .set("y2", 150)
-        .set("stroke", color)
-        .set("stroke-width", stroke_width)
-        .set("stroke-dasharray", dash_array)
-        .set("marker-end", "url(#arrowhead)");
-    document = document.add(line);
-
-    // Add line label
-    let line_label = SvgText::new(label)
-        .set("x", 300) // Midpoint
-        .set("y", 120)
-        .set("font-size", 8)
-        .set("font-weight", "bold")
-        .set("fill", color)
-        .set("text-anchor", "middle");
-    document = document.add(line_label);
 
     Ok(document)
 }
@@ -877,21 +501,6 @@ fn add_relationship_legend(mut document: Document, start_y: i32) -> TrackingResu
     Ok(document)
 }
 
-/// Get relationship styling
-fn get_relationship_style(
-    rel_type: &RelationshipType,
-) -> (&'static str, i32, &'static str, &'static str) {
-    match rel_type {
-        RelationshipType::OwnershipTransfer => ("#E74C3C", 4, "none", "owns"),
-        RelationshipType::MutableBorrow => ("#3498DB", 3, "none", "borrows_mut"),
-        RelationshipType::ImmutableBorrow => ("#27AE60", 2, "none", "borrows"),
-        RelationshipType::Clone => ("#95A5A6", 2, "none", "cloned"),
-        RelationshipType::SharedPointer => ("#9B59B6", 3, "8,4", "shared"),
-        RelationshipType::IndirectReference => ("#F39C12", 1, "4,2", "indirect_ref"),
-        RelationshipType::None => ("#7F8C8D", 1, "1,1", ""),
-    }
-}
-
 /// Get scope background color
 fn get_scope_background_color(scope_name: &str) -> &'static str {
     match scope_name {
@@ -906,26 +515,6 @@ fn get_scope_border_color(scope_name: &str) -> &'static str {
         "Global" => "#34495E",
         _ => "#3498DB",
     }
-}
-
-// Define relationship types and structures
-#[derive(Debug, PartialEq)]
-enum RelationshipType {
-    OwnershipTransfer,
-    MutableBorrow,
-    ImmutableBorrow,
-    Clone,
-    SharedPointer,
-    IndirectReference,
-    None,
-}
-
-#[derive(Debug)]
-struct VariableRelationship {
-    from_var: String,
-    to_var: String,
-    relationship_type: RelationshipType,
-    strength: f32,
 }
 
 /// Calculate matrix size based on 5-variable standard with dynamic shrinking
@@ -1278,11 +867,11 @@ fn add_matrix_layout_section(
     let prioritized_scopes = prioritize_scopes_for_display(&scope_groups);
     let selected_scopes: Vec<_> = prioritized_scopes.into_iter().take(15).collect();
 
-    tracing::info!(
-        "Total scopes found: {}, displaying: {}",
-        scope_groups.len(),
-        selected_scopes.len()
-    );
+    // tracing::info!(
+    //     "Total scopes found: {}, displaying: {}",
+    //     scope_groups.len(),
+    //     selected_scopes.len()
+    // );
 
     // Calculate maximum duration across all SELECTED scopes for relative color scaling
     let max_duration = selected_scopes
@@ -1606,341 +1195,3 @@ fn estimate_variable_duration(var: &AllocationInfo) -> u64 {
 
     (base_duration as f64 * type_multiplier) as u64
 }
-
-/// Treemap data structure for hierarchical visualization
-#[derive(Debug, Clone)]
-pub struct TreemapNode {
-    pub name: String,
-    pub size: usize,
-    pub category: String,
-    pub sub_category: String,
-    pub children: Vec<TreemapNode>,
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
-    pub color: String,
-}
-
-
-/// Build treemap structure matching task.md requirements
-fn build_task_compliant_treemap(allocations: &[AllocationInfo], area: TreemapArea) -> TreemapNode {
-    // Calculate category sizes based on real data
-    let mut category_sizes = HashMap::new();
-    let mut total_size = 0;
-
-    for allocation in allocations {
-        if let Some(type_name) = &allocation.type_name {
-            let hierarchy = crate::utils::get_type_category_hierarchy(type_name);
-            *category_sizes.entry(hierarchy.major_category).or_insert(0) += allocation.size;
-            total_size += allocation.size;
-        }
-    }
-
-    // Create main categories with proper layout like task example
-    let mut children = Vec::new();
-    
-    // Collections (should be largest - 60% area)
-    if let Some(&collections_size) = category_sizes.get("Collections") {
-        let collections_node = create_collections_treemap(allocations, collections_size, &area);
-        children.push(collections_node);
-    }
-    
-    // Strings (25% area)
-    if let Some(&strings_size) = category_sizes.get("Strings") {
-        let strings_node = TreemapNode {
-            name: "Strings".to_string(),
-            size: strings_size,
-            category: "Strings".to_string(),
-            sub_category: "".to_string(),
-            children: Vec::new(),
-            x: area.x,
-            y: area.y + area.height * 0.6,
-            width: area.width,
-            height: area.height * 0.25,
-            color: "#27ae60".to_string(),
-        };
-        children.push(strings_node);
-    }
-    
-    // Smart Pointers (15% area)
-    if let Some(&smart_ptr_size) = category_sizes.get("Smart Pointers") {
-        let smart_ptr_node = TreemapNode {
-            name: "Smart Pointers".to_string(),
-            size: smart_ptr_size,
-            category: "Smart Pointers".to_string(),
-            sub_category: "".to_string(),
-            children: Vec::new(),
-            x: area.x,
-            y: area.y + area.height * 0.85,
-            width: area.width,
-            height: area.height * 0.15,
-            color: "#e74c3c".to_string(),
-        };
-        children.push(smart_ptr_node);
-    }
-
-    TreemapNode {
-        name: "Root".to_string(),
-        size: total_size,
-        category: "Root".to_string(),
-        sub_category: "".to_string(),
-        children,
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: area.height,
-        color: "#f8f9fa".to_string(),
-    }
-}
-
-/// Create Collections treemap section with sub-categories
-fn create_collections_treemap(allocations: &[AllocationInfo], total_size: usize, area: &TreemapArea) -> TreemapNode {
-    let mut sub_categories = HashMap::new();
-    
-    for allocation in allocations {
-        if let Some(type_name) = &allocation.type_name {
-            let hierarchy = crate::utils::get_type_category_hierarchy(type_name);
-            if hierarchy.major_category == "Collections" {
-                *sub_categories.entry(hierarchy.sub_category).or_insert(0) += allocation.size;
-            }
-        }
-    }
-    
-    let mut children = Vec::new();
-    let collections_area = TreemapArea {
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: area.height * 0.6, // 60% of total area
-    };
-    
-    // HashMap (35% of Collections)
-    if let Some(&maps_size) = sub_categories.get("Maps") {
-        children.push(TreemapNode {
-            name: "HashMap<K,V>".to_string(),
-            size: maps_size,
-            category: "Collections".to_string(),
-            sub_category: "Maps".to_string(),
-            children: Vec::new(),
-            x: collections_area.x,
-            y: collections_area.y,
-            width: collections_area.width * 0.6,
-            height: collections_area.height,
-            color: "#2980b9".to_string(),
-        });
-    }
-    
-    // Vec<T> (25% of Collections)
-    if let Some(&sequences_size) = sub_categories.get("Sequences") {
-        children.push(TreemapNode {
-            name: "Vec<T>".to_string(),
-            size: sequences_size,
-            category: "Collections".to_string(),
-            sub_category: "Sequences".to_string(),
-            children: Vec::new(),
-            x: collections_area.x + collections_area.width * 0.6,
-            y: collections_area.y,
-            width: collections_area.width * 0.4,
-            height: collections_area.height * 0.625,
-            color: "#3498db".to_string(),
-        });
-        
-        // BTreeSet<T> (10% of Collections)
-        if let Some(&sets_size) = sub_categories.get("Sets") {
-            children.push(TreemapNode {
-                name: "BTreeSet<T>".to_string(),
-                size: sets_size,
-                category: "Collections".to_string(),
-                sub_category: "Sets".to_string(),
-                children: Vec::new(),
-                x: collections_area.x + collections_area.width * 0.6,
-                y: collections_area.y + collections_area.height * 0.625,
-                width: collections_area.width * 0.4,
-                height: collections_area.height * 0.375,
-                color: "#1abc9c".to_string(),
-            });
-        }
-    }
-    
-    TreemapNode {
-        name: "Collections".to_string(),
-        size: total_size,
-        category: "Collections".to_string(),
-        sub_category: "".to_string(),
-        children,
-        x: collections_area.x,
-        y: collections_area.y,
-        width: collections_area.width,
-        height: collections_area.height,
-        color: "#3498db".to_string(),
-    }
-}
-
-/// Render treemap matching task layout
-fn render_task_treemap(mut document: Document, node: &TreemapNode) -> TrackingResult<Document> {
-    // Render main rectangles
-    if !node.children.is_empty() {
-        for child in &node.children {
-            // Draw rectangle
-            let rect = Rectangle::new()
-                .set("x", child.x)
-                .set("y", child.y)
-                .set("width", child.width)
-                .set("height", child.height)
-                .set("fill", child.color.as_str())
-                .set("class", "treemap-rect")
-                .set("rx", 8);
-            document = document.add(rect);
-            
-            // Add labels for major categories
-            if child.width > 100.0 && child.height > 60.0 {
-                let label_x = child.x + child.width / 2.0;
-                let label_y = child.y + child.height / 2.0;
-                
-                // Category name
-                let label = SvgText::new(&child.name)
-                    .set("x", label_x)
-                    .set("y", label_y - 15.0)
-                    .set("class", "treemap-label")
-                    .set("font-size", 20);
-                document = document.add(label);
-                
-                // Percentage
-                let percentage = match child.name.as_str() {
-                    "Collections" => "60%",
-                    "Strings" => "25%", 
-                    "Smart Pointers" => "15%",
-                    _ => "",
-                };
-                
-                if !percentage.is_empty() {
-                    let perc_label = SvgText::new(percentage)
-                        .set("x", label_x)
-                        .set("y", label_y + 10.0)
-                        .set("class", "treemap-percentage")
-                        .set("font-size", 18);
-                    document = document.add(perc_label);
-                }
-            }
-            
-            // Render sub-categories for Collections
-            if child.name == "Collections" {
-                for sub_child in &child.children {
-                    let sub_rect = Rectangle::new()
-                        .set("x", sub_child.x)
-                        .set("y", sub_child.y)
-                        .set("width", sub_child.width)
-                        .set("height", sub_child.height)
-                        .set("fill", sub_child.color.as_str())
-                        .set("class", "treemap-rect")
-                        .set("stroke", "#ffffff")
-                        .set("stroke-width", 2)
-                        .set("rx", 4);
-                    document = document.add(sub_rect);
-                    
-                    // Sub-category labels
-                    if sub_child.width > 80.0 && sub_child.height > 40.0 {
-                        let sub_label_x = sub_child.x + sub_child.width / 2.0;
-                        let sub_label_y = sub_child.y + sub_child.height / 2.0;
-                        
-                        let sub_label = SvgText::new(&sub_child.name)
-                            .set("x", sub_label_x)
-                            .set("y", sub_label_y)
-                            .set("class", "treemap-label")
-                            .set("font-size", 14);
-                        document = document.add(sub_label);
-                        
-                        // Sub-category percentage
-                        let sub_percentage = match sub_child.name.as_str() {
-                            "HashMap<K,V>" => "(35%)",
-                            "Vec<T>" => "(25%)",
-                            "BTreeSet<T>" => "(10%)",
-                            _ => "",
-                        };
-                        
-                        if !sub_percentage.is_empty() {
-                            let sub_perc_label = SvgText::new(sub_percentage)
-                                .set("x", sub_label_x)
-                                .set("y", sub_label_y + 18.0)
-                                .set("class", "treemap-percentage")
-                                .set("font-size", 12);
-                            document = document.add(sub_perc_label);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    Ok(document)
-}
-
-/// Add enhanced legend for treemap
-fn add_task_treemap_legend(mut document: Document, width: i32, height: i32) -> TrackingResult<Document> {
-    let legend_y = height as f64 - 120.0;
-    
-    // Legend background
-    let legend_bg = Rectangle::new()
-        .set("x", 40.0)
-        .set("y", legend_y - 20.0)
-        .set("width", width as f64 - 80.0)
-        .set("height", 100.0)
-        .set("fill", "rgba(255,255,255,0.95)")
-        .set("stroke", "#dee2e6")
-        .set("stroke-width", 2)
-        .set("rx", 12);
-    document = document.add(legend_bg);
-    
-    // Legend title
-    let legend_title = SvgText::new("Memory Type Hierarchy - Based on Real Allocation Data")
-        .set("x", 60.0)
-        .set("y", legend_y)
-        .set("fill", "#2c3e50")
-        .set("font-size", 16)
-        .set("font-weight", "bold");
-    document = document.add(legend_title);
-    
-    // Legend items
-    let items = [
-        ("Collections (60%)", "#3498db", "HashMap, Vec, HashSet, BTreeMap - Primary data structures"),
-        ("Strings (25%)", "#27ae60", "String, &str - Text data and string literals"),
-        ("Smart Pointers (15%)", "#e74c3c", "Box, Rc, Arc - Memory management pointers"),
-    ];
-    
-    let mut y_offset = legend_y + 25.0;
-    for (name, color, desc) in items.iter() {
-        // Color indicator
-        let color_rect = Rectangle::new()
-            .set("x", 60.0)
-            .set("y", y_offset - 8.0)
-            .set("width", 16)
-            .set("height", 16)
-            .set("fill", *color)
-            .set("stroke", "#2c3e50")
-            .set("stroke-width", 1)
-            .set("rx", 3);
-        document = document.add(color_rect);
-        
-        // Category name and description
-        let cat_text = SvgText::new(format!("{} - {}", name, desc))
-            .set("x", 85.0)
-            .set("y", y_offset)
-            .set("fill", "#2c3e50")
-            .set("font-size", 12);
-        document = document.add(cat_text);
-        
-        y_offset += 20.0;
-    }
-    
-    Ok(document)
-}
-
-#[derive(Debug, Clone)]
-struct TreemapArea {
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-}
-

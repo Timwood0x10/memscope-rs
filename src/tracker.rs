@@ -119,7 +119,11 @@ impl MemoryTracker {
                 if let Some(allocation) = active.get_mut(&ptr) {
                     allocation.var_name = Some(var_name.clone());
                     allocation.type_name = Some(type_name.clone());
-                    tracing::debug!("Associated variable '{}' with existing allocation at {:x}", var_name, ptr);
+                    tracing::debug!(
+                        "Associated variable '{}' with existing allocation at {:x}",
+                        var_name,
+                        ptr
+                    );
                     Ok(())
                 } else {
                     // For smart pointers and other complex types, create a synthetic allocation entry
@@ -127,11 +131,11 @@ impl MemoryTracker {
                     let mut synthetic_allocation = AllocationInfo::new(ptr, 0); // Size will be estimated
                     synthetic_allocation.var_name = Some(var_name.clone());
                     synthetic_allocation.type_name = Some(type_name.clone());
-                    
+
                     // Estimate size based on type
                     let estimated_size = estimate_type_size(&type_name);
                     synthetic_allocation.size = estimated_size;
-                    
+
                     // Add to active allocations for tracking
                     active.insert(ptr, synthetic_allocation);
                     tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
@@ -142,7 +146,7 @@ impl MemoryTracker {
             Err(_) => {
                 // If we can't get the lock immediately, it's likely the allocator is busy
                 // We'll just skip the association to avoid deadlock
-                tracing::warn!("Failed to associate variable '{}' - tracker busy", var_name);
+                // tracing::warn!("Failed to associate variable '{}' - tracker busy", var_name);
                 Ok(())
             }
         }
@@ -236,8 +240,10 @@ impl MemoryTracker {
         let stats = self.get_stats()?;
 
         // Build hierarchical structure using enhanced type information
-        let enhanced_types = crate::export_enhanced::enhance_type_information(&memory_by_type, &active_allocations);
-        let hierarchical_data = build_hierarchical_json_structure(&enhanced_types, &active_allocations, &stats);
+        let enhanced_types =
+            crate::export_enhanced::enhance_type_information(&memory_by_type, &active_allocations);
+        let hierarchical_data =
+            build_hierarchical_json_structure(&enhanced_types, &active_allocations, &stats);
 
         let file = File::create(path)?;
         serde_json::to_writer_pretty(file, &hierarchical_data).map_err(|e| {
@@ -327,10 +333,13 @@ fn build_hierarchical_json_structure(
     stats: &MemoryStats,
 ) -> serde_json::Value {
     use std::collections::HashMap;
-    
+
     // Group enhanced types by category and subcategory
-    let mut categories: HashMap<String, HashMap<String, Vec<&crate::export_enhanced::EnhancedTypeInfo>>> = HashMap::new();
-    
+    let mut categories: HashMap<
+        String,
+        HashMap<String, Vec<&crate::export_enhanced::EnhancedTypeInfo>>,
+    > = HashMap::new();
+
     for enhanced_type in enhanced_types {
         categories
             .entry(enhanced_type.category.clone())
@@ -339,26 +348,27 @@ fn build_hierarchical_json_structure(
             .or_insert_with(Vec::new)
             .push(enhanced_type);
     }
-    
+
     // Build hierarchical structure
     let mut category_data = serde_json::Map::new();
     let total_memory: usize = enhanced_types.iter().map(|t| t.total_size).sum();
-    
+
     for (category_name, subcategories) in categories {
-        let category_total: usize = subcategories.values()
+        let category_total: usize = subcategories
+            .values()
             .flat_map(|types| types.iter())
             .map(|t| t.total_size)
             .sum();
-        
+
         let category_percentage = if total_memory > 0 {
             (category_total as f64 / total_memory as f64) * 100.0
         } else {
             0.0
         };
-        
+
         let mut subcategory_data = serde_json::Map::new();
         let subcategory_count = subcategories.len();
-        
+
         for (subcategory_name, types) in subcategories {
             let subcategory_total: usize = types.iter().map(|t| t.total_size).sum();
             let subcategory_percentage = if category_total > 0 {
@@ -366,7 +376,7 @@ fn build_hierarchical_json_structure(
             } else {
                 0.0
             };
-            
+
             let mut type_details = Vec::new();
             let type_count = types.len();
             for type_info in &types {
@@ -375,7 +385,7 @@ fn build_hierarchical_json_structure(
                 } else {
                     0.0
                 };
-                
+
                 // Find allocations for this specific type
                 let type_allocations: Vec<_> = active_allocations
                     .iter()
@@ -389,14 +399,16 @@ fn build_hierarchical_json_structure(
                             false
                         }
                     })
-                    .map(|alloc| serde_json::json!({
-                        "variable_name": alloc.var_name,
-                        "size_bytes": alloc.size,
-                        "allocation_time": alloc.timestamp_alloc,
-                        "type_name": alloc.type_name
-                    }))
+                    .map(|alloc| {
+                        serde_json::json!({
+                            "variable_name": alloc.var_name,
+                            "size_bytes": alloc.size,
+                            "allocation_time": alloc.timestamp_alloc,
+                            "type_name": alloc.type_name
+                        })
+                    })
                     .collect();
-                
+
                 type_details.push(serde_json::json!({
                     "type_name": type_info.simplified_name,
                     "size_bytes": type_info.total_size,
@@ -407,7 +419,7 @@ fn build_hierarchical_json_structure(
                     "allocations": type_allocations
                 }));
             }
-            
+
             subcategory_data.insert(subcategory_name, serde_json::json!({
                 "summary": {
                     "total_size_bytes": subcategory_total,
@@ -418,17 +430,20 @@ fn build_hierarchical_json_structure(
                 "types": type_details
             }));
         }
-        
-        category_data.insert(category_name, serde_json::json!({
-            "summary": {
-                "total_size_bytes": category_total,
-                "percentage_of_total": format!("{:.1}%", category_percentage),
-                "subcategory_count": subcategory_count
-            },
-            "subcategories": subcategory_data
-        }));
+
+        category_data.insert(
+            category_name,
+            serde_json::json!({
+                "summary": {
+                    "total_size_bytes": category_total,
+                    "percentage_of_total": format!("{:.1}%", category_percentage),
+                    "subcategory_count": subcategory_count
+                },
+                "subcategories": subcategory_data
+            }),
+        );
     }
-    
+
     serde_json::json!({
         "metadata": {
             "timestamp": chrono::Utc::now(),

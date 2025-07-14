@@ -17,10 +17,10 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
     if type_name.is_empty() || type_name == "Unknown" {
         return ("Unknown Type".to_string(), "Unknown".to_string());
     }
-    
+
     // Clean up the type name - remove extra whitespace and normalize
     let clean_type = type_name.trim();
-    
+
     // Enhanced pattern matching with more comprehensive coverage
     if clean_type.contains("Vec<") || clean_type.contains("vec::Vec") {
         let inner = extract_generic_type(clean_type, "Vec");
@@ -72,13 +72,21 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         ("OsString".to_string(), "Basic Types".to_string())
     } else if clean_type.contains("PathBuf") || clean_type.contains("Path") {
         ("PathBuf".to_string(), "Basic Types".to_string())
-    } else if clean_type.matches("i32").count() > 0 || clean_type.matches("u32").count() > 0 || 
-              clean_type.matches("i64").count() > 0 || clean_type.matches("u64").count() > 0 || 
-              clean_type.matches("f64").count() > 0 || clean_type.matches("f32").count() > 0 ||
-              clean_type.matches("i8").count() > 0 || clean_type.matches("u8").count() > 0 ||
-              clean_type.matches("i16").count() > 0 || clean_type.matches("u16").count() > 0 ||
-              clean_type.matches("isize").count() > 0 || clean_type.matches("usize").count() > 0 ||
-              clean_type.matches("bool").count() > 0 || clean_type.matches("char").count() > 0 {
+    } else if clean_type.matches("i32").count() > 0
+        || clean_type.matches("u32").count() > 0
+        || clean_type.matches("i64").count() > 0
+        || clean_type.matches("u64").count() > 0
+        || clean_type.matches("f64").count() > 0
+        || clean_type.matches("f32").count() > 0
+        || clean_type.matches("i8").count() > 0
+        || clean_type.matches("u8").count() > 0
+        || clean_type.matches("i16").count() > 0
+        || clean_type.matches("u16").count() > 0
+        || clean_type.matches("isize").count() > 0
+        || clean_type.matches("usize").count() > 0
+        || clean_type.matches("bool").count() > 0
+        || clean_type.matches("char").count() > 0
+    {
         let primitive = clean_type.split("::").last().unwrap_or(clean_type);
         (primitive.to_string(), "Basic Types".to_string())
     } else if clean_type.contains("[") && clean_type.contains("]") {
@@ -92,10 +100,16 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
     } else if clean_type.contains("Mutex<") || clean_type.contains("RwLock<") {
         ("Mutex/RwLock".to_string(), "Synchronization".to_string())
     } else if clean_type.contains("Cell<") || clean_type.contains("RefCell<") {
-        ("Cell/RefCell".to_string(), "Interior Mutability".to_string())
+        (
+            "Cell/RefCell".to_string(),
+            "Interior Mutability".to_string(),
+        )
     } else if clean_type.contains("Weak<") {
         ("Weak<T>".to_string(), "Smart Pointers".to_string())
-    } else if clean_type.starts_with("std::") || clean_type.starts_with("alloc::") || clean_type.starts_with("core::") {
+    } else if clean_type.starts_with("std::")
+        || clean_type.starts_with("alloc::")
+        || clean_type.starts_with("core::")
+    {
         let simplified = clean_type.split("::").last().unwrap_or(clean_type);
         (simplified.to_string(), "Standard Library".to_string())
     } else if clean_type.contains("::") {
@@ -165,28 +179,28 @@ pub fn get_simple_type(type_name: &str) -> String {
 /// Get color for category - Enhanced with new categories
 pub fn get_category_color(category: &str) -> String {
     match category {
-        "Collections" => "#3498db".to_string(),        // Blue
-        "Basic Types" => "#27ae60".to_string(),        // Green for Basic Types
-        "Strings" => "#27ae60".to_string(),            // Green (legacy support)
-        "Text" => "#27ae60".to_string(),               // Green (legacy support)
-        "Smart Pointers" => "#e74c3c".to_string(),     // Red
-        "Reference Counted" => "#f39c12".to_string(),  // Orange
-        "Thread-Safe Shared" => "#9b59b6".to_string(), // Purple
-        "Primitives" => "#1abc9c".to_string(),         // Teal
-        "Arrays" => "#34495e".to_string(),             // Dark Gray
-        "Tuples" => "#16a085".to_string(),             // Dark Teal
-        "Optionals" => "#8e44ad".to_string(),          // Dark Purple
-        "Results" => "#d35400".to_string(),            // Dark Orange
-        "Standard Library" => "#2980b9".to_string(),   // Dark Blue
-        "Custom Types" => "#c0392b".to_string(),       // Dark Red
-        "Synchronization" => "#e67e22".to_string(),    // Orange
-        "Interior Mutability" => "#95a5a6".to_string(), // Light Gray
-        "Error Types" => "#e74c3c".to_string(),        // Red
-        "Configuration" => "#3498db".to_string(),      // Blue
-        "Builders" => "#9b59b6".to_string(),           // Purple
+        "Collections" => "#3498db".to_string(),               // Blue
+        "Basic Types" => "#27ae60".to_string(),               // Green for Basic Types
+        "Strings" => "#27ae60".to_string(),                   // Green (legacy support)
+        "Text" => "#27ae60".to_string(),                      // Green (legacy support)
+        "Smart Pointers" => "#e74c3c".to_string(),            // Red
+        "Reference Counted" => "#f39c12".to_string(),         // Orange
+        "Thread-Safe Shared" => "#9b59b6".to_string(),        // Purple
+        "Primitives" => "#1abc9c".to_string(),                // Teal
+        "Arrays" => "#34495e".to_string(),                    // Dark Gray
+        "Tuples" => "#16a085".to_string(),                    // Dark Teal
+        "Optionals" => "#8e44ad".to_string(),                 // Dark Purple
+        "Results" => "#d35400".to_string(),                   // Dark Orange
+        "Standard Library" => "#2980b9".to_string(),          // Dark Blue
+        "Custom Types" => "#c0392b".to_string(),              // Dark Red
+        "Synchronization" => "#e67e22".to_string(),           // Orange
+        "Interior Mutability" => "#95a5a6".to_string(),       // Light Gray
+        "Error Types" => "#e74c3c".to_string(),               // Red
+        "Configuration" => "#3498db".to_string(),             // Blue
+        "Builders" => "#9b59b6".to_string(),                  // Purple
         "Runtime/System Allocation" => "#bdc3c7".to_string(), // Light Gray for system allocations
-        "Unknown" => "#bdc3c7".to_string(),            // Light Gray (legacy support)
-        _ => "#7f8c8d".to_string(),                    // Medium Gray for other unknowns
+        "Unknown" => "#bdc3c7".to_string(),                   // Light Gray (legacy support)
+        _ => "#7f8c8d".to_string(),                           // Medium Gray for other unknowns
     }
 }
 
@@ -219,10 +233,14 @@ pub fn get_type_color(type_name: &str) -> &'static str {
 /// Enhanced type hierarchy classification for treemap visualization
 #[derive(Debug, Clone)]
 pub struct TypeHierarchy {
-    pub major_category: String,    // Major category: Collections, Strings, Smart Pointers, etc.
-    pub sub_category: String,      // Sub category: Maps, Sequences, Owned, Shared, etc.
-    pub specific_type: String,     // Specific type: HashMap, Vec, Box, etc.
-    pub full_type: String,         // Full type name: HashMap<String, i32>
+    /// Major category: Collections, Strings, Smart Pointers, etc.
+    pub major_category: String,
+    /// Sub category: Maps, Sequences, Owned, Shared, etc.
+    pub sub_category: String,
+    /// Specific type: HashMap, Vec, Box, etc.
+    pub specific_type: String,
+    /// Full type name: HashMap<String, i32>
+    pub full_type: String,
 }
 
 /// Get comprehensive type hierarchy for treemap visualization
@@ -244,7 +262,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Collections".to_string(),
             sub_category: "Maps".to_string(),
             specific_type: "HashMap".to_string(),
-            full_type: if inner.is_empty() { "HashMap".to_string() } else { format!("HashMap<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "HashMap".to_string()
+            } else {
+                format!("HashMap<{}>", inner)
+            },
         }
     } else if type_name.contains("BTreeMap") || type_name.contains("btree::map") {
         let inner = extract_generic_params(type_name, "BTreeMap");
@@ -252,7 +274,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Collections".to_string(),
             sub_category: "Maps".to_string(),
             specific_type: "BTreeMap".to_string(),
-            full_type: if inner.is_empty() { "BTreeMap".to_string() } else { format!("BTreeMap<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "BTreeMap".to_string()
+            } else {
+                format!("BTreeMap<{}>", inner)
+            },
         }
     } else if type_name.contains("HashSet") || type_name.contains("hash::set") {
         let inner = extract_generic_params(type_name, "HashSet");
@@ -260,7 +286,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Collections".to_string(),
             sub_category: "Sets".to_string(),
             specific_type: "HashSet".to_string(),
-            full_type: if inner.is_empty() { "HashSet".to_string() } else { format!("HashSet<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "HashSet".to_string()
+            } else {
+                format!("HashSet<{}>", inner)
+            },
         }
     } else if type_name.contains("Vec") && !type_name.contains("VecDeque") {
         let inner = extract_generic_params(type_name, "Vec");
@@ -268,7 +298,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Collections".to_string(),
             sub_category: "Sequences".to_string(),
             specific_type: "Vec".to_string(),
-            full_type: if inner.is_empty() { "Vec".to_string() } else { format!("Vec<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "Vec".to_string()
+            } else {
+                format!("Vec<{}>", inner)
+            },
         }
     } else if type_name.contains("VecDeque") {
         let inner = extract_generic_params(type_name, "VecDeque");
@@ -276,7 +310,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Collections".to_string(),
             sub_category: "Sequences".to_string(),
             specific_type: "VecDeque".to_string(),
-            full_type: if inner.is_empty() { "VecDeque".to_string() } else { format!("VecDeque<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "VecDeque".to_string()
+            } else {
+                format!("VecDeque<{}>", inner)
+            },
         }
     }
     // Strings
@@ -302,7 +340,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Smart Pointers".to_string(),
             sub_category: "Owned".to_string(),
             specific_type: "Box".to_string(),
-            full_type: if inner.is_empty() { "Box".to_string() } else { format!("Box<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "Box".to_string()
+            } else {
+                format!("Box<{}>", inner)
+            },
         }
     } else if type_name.contains("Rc<") {
         let inner = extract_generic_params(type_name, "Rc");
@@ -310,7 +352,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Smart Pointers".to_string(),
             sub_category: "Reference Counted".to_string(),
             specific_type: "Rc".to_string(),
-            full_type: if inner.is_empty() { "Rc".to_string() } else { format!("Rc<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "Rc".to_string()
+            } else {
+                format!("Rc<{}>", inner)
+            },
         }
     } else if type_name.contains("Arc<") {
         let inner = extract_generic_params(type_name, "Arc");
@@ -318,7 +364,11 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             major_category: "Smart Pointers".to_string(),
             sub_category: "Thread-Safe Shared".to_string(),
             specific_type: "Arc".to_string(),
-            full_type: if inner.is_empty() { "Arc".to_string() } else { format!("Arc<{}>", inner) },
+            full_type: if inner.is_empty() {
+                "Arc".to_string()
+            } else {
+                format!("Arc<{}>", inner)
+            },
         }
     }
     // Primitives
@@ -371,7 +421,7 @@ fn find_matching_bracket(s: &str, start: usize) -> Option<usize> {
     if start >= chars.len() || chars[start] != '<' {
         return None;
     }
-    
+
     let mut depth = 1;
     for i in (start + 1)..chars.len() {
         match chars[i] {
@@ -391,10 +441,23 @@ fn find_matching_bracket(s: &str, start: usize) -> Option<usize> {
 /// Check if a type is a primitive type
 pub fn is_primitive_type(type_name: &str) -> bool {
     let clean_type = type_name.split("::").last().unwrap_or(type_name);
-    matches!(clean_type, 
-        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
-        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
-        "f32" | "f64" | "bool" | "char"
+    matches!(
+        clean_type,
+        "i8" | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "f32"
+            | "f64"
+            | "bool"
+            | "char"
     )
 }
 
