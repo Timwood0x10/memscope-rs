@@ -175,10 +175,10 @@
                 <div class="data-source-selector">
                     <select id="dataSource">
                         <option value="sample">Sample Data</option>
-                        <option value="upload">Upload JSON</option>
+                        <option value="upload">Upload JSON File</option>
+                        <option value="lifecycle_snapshot.json">lifecycle_snapshot.json</option>
+                        <option value="images/lifecycle_snapshot.json">images/lifecycle_snapshot.json</option>
                         <option value="json">Auto-detect JSON</option>
-                        <option value="unsafe_ffi_memory_snapshot.json">Unsafe/FFI Analysis</option>
-                        <option value="complex_lifecycle_snapshot.json">Complex Lifecycle</option>
                     </select>
                 </div>
             </div>
@@ -198,6 +198,47 @@
                 </div>
                 
                 <!-- Key Performance Metrics -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="totalMemory">0 Bytes</div>
+                        <div class="metric-label">Total Memory</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="activeAllocations">0</div>
+                        <div class="metric-label">Active Allocations</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="peakMemory">0 Bytes</div>
+                        <div class="metric-label">Peak Memory</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="memoryLeaks">0</div>
+                        <div class="metric-label">Memory Leaks</div>
+                    </div>
+                </div>
+                
+                <!-- Memory Analysis Charts -->
+                <div class="memory-analysis-container">
+                    <div class="chart-container">
+                        <div class="chart-title">Memory Allocation Distribution</div>
+                        <canvas id="allocationChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">Memory Usage Timeline</div>
+                        <canvas id="memoryUsageChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="memory-analysis-container">
+                    <div class="chart-container">
+                        <div class="chart-title">Allocation Sources</div>
+                        <canvas id="allocationSourceChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">Memory Hierarchy</div>
+                        <div id="memoryHierarchy"></div>
+                    </div>
+                </div>
                 <div class="kpi-section">
                     <h2 class="section-title">KEY PERFORMANCE METRICS</h2>
                     <div class="kpi-grid">
@@ -606,6 +647,10 @@
 
             <!-- Export Tools Tab -->
             <div id="export-tools" class="tab-content">
+                <div class="tab-header">
+                    <h2>Export Tools</h2>
+                    <p>Export analysis results in various formats</p>
+                </div>
                 <div class="chart-container">
                     <div class="chart-title">📤 Export tools</div>
                     
