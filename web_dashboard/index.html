@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -159,23 +159,24 @@
                 
                 <nav class="nav-tabs">
                     <button class="nav-tab active" data-tab="memory-analysis">
-                        📊 内存分析
+                        📊 Memory Analysis
                     </button>
                     <button class="nav-tab" data-tab="lifecycle-timeline">
-                        ⏱️ 生命周期
+                        ⏱️ Lifecycle
                     </button>
                     <button class="nav-tab" data-tab="unsafe-ffi">
                         ⚠️ Unsafe & FFI
                     </button>
                     <button class="nav-tab" data-tab="export-tools">
-                        📤 导出工具
+                        📤 Export Tools
                     </button>
                 </nav>
                 
                 <div class="data-source-selector">
                     <select id="dataSource">
-                        <option value="sample">示例数据</option>
-                        <option value="upload">上传JSON</option>
+                        <option value="sample">Sample Data</option>
+                        <option value="upload">Upload JSON</option>
+                        <option value="json">Load JSON File</option>
                     </select>
                 </div>
             </div>
@@ -187,45 +188,45 @@
             <div id="memory-analysis" class="tab-content active">
                 <div class="export-controls">
                     <button class="export-btn" onclick="exportMemoryAnalysisSVG()">
-                        📊 导出内存分析SVG
+                        📊 Export Memory Analysis SVG
                     </button>
                     <button class="export-btn" onclick="refreshData()">
-                        🔄 刷新数据
+                        🔄 Refresh Data
                     </button>
                 </div>
                 
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-value" id="activeMemory">-</div>
-                        <div class="metric-label">活跃内存</div>
+                        <div class="metric-label">Active Memory</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-value" id="peakMemory">-</div>
-                        <div class="metric-label">峰值内存</div>
+                        <div class="metric-label">Peak Memory</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-value" id="activeAllocations">-</div>
-                        <div class="metric-label">活跃分配</div>
+                        <div class="metric-label">Active Allocations</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-value" id="memoryEfficiency">-</div>
-                        <div class="metric-label">内存效率</div>
+                        <div class="metric-label">Memory Efficiency</div>
                     </div>
                 </div>
                 
                 <div class="memory-analysis-container">
                     <div class="chart-container">
-                        <div class="chart-title">📈 内存使用趋势</div>
+                        <div class="chart-title">📈 Memory Usage Trend</div>
                         <canvas id="memoryTrendChart"></canvas>
                     </div>
                     <div class="chart-container">
-                        <div class="chart-title">🎯 类型分布</div>
+                        <div class="chart-title">🎯 Type Distribution</div>
                         <canvas id="typeDistributionChart"></canvas>
                     </div>
                 </div>
                 
                 <div class="chart-container">
-                    <div class="chart-title">🗺️ 内存热力图</div>
+                    <div class="chart-title">🗺️ Memory Heatmap</div>
                     <div id="memoryHeatmap" style="height: 300px;"></div>
                 </div>
             </div>
@@ -234,25 +235,25 @@
             <div id="lifecycle-timeline" class="tab-content">
                 <div class="export-controls">
                     <button class="export-btn" onclick="exportLifecycleTimelineSVG()">
-                        ⏱️ 导出生命周期SVG
+                        ⏱️ Export Lifecycle SVG
                     </button>
                     <button class="export-btn" onclick="refreshLifecycleData()">
-                        🔄 刷新数据
+                        🔄 Refresh Data
                     </button>
                 </div>
                 
                 <div class="chart-container">
-                    <div class="chart-title">⏱️ 变量生命周期时间线</div>
+                    <div class="chart-title">⏱️ Variable Lifecycle Timeline</div>
                     <div class="lifecycle-timeline" id="lifecycleVisualization"></div>
                 </div>
                 
                 <div class="memory-analysis-container">
                     <div class="chart-container">
-                        <div class="chart-title">📊 作用域分析</div>
+                        <div class="chart-title">📊 Scope Analysis</div>
                         <canvas id="scopeAnalysisChart"></canvas>
                     </div>
                     <div class="chart-container">
-                        <div class="chart-title">🔗 变量关系图</div>
+                        <div class="chart-title">🔗 Variable Relationships</div>
                         <div id="variableRelationships" style="height: 300px;"></div>
                     </div>
                 </div>
@@ -262,84 +263,89 @@
             <div id="unsafe-ffi" class="tab-content">
                 <div class="export-controls">
                     <button class="export-btn" onclick="exportUnsafeFFIReport()">
-                        ⚠️ 导出安全报告
+                        ⚠️ Export Unsafe/FFI Report
                     </button>
-                    <button class="export-btn" onclick="refreshUnsafeData()">
-                        🔄 刷新数据
+                    <button class="export-btn" onclick="refreshUnsafeFFIData()">
+                        🔄 Refresh Data
                     </button>
                 </div>
                 
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-value" id="unsafeAllocations">-</div>
-                        <div class="metric-label">Unsafe 分配</div>
+                        <div class="metric-label">Unsafe allocations</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-value" id="ffiAllocations">-</div>
-                        <div class="metric-label">FFI 分配</div>
+                        <div class="metric-label">FFI allocations</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-value" id="safetyViolations">-</div>
-                        <div class="metric-label">安全违规</div>
+                        <div class="metric-label">Safety violations</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-value" id="boundaryCrossings">-</div>
-                        <div class="metric-label">边界跨越</div>
+                        <div class="metric-label">Boundary crossings</div>
                     </div>
                 </div>
                 
                 <div class="memory-analysis-container">
                     <div class="chart-container">
-                        <div class="chart-title">⚠️ 安全违规详情</div>
-                        <div id="safetyViolationsList"></div>
+                        <div class="chart-title">🔍 Allocation Sources</div>
+                        <canvas id="allocationSourceChart"></canvas>
                     </div>
                     <div class="chart-container">
-                        <div class="chart-title">🔄 跨语言内存流</div>
-                        <div id="crossLanguageFlow" style="height: 300px;"></div>
+                        <div class="chart-title">⚠️ Safety Violations</div>
+                        <div id="violationsList" class="violations-list"></div>
                     </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title">📋 Recent Allocations</div>
+                    <div id="allocationsList" class="allocations-list"></div>
                 </div>
             </div>
 
             <!-- Export Tools Tab -->
             <div id="export-tools" class="tab-content">
                 <div class="chart-container">
-                    <div class="chart-title">📤 导出工具</div>
+                    <div class="chart-title">📤 Export tools</div>
                     
                     <div style="margin-bottom: 2rem;">
-                        <h3 style="color: #ffffff; margin-bottom: 1rem;">SVG 导出选项</h3>
+                        <h3 style="color: #ffffff; margin-bottom: 1rem;">SVG Export Options</h3>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
                             <button class="export-btn" onclick="exportMemoryAnalysisSVG()">
-                                📊 内存分析 SVG
+                                📊 Memory analysis SVG
                             </button>
                             <button class="export-btn" onclick="exportLifecycleTimelineSVG()">
-                                ⏱️ 生命周期时间线 SVG
+                                ⏱️ Lifecycle timeline SVG
                             </button>
                             <button class="export-btn" onclick="exportUnsafeFFIReport()">
-                                ⚠️ Unsafe & FFI 报告 SVG
+                                ⚠️ Unsafe & FFI report SVG
                             </button>
                             <button class="export-btn" onclick="exportAllReports()">
-                                📦 导出所有报告
+                                📦 Export all reports
                             </button>
                         </div>
                     </div>
                     
                     <div style="margin-bottom: 2rem;">
-                        <h3 style="color: #ffffff; margin-bottom: 1rem;">数据导出选项</h3>
+                        <h3 style="color: #ffffff; margin-bottom: 1rem;">Data Export Options</h3>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
                             <button class="export-btn" onclick="exportJSON()">
-                                📄 导出 JSON 数据
+                                📄 Export JSON data
                             </button>
                             <button class="export-btn" onclick="exportCSV()">
-                                📊 导出 CSV 数据
+                                📊 Export CSV data  
                             </button>
                         </div>
                     </div>
                     
                     <div>
-                        <h3 style="color: #ffffff; margin-bottom: 1rem;">SVG 预览</h3>
+                        <h3 style="color: #ffffff; margin-bottom: 1rem;">SVG Preview</h3>
                         <div class="svg-preview" id="svgPreview">
                             <div style="padding: 2rem; text-align: center; color: #666;">
-                                选择一个导出选项来预览 SVG
+                                Select an export option to preview SVG
                             </div>
                         </div>
                     </div>

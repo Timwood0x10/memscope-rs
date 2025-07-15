@@ -241,9 +241,8 @@ impl MemoryTracker {
         let allocation_history = self.get_allocation_history()?;
 
         // Get unsafe/FFI data if available
-        let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_tracker()
-            .map(|tracker| tracker.get_stats())
-            .unwrap_or_default();
+        let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
+            .get_stats();
 
         // Build unified dashboard structure
         let dashboard_data = build_unified_dashboard_structure(

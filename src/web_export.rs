@@ -199,7 +199,7 @@ pub struct SecurityAlert {
     pub recommended_actions: Vec<String>,
 }
 
-/// Export comprehensive web dashboard data
+/// Export comprehensive web dashboard data in unified format
 pub fn export_web_dashboard_data<P: AsRef<Path>>(
     tracker: &MemoryTracker,
     unsafe_ffi_tracker: &UnsafeFFITracker,
@@ -214,28 +214,25 @@ pub fn export_web_dashboard_data<P: AsRef<Path>>(
         }
     }
 
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-
     // Gather all data
     let memory_stats = tracker.get_stats()?;
+    let active_allocations = tracker.get_active_allocations()?;
+    let allocation_history = tracker.get_allocation_history()?;
+    let memory_by_type = tracker.get_memory_by_type()?;
     let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
     let safety_violations = unsafe_ffi_tracker.get_safety_violations()?;
 
-    // Build dashboard data
-    let dashboard_data = WebDashboardData {
-        timestamp,
-        memory_stats: memory_stats.clone(),
-        metrics: build_dashboard_metrics(&memory_stats, &enhanced_allocations, &safety_violations),
-        allocations: convert_allocations(&enhanced_allocations),
-        violations: convert_violations(&safety_violations),
-        boundary_events: extract_boundary_events(&enhanced_allocations),
-        call_stack_dna: build_dna_segments(&enhanced_allocations),
-        radar_data: build_radar_data(&enhanced_allocations),
-        passport_data: build_passport_data(&enhanced_allocations, &safety_violations),
-    };
+    // Get unsafe/FFI stats
+    let unsafe_stats = unsafe_ffi_tracker.get_stats();
+
+    // Build unified dashboard structure compatible with all frontend interfaces
+    let dashboard_data = build_unified_web_dashboard_structure(
+        &active_allocations,
+        &allocation_history,
+        &memory_by_type,
+        &memory_stats,
+        &unsafe_stats,
+    );
 
     // Write to file
     let json_data = serde_json::to_string_pretty(&dashboard_data)
@@ -679,6 +676,302 @@ fn get_affected_memory(violation: &SafetyViolation) -> Vec<usize> {
         SafetyViolation::PotentialLeak { .. } => vec![], // Could extract from allocation info
         SafetyViolation::CrossBoundaryRisk { .. } => vec![],
     }
+}
+
+/// Build unified dashboard structure compatible with all frontend interfaces
+fn build_unified_web_dashboard_structure(
+    active_allocations: &[crate::types::AllocationInfo],
+    allocation_history: &[crate::types::AllocationInfo],
+    memory_by_type: &[crate::types::TypeMemoryUsage],
+    stats: &crate::types::MemoryStats,
+    unsafe_stats: &crate::unsafe_ffi_tracker::UnsafeFFIStats,
+) -> serde_json::Value {
+    use std::collections::HashMap;
+
+    // Calculate performance metrics
+    let total_runtime_ms = allocation_history
+        .iter()
+        .map(|a| a.timestamp_alloc)
+        .max()
+        .unwrap_or(0)
+        .saturating_sub(
+            allocation_history
+                .iter()
+                .map(|a| a.timestamp_alloc)
+                .min()
+                .unwrap_or(0)
+        ) / 1_000_000; // Convert nanoseconds to milliseconds
+
+    let allocation_rate = if total_runtime_ms > 0 {
+        (stats.total_allocations as f64 * 1000.0) / total_runtime_ms as f64
+    } else {
+        0.0
+    };
+
+    let deallocation_rate = if total_runtime_ms > 0 {
+        (stats.total_deallocations as f64 * 1000.0) / total_runtime_ms as f64
+    } else {
+        0.0
+    };
+
+    // Calculate memory efficiency (active memory / peak memory)
+    let memory_efficiency = if stats.peak_memory > 0 {
+        (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
+    } else {
+        100.0
+    };
+
+    // Calculate fragmentation ratio (simplified)
+    let fragmentation_ratio = if stats.total_allocated > 0 {
+        1.0 - (stats.active_memory as f64 / stats.total_allocated as f64)
+    } else {
+        0.0
+    };
+
+    // Prepare allocation details for frontend
+    let allocation_details: Vec<_> = active_allocations
+        .iter()
+        .take(100) // Limit to avoid huge JSON files
+        .map(|alloc| {
+            serde_json::json!({
+                "size": alloc.size,
+                "type": alloc.type_name.as_deref().unwrap_or("unknown"),
+                "variable": alloc.var_name.as_deref().unwrap_or("unknown"),
+                "timestamp": alloc.timestamp_alloc
+            })
+        })
+        .collect();
+
+    // Prepare unsafe operations for frontend
+    let unsafe_operations: Vec<_> = unsafe_stats.operations
+        .iter()
+        .take(50) // Limit to avoid huge JSON files
+        .map(|op| {
+            serde_json::json!({
+                "type": format!("{:?}", op.operation_type),
+                "location": op.location,
+                "risk_level": format!("{:?}", op.risk_level),
+                "timestamp": op.timestamp,
+                "description": op.description
+            })
+        })
+        .collect();
+
+    // Calculate lifecycle statistics
+    let mut lifetimes: Vec<u128> = allocation_history
+        .iter()
+        .filter_map(|alloc| {
+            if let Some(dealloc_time) = alloc.timestamp_dealloc {
+                if dealloc_time > 0 {
+                    Some(dealloc_time.saturating_sub(alloc.timestamp_alloc))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    lifetimes.sort_unstable();
+    let average_lifetime_ms = if !lifetimes.is_empty() {
+        lifetimes.iter().sum::<u128>() / lifetimes.len() as u128 / 1_000_000
+    } else {
+        0
+    };
+
+    // Categorize objects by lifetime
+    let short_lived = lifetimes.iter().filter(|&&lt| lt < 1_000_000_000).count(); // < 1 second
+    let medium_lived = lifetimes.iter().filter(|&&lt| lt >= 1_000_000_000 && lt < 10_000_000_000).count(); // 1-10 seconds
+    let long_lived = lifetimes.iter().filter(|&&lt| lt >= 10_000_000_000).count(); // > 10 seconds
+
+    // Build hierarchical memory structure for backward compatibility
+    let enhanced_types = crate::export_enhanced::enhance_type_information(memory_by_type, active_allocations);
+    let memory_hierarchy = build_legacy_hierarchy(&enhanced_types, active_allocations, stats);
+
+    // Build the unified dashboard structure
+    serde_json::json!({
+        "memory_stats": {
+            "total_allocations": stats.total_allocations,
+            "total_size_bytes": stats.total_allocated,
+            "peak_memory_usage": stats.peak_memory,
+            "current_memory_usage": stats.active_memory,
+            "allocation_rate": allocation_rate,
+            "deallocation_rate": deallocation_rate,
+            "memory_efficiency": memory_efficiency,
+            "fragmentation_ratio": fragmentation_ratio,
+            "allocations": allocation_details
+        },
+        "unsafe_stats": {
+            "total_operations": unsafe_stats.total_operations,
+            "unsafe_blocks": unsafe_stats.unsafe_blocks,
+            "ffi_calls": unsafe_stats.ffi_calls,
+            "raw_pointer_operations": unsafe_stats.raw_pointer_operations,
+            "memory_violations": unsafe_stats.memory_violations,
+            "risk_score": unsafe_stats.risk_score,
+            "operations": unsafe_operations
+        },
+        "performance_metrics": {
+            "allocation_time_avg_ns": if stats.total_allocations > 0 { 
+                total_runtime_ms * 1_000_000 / stats.total_allocations as u128 
+            } else { 
+                0 
+            },
+            "allocation_time_max_ns": total_runtime_ms * 1_000_000, // Simplified
+            "memory_throughput_mb_s": if total_runtime_ms > 0 {
+                (stats.total_allocated as f64 / 1_048_576.0) / (total_runtime_ms as f64 / 1000.0)
+            } else {
+                0.0
+            },
+            "gc_pressure": fragmentation_ratio
+        },
+        "lifecycle_stats": {
+            "short_lived_objects": short_lived,
+            "medium_lived_objects": medium_lived,
+            "long_lived_objects": long_lived,
+            "average_lifetime_ms": average_lifetime_ms,
+            "memory_leaks_detected": stats.active_allocations.saturating_sub(
+                allocation_history.iter().filter(|a| a.timestamp_dealloc.is_some()).count()
+            )
+        },
+        "metadata": {
+            "generated_at": chrono::Utc::now().to_rfc3339(),
+            "version": "2.0",
+            "source": "memscope-rs unified web dashboard export",
+            "total_runtime_ms": total_runtime_ms,
+            "format_description": "Unified dashboard format compatible with all frontend interfaces"
+        },
+        // Keep legacy hierarchy for backward compatibility
+        "memory_hierarchy": memory_hierarchy,
+        // Summary for legacy compatibility
+        "summary": {
+            "total_memory_bytes": stats.total_allocated,
+            "total_allocations": stats.total_allocations,
+            "active_allocations": stats.active_allocations,
+            "active_memory_bytes": stats.active_memory,
+            "peak_memory_bytes": stats.peak_memory
+        }
+    })
+}
+
+/// Build legacy hierarchical structure for backward compatibility
+fn build_legacy_hierarchy(
+    enhanced_types: &[crate::export_enhanced::EnhancedTypeInfo],
+    active_allocations: &[crate::types::AllocationInfo],
+    stats: &crate::types::MemoryStats,
+) -> serde_json::Value {
+    use std::collections::HashMap;
+
+    // Group enhanced types by category and subcategory
+    let mut categories: HashMap<
+        String,
+        HashMap<String, Vec<&crate::export_enhanced::EnhancedTypeInfo>>,
+    > = HashMap::new();
+
+    for enhanced_type in enhanced_types {
+        categories
+            .entry(enhanced_type.category.clone())
+            .or_insert_with(HashMap::new)
+            .entry(enhanced_type.subcategory.clone())
+            .or_insert_with(Vec::new)
+            .push(enhanced_type);
+    }
+
+    // Build hierarchical structure
+    let mut category_data = serde_json::Map::new();
+    let total_memory: usize = enhanced_types.iter().map(|t| t.total_size).sum();
+
+    for (category_name, subcategories) in categories {
+        let category_total: usize = subcategories
+            .values()
+            .flat_map(|types| types.iter())
+            .map(|t| t.total_size)
+            .sum();
+
+        let category_percentage = if total_memory > 0 {
+            (category_total as f64 / total_memory as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let mut subcategory_data = serde_json::Map::new();
+        let subcategory_count = subcategories.len();
+
+        for (subcategory_name, types) in subcategories {
+            let subcategory_total: usize = types.iter().map(|t| t.total_size).sum();
+            let subcategory_percentage = if category_total > 0 {
+                (subcategory_total as f64 / category_total as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            let mut type_details = Vec::new();
+            let type_count = types.len();
+            for type_info in &types {
+                let type_percentage = if subcategory_total > 0 {
+                    (type_info.total_size as f64 / subcategory_total as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                // Find allocations for this specific type
+                let type_allocations: Vec<_> = active_allocations
+                    .iter()
+                    .filter(|alloc| {
+                        if let Some(type_name) = &alloc.type_name {
+                            alloc.var_name.as_ref().map_or(false, |var_name| {
+                                type_info.variable_names.contains(var_name)
+                            }) || type_name.contains(&type_info.simplified_name)
+                        } else {
+                            false
+                        }
+                    })
+                    .map(|alloc| {
+                        serde_json::json!({
+                            "variable_name": alloc.var_name,
+                            "size_bytes": alloc.size,
+                            "allocation_time": alloc.timestamp_alloc,
+                            "type_name": alloc.type_name
+                        })
+                    })
+                    .collect();
+
+                type_details.push(serde_json::json!({
+                    "type_name": type_info.simplified_name,
+                    "size_bytes": type_info.total_size,
+                    "allocation_count": type_info.allocation_count,
+                    "percentage_of_subcategory": format!("{:.1}%", type_percentage),
+                    "percentage_of_total": format!("{:.1}%", (type_info.total_size as f64 / total_memory as f64) * 100.0),
+                    "variable_names": type_info.variable_names,
+                    "allocations": type_allocations
+                }));
+            }
+
+            subcategory_data.insert(subcategory_name, serde_json::json!({
+                "summary": {
+                    "total_size_bytes": subcategory_total,
+                    "percentage_of_category": format!("{:.1}%", subcategory_percentage),
+                    "percentage_of_total": format!("{:.1}%", (subcategory_total as f64 / total_memory as f64) * 100.0),
+                    "type_count": type_count
+                },
+                "types": type_details
+            }));
+        }
+
+        category_data.insert(
+            category_name,
+            serde_json::json!({
+                "summary": {
+                    "total_size_bytes": category_total,
+                    "percentage_of_total": format!("{:.1}%", category_percentage),
+                    "subcategory_count": subcategory_count
+                },
+                "subcategories": subcategory_data
+            }),
+        );
+    }
+
+    serde_json::Value::Object(category_data)
 }
 
 fn get_violation_call_stack(violation: &SafetyViolation) -> Vec<WebStackFrame> {

@@ -16,6 +16,7 @@ pub mod unsafe_ffi_visualization;
 pub mod utils;
 pub mod visualization;
 pub mod web_export;
+pub mod web_server;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
