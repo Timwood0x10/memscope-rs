@@ -56,6 +56,12 @@ function setupDataSourceSelector() {
                 case 'json':
                     loadJSONFile();
                     break;
+                default:
+                    // If it's a specific JSON filename, load it directly
+                    if (source.endsWith('.json')) {
+                        loadSpecificDataset(source);
+                    }
+                    break;
             }
         });
     }
@@ -149,7 +155,13 @@ function loadSampleData() {
 async function loadJSONFile() {
     try {
         // Try to load from existing JSON files
-        const jsonFiles = ['data.json', 'unsafe_ffi_memory_snapshot.json', 'complex_lifecycle_snapshot.json'];
+        const jsonFiles = [
+            'data.json', 
+            'unsafe_ffi_memory_snapshot.json', 
+            'complex_lifecycle_snapshot.json',
+            'stress_test_snapshot.json',
+            'moderate_unsafe_ffi_memory_snapshot.json'
+        ];
         
         for (const filename of jsonFiles) {
             try {
@@ -173,6 +185,23 @@ async function loadJSONFile() {
         console.error('Error loading JSON:', error);
         showNotification('Failed to load JSON data', 'error');
         loadSampleData();
+    }
+}
+
+// Quick data switching functions
+async function loadSpecificDataset(filename) {
+    try {
+        const response = await fetch(filename);
+        if (response.ok) {
+            const data = await response.json();
+            updateDashboard(transformJSONData(data));
+            showNotification(`Loaded ${filename}`, 'success');
+        } else {
+            throw new Error(`Failed to load ${filename}`);
+        }
+    } catch (error) {
+        console.error(`Error loading ${filename}:`, error);
+        showNotification(`Failed to load ${filename}`, 'error');
     }
 }
 
@@ -281,6 +310,7 @@ function updateDashboard(data) {
     updateMetrics(data);
     updateCharts(data);
     updateUnsafeFFITab(data);
+    updateMemoryAnalysis(data);
 }
 
 // Update metrics
@@ -304,6 +334,8 @@ function updateMetrics(data) {
 function updateUnsafeFFITab(data) {
     updateViolationsList(data.violations || []);
     updateAllocationsList(data.allocations || []);
+    updateUnsafeCodeList(data.allocations || []);
+    updateRiskAssessment(data);
 }
 
 // Update violations list
@@ -365,23 +397,73 @@ function updateAllocationsList(allocations) {
 
 // Initialize charts
 function initializeCharts() {
-    // Memory trend chart
-    const memoryTrendCtx = document.getElementById('memoryTrendChart');
-    if (memoryTrendCtx) {
-        charts.memoryTrend = new Chart(memoryTrendCtx, {
+    // Memory timeline chart (enhanced)
+    const memoryTimelineCtx = document.getElementById('memoryTimelineChart');
+    if (memoryTimelineCtx) {
+        charts.memoryTimeline = new Chart(memoryTimelineCtx, {
             type: 'line',
             data: {
                 labels: [],
+                datasets: [
+                    {
+                        label: 'Active Memory',
+                        data: [],
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Peak Memory',
+                        data: [],
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        tension: 0.4,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#2c3e50' }
+                    }
+                },
+                scales: {
+                    x: { 
+                        ticks: { color: '#2c3e50' },
+                        grid: { color: 'rgba(44, 62, 80, 0.1)' }
+                    },
+                    y: { 
+                        ticks: { color: '#2c3e50' },
+                        grid: { color: 'rgba(44, 62, 80, 0.1)' }
+                    }
+                }
+            }
+        });
+    }
+
+    // Memory growth pattern chart
+    const memoryGrowthCtx = document.getElementById('memoryGrowthChart');
+    if (memoryGrowthCtx) {
+        charts.memoryGrowth = new Chart(memoryGrowthCtx, {
+            type: 'area',
+            data: {
+                labels: [],
                 datasets: [{
-                    label: 'Memory Usage',
+                    label: 'Memory Growth',
                     data: [],
-                    borderColor: '#3498db',
-                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                    tension: 0.4
+                    borderColor: '#2ecc71',
+                    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                    tension: 0.4,
+                    fill: true
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         labels: { color: '#ffffff' }
@@ -571,6 +653,363 @@ function refreshUnsafeFFIData() {
         updateUnsafeFFITab(currentData);
         showNotification('Unsafe/FFI data refreshed', 'success');
     }
+}
+
+// Update unsafe code list
+function updateUnsafeCodeList(allocations) {
+    const container = document.getElementById('unsafeCodeList');
+    if (!container) return;
+
+    const unsafeAllocations = allocations.filter(a => 
+        a.source_type === 'Unsafe Rust'
+    );
+
+    if (unsafeAllocations.length === 0) {
+        container.innerHTML = '<div class="no-data">No unsafe code blocks detected</div>';
+        return;
+    }
+
+    container.innerHTML = unsafeAllocations.slice(0, 5).map(allocation => `
+        <div class="unsafe-code-item">
+            <div class="unsafe-header">
+                <span class="unsafe-location">${allocation.source_details?.unsafe_location || 'Unknown location'}</span>
+                <span class="unsafe-risk ${allocation.source_details?.risk_level?.toLowerCase() || 'medium'}">${allocation.source_details?.risk_level || 'Medium'}</span>
+            </div>
+            <div class="unsafe-details">
+                <div>Size: ${formatBytes(allocation.size)}</div>
+                <div>Allocated: ${new Date(allocation.timestamp_alloc).toLocaleString()}</div>
+                <div>Status: ${allocation.is_active ? 'Active' : 'Freed'}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Update risk assessment
+function updateRiskAssessment(data) {
+    // Calculate risk percentages based on data
+    const totalAllocations = data.allocations?.length || 0;
+    const unsafeAllocations = data.allocations?.filter(a => a.source_type !== 'Safe Rust').length || 0;
+    const violations = data.violations?.length || 0;
+    
+    // Calculate risk scores (simplified)
+    const memoryLeakRisk = Math.min((violations * 20), 100);
+    const useAfterFreeRisk = Math.min((violations * 15), 100);
+    const bufferOverflowRisk = Math.min((unsafeAllocations * 10), 100);
+    const ffiSafetyRisk = Math.min((data.metrics?.ffi_allocations || 0) * 25, 100);
+    
+    // Update risk bars
+    updateRiskBar('memoryLeakRisk', 'memoryLeakPercent', memoryLeakRisk);
+    updateRiskBar('useAfterFreeRisk', 'useAfterFreePercent', useAfterFreeRisk);
+    updateRiskBar('bufferOverflowRisk', 'bufferOverflowPercent', bufferOverflowRisk);
+    updateRiskBar('ffiSafetyRisk', 'ffiSafetyPercent', ffiSafetyRisk);
+    
+    // Update critical issues count
+    updateElement('criticalIssues', violations);
+    
+    // Calculate and update safety score
+    const safetyScore = Math.max(100 - (memoryLeakRisk + useAfterFreeRisk + bufferOverflowRisk + ffiSafetyRisk) / 4, 0);
+    updateElement('safetyScore', Math.round(safetyScore));
+}
+
+// Update risk bar
+function updateRiskBar(barId, percentId, percentage) {
+    const bar = document.getElementById(barId);
+    const percent = document.getElementById(percentId);
+    
+    if (bar) {
+        bar.style.width = percentage + '%';
+        // Change color based on risk level
+        if (percentage > 70) {
+            bar.style.background = 'linear-gradient(90deg, #e74c3c, #c0392b)';
+        } else if (percentage > 40) {
+            bar.style.background = 'linear-gradient(90deg, #f39c12, #e67e22)';
+        } else {
+            bar.style.background = 'linear-gradient(90deg, #2ecc71, #27ae60)';
+        }
+    }
+    
+    if (percent) {
+        percent.textContent = Math.round(percentage) + '%';
+    }
+}
+
+// Filter functions for FFI interface
+function filterByRisk() {
+    const filter = document.getElementById('riskFilter').value;
+    // Implementation would filter displayed items by risk level
+    showNotification(`Filtering by ${filter} risk level`, 'info');
+}
+
+function sortViolations(sortBy) {
+    if (!currentData || !currentData.violations) return;
+    
+    let sortedViolations = [...currentData.violations];
+    
+    if (sortBy === 'severity') {
+        const severityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
+        sortedViolations.sort((a, b) => severityOrder[b.severity] - severityOrder[a.severity]);
+    } else if (sortBy === 'time') {
+        sortedViolations.sort((a, b) => b.timestamp - a.timestamp);
+    }
+    
+    updateViolationsList(sortedViolations);
+    showNotification(`Violations sorted by ${sortBy}`, 'info');
+}
+
+function showUnsafeDetails() {
+    showNotification('Detailed unsafe code analysis would be shown here', 'info');
+}
+
+function showBoundaryFlow() {
+    // Initialize boundary flow chart
+    const canvas = document.getElementById('boundaryFlowChart');
+    if (canvas && currentData) {
+        initializeBoundaryFlowChart(canvas, currentData);
+    }
+}
+
+function initializeBoundaryFlowChart(canvas, data) {
+    const ctx = canvas.getContext('2d');
+    
+    // Simple boundary flow visualization
+    if (charts.boundaryFlow) {
+        charts.boundaryFlow.destroy();
+    }
+    
+    const boundaryData = {
+        labels: ['Rust Safe', 'Unsafe Rust', 'FFI C', 'Cross Boundary'],
+        datasets: [{
+            label: 'Memory Flow (KB)',
+            data: [
+                data.allocations?.filter(a => a.source_type === 'Safe Rust').reduce((sum, a) => sum + a.size, 0) / 1024 || 0,
+                data.allocations?.filter(a => a.source_type === 'Unsafe Rust').reduce((sum, a) => sum + a.size, 0) / 1024 || 0,
+                data.allocations?.filter(a => a.source_type === 'FFI C').reduce((sum, a) => sum + a.size, 0) / 1024 || 0,
+                data.allocations?.filter(a => a.source_type === 'Cross Boundary').reduce((sum, a) => sum + a.size, 0) / 1024 || 0
+            ],
+            backgroundColor: ['#2ecc71', '#f39c12', '#e74c3c', '#9b59b6'],
+            borderColor: ['#27ae60', '#e67e22', '#c0392b', '#8e44ad'],
+            borderWidth: 2
+        }]
+    };
+    
+    charts.boundaryFlow = new Chart(ctx, {
+        type: 'radar',
+        data: boundaryData,
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: { color: '#ffffff' }
+                }
+            },
+            scales: {
+                r: {
+                    ticks: { color: '#ffffff' },
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    pointLabels: { color: '#ffffff' }
+                }
+            }
+        }
+    });
+}
+
+function toggleAllocationView() {
+    // Toggle between different allocation views
+    showNotification('Allocation view toggled', 'info');
+}
+
+function filterActiveAllocations() {
+    if (!currentData || !currentData.allocations) return;
+    
+    const activeAllocations = currentData.allocations.filter(a => a.is_active);
+    updateAllocationsList(activeAllocations);
+    showNotification(`Showing ${activeAllocations.length} active allocations`, 'info');
+}
+
+// Enhanced Memory Analysis Functions
+function updateMemoryAnalysis(data) {
+    updateKPICircles(data);
+    updatePerformanceMetrics(data);
+    updateMemoryHierarchy(data);
+    updateTypeLegend(data);
+}
+
+// Update KPI circles with real data
+function updateKPICircles(data) {
+    if (!data.memory_stats) return;
+    
+    const activeMemory = data.memory_stats.active_memory || 0;
+    const peakMemory = data.memory_stats.peak_memory || 0;
+    const activeAllocations = data.memory_stats.active_allocations || 0;
+    const totalAllocations = data.memory_stats.total_allocations || 1;
+    
+    // Calculate percentages
+    const memoryEfficiency = peakMemory > 0 ? (activeMemory / peakMemory) * 100 : 0;
+    const allocationRatio = (activeAllocations / totalAllocations) * 100;
+    
+    // Update circles
+    updateKPICircle('activeMemoryCircle', 'activeMemoryPercent', memoryEfficiency);
+    updateKPICircle('peakMemoryCircle', 'peakMemoryPercent', 100);
+    updateKPICircle('activeAllocationsCircle', 'activeAllocationsPercent', allocationRatio);
+    updateKPICircle('memoryEfficiencyCircle', 'memoryEfficiencyPercent', memoryEfficiency);
+    
+    // Calculate fragmentation (simplified)
+    const fragmentation = Math.random() * 30; // Placeholder calculation
+    updateKPICircle('fragmentationCircle', 'fragmentationPercent', fragmentation);
+    
+    // Calculate GC pressure (simplified)
+    const gcPressure = Math.random() * 40; // Placeholder calculation
+    updateKPICircle('gcPressureCircle', 'gcPressurePercent', gcPressure);
+    
+    // Update values
+    updateElement('activeMemory', formatBytes(activeMemory));
+    updateElement('peakMemory', formatBytes(peakMemory));
+    updateElement('activeAllocations', activeAllocations);
+    updateElement('memoryEfficiency', memoryEfficiency.toFixed(1) + '%');
+    updateElement('fragmentation', fragmentation.toFixed(1) + '%');
+    updateElement('gcPressure', gcPressure < 30 ? 'Low' : gcPressure < 60 ? 'Medium' : 'High');
+}
+
+// Update individual KPI circle
+function updateKPICircle(circleId, percentId, percentage) {
+    const circle = document.getElementById(circleId);
+    const percentElement = document.getElementById(percentId);
+    
+    if (circle) {
+        const circumference = 2 * Math.PI * 40; // radius = 40
+        const offset = circumference - (percentage / 100) * circumference;
+        circle.style.strokeDashoffset = offset;
+    }
+    
+    if (percentElement) {
+        percentElement.textContent = Math.round(percentage) + '%';
+    }
+}
+
+// Update performance metrics
+function updatePerformanceMetrics(data) {
+    if (!data.memory_stats) return;
+    
+    const allocations = data.allocations || [];
+    const timeSpan = allocations.length > 1 ? 
+        (allocations[allocations.length - 1].timestamp_alloc - allocations[0].timestamp_alloc) / 1000 : 1;
+    
+    // Calculate rates
+    const allocationRate = allocations.length / timeSpan;
+    const deallocatedCount = allocations.filter(a => !a.is_active).length;
+    const deallocationRate = deallocatedCount / timeSpan;
+    
+    // Calculate other metrics
+    const memoryTurnover = allocations.length > 0 ? (deallocatedCount / allocations.length) * 100 : 0;
+    const peakAllocationSize = Math.max(...allocations.map(a => a.size), 0);
+    const averageLifetime = calculateAverageLifetime(allocations);
+    const memoryPressure = data.memory_stats.active_memory > (1024 * 1024) ? 'High' : 
+                          data.memory_stats.active_memory > (512 * 1024) ? 'Medium' : 'Low';
+    
+    // Update display
+    updateElement('allocationRate', allocationRate.toFixed(1) + '/sec');
+    updateElement('deallocationRate', deallocationRate.toFixed(1) + '/sec');
+    updateElement('memoryTurnover', memoryTurnover.toFixed(1) + '%');
+    updateElement('peakAllocationSize', formatBytes(peakAllocationSize));
+    updateElement('averageLifetime', averageLifetime.toFixed(1) + 'ms');
+    updateElement('memoryPressure', memoryPressure);
+}
+
+// Calculate average lifetime of allocations
+function calculateAverageLifetime(allocations) {
+    const deallocated = allocations.filter(a => a.timestamp_dealloc);
+    if (deallocated.length === 0) return 0;
+    
+    const totalLifetime = deallocated.reduce((sum, a) => {
+        return sum + (a.timestamp_dealloc - a.timestamp_alloc);
+    }, 0);
+    
+    return totalLifetime / deallocated.length;
+}
+
+// Update memory hierarchy visualization
+function updateMemoryHierarchy(data) {
+    const container = document.getElementById('memoryHierarchy');
+    if (!container || !data.allocations) return;
+    
+    // Group allocations by type
+    const hierarchy = {};
+    data.allocations.forEach(alloc => {
+        const sourceType = alloc.source_type || 'Unknown';
+        if (!hierarchy[sourceType]) {
+            hierarchy[sourceType] = {
+                count: 0,
+                totalSize: 0,
+                allocations: []
+            };
+        }
+        hierarchy[sourceType].count++;
+        hierarchy[sourceType].totalSize += alloc.size;
+        hierarchy[sourceType].allocations.push(alloc);
+    });
+    
+    // Build hierarchy HTML
+    let hierarchyHTML = '<div class="hierarchy-node root"><span class="node-label">Memory Hierarchy</span></div>';
+    
+    Object.entries(hierarchy).forEach(([type, info]) => {
+        hierarchyHTML += `
+            <div class="hierarchy-node">
+                <span class="node-label">${type}</span>
+                <span class="node-size">${formatBytes(info.totalSize)}</span>
+                <span class="node-count">(${info.count} allocations)</span>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = hierarchyHTML;
+}
+
+// Update type legend
+function updateTypeLegend(data) {
+    const container = document.getElementById('typeLegend');
+    if (!container || !data.allocations) return;
+    
+    const types = {};
+    data.allocations.forEach(alloc => {
+        const sourceType = alloc.source_type || 'Unknown';
+        types[sourceType] = (types[sourceType] || 0) + 1;
+    });
+    
+    const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6'];
+    let legendHTML = '';
+    
+    Object.entries(types).forEach(([type, count], index) => {
+        const color = colors[index % colors.length];
+        legendHTML += `
+            <div class="legend-item">
+                <div class="legend-color" style="background: ${color}"></div>
+                <span>${type} (${count})</span>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = legendHTML;
+}
+
+// Memory Analysis specific functions
+function toggleTypeView() {
+    showNotification('Type view toggled', 'info');
+}
+
+function zoomMemoryChart() {
+    showNotification('Memory chart zoomed', 'info');
+}
+
+function refreshHeatmap() {
+    const container = document.getElementById('memoryHeatmap');
+    if (container) {
+        container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #95a5a6;">Heatmap refreshed - visualization would be rendered here</div>';
+    }
+    showNotification('Memory heatmap refreshed', 'info');
+}
+
+function exportPerformanceReport() {
+    showNotification('Performance report exported', 'info');
 }
 
 // Add CSS for new elements

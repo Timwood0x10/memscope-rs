@@ -952,3 +952,750 @@ input[type="range"]::-moz-range-thumb {
     cursor: pointer;
     border: none;
 }
+/* FFI Interface Styles */
+.ffi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(243, 156, 18, 0.1));
+    border-radius: 12px;
+    border: 1px solid rgba(231, 76, 60, 0.2);
+}
+
+.ffi-title h2 {
+    color: #ffffff;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.ffi-title p {
+    color: #bdc3c7;
+    margin: 0;
+    font-size: 1rem;
+}
+
+.ffi-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.control-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.control-btn.primary {
+    background: #3498db;
+    color: white;
+}
+
+.control-btn.primary:hover {
+    background: #2980b9;
+    transform: translateY(-2px);
+}
+
+.control-btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+/* Risk Overview Cards */
+.risk-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.risk-card {
+    display: flex;
+    align-items: center;
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.risk-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.risk-card.critical {
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.15), rgba(192, 57, 43, 0.15));
+    border-color: #e74c3c;
+}
+
+.risk-card.warning {
+    background: linear-gradient(135deg, rgba(243, 156, 18, 0.15), rgba(230, 126, 34, 0.15));
+    border-color: #f39c12;
+}
+
+.risk-card.info {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.15), rgba(41, 128, 185, 0.15));
+    border-color: #3498db;
+}
+
+.risk-card.success {
+    background: linear-gradient(135deg, rgba(46, 204, 113, 0.15), rgba(39, 174, 96, 0.15));
+    border-color: #2ecc71;
+}
+
+.risk-icon {
+    font-size: 2.5rem;
+    margin-right: 1rem;
+}
+
+.risk-content {
+    flex: 1;
+}
+
+.risk-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 0.25rem;
+}
+
+.risk-label {
+    font-size: 0.9rem;
+    color: #bdc3c7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Analysis Grid */
+.ffi-analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.analysis-panel {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-header h3 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.panel-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.panel-btn {
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.panel-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.panel-content {
+    padding: 1.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Violations Container */
+.violations-container {
+    space-y: 1rem;
+}
+
+.violation-item {
+    background: rgba(231, 76, 60, 0.1);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.violation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.violation-type {
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.violation-severity {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.violation-severity.high {
+    background: #e74c3c;
+    color: white;
+}
+
+.violation-severity.medium {
+    background: #f39c12;
+    color: white;
+}
+
+.violation-severity.low {
+    background: #2ecc71;
+    color: white;
+}
+
+.violation-description {
+    color: #ecf0f1;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.violation-location {
+    color: #95a5a6;
+    font-size: 0.9rem;
+    font-family: "Courier New", monospace;
+}
+
+.violation-timestamp {
+    color: #7f8c8d;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+.violation-fix {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background: rgba(52, 152, 219, 0.1);
+    border-left: 3px solid #3498db;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: #ecf0f1;
+}
+
+/* Allocations Container */
+.allocations-container {
+    space-y: 1rem;
+}
+
+.allocation-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.allocation-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.allocation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.allocation-source {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.allocation-source.unsafe-rust {
+    background: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+}
+
+.allocation-source.ffi-c {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
+.allocation-source.safe-rust {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.allocation-size {
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.allocation-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.allocation-status.active {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.allocation-status.freed {
+    background: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+}
+
+.allocation-details {
+    color: #bdc3c7;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.allocation-details div {
+    margin-bottom: 0.25rem;
+}
+
+/* Risk Summary */
+.risk-summary {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+}
+
+.summary-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.summary-card h3 {
+    color: #ffffff;
+    margin: 0 0 1.5rem 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.risk-breakdown {
+    space-y: 1rem;
+}
+
+.risk-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.risk-category {
+    min-width: 120px;
+    color: #ecf0f1;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.risk-bar {
+    flex: 1;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.risk-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #e74c3c, #f39c12);
+    border-radius: 4px;
+    transition: width 0.8s ease;
+}
+
+.risk-percentage {
+    min-width: 40px;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-align: right;
+}
+
+.source-chart-container {
+    height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* No Data State */
+.no-data {
+    text-align: center;
+    color: #95a5a6;
+    padding: 2rem;
+    font-style: italic;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+
+/* Memory Analysis Enhanced Styles */
+.section-title {
+    color: #7f8c8d;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-align: center;
+    margin: 2rem 0 1.5rem 0;
+    text-transform: uppercase;
+}
+
+/* KPI Section */
+.kpi-section {
+    margin-bottom: 3rem;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+}
+
+.kpi-circle-container {
+    margin-right: 1.5rem;
+}
+
+.kpi-circle {
+    width: 80px;
+    height: 80px;
+}
+
+.kpi-percentage {
+    fill: #2c3e50;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.kpi-info {
+    flex: 1;
+}
+
+.kpi-label {
+    color: #2c3e50;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.kpi-value {
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.kpi-status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+}
+
+.kpi-status::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.kpi-status.high {
+    color: #e74c3c;
+}
+
+.kpi-status.high::before {
+    background: #e74c3c;
+}
+
+.kpi-status.medium {
+    color: #f39c12;
+}
+
+.kpi-status.medium::before {
+    background: #f39c12;
+}
+
+.kpi-status.low {
+    color: #2ecc71;
+}
+
+.kpi-status.low::before {
+    background: #2ecc71;
+}
+
+/* Timeline Section */
+.timeline-section {
+    margin-bottom: 3rem;
+}
+
+.timeline-container {
+    background: white;
+    border: 1px solid #bdc3c7;
+    border-radius: 8px;
+    padding: 1.5rem;
+    height: 350px;
+}
+
+/* Analysis Grid */
+.analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.analysis-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-header h3 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.card-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.card-btn {
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.card-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.card-content {
+    padding: 1.5rem;
+    height: 300px;
+    overflow-y: auto;
+}
+
+.type-legend {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #ffffff;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.heatmap-container {
+    height: 250px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #95a5a6;
+    font-style: italic;
+}
+
+/* Performance Metrics */
+.performance-metrics {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+.perf-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.perf-label {
+    color: #bdc3c7;
+    font-size: 0.9rem;
+}
+
+.perf-value {
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+/* Hierarchy Section */
+.hierarchy-section {
+    margin-bottom: 3rem;
+}
+
+.hierarchy-container {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    min-height: 400px;
+}
+
+.hierarchy-tree {
+    color: #ffffff;
+    font-family: "Courier New", monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.hierarchy-node {
+    margin-left: 1rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    padding-left: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.hierarchy-node.root {
+    margin-left: 0;
+    border-left: none;
+    padding-left: 0;
+}
+
+.node-label {
+    color: #3498db;
+    font-weight: 600;
+}
+
+.node-size {
+    color: #f39c12;
+    margin-left: 1rem;
+}
+
+.node-count {
+    color: #95a5a6;
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+}
+
+/* Responsive Design for Memory Analysis */
+@media (max-width: 1200px) {
+    .analysis-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .kpi-grid {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .kpi-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .kpi-circle-container {
+        margin-right: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+}
+

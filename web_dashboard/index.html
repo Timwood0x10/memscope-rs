@@ -176,7 +176,11 @@
                     <select id="dataSource">
                         <option value="sample">Sample Data</option>
                         <option value="upload">Upload JSON</option>
-                        <option value="json">Load JSON File</option>
+                        <option value="json">Auto-detect JSON</option>
+                        <option value="unsafe_ffi_memory_snapshot.json">Unsafe/FFI Analysis</option>
+                        <option value="complex_lifecycle_snapshot.json">Complex Lifecycle</option>
+                        <option value="stress_test_snapshot.json">Memory Stress Test</option>
+                        <option value="moderate_unsafe_ffi_memory_snapshot.json">Moderate Unsafe/FFI</option>
                     </select>
                 </div>
             </div>
@@ -195,39 +199,211 @@
                     </button>
                 </div>
                 
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div class="metric-value" id="activeMemory">-</div>
-                        <div class="metric-label">Active Memory</div>
+                <!-- Key Performance Metrics -->
+                <div class="kpi-section">
+                    <h2 class="section-title">KEY PERFORMANCE METRICS</h2>
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-circle-container">
+                                <svg class="kpi-circle" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#ecf0f1" stroke-width="8"/>
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#3498db" stroke-width="8" 
+                                            stroke-dasharray="251.2" stroke-dashoffset="75" 
+                                            stroke-linecap="round" transform="rotate(-90 50 50)" 
+                                            id="activeMemoryCircle"/>
+                                    <text x="50" y="55" text-anchor="middle" class="kpi-percentage" id="activeMemoryPercent">71%</text>
+                                </svg>
+                            </div>
+                            <div class="kpi-info">
+                                <div class="kpi-label">Active Memory</div>
+                                <div class="kpi-value" id="activeMemory">401.8KB</div>
+                                <div class="kpi-status medium">MEDIUM</div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-circle-container">
+                                <svg class="kpi-circle" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#ecf0f1" stroke-width="8"/>
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#e74c3c" stroke-width="8" 
+                                            stroke-dasharray="251.2" stroke-dashoffset="0" 
+                                            stroke-linecap="round" transform="rotate(-90 50 50)" 
+                                            id="peakMemoryCircle"/>
+                                    <text x="50" y="55" text-anchor="middle" class="kpi-percentage" id="peakMemoryPercent">100%</text>
+                                </svg>
+                            </div>
+                            <div class="kpi-info">
+                                <div class="kpi-label">Peak Memory</div>
+                                <div class="kpi-value" id="peakMemory">565.7KB</div>
+                                <div class="kpi-status high">HIGH</div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-circle-container">
+                                <svg class="kpi-circle" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#ecf0f1" stroke-width="8"/>
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#2ecc71" stroke-width="8" 
+                                            stroke-dasharray="251.2" stroke-dashoffset="0" 
+                                            stroke-linecap="round" transform="rotate(-90 50 50)" 
+                                            id="activeAllocationsCircle"/>
+                                    <text x="50" y="55" text-anchor="middle" class="kpi-percentage" id="activeAllocationsPercent">100%</text>
+                                </svg>
+                            </div>
+                            <div class="kpi-info">
+                                <div class="kpi-label">Active Allocs</div>
+                                <div class="kpi-value" id="activeAllocations">3742</div>
+                                <div class="kpi-status low">LOW</div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-circle-container">
+                                <svg class="kpi-circle" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#ecf0f1" stroke-width="8"/>
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#9b59b6" stroke-width="8" 
+                                            stroke-dasharray="251.2" stroke-dashoffset="62.8" 
+                                            stroke-linecap="round" transform="rotate(-90 50 50)" 
+                                            id="memoryEfficiencyCircle"/>
+                                    <text x="50" y="55" text-anchor="middle" class="kpi-percentage" id="memoryEfficiencyPercent">75%</text>
+                                </svg>
+                            </div>
+                            <div class="kpi-info">
+                                <div class="kpi-label">Memory Efficiency</div>
+                                <div class="kpi-value" id="memoryEfficiency">85.2%</div>
+                                <div class="kpi-status medium">MEDIUM</div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-circle-container">
+                                <svg class="kpi-circle" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#ecf0f1" stroke-width="8"/>
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#f39c12" stroke-width="8" 
+                                            stroke-dasharray="251.2" stroke-dashoffset="125.6" 
+                                            stroke-linecap="round" transform="rotate(-90 50 50)" 
+                                            id="fragmentationCircle"/>
+                                    <text x="50" y="55" text-anchor="middle" class="kpi-percentage" id="fragmentationPercent">50%</text>
+                                </svg>
+                            </div>
+                            <div class="kpi-info">
+                                <div class="kpi-label">Fragmentation</div>
+                                <div class="kpi-value" id="fragmentation">12.3%</div>
+                                <div class="kpi-status low">LOW</div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-circle-container">
+                                <svg class="kpi-circle" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#ecf0f1" stroke-width="8"/>
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#1abc9c" stroke-width="8" 
+                                            stroke-dasharray="251.2" stroke-dashoffset="188.4" 
+                                            stroke-linecap="round" transform="rotate(-90 50 50)" 
+                                            id="gcPressureCircle"/>
+                                    <text x="50" y="55" text-anchor="middle" class="kpi-percentage" id="gcPressurePercent">25%</text>
+                                </svg>
+                            </div>
+                            <div class="kpi-info">
+                                <div class="kpi-label">GC Pressure</div>
+                                <div class="kpi-value" id="gcPressure">Low</div>
+                                <div class="kpi-status low">LOW</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="peakMemory">-</div>
-                        <div class="metric-label">Peak Memory</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="activeAllocations">-</div>
-                        <div class="metric-label">Active Allocations</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="memoryEfficiency">-</div>
-                        <div class="metric-label">Memory Efficiency</div>
+                </div>
+
+                <!-- Memory Timeline Chart -->
+                <div class="timeline-section">
+                    <h2 class="section-title">MEMORY USAGE TIMELINE</h2>
+                    <div class="timeline-container">
+                        <canvas id="memoryTimelineChart"></canvas>
                     </div>
                 </div>
                 
-                <div class="memory-analysis-container">
-                    <div class="chart-container">
-                        <div class="chart-title">📈 Memory Usage Trend</div>
-                        <canvas id="memoryTrendChart"></canvas>
+                <!-- Detailed Analysis Grid -->
+                <div class="analysis-grid">
+                    <div class="analysis-card">
+                        <div class="card-header">
+                            <h3>📊 Type Distribution Analysis</h3>
+                            <div class="card-controls">
+                                <button class="card-btn" onclick="toggleTypeView()">Toggle View</button>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <canvas id="typeDistributionChart"></canvas>
+                            <div class="type-legend" id="typeLegend"></div>
+                        </div>
                     </div>
-                    <div class="chart-container">
-                        <div class="chart-title">🎯 Type Distribution</div>
-                        <canvas id="typeDistributionChart"></canvas>
+
+                    <div class="analysis-card">
+                        <div class="card-header">
+                            <h3>📈 Memory Growth Pattern</h3>
+                            <div class="card-controls">
+                                <button class="card-btn" onclick="zoomMemoryChart()">Zoom</button>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <canvas id="memoryGrowthChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="analysis-card">
+                        <div class="card-header">
+                            <h3>🗺️ Memory Layout Heatmap</h3>
+                            <div class="card-controls">
+                                <button class="card-btn" onclick="refreshHeatmap()">Refresh</button>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div id="memoryHeatmap" class="heatmap-container"></div>
+                        </div>
+                    </div>
+
+                    <div class="analysis-card">
+                        <div class="card-header">
+                            <h3>⚡ Performance Metrics</h3>
+                            <div class="card-controls">
+                                <button class="card-btn" onclick="exportPerformanceReport()">Export</button>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="performance-metrics">
+                                <div class="perf-metric">
+                                    <span class="perf-label">Allocation Rate</span>
+                                    <span class="perf-value" id="allocationRate">1.2K/sec</span>
+                                </div>
+                                <div class="perf-metric">
+                                    <span class="perf-label">Deallocation Rate</span>
+                                    <span class="perf-value" id="deallocationRate">1.1K/sec</span>
+                                </div>
+                                <div class="perf-metric">
+                                    <span class="perf-label">Memory Turnover</span>
+                                    <span class="perf-value" id="memoryTurnover">92%</span>
+                                </div>
+                                <div class="perf-metric">
+                                    <span class="perf-label">Peak Allocation Size</span>
+                                    <span class="perf-value" id="peakAllocationSize">64KB</span>
+                                </div>
+                                <div class="perf-metric">
+                                    <span class="perf-label">Average Lifetime</span>
+                                    <span class="perf-value" id="averageLifetime">2.3ms</span>
+                                </div>
+                                <div class="perf-metric">
+                                    <span class="perf-label">Memory Pressure</span>
+                                    <span class="perf-value" id="memoryPressure">Low</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="chart-container">
-                    <div class="chart-title">🗺️ Memory Heatmap</div>
-                    <div id="memoryHeatmap" style="height: 300px;"></div>
+
+                <!-- Memory Hierarchy Breakdown -->
+                <div class="hierarchy-section">
+                    <h2 class="section-title">MEMORY HIERARCHY BREAKDOWN</h2>
+                    <div class="hierarchy-container">
+                        <div class="hierarchy-tree" id="memoryHierarchy"></div>
+                    </div>
                 </div>
             </div>
 
@@ -261,48 +437,163 @@
 
             <!-- Unsafe & FFI Tab -->
             <div id="unsafe-ffi" class="tab-content">
-                <div class="export-controls">
-                    <button class="export-btn" onclick="exportUnsafeFFIReport()">
-                        ⚠️ Export Unsafe/FFI Report
-                    </button>
-                    <button class="export-btn" onclick="refreshUnsafeFFIData()">
-                        🔄 Refresh Data
-                    </button>
-                </div>
-                
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div class="metric-value" id="unsafeAllocations">-</div>
-                        <div class="metric-label">Unsafe allocations</div>
+                <!-- Header Controls -->
+                <div class="ffi-header">
+                    <div class="ffi-title">
+                        <h2>⚠️ Unsafe & FFI Memory Analysis</h2>
+                        <p>Monitor unsafe Rust code and Foreign Function Interface interactions</p>
                     </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="ffiAllocations">-</div>
-                        <div class="metric-label">FFI allocations</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="safetyViolations">-</div>
-                        <div class="metric-label">Safety violations</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="boundaryCrossings">-</div>
-                        <div class="metric-label">Boundary crossings</div>
+                    <div class="ffi-controls">
+                        <button class="control-btn primary" onclick="refreshUnsafeFFIData()">
+                            🔄 Refresh
+                        </button>
+                        <button class="control-btn secondary" onclick="exportUnsafeFFIReport()">
+                            📊 Export Report
+                        </button>
+                        <div class="risk-filter">
+                            <select id="riskFilter" onchange="filterByRisk()">
+                                <option value="all">All Risk Levels</option>
+                                <option value="high">High Risk</option>
+                                <option value="medium">Medium Risk</option>
+                                <option value="low">Low Risk</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="memory-analysis-container">
-                    <div class="chart-container">
-                        <div class="chart-title">🔍 Allocation Sources</div>
-                        <canvas id="allocationSourceChart"></canvas>
+
+                <!-- Risk Overview Dashboard -->
+                <div class="risk-overview">
+                    <div class="risk-card critical">
+                        <div class="risk-icon">🚨</div>
+                        <div class="risk-content">
+                            <div class="risk-value" id="criticalIssues">0</div>
+                            <div class="risk-label">Critical Issues</div>
+                        </div>
                     </div>
-                    <div class="chart-container">
-                        <div class="chart-title">⚠️ Safety Violations</div>
-                        <div id="violationsList" class="violations-list"></div>
+                    <div class="risk-card warning">
+                        <div class="risk-icon">⚠️</div>
+                        <div class="risk-content">
+                            <div class="risk-value" id="unsafeAllocations">0</div>
+                            <div class="risk-label">Unsafe Allocations</div>
+                        </div>
+                    </div>
+                    <div class="risk-card info">
+                        <div class="risk-icon">🔗</div>
+                        <div class="risk-content">
+                            <div class="risk-value" id="ffiAllocations">0</div>
+                            <div class="risk-label">FFI Calls</div>
+                        </div>
+                    </div>
+                    <div class="risk-card success">
+                        <div class="risk-icon">🛡️</div>
+                        <div class="risk-content">
+                            <div class="risk-value" id="safetyScore">100</div>
+                            <div class="risk-label">Safety Score</div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="chart-container">
-                    <div class="chart-title">📋 Recent Allocations</div>
-                    <div id="allocationsList" class="allocations-list"></div>
+
+                <!-- Main Analysis Grid -->
+                <div class="ffi-analysis-grid">
+                    <!-- Memory Safety Violations -->
+                    <div class="analysis-panel violations-panel">
+                        <div class="panel-header">
+                            <h3>🚨 Memory Safety Violations</h3>
+                            <div class="panel-controls">
+                                <button class="panel-btn" onclick="sortViolations('severity')">Sort by Severity</button>
+                                <button class="panel-btn" onclick="sortViolations('time')">Sort by Time</button>
+                            </div>
+                        </div>
+                        <div class="panel-content">
+                            <div id="violationsList" class="violations-container"></div>
+                        </div>
+                    </div>
+
+                    <!-- Unsafe Code Analysis -->
+                    <div class="analysis-panel unsafe-panel">
+                        <div class="panel-header">
+                            <h3>⚠️ Unsafe Code Blocks</h3>
+                            <div class="panel-controls">
+                                <button class="panel-btn" onclick="showUnsafeDetails()">Details</button>
+                            </div>
+                        </div>
+                        <div class="panel-content">
+                            <div id="unsafeCodeList" class="unsafe-code-container"></div>
+                        </div>
+                    </div>
+
+                    <!-- FFI Boundary Analysis -->
+                    <div class="analysis-panel ffi-panel">
+                        <div class="panel-header">
+                            <h3>🔗 FFI Boundary Crossings</h3>
+                            <div class="panel-controls">
+                                <button class="panel-btn" onclick="showBoundaryFlow()">Flow Diagram</button>
+                            </div>
+                        </div>
+                        <div class="panel-content">
+                            <div id="boundaryAnalysis" class="boundary-container">
+                                <canvas id="boundaryFlowChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Memory Allocation Tracking -->
+                    <div class="analysis-panel allocation-panel">
+                        <div class="panel-header">
+                            <h3>📋 Memory Allocation Tracking</h3>
+                            <div class="panel-controls">
+                                <button class="panel-btn" onclick="toggleAllocationView()">Toggle View</button>
+                                <button class="panel-btn" onclick="filterActiveAllocations()">Active Only</button>
+                            </div>
+                        </div>
+                        <div class="panel-content">
+                            <div id="allocationsList" class="allocations-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Assessment Summary -->
+                <div class="risk-summary">
+                    <div class="summary-card">
+                        <h3>🎯 Risk Assessment Summary</h3>
+                        <div class="risk-breakdown">
+                            <div class="risk-item">
+                                <span class="risk-category">Memory Leaks</span>
+                                <div class="risk-bar">
+                                    <div class="risk-fill" id="memoryLeakRisk" style="width: 0%"></div>
+                                </div>
+                                <span class="risk-percentage" id="memoryLeakPercent">0%</span>
+                            </div>
+                            <div class="risk-item">
+                                <span class="risk-category">Use After Free</span>
+                                <div class="risk-bar">
+                                    <div class="risk-fill" id="useAfterFreeRisk" style="width: 0%"></div>
+                                </div>
+                                <span class="risk-percentage" id="useAfterFreePercent">0%</span>
+                            </div>
+                            <div class="risk-item">
+                                <span class="risk-category">Buffer Overflow</span>
+                                <div class="risk-bar">
+                                    <div class="risk-fill" id="bufferOverflowRisk" style="width: 0%"></div>
+                                </div>
+                                <span class="risk-percentage" id="bufferOverflowPercent">0%</span>
+                            </div>
+                            <div class="risk-item">
+                                <span class="risk-category">FFI Safety</span>
+                                <div class="risk-bar">
+                                    <div class="risk-fill" id="ffiSafetyRisk" style="width: 0%"></div>
+                                </div>
+                                <span class="risk-percentage" id="ffiSafetyPercent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <h3>📊 Allocation Source Distribution</h3>
+                        <div class="source-chart-container">
+                            <canvas id="allocationSourceChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
 
