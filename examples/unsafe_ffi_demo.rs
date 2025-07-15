@@ -137,6 +137,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracker.export_to_json("unsafe_ffi_memory_snapshot.json")?;
     println!("   ✅ JSON snapshot exported");
     
+    // Export web dashboard data
+    memscope_rs::web_export::export_web_dashboard_data(
+        &tracker, 
+        &unsafe_ffi_tracker, 
+        "web_dashboard/data.json"
+    )?;
+    println!("   ✅ Web dashboard data exported");
+    
     // Export dedicated unsafe/FFI dashboard
     export_unsafe_ffi_dashboard(&unsafe_ffi_tracker, "unsafe_ffi_dashboard.svg")?;
     println!("   ✅ Unsafe/FFI dashboard exported");

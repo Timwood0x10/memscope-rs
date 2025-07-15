@@ -8,7 +8,7 @@
 
 use crate::types::{AllocationInfo, TrackingError, TrackingResult};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, OnceLock};
 use serde::{Deserialize, Serialize};
 
 /// Enhanced allocation source tracking
@@ -386,4 +386,140 @@ macro_rules! track_ffi_alloc {
             let _ = tracker.track_ffi_allocation($ptr as usize, $size, $lib.to_string(), $func.to_string());
         }
     };
+}
+
+/// Statistics for unsafe and FFI operations
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UnsafeFFIStats {
+    /// Total number of unsafe operations
+    pub total_operations: usize,
+    /// Number of unsafe blocks encountered
+    pub unsafe_blocks: usize,
+    /// Number of FFI calls made
+    pub ffi_calls: usize,
+    /// Number of raw pointer operations
+    pub raw_pointer_operations: usize,
+    /// Number of memory violations detected
+    pub memory_violations: usize,
+    /// Overall risk score (0.0 to 10.0)
+    pub risk_score: f64,
+    /// List of unsafe operations
+    pub operations: Vec<UnsafeOperation>,
+}
+
+/// Represents a single unsafe operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnsafeOperation {
+    /// Type of operation
+    pub operation_type: UnsafeOperationType,
+    /// Location in source code
+    pub location: String,
+    /// Risk level of this operation
+    pub risk_level: RiskLevel,
+    /// Timestamp when operation occurred
+    pub timestamp: u128,
+    /// Description of the operation
+    pub description: String,
+}
+
+/// Types of unsafe operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum UnsafeOperationType {
+    RawPointerDeref,
+    FfiCall,
+    UnsafeBlock,
+    MemoryViolation,
+    CrossBoundaryTransfer,
+}
+
+
+impl UnsafeFFITracker {
+    /// Get statistics for unsafe and FFI operations
+    pub fn get_stats(&self) -> UnsafeFFIStats {
+        let allocations = self.enhanced_allocations.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let violations = self.violations.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        
+        let mut stats = UnsafeFFIStats::default();
+        
+        // Count different types of operations
+        for allocation in allocations.values() {
+            match &allocation.source {
+                AllocationSource::UnsafeRust { .. } => {
+                    stats.unsafe_blocks += 1;
+                    stats.total_operations += 1;
+                }
+                AllocationSource::FfiC { .. } => {
+                    stats.ffi_calls += 1;
+                    stats.total_operations += 1;
+                }
+                AllocationSource::CrossBoundary { .. } => {
+                    stats.total_operations += 1;
+                }
+                _ => {}
+            }
+            
+            // Count safety violations
+            stats.memory_violations += allocation.safety_violations.len();
+        }
+        
+        // Add violations from the violations log
+        stats.memory_violations += violations.len();
+        
+        // Calculate risk score (simplified)
+        stats.risk_score = if stats.total_operations > 0 {
+            let base_risk = (stats.unsafe_blocks as f64 * 1.0) + 
+                           (stats.ffi_calls as f64 * 2.0) + 
+                           (stats.memory_violations as f64 * 5.0);
+            (base_risk / stats.total_operations as f64).min(10.0)
+        } else {
+            0.0
+        };
+        
+        // Create operation list (simplified)
+        for allocation in allocations.values() {
+            let (op_type, risk_level, description) = match &allocation.source {
+                AllocationSource::UnsafeRust { unsafe_block_location, .. } => {
+                    (UnsafeOperationType::UnsafeBlock, RiskLevel::Medium, 
+                     format!("Unsafe block at {}", unsafe_block_location))
+                }
+                AllocationSource::FfiC { library_name, function_name, .. } => {
+                    (UnsafeOperationType::FfiCall, RiskLevel::High,
+                     format!("FFI call to {}::{}", library_name, function_name))
+                }
+                AllocationSource::CrossBoundary { .. } => {
+                    (UnsafeOperationType::CrossBoundaryTransfer, RiskLevel::Medium,
+                     "Cross-boundary memory transfer".to_string())
+                }
+                _ => continue,
+            };
+            
+            stats.operations.push(UnsafeOperation {
+                operation_type: op_type,
+                location: "unknown".to_string(), // Could be enhanced with actual location
+                risk_level,
+                timestamp: allocation.base.timestamp_alloc,
+                description,
+            });
+        }
+        
+        // Limit operations to avoid huge JSON
+        stats.operations.truncate(50);
+        
+        stats
+    }
+}
+
+/// Global unsafe/FFI tracker instance
+static GLOBAL_UNSAFE_TRACKER: OnceLock<Arc<UnsafeFFITracker>> = OnceLock::new();
+
+/// Get the global unsafe/FFI tracker instance
+pub fn get_global_unsafe_tracker() -> Option<Arc<UnsafeFFITracker>> {
+    GLOBAL_UNSAFE_TRACKER.get().cloned()
+}
+
+/// Initialize the global unsafe/FFI tracker
+pub fn init_global_unsafe_tracker() -> Arc<UnsafeFFITracker> {
+    GLOBAL_UNSAFE_TRACKER
+        .get_or_init(|| Arc::new(UnsafeFFITracker::new()))
+        .clone()
 }

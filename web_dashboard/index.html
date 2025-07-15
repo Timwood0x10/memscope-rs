@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦀 memscope-rs - Rust Memory Analysis Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+        /* Additional styles for the new interface */
+        .tab-content {
+            display: none;
+            padding: 2rem;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .memory-analysis-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .chart-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .export-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            align-items: center;
+        }
+        
+        .export-btn {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        .svg-preview {
+            width: 100%;
+            height: 400px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background: white;
+            overflow: auto;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            color: #a0a6b0;
+            font-size: 0.9rem;
+        }
+        
+        .lifecycle-timeline {
+            width: 100%;
+            height: 500px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        .data-source-selector {
+            margin-bottom: 1rem;
+        }
+        
+        .data-source-selector select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #a0a6b0;
+        }
+        
+        .error {
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <div class="main-title">
+                    <span class="rust-icon">🦀</span>
+                    memscope-rs
+                    <span class="version">v2.0</span>
+                </div>
+                
+                <nav class="nav-tabs">
+                    <button class="nav-tab active" data-tab="memory-analysis">
+                        📊 内存分析
+                    </button>
+                    <button class="nav-tab" data-tab="lifecycle-timeline">
+                        ⏱️ 生命周期
+                    </button>
+                    <button class="nav-tab" data-tab="unsafe-ffi">
+                        ⚠️ Unsafe & FFI
+                    </button>
+                    <button class="nav-tab" data-tab="export-tools">
+                        📤 导出工具
+                    </button>
+                </nav>
+                
+                <div class="data-source-selector">
+                    <select id="dataSource">
+                        <option value="sample">示例数据</option>
+                        <option value="upload">上传JSON</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Memory Analysis Tab -->
+            <div id="memory-analysis" class="tab-content active">
+                <div class="export-controls">
+                    <button class="export-btn" onclick="exportMemoryAnalysisSVG()">
+                        📊 导出内存分析SVG
+                    </button>
+                    <button class="export-btn" onclick="refreshData()">
+                        🔄 刷新数据
+                    </button>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="activeMemory">-</div>
+                        <div class="metric-label">活跃内存</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="peakMemory">-</div>
+                        <div class="metric-label">峰值内存</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="activeAllocations">-</div>
+                        <div class="metric-label">活跃分配</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="memoryEfficiency">-</div>
+                        <div class="metric-label">内存效率</div>
+                    </div>
+                </div>
+                
+                <div class="memory-analysis-container">
+                    <div class="chart-container">
+                        <div class="chart-title">📈 内存使用趋势</div>
+                        <canvas id="memoryTrendChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">🎯 类型分布</div>
+                        <canvas id="typeDistributionChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title">🗺️ 内存热力图</div>
+                    <div id="memoryHeatmap" style="height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- Lifecycle Timeline Tab -->
+            <div id="lifecycle-timeline" class="tab-content">
+                <div class="export-controls">
+                    <button class="export-btn" onclick="exportLifecycleTimelineSVG()">
+                        ⏱️ 导出生命周期SVG
+                    </button>
+                    <button class="export-btn" onclick="refreshLifecycleData()">
+                        🔄 刷新数据
+                    </button>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title">⏱️ 变量生命周期时间线</div>
+                    <div class="lifecycle-timeline" id="lifecycleVisualization"></div>
+                </div>
+                
+                <div class="memory-analysis-container">
+                    <div class="chart-container">
+                        <div class="chart-title">📊 作用域分析</div>
+                        <canvas id="scopeAnalysisChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">🔗 变量关系图</div>
+                        <div id="variableRelationships" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unsafe & FFI Tab -->
+            <div id="unsafe-ffi" class="tab-content">
+                <div class="export-controls">
+                    <button class="export-btn" onclick="exportUnsafeFFIReport()">
+                        ⚠️ 导出安全报告
+                    </button>
+                    <button class="export-btn" onclick="refreshUnsafeData()">
+                        🔄 刷新数据
+                    </button>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="unsafeAllocations">-</div>
+                        <div class="metric-label">Unsafe 分配</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="ffiAllocations">-</div>
+                        <div class="metric-label">FFI 分配</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="safetyViolations">-</div>
+                        <div class="metric-label">安全违规</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="boundaryCrossings">-</div>
+                        <div class="metric-label">边界跨越</div>
+                    </div>
+                </div>
+                
+                <div class="memory-analysis-container">
+                    <div class="chart-container">
+                        <div class="chart-title">⚠️ 安全违规详情</div>
+                        <div id="safetyViolationsList"></div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">🔄 跨语言内存流</div>
+                        <div id="crossLanguageFlow" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Tools Tab -->
+            <div id="export-tools" class="tab-content">
+                <div class="chart-container">
+                    <div class="chart-title">📤 导出工具</div>
+                    
+                    <div style="margin-bottom: 2rem;">
+                        <h3 style="color: #ffffff; margin-bottom: 1rem;">SVG 导出选项</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <button class="export-btn" onclick="exportMemoryAnalysisSVG()">
+                                📊 内存分析 SVG
+                            </button>
+                            <button class="export-btn" onclick="exportLifecycleTimelineSVG()">
+                                ⏱️ 生命周期时间线 SVG
+                            </button>
+                            <button class="export-btn" onclick="exportUnsafeFFIReport()">
+                                ⚠️ Unsafe & FFI 报告 SVG
+                            </button>
+                            <button class="export-btn" onclick="exportAllReports()">
+                                📦 导出所有报告
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 2rem;">
+                        <h3 style="color: #ffffff; margin-bottom: 1rem;">数据导出选项</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <button class="export-btn" onclick="exportJSON()">
+                                📄 导出 JSON 数据
+                            </button>
+                            <button class="export-btn" onclick="exportCSV()">
+                                📊 导出 CSV 数据
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 style="color: #ffffff; margin-bottom: 1rem;">SVG 预览</h3>
+                        <div class="svg-preview" id="svgPreview">
+                            <div style="padding: 2rem; text-align: center; color: #666;">
+                                选择一个导出选项来预览 SVG
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
