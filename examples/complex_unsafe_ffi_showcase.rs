@@ -253,68 +253,224 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6. Safety violation testing
     println!("\n🚨 6. Safety Violation Detection");
     
-    // Test double free
-    let test_ptr = mock_malloc(64);
-    if !test_ptr.is_null() {
-        memscope_rs::track_ffi_alloc!(test_ptr, 64, "libc", "malloc");
-        
-        // First free
-        let _ = unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize);
-        mock_free(test_ptr);
-        
-        // Attempt second free
-        match unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize) {
-            Ok(_) => println!("   ❌ Double-free not detected"),
-            Err(e) => println!("   ✅ Double-free detected: {}", e),
+    // Test double free with explicit unsafe operations
+    unsafe {
+        let test_ptr = mock_malloc(64);
+        if !test_ptr.is_null() {
+            memscope_rs::track_ffi_alloc!(test_ptr, 64, "libc", "malloc");
+            
+            // Demonstrate unsafe pointer manipulation
+            let raw_slice = slice::from_raw_parts_mut(test_ptr as *mut u8, 64);
+            for i in 0..64 {
+                *raw_slice.get_unchecked_mut(i) = (i % 256) as u8;
+            }
+            
+            // First free
+            let _ = unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize);
+            mock_free(test_ptr);
+            
+            // Attempt second free
+            match unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize) {
+                Ok(_) => println!("   ❌ Double-free not detected"),
+                Err(e) => println!("   ✅ Double-free detected: {}", e),
+            }
         }
     }
     
-    // Test invalid free
+    // Test invalid free with unsafe pointer operations
     let fake_ptr = 0x12345678 as *mut c_void;
+    
+    // Demonstrate unsafe pointer validation attempts (these operations are actually safe)
+    let aligned_check = (fake_ptr as usize) % std::mem::align_of::<usize>() == 0;
+    println!("   🔍 Fake pointer alignment check: {}", aligned_check);
+    
+    // Null pointer check (safe operation)
+    if fake_ptr.is_null() {
+        println!("   ⚠️  Null pointer detected");
+    } else {
+        println!("   ⚠️  Non-null fake pointer: 0x{:X}", fake_ptr as usize);
+        
+        // This would be unsafe if we actually dereferenced it, but we won't
+        unsafe {
+            // Demonstrate unsafe pointer offset calculation
+            let offset_fake = fake_ptr.byte_add(64);
+            println!("   ⚠️  Offset fake pointer: 0x{:X}", offset_fake as usize);
+        }
+    }
+    
     match unsafe_ffi_tracker.track_enhanced_deallocation(fake_ptr as usize) {
         Ok(_) => println!("   ❌ Invalid free not detected"),
         Err(e) => println!("   ✅ Invalid free detected: {}", e),
     }
 
+    // 6.5. Advanced Unsafe Operations Showcase
+    println!("\n⚡ 6.5. Advanced Unsafe Operations");
+    
+    unsafe {
+        // Raw pointer arithmetic and manipulation
+        let base_ptr = mock_malloc(1024);
+        if !base_ptr.is_null() {
+            memscope_rs::track_ffi_alloc!(base_ptr, 1024, "libc", "malloc");
+            
+            // Unsafe pointer arithmetic
+            let offset_ptr = base_ptr.byte_add(256);
+            let end_ptr = base_ptr.byte_add(1023);
+            
+            // Unsafe memory pattern writing
+            std::ptr::write_bytes(base_ptr as *mut u8, 0xFF, 256);
+            std::ptr::write_bytes(offset_ptr as *mut u8, 0x00, 256);
+            
+            // Unsafe type punning
+            let u32_ptr = base_ptr as *mut u32;
+            *u32_ptr = 0xCAFEBABE;
+            *(u32_ptr.add(1)) = 0xDEADBEEF;
+            
+            // Unsafe slice creation from raw parts
+            let unsafe_slice = slice::from_raw_parts(base_ptr as *const u8, 1024);
+            let checksum: u32 = unsafe_slice.iter().map(|&b| b as u32).sum();
+            println!("   🔢 Memory checksum: 0x{:08X}", checksum);
+            
+            // Unsafe memory comparison
+            let cmp_result = std::ptr::eq(base_ptr, offset_ptr.byte_sub(256));
+            println!("   🔍 Pointer equality check: {}", cmp_result);
+            
+            // Unsafe volatile operations
+            std::ptr::write_volatile(end_ptr as *mut u8, 0x42);
+            let volatile_read = std::ptr::read_volatile(end_ptr as *const u8);
+            println!("   📡 Volatile read result: 0x{:02X}", volatile_read);
+            
+            mock_free(base_ptr);
+        }
+        
+        // Unsafe union operations
+        #[repr(C)]
+        union UnsafeUnion {
+            as_u64: u64,
+            as_bytes: [u8; 8],
+            as_floats: [f32; 2],
+        }
+        
+        let mut unsafe_union = UnsafeUnion { as_u64: 0x123456789ABCDEF0 };
+        
+        // Unsafe union field access
+        let bytes = unsafe_union.as_bytes;
+        println!("   🔀 Union as bytes: {:02X?}", &bytes[0..4]);
+        
+        unsafe_union.as_floats = [3.14159, 2.71828];
+        let reinterpreted = unsafe_union.as_u64;
+        println!("   🔀 Union reinterpreted: 0x{:016X}", reinterpreted);
+        
+        // Unsafe transmutation (demonstrating both safe and unsafe approaches)
+        let float_bits: u32 = f32::to_bits(3.14159f32); // Safe approach
+        let back_to_float: f32 = f32::from_bits(float_bits); // Safe approach
+        println!("   🔄 Safe bit conversion: {} -> 0x{:08X} -> {}", 3.14159f32, float_bits, back_to_float);
+        
+        // Demonstrate actual unsafe transmutation with incompatible types
+        #[repr(C)]
+        struct UnsafeStruct {
+            a: u16,
+            b: u16,
+        }
+        let unsafe_struct = UnsafeStruct { a: 0x1234, b: 0x5678 };
+        let as_u32: u32 = std::mem::transmute(unsafe_struct);
+        println!("   🔄 Unsafe struct transmute: {{a: 0x1234, b: 0x5678}} -> 0x{:08X}", as_u32);
+        
+        // Unsafe transmutation between function pointers
+        let fn_ptr: fn() = || {};
+        let raw_fn_ptr: *const () = std::mem::transmute(fn_ptr);
+        println!("   🔄 Function pointer transmute: {:p}", raw_fn_ptr);
+    }
+
     // 7. Create some intentional leaks
     println!("\n💧 7. Memory Leak Simulation");
     
-    for i in 0..2 {
-        let leak_size = 512 + i * 256;
-        let leak_ptr = mock_malloc(leak_size);
-        if !leak_ptr.is_null() {
-            memscope_rs::track_ffi_alloc!(leak_ptr, leak_size, "libc", "malloc");
-            println!("   ⚠️  Created intentional leak {} ({} bytes)", i, leak_size);
-            // Not freeing these intentionally
+    unsafe {
+        for i in 0..2 {
+            let leak_size = 512 + i * 256;
+            let leak_ptr = mock_malloc(leak_size);
+            if !leak_ptr.is_null() {
+                memscope_rs::track_ffi_alloc!(leak_ptr, leak_size, "libc", "malloc");
+                
+                // Demonstrate unsafe memory initialization
+                let leak_slice = slice::from_raw_parts_mut(leak_ptr as *mut u8, leak_size);
+                std::ptr::write_bytes(leak_slice.as_mut_ptr(), 0xAB, leak_size);
+                
+                // Unsafe pointer arithmetic demonstration
+                let offset_ptr = leak_ptr.byte_add(128);
+                *(offset_ptr as *mut u32) = 0xDEADBEEF;
+                
+                println!("   ⚠️  Created intentional leak {} ({} bytes)", i, leak_size);
+                // Not freeing these intentionally
+            }
         }
     }
 
     // 8. Cleanup (most allocations)
     println!("\n🧹 8. Cleanup Operations");
     
-    // Clean up image buffers
-    for buffer in image_buffers {
-        image_free_buffer(buffer);
+    // Clean up image buffers with unsafe validation
+    unsafe {
+        for buffer in image_buffers {
+            // Unsafe validation before cleanup
+            if !buffer.is_null() {
+                let first_byte = *(buffer as *const u8);
+                println!("   🧹 Cleaning image buffer (first byte: 0x{:02X})", first_byte);
+            }
+            image_free_buffer(buffer);
+        }
     }
     
-    // Clean up database records
-    for record in db_records {
-        db_free_record(record);
+    // Clean up database records with unsafe memory inspection
+    unsafe {
+        for record in db_records {
+            // Unsafe memory inspection before cleanup
+            if !record.is_null() {
+                let header = *(record as *const u32);
+                println!("   🧹 Cleaning DB record (header: 0x{:08X})", header);
+            }
+            db_free_record(record);
+        }
     }
     
     // Clean up unsafe allocations
     for (ptr, layout) in unsafe_allocations {
-        unsafe { dealloc(ptr, layout); }
+        unsafe { 
+            // Additional unsafe validation
+            let size_check = layout.size();
+            if size_check > 0 {
+                println!("   🧹 Deallocating unsafe memory ({} bytes)", size_check);
+            }
+            dealloc(ptr, layout); 
+        }
     }
     
-    // Clean up C strings
-    for c_str in c_strings {
-        mock_free(c_str as *mut c_void);
+    // Clean up C strings with unsafe string inspection
+    unsafe {
+        for c_str in c_strings {
+            // Unsafe C string length calculation
+            if !c_str.is_null() {
+                let mut len = 0;
+                let mut ptr = c_str;
+                while *ptr != 0 && len < 100 { // Safety limit
+                    len += 1;
+                    ptr = ptr.add(1);
+                }
+                println!("   🧹 Cleaning C string (length: {})", len);
+            }
+            mock_free(c_str as *mut c_void);
+        }
     }
     
-    // Clean up dynamic buffers
-    for buffer in dynamic_buffers {
-        mock_free(buffer);
+    // Clean up dynamic buffers with unsafe pattern verification
+    unsafe {
+        for buffer in dynamic_buffers {
+            if !buffer.is_null() {
+                // Unsafe pattern check
+                let pattern = *(buffer as *const u64);
+                println!("   🧹 Cleaning dynamic buffer (pattern: 0x{:016X})", pattern);
+            }
+            mock_free(buffer);
+        }
     }
 
     // 9. Analysis and reporting
