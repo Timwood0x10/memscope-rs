@@ -21,9 +21,6 @@ svg = "0.18.0"
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
 backtrace = { version = "0.3", features = ["serde"], optional = true }
-# Web server dependencies
-warp = "0.3"
-tokio = { version = "1.0", features = ["full"] }
 
 [lib]
 name = "memscope_rs"

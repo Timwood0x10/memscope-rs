@@ -40,162 +40,249 @@ pub struct WebDashboardData {
 /// Dashboard metrics for real-time display
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DashboardMetrics {
+    /// Number of unsafe allocations
     pub unsafe_allocations: usize,
+    /// Number of FFI allocations
     pub ffi_allocations: usize,
+    /// Number of boundary crossings
     pub boundary_crossings: usize,
+    /// Number of safety violations
     pub safety_violations: usize,
+    /// Total memory used by unsafe operations
     pub total_unsafe_memory: usize,
+    /// Number of active allocations
     pub active_allocations: usize,
+    /// Peak memory usage
     pub peak_memory: usize,
+    /// Memory efficiency percentage
     pub memory_efficiency: f32,
 }
 
 /// Web-friendly allocation info
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WebAllocationInfo {
+    /// Unique identifier for this allocation
     pub id: String,
+    /// Memory pointer address
     pub ptr: usize,
+    /// Size of the allocation in bytes
     pub size: usize,
+    /// Timestamp when allocated
     pub timestamp_alloc: u128,
+    /// Timestamp when deallocated (if freed)
     pub timestamp_dealloc: Option<u128>,
+    /// Whether the allocation is currently active
     pub is_active: bool,
+    /// Type of allocation source
     pub source_type: String,
+    /// Detailed source information
     pub source_details: WebSourceDetails,
+    /// Boundary crossing events
     pub boundary_events: Vec<WebBoundaryEvent>,
+    /// Safety issues detected
     pub safety_issues: Vec<String>,
+    /// Call stack information
     pub call_stack: Vec<WebStackFrame>,
 }
 
 /// Web-friendly source details
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WebSourceDetails {
+    /// Name of the library (for FFI allocations)
     pub library_name: Option<String>,
+    /// Name of the function that made the allocation
     pub function_name: Option<String>,
+    /// Location of unsafe block (for unsafe allocations)
     pub unsafe_location: Option<String>,
+    /// Risk level assessment
     pub risk_level: String,
 }
 
 /// Web-friendly stack frame
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WebStackFrame {
+    /// Name of the function in this frame
     pub function_name: String,
+    /// Source file name if available
     pub file_name: Option<String>,
+    /// Line number in the source file if available
     pub line_number: Option<u32>,
+    /// Whether this frame is in an unsafe block
     pub is_unsafe: bool,
 }
 
 /// Web-friendly boundary event
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WebBoundaryEvent {
+    /// Unique identifier for this boundary event
     pub id: String,
+    /// Type of boundary crossing event
     pub event_type: String,
+    /// Timestamp when the event occurred
     pub timestamp: u128,
+    /// Context where the crossing originated
     pub from_context: String,
+    /// Context where the crossing ended
     pub to_context: String,
+    /// Size of memory involved in bytes
     pub memory_size: usize,
+    /// Risk assessment for this crossing
     pub risk_assessment: String,
 }
 
 /// Web-friendly safety violation
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WebSafetyViolation {
+    /// Unique identifier for this violation
     pub id: String,
+    /// Type of safety violation
     pub violation_type: String,
+    /// Severity level of the violation
     pub severity: String,
+    /// Timestamp when the violation was detected
     pub timestamp: u128,
+    /// Description of the violation
     pub description: String,
+    /// Memory addresses affected by the violation
     pub affected_memory: Vec<usize>,
+    /// Call stack at the time of violation
     pub call_stack: Vec<WebStackFrame>,
+    /// Suggested mitigations for the violation
     pub mitigation_suggestions: Vec<String>,
 }
 
 /// DNA segment for call stack visualization
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DnaSegment {
+    /// Unique identifier for this DNA segment
     pub id: String,
-    pub segment_type: String, // "safe", "unsafe", "ffi"
+    /// Type of segment: "safe", "unsafe", "ffi"
+    pub segment_type: String,
+    /// Function name this segment represents
     pub function_name: String,
+    /// File location if available
     pub file_location: Option<String>,
+    /// Memory operations performed in this segment
     pub memory_operations: Vec<String>,
+    /// Risk score for this segment
     pub risk_score: f32,
-    pub position: f32, // 0.0 to 1.0 along the helix
+    /// Position along the DNA helix (0.0 to 1.0)
+    pub position: f32,
 }
 
 /// Radar data for memory visualization
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RadarData {
+    /// Scanning radius for the radar
     pub scan_radius: f32,
+    /// Memory objects detected by radar
     pub memory_objects: Vec<RadarObject>,
+    /// Overall threat level assessment
     pub threat_level: String,
+    /// Timestamp of the radar scan
     pub scan_timestamp: u128,
 }
 
 /// Radar object representation
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RadarObject {
+    /// Unique identifier for this radar object
     pub id: String,
-    pub object_type: String, // "unsafe", "ffi", "safe"
+    /// Type of object: "unsafe", "ffi", "safe"
+    pub object_type: String,
+    /// Size of the memory object
     pub size: usize,
+    /// Position on the radar
     pub position: RadarPosition,
-    pub threat_level: f32, // 0.0 to 1.0
+    /// Threat level (0.0 to 1.0)
+    pub threat_level: f32,
+    /// Whether the object is currently active
     pub is_active: bool,
+    /// Timestamp of last activity
     pub last_activity: u128,
 }
 
 /// Radar position (polar coordinates)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RadarPosition {
-    pub angle: f32, // 0.0 to 360.0 degrees
-    pub distance: f32, // 0.0 to 1.0 (normalized)
+    /// Angle in degrees (0.0 to 360.0)
+    pub angle: f32,
+    /// Distance from center (0.0 to 1.0, normalized)
+    pub distance: f32,
 }
 
 /// Memory passport data
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PassportData {
+    /// Data for Rust memory territory
     pub rust_territory: TerritoryData,
+    /// Data for FFI memory territory
     pub ffi_territory: TerritoryData,
+    /// Border crossing events between territories
     pub border_crossings: Vec<BorderCrossing>,
+    /// Security alerts for the passport system
     pub security_alerts: Vec<SecurityAlert>,
 }
 
 /// Territory data for passport system
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TerritoryData {
+    /// Total memory used in this territory
     pub total_memory: usize,
+    /// Number of active memory objects
     pub active_objects: usize,
+    /// Security level of the territory
     pub security_level: String,
+    /// Recent activity in this territory
     pub recent_activity: Vec<TerritoryActivity>,
 }
 
 /// Territory activity
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TerritoryActivity {
+    /// Timestamp when the activity occurred
     pub timestamp: u128,
+    /// Type of activity performed
     pub activity_type: String,
+    /// Size of memory involved
     pub memory_size: usize,
+    /// Description of the activity
     pub description: String,
 }
 
 /// Border crossing event
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BorderCrossing {
+    /// Unique identifier for this border crossing
     pub id: String,
+    /// Timestamp when the crossing occurred
     pub timestamp: u128,
-    pub direction: String, // "rust_to_ffi", "ffi_to_rust"
+    /// Direction of crossing: "rust_to_ffi", "ffi_to_rust"
+    pub direction: String,
+    /// Size of memory being transferred
     pub memory_size: usize,
-    pub passport_status: String, // "valid", "suspicious", "denied"
+    /// Passport status: "valid", "suspicious", "denied"
+    pub passport_status: String,
+    /// Notes from border inspection
     pub inspection_notes: Vec<String>,
 }
 
 /// Security alert
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SecurityAlert {
+    /// Unique identifier for this security alert
     pub id: String,
+    /// Type of security alert
     pub alert_type: String,
+    /// Severity level of the alert
     pub severity: String,
+    /// Timestamp when the alert was triggered
     pub timestamp: u128,
+    /// Description of the security issue
     pub description: String,
+    /// Memory addresses affected by the alert
     pub affected_memory: Vec<usize>,
+    /// Recommended actions to address the alert
     pub recommended_actions: Vec<String>,
 }
 
@@ -219,8 +306,8 @@ pub fn export_web_dashboard_data<P: AsRef<Path>>(
     let active_allocations = tracker.get_active_allocations()?;
     let allocation_history = tracker.get_allocation_history()?;
     let memory_by_type = tracker.get_memory_by_type()?;
-    let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
-    let safety_violations = unsafe_ffi_tracker.get_safety_violations()?;
+    let _enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
+    let _safety_violations = unsafe_ffi_tracker.get_safety_violations()?;
 
     // Get unsafe/FFI stats
     let unsafe_stats = unsafe_ffi_tracker.get_stats();
@@ -246,6 +333,7 @@ pub fn export_web_dashboard_data<P: AsRef<Path>>(
 }
 
 /// Build dashboard metrics
+#[allow(dead_code)]
 fn build_dashboard_metrics(
     memory_stats: &MemoryStats,
     enhanced_allocations: &[EnhancedAllocationInfo],
@@ -288,6 +376,7 @@ fn build_dashboard_metrics(
 }
 
 /// Convert enhanced allocations to web format
+#[allow(dead_code)]
 fn convert_allocations(enhanced_allocations: &[EnhancedAllocationInfo]) -> Vec<WebAllocationInfo> {
     enhanced_allocations.iter().enumerate().map(|(i, alloc)| {
         let (source_type, source_details) = match &alloc.source {
@@ -366,6 +455,7 @@ fn convert_allocations(enhanced_allocations: &[EnhancedAllocationInfo]) -> Vec<W
 }
 
 /// Convert safety violations to web format
+#[allow(dead_code)]
 fn convert_violations(safety_violations: &[SafetyViolation]) -> Vec<WebSafetyViolation> {
     safety_violations.iter().enumerate().map(|(i, violation)| {
         let (violation_type, severity, description, mitigation) = match violation {
@@ -425,6 +515,7 @@ fn convert_violations(safety_violations: &[SafetyViolation]) -> Vec<WebSafetyVio
 }
 
 /// Extract boundary events from allocations
+#[allow(dead_code)]
 fn extract_boundary_events(enhanced_allocations: &[EnhancedAllocationInfo]) -> Vec<WebBoundaryEvent> {
     let mut events = Vec::new();
     let mut event_id = 0;
@@ -455,6 +546,7 @@ fn extract_boundary_events(enhanced_allocations: &[EnhancedAllocationInfo]) -> V
 }
 
 /// Build DNA segments for call stack visualization
+#[allow(dead_code)]
 fn build_dna_segments(enhanced_allocations: &[EnhancedAllocationInfo]) -> Vec<DnaSegment> {
     let mut segments = Vec::new();
     let mut segment_id = 0;

@@ -9,8 +9,8 @@ use crate::utils::format_bytes;
 use std::path::Path;
 use std::fs::File;
 use svg::node::element::{
-    Circle, Line, Path as SvgPath, Rectangle, Text as SvgText, 
-    Definitions, LinearGradient, Stop, Marker, Polygon
+    Circle, Line, Rectangle, Text as SvgText, 
+    Definitions, Marker, Polygon
 };
 use svg::Document;
 

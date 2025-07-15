@@ -21,7 +21,7 @@ This project adheres to rigorous and pragmatic development principles:
 Add to your `Cargo.toml`:
 ```toml
 [dependencies]
-memscope-rs = "0.1.0"
+memscope-rs = "0.1.2"
 ```
 
 Basic usage:

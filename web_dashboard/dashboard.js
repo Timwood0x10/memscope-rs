@@ -158,9 +158,7 @@ async function loadJSONFile() {
         const jsonFiles = [
             'data.json', 
             'unsafe_ffi_memory_snapshot.json', 
-            'complex_lifecycle_snapshot.json',
-            'stress_test_snapshot.json',
-            'moderate_unsafe_ffi_memory_snapshot.json'
+            'complex_lifecycle_snapshot.json'
         ];
         
         for (const filename of jsonFiles) {

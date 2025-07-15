@@ -253,43 +253,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6. Safety violation testing
     println!("\n🚨 6. Safety Violation Detection");
     
-    unsafe {
-        // Test double free
-        let test_ptr = mock_malloc(64);
-        if !test_ptr.is_null() {
-            memscope_rs::track_ffi_alloc!(test_ptr, 64, "libc", "malloc");
-            
-            // First free
-            let _ = unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize);
-            mock_free(test_ptr);
-            
-            // Attempt second free
-            match unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize) {
-                Ok(_) => println!("   ❌ Double-free not detected"),
-                Err(e) => println!("   ✅ Double-free detected: {}", e),
-            }
-        }
+    // Test double free
+    let test_ptr = mock_malloc(64);
+    if !test_ptr.is_null() {
+        memscope_rs::track_ffi_alloc!(test_ptr, 64, "libc", "malloc");
         
-        // Test invalid free
-        let fake_ptr = 0x12345678 as *mut c_void;
-        match unsafe_ffi_tracker.track_enhanced_deallocation(fake_ptr as usize) {
-            Ok(_) => println!("   ❌ Invalid free not detected"),
-            Err(e) => println!("   ✅ Invalid free detected: {}", e),
+        // First free
+        let _ = unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize);
+        mock_free(test_ptr);
+        
+        // Attempt second free
+        match unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize) {
+            Ok(_) => println!("   ❌ Double-free not detected"),
+            Err(e) => println!("   ✅ Double-free detected: {}", e),
         }
+    }
+    
+    // Test invalid free
+    let fake_ptr = 0x12345678 as *mut c_void;
+    match unsafe_ffi_tracker.track_enhanced_deallocation(fake_ptr as usize) {
+        Ok(_) => println!("   ❌ Invalid free not detected"),
+        Err(e) => println!("   ✅ Invalid free detected: {}", e),
     }
 
     // 7. Create some intentional leaks
     println!("\n💧 7. Memory Leak Simulation");
     
-    unsafe {
-        for i in 0..2 {
-            let leak_size = 512 + i * 256;
-            let leak_ptr = mock_malloc(leak_size);
-            if !leak_ptr.is_null() {
-                memscope_rs::track_ffi_alloc!(leak_ptr, leak_size, "libc", "malloc");
-                println!("   ⚠️  Created intentional leak {} ({} bytes)", i, leak_size);
-                // Not freeing these intentionally
-            }
+    for i in 0..2 {
+        let leak_size = 512 + i * 256;
+        let leak_ptr = mock_malloc(leak_size);
+        if !leak_ptr.is_null() {
+            memscope_rs::track_ffi_alloc!(leak_ptr, leak_size, "libc", "malloc");
+            println!("   ⚠️  Created intentional leak {} ({} bytes)", i, leak_size);
+            // Not freeing these intentionally
         }
     }
 
@@ -297,38 +293,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🧹 8. Cleanup Operations");
     
     // Clean up image buffers
-    unsafe {
-        for buffer in image_buffers {
-            image_free_buffer(buffer);
-        }
+    for buffer in image_buffers {
+        image_free_buffer(buffer);
     }
     
     // Clean up database records
-    unsafe {
-        for record in db_records {
-            db_free_record(record);
-        }
+    for record in db_records {
+        db_free_record(record);
     }
     
     // Clean up unsafe allocations
-    unsafe {
-        for (ptr, layout) in unsafe_allocations {
-            dealloc(ptr, layout);
-        }
+    for (ptr, layout) in unsafe_allocations {
+        unsafe { dealloc(ptr, layout); }
     }
     
     // Clean up C strings
-    unsafe {
-        for c_str in c_strings {
-            mock_free(c_str as *mut c_void);
-        }
+    for c_str in c_strings {
+        mock_free(c_str as *mut c_void);
     }
     
     // Clean up dynamic buffers
-    unsafe {
-        for buffer in dynamic_buffers {
-            mock_free(buffer);
-        }
+    for buffer in dynamic_buffers {
+        mock_free(buffer);
     }
 
     // 9. Analysis and reporting

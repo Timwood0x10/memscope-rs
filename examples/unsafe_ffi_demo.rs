@@ -22,10 +22,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Safe Rust allocations for comparison
     println!("\n📊 1. Safe Rust Allocations");
     let safe_vec = vec![1, 2, 3, 4, 5];
-    track_var!(safe_vec);
+    let _ = track_var!(safe_vec);
     
     let safe_string = String::from("Hello, safe Rust!");
-    track_var!(safe_string);
+    let _ = track_var!(safe_string);
 
     // 2. Unsafe Rust allocations
     println!("\n⚠️  2. Unsafe Rust Allocations");

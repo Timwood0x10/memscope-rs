@@ -6,6 +6,7 @@
 //! for exporting memory usage data in various formats.
 
 #![warn(missing_docs)]
+#![allow(dead_code, unused_variables, unused_imports)]
 
 pub mod allocator;
 pub mod export_enhanced;
@@ -16,7 +17,6 @@ pub mod unsafe_ffi_visualization;
 pub mod utils;
 pub mod visualization;
 pub mod web_export;
-pub mod web_server;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;

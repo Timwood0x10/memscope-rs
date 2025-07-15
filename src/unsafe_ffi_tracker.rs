@@ -18,19 +18,27 @@ pub enum AllocationSource {
     RustSafe,
     /// Unsafe Rust allocation with location info
     UnsafeRust { 
+        /// Location of the unsafe block in source code
         unsafe_block_location: String,
+        /// Call stack at the time of allocation
         call_stack: Vec<StackFrame>,
     },
     /// FFI allocation from C library
     FfiC { 
+        /// Name of the C library
         library_name: String, 
+        /// Name of the C function that allocated
         function_name: String,
+        /// Call stack at the time of allocation
         call_stack: Vec<StackFrame>,
     },
     /// Cross-boundary memory transfer
     CrossBoundary { 
+        /// Source allocation context
         from: Box<AllocationSource>, 
+        /// Destination allocation context
         to: Box<AllocationSource>,
+        /// Timestamp when transfer occurred
         transfer_timestamp: u128,
     },
 }
@@ -38,9 +46,13 @@ pub enum AllocationSource {
 /// Stack frame information for call stack tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StackFrame {
+    /// Name of the function in this stack frame
     pub function_name: String,
+    /// Source file name if available
     pub file_name: Option<String>,
+    /// Line number in the source file if available
     pub line_number: Option<u32>,
+    /// Whether this frame is in an unsafe block
     pub is_unsafe: bool,
 }
 
@@ -49,26 +61,38 @@ pub struct StackFrame {
 pub enum SafetyViolation {
     /// Double free detected
     DoubleFree { 
+        /// Call stack from the first free operation
         first_free_stack: Vec<StackFrame>,
+        /// Call stack from the second free operation
         second_free_stack: Vec<StackFrame>,
+        /// Timestamp when the double free was detected
         timestamp: u128,
     },
     /// Invalid free (pointer not in allocation table)
     InvalidFree { 
+        /// The pointer that was attempted to be freed
         attempted_pointer: usize,
+        /// Call stack at the time of invalid free
         stack: Vec<StackFrame>,
+        /// Timestamp when the invalid free was attempted
         timestamp: u128,
     },
     /// Potential memory leak
     PotentialLeak { 
+        /// Call stack from the original allocation
         allocation_stack: Vec<StackFrame>,
+        /// Timestamp when the allocation occurred
         allocation_timestamp: u128,
+        /// Timestamp when the leak was detected
         leak_detection_timestamp: u128,
     },
     /// Cross-boundary risk
     CrossBoundaryRisk { 
+        /// Risk level of the cross-boundary operation
         risk_level: RiskLevel,
+        /// Description of the risk
         description: String,
+        /// Call stack at the time of risk detection
         stack: Vec<StackFrame>,
     },
 }
@@ -76,9 +100,13 @@ pub enum SafetyViolation {
 /// Risk levels for safety violations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RiskLevel {
+    /// Low risk - minor issues that are unlikely to cause problems
     Low,
+    /// Medium risk - issues that could potentially cause problems
     Medium,
+    /// High risk - serious issues that are likely to cause problems
     High,
+    /// Critical risk - severe issues that will almost certainly cause problems
     Critical,
 }
 
@@ -102,10 +130,15 @@ pub struct EnhancedAllocationInfo {
 /// Cross-boundary memory event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BoundaryEvent {
+    /// Type of boundary crossing event
     pub event_type: BoundaryEventType,
+    /// Timestamp when the event occurred
     pub timestamp: u128,
+    /// Context where the crossing originated
     pub from_context: String,
+    /// Context where the crossing ended
     pub to_context: String,
+    /// Call stack at the time of crossing
     pub stack: Vec<StackFrame>,
 }
 
@@ -425,10 +458,15 @@ pub struct UnsafeOperation {
 /// Types of unsafe operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UnsafeOperationType {
+    /// Raw pointer dereference operation
     RawPointerDeref,
+    /// Foreign Function Interface call
     FfiCall,
+    /// Unsafe block execution
     UnsafeBlock,
+    /// Memory safety violation detected
     MemoryViolation,
+    /// Memory transfer across safety boundaries
     CrossBoundaryTransfer,
 }
 

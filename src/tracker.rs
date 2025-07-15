@@ -414,7 +414,7 @@ fn build_unified_dashboard_structure(
         .collect();
 
     // Calculate lifecycle statistics
-    let now = std::time::SystemTime::now()
+    let _now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u128;
