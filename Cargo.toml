@@ -26,6 +26,10 @@ backtrace = { version = "0.3", features = ["serde"], optional = true }
 name = "memscope_rs"
 path = "src/lib.rs"
 
+[[bin]]
+name = "generate_report"
+path = "src/bin/generate_report.rs"
+
 [features]
 backtrace = ["dep:backtrace"]
 tracking-allocator = []

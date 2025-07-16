@@ -16,7 +16,8 @@ pub mod unsafe_ffi_tracker;
 pub mod unsafe_ffi_visualization;
 pub mod utils;
 pub mod visualization;
-pub mod web_export;
+/// Offline HTML report generation from JSON data
+pub mod report_generator;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
