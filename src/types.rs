@@ -1,6 +1,7 @@
 //! Core types and error handling for the memscope-rs library.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Error type for memory tracking operations
 #[derive(Debug, thiserror::Error)]
@@ -35,6 +36,239 @@ pub enum TrackingError {
 
 /// Result type for tracking operations
 pub type TrackingResult<T> = Result<T, TrackingError>;
+
+/// Comprehensive report structure for JSON export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComprehensiveReport {
+    /// Report metadata including generation time and version
+    pub metadata: ReportMetadata,
+    /// Memory usage overview and statistics
+    pub memory_overview: MemoryOverview,
+    /// Scope-based analysis of memory usage
+    pub scope_analysis: ScopeAnalysis,
+    /// Variable lifecycle tracking information
+    pub variable_tracking: VariableTracking,
+    /// Type-based memory analysis
+    pub type_analysis: TypeAnalysis,
+    /// Performance metrics and benchmarks
+    pub performance_metrics: PerformanceMetrics,
+    /// Timeline data for memory events
+    pub timeline_data: TimelineData,
+    /// Safety analysis and violation detection
+    pub safety_analysis: SafetyAnalysis,
+}
+
+/// Report metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportMetadata {
+    /// Timestamp when the report was generated
+    pub generated_at: String,
+    /// Version of the memscope-rs library
+    pub version: String,
+    /// Source of the memory data
+    pub source: String,
+    /// Total runtime in milliseconds
+    pub total_runtime_ms: u128,
+    /// Format version of the report
+    pub format_version: String,
+}
+
+/// Memory overview statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryOverview {
+    /// Total number of allocations performed
+    pub total_allocations: usize,
+    /// Total number of deallocations performed
+    pub total_deallocations: usize,
+    /// Current number of active allocations
+    pub active_allocations: usize,
+    /// Peak number of concurrent allocations
+    pub peak_allocations: usize,
+    /// Total bytes allocated
+    pub total_allocated: usize,
+    /// Total bytes deallocated
+    pub total_deallocated: usize,
+    /// Current active memory in bytes
+    pub active_memory: usize,
+    /// Peak memory usage in bytes
+    pub peak_memory: usize,
+    /// Memory efficiency as a percentage
+    pub memory_efficiency: f64,
+    /// Memory fragmentation ratio
+    pub fragmentation_ratio: f64,
+}
+
+/// Scope analysis data
+/// Scope-based memory analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScopeAnalysis {
+    /// List of all scopes and their memory usage
+    pub scopes: Vec<ScopeInfo>,
+    /// Hierarchical structure of scopes
+    pub scope_hierarchy: ScopeHierarchy,
+    /// References that cross scope boundaries
+    pub cross_scope_references: Vec<CrossScopeReference>,
+}
+
+/// Individual scope information
+/// Information about a specific scope
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScopeInfo {
+    /// Name of the scope
+    pub name: String,
+    /// Nesting depth of the scope
+    pub depth: usize,
+    /// When the scope was entered
+    pub start_time: u128,
+    /// When the scope was exited (if applicable)
+    pub end_time: Option<u128>,
+    /// Current memory usage in this scope
+    pub memory_usage: usize,
+    /// Peak memory usage in this scope
+    pub peak_memory: usize,
+    /// Variables defined in this scope
+    pub variables: Vec<String>,
+    /// Child scopes nested within this scope
+    pub child_scopes: Vec<String>,
+    /// Parent scope containing this scope
+    pub parent_scope: Option<String>,
+    /// Number of allocations in this scope
+    pub allocation_count: usize,
+}
+
+/// Scope hierarchy structure
+/// Hierarchical structure of scopes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScopeHierarchy {
+    /// Top-level scopes with no parent
+    pub root_scopes: Vec<String>,
+    /// Parent-child relationships between scopes
+    pub relationships: HashMap<String, Vec<String>>,
+    /// Depth level of each scope
+    pub depth_map: HashMap<String, usize>,
+}
+
+/// Cross-scope reference tracking
+/// Reference that crosses scope boundaries
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrossScopeReference {
+    /// Source scope of the reference
+    pub from_scope: String,
+    /// Target scope of the reference
+    pub to_scope: String,
+    /// Name of the referenced variable
+    pub variable_name: String,
+    /// Type of the cross-scope reference
+    pub reference_type: ReferenceType,
+    /// When the reference was created
+    pub timestamp: u128,
+}
+
+/// Variable tracking data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariableTracking {
+    /// List of all tracked variables and their lifecycles
+    pub variables: Vec<VariableLifecycle>,
+    /// Record of ownership transfers between variables
+    pub ownership_transfers: Vec<OwnershipTransfer>,
+    /// Record of borrow operations
+    pub borrow_events: Vec<BorrowEvent>,
+}
+
+/// Detailed variable lifecycle information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariableLifecycle {
+    /// Name of the variable
+    pub name: String,
+    /// Type name of the variable
+    pub type_name: String,
+    /// Scope where the variable is defined
+    pub scope: String,
+    /// When the variable was created
+    pub birth_time: u128,
+    /// When the variable was destroyed (if applicable)
+    pub death_time: Option<u128>,
+    /// Peak memory usage of this variable
+    pub peak_memory: usize,
+    /// Current memory usage of this variable
+    pub current_memory: usize,
+    /// Events where the variable grew in size
+    pub growth_events: Vec<GrowthEvent>,
+    /// Events where the variable was borrowed
+    pub borrow_events: Vec<BorrowEvent>,
+    /// Events where the variable was moved
+    pub move_events: Vec<MoveEvent>,
+    /// Relationships with other variables
+    pub relationships: Vec<VariableRelationship>,
+    /// Additional metadata tags
+    pub metadata_tags: Vec<String>,
+}
+
+/// Type analysis data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeAnalysis {
+    /// Hierarchical structure of types
+    pub type_hierarchy: TypeHierarchy,
+    /// Analysis of generic types and parameters
+    pub generic_analysis: GenericAnalysis,
+    /// Analysis of trait usage patterns
+    pub trait_usage: TraitUsage,
+    /// Memory layout and alignment analysis
+    pub memory_layout: MemoryLayout,
+    /// Statistical data for each type
+    pub type_statistics: HashMap<String, TypeStatistics>,
+}
+
+/// Performance metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceMetrics {
+    /// Rate of allocations per second
+    pub allocation_rate: f64,
+    /// Rate of deallocations per second
+    pub deallocation_rate: f64,
+    /// Average size of allocations
+    pub average_allocation_size: f64,
+    /// Median allocation size
+    pub median_allocation_size: usize,
+    /// 95th percentile allocation size
+    pub p95_allocation_size: usize,
+    /// Average allocation time in nanoseconds
+    pub allocation_time_avg_ns: u128,
+    /// Maximum allocation time in nanoseconds
+    pub allocation_time_max_ns: u128,
+    /// Memory throughput in MB/s
+    pub memory_throughput_mb_s: f64,
+    /// Garbage collection pressure
+    pub gc_pressure: f64,
+}
+
+/// Timeline data for visualization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineData {
+    /// Snapshots of memory state over time
+    pub memory_snapshots: Vec<MemorySnapshot>,
+    /// Individual allocation events
+    pub allocation_events: Vec<AllocationEvent>,
+    /// Scope entry and exit events
+    pub scope_events: Vec<ScopeEvent>,
+    /// Time range covered by the timeline
+    pub time_range: TimeRange,
+}
+
+/// Safety analysis data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyAnalysis {
+    /// Number of unsafe operations detected
+    pub unsafe_operations: usize,
+    /// Number of FFI calls made
+    pub ffi_calls: usize,
+    /// List of potential memory leaks
+    pub potential_leaks: Vec<PotentialLeak>,
+    /// List of safety violations detected
+    pub safety_violations: Vec<SafetyViolation>,
+    /// Overall risk score (0.0 to 10.0)
+    pub risk_score: f64,
+}
 
 /// Enhanced information about a memory allocation with lifecycle tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +312,423 @@ pub struct AllocationInfo {
     pub transfer_count: usize,
     /// Custom metadata tags
     pub metadata_tags: Vec<String>,
+}
+
+// Supporting types for the comprehensive report
+/// Type of reference between scopes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ReferenceType {
+    /// Immutable borrow
+    Borrow,
+    /// Mutable borrow
+    MutableBorrow,
+    /// Ownership move
+    Move,
+    /// Value clone
+    Clone,
+}
+
+/// Ownership transfer between variables
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnershipTransfer {
+    /// Source variable transferring ownership
+    pub from_variable: String,
+    /// Target variable receiving ownership
+    pub to_variable: String,
+    /// When the transfer occurred
+    pub timestamp: u128,
+    /// Type of ownership transfer
+    pub transfer_type: TransferType,
+}
+
+/// Type of ownership transfer
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TransferType {
+    /// Ownership moved
+    Move,
+    /// Value cloned
+    Clone,
+    /// Reference created
+    Reference,
+}
+
+/// Borrow operation event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BorrowEvent {
+    /// Variable that borrows
+    pub borrower: String,
+    /// Variable being borrowed from
+    pub borrowed_from: String,
+    /// Type of borrow (mutable/immutable)
+    pub borrow_type: BorrowType,
+    /// When the borrow occurred
+    pub timestamp: u128,
+    /// Duration of the borrow
+    pub duration: Option<u128>,
+}
+
+/// Type of borrow operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BorrowType {
+    /// Immutable borrow (&T)
+    Immutable,
+    /// Mutable borrow (&mut T)
+    Mutable,
+}
+
+/// Memory growth event for a variable
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrowthEvent {
+    /// When the growth occurred
+    pub timestamp: u128,
+    /// Previous size before growth
+    pub old_size: usize,
+    /// New size after growth
+    pub new_size: usize,
+    /// Reason for the growth
+    pub growth_reason: GrowthReason,
+}
+
+/// Reason for memory growth or change
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum GrowthReason {
+    /// Initial allocation
+    Initial,
+    /// Memory reallocation
+    Reallocation,
+    /// Memory expansion
+    Expansion,
+    /// Memory shrinkage
+    Shrinkage,
+}
+
+/// Variable move event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoveEvent {
+    /// When the move occurred
+    pub timestamp: u128,
+    /// Source scope of the move
+    pub from_scope: String,
+    /// Target scope of the move
+    pub to_scope: String,
+    /// Type of move operation
+    pub move_type: MoveType,
+}
+
+/// Type of move operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MoveType {
+    /// Ownership transfer
+    Ownership,
+    /// Reference move
+    Reference,
+    /// Copy operation
+    Copy,
+}
+
+/// Relationship between variables
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariableRelationship {
+    /// Name of the related variable
+    pub related_variable: String,
+    /// Type of relationship
+    pub relationship_type: RelationshipType,
+    /// Strength of the relationship (0.0 to 1.0)
+    pub strength: f64,
+}
+
+/// Type of relationship between variables
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RelationshipType {
+    /// One variable contains another
+    Contains,
+    /// One variable references another
+    References,
+    /// One variable borrows from another
+    Borrows,
+    /// One variable is cloned from another
+    Cloned,
+}
+
+/// Type hierarchy and relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeHierarchy {
+    /// Categories of types and their information
+    pub categories: HashMap<String, TypeCategory>,
+    /// Inheritance relationships between types
+    pub inheritance_tree: Vec<TypeRelation>,
+    /// Composition relationships between types
+    pub composition_graph: Vec<CompositionRelation>,
+}
+
+/// Category of types with memory statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeCategory {
+    /// Name of the type category
+    pub name: String,
+    /// List of subcategories
+    pub subcategories: Vec<String>,
+    /// Total memory used by this category
+    pub total_memory: usize,
+    /// Number of allocations in this category
+    pub allocation_count: usize,
+}
+
+/// Relationship between types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeRelation {
+    /// Parent type in the relationship
+    pub parent_type: String,
+    /// Child type in the relationship
+    pub child_type: String,
+    /// Strength of the relationship
+    pub relation_strength: f64,
+}
+
+/// Composition relationship between types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompositionRelation {
+    /// Type that contains other types
+    pub container_type: String,
+    /// Type that is contained
+    pub contained_type: String,
+    /// Number of contained instances
+    pub count: usize,
+}
+
+/// Analysis of generic types and parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenericAnalysis {
+    /// Information about generic types
+    pub generic_types: Vec<GenericTypeInfo>,
+    /// Type parameters for each generic type
+    pub type_parameters: HashMap<String, Vec<String>>,
+    /// Common instantiation patterns
+    pub instantiation_patterns: Vec<InstantiationPattern>,
+}
+
+/// Information about a generic type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenericTypeInfo {
+    /// Base type name (e.g., "Vec" for Vec<T>)
+    pub base_type: String,
+    /// Type parameters used
+    pub type_parameters: Vec<String>,
+    /// Number of times this type was instantiated
+    pub instantiation_count: usize,
+    /// Total memory usage of all instances
+    pub memory_usage: usize,
+}
+
+/// Pattern of type instantiation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstantiationPattern {
+    /// The instantiation pattern (e.g., "Vec<String>")
+    pub pattern: String,
+    /// How often this pattern occurs
+    pub frequency: usize,
+    /// Memory impact of this pattern
+    pub memory_impact: usize,
+}
+
+/// Analysis of trait usage patterns
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraitUsage {
+    /// Traits implemented by each type
+    pub implemented_traits: HashMap<String, Vec<String>>,
+    /// Information about trait objects
+    pub trait_objects: Vec<TraitObjectInfo>,
+    /// Number of dynamic dispatch calls
+    pub dynamic_dispatch_count: usize,
+}
+
+/// Information about trait objects
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraitObjectInfo {
+    /// Name of the trait
+    pub trait_name: String,
+    /// Types that implement this trait
+    pub implementing_types: Vec<String>,
+    /// Number of times used as trait object
+    pub usage_count: usize,
+}
+
+/// Memory layout and alignment analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryLayout {
+    /// Analysis of type alignment
+    pub alignment_analysis: AlignmentAnalysis,
+    /// Bytes wasted due to padding
+    pub padding_waste: usize,
+    /// Cache efficiency score
+    pub cache_efficiency: f64,
+}
+
+/// Analysis of memory alignment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlignmentAnalysis {
+    /// Types with good alignment
+    pub well_aligned_types: Vec<String>,
+    /// Types with poor alignment
+    pub poorly_aligned_types: Vec<String>,
+    /// Total bytes wasted due to alignment
+    pub alignment_waste: usize,
+}
+
+/// Statistical information about a type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeStatistics {
+    /// Total number of instances
+    pub total_instances: usize,
+    /// Total memory used by all instances
+    pub total_memory: usize,
+    /// Average size per instance
+    pub average_size: f64,
+    /// Distribution of instance sizes
+    pub size_distribution: SizeDistribution,
+}
+
+/// Distribution of allocation sizes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SizeDistribution {
+    /// Minimum allocation size
+    pub min_size: usize,
+    /// Maximum allocation size
+    pub max_size: usize,
+    /// Median allocation size
+    pub median_size: usize,
+    /// Size percentiles (e.g., "P95" -> size)
+    pub percentiles: HashMap<String, usize>,
+}
+
+/// Snapshot of memory state at a point in time
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemorySnapshot {
+    /// When the snapshot was taken
+    pub timestamp: u128,
+    /// Total memory in use
+    pub total_memory: usize,
+    /// Number of active allocations
+    pub active_allocations: usize,
+    /// Memory breakdown by scope
+    pub scope_breakdown: HashMap<String, usize>,
+}
+
+/// Individual allocation or deallocation event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationEvent {
+    /// When the event occurred
+    pub timestamp: u128,
+    /// Type of allocation event
+    pub event_type: AllocationEventType,
+    /// Name of the variable involved
+    pub variable_name: String,
+    /// Size of the allocation
+    pub size: usize,
+    /// Scope where the event occurred
+    pub scope: String,
+}
+
+/// Type of allocation event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AllocationEventType {
+    /// Memory allocation event
+    Allocate,
+    /// Memory deallocation event
+    Deallocate,
+    /// Memory reallocation event
+    Reallocate,
+}
+
+/// Event that occurs within a scope
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScopeEvent {
+    /// When the event occurred
+    pub timestamp: u128,
+    /// Type of scope event
+    pub event_type: ScopeEventType,
+    /// Name of the scope where event occurred
+    pub scope_name: String,
+    /// Memory impact of the event in bytes
+    pub memory_impact: usize,
+}
+
+/// Type of scope event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ScopeEventType {
+    /// Entering a scope
+    Enter,
+    /// Exiting a scope
+    Exit,
+}
+
+/// Time range for events
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeRange {
+    /// Start time of the range
+    pub start_time: u128,
+    /// End time of the range
+    pub end_time: u128,
+    /// Duration in milliseconds
+    pub duration_ms: u128,
+}
+
+/// Potential memory leak detection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PotentialLeak {
+    /// Name of the potentially leaked variable
+    pub variable_name: String,
+    /// Size of the leaked memory in bytes
+    pub size: usize,
+    /// Age of the allocation in milliseconds
+    pub age_ms: u128,
+    /// Scope where the leak was detected
+    pub scope: String,
+    /// Confidence level of leak detection (0.0 to 1.0)
+    pub confidence: f64,
+}
+
+/// Memory safety violation detected
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyViolation {
+    /// Type of safety violation
+    pub violation_type: ViolationType,
+    /// Description of the violation
+    pub description: String,
+    /// Location where violation occurred
+    pub location: String,
+    /// Severity level of the violation
+    pub severity: Severity,
+    /// When the violation was detected
+    pub timestamp: u128,
+}
+
+/// Type of memory safety violation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ViolationType {
+    /// Double free violation
+    DoubleFree,
+    /// Use after free violation
+    UseAfterFree,
+    /// Buffer overflow violation
+    BufferOverflow,
+    /// Null pointer dereference
+    NullPointerDereference,
+    /// Data race condition
+    DataRace,
+}
+
+/// Severity level of violations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Severity {
+    /// Low severity issue
+    Low,
+    /// Medium severity issue
+    Medium,
+    /// High severity issue
+    High,
+    /// Critical severity issue
+    Critical,
 }
 
 impl AllocationInfo {

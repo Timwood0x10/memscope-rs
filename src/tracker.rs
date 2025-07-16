@@ -202,12 +202,12 @@ impl MemoryTracker {
             }
         };
 
-        let mut type_usage: HashMap<String, (usize, usize)> = HashMap::new();
+        let mut type_usage: HashMap<String, (usize, usize)> = HashMap::with_capacity(active_clone.len());
 
         for allocation in active_clone {
             let type_name = allocation
                 .type_name
-                .unwrap_or_else(|| "Unknown".to_string());
+                .unwrap_or("Unknown".to_string());
 
             let (total_size, count) = type_usage.entry(type_name).or_insert((0, 0));
             *total_size = total_size.saturating_add(allocation.size);
@@ -295,6 +295,92 @@ impl MemoryTracker {
 impl Default for MemoryTracker {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl MemoryTracker {
+    /// Track growth events for a variable
+    fn track_growth_events(&self, var_name: &str, allocation_history: &[AllocationInfo]) -> Vec<crate::types::GrowthEvent> {
+        let mut growth_events = Vec::new();
+        let mut last_size = 0;
+        
+        for alloc in allocation_history {
+            if let Some(name) = &alloc.var_name {
+                if name == var_name && alloc.size > last_size {
+                    growth_events.push(crate::types::GrowthEvent {
+                        timestamp: alloc.timestamp_alloc,
+                        old_size: last_size,
+                        new_size: alloc.size,
+                        growth_reason: if last_size > 0 { crate::types::GrowthReason::Expansion } else { crate::types::GrowthReason::Initial },
+                    });
+                    last_size = alloc.size;
+                }
+            }
+        }
+        
+        growth_events
+    }
+    
+    /// Track borrow events for a variable
+    fn track_borrow_events(&self, _var_name: &str, _allocation_history: &[AllocationInfo]) -> Vec<crate::types::BorrowEvent> {
+        // Simplified implementation - return empty for now
+        Vec::new()
+    }
+    
+    /// Track move events for a variable
+    fn track_move_events(&self, _var_name: &str, _allocation_history: &[AllocationInfo]) -> Vec<crate::types::MoveEvent> {
+        // Simplified implementation - return empty for now
+        Vec::new()
+    }
+    
+    /// Track variable relationships
+    fn track_variable_relationships(&self, _var_name: &str, _active_allocations: &[AllocationInfo]) -> Vec<crate::types::VariableRelationship> {
+        // Simplified implementation - return empty for now
+        Vec::new()
+    }
+    
+    /// Calculate minimum allocation size for a type
+    fn calculate_min_allocation_size(&self, type_name: &str, allocation_history: &[AllocationInfo]) -> usize {
+        allocation_history
+            .iter()
+            .filter(|alloc| alloc.type_name.as_deref() == Some(type_name))
+            .map(|alloc| alloc.size)
+            .min()
+            .unwrap_or(0)
+    }
+    
+    /// Detect potential memory leaks
+    fn detect_potential_leaks(&self, active_allocations: &[AllocationInfo]) -> Vec<crate::types::PotentialLeak> {
+        let mut leaks = Vec::new();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+        
+        for alloc in active_allocations {
+            let age_ms = (now.saturating_sub(alloc.timestamp_alloc)) / 1_000_000;
+            
+            // Consider allocations older than 10 seconds as potential leaks
+            if age_ms > 10_000 {
+                let confidence = if age_ms > 60_000 { 0.9 } else { 0.5 };
+                
+                leaks.push(crate::types::PotentialLeak {
+                    variable_name: alloc.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                    size: alloc.size,
+                    age_ms,
+                    scope: alloc.scope_name.clone().unwrap_or_else(|| "global".to_string()),
+                    confidence,
+                });
+            }
+        }
+        
+        leaks
+    }
+    
+    /// Convert unsafe violations from unsafe tracker
+    fn convert_unsafe_violations(&self) -> Vec<crate::types::SafetyViolation> {
+        // Simplified implementation - return empty for now
+        Vec::new()
     }
 }
 
@@ -566,7 +652,7 @@ fn build_legacy_hierarchy(
                 0.0
             };
 
-            let mut type_details = Vec::new();
+            let mut type_details = Vec::with_capacity(types.len());
             let type_count = types.len();
             for type_info in &types {
                 let type_percentage = if subcategory_total > 0 {

@@ -10,6 +10,7 @@
 
 pub mod allocator;
 pub mod export_enhanced;
+pub mod scope_tracker;
 pub mod tracker;
 pub mod types;
 pub mod unsafe_ffi_tracker;
@@ -18,6 +19,9 @@ pub mod utils;
 pub mod visualization;
 /// Offline HTML report generation from JSON data
 pub mod report_generator;
+
+// Re-export comprehensive report generation
+pub use report_generator::generate_interactive_html_report;
 
 // Re-export key functions
 pub use report_generator::*;

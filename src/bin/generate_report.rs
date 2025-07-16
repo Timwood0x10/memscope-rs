@@ -1,4 +1,4 @@
-use memscope_rs::*;
+// use memscope_rs::get_global_tracker;
 use std::env;
 
 fn main() {

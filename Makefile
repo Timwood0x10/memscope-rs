@@ -210,6 +210,11 @@ run-complex-lifecycle-showcase:
 	@echo "$(BLUE)Running complex lifecycle showcase example...$(NC)"
 	$(CARGO) run --example complex_lifecycle_showcase
 
+.PHONY: run-comprehensive-demo
+run-comprehensive-demo:
+	@echo "$(BLUE)Running comprehensive analysis demo...$(NC)"
+	$(CARGO) run --example comprehensive_analysis_demo
+
 # CI/CD targets
 .PHONY: ci
 ci: clean check fmt-check clippy test doc
