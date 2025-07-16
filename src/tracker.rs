@@ -245,17 +245,66 @@ impl MemoryTracker {
         let stats = self.get_stats()?;
         let allocation_history = self.get_allocation_history()?;
 
+        // Apply same filtering logic as HTML export
+        let mut prioritized_allocations = Vec::new();
+        let mut system_allocations = Vec::new();
+        
+        // Separate user variables and system allocations
+        for alloc in &active_allocations {
+            if alloc.var_name.is_some() {
+                prioritized_allocations.push(alloc.clone());
+            } else if alloc.size >= 1024 {  // Only include >= 1KB system allocations
+                let mut enhanced_alloc = alloc.clone();
+                // Add descriptive labels for large system allocations
+                enhanced_alloc.var_name = Some(format!("system_alloc_{}KB", alloc.size / 1024));
+                enhanced_alloc.type_name = Some(crate::html_export::classify_system_allocation(alloc.size));
+                system_allocations.push(enhanced_alloc);
+            }
+        }
+        
+        // Sort system allocations by size, take top 50
+        system_allocations.sort_by(|a, b| b.size.cmp(&a.size));
+        system_allocations.truncate(50);
+        
+        // Merge: user variables + large system allocations
+        prioritized_allocations.extend(system_allocations);
+        
+        // Filter history data similarly
+        let mut prioritized_history = Vec::new();
+        let mut system_history = Vec::new();
+        
+        for alloc in allocation_history.iter().rev() {  // Most recent first
+            if alloc.var_name.is_some() {
+                prioritized_history.push(alloc.clone());
+            } else if alloc.size >= 512 && system_history.len() < 100 {  // Limit system history
+                let mut enhanced_alloc = alloc.clone();
+                enhanced_alloc.var_name = Some(format!("system_alloc_{}B", alloc.size));
+                enhanced_alloc.type_name = Some(crate::html_export::classify_system_allocation(alloc.size));
+                system_history.push(enhanced_alloc);
+            }
+            
+            if prioritized_history.len() >= 200 {  // Limit total count
+                break;
+            }
+        }
+        
+        prioritized_history.extend(system_history);
+
+        println!("JSON export: {} user variables, {} large system allocations", 
+                 prioritized_allocations.iter().filter(|a| a.var_name.as_ref().map_or(false, |n| !n.starts_with("system_"))).count(),
+                 prioritized_allocations.iter().filter(|a| a.var_name.as_ref().map_or(false, |n| n.starts_with("system_"))).count());
+
         // Get unsafe/FFI data if available
         let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
             .get_stats();
 
-        // Generate timeline data
-        let timeline_data = self.generate_timeline_data(&allocation_history, &active_allocations);
+        // Generate timeline data with filtered data
+        let timeline_data = self.generate_timeline_data(&prioritized_history, &prioritized_allocations);
 
-        // Build unified dashboard structure
+        // Build unified dashboard structure with filtered data
         let mut dashboard_data = build_unified_dashboard_structure(
-            &active_allocations,
-            &allocation_history,
+            &prioritized_allocations,
+            &prioritized_history,
             &memory_by_type,
             &stats,
             &unsafe_stats,
@@ -791,7 +840,7 @@ fn estimate_type_size(type_name: &str) -> usize {
 }
 
 /// Build unified dashboard JSON structure compatible with all frontend interfaces
-fn build_unified_dashboard_structure(
+pub fn build_unified_dashboard_structure(
     active_allocations: &[AllocationInfo],
     allocation_history: &[AllocationInfo],
     memory_by_type: &[crate::types::TypeMemoryUsage],
@@ -840,10 +889,9 @@ fn build_unified_dashboard_structure(
         0.0
     };
 
-    // Prepare allocation details for frontend
+    // Prepare allocation details for frontend - use filtered data
     let allocation_details: Vec<_> = active_allocations
         .iter()
-        .take(100) // Limit to avoid huge JSON files
         .map(|alloc| {
             serde_json::json!({
                 "size": alloc.size,

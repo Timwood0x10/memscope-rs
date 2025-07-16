@@ -687,6 +687,14 @@ fn generate_final_analysis() {
         println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");
     }
 
+    // Then generate HTML dashboard based on JSON
+    println!("📊 Generating interactive HTML dashboard from JSON...");
+    if let Err(e)  = tracker.export_interactive_dashboard("complex_lifecycle_showcase.html") {
+        println!("❌ html snapshot export failed: {}", e);
+    }else{
+        println!("✅ HTML exported to: ./complex_lifecycle_showcase.html");
+    }
+
     println!("\n🎯 Showcase Complete!");
     println!("=====================");
     println!("This demonstration showcased:");

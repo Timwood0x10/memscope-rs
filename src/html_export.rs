@@ -1,17 +1,113 @@
 use crate::tracker::MemoryTracker;
 use std::fs;
 
+/// 根据分配大小分类系统分配
+pub fn classify_system_allocation(size: usize) -> String {
+    match size {
+        0..=1024 => "Small System Buffer".to_string(),
+        1025..=4096 => "Medium System Buffer".to_string(), 
+        4097..=16384 => "Large System Buffer".to_string(),
+        16385..=65536 => "System Page Allocation".to_string(),
+        65537..=262144 => "Large System Allocation".to_string(),
+        _ => "Huge System Allocation".to_string(),
+    }
+}
+
 /// Export interactive HTML dashboard with embedded SVG charts
 pub fn export_interactive_dashboard<P: AsRef<std::path::Path>>(tracker: &MemoryTracker, path: P) -> crate::types::TrackingResult<()> {
     tracker.export_interactive_dashboard_impl(path)
 }
 
 impl MemoryTracker {
-    /// Export interactive HTML dashboard with embedded SVG charts (internal implementation)
+    /// Generate optimized dashboard data (limit size for performance)
+    fn generate_optimized_dashboard_data(&self) -> crate::types::TrackingResult<String> {
+        let active_allocations = self.get_active_allocations()?;
+        let memory_by_type = self.get_memory_by_type()?;
+        let stats = self.get_stats()?;
+        let allocation_history = self.get_allocation_history()?;
+
+        // Get unsafe/FFI data if available
+        let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
+            .get_stats();
+
+        // 🎯 优先显示用户追踪的变量，然后是大内存分配
+        let mut prioritized_allocations = Vec::new();
+        let mut system_allocations = Vec::new();
+        
+        // 分离用户变量和系统分配
+        for alloc in &active_allocations {
+            if alloc.var_name.is_some() {
+                prioritized_allocations.push(alloc.clone());
+            } else if alloc.size >= 1024 {  // 只包含 >= 1KB 的系统分配
+                let mut enhanced_alloc = alloc.clone();
+                // 为大的系统分配添加描述性标签
+                enhanced_alloc.var_name = Some(format!("system_alloc_{}KB", alloc.size / 1024));
+                enhanced_alloc.type_name = Some(classify_system_allocation(alloc.size));
+                system_allocations.push(enhanced_alloc);
+            }
+        }
+        
+        // 按大小排序系统分配，取前50个
+        system_allocations.sort_by(|a, b| b.size.cmp(&a.size));
+        system_allocations.truncate(50);
+        
+        // 合并：用户变量 + 大的系统分配
+        prioritized_allocations.extend(system_allocations);
+        
+        println!("📊 Dashboard data: {} user variables, {} large system allocations", 
+                 prioritized_allocations.iter().filter(|a| a.var_name.is_some()).count(),
+                 prioritized_allocations.iter().filter(|a| a.var_name.is_none()).count());
+
+        // 同样过滤历史数据 - 优先显示有名字的分配
+        let mut prioritized_history = Vec::new();
+        let mut system_history = Vec::new();
+        
+        for alloc in allocation_history.iter().rev() {  // 最新的优先
+            if alloc.var_name.is_some() {
+                prioritized_history.push(alloc.clone());
+            } else if alloc.size >= 512 && system_history.len() < 100 {  // 限制系统历史
+                let mut enhanced_alloc = alloc.clone();
+                // 为历史中的系统分配也添加标签
+                enhanced_alloc.var_name = Some(format!("system_alloc_{}B", alloc.size));
+                enhanced_alloc.type_name = Some(classify_system_allocation(alloc.size));
+                system_history.push(enhanced_alloc);
+            }
+            
+            if prioritized_history.len() >= 200 {  // 限制总数
+                break;
+            }
+        }
+        
+        prioritized_history.extend(system_history);
+
+        // Generate timeline data with limited scope
+        let timeline_data = self.generate_timeline_data(&prioritized_history, &prioritized_allocations);
+
+        // Build optimized dashboard structure
+        let dashboard_data = crate::tracker::build_unified_dashboard_structure(
+            &prioritized_allocations,
+            &prioritized_history,
+            &memory_by_type,
+            &stats,
+            &unsafe_stats,
+        );
+
+        // Add timeline data
+        let mut final_data = dashboard_data;
+        if let serde_json::Value::Object(ref mut map) = final_data {
+            map.insert("timeline".to_string(), serde_json::to_value(timeline_data).unwrap_or(serde_json::Value::Null));
+        }
+
+        // Convert to compact JSON string
+        serde_json::to_string(&final_data).map_err(|e| {
+            crate::types::TrackingError::SerializationError(format!("Dashboard data serialization failed: {e}"))
+        })
+    }
+    /// Export interactive HTML dashboard with embedded JSON data (optimized implementation)
     pub fn export_interactive_dashboard_impl<P: AsRef<std::path::Path>>(&self, path: P) -> crate::types::TrackingResult<()> {
         let path = path.as_ref();
         
-        println!("🚀 Generating interactive dashboard...");
+        println!("🚀 Generating optimized interactive dashboard...");
         
         // Create parent directories if they don't exist
         if let Some(parent) = path.parent() {
@@ -20,37 +116,24 @@ impl MemoryTracker {
             }
         }
         
-        // Generate SVG content (reuse existing functions)
-        println!("📊 Generating lifecycle timeline...");
-        let lifecycle_svg = self.generate_lifecycle_timeline_svg_content()?;
+        // Generate optimized JSON data (limit data size for performance)
+        println!("📊 Preparing dashboard data...");
+        let dashboard_data = self.generate_optimized_dashboard_data()?;
         
-        println!("🧠 Generating memory analysis...");
-        let memory_svg = self.generate_memory_analysis_svg_content()?;
+        // Read optimized HTML template
+        let html_template = include_str!("optimized_dashboard_template.html");
         
-        println!("⚠️ Generating unsafe FFI dashboard...");
-        let unsafe_svg = self.generate_unsafe_ffi_svg_content()?;
-        
-        // Generate interactive script with data
-        println!("⚡ Generating interactive features...");
-        let interactive_script = self.generate_interactive_script()?;
-        
-        // Read HTML template
-        let html_template = include_str!("dashboard_template.html");
-        
-        // Replace placeholders
+        // Replace placeholders with JSON data
         let html = html_template
             .replace("{{TIMESTAMP}}", &chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string())
-            .replace("{{LIFECYCLE_SVG}}", &lifecycle_svg)
-            .replace("{{MEMORY_ANALYSIS_SVG}}", &memory_svg)
-            .replace("{{UNSAFE_FFI_SVG}}", &unsafe_svg)
-            .replace("{{INTERACTIVE_SCRIPT}}", &interactive_script);
+            .replace("{{DASHBOARD_DATA}}", &dashboard_data);
         
         // Write to file
         fs::write(path, html)?;
         
-        println!("✅ Interactive dashboard exported to: {}", path.display());
+        println!("✅ Optimized interactive dashboard exported to: {}", path.display());
         println!("   📱 Open in browser to view the analysis");
-        println!("   🎯 Features: zoom, hover details, theme toggle, data export");
+        println!("   🎯 Features: real-time rendering, responsive design, optimized performance");
         
         Ok(())
     }
