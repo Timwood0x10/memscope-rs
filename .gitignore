@@ -48,6 +48,11 @@ tarpaulin-report.html
 tmp_*
 temp_*
 
+# HTML files
+*.html
+*.htm
+!template.html
+
 # Log files
 *.log
 

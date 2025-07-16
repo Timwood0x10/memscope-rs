@@ -19,6 +19,9 @@ pub mod visualization;
 /// Offline HTML report generation from JSON data
 pub mod report_generator;
 
+// Re-export key functions
+pub use report_generator::*;
+
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
 pub use tracker::{get_global_tracker, MemoryTracker};

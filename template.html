@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Memory Analysis</title>
+    <style>
+        * { box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .main-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: rgba(44, 62, 80, 0.95);
+            color: #ecf0f1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .sidebar h2 {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 12px 15px;
+            margin: 5px 0;
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 8px;
+            color: #ecf0f1;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-item:hover, .nav-item.active {
+            background: rgba(52, 152, 219, 0.3);
+            border-color: #3498db;
+            transform: translateX(5px);
+        }
+        
+        /* Content Area */
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .content-header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .content-header h1 {
+            margin: 0;
+            font-size: 28px;
+            color: #2c3e50;
+            font-weight: 300;
+        }
+        
+        /* Interactive Panels */
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+        }
+        
+        .panel-header {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-content {
+            padding: 20px;
+            max-height: 800px;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .panel-content.collapsed {
+            max-height: 0;
+            padding: 0 20px;
+        }
+        
+        /* Flamegraph */
+        .memory-flamegraph {
+            width: 100%;
+            height: 400px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e9ecef;
+        }
+        
+        .flame-rect {
+            position: absolute;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        
+        .flame-rect:hover {
+            border-color: #fff;
+            border-width: 2px;
+            z-index: 10;
+            filter: brightness(1.2);
+        }
+        
+        .flame-rect.selected {
+            border-color: #f39c12;
+            border-width: 3px;
+            z-index: 20;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border-left: 4px solid #3498db;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .metric-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .metric-card .label {
+            color: #7f8c8d;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        /* Data Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .data-table th {
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ecf0f1;
+            font-size: 13px;
+        }
+        
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .data-table tr.selected {
+            background: rgba(52, 152, 219, 0.1);
+        }
+        
+        /* Search */
+        .search-bar {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .search-bar:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .tooltip.visible {
+            opacity: 1;
+        }
+        
+        .view {
+            display: none;
+        }
+        
+        .view.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2>Memory Explorer</h2>
+            
+            <div class="nav-section">
+                <div class="nav-item active" data-view="overview">Overview</div>
+                <div class="nav-item" data-view="flamegraph">Memory Flamegraph</div>
+                <div class="nav-item" data-view="lifecycle">Lifecycle Analysis</div>
+                <div class="nav-item" data-view="unsafe">Unsafe/FFI Analysis</div>
+                <div class="nav-item" data-view="allocations">Allocation Details</div>
+                <div class="nav-item" data-view="types">Type Analysis</div>
+            </div>
+            
+            <div class="nav-section">
+                <h3 style="color: #95a5a6; font-size: 14px; margin-bottom: 10px;">Search</h3>
+                <input type="text" class="search-bar" id="searchInput" placeholder="Search variables, types...">
+            </div>
+            
+            <div class="nav-section">
+                <h3 style="color: #95a5a6; font-size: 14px; margin-bottom: 10px;">Quick Stats</h3>
+                <div id="quickStats"></div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="content">
+            <div class="content-header">
+                <h1 id="viewTitle">Memory Analysis Overview</h1>
+                <div class="subtitle" id="viewSubtitle">Interactive exploration of Rust memory usage</div>
+            </div>
+            
+            <!-- Overview View -->
+            <div id="overviewView" class="view active">
+                <div class="metrics-grid" id="metricsGrid"></div>
+                
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Memory Usage Timeline</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="panel-content" id="timelineChart"></div>
+                </div>
+            </div>
+            
+            <!-- Flamegraph View -->
+            <div id="flamegraphView" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Interactive Memory Flamegraph</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="panel-content">
+                        <div class="memory-flamegraph" id="memoryFlamegraph"></div>
+                        <div id="flamegraphDetails" style="margin-top: 15px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Lifecycle View -->
+            <div id="lifecycleView" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Variable Lifecycle Analysis</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="panel-content" id="lifecycleVisualization"></div>
+                </div>
+            </div>
+            
+            <!-- Unsafe/FFI View -->
+            <div id="unsafeView" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Unsafe & FFI Analysis</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="panel-content" id="unsafeVisualization"></div>
+                </div>
+            </div>
+            
+            <!-- Allocations View -->
+            <div id="allocationsView" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Allocation Details</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="panel-content">
+                        <table class="data-table" id="allocationsTable">
+                            <thead>
+                                <tr>
+                                    <th>Variable</th>
+                                    <th>Type</th>
+                                    <th>Size</th>
+                                    <th>Scope</th>
+                                    <th>Lifetime</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allocationsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Types View -->
+            <div id="typesView" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Type Analysis</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="panel-content" id="typesVisualization"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- DATA_INJECTION_POINT -->
+
+    <script>
+        // Global variables
+        let currentData = null;
+        let selectedAllocation = null;
+        let currentView = 'overview';
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.EMBEDDED_MEMORY_DATA) {
+                currentData = window.EMBEDDED_MEMORY_DATA;
+                initializeAnalyzer();
+            } else {
+                showError('No embedded data found');
+            }
+        });
+        
+        function initializeAnalyzer() {
+            console.log('Initializing interactive memory analyzer...');
+            
+            // Setup navigation
+            setupNavigation();
+            
+            // Setup search
+            setupSearch();
+            
+            // Setup panel toggles
+            setupPanelToggles();
+            
+            // Initialize views
+            initializeOverview();
+            initializeFlamegraph();
+            initializeLifecycle();
+            initializeUnsafe();
+            initializeAllocations();
+            initializeTypes();
+            
+            console.log('Interactive analyzer initialized');
+        }
+        
+        function setupNavigation() {
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', () => {
+                    const view = item.dataset.view;
+                    switchView(view);
+                    
+                    // Update active state
+                    navItems.forEach(nav => nav.classList.remove('active'));
+                    item.classList.add('active');
+                });
+            });
+        }
+        
+        function switchView(view) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(v => {
+                v.classList.remove('active');
+            });
+            
+            // Show selected view
+            document.getElementById(view + 'View').classList.add('active');
+            
+            // Update header
+            const titles = {
+                overview: 'Memory Analysis Overview',
+                flamegraph: 'Interactive Memory Flamegraph',
+                lifecycle: 'Variable Lifecycle Analysis',
+                unsafe: 'Unsafe & FFI Analysis',
+                allocations: 'Allocation Details',
+                types: 'Type Analysis'
+            };
+            
+            document.getElementById('viewTitle').textContent = titles[view];
+            currentView = view;
+        }
+        
+        function setupSearch() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                filterData(query);
+            });
+        }
+        
+        function setupPanelToggles() {
+            document.querySelectorAll('.panel-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const content = header.nextElementSibling;
+                    const toggle = header.querySelector('.toggle');
+                    
+                    content.classList.toggle('collapsed');
+                    header.classList.toggle('collapsed');
+                });
+            });
+        }
+        
+        function initializeOverview() {
+            populateMetrics();
+            createTimelineChart();
+        }
+        
+        function populateMetrics() {
+            const metricsGrid = document.getElementById('metricsGrid');
+            const memoryStats = currentData.memory_stats || {};
+            const unsafeStats = extractUnsafeStats(currentData);
+            
+            const metrics = [
+                {
+                    label: 'Total Memory',
+                    value: formatBytes(memoryStats.total_allocated_bytes || 0),
+                    color: '#3498db'
+                },
+                {
+                    label: 'Active Allocations',
+                    value: memoryStats.total_allocations || 0,
+                    color: '#2ecc71'
+                },
+                {
+                    label: 'Unsafe Operations',
+                    value: unsafeStats.total_operations || 0,
+                    color: '#e74c3c'
+                },
+                {
+                    label: 'Memory Efficiency',
+                    value: ((memoryStats.memory_efficiency || 0) * 100).toFixed(1) + '%',
+                    color: '#f39c12'
+                }
+            ];
+            
+            metricsGrid.innerHTML = metrics.map(metric => `
+                <div class="metric-card" style="border-left-color: ${metric.color};">
+                    <div class="value">${metric.value}</div>
+                    <div class="label">${metric.label}</div>
+                </div>
+            `).join('');
+        }
+        
+        function createTimelineChart() {
+            const container = document.getElementById('timelineChart');
+            // Create a simple timeline visualization
+            container.innerHTML = createLifecycleTimelineSVG(currentData);
+        }
+        
+        function initializeFlamegraph() {
+            const container = document.getElementById('memoryFlamegraph');
+            createFlamegraph(container);
+        }
+        
+        function createFlamegraph(container) {
+            const allocations = extractAllocations(currentData);
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            container.innerHTML = '';
+            
+            // Group allocations by scope and create flame rectangles
+            const scopeGroups = groupByScope(allocations);
+            let yOffset = 0;
+            const rowHeight = 25;
+            
+            Object.entries(scopeGroups).forEach(([scope, allocs], scopeIndex) => {
+                const totalSize = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+                let xOffset = 0;
+                
+                allocs.forEach((alloc, index) => {
+                    const allocWidth = Math.max(50, (alloc.size || 0) / totalSize * width * 0.8);
+                    const color = getTypeColor(alloc.type);
+                    
+                    const rect = document.createElement('div');
+                    rect.className = 'flame-rect';
+                    rect.style.left = xOffset + 'px';
+                    rect.style.top = yOffset + 'px';
+                    rect.style.width = allocWidth + 'px';
+                    rect.style.height = rowHeight + 'px';
+                    rect.style.backgroundColor = color;
+                    rect.textContent = alloc.name || 'unnamed';
+                    
+                    rect.addEventListener('click', () => selectAllocation(alloc));
+                    rect.addEventListener('mouseenter', (e) => showTooltip(e, alloc));
+                    rect.addEventListener('mouseleave', hideTooltip);
+                    
+                    container.appendChild(rect);
+                    xOffset += allocWidth + 2;
+                });
+                
+                yOffset += rowHeight + 5;
+            });
+        }
+        
+        function initializeLifecycle() {
+            const container = document.getElementById('lifecycleVisualization');
+            container.innerHTML = createLifecycleTimelineSVG(currentData);
+        }
+        
+        function initializeUnsafe() {
+            const container = document.getElementById('unsafeVisualization');
+            container.innerHTML = createUnsafeFFIDashboardSVG(currentData);
+        }
+        
+        function initializeAllocations() {
+            const tableBody = document.getElementById('allocationsTableBody');
+            const allocations = extractAllocations(currentData);
+            
+            tableBody.innerHTML = allocations.map(alloc => `
+                <tr onclick="selectAllocation(this, ${JSON.stringify(alloc).replace(/"/g, '&quot;')})">
+                    <td>${alloc.name || 'unnamed'}</td>
+                    <td>${alloc.type || 'unknown'}</td>
+                    <td>${formatBytes(alloc.size || 0)}</td>
+                    <td>${alloc.scope || 'global'}</td>
+                    <td>${alloc.lifetime || 'N/A'}</td>
+                    <td>${alloc.status || 'active'}</td>
+                </tr>
+            `).join('');
+        }
+        
+        function initializeTypes() {
+            const container = document.getElementById('typesVisualization');
+            const typeStats = analyzeTypes(currentData);
+            
+            container.innerHTML = `
+                <div class="metrics-grid">
+                    ${Object.entries(typeStats).map(([type, stats]) => `
+                        <div class="metric-card">
+                            <div class="value">${stats.count}</div>
+                            <div class="label">${type}</div>
+                            <div style="font-size: 11px; color: #7f8c8d; margin-top: 5px;">
+                                ${formatBytes(stats.totalSize)}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // Utility functions
+        function extractAllocations(data) {
+            const allocations = [];
+            if (data.memory_hierarchy) {
+                for (const [categoryName, categoryData] of Object.entries(data.memory_hierarchy)) {
+                    if (categoryData.subcategories) {
+                        for (const [subName, subData] of Object.entries(categoryData.subcategories)) {
+                            if (subData.types) {
+                                subData.types.forEach(type => {
+                                    if (type.allocations) {
+                                        type.allocations.forEach(alloc => {
+                                            allocations.push({
+                                                name: alloc.variable_name,
+                                                type: alloc.type_name || type.type_name,
+                                                size: alloc.size_bytes,
+                                                scope: categoryName,
+                                                lifetime: alloc.allocation_time,
+                                                status: 'active'
+                                            });
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            return allocations;
+        }
+        
+        function groupByScope(allocations) {
+            const groups = {};
+            allocations.forEach(alloc => {
+                const scope = alloc.scope || 'global';
+                if (!groups[scope]) groups[scope] = [];
+                groups[scope].push(alloc);
+            });
+            return groups;
+        }
+        
+        function analyzeTypes(data) {
+            const typeStats = {};
+            const allocations = extractAllocations(data);
+            
+            allocations.forEach(alloc => {
+                const type = alloc.type || 'unknown';
+                if (!typeStats[type]) {
+                    typeStats[type] = { count: 0, totalSize: 0 };
+                }
+                typeStats[type].count++;
+                typeStats[type].totalSize += alloc.size || 0;
+            });
+            
+            return typeStats;
+        }
+        
+        function getTypeColor(typeName) {
+            const colors = {
+                'String': '#2ecc71',
+                'Vec': '#e74c3c',
+                'HashMap': '#f39c12',
+                'Box': '#9b59b6',
+                'i32': '#3498db',
+                'u64': '#1abc9c'
+            };
+            
+            for (const [type, color] of Object.entries(colors)) {
+                if (typeName && typeName.includes(type)) {
+                    return color;
+                }
+            }
+            return '#95a5a6';
+        }
+        
+        function selectAllocation(element, alloc) {
+            // Remove previous selection
+            document.querySelectorAll('.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Add selection
+            if (element) element.classList.add('selected');
+            selectedAllocation = alloc;
+            
+            // Update details
+            updateAllocationDetails(alloc);
+        }
+        
+        function updateAllocationDetails(alloc) {
+            const details = document.getElementById('flamegraphDetails');
+            if (details && alloc) {
+                details.innerHTML = `
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0;">Selected: ${alloc.name}</h4>
+                        <p><strong>Type:</strong> ${alloc.type}</p>
+                        <p><strong>Size:</strong> ${formatBytes(alloc.size || 0)}</p>
+                        <p><strong>Scope:</strong> ${alloc.scope}</p>
+                        <p><strong>Lifetime:</strong> ${alloc.lifetime || 'N/A'}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function showTooltip(event, alloc) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.innerHTML = `
+                <strong>${alloc.name}</strong><br>
+                Type: ${alloc.type}<br>
+                Size: ${formatBytes(alloc.size || 0)}<br>
+                Scope: ${alloc.scope}
+            `;
+            tooltip.style.left = event.pageX + 10 + 'px';
+            tooltip.style.top = event.pageY + 10 + 'px';
+            tooltip.classList.add('visible');
+        }
+        
+        function hideTooltip() {
+            document.getElementById('tooltip').classList.remove('visible');
+        }
+        
+        function filterData(query) {
+            // Implement search/filter functionality
+            console.log('Filtering data with query:', query);
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function extractUnsafeStats(data) {
+            if (data.unsafe_ffi_stats) {
+                return {
+                    total_operations: data.unsafe_ffi_stats.total_operations || 0,
+                    ffi_calls: data.unsafe_ffi_stats.ffi_calls || 0,
+                    memory_violations: data.unsafe_ffi_stats.memory_violations || 0,
+                    risk_score: data.unsafe_ffi_stats.risk_score || 0
+                };
+            }
+            return { total_operations: 0, ffi_calls: 0, memory_violations: 0, risk_score: 0 };
+        }
+        
+        function showError(message) {
+            document.body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #ecf0f1;">
+                    <div style="text-align: center; color: #e74c3c;">
+                        <h1>Error</h1>
+                        <p>${message}</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Placeholder SVG functions (simplified versions)
+        function createLifecycleTimelineSVG(data) {
+            return '<div style="text-align: center; padding: 40px; color: #7f8c8d;">Lifecycle visualization will be rendered here</div>';
+        }
+        
+        function createUnsafeFFIDashboardSVG(data) {
+            return '<div style="text-align: center; padding: 40px; color: #7f8c8d;">Unsafe/FFI analysis will be rendered here</div>';
+        }
+    </script>
+</body>
+</html>
