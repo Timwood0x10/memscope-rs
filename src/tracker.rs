@@ -231,6 +231,11 @@ impl MemoryTracker {
         Ok(result)
     }
 
+    /// Export interactive HTML dashboard with embedded SVG charts
+    pub fn export_interactive_dashboard<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        crate::html_export::export_interactive_dashboard(self, path)
+    }
+
     /// Export memory data to JSON format with unified dashboard structure.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         use std::fs::File;
@@ -394,7 +399,7 @@ impl MemoryTracker {
     }
 
     /// Generate timeline data with stack traces and hotspots
-    fn generate_timeline_data(&self, allocation_history: &[AllocationInfo], _active_allocations: &[AllocationInfo]) -> crate::types::TimelineData {
+    pub fn generate_timeline_data(&self, allocation_history: &[AllocationInfo], _active_allocations: &[AllocationInfo]) -> crate::types::TimelineData {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()

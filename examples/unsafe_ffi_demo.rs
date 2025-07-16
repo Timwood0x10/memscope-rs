@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. Safety violation detection
     println!("\n🚨 4. Safety Violation Detection");
     
-    // Simulate a potential double-free scenario (controlled)
+    // Simulate a potential double-free scenario (controlled - only tracking, no actual double dealloc)
     unsafe {
         let layout = Layout::new::<i32>();
         let ptr = alloc(layout);
@@ -105,7 +105,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = unsafe_ffi_tracker.track_enhanced_deallocation(ptr as usize);
             dealloc(ptr, layout);
             
-            // Attempt second deallocation (this should be caught)
+            // Attempt to track second deallocation (this should be caught by tracker)
+            // Note: We don't actually call dealloc again, just test the tracking
             match unsafe_ffi_tracker.track_enhanced_deallocation(ptr as usize) {
                 Ok(_) => println!("   ❌ Double-free not detected (unexpected)"),
                 Err(e) => println!("   ✅ Double-free detected: {}", e),
@@ -137,11 +138,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracker.export_to_json("unsafe_ffi_memory_snapshot.json")?;
     println!("   ✅ JSON snapshot exported");
     
-    println!("   ✅ Unified dashboard data exported to data.json");
-    
     // Export dedicated unsafe/FFI dashboard
     export_unsafe_ffi_dashboard(&unsafe_ffi_tracker, "unsafe_ffi_dashboard.svg")?;
     println!("   ✅ Unsafe/FFI dashboard exported");
+
+    // Then generate HTML dashboard based on JSON
+    println!("📊 Generating interactive HTML dashboard from JSON...");
+    tracker.export_interactive_dashboard("ffi_unsafe.html")?;
 
     // 7. Display summary statistics
     println!("\n📈 7. Summary Statistics");

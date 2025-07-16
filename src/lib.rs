@@ -15,6 +15,8 @@ pub mod tracker;
 pub mod types;
 pub mod unsafe_ffi_tracker;
 pub mod unsafe_ffi_visualization;
+pub mod html_export;
+pub mod advanced_charts;
 pub mod utils;
 pub mod visualization;
 /// Offline HTML report generation from JSON data
