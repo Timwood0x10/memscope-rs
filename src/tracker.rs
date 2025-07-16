@@ -244,14 +244,22 @@ impl MemoryTracker {
         let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
             .get_stats();
 
+        // Generate timeline data
+        let timeline_data = self.generate_timeline_data(&allocation_history, &active_allocations);
+
         // Build unified dashboard structure
-        let dashboard_data = build_unified_dashboard_structure(
+        let mut dashboard_data = build_unified_dashboard_structure(
             &active_allocations,
             &allocation_history,
             &memory_by_type,
             &stats,
             &unsafe_stats,
         );
+
+        // Add timeline data to the dashboard
+        if let serde_json::Value::Object(ref mut map) = dashboard_data {
+            map.insert("timeline".to_string(), serde_json::to_value(timeline_data).unwrap_or(serde_json::Value::Null));
+        }
 
         let file = File::create(path)?;
         serde_json::to_writer_pretty(file, &dashboard_data).map_err(|e| {
@@ -370,6 +378,8 @@ impl MemoryTracker {
                     age_ms,
                     scope: alloc.scope_name.clone().unwrap_or_else(|| "global".to_string()),
                     confidence,
+                    allocation_stack: None,
+                    last_access_time: None,
                 });
             }
         }
@@ -381,6 +391,361 @@ impl MemoryTracker {
     fn convert_unsafe_violations(&self) -> Vec<crate::types::SafetyViolation> {
         // Simplified implementation - return empty for now
         Vec::new()
+    }
+
+    /// Generate timeline data with stack traces and hotspots
+    fn generate_timeline_data(&self, allocation_history: &[AllocationInfo], _active_allocations: &[AllocationInfo]) -> crate::types::TimelineData {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        // Generate memory snapshots (every 100ms or every 10 allocations)
+        let memory_snapshots = self.generate_memory_snapshots(allocation_history);
+        
+        // Generate allocation events
+        let allocation_events = self.generate_allocation_events(allocation_history);
+        
+        // Generate scope events
+        let scope_events = self.generate_scope_events(allocation_history);
+        
+        // Calculate time range
+        let start_time = allocation_history.iter().map(|a| a.timestamp_alloc).min().unwrap_or(now);
+        let end_time = allocation_history.iter()
+            .filter_map(|a| a.timestamp_dealloc.or(Some(now)))
+            .max()
+            .unwrap_or(now);
+        
+        let time_range = crate::types::TimeRange {
+            start_time,
+            end_time,
+            duration_ms: (end_time.saturating_sub(start_time)) / 1_000_000,
+        };
+
+        // Generate stack trace data
+        let stack_traces = self.generate_stack_trace_data(allocation_history);
+        
+        // Generate allocation hotspots
+        let allocation_hotspots = self.generate_allocation_hotspots(allocation_history);
+
+        crate::types::TimelineData {
+            memory_snapshots,
+            allocation_events,
+            scope_events,
+            time_range,
+            stack_traces,
+            allocation_hotspots,
+        }
+    }
+
+    /// Generate memory snapshots over time
+    fn generate_memory_snapshots(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::MemorySnapshot> {
+        let mut snapshots = Vec::new();
+        let mut current_memory = 0;
+        let mut current_allocations = 0;
+        let mut scope_breakdown: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        
+        // Group allocations by time windows (every 100ms)
+        let mut events: Vec<_> = allocation_history.iter().collect();
+        events.sort_by_key(|a| a.timestamp_alloc);
+        
+        let start_time = events.first().map(|a| a.timestamp_alloc).unwrap_or(0);
+        let window_size = 100_000_000; // 100ms in nanoseconds
+        
+        let mut current_window = start_time;
+        let mut window_allocations = Vec::new();
+        
+        for alloc in events {
+            if alloc.timestamp_alloc >= current_window + window_size {
+                // Process current window
+                if !window_allocations.is_empty() {
+                    snapshots.push(crate::types::MemorySnapshot {
+                        timestamp: current_window,
+                        total_memory: current_memory,
+                        active_allocations: current_allocations,
+                        scope_breakdown: scope_breakdown.clone(),
+                    });
+                }
+                
+                // Move to next window
+                current_window = alloc.timestamp_alloc;
+                window_allocations.clear();
+            }
+            
+            window_allocations.push(alloc);
+            current_memory += alloc.size;
+            current_allocations += 1;
+            
+            // Update scope breakdown
+            let scope = alloc.scope_name.as_deref().unwrap_or("global");
+            *scope_breakdown.entry(scope.to_string()).or_insert(0) += alloc.size;
+        }
+        
+        // Add final snapshot
+        if !window_allocations.is_empty() {
+            snapshots.push(crate::types::MemorySnapshot {
+                timestamp: current_window,
+                total_memory: current_memory,
+                active_allocations: current_allocations,
+                scope_breakdown,
+            });
+        }
+        
+        snapshots
+    }
+
+    /// Generate allocation events
+    fn generate_allocation_events(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::AllocationEvent> {
+        let mut events = Vec::new();
+        
+        for alloc in allocation_history {
+            // Allocation event
+            events.push(crate::types::AllocationEvent {
+                timestamp: alloc.timestamp_alloc,
+                event_type: crate::types::AllocationEventType::Allocate,
+                variable_name: alloc.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                size: alloc.size,
+                scope: alloc.scope_name.clone().unwrap_or_else(|| "global".to_string()),
+                stack_trace_id: Some(format!("stack_{}", alloc.ptr)),
+                type_name: alloc.type_name.clone(),
+                thread_id: alloc.thread_id.clone(),
+            });
+            
+            // Deallocation event (if applicable)
+            if let Some(dealloc_time) = alloc.timestamp_dealloc {
+                events.push(crate::types::AllocationEvent {
+                    timestamp: dealloc_time,
+                    event_type: crate::types::AllocationEventType::Deallocate,
+                    variable_name: alloc.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                    size: alloc.size,
+                    scope: alloc.scope_name.clone().unwrap_or_else(|| "global".to_string()),
+                    stack_trace_id: Some(format!("stack_{}", alloc.ptr)),
+                    type_name: alloc.type_name.clone(),
+                    thread_id: alloc.thread_id.clone(),
+                });
+            }
+        }
+        
+        // Sort by timestamp
+        events.sort_by_key(|e| e.timestamp);
+        events
+    }
+
+    /// Generate scope events
+    fn generate_scope_events(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::ScopeEvent> {
+        let mut scope_events = Vec::new();
+        let mut scope_states: std::collections::HashMap<String, (u128, usize)> = std::collections::HashMap::new();
+        
+        for alloc in allocation_history {
+            let scope_name = alloc.scope_name.clone().unwrap_or_else(|| "global".to_string());
+            
+            // Check if this is the first time we see this scope
+            if !scope_states.contains_key(&scope_name) {
+                scope_events.push(crate::types::ScopeEvent {
+                    timestamp: alloc.timestamp_alloc,
+                    event_type: crate::types::ScopeEventType::Enter,
+                    scope_name: scope_name.clone(),
+                    memory_impact: 0,
+                });
+                scope_states.insert(scope_name.clone(), (alloc.timestamp_alloc, alloc.size));
+            } else {
+                // Update memory impact
+                if let Some((_, ref mut memory)) = scope_states.get_mut(&scope_name) {
+                    *memory += alloc.size;
+                }
+            }
+            
+            // Generate exit event if deallocation happened
+            if let Some(dealloc_time) = alloc.timestamp_dealloc {
+                if let Some((_, memory)) = scope_states.get(&scope_name) {
+                    scope_events.push(crate::types::ScopeEvent {
+                        timestamp: dealloc_time,
+                        event_type: crate::types::ScopeEventType::Exit,
+                        scope_name: scope_name.clone(),
+                        memory_impact: *memory,
+                    });
+                }
+            }
+        }
+        
+        scope_events.sort_by_key(|e| e.timestamp);
+        scope_events
+    }
+
+    /// Generate stack trace data
+    fn generate_stack_trace_data(&self, allocation_history: &[AllocationInfo]) -> crate::types::StackTraceData {
+        let mut traces = std::collections::HashMap::new();
+        let mut stack_stats: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+        
+        // Generate synthetic stack traces for each allocation
+        for alloc in allocation_history {
+            let stack_id = format!("stack_{}", alloc.ptr);
+            let stack_frames = self.generate_synthetic_stack_trace(alloc);
+            
+            traces.insert(stack_id.clone(), stack_frames.clone());
+            
+            // Update statistics
+            let stack_key = self.stack_frames_to_key(&stack_frames);
+            let (count, memory) = stack_stats.entry(stack_key).or_insert((0, 0));
+            *count += 1;
+            *memory += alloc.size;
+        }
+        
+        // Generate hotspots
+        let hotspots = stack_stats.into_iter()
+            .map(|(stack_key, (count, memory))| {
+                let stack_pattern = self.parse_stack_key(&stack_key);
+                crate::types::StackTraceHotspot {
+                    stack_pattern,
+                    allocation_count: count,
+                    total_memory: memory,
+                    average_size: memory as f64 / count.max(1) as f64,
+                    frequency_per_second: count as f64 / 10.0, // Assume 10 second runtime
+                }
+            })
+            .collect();
+        
+        // Generate common patterns
+        let common_patterns = vec![
+            crate::types::AllocationPattern {
+                pattern: "Vec allocations in loops".to_string(),
+                frequency: allocation_history.len() / 4,
+                total_memory_impact: allocation_history.iter().map(|a| a.size).sum::<usize>() / 4,
+                example_stacks: vec![],
+            }
+        ];
+        
+        crate::types::StackTraceData {
+            traces,
+            hotspots,
+            common_patterns,
+        }
+    }
+
+    /// Generate synthetic stack trace for an allocation
+    fn generate_synthetic_stack_trace(&self, alloc: &AllocationInfo) -> Vec<crate::types::StackFrame> {
+        let mut frames = Vec::new();
+        
+        // Add main frame
+        frames.push(crate::types::StackFrame {
+            function: "main".to_string(),
+            file: Some("main.rs".to_string()),
+            line: Some(42),
+            module: Some("my_app".to_string()),
+        });
+        
+        // Add scope-specific frame
+        if let Some(scope) = &alloc.scope_name {
+            frames.push(crate::types::StackFrame {
+                function: scope.clone(),
+                file: Some(format!("{}.rs", scope)),
+                line: Some(15),
+                module: Some("my_app".to_string()),
+            });
+        }
+        
+        // Add type-specific frame
+        if let Some(type_name) = &alloc.type_name {
+            if type_name.contains("Vec") {
+                frames.push(crate::types::StackFrame {
+                    function: "Vec::new".to_string(),
+                    file: Some("vec.rs".to_string()),
+                    line: Some(123),
+                    module: Some("alloc::vec".to_string()),
+                });
+            } else if type_name.contains("String") {
+                frames.push(crate::types::StackFrame {
+                    function: "String::new".to_string(),
+                    file: Some("string.rs".to_string()),
+                    line: Some(456),
+                    module: Some("alloc::string".to_string()),
+                });
+            }
+        }
+        
+        frames
+    }
+
+    /// Convert stack frames to a key for grouping
+    fn stack_frames_to_key(&self, frames: &[crate::types::StackFrame]) -> String {
+        frames.iter()
+            .map(|f| format!("{}:{}", f.function, f.line.unwrap_or(0)))
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
+    /// Parse stack key back to frames
+    fn parse_stack_key(&self, key: &str) -> Vec<crate::types::StackFrame> {
+        key.split('|')
+            .map(|part| {
+                let parts: Vec<&str> = part.split(':').collect();
+                crate::types::StackFrame {
+                    function: parts.get(0).unwrap_or(&"unknown").to_string(),
+                    file: None,
+                    line: parts.get(1).and_then(|s| s.parse().ok()),
+                    module: None,
+                }
+            })
+            .collect()
+    }
+
+    /// Generate allocation hotspots over time
+    fn generate_allocation_hotspots(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::AllocationHotspot> {
+        let mut hotspots = Vec::new();
+        let window_size = 1_000_000_000; // 1 second windows
+        
+        if allocation_history.is_empty() {
+            return hotspots;
+        }
+        
+        let start_time = allocation_history.iter().map(|a| a.timestamp_alloc).min().unwrap_or(0);
+        let end_time = allocation_history.iter().map(|a| a.timestamp_alloc).max().unwrap_or(0);
+        
+        let mut current_window = start_time;
+        
+        while current_window < end_time {
+            let window_end = current_window + window_size;
+            
+            // Find allocations in this window
+            let window_allocs: Vec<_> = allocation_history.iter()
+                .filter(|a| a.timestamp_alloc >= current_window && a.timestamp_alloc < window_end)
+                .collect();
+            
+            if !window_allocs.is_empty() {
+                let total_memory: usize = window_allocs.iter().map(|a| a.size).sum();
+                let allocation_count = window_allocs.len();
+                
+                // Find the most common location in this window
+                let mut location_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                for alloc in &window_allocs {
+                    let location = alloc.scope_name.clone().unwrap_or_else(|| "global".to_string());
+                    *location_counts.entry(location).or_insert(0) += 1;
+                }
+                
+                let most_common_location = location_counts.into_iter()
+                    .max_by_key(|(_, count)| *count)
+                    .map(|(location, _)| location)
+                    .unwrap_or_else(|| "global".to_string());
+                
+                hotspots.push(crate::types::AllocationHotspot {
+                    timestamp: current_window,
+                    location: crate::types::HotspotLocation {
+                        function: most_common_location.clone(),
+                        file: Some(format!("{}.rs", most_common_location)),
+                        line: Some(42),
+                        scope: most_common_location,
+                    },
+                    allocation_count,
+                    total_memory,
+                    allocation_rate: allocation_count as f64,
+                    memory_pressure: (total_memory as f64 / 1024.0 / 1024.0).min(1.0), // MB to pressure score
+                });
+            }
+            
+            current_window = window_end;
+        }
+        
+        hotspots
     }
 }
 

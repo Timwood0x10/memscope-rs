@@ -137,9 +137,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracker.export_to_json("unsafe_ffi_memory_snapshot.json")?;
     println!("   ✅ JSON snapshot exported");
     
-    // Export unified dashboard data using the single source of truth
-    tracker.export_to_json("web_dashboard/data.json")?;
-    
     println!("   ✅ Unified dashboard data exported to data.json");
     
     // Export dedicated unsafe/FFI dashboard

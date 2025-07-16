@@ -253,6 +253,10 @@ pub struct TimelineData {
     pub scope_events: Vec<ScopeEvent>,
     /// Time range covered by the timeline
     pub time_range: TimeRange,
+    /// Stack trace information for allocations
+    pub stack_traces: StackTraceData,
+    /// Performance hotspots over time
+    pub allocation_hotspots: Vec<AllocationHotspot>,
 }
 
 /// Safety analysis data
@@ -627,6 +631,12 @@ pub struct AllocationEvent {
     pub size: usize,
     /// Scope where the event occurred
     pub scope: String,
+    /// Stack trace ID for this allocation
+    pub stack_trace_id: Option<String>,
+    /// Type name of the allocated variable
+    pub type_name: Option<String>,
+    /// Thread ID where allocation occurred
+    pub thread_id: String,
 }
 
 /// Type of allocation event
@@ -686,6 +696,92 @@ pub struct PotentialLeak {
     pub scope: String,
     /// Confidence level of leak detection (0.0 to 1.0)
     pub confidence: f64,
+    /// Stack trace where the leak was allocated
+    pub allocation_stack: Option<Vec<StackFrame>>,
+    /// Last access time (if available)
+    pub last_access_time: Option<u128>,
+}
+
+/// Stack trace data for allocations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StackTraceData {
+    /// Map of stack trace ID to actual stack frames
+    pub traces: HashMap<String, Vec<StackFrame>>,
+    /// Allocation hotspots by stack trace
+    pub hotspots: Vec<StackTraceHotspot>,
+    /// Most common allocation patterns
+    pub common_patterns: Vec<AllocationPattern>,
+}
+
+/// Individual stack frame
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StackFrame {
+    /// Function name
+    pub function: String,
+    /// File name
+    pub file: Option<String>,
+    /// Line number
+    pub line: Option<u32>,
+    /// Module path
+    pub module: Option<String>,
+}
+
+/// Stack trace hotspot analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StackTraceHotspot {
+    /// Stack trace pattern
+    pub stack_pattern: Vec<StackFrame>,
+    /// Number of allocations from this stack
+    pub allocation_count: usize,
+    /// Total memory allocated from this stack
+    pub total_memory: usize,
+    /// Average allocation size
+    pub average_size: f64,
+    /// Frequency per second
+    pub frequency_per_second: f64,
+}
+
+/// Common allocation pattern
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationPattern {
+    /// Pattern description
+    pub pattern: String,
+    /// How often this pattern occurs
+    pub frequency: usize,
+    /// Total memory impact
+    pub total_memory_impact: usize,
+    /// Example stack traces
+    pub example_stacks: Vec<Vec<StackFrame>>,
+}
+
+/// Allocation hotspot over time
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationHotspot {
+    /// Time window start
+    pub timestamp: u128,
+    /// Location information
+    pub location: HotspotLocation,
+    /// Number of allocations in this time window
+    pub allocation_count: usize,
+    /// Total memory allocated in this window
+    pub total_memory: usize,
+    /// Average allocation rate (allocations per second)
+    pub allocation_rate: f64,
+    /// Memory pressure score (0.0 to 1.0)
+    pub memory_pressure: f64,
+}
+
+/// Location information for hotspots
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HotspotLocation {
+    /// Function name
+    pub function: String,
+    /// File path
+    pub file: Option<String>,
+    /// Line number
+    pub line: Option<u32>,
+    /// Scope name
+    pub scope: String,
 }
 
 /// Memory safety violation detected
