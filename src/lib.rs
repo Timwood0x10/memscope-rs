@@ -8,8 +8,10 @@
 #![warn(missing_docs)]
 #![allow(dead_code, unused_variables, unused_imports)]
 
+pub mod advanced_analysis;
 pub mod allocator;
 pub mod export_enhanced;
+pub mod optimized_html_export;
 pub mod scope_tracker;
 pub mod tracker;
 pub mod types;

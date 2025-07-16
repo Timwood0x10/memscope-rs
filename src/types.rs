@@ -982,6 +982,14 @@ pub struct MemoryStats {
     pub peak_memory: usize,
     /// Lifecycle statistics
     pub lifecycle_stats: LifecycleStats,
+    /// List of all allocations for detailed analysis
+    pub allocations: Vec<AllocationInfo>,
+    /// Memory fragmentation analysis
+    pub fragmentation_analysis: FragmentationAnalysis,
+    /// System library usage statistics
+    pub system_library_stats: SystemLibraryStats,
+    /// Concurrency safety analysis
+    pub concurrency_analysis: ConcurrencyAnalysis,
 }
 
 /// Memory usage by type
@@ -1107,6 +1115,153 @@ pub struct RiskDistribution {
     pub low_risk: usize,
     /// Memory leak risk allocations (long-lived without deallocation)
     pub leak_risk: usize,
+}
+
+/// Memory fragmentation analysis
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FragmentationAnalysis {
+    /// Total number of memory fragments
+    pub total_fragments: usize,
+    /// Largest available contiguous block size
+    pub largest_free_block: usize,
+    /// Smallest allocation size
+    pub smallest_allocation: usize,
+    /// Fragmentation ratio (0.0 = no fragmentation, 1.0 = highly fragmented)
+    pub fragmentation_ratio: f64,
+    /// List of memory holes
+    pub memory_holes: Vec<MemoryHole>,
+    /// Size distribution statistics
+    pub size_distribution: HashMap<String, usize>,
+    /// Bytes wasted due to alignment
+    pub alignment_waste: usize,
+    /// External fragmentation degree
+    pub external_fragmentation: f64,
+    /// Internal fragmentation degree
+    pub internal_fragmentation: f64,
+}
+
+/// Memory hole information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryHole {
+    /// Hole start address
+    pub start_address: usize,
+    /// Hole size in bytes
+    pub size: usize,
+    /// Hole duration in milliseconds
+    pub duration_ms: u64,
+    /// Type of hole: "gap", "alignment_padding", "freed_space"
+    pub hole_type: String,
+    /// Cause of the hole
+    pub cause: String,
+}
+
+/// System library usage statistics
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SystemLibraryStats {
+    /// Standard library collections
+    pub std_collections: LibraryUsage,
+    /// Async runtime (tokio, async-std)
+    pub async_runtime: LibraryUsage,
+    /// Network I/O libraries
+    pub network_io: LibraryUsage,
+    /// File system operations
+    pub file_system: LibraryUsage,
+    /// Serialization/deserialization
+    pub serialization: LibraryUsage,
+    /// Regular expression engine
+    pub regex_engine: LibraryUsage,
+    /// Cryptography and security
+    pub crypto_security: LibraryUsage,
+    /// Database libraries
+    pub database: LibraryUsage,
+    /// Graphics and UI libraries
+    pub graphics_ui: LibraryUsage,
+    /// HTTP client/server stack
+    pub http_stack: LibraryUsage,
+    /// Compression and encoding
+    pub compression: LibraryUsage,
+    /// Logging systems
+    pub logging: LibraryUsage,
+    /// Unknown system allocations
+    pub unknown_system: LibraryUsage,
+}
+
+/// Library usage details
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LibraryUsage {
+    /// Number of allocations
+    pub allocation_count: usize,
+    /// Total bytes allocated
+    pub total_bytes: usize,
+    /// Peak bytes at any time
+    pub peak_bytes: usize,
+    /// Average allocation size
+    pub average_size: f64,
+    /// Detailed categories
+    pub categories: HashMap<String, usize>,
+    /// Hotspot functions
+    pub hotspot_functions: Vec<String>,
+}
+
+/// Concurrency safety analysis
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ConcurrencyAnalysis {
+    /// Thread-safe allocations count
+    pub thread_safety_allocations: usize,
+    /// Shared memory bytes
+    pub shared_memory_bytes: usize,
+    /// Mutex-protected memory
+    pub mutex_protected: usize,
+    /// Arc-shared memory
+    pub arc_shared: usize,
+    /// Rc reference-counted memory
+    pub rc_shared: usize,
+    /// Channel buffer memory
+    pub channel_buffers: usize,
+    /// Thread-local storage
+    pub thread_local_storage: usize,
+    /// Atomic operations memory
+    pub atomic_operations: usize,
+    /// Lock contention risk: "low", "medium", "high", "critical"
+    pub lock_contention_risk: String,
+    /// Concurrency patterns detected
+    pub concurrency_patterns: Vec<ConcurrencyPattern>,
+    /// Data race risks
+    pub data_race_risks: Vec<DataRaceRisk>,
+    /// Deadlock risk score (0.0 to 1.0)
+    pub deadlock_risk_score: f64,
+}
+
+/// Concurrency pattern
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConcurrencyPattern {
+    /// Pattern type: "producer_consumer", "shared_state", "message_passing", "actor_model"
+    pub pattern_type: String,
+    /// Number of threads involved
+    pub thread_count: usize,
+    /// Memory usage for this pattern
+    pub memory_usage: usize,
+    /// Safety level: "safe", "unsafe", "mixed"
+    pub safety_level: String,
+    /// Performance impact: "low", "medium", "high"
+    pub performance_impact: String,
+    /// Detected locations
+    pub locations: Vec<String>,
+}
+
+/// Data race risk assessment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataRaceRisk {
+    /// Risk type
+    pub risk_type: String,
+    /// Memory address involved
+    pub memory_address: usize,
+    /// Severity: "low", "medium", "high", "critical"
+    pub severity: String,
+    /// Risk description
+    pub description: String,
+    /// Suggested fix
+    pub suggested_fix: String,
 }
 
 /// Scope-based lifecycle metrics

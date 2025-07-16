@@ -152,16 +152,40 @@ impl MemoryTracker {
         }
     }
 
-    /// Get current memory usage statistics.
+    /// Get current memory usage statistics with advanced analysis.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
-        match self.stats.lock() {
-            Ok(stats) => Ok(stats.clone()),
+        let base_stats = match self.stats.lock() {
+            Ok(stats) => stats.clone(),
             Err(poisoned) => {
                 // Handle poisoned lock by recovering the data
                 let stats = poisoned.into_inner();
-                Ok(stats.clone())
+                stats.clone()
             }
-        }
+        };
+        
+        // Get active allocations for advanced analysis
+        let active_allocations = self.get_active_allocations()?;
+        
+        // Perform advanced analysis
+        let fragmentation_analysis = crate::advanced_analysis::analyze_fragmentation(&active_allocations);
+        let system_library_stats = crate::advanced_analysis::analyze_system_libraries(&active_allocations);
+        let concurrency_analysis = crate::advanced_analysis::analyze_concurrency_safety(&active_allocations);
+        
+        Ok(MemoryStats {
+            total_allocations: base_stats.total_allocations,
+            total_deallocations: base_stats.total_deallocations,
+            total_allocated: base_stats.total_allocated,
+            total_deallocated: base_stats.total_deallocated,
+            active_allocations: base_stats.active_allocations,
+            active_memory: base_stats.active_memory,
+            peak_allocations: base_stats.peak_allocations,
+            peak_memory: base_stats.peak_memory,
+            lifecycle_stats: base_stats.lifecycle_stats,
+            allocations: active_allocations,
+            fragmentation_analysis,
+            system_library_stats,
+            concurrency_analysis,
+        })
     }
 
     /// Get all currently active allocations.
