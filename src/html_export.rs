@@ -1,7 +1,7 @@
 use crate::tracker::MemoryTracker;
 use std::fs;
 
-/// 根据分配大小分类系统分配
+/// 根据分配大小和调用栈信息智能分类系统分配
 pub fn classify_system_allocation(size: usize) -> String {
     match size {
         0..=1024 => "Small System Buffer".to_string(),
@@ -11,6 +11,186 @@ pub fn classify_system_allocation(size: usize) -> String {
         65537..=262144 => "Large System Allocation".to_string(),
         _ => "Huge System Allocation".to_string(),
     }
+}
+
+/// 智能分析系统分配，基于大小、调用栈等信息给出更精确的标识
+pub fn analyze_system_allocation(alloc: &crate::types::AllocationInfo) -> (String, String) {
+    let size = alloc.size;
+    
+    // 基于调用栈分析（如果有的话）
+    #[cfg(feature = "backtrace")]
+    if let Some(backtrace) = &alloc.backtrace {
+        for frame in backtrace.iter().take(8) {  // 检查更多栈帧
+            // 标准库集合类型
+            if frame.contains("std::collections::hash") || frame.contains("HashMap") {
+                return (
+                    format!("hashmap_{:.1}KB", size as f64 / 1024.0),
+                    "HashMap Collection".to_string()
+                );
+            } else if frame.contains("std::collections::btree") || frame.contains("BTreeMap") {
+                return (
+                    format!("btreemap_{:.1}KB", size as f64 / 1024.0),
+                    "BTreeMap Collection".to_string()
+                );
+            } else if frame.contains("std::vec") || frame.contains("Vec::") {
+                return (
+                    format!("vec_{:.1}KB", size as f64 / 1024.0),
+                    "Vector Buffer".to_string()
+                );
+            } else if frame.contains("std::string") || frame.contains("String::") {
+                return (
+                    format!("string_{}B", size),
+                    "String Buffer".to_string()
+                );
+            } else if frame.contains("alloc::boxed") || frame.contains("Box::") {
+                return (
+                    format!("boxed_{:.1}KB", size as f64 / 1024.0),
+                    "Boxed Allocation".to_string()
+                );
+            }
+            // 线程相关
+            else if frame.contains("std::thread") || frame.contains("thread::") {
+                return (
+                    format!("thread_stack_{:.0}KB", size as f64 / 1024.0),
+                    "Thread Stack".to_string()
+                );
+            }
+            // 同步原语
+            else if frame.contains("std::sync") || frame.contains("Mutex") || frame.contains("RwLock") {
+                return (
+                    format!("sync_{}B", size),
+                    "Sync Primitive".to_string()
+                );
+            }
+            // IO 相关
+            else if frame.contains("std::io") || frame.contains("BufReader") || frame.contains("BufWriter") {
+                return (
+                    format!("io_buffer_{:.1}KB", size as f64 / 1024.0),
+                    "IO Buffer".to_string()
+                );
+            }
+            // 网络相关
+            else if frame.contains("std::net") || frame.contains("TcpStream") || frame.contains("UdpSocket") {
+                return (
+                    format!("net_buffer_{:.1}KB", size as f64 / 1024.0),
+                    "Network Buffer".to_string()
+                );
+            }
+            // 文件系统
+            else if frame.contains("std::fs") || frame.contains("File::") {
+                return (
+                    format!("fs_buffer_{:.1}KB", size as f64 / 1024.0),
+                    "File System Buffer".to_string()
+                );
+            }
+            // 正则表达式
+            else if frame.contains("regex") {
+                return (
+                    format!("regex_{}B", size),
+                    "Regex Engine".to_string()
+                );
+            }
+            // JSON 解析
+            else if frame.contains("serde") || frame.contains("json") {
+                return (
+                    format!("json_parser_{}B", size),
+                    "JSON Parser".to_string()
+                );
+            }
+            // 运行时相关
+            else if frame.contains("tokio") || frame.contains("async") {
+                return (
+                    format!("async_runtime_{:.1}KB", size as f64 / 1024.0),
+                    "Async Runtime".to_string()
+                );
+            }
+        }
+    }
+    
+    // 基于大小的智能分类 - 更具体的分析
+    let (var_name, type_name) = match size {
+        // 非常小的分配 - 可能是控制结构
+        1..=32 => (
+            format!("control_struct_{}B", size),
+            "Control Structure".to_string()
+        ),
+        // 小分配 - 可能是字符串或小对象
+        33..=256 => (
+            format!("small_object_{}B", size),
+            "Small Object/String".to_string()
+        ),
+        // 中等分配 - 可能是集合或缓冲区
+        257..=1023 => (
+            format!("medium_buffer_{}B", size),
+            "Medium Buffer/Array".to_string()
+        ),
+        // 1KB-4KB 分配 - 更具体的分类
+        1024..=4095 => {
+            let kb_size = size as f64 / 1024.0;
+            if size == 1024 || size == 2048 || size == 4096 {
+                (format!("page_aligned_{:.0}KB", kb_size), "Page Aligned Buffer".to_string())
+            } else if size % 1024 == 0 {
+                (format!("aligned_buffer_{:.0}KB", kb_size), "Aligned Buffer".to_string())
+            } else {
+                (format!("dynamic_buffer_{:.1}KB", kb_size), "Dynamic Buffer".to_string())
+            }
+        },
+        // 4KB-16KB 分配 - 可能是数据结构
+        4096..=16383 => {
+            let kb_size = size as f64 / 1024.0;
+            if size % 4096 == 0 {
+                (format!("page_multiple_{:.0}KB", kb_size), "Page Multiple Structure".to_string())
+            } else if size % 1024 == 0 {
+                (format!("kb_aligned_struct_{:.0}KB", kb_size), "KB-Aligned Structure".to_string())
+            } else {
+                (format!("data_structure_{:.1}KB", kb_size), "Data Structure".to_string())
+            }
+        },
+        // 16KB-64KB 大分配 - 可能是大型数组或缓存
+        16384..=65535 => {
+            let kb_size = size as f64 / 1024.0;
+            if size % 16384 == 0 {
+                (format!("large_cache_{:.0}KB", kb_size), "Large Cache Block".to_string())
+            } else if size % 4096 == 0 {
+                (format!("page_array_{:.0}KB", kb_size), "Page-Aligned Array".to_string())
+            } else if kb_size >= 32.0 {
+                (format!("big_array_{:.0}KB", kb_size), "Big Array/Matrix".to_string())
+            } else {
+                (format!("medium_struct_{:.0}KB", kb_size), "Medium Structure".to_string())
+            }
+        },
+        // 64KB-256KB 页级分配
+        65536..=262143 => {
+            let kb_size = size as f64 / 1024.0;
+            if size % 65536 == 0 {
+                (format!("memory_segment_{:.0}KB", kb_size), "Memory Segment".to_string())
+            } else {
+                (format!("large_pool_{:.0}KB", kb_size), "Large Memory Pool".to_string())
+            }
+        },
+        // 256KB-1MB 大内存池
+        262144..=1048575 => {
+            let kb_size = size as f64 / 1024.0;
+            (format!("huge_pool_{:.0}KB", kb_size), "Huge Memory Pool".to_string())
+        },
+        // 1MB+ 巨大分配
+        _ => (
+            format!("massive_alloc_{:.1}MB", size as f64 / (1024.0 * 1024.0)),
+            "Massive Allocation".to_string()
+        ),
+    };
+    
+    // 基于线程ID的额外信息
+    let thread_suffix = if alloc.thread_id.contains("main") {
+        "_main"
+    } else {
+        "_worker"
+    };
+    
+    (
+        format!("{}{}", var_name, thread_suffix),
+        type_name
+    )
 }
 
 /// Export interactive HTML dashboard with embedded SVG charts
@@ -40,9 +220,10 @@ impl MemoryTracker {
                 prioritized_allocations.push(alloc.clone());
             } else if alloc.size >= 1024 {  // 只包含 >= 1KB 的系统分配
                 let mut enhanced_alloc = alloc.clone();
-                // 为大的系统分配添加描述性标签
-                enhanced_alloc.var_name = Some(format!("system_alloc_{}KB", alloc.size / 1024));
-                enhanced_alloc.type_name = Some(classify_system_allocation(alloc.size));
+                // 使用智能分析给出更精确的标识
+                let (smart_name, smart_type) = analyze_system_allocation(alloc);
+                enhanced_alloc.var_name = Some(smart_name);
+                enhanced_alloc.type_name = Some(smart_type);
                 system_allocations.push(enhanced_alloc);
             }
         }
@@ -67,9 +248,10 @@ impl MemoryTracker {
                 prioritized_history.push(alloc.clone());
             } else if alloc.size >= 512 && system_history.len() < 100 {  // 限制系统历史
                 let mut enhanced_alloc = alloc.clone();
-                // 为历史中的系统分配也添加标签
-                enhanced_alloc.var_name = Some(format!("system_alloc_{}B", alloc.size));
-                enhanced_alloc.type_name = Some(classify_system_allocation(alloc.size));
+                // 为历史中的系统分配也使用智能分析
+                let (smart_name, smart_type) = analyze_system_allocation(alloc);
+                enhanced_alloc.var_name = Some(smart_name);
+                enhanced_alloc.type_name = Some(smart_type);
                 system_history.push(enhanced_alloc);
             }
             

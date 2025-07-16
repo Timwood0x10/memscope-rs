@@ -255,9 +255,10 @@ impl MemoryTracker {
                 prioritized_allocations.push(alloc.clone());
             } else if alloc.size >= 1024 {  // Only include >= 1KB system allocations
                 let mut enhanced_alloc = alloc.clone();
-                // Add descriptive labels for large system allocations
-                enhanced_alloc.var_name = Some(format!("system_alloc_{}KB", alloc.size / 1024));
-                enhanced_alloc.type_name = Some(crate::html_export::classify_system_allocation(alloc.size));
+                // Use smart analysis for more precise identification
+                let (smart_name, smart_type) = crate::html_export::analyze_system_allocation(alloc);
+                enhanced_alloc.var_name = Some(smart_name);
+                enhanced_alloc.type_name = Some(smart_type);
                 system_allocations.push(enhanced_alloc);
             }
         }
@@ -278,8 +279,10 @@ impl MemoryTracker {
                 prioritized_history.push(alloc.clone());
             } else if alloc.size >= 512 && system_history.len() < 100 {  // Limit system history
                 let mut enhanced_alloc = alloc.clone();
-                enhanced_alloc.var_name = Some(format!("system_alloc_{}B", alloc.size));
-                enhanced_alloc.type_name = Some(crate::html_export::classify_system_allocation(alloc.size));
+                // Use smart analysis for history allocations too
+                let (smart_name, smart_type) = crate::html_export::analyze_system_allocation(alloc);
+                enhanced_alloc.var_name = Some(smart_name);
+                enhanced_alloc.type_name = Some(smart_type);
                 system_history.push(enhanced_alloc);
             }
             
@@ -557,7 +560,14 @@ impl MemoryTracker {
             events.push(crate::types::AllocationEvent {
                 timestamp: alloc.timestamp_alloc,
                 event_type: crate::types::AllocationEventType::Allocate,
-                variable_name: alloc.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                variable_name: alloc.var_name.clone().unwrap_or_else(|| {
+                    if alloc.size >= 1024 {
+                        let (smart_name, _) = crate::html_export::analyze_system_allocation(alloc);
+                        smart_name
+                    } else {
+                        format!("small_alloc_{}B", alloc.size)
+                    }
+                }),
                 size: alloc.size,
                 scope: alloc.scope_name.clone().unwrap_or_else(|| "global".to_string()),
                 stack_trace_id: Some(format!("stack_{}", alloc.ptr)),
@@ -570,7 +580,14 @@ impl MemoryTracker {
                 events.push(crate::types::AllocationEvent {
                     timestamp: dealloc_time,
                     event_type: crate::types::AllocationEventType::Deallocate,
-                    variable_name: alloc.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                    variable_name: alloc.var_name.clone().unwrap_or_else(|| {
+                        if alloc.size >= 1024 {
+                            let (smart_name, _) = crate::html_export::analyze_system_allocation(alloc);
+                            smart_name
+                        } else {
+                            format!("small_alloc_{}B", alloc.size)
+                        }
+                    }),
                     size: alloc.size,
                     scope: alloc.scope_name.clone().unwrap_or_else(|| "global".to_string()),
                     stack_trace_id: Some(format!("stack_{}", alloc.ptr)),
