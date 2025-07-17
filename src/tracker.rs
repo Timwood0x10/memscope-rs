@@ -672,8 +672,8 @@ impl MemoryTracker {
             }
             
             window_allocations.push(alloc);
-            current_memory += alloc.size;
-            current_allocations += 1;
+            current_memory = current_memory.saturating_add(alloc.size);
+            current_allocations = current_allocations.saturating_add(1);
             
             // Update scope breakdown
             let scope = alloc.scope_name.as_deref().unwrap_or("global");
