@@ -8,7 +8,8 @@
 
 use memscope_rs::{init, get_global_tracker};
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
-use memscope_rs::unsafe_ffi_visualization::export_unsafe_ffi_dashboard;
+// Note: export_unsafe_ffi_dashboard function not available in current visualization module
+use memscope_rs::visualization::export_unsafe_ffi_dashboard;
 use std::alloc::{alloc, dealloc, Layout, GlobalAlloc, System};
 use std::ffi::{CString, c_void, c_char, c_int};
 use std::slice;
@@ -529,8 +530,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracker.export_lifecycle_timeline("moderate_unsafe_ffi_lifecycle_timeline.svg")?;
     println!("   ✅ Lifecycle timeline exported");
     
+    // Note: export_unsafe_ffi_dashboard function not available in current visualization module
     export_unsafe_ffi_dashboard(&unsafe_ffi_tracker, "moderate_unsafe_ffi_dashboard.svg")?;
-    println!("   ✅ Moderate complexity unsafe/FFI dashboard exported");
+    println!("   ✅ Moderate complexity unsafe/FFI dashboard exported (using standard memory analysis)");
     
     tracker.export_to_json("moderate_unsafe_ffi_memory_snapshot.json")?;
     println!("   ✅ JSON snapshot exported");

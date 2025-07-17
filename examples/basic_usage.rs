@@ -63,7 +63,7 @@ fn main() {
 
     // Export memory snapshot to JSON
     println!("\nExporting memory snapshot to basic_usage_snapshot.json...");
-    if let Err(e) = tracker.export_to_json("basic_usage_snapshot.json") {
+    if let Err(e) = tracker.export_enhanced_json("basic_usage_snapshot.json") {
         eprintln!("Failed to export JSON: {e}");
     } else {
         println!("Successfully exported JSON.");

@@ -229,6 +229,24 @@ impl ScopeTracker {
                 peak_memory_usage: scope.peak_memory,
                 allocation_frequency: 1.0, // Simplified
                 deallocation_efficiency: efficiency_score,
+                completed_allocations: scope.allocation_count,
+                memory_growth_events: 0,
+                peak_concurrent_variables: scope.variables.len(),
+                memory_efficiency_ratio: if scope.peak_memory > 0 { 
+                    scope.memory_usage as f64 / scope.peak_memory as f64 
+                } else { 
+                    1.0 
+                },
+                ownership_transfer_events: 0,
+                fragmentation_score: 0.0,
+                instant_allocations: 0,
+                short_term_allocations: 0,
+                medium_term_allocations: 0,
+                long_term_allocations: 0,
+                suspected_leaks: 0,
+                risk_distribution: crate::types::RiskDistribution::default(),
+                scope_metrics: Vec::new(),
+                type_lifecycle_patterns: Vec::new(),
             }
         }).collect();
 

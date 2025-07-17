@@ -111,8 +111,8 @@ fn test_concurrent_variable_tracking() {
         .iter()
         .map(|a| {
             a.first()
-                .map(|info| info.thread_id.clone())
-                .unwrap_or_default()
+                .map(|info| info.thread_id)
+                .unwrap_or_else(|| std::thread::current().id())
         })
         .collect();
 

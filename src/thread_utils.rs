@@ -6,7 +6,9 @@ use std::thread;
 use std::time::Duration;
 
 // Extension trait to add timeout functionality to JoinHandle
+/// Extension trait for JoinHandle to add timeout functionality
 pub trait JoinHandleExt<T> {
+    /// Join with a timeout, returning an error if the timeout is exceeded
     fn join_timeout(self, timeout: Duration) -> Result<T, Box<dyn std::any::Any + Send + 'static>>;
 }
 

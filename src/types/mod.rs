@@ -237,6 +237,20 @@ impl MemoryStats {
                 peak_memory_usage: 0,
                 allocation_frequency: 0.0,
                 deallocation_efficiency: 0.0,
+                completed_allocations: 0,
+                memory_growth_events: 0,
+                peak_concurrent_variables: 0,
+                memory_efficiency_ratio: 1.0,
+                ownership_transfer_events: 0,
+                fragmentation_score: 0.0,
+                instant_allocations: 0,
+                short_term_allocations: 0,
+                medium_term_allocations: 0,
+                long_term_allocations: 0,
+                suspected_leaks: 0,
+                risk_distribution: RiskDistribution::default(),
+                scope_metrics: Vec::new(),
+                type_lifecycle_patterns: Vec::new(),
             },
             allocations: Vec::new(),
             system_library_stats: SystemLibraryStats::default(),
@@ -345,6 +359,20 @@ pub struct ScopeLifecycleMetrics {
     pub peak_memory_usage: usize,
     pub allocation_frequency: f64,
     pub deallocation_efficiency: f64,
+    pub completed_allocations: usize,
+    pub memory_growth_events: usize,
+    pub peak_concurrent_variables: usize,
+    pub memory_efficiency_ratio: f64,
+    pub ownership_transfer_events: usize,
+    pub fragmentation_score: f64,
+    pub instant_allocations: usize,
+    pub short_term_allocations: usize,
+    pub medium_term_allocations: usize,
+    pub long_term_allocations: usize,
+    pub suspected_leaks: usize,
+    pub risk_distribution: RiskDistribution,
+    pub scope_metrics: Vec<ScopeLifecycleMetrics>,
+    pub type_lifecycle_patterns: Vec<TypeLifecyclePattern>,
 }
 
 /// Scope information
@@ -377,6 +405,26 @@ pub struct ScopeHierarchy {
     pub total_scopes: usize,
     pub relationships: HashMap<String, Vec<String>>,
     pub depth_map: HashMap<String, usize>,
+}
+
+/// Risk distribution analysis for memory allocations
+#[derive(Debug, Clone, Default)]
+pub struct RiskDistribution {
+    pub low_risk: usize,
+    pub medium_risk: usize,
+    pub high_risk: usize,
+    pub critical_risk: usize,
+}
+
+/// Type-specific lifecycle pattern analysis
+#[derive(Debug, Clone)]
+pub struct TypeLifecyclePattern {
+    pub type_name: String,
+    pub average_lifetime_ms: f64,
+    pub typical_size: usize,
+    pub growth_pattern: String,
+    pub risk_level: String,
+    pub instance_count: usize,
 }
 
 /// Growth reason for tracking allocation growth

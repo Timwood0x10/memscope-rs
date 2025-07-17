@@ -635,9 +635,10 @@ fn generate_final_analysis() {
         let risk = &lifecycle.risk_distribution;
         println!("\nRisk Assessment:");
         println!("  • Low risk: {}", risk.low_risk);
-        println!("  • Potential growth: {}", risk.potential_growth_risk);
-        println!("  • High memory: {}", risk.high_memory_risk);
-        println!("  • Leak risk: {}", risk.leak_risk);
+        println!("  • Low risk: {}", risk.low_risk);
+        println!("  • Medium risk: {}", risk.medium_risk);
+        println!("  • High risk: {}", risk.high_risk);
+        println!("  • Critical risk: {}", risk.critical_risk);
 
         if !lifecycle.scope_metrics.is_empty() {
             println!("\nScope Analysis:");
@@ -646,8 +647,8 @@ fn generate_final_analysis() {
                     "  • {}: {} vars, {:.1}ms avg, {:.1}% efficiency",
                     scope.scope_name,
                     scope.variable_count,
-                    scope.avg_lifetime_ms,
-                    scope.efficiency_score * 100.0
+                    scope.average_lifetime_ms,
+                    scope.memory_efficiency_ratio * 100.0
                 );
             }
         }
@@ -656,10 +657,9 @@ fn generate_final_analysis() {
             println!("\nType Patterns:");
             for pattern in &lifecycle.type_lifecycle_patterns {
                 println!(
-                    "  • {}: {:.1}x growth, {:?} ownership, {:?} risk",
+                    "  • {}: {} growth, {} risk",
                     pattern.type_name,
-                    pattern.memory_growth_factor,
-                    pattern.ownership_pattern,
+                    pattern.growth_pattern,
                     pattern.risk_level
                 );
             }
@@ -681,7 +681,7 @@ fn generate_final_analysis() {
         println!("✅ Enhanced lifecycle timeline exported to: ./complex_lifecycle_timeline.svg");
     }
 
-    if let Err(e) = tracker.export_to_json("./complex_lifecycle_snapshot.json") {
+    if let Err(e) = tracker.export_enhanced_json("./complex_lifecycle_snapshot.json") {
         println!("❌ JSON snapshot export failed: {}", e);
     } else {
         println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");

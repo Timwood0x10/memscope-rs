@@ -366,7 +366,12 @@ impl UnsafeFFITracker {
 
         if let Ok(allocations) = self.enhanced_allocations.lock() {
             for allocation in allocations.values() {
-                let age = current_time - allocation.base.timestamp_alloc as u128;
+                let alloc_time = allocation.base.timestamp_alloc as u128;
+                let age = if current_time >= alloc_time {
+                    current_time - alloc_time
+                } else {
+                    0 // Handle case where allocation timestamp is in the future
+                };
                 if age > threshold_ms && allocation.base.is_active() {
                     leaks.push(SafetyViolation::PotentialLeak {
                         allocation_stack: allocation.call_stack.clone(),
