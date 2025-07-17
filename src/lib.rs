@@ -8,36 +8,34 @@
 #![warn(missing_docs)]
 #![allow(dead_code, unused_variables, unused_imports)]
 
-pub mod advanced_analysis;
-pub mod analysis_unified;
+/// Memory allocation tracking and analysis
 pub mod allocator;
+/// Advanced memory analysis functionality
+pub mod analysis;
+/// Export functionality for various formats
 pub mod export;
-pub mod export_enhanced;
-pub mod optimized_html_export;
+/// Scope tracking functionality
 pub mod scope_tracker;
+/// Thread utilities
+pub mod thread_utils;
+/// Core memory tracking functionality
 pub mod tracker;
-pub mod tracking_unified;
-pub mod types_original;
+/// Unified tracking interface
+pub mod tracking;
+/// Type definitions and data structures
 pub mod types;
+/// Unsafe and FFI operation tracking
 pub mod unsafe_ffi_tracker;
-pub mod unsafe_ffi_visualization;
-pub mod html_export;
-pub mod advanced_charts;
+/// Utility functions
 pub mod utils;
+/// Visualization and chart generation
 pub mod visualization;
-pub mod visualization_unified;
-/// Offline HTML report generation from JSON data
-pub mod report_generator;
 
-// Re-export comprehensive report generation
-pub use report_generator::generate_interactive_html_report;
-
-// Re-export key functions
-pub use report_generator::*;
+// Re-export key functions from unified modules
 pub use export::*;
-pub use visualization_unified::*;
-pub use analysis_unified::*;
-pub use tracking_unified::*;
+pub use visualization::*;
+pub use analysis::*;
+pub use tracking::*;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
@@ -45,7 +43,7 @@ pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
 pub use unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
-pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
+pub use visualization::{export_lifecycle_timeline_unified, export_memory_analysis_unified};
 
 // Set up the global allocator when the tracking-allocator feature is enabled
 #[cfg(feature = "tracking-allocator")]

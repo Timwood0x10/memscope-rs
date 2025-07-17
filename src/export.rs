@@ -13,6 +13,7 @@ pub struct ExportManager {
 }
 
 impl ExportManager {
+    /// Create a new export manager instance
     pub fn new() -> Self {
         Self {}
     }

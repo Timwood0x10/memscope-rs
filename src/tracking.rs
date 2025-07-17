@@ -11,6 +11,7 @@ pub struct TrackingManager {
 }
 
 impl TrackingManager {
+    /// Create a new tracking manager instance
     pub fn new() -> Self {
         Self {
             memory_tracker: crate::tracker::get_global_tracker(),
@@ -134,11 +135,17 @@ impl Default for TrackingManager {
 /// Comprehensive tracking report
 #[derive(Debug, Clone)]
 pub struct ComprehensiveTrackingReport {
+    /// Overall memory statistics
     pub memory_stats: MemoryStats,
+    /// Currently active memory allocations
     pub active_allocations: Vec<AllocationInfo>,
+    /// Historical allocation data
     pub allocation_history: Vec<AllocationInfo>,
+    /// Scope analysis results
     pub scope_analysis: ScopeAnalysis,
+    /// Scope lifecycle metrics
     pub scope_metrics: Vec<ScopeLifecycleMetrics>,
+    /// Timestamp when report was generated
     pub analysis_timestamp: u64,
 }
 

@@ -259,7 +259,7 @@ impl UnsafeFFITracker {
                 }
                 
                 tracing::error!("Double free detected at {:x}", ptr);
-                return Err(TrackingError::MemoryCorruption);
+                return Err(TrackingError::MemoryCorruption("Memory corruption detected".to_string()));
             }
         }
 
@@ -287,7 +287,7 @@ impl UnsafeFFITracker {
                 }
                 
                 tracing::error!("Invalid free detected at {:x}", ptr);
-                return Err(TrackingError::InvalidPointer { ptr });
+                return Err(TrackingError::InvalidPointer(format!("Invalid pointer: 0x{:x}", ptr)));
             }
         }
 
@@ -367,11 +367,11 @@ impl UnsafeFFITracker {
 
         if let Ok(allocations) = self.enhanced_allocations.lock() {
             for allocation in allocations.values() {
-                let age = current_time - allocation.base.timestamp_alloc;
+                let age = current_time - allocation.base.timestamp_alloc as u128;
                 if age > threshold_ms && allocation.base.is_active() {
                     leaks.push(SafetyViolation::PotentialLeak {
                         allocation_stack: allocation.call_stack.clone(),
-                        allocation_timestamp: allocation.base.timestamp_alloc,
+                        allocation_timestamp: allocation.base.timestamp_alloc as u128,
                         leak_detection_timestamp: current_time,
                     });
                 }
@@ -535,7 +535,7 @@ impl UnsafeFFITracker {
                 operation_type: op_type,
                 location: "unknown".to_string(), // Could be enhanced with actual location
                 risk_level,
-                timestamp: allocation.base.timestamp_alloc,
+                timestamp: allocation.base.timestamp_alloc as u128,
                 description,
             });
         }
