@@ -9,6 +9,7 @@
 #![allow(dead_code, unused_variables, unused_imports)]
 
 pub mod advanced_analysis;
+pub mod analysis_unified;
 pub mod allocator;
 pub mod export;
 pub mod export_enhanced;
@@ -34,6 +35,7 @@ pub use report_generator::generate_interactive_html_report;
 pub use report_generator::*;
 pub use export::*;
 pub use visualization_unified::*;
+pub use analysis_unified::*;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
