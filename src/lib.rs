@@ -23,6 +23,7 @@ pub mod html_export;
 pub mod advanced_charts;
 pub mod utils;
 pub mod visualization;
+pub mod visualization_unified;
 /// Offline HTML report generation from JSON data
 pub mod report_generator;
 
@@ -32,6 +33,7 @@ pub use report_generator::generate_interactive_html_report;
 // Re-export key functions
 pub use report_generator::*;
 pub use export::*;
+pub use visualization_unified::*;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
