@@ -681,7 +681,7 @@ fn generate_final_analysis() {
         println!("✅ Enhanced lifecycle timeline exported to: ./complex_lifecycle_timeline.svg");
     }
 
-    if let Err(e) = tracker.export_enhanced_json("./complex_lifecycle_snapshot.json") {
+    if let Err(e) = tracker.export_to_json("./complex_lifecycle_snapshot.json") {
         println!("❌ JSON snapshot export failed: {}", e);
     } else {
         println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");

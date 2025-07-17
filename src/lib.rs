@@ -15,12 +15,8 @@ pub mod analysis;
 // Removed export_enhanced - functionality consolidated into visualization.rs
 /// Scope tracking functionality
 pub mod scope_tracker;
-/// Thread utilities
-pub mod thread_utils;
 /// Core memory tracking functionality
 pub mod tracker;
-/// Unified tracking interface
-pub mod tracking;
 /// Type definitions and data structures
 pub mod types;
 /// Unsafe and FFI operation tracking
@@ -35,8 +31,6 @@ pub mod visualization;
 pub mod export_enhanced;
 pub use visualization::*;
 pub use analysis::*;
-pub use tracking::*;
-
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
 pub use tracker::{get_global_tracker, MemoryTracker};

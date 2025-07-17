@@ -272,94 +272,6 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Export memory data to JSON format with unified dashboard structure.
-    pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        use std::fs::File;
-        let path = path.as_ref();
-        let active_allocations = self.get_active_allocations()?;
-        let memory_by_type = self.get_memory_by_type()?;
-        let stats = self.get_stats()?;
-        let allocation_history = self.get_allocation_history()?;
-
-        // Apply same filtering logic as HTML export
-        let mut prioritized_allocations = Vec::new();
-        let mut system_allocations = Vec::new();
-        
-        // Separate user variables and system allocations
-        for alloc in &active_allocations {
-            if alloc.var_name.is_some() {
-                prioritized_allocations.push(alloc.clone());
-            } else if alloc.size >= 1024 {  // Only include >= 1KB system allocations
-                let mut enhanced_alloc = alloc.clone();
-                // Use smart analysis for more precise identification
-                let (smart_name, smart_type) = analyze_system_allocation(alloc);
-                enhanced_alloc.var_name = Some(smart_name);
-                enhanced_alloc.type_name = Some(smart_type);
-                system_allocations.push(enhanced_alloc);
-            }
-        }
-        
-        // Sort system allocations by size, take top 50
-        system_allocations.sort_by(|a, b| b.size.cmp(&a.size));
-        system_allocations.truncate(50);
-        
-        // Merge: user variables + large system allocations
-        prioritized_allocations.extend(system_allocations);
-        
-        // Filter history data similarly
-        let mut prioritized_history = Vec::new();
-        let mut system_history = Vec::new();
-        
-        for alloc in allocation_history.iter().rev() {  // Most recent first
-            if alloc.var_name.is_some() {
-                prioritized_history.push(alloc.clone());
-            } else if alloc.size >= 512 && system_history.len() < 100 {  // Limit system history
-                let mut enhanced_alloc = alloc.clone();
-                // Use smart analysis for history allocations too
-                let (smart_name, smart_type) = analyze_system_allocation(alloc);
-                enhanced_alloc.var_name = Some(smart_name);
-                enhanced_alloc.type_name = Some(smart_type);
-                system_history.push(enhanced_alloc);
-            }
-            
-            if prioritized_history.len() >= 200 {  // Limit total count
-                break;
-            }
-        }
-        
-        prioritized_history.extend(system_history);
-
-        println!("JSON export: {} user variables, {} large system allocations", 
-                 prioritized_allocations.iter().filter(|a| a.var_name.as_ref().map_or(false, |n| !n.starts_with("system_"))).count(),
-                 prioritized_allocations.iter().filter(|a| a.var_name.as_ref().map_or(false, |n| n.starts_with("system_"))).count());
-
-        // Get unsafe/FFI data if available
-        let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
-            .get_stats();
-
-        // Generate timeline data with filtered data
-        let timeline_data = self.generate_timeline_data(&prioritized_history, &prioritized_allocations);
-
-        // Build unified dashboard structure with filtered data
-        let mut dashboard_data = build_unified_dashboard_structure(
-            &prioritized_allocations,
-            &prioritized_history,
-            &memory_by_type,
-            &stats,
-            &unsafe_stats,
-        );
-
-        // Add timeline data to the dashboard
-        if let serde_json::Value::Object(ref mut map) = dashboard_data {
-            map.insert("timeline".to_string(), serde_json::to_value(timeline_data).unwrap_or(serde_json::Value::Null));
-        }
-
-        let file = File::create(path)?;
-        serde_json::to_writer_pretty(file, &dashboard_data).map_err(|e| {
-            crate::types::TrackingError::SerializationError(format!("JSON export failed: {e}"))
-        })?;
-        Ok(())
-    }
 
     /// Export memory analysis visualization showing variable names, types, and usage patterns.
     /// This creates a comprehensive memory analysis with call stack analysis, timeline, and categorization.
@@ -394,7 +306,7 @@ impl MemoryTracker {
 
     /// Export enhanced JSON with complete timeline, call stacks, scope hierarchy, and variable relationships.
     /// This addresses all issues in current JSON output: no unknown types, precise variable names, complete data.
-    pub fn export_enhanced_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+    pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         use std::fs::File;
         let path = path.as_ref();
         
@@ -1785,4 +1697,191 @@ fn analyze_system_allocation(alloc: &AllocationInfo) -> (String, String) {
     };
     
     (smart_name, smart_type)
+}
+
+// ============================================================================
+// Unified Tracking Interface (merged from tracking.rs)
+// ============================================================================
+
+/// Main tracking interface - consolidates all tracking functionality
+/// 
+/// This provides a unified interface that combines memory tracking and scope tracking
+/// while preserving all existing functionality.
+pub struct TrackingManager {
+    memory_tracker: Arc<MemoryTracker>,
+    scope_tracker: Arc<crate::scope_tracker::ScopeTracker>,
+}
+
+impl TrackingManager {
+    /// Create a new tracking manager instance
+    pub fn new() -> Self {
+        Self {
+            memory_tracker: get_global_tracker(),
+            scope_tracker: crate::scope_tracker::get_global_scope_tracker(),
+        }
+    }
+    
+    /// Get the memory tracker instance
+    pub fn memory_tracker(&self) -> &Arc<MemoryTracker> {
+        &self.memory_tracker
+    }
+    
+    /// Get the scope tracker instance
+    pub fn scope_tracker(&self) -> &Arc<crate::scope_tracker::ScopeTracker> {
+        &self.scope_tracker
+    }
+    
+    /// Track memory allocation
+    pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
+        self.memory_tracker.track_allocation(ptr, size)
+    }
+    
+    /// Track memory deallocation
+    pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<()> {
+        self.memory_tracker.track_deallocation(ptr)
+    }
+    
+    /// Associate variable with memory allocation
+    pub fn associate_var(&self, ptr: usize, var_name: String, type_name: String) -> TrackingResult<()> {
+        self.memory_tracker.associate_var(ptr, var_name, type_name)
+    }
+    
+    /// Enter a new scope
+    pub fn enter_scope(&self, name: String) -> TrackingResult<crate::scope_tracker::ScopeId> {
+        self.scope_tracker.enter_scope(name)
+    }
+    
+    /// Exit a scope
+    pub fn exit_scope(&self, scope_id: crate::scope_tracker::ScopeId) -> TrackingResult<()> {
+        self.scope_tracker.exit_scope(scope_id)
+    }
+    
+    /// Associate variable with current scope
+    pub fn associate_variable(&self, variable_name: String, memory_size: usize) -> TrackingResult<()> {
+        self.scope_tracker.associate_variable(variable_name, memory_size)
+    }
+    
+    /// Get memory statistics
+    pub fn get_stats(&self) -> TrackingResult<crate::types::MemoryStats> {
+        self.memory_tracker.get_stats()
+    }
+    
+    /// Get active allocations
+    pub fn get_active_allocations(&self) -> TrackingResult<Vec<crate::types::AllocationInfo>> {
+        self.memory_tracker.get_active_allocations()
+    }
+    
+    /// Get allocation history
+    pub fn get_allocation_history(&self) -> TrackingResult<Vec<crate::types::AllocationInfo>> {
+        self.memory_tracker.get_allocation_history()
+    }
+    
+    /// Get scope analysis
+    pub fn get_scope_analysis(&self) -> TrackingResult<crate::types::ScopeAnalysis> {
+        self.scope_tracker.get_scope_analysis()
+    }
+    
+    /// Export to JSON (enhanced format with comprehensive data)
+    pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        self.memory_tracker.export_to_json(path)
+    }
+    
+    /// Export enhanced JSON (with complete data including scope information)
+    pub fn export_enhanced_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        self.memory_tracker.export_to_json(path)
+    }
+    
+    /// Export memory analysis SVG
+    pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        self.memory_tracker.export_memory_analysis(path)
+    }
+    
+    /// Export lifecycle timeline SVG
+    pub fn export_lifecycle_timeline<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        self.memory_tracker.export_lifecycle_timeline(path)
+    }
+    
+    /// Export interactive dashboard
+    pub fn export_interactive_dashboard<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        self.memory_tracker.export_interactive_dashboard(path)
+    }
+    
+    /// Perform comprehensive tracking analysis
+    pub fn perform_comprehensive_analysis(&self) -> TrackingResult<ComprehensiveTrackingReport> {
+        let memory_stats = self.get_stats()?;
+        let active_allocations = self.get_active_allocations()?;
+        let allocation_history = self.get_allocation_history()?;
+        let scope_analysis = self.get_scope_analysis()?;
+        let scope_metrics = self.scope_tracker.get_scope_lifecycle_metrics()?;
+        
+        Ok(ComprehensiveTrackingReport {
+            memory_stats,
+            active_allocations,
+            allocation_history,
+            scope_analysis,
+            scope_metrics,
+            analysis_timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        })
+    }
+}
+
+impl Default for TrackingManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Comprehensive tracking report
+#[derive(Debug, Clone)]
+pub struct ComprehensiveTrackingReport {
+    /// Overall memory statistics
+    pub memory_stats: crate::types::MemoryStats,
+    /// Currently active memory allocations
+    pub active_allocations: Vec<crate::types::AllocationInfo>,
+    /// Historical allocation data
+    pub allocation_history: Vec<crate::types::AllocationInfo>,
+    /// Scope analysis results
+    pub scope_analysis: crate::types::ScopeAnalysis,
+    /// Scope lifecycle metrics
+    pub scope_metrics: Vec<crate::types::ScopeLifecycleMetrics>,
+    /// Timestamp when report was generated
+    pub analysis_timestamp: u64,
+}
+
+/// Get unified tracking manager - convenience function
+pub fn get_tracking_manager() -> TrackingManager {
+    TrackingManager::new()
+}
+
+/// Track allocation - convenience function
+pub fn track_allocation(ptr: usize, size: usize) -> TrackingResult<()> {
+    let manager = TrackingManager::new();
+    manager.track_allocation(ptr, size)
+}
+
+/// Track deallocation - convenience function
+pub fn track_deallocation(ptr: usize) -> TrackingResult<()> {
+    let manager = TrackingManager::new();
+    manager.track_deallocation(ptr)
+}
+
+/// Associate variable - convenience function
+pub fn associate_var(ptr: usize, var_name: String, type_name: String) -> TrackingResult<()> {
+    let manager = TrackingManager::new();
+    manager.associate_var(ptr, var_name, type_name)
+}
+
+/// Enter scope - convenience function
+pub fn enter_scope(name: String) -> TrackingResult<crate::scope_tracker::ScopeId> {
+    let manager = TrackingManager::new();
+    manager.enter_scope(name)
+}
+
+/// Exit scope - convenience function
+pub fn exit_scope(scope_id: crate::scope_tracker::ScopeId) -> TrackingResult<()> {
+    let manager = TrackingManager::new();
+    manager.exit_scope(scope_id)
 }

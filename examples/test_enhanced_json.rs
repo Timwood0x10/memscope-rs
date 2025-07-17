@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tracker = get_global_tracker();
     
     // Export using the new enhanced JSON function
-    tracker.export_enhanced_json("enhanced_test_output.json")?;
+    tracker.export_to_json("enhanced_test_output.json")?;
     
     // Also export regular JSON for comparison
     // tracker.export_to_json("regular_test_output.json")?;
