@@ -16,6 +16,7 @@ pub mod export_enhanced;
 pub mod optimized_html_export;
 pub mod scope_tracker;
 pub mod tracker;
+pub mod tracking_unified;
 pub mod types_original;
 pub mod types;
 pub mod unsafe_ffi_tracker;
@@ -36,6 +37,7 @@ pub use report_generator::*;
 pub use export::*;
 pub use visualization_unified::*;
 pub use analysis_unified::*;
+pub use tracking_unified::*;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
