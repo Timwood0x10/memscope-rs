@@ -40,6 +40,9 @@ impl ScopeTracker {
             completed_scopes: Mutex::new(Vec::new()),
             scope_hierarchy: Mutex::new(ScopeHierarchy {
                 root_scopes: Vec::new(),
+                scope_tree: HashMap::new(),
+                max_depth: 0,
+                total_scopes: 0,
                 relationships: HashMap::new(),
                 depth_map: HashMap::new(),
             }),
@@ -78,15 +81,21 @@ impl ScopeTracker {
         // Create scope info
         let scope_info = ScopeInfo {
             name: name.clone(),
+            parent: parent_scope.clone(),
+            children: Vec::new(),
             depth,
-            start_time: timestamp,
+            variables: Vec::new(),
+            total_memory: 0,
+            peak_memory: 0,
+            allocation_count: 0,
+            lifetime_start: Some(timestamp as u64),
+            lifetime_end: None,
+            is_active: true,
+            start_time: timestamp as u64,
             end_time: None,
             memory_usage: 0,
-            peak_memory: 0,
-            variables: Vec::new(),
             child_scopes: Vec::new(),
             parent_scope: parent_scope.clone(),
-            allocation_count: 0,
         };
 
         // Add to active scopes
@@ -128,11 +137,12 @@ impl ScopeTracker {
         let mut scope_info = {
             let mut active_scopes = self.active_scopes.lock().unwrap();
             active_scopes.remove(&scope_id)
-                .ok_or_else(|| TrackingError::InvalidPointer { ptr: scope_id as usize })?
+                .ok_or_else(|| TrackingError::InvalidPointer(format!("Invalid scope ID: {}", scope_id)))?
         };
 
         // Update end time
-        scope_info.end_time = Some(timestamp);
+        scope_info.end_time = Some(timestamp as u64);
+        scope_info.lifetime_end = Some(timestamp as u64);
 
         // Update scope stack
         {
@@ -188,6 +198,11 @@ impl ScopeTracker {
         all_scopes.extend(completed_scopes.iter().cloned());
 
         Ok(ScopeAnalysis {
+            total_scopes: all_scopes.len(),
+            active_scopes: all_scopes.iter().filter(|s| s.is_active).count(),
+            max_depth: hierarchy.max_depth,
+            average_lifetime: 1000.0, // Placeholder
+            memory_efficiency: 0.8, // Placeholder
             scopes: all_scopes,
             scope_hierarchy: hierarchy.clone(),
             cross_scope_references: Vec::new(), // TODO: Implement cross-scope reference tracking
@@ -199,7 +214,7 @@ impl ScopeTracker {
         let completed_scopes = self.completed_scopes.lock().unwrap();
         
         let metrics = completed_scopes.iter().map(|scope| {
-            let lifetime = scope.end_time.unwrap_or(current_timestamp()) - scope.start_time;
+            let lifetime = scope.end_time.unwrap_or(current_timestamp() as u64) - scope.start_time;
             let efficiency_score = if scope.peak_memory > 0 {
                 scope.memory_usage as f64 / scope.peak_memory as f64
             } else {
@@ -209,10 +224,11 @@ impl ScopeTracker {
             ScopeLifecycleMetrics {
                 scope_name: scope.name.clone(),
                 variable_count: scope.variables.len(),
-                avg_lifetime_ms: lifetime as f64,
-                total_memory_bytes: scope.memory_usage,
-                peak_concurrent_vars: scope.variables.len(), // Simplified
-                efficiency_score,
+                average_lifetime_ms: lifetime as f64,
+                total_memory_usage: scope.memory_usage,
+                peak_memory_usage: scope.peak_memory,
+                allocation_frequency: 1.0, // Simplified
+                deallocation_efficiency: efficiency_score,
             }
         }).collect();
 
