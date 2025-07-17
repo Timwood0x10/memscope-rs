@@ -14,6 +14,7 @@ pub mod export_enhanced;
 pub mod optimized_html_export;
 pub mod scope_tracker;
 pub mod tracker;
+pub mod types_original;
 pub mod types;
 pub mod unsafe_ffi_tracker;
 pub mod unsafe_ffi_visualization;
