@@ -40,12 +40,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracker.export_enhanced_json("enhanced_test_output.json")?;
     
     // Also export regular JSON for comparison
-    tracker.export_to_json("regular_test_output.json")?;
+    // tracker.export_to_json("regular_test_output.json")?;
+    tracker.export_memory_analysis("testmemory_analysis.svg")?;
+    tracker.export_lifecycle_timeline("testlifecycle_timeline.svg")?;
     
     println!("✅ Enhanced JSON export completed!");
     println!("📄 Files generated:");
     println!("   - enhanced_test_output.json (Enhanced format with complete data)");
-    println!("   - regular_test_output.json (Regular format for comparison)");
+    println!("   - memory_analysis.svg (Memory analysis visualization)");
+    println!("   - lifecycle_timeline.svg (Lifecycle timeline visualization)");
     
     // Print some statistics
     let stats = tracker.get_stats()?;
