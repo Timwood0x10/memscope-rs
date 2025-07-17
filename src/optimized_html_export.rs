@@ -1,6 +1,7 @@
 //! Optimized HTML export with faster loading and better performance
 
 use crate::types::*;
+use crate::utils::format_bytes;
 use std::collections::HashMap;
 
 /// Generate an optimized HTML dashboard with lazy loading
@@ -9,7 +10,7 @@ pub fn generate_optimized_dashboard(
     timeline: &[AllocationInfo],
     performance_metrics: &HashMap<String, f64>,
 ) -> String {
-    let summary_data = create_summary_data(memory_stats);
+    let summary_data = create_summary_json(memory_stats);
     let chart_data = create_chart_data(timeline);
     
     format!(
@@ -359,7 +360,9 @@ pub fn generate_optimized_dashboard(
         total_memory = format_bytes(memory_stats.total_allocated),
         peak_memory = format_bytes(memory_stats.peak_memory),
         active_allocations = memory_stats.active_allocations,
-        memory_usage_percent = calculate_usage_percent(memory_stats),
+        memory_usage_percent = if memory_stats.peak_memory > 0 {
+            ((memory_stats.active_memory as f64 / memory_stats.peak_memory as f64) * 100.0) as u32
+        } else { 0 },
         system_lib_count = count_active_libraries(&memory_stats.system_library_stats),
         system_lib_preview = create_library_preview(&memory_stats.system_library_stats),
         fragmentation_percent = (memory_stats.fragmentation_analysis.fragmentation_ratio * 100.0) as u32,
@@ -376,23 +379,9 @@ pub fn generate_optimized_dashboard(
     )
 }
 
-fn format_bytes(bytes: usize) -> String {
-    if bytes >= 1024 * 1024 {
-        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
-    } else if bytes >= 1024 {
-        format!("{:.1} KB", bytes as f64 / 1024.0)
-    } else {
-        format!("{} B", bytes)
-    }
-}
+// 重复的format_bytes函数已删除，使用utils模块中的实现
 
-fn calculate_usage_percent(stats: &MemoryStats) -> u32 {
-    if stats.peak_memory > 0 {
-        ((stats.active_memory as f64 / stats.peak_memory as f64) * 100.0) as u32
-    } else {
-        0
-    }
-}
+// 重复的百分比计算函数已删除，使用内联计算
 
 fn count_active_libraries(lib_stats: &SystemLibraryStats) -> usize {
     let mut count = 0;
@@ -476,9 +465,7 @@ fn create_summary_json(stats: &MemoryStats) -> String {
     }).to_string()
 }
 
-fn create_summary_data(stats: &MemoryStats) -> String {
-    create_summary_json(stats)
-}
+// 重复函数已删除，直接使用create_summary_json
 
 fn create_chart_data(timeline: &[AllocationInfo]) -> String {
     let points: Vec<_> = timeline.iter().enumerate().map(|(i, alloc)| {

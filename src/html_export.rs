@@ -303,7 +303,10 @@ impl MemoryTracker {
         let dashboard_data = self.generate_optimized_dashboard_data()?;
         
         // Read optimized HTML template
-        let html_template = include_str!("optimized_dashboard_template.html");
+        let html_template = r#"<!DOCTYPE html>
+<html><head><title>Dashboard</title></head>
+<body><h1>Memory Dashboard</h1><div id="content">{{DASHBOARD_DATA}}</div></body>
+</html>"#;
         
         // Replace placeholders with JSON data
         let html = html_template
