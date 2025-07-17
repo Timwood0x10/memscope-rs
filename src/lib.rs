@@ -10,6 +10,7 @@
 
 pub mod advanced_analysis;
 pub mod allocator;
+pub mod export;
 pub mod export_enhanced;
 pub mod optimized_html_export;
 pub mod scope_tracker;
@@ -30,6 +31,7 @@ pub use report_generator::generate_interactive_html_report;
 
 // Re-export key functions
 pub use report_generator::*;
+pub use export::*;
 
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
