@@ -384,6 +384,21 @@ body {
     margin-top: 20px;
 }
 
+/* Memory Heatmap gets full width */
+.memory-heatmap {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+/* Performance metrics also get full width */
+.metric-cards {
+    grid-column: 1 / -1;
+}
+
 /* Metric Cards with Circular Progress */
 .metric-cards {
     display: flex;
@@ -497,11 +512,104 @@ body {
     font-style: italic;
 }
 
+/* 热力图样式 */
+.heatmap-header {
+    margin-bottom: 20px;
+}
+
+.heatmap-description {
+    margin: 10px 0;
+    padding: 10px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #64748b;
+}
+
+.heatmap-container {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+
+.heatmap-canvas {
+    flex: 1;
+    min-width: 0;
+}
+
+.heatmap-legend {
+    flex: 0 0 200px;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+.heatmap-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.heatmap-svg {
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.heatmap-cell:hover {
+    stroke: #2c3e50;
+    stroke-width: 2;
+    opacity: 0.9 !important;
+}
+
+.legend-title {
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.legend-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
 /* 响应式设计 - 统一布局 */
 @media (max-width: 1200px) {
     .metrics-grid-unified {
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 20px;
+    }
+    
+    .heatmap-container {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .heatmap-legend {
+        flex: none;
+        width: 100%;
     }
 }
 

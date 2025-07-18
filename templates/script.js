@@ -118,9 +118,38 @@ class MemScopeVisualizer {
         const container = document.getElementById('typeDistribution');
         const typeMap = new Map();
         
-        // Aggregate by type
+        // Aggregate by type with improved type inference
         this.data.allocations.forEach(alloc => {
-            const typeName = alloc.type_name || 'Unknown';
+            let typeName = alloc.type_name;
+            
+            // 改进类型推断逻辑
+            if (!typeName || typeName === 'Unknown' || typeName === null) {
+                // 基于大小和变量名推断类型
+                if (alloc.size <= 8) {
+                    typeName = 'Small Primitive';
+                } else if (alloc.size <= 32) {
+                    typeName = 'Medium Object';
+                } else if (alloc.size <= 1024) {
+                    typeName = 'Large Structure';
+                } else {
+                    typeName = 'Buffer/Collection';
+                }
+                
+                // 基于变量名进一步推断
+                if (alloc.var_name) {
+                    const varName = alloc.var_name.toLowerCase();
+                    if (varName.includes('vec') || varName.includes('array')) {
+                        typeName = 'Vec/Array';
+                    } else if (varName.includes('string') || varName.includes('str')) {
+                        typeName = 'String';
+                    } else if (varName.includes('map') || varName.includes('hash')) {
+                        typeName = 'HashMap/Map';
+                    } else if (varName.includes('box') || varName.includes('ptr')) {
+                        typeName = 'Box/Pointer';
+                    }
+                }
+            }
+            
             if (!typeMap.has(typeName)) {
                 typeMap.set(typeName, { size: 0, count: 0 });
             }
@@ -536,14 +565,19 @@ class MemScopeVisualizer {
         container.innerHTML = `
             <div class="heatmap-header">
                 <h3>📊 Memory Allocation Heatmap</h3>
+                <div class="heatmap-description">
+                    <p>Interactive visualization showing memory allocation patterns. Each block represents an allocation, colored by the selected criteria.</p>
+                </div>
                 <div class="heatmap-controls">
                     <button class="heatmap-btn active" data-view="size">By Size</button>
                     <button class="heatmap-btn" data-view="type">By Type</button>
                     <button class="heatmap-btn" data-view="time">By Time</button>
                 </div>
             </div>
-            <div class="heatmap-canvas" id="heatmapCanvas"></div>
-            <div class="heatmap-legend" id="heatmapLegend"></div>
+            <div class="heatmap-container">
+                <div class="heatmap-canvas" id="heatmapCanvas"></div>
+                <div class="heatmap-legend" id="heatmapLegend"></div>
+            </div>
         `;
         
         // 创建热力图数据
@@ -566,29 +600,71 @@ class MemScopeVisualizer {
     // 渲染热力图画布
     renderHeatmapCanvas(data) {
         const canvas = document.getElementById('heatmapCanvas');
+        
+        // 计算更合适的网格尺寸
+        const maxItems = Math.min(data.length, 200); // 限制显示数量避免过于密集
+        const itemsPerRow = Math.ceil(Math.sqrt(maxItems * 1.5)); // 稍微宽一些的布局
+        const rows = Math.ceil(maxItems / itemsPerRow);
+        
+        const cellSize = 18;
+        const gap = 2;
+        const svgWidth = itemsPerRow * (cellSize + gap) + gap;
+        const svgHeight = rows * (cellSize + gap) + gap;
+        
+        const displayData = data.slice(0, maxItems);
+        
         canvas.innerHTML = `
-            <svg width="500" height="300" viewBox="0 0 500 300" class="heatmap-svg">
-                ${data.map((point, index) => `
-                    <rect 
-                        x="${point.x}" y="${point.y}" 
-                        width="20" height="20" 
-                        fill="${point.color}" 
-                        opacity="${0.3 + point.intensity * 0.7}"
-                        class="heatmap-cell"
-                        data-index="${index}"
-                        style="transition: all 0.3s ease; cursor: pointer;"
-                    />
-                `).join('')}
+            <div class="heatmap-info">
+                <span>Showing ${displayData.length} of ${data.length} allocations</span>
+                <span>Total Memory: ${this.formatBytes(data.reduce((sum, d) => sum + d.size, 0))}</span>
+            </div>
+            <svg width="100%" height="${svgHeight + 40}" viewBox="0 0 ${svgWidth} ${svgHeight + 40}" class="heatmap-svg">
+                <defs>
+                    <filter id="cellShadow">
+                        <feDropShadow dx="1" dy="1" stdDeviation="1" flood-opacity="0.3"/>
+                    </filter>
+                </defs>
+                ${displayData.map((point, index) => {
+                    const row = Math.floor(index / itemsPerRow);
+                    const col = index % itemsPerRow;
+                    const x = col * (cellSize + gap) + gap;
+                    const y = row * (cellSize + gap) + gap;
+                    
+                    return `
+                        <rect 
+                            x="${x}" y="${y}" 
+                            width="${cellSize}" height="${cellSize}" 
+                            fill="${point.color}" 
+                            opacity="${0.4 + point.intensity * 0.6}"
+                            class="heatmap-cell"
+                            data-index="${index}"
+                            filter="url(#cellShadow)"
+                            rx="2"
+                            style="cursor: pointer;"
+                        />
+                    `;
+                }).join('')}
+                
+                <!-- 添加标题 -->
+                <text x="${svgWidth/2}" y="${svgHeight + 25}" text-anchor="middle" font-size="12" fill="#7f8c8d">
+                    Hover over blocks to see allocation details
+                </text>
             </svg>
         `;
         
-        // 添加悬停交互
+        // 添加悬停交互 - 修复闪烁问题
         document.querySelectorAll('.heatmap-cell').forEach((cell, index) => {
             const allocation = data[index].allocation;
+            const originalOpacity = 0.3 + data[index].intensity * 0.7;
             
+            // 使用更稳定的悬停效果
             cell.addEventListener('mouseenter', (e) => {
-                cell.style.opacity = '1';
-                cell.style.transform = 'scale(1.2)';
+                // 移除过渡效果避免闪烁
+                cell.style.transition = 'none';
+                cell.style.opacity = '0.95';
+                cell.style.stroke = '#2c3e50';
+                cell.style.strokeWidth = '2';
+                
                 this.showTooltip(e, {
                     title: allocation.var_name || `Allocation ${allocation.ptr.toString(16)}`,
                     size: this.formatBytes(allocation.size),
@@ -598,8 +674,11 @@ class MemScopeVisualizer {
             });
             
             cell.addEventListener('mouseleave', () => {
-                cell.style.opacity = `${0.3 + data[index].intensity * 0.7}`;
-                cell.style.transform = 'scale(1)';
+                // 恢复原始状态
+                cell.style.transition = 'all 0.2s ease';
+                cell.style.opacity = originalOpacity;
+                cell.style.stroke = 'none';
+                cell.style.strokeWidth = '0';
                 this.hideTooltip();
             });
         });
@@ -767,7 +846,7 @@ class MemScopeVisualizer {
     }
 
     getTypeColor(typeName) {
-        if (!typeName || typeName === 'Unknown') {
+        if (!typeName || typeName === 'Unknown' || typeName === null) {
             return '#95a5a6';
         }
         
@@ -800,6 +879,65 @@ class MemScopeVisualizer {
         }
         const hue = Math.abs(hash) % 360;
         return `hsl(${hue}, 70%, 50%)`;
+    }
+
+    getTimeColor(intensity) {
+        // 从紫色到黄色的时间渐变
+        const colors = [
+            '#9b59b6', // 早期 - 紫色
+            '#3498db', // 中早期 - 蓝色
+            '#1abc9c', // 中期 - 青色
+            '#f1c40f', // 中晚期 - 黄色
+            '#e67e22'  // 晚期 - 橙色
+        ];
+        const index = Math.floor(intensity * (colors.length - 1));
+        return colors[Math.min(index, colors.length - 1)];
+    }
+
+    updateHeatmapLegend(view) {
+        const container = document.getElementById('heatmapLegend');
+        
+        let legendContent = '';
+        switch(view) {
+            case 'size':
+                legendContent = `
+                    <div class="legend-title">Size Legend</div>
+                    <div class="legend-items">
+                        <div class="legend-item"><span class="legend-color" style="background: #3498db"></span>Small</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #2ecc71"></span>Medium</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #f1c40f"></span>Large</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #e67e22"></span>Very Large</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #e74c3c"></span>Huge</div>
+                    </div>
+                `;
+                break;
+            case 'type':
+                legendContent = `
+                    <div class="legend-title">Type Legend</div>
+                    <div class="legend-items">
+                        <div class="legend-item"><span class="legend-color" style="background: #3498db"></span>Vec</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #2ecc71"></span>String</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #e74c3c"></span>Box</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #9b59b6"></span>HashMap</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #95a5a6"></span>Other</div>
+                    </div>
+                `;
+                break;
+            case 'time':
+                legendContent = `
+                    <div class="legend-title">Time Legend</div>
+                    <div class="legend-items">
+                        <div class="legend-item"><span class="legend-color" style="background: #9b59b6"></span>Early</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #3498db"></span>Mid-Early</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #1abc9c"></span>Middle</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #f1c40f"></span>Mid-Late</div>
+                        <div class="legend-item"><span class="legend-color" style="background: #e67e22"></span>Late</div>
+                    </div>
+                `;
+                break;
+        }
+        
+        container.innerHTML = legendContent;
     }
 
     showTooltip(event, data) {
@@ -845,9 +983,64 @@ class MemScopeVisualizer {
     }
 
     updateHeatmapView(view) {
-        // 根据视图类型重新渲染热力图
-        console.log(`Switching heatmap to ${view} view`);
-        // 这里可以添加不同视图的逻辑
+        const allocations = this.data.allocations;
+        let heatmapData;
+        
+        switch(view) {
+            case 'size':
+                const maxSize = Math.max(...allocations.map(a => a.size));
+                heatmapData = allocations.map((alloc, index) => ({
+                    x: (index % 20) * 25 + 10,
+                    y: Math.floor(index / 20) * 25 + 10,
+                    size: alloc.size,
+                    intensity: alloc.size / maxSize,
+                    color: this.getHeatmapColor(alloc.size / maxSize),
+                    allocation: alloc
+                }));
+                break;
+                
+            case 'type':
+                const typeColors = new Map();
+                const uniqueTypes = [...new Set(allocations.map(a => a.type_name || 'Unknown'))];
+                uniqueTypes.forEach((type, index) => {
+                    typeColors.set(type, this.getTypeColor(type));
+                });
+                
+                heatmapData = allocations.map((alloc, index) => ({
+                    x: (index % 20) * 25 + 10,
+                    y: Math.floor(index / 20) * 25 + 10,
+                    size: alloc.size,
+                    intensity: 0.8, // 固定强度，主要看颜色
+                    color: typeColors.get(alloc.type_name || 'Unknown'),
+                    allocation: alloc
+                }));
+                break;
+                
+            case 'time':
+                const timestamps = allocations.map(a => a.timestamp);
+                const minTime = Math.min(...timestamps);
+                const maxTime = Math.max(...timestamps);
+                const timeRange = maxTime - minTime || 1;
+                
+                heatmapData = allocations.map((alloc, index) => {
+                    const timeIntensity = (alloc.timestamp - minTime) / timeRange;
+                    return {
+                        x: (index % 20) * 25 + 10,
+                        y: Math.floor(index / 20) * 25 + 10,
+                        size: alloc.size,
+                        intensity: timeIntensity,
+                        color: this.getTimeColor(timeIntensity),
+                        allocation: alloc
+                    };
+                });
+                break;
+                
+            default:
+                return;
+        }
+        
+        this.renderHeatmapCanvas(heatmapData);
+        this.updateHeatmapLegend(view);
     }
 
     setupTypeDistributionInteractions(types) {
