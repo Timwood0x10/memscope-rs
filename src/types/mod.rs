@@ -135,17 +135,29 @@ impl From<serde_json::Error> for TrackingError {
 /// Information about a memory allocation
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AllocationInfo {
+    /// Memory address of the allocation
     pub ptr: usize,
+    /// Size of the allocation in bytes
     pub size: usize,
+    /// Optional variable name associated with this allocation
     pub var_name: Option<String>,
+    /// Optional type name of the allocated data
     pub type_name: Option<String>,
+    /// Optional scope name where the allocation occurred
     pub scope_name: Option<String>,
+    /// Timestamp when the allocation was made
     pub timestamp_alloc: u64,
+    /// Optional timestamp when the allocation was deallocated
     pub timestamp_dealloc: Option<u64>,
+    /// Thread ID where the allocation occurred
     #[serde(skip)]
+    /// Thread Id
     pub thread_id: thread::ThreadId,
+    /// Number of active borrows for this allocation
     pub borrow_count: usize,
+    /// Optional stack trace at the time of allocation
     pub stack_trace: Option<Vec<String>>,
+    /// Whether this allocation is considered leaked
     pub is_leaked: bool,
 }
 
@@ -186,6 +198,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
 }
 
 impl AllocationInfo {
+    /// Create a new AllocationInfo instance
     pub fn new(ptr: usize, size: usize) -> Self {
         Self {
             ptr,
@@ -205,6 +218,7 @@ impl AllocationInfo {
         }
     }
 
+    /// Mark this allocation as deallocated with current timestamp
     pub fn mark_deallocated(&mut self) {
         self.timestamp_dealloc = Some(std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -212,6 +226,7 @@ impl AllocationInfo {
             .as_nanos() as u64);
     }
 
+    /// Check if this allocation is still active (not deallocated)
     pub fn is_active(&self) -> bool {
         self.timestamp_dealloc.is_none()
     }
@@ -220,24 +235,40 @@ impl AllocationInfo {
 /// Memory statistics
 #[derive(Debug, Clone, Default)]
 pub struct MemoryStats {
+    /// Total number of allocations made
     pub total_allocations: usize,
+    /// Total bytes allocated
     pub total_allocated: usize,
+    /// Number of currently active allocations
     pub active_allocations: usize,
+    /// Total bytes in active allocations
     pub active_memory: usize,
+    /// Peak number of concurrent allocations
     pub peak_allocations: usize,
+    /// Peak memory usage in bytes
     pub peak_memory: usize,
+    /// Total number of deallocations performed
     pub total_deallocations: usize,
+    /// Total bytes deallocated
     pub total_deallocated: usize,
+    /// Number of leaked allocations
     pub leaked_allocations: usize,
+    /// Total bytes in leaked allocations
     pub leaked_memory: usize,
+    /// Analysis of memory fragmentation
     pub fragmentation_analysis: FragmentationAnalysis,
+    /// Lifecycle statistics for scopes
     pub lifecycle_stats: ScopeLifecycleMetrics,
+    /// List of all allocation information
     pub allocations: Vec<AllocationInfo>,
+    /// Statistics for system library allocations
     pub system_library_stats: SystemLibraryStats,
+    /// Analysis of concurrent memory operations
     pub concurrency_analysis: ConcurrencyAnalysis,
 }
 
 impl MemoryStats {
+    /// Create a new empty MemoryStats
     pub fn new() -> Self {
         Self {
             total_allocations: 0,
@@ -305,343 +336,538 @@ pub struct MemoryTypeInfo {
 /// Type memory usage information
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TypeMemoryUsage {
+    /// Name of the type
     pub type_name: String,
+    /// Total size allocated for this type
     pub total_size: usize,
+    /// Number of allocations for this type
     pub allocation_count: usize,
+    /// Average allocation size for this type
     pub average_size: f64,
+    /// Peak memory usage for this type
     pub peak_size: usize,
+    /// Current memory usage for this type
     pub current_size: usize,
+    /// Memory efficiency score for this type
     pub efficiency_score: f64,
 }
 
 /// Fragmentation analysis
 #[derive(Debug, Clone, Default)]
 pub struct FragmentationAnalysis {
+    /// Ratio of fragmented to total memory
     pub fragmentation_ratio: f64,
+    /// Size of the largest free memory block
     pub largest_free_block: usize,
+    /// Size of the smallest free memory block
     pub smallest_free_block: usize,
+    /// Total number of free memory blocks
     pub free_block_count: usize,
+    /// Total amount of free memory
     pub total_free_memory: usize,
+    /// External fragmentation percentage
     pub external_fragmentation: f64,
+    /// Internal fragmentation percentage
     pub internal_fragmentation: f64,
 }
 
 /// System library usage statistics
 #[derive(Debug, Clone, Default)]
 pub struct SystemLibraryStats {
+    /// Usage statistics for standard collections
     pub std_collections: LibraryUsage,
+    /// Usage statistics for async runtime
     pub async_runtime: LibraryUsage,
+    /// Usage statistics for network I/O
     pub network_io: LibraryUsage,
+    /// Usage statistics for file system operations
     pub file_system: LibraryUsage,
+    /// Usage statistics for serialization
     pub serialization: LibraryUsage,
+    /// Usage statistics for regex operations
     pub regex_engine: LibraryUsage,
+    /// Usage statistics for cryptographic operations
     pub crypto_security: LibraryUsage,
+    /// Usage statistics for database operations
     pub database: LibraryUsage,
+    /// Usage statistics for graphics and UI
     pub graphics_ui: LibraryUsage,
+    /// Usage statistics for HTTP operations
     pub http_stack: LibraryUsage,
 }
 
 /// Library usage information
 #[derive(Debug, Clone, Default)]
 pub struct LibraryUsage {
+    /// Number of allocations
     pub allocation_count: usize,
+    /// Total bytes allocated
     pub total_bytes: usize,
+    /// Peak memory usage in bytes
     pub peak_bytes: usize,
+    /// Average allocation size
     pub average_size: f64,
+    /// Categorized usage statistics
     pub categories: HashMap<String, usize>,
+    /// Functions with high allocation activity
     pub hotspot_functions: Vec<String>,
 }
 
 /// Concurrency safety analysis
 #[derive(Debug, Clone, Default)]
 pub struct ConcurrencyAnalysis {
+    /// Thread Safety Allocations
     pub thread_safety_allocations: usize,
+    /// Shared Memory Bytes
     pub shared_memory_bytes: usize,
+    /// Mutex Protected
     pub mutex_protected: usize,
+    /// Arc Shared
     pub arc_shared: usize,
+    /// Rc Shared
     pub rc_shared: usize,
+    /// Channel Buffers
     pub channel_buffers: usize,
+    /// Thread Local Storage
     pub thread_local_storage: usize,
+    /// Atomic Operations
     pub atomic_operations: usize,
+    /// Lock Contention Risk
     pub lock_contention_risk: String,
 }
 
 /// Scope analysis
 #[derive(Debug, Clone, Default)]
 pub struct ScopeAnalysis {
+    /// Total Scopes
     pub total_scopes: usize,
+    /// Active Scopes
     pub active_scopes: usize,
+    /// Max Depth
     pub max_depth: usize,
+    /// Average Lifetime
     pub average_lifetime: f64,
+    /// Memory Efficiency
     pub memory_efficiency: f64,
+    /// Scopes
     pub scopes: Vec<ScopeInfo>,
+    /// Scope Hierarchy
     pub scope_hierarchy: ScopeHierarchy,
+    /// Cross Scope References
     pub cross_scope_references: Vec<String>,
 }
 
 /// Scope lifecycle metrics
 #[derive(Debug, Clone, Default)]
 pub struct ScopeLifecycleMetrics {
+    /// Name of the scope
     pub scope_name: String,
+    /// Number of variables in scope
     pub variable_count: usize,
+    /// Average lifetime in milliseconds
     pub average_lifetime_ms: f64,
+    /// Total memory used by scope
     pub total_memory_usage: usize,
+    /// Peak memory usage in scope
     pub peak_memory_usage: usize,
+    /// Frequency of allocations
     pub allocation_frequency: f64,
+    /// Efficiency of deallocations
     pub deallocation_efficiency: f64,
+    /// Number of completed allocations
     pub completed_allocations: usize,
+    /// Number of memory growth events
     pub memory_growth_events: usize,
+    /// Peak number of concurrent variables
     pub peak_concurrent_variables: usize,
+    /// Memory efficiency ratio
     pub memory_efficiency_ratio: f64,
+    /// Number of ownership transfers
     pub ownership_transfer_events: usize,
+    /// Fragmentation score
     pub fragmentation_score: f64,
+    /// Number of instant allocations
     pub instant_allocations: usize,
+    /// Number of short-term allocations
     pub short_term_allocations: usize,
+    /// Number of medium-term allocations
     pub medium_term_allocations: usize,
+    /// Number of long-term allocations
     pub long_term_allocations: usize,
+    /// Number of suspected memory leaks
     pub suspected_leaks: usize,
+    /// Risk distribution analysis
     pub risk_distribution: RiskDistribution,
+    /// Metrics for individual scopes
     pub scope_metrics: Vec<ScopeLifecycleMetrics>,
+    /// Lifecycle patterns for types
     pub type_lifecycle_patterns: Vec<TypeLifecyclePattern>,
 }
 
 /// Scope information
 #[derive(Debug, Clone)]
 pub struct ScopeInfo {
+    /// Name
     pub name: String,
+    /// Parent
     pub parent: Option<String>,
+    /// Children
     pub children: Vec<String>,
+    /// Depth
     pub depth: usize,
+    /// Variables
     pub variables: Vec<String>,
+    /// Total Memory
     pub total_memory: usize,
+    /// Peak Memory
     pub peak_memory: usize,
+    /// Number of allocations
     pub allocation_count: usize,
+    /// Lifetime Start
     pub lifetime_start: Option<u64>,
+    /// Lifetime End
     pub lifetime_end: Option<u64>,
+    /// Is Active
     pub is_active: bool,
+    /// Start Time
     pub start_time: u64,
+    /// End Time
     pub end_time: Option<u64>,
+    /// Memory Usage
     pub memory_usage: usize,
+    /// Child Scopes
     pub child_scopes: Vec<String>,
+    /// Parent Scope
     pub parent_scope: Option<String>,
 }
 
 /// Scope hierarchy
 #[derive(Debug, Clone, Default)]
 pub struct ScopeHierarchy {
+    /// Root Scopes
     pub root_scopes: Vec<String>,
+    /// Scope Tree
     pub scope_tree: HashMap<String, ScopeInfo>,
+    /// Max Depth
     pub max_depth: usize,
+    /// Total Scopes
     pub total_scopes: usize,
+    /// Relationships
     pub relationships: HashMap<String, Vec<String>>,
+    /// Depth Map
     pub depth_map: HashMap<String, usize>,
 }
 
 /// Risk distribution analysis for memory allocations
 #[derive(Debug, Clone, Default)]
 pub struct RiskDistribution {
+    /// Low Risk
     pub low_risk: usize,
+    /// Medium Risk
     pub medium_risk: usize,
+    /// High Risk
     pub high_risk: usize,
+    /// Critical Risk
     pub critical_risk: usize,
 }
 
 /// Type-specific lifecycle pattern analysis
 #[derive(Debug, Clone)]
 pub struct TypeLifecyclePattern {
+    /// Type Name
     pub type_name: String,
+    /// Average lifetime in milliseconds
     pub average_lifetime_ms: f64,
+    /// Typical Size
     pub typical_size: usize,
+    /// Growth Pattern
     pub growth_pattern: String,
+    /// Risk Level
     pub risk_level: String,
+    /// Instance Count
     pub instance_count: usize,
 }
 
 /// Growth reason for tracking allocation growth
 #[derive(Debug, Clone, PartialEq)]
 pub enum GrowthReason {
+    /// Initial allocation
     Initial,
+    /// Memory expansion
     Expansion,
+    /// Memory reallocation
     Reallocation,
+    /// Performance optimization
     Optimization,
+    /// User-requested allocation
     UserRequested,
 }
 
 /// Type of allocation event
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum AllocationEventType {
+    /// Memory allocation event
     Allocate,
+    /// Memory deallocation event
     Deallocate,
+    /// Memory reallocation event
     Reallocate,
+    /// Memory move event
     Move,
+    /// Memory borrow event
     Borrow,
+    /// Memory return event
     Return,
 }
 
 /// Type of scope event
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum ScopeEventType {
+    /// Enter scope event
     Enter,
+    /// Exit scope event
     Exit,
+    /// Create scope event
     Create,
+    /// Destroy scope event
     Destroy,
 }
 
 /// Growth event tracking allocation growth patterns
 #[derive(Debug, Clone)]
 pub struct GrowthEvent {
+    /// Timestamp
     pub timestamp: u64,
+    /// Old Size
     pub old_size: usize,
+    /// New Size
     pub new_size: usize,
+    /// Growth Factor
     pub growth_factor: f64,
+    /// Reason
     pub reason: GrowthReason,
+    /// Var Name
     pub var_name: String,
 }
 
 /// Borrow event for tracking borrowing patterns
 #[derive(Debug, Clone)]
 pub struct BorrowEvent {
+    /// Timestamp
     pub timestamp: u64,
+    /// Memory pointer address
     pub ptr: usize,
+    /// Borrow Type
     pub borrow_type: String,
+    /// Duration Ms
     pub duration_ms: u64,
+    /// Var Name
     pub var_name: String,
 }
 
 /// Move event for tracking ownership transfers
 #[derive(Debug, Clone)]
 pub struct MoveEvent {
+    /// Timestamp
     pub timestamp: u64,
+    /// From Ptr
     pub from_ptr: usize,
+    /// To Ptr
     pub to_ptr: usize,
+    /// Size in bytes
     pub size: usize,
+    /// Var Name
     pub var_name: String,
 }
 
 /// Variable relationship tracking
 #[derive(Debug, Clone)]
 pub struct VariableRelationship {
+    /// Source Var
     pub source_var: String,
+    /// Target Var
     pub target_var: String,
+    /// Relationship Type
     pub relationship_type: String,
+    /// Strength
     pub strength: f64,
 }
 
 /// Potential memory leak detection
 #[derive(Debug, Clone)]
 pub struct PotentialLeak {
+    /// Memory pointer address
     pub ptr: usize,
+    /// Size in bytes
     pub size: usize,
+    /// Age in milliseconds
     pub age_ms: u64,
+    /// Var Name
     pub var_name: Option<String>,
+    /// Type Name
     pub type_name: Option<String>,
+    /// Severity
     pub severity: String,
 }
 
 /// Timeline data for visualization
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TimelineData {
+    /// Time Range
     pub time_range: TimeRange,
+    /// Allocation Events
     pub allocation_events: Vec<AllocationEvent>,
+    /// Scope Events
     pub scope_events: Vec<ScopeEvent>,
+    /// Memory Snapshots
     pub memory_snapshots: Vec<MemorySnapshot>,
 }
 
 /// Time range for timeline visualization
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TimeRange {
+    /// Start Time
     pub start_time: u64,
+    /// End Time
     pub end_time: u64,
+    /// Duration Ms
     pub duration_ms: u64,
 }
 
 /// Memory snapshot at a point in time
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct MemorySnapshot {
+    /// Timestamp
     pub timestamp: u64,
+    /// Total Memory
     pub total_memory: usize,
+    /// Active Allocations
     pub active_allocations: usize,
+    /// Ratio of fragmented to total memory
     pub fragmentation_ratio: f64,
+    /// Top Types
     pub top_types: Vec<TypeMemoryUsage>,
 }
 
 /// Allocation event for timeline
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct AllocationEvent {
+    /// Timestamp
     pub timestamp: u64,
+    /// Event Type
     pub event_type: AllocationEventType,
+    /// Memory pointer address
     pub ptr: usize,
+    /// Size in bytes
     pub size: usize,
+    /// Var Name
     pub var_name: Option<String>,
+    /// Type Name
     pub type_name: Option<String>,
 }
 
 /// Scope event for timeline
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ScopeEvent {
+    /// Timestamp
     pub timestamp: u64,
+    /// Event Type
     pub event_type: ScopeEventType,
+    /// Name of the scope
     pub scope_name: String,
+    /// Memory Usage
     pub memory_usage: usize,
+    /// Number of variables in scope
     pub variable_count: usize,
 }
 
 /// Stack trace data for analysis
 #[derive(Debug, Clone)]
 pub struct StackTraceData {
+    /// Memory allocation hotspots
     pub hotspots: Vec<StackTraceHotspot>,
+    /// Detected allocation patterns
     pub allocation_patterns: Vec<AllocationPattern>,
+    /// Total number of samples
     pub total_samples: usize,
 }
 
 /// Stack trace hotspot
 #[derive(Debug, Clone)]
 pub struct StackTraceHotspot {
+    /// Name of the function
     pub function_name: String,
+    /// Number of allocations
     pub allocation_count: usize,
+    /// Total bytes allocated
     pub total_bytes: usize,
+    /// Average allocation size
     pub average_size: f64,
+    /// Percentage of total allocations
     pub percentage: f64,
 }
 
 /// Allocation pattern analysis
 #[derive(Debug, Clone)]
 pub struct AllocationPattern {
+    /// Type of allocation pattern
     pub pattern_type: String,
+    /// Frequency of occurrence
     pub frequency: usize,
+    /// Total bytes allocated
     pub total_bytes: usize,
+    /// Description of the item
     pub description: String,
 }
 
 /// Stack frame for stack traces
 #[derive(Debug, Clone)]
 pub struct StackFrame {
+    /// Name of the function
     pub function_name: String,
+    /// Source file name
     pub file_name: Option<String>,
+    /// Line number in source code
     pub line_number: Option<u32>,
+    /// Module path
     pub module_path: Option<String>,
 }
 
 /// Safety violation types
 #[derive(Debug, Clone)]
 pub enum SafetyViolation {
+    /// Potential memory leak detected
     PotentialLeak {
+        /// Memory pointer address
         ptr: usize,
+        /// Size in bytes
         size: usize,
+        /// Age in milliseconds
         age_ms: u64,
+        /// Description of the item
         description: String,
     },
+    /// Use after free violation detected
     UseAfterFree {
+        /// Memory pointer address
         ptr: usize,
+        /// Description of the item
         description: String,
     },
+    /// Double free violation detected
     DoubleFree {
+        /// Memory pointer address
         ptr: usize,
+        /// Description of the item
         description: String,
     },
+    /// Buffer overflow detected
     BufferOverflow {
+        /// Memory pointer address
         ptr: usize,
+        /// Size in bytes
         size: usize,
+        /// Description of the item
         description: String,
     },
 }
@@ -649,19 +875,28 @@ pub enum SafetyViolation {
 /// Allocation hotspot information
 #[derive(Debug, Clone)]
 pub struct AllocationHotspot {
+    /// Location information
     pub location: HotspotLocation,
+    /// Number of allocations
     pub allocation_count: usize,
+    /// Total bytes allocated
     pub total_bytes: usize,
+    /// Average allocation size
     pub average_size: f64,
+    /// Frequency of occurrence
     pub frequency: f64,
 }
 
 /// Hotspot location information
 #[derive(Debug, Clone)]
 pub struct HotspotLocation {
+    /// Name of the function
     pub function_name: String,
+    /// Path to source file
     pub file_path: Option<String>,
+    /// Line number in source code
     pub line_number: Option<u32>,
+    /// Module path
     pub module_path: Option<String>,
 }
 

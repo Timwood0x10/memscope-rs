@@ -67,7 +67,7 @@ fn test_rapid_allocation_deallocation() {
 #[test]
 fn test_nested_scope_tracking() {
     ensure_init();
-    let tracker = get_global_tracker();
+    let _tracker = get_global_tracker();
     let scope_tracker = memscope_rs::scope_tracker::get_global_scope_tracker();
     
     // Test nested scopes
