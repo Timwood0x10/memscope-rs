@@ -2738,11 +2738,118 @@ pub fn add_comprehensive_summary(
 /// Add enhanced memory allocation timeline with multiple visualization options
 pub fn add_enhanced_timeline_dashboard(
     mut document: Document,
-    _stats: &MemoryStats,
+    stats: &MemoryStats,
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
+    // First, add the performance dashboard with circular progress indicators
+    let dashboard_y = 120;
+    let dashboard_height = 200;
+    
+    // Calculate performance metrics
+    let memory_efficiency = if stats.peak_memory > 0 {
+        (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
+    } else {
+        0.0
+    };
+    
+    let allocation_efficiency = if stats.total_allocations > 0 {
+        (stats.active_allocations as f64 / stats.total_allocations as f64) * 100.0
+    } else {
+        0.0
+    };
+    
+    let fragmentation_ratio = if stats.total_allocated > 0 {
+        (1.0 - (stats.active_memory as f64 / stats.total_allocated as f64)) * 100.0
+    } else {
+        0.0
+    };
+    
+    // Performance Dashboard Section Background
+    let dashboard_bg = Rectangle::new()
+        .set("x", 50)
+        .set("y", dashboard_y)
+        .set("width", 1700)
+        .set("height", dashboard_height)
+        .set("fill", "rgba(255,255,255,0.1)")
+        .set("stroke", "rgba(255,255,255,0.2)")
+        .set("stroke-width", 1)
+        .set("rx", 12);
+    document = document.add(dashboard_bg);
+    
+    // Dashboard Title
+    let dashboard_title = SvgText::new("Performance Dashboard")
+        .set("x", 900)
+        .set("y", dashboard_y + 25)
+        .set("text-anchor", "middle")
+        .set("font-size", 18)
+        .set("font-weight", "bold")
+        .set("fill", "#FFFFFF");
+    document = document.add(dashboard_title);
+    
+    // Create circular progress indicators
+    let metrics = vec![
+        ("Active Memory", memory_efficiency, "#3498db"),
+        ("Allocation Efficiency", allocation_efficiency, "#2ecc71"),
+        ("Memory Fragmentation", 100.0 - fragmentation_ratio, "#e74c3c"),
+        ("Peak Usage", if stats.peak_memory > 0 { (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0 } else { 0.0 }, "#f39c12"),
+    ];
+    
+    for (i, (label, percentage, color)) in metrics.iter().enumerate() {
+        let x = 200 + i * 350;
+        let y = dashboard_y + 100;
+        let radius = 40;
+        
+        // Background circle
+        let bg_circle = Circle::new()
+            .set("cx", x)
+            .set("cy", y)
+            .set("r", radius)
+            .set("fill", "none")
+            .set("stroke", "rgba(255,255,255,0.2)")
+            .set("stroke-width", 8);
+        document = document.add(bg_circle);
+        
+        // Progress circle
+        let circumference = 2.0 * std::f64::consts::PI * radius as f64;
+        let progress = circumference * (percentage / 100.0);
+        let dash_array = format!("{} {}", progress, circumference - progress);
+        
+        let progress_circle = Circle::new()
+            .set("cx", x)
+            .set("cy", y)
+            .set("r", radius)
+            .set("fill", "none")
+            .set("stroke", *color)
+            .set("stroke-width", 8)
+            .set("stroke-dasharray", dash_array)
+            .set("stroke-dashoffset", 0)
+            .set("transform", format!("rotate(-90 {} {})", x, y))
+            .set("stroke-linecap", "round");
+        document = document.add(progress_circle);
+        
+        // Percentage text
+        let percentage_text = SvgText::new(&format!("{:.0}%", percentage))
+            .set("x", x)
+            .set("y", y + 5)
+            .set("text-anchor", "middle")
+            .set("font-size", 16)
+            .set("font-weight", "bold")
+            .set("fill", "#FFFFFF");
+        document = document.add(percentage_text);
+        
+        // Label
+        let label_text = SvgText::new(*label)
+            .set("x", x)
+            .set("y", y + 65)
+            .set("text-anchor", "middle")
+            .set("font-size", 12)
+            .set("fill", "#FFFFFF");
+        document = document.add(label_text);
+    }
+
+    // Now add the timeline chart below the dashboard
     let chart_x = 50;
-    let chart_y = 300; // Move down to avoid overlapping with header section
+    let chart_y = 350; // Move down to avoid overlapping with dashboard
     let chart_width = 1700;
     let chart_height = 350; // Reduce height to avoid being blocked by modules below
 
@@ -3198,6 +3305,7 @@ pub fn add_enhanced_timeline_dashboard(
 
     Ok(document)
 }
+
 
 /// Add memory heatmap visualization (placeholder for now)
 pub fn add_memory_heatmap(

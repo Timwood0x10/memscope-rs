@@ -6,7 +6,7 @@
 //! - Cross-boundary memory transfers
 //! - Safety violations and leak detection
 
-use memscope_rs::{init, get_global_tracker};
+use memscope_rs::{init, get_global_tracker, export_interactive_html};
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 // Note: export_unsafe_ffi_dashboard function not available in current visualization module
 use memscope_rs::visualization::export_unsafe_ffi_dashboard;
@@ -535,7 +535,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✅ Moderate complexity unsafe/FFI dashboard exported (using standard memory analysis)");
     
     tracker.export_to_json("moderate_unsafe_ffi_memory_snapshot.json")?;
+
+    export_interactive_html(
+        &tracker, 
+        Some(&unsafe_ffi_tracker), 
+        "moderate_unsafe_ffi_interactive.html"
+    )?;
+    
     println!("   ✅ JSON snapshot exported");
+    println!("   ✅ Interactive HTML report generated successfully!");
+    println!("📂 Open 'moderate_unsafe_ffi_interactive.html' in your browser to view the report");
 
     println!("\n🎉 Moderate Complexity Unsafe Rust & FFI Memory Analysis Complete!");
     println!("📁 Generated files:");

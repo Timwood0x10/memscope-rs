@@ -394,6 +394,164 @@ body {
     justify-content: center;
 }
 
+/* Performance Dashboard Layout */
+.performance-dashboard {
+    margin-bottom: 40px;
+    padding: 20px;
+}
+
+/* 统一的6个指标网格布局 */
+.metrics-grid-unified {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.metric-card.unified {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(10px);
+    animation: slideInUp 0.6s ease-out forwards;
+    opacity: 0;
+    transform: translateY(30px);
+    min-height: 160px;
+}
+
+.metric-card.unified:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.15);
+}
+
+/* 统一卡片内部布局 */
+.metric-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.metric-icon {
+    font-size: 2.5rem;
+    min-width: 50px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.metric-title h4 {
+    margin: 0 0 5px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.metric-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.metric-value-large {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+}
+
+/* 进度条样式 */
+.progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background-color: #ecf0f1;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-percent {
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 40px;
+    text-align: right;
+}
+
+.metric-description {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+/* 响应式设计 - 统一布局 */
+@media (max-width: 1200px) {
+    .metrics-grid-unified {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid-unified {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        padding: 15px;
+    }
+    
+    .metric-card.unified {
+        padding: 20px;
+        min-height: 140px;
+    }
+    
+    .metric-value-large {
+        font-size: 1.6rem;
+    }
+    
+    .metric-icon {
+        font-size: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .performance-dashboard {
+        padding: 10px;
+    }
+    
+    .metrics-grid-unified {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 10px;
+    }
+    
+    .metric-card.unified {
+        padding: 15px;
+        min-height: 120px;
+    }
+    
+    .metric-value-large {
+        font-size: 1.4rem;
+    }
+    
+    .metric-header {
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+}
+
 .metric-card {
     background: white;
     border-radius: 16px;

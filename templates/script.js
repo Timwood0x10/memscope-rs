@@ -63,7 +63,7 @@ class MemScopeVisualizer {
         const stats = this.data.stats;
         
         document.getElementById('totalMemory').textContent = 
-            `📊 ${this.formatBytes(stats.current_memory)}`;
+            `📊 ${this.formatBytes(stats.active_memory)}`;
         document.getElementById('activeAllocs').textContent = 
             `🔢 ${stats.active_allocations.toLocaleString()} allocs`;
         document.getElementById('peakMemory').textContent = 
@@ -83,7 +83,7 @@ class MemScopeVisualizer {
         const container = document.getElementById('memoryStats');
         
         // 安全的数值计算
-        const currentMemory = stats.current_memory || 0;
+        const currentMemory = stats.active_memory || 0;
         const peakMemory = stats.peak_memory || 0;
         const activeAllocations = stats.active_allocations || 0;
         const totalAllocations = stats.total_allocations || this.data.allocations.length || 0;
@@ -188,7 +188,7 @@ class MemScopeVisualizer {
         const allocations = this.data.allocations;
         
         // Memory utilization insight
-        const utilization = (stats.current_memory / stats.peak_memory * 100);
+        const utilization = (stats.active_memory / stats.peak_memory * 100);
         if (utilization > 80) {
             insights.push({
                 title: "🔴 High Memory Utilization",
@@ -407,64 +407,120 @@ class MemScopeVisualizer {
         const stats = this.data.stats;
         
         // 安全的数值计算，避免NaN
-        const currentMemory = stats.current_memory || 0;
+        const currentMemory = stats.active_memory || 0;
         const peakMemory = stats.peak_memory || 0;
         const activeAllocations = stats.active_allocations || 0;
         
         const utilizationPercent = peakMemory > 0 ? Math.round((currentMemory / peakMemory) * 100) : 0;
         
-        const metrics = [
+        // 计算更多指标
+        const totalAllocations = this.data.allocations.length;
+        const memoryEfficiency = peakMemory > 0 ? Math.round((currentMemory / peakMemory) * 100) : 0;
+        const avgAllocationSize = totalAllocations > 0 ? currentMemory / totalAllocations : 0;
+        const fragmentation = peakMemory > 0 ? Math.round((1 - (currentMemory / peakMemory)) * 100) : 0;
+        
+        // 统一的6个指标，都使用相同的卡片样式
+        const allMetrics = [
             {
                 label: 'Active Memory',
                 value: this.formatBytes(currentMemory),
                 percent: utilizationPercent,
                 color: '#3498db',
-                status: utilizationPercent > 80 ? 'HIGH' : utilizationPercent > 50 ? 'MEDIUM' : 'LOW'
+                status: utilizationPercent > 80 ? 'HIGH' : utilizationPercent > 50 ? 'MEDIUM' : 'LOW',
+                icon: '💾',
+                showProgress: true
             },
             {
-                label: 'Peak Memory', 
+                label: 'Peak Memory',
                 value: this.formatBytes(peakMemory),
                 percent: 100,
                 color: '#e74c3c',
-                status: 'HIGH'
+                status: 'PEAK',
+                icon: '📊',
+                showProgress: false
+            },
+            {
+                label: 'Memory Efficiency',
+                value: `${memoryEfficiency}%`,
+                percent: memoryEfficiency,
+                color: '#f39c12',
+                status: memoryEfficiency > 70 ? 'GOOD' : memoryEfficiency > 40 ? 'MEDIUM' : 'LOW',
+                icon: '⚡',
+                showProgress: true
             },
             {
                 label: 'Active Allocs',
                 value: activeAllocations.toLocaleString(),
-                percent: Math.min(100, (activeAllocations / Math.max(1, this.data.allocations.length)) * 100),
+                percent: Math.min(100, (activeAllocations / Math.max(1, totalAllocations)) * 100),
                 color: '#2ecc71',
-                status: 'NORMAL'
+                status: 'ACTIVE',
+                icon: '🔢',
+                showProgress: false
+            },
+            {
+                label: 'Fragmentation',
+                value: `${fragmentation}%`,
+                percent: fragmentation,
+                color: '#95a5a6',
+                status: fragmentation < 30 ? 'LOW' : fragmentation < 60 ? 'MEDIUM' : 'HIGH',
+                icon: '🧩',
+                showProgress: true
+            },
+            {
+                label: 'Avg Alloc Size',
+                value: this.formatBytes(avgAllocationSize),
+                percent: Math.min(100, (avgAllocationSize / 1024) * 10),
+                color: '#9b59b6',
+                status: avgAllocationSize > 10240 ? 'LARGE' : avgAllocationSize > 1024 ? 'MEDIUM' : 'SMALL',
+                icon: '📏',
+                showProgress: false
             }
         ];
         
-        container.innerHTML = metrics.map((metric, index) => `
-            <div class="metric-card" style="animation-delay: ${index * 0.2}s">
-                <div class="circular-progress">
-                    <svg width="80" height="80" viewBox="0 0 80 80">
-                        <circle cx="40" cy="40" r="30" fill="none" stroke="#ecf0f1" stroke-width="6"/>
-                        <circle 
-                            cx="40" cy="40" r="30" fill="none" 
-                            stroke="${metric.color}" 
-                            stroke-width="6" 
-                            stroke-linecap="round"
-                            stroke-dasharray="188.5" 
-                            stroke-dashoffset="${188.5 - (metric.percent / 100) * 188.5}"
-                            transform="rotate(-90 40 40)"
-                            class="progress-circle"
-                            style="transition: stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1);"
-                        />
-                    </svg>
-                    <div class="progress-text">
-                        <span class="percent" style="color: ${metric.color}">${metric.percent}%</span>
-                    </div>
-                </div>
-                <div class="metric-info">
-                    <h4>${metric.label}</h4>
-                    <div class="metric-value">${metric.value}</div>
-                    <div class="metric-status ${metric.status.toLowerCase()}">${metric.status}</div>
+        container.innerHTML = `
+            <div class="performance-dashboard">
+                <div class="metrics-grid-unified">
+                    ${allMetrics.map((metric, index) => `
+                        <div class="metric-card unified" style="animation-delay: ${index * 0.1}s">
+                            <div class="metric-header">
+                                <div class="metric-icon" style="color: ${metric.color}">
+                                    ${metric.icon}
+                                </div>
+                                <div class="metric-title">
+                                    <h4>${metric.label}</h4>
+                                    <div class="metric-status ${metric.status.toLowerCase()}">${metric.status}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="metric-content">
+                                <div class="metric-value-large" style="color: ${metric.color}">
+                                    ${metric.value}
+                                </div>
+                                
+                                ${metric.showProgress ? `
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" 
+                                                 style="width: ${metric.percent}%; background-color: ${metric.color};">
+                                            </div>
+                                        </div>
+                                        <span class="progress-percent" style="color: ${metric.color}">
+                                            ${Math.round(metric.percent)}%
+                                        </span>
+                                    </div>
+                                ` : `
+                                    <div class="metric-description">
+                                        ${metric.label === 'Peak Memory' ? 'Maximum memory used' : 
+                                          metric.label === 'Active Allocs' ? 'Current allocations' : 
+                                          'Average allocation size'}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `).join('')}
                 </div>
             </div>
-        `).join('');
+        `;
         
         // 触发动画
         setTimeout(() => {
@@ -1382,7 +1438,7 @@ class MemScopeVisualizer {
         const allocations = this.data.allocations;
         
         // 计算关键指标 - 安全计算避免NaN
-        const currentMemory = stats.current_memory || 0;
+        const currentMemory = stats.active_memory || 0;
         const peakMemory = stats.peak_memory || 0;
         const efficiency = peakMemory > 0 ? ((currentMemory / peakMemory) * 100).toFixed(1) : '0.0';
         
@@ -1437,7 +1493,7 @@ class MemScopeVisualizer {
 
     generateRecommendations(stats, allocations) {
         const recommendations = [];
-        const efficiency = (stats.current_memory / stats.peak_memory) * 100;
+        const efficiency = (stats.active_memory / stats.peak_memory) * 100;
         
         if (efficiency > 80) {
             recommendations.push('⚠️ High memory utilization - consider optimization');
@@ -1550,7 +1606,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 MemScope-RS Interactive Visualizer Loaded');
     console.log('📊 Data Summary:', {
         allocations: MEMORY_DATA.allocations.length,
-        totalMemory: window.memscope.formatBytes(MEMORY_DATA.stats.current_memory),
+        totalMemory: window.memscope.formatBytes(MEMORY_DATA.stats.active_memory),
         hasUnsafeFFI: !!MEMORY_DATA.unsafeFFI,
         timestamp: MEMORY_DATA.timestamp
     });
