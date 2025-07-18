@@ -29,6 +29,8 @@ pub mod visualization;
 // Re-export key functions from unified modules
 /// Enhanced export functionality
 pub mod export_enhanced;
+/// HTML export functionality for interactive visualization
+pub mod html_export;
 pub use visualization::*;
 pub use analysis::*;
 // Re-export main types for easier use
@@ -38,6 +40,7 @@ pub use types::{AllocationInfo, TrackingError, TrackingResult};
 pub use unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
+pub use html_export::export_interactive_html;
 
 // Set up the global allocator when the tracking-allocator feature is enabled
 #[cfg(feature = "tracking-allocator")]

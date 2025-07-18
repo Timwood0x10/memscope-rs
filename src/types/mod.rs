@@ -233,7 +233,7 @@ impl AllocationInfo {
 }
 
 /// Memory statistics
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct MemoryStats {
     /// Total number of allocations made
     pub total_allocations: usize,
@@ -313,7 +313,7 @@ impl MemoryStats {
 }
 
 /// Memory type analysis
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct MemoryTypeInfo {
     /// Name of the memory type
     pub type_name: String,
@@ -353,7 +353,7 @@ pub struct TypeMemoryUsage {
 }
 
 /// Fragmentation analysis
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct FragmentationAnalysis {
     /// Ratio of fragmented to total memory
     pub fragmentation_ratio: f64,
@@ -372,7 +372,7 @@ pub struct FragmentationAnalysis {
 }
 
 /// System library usage statistics
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct SystemLibraryStats {
     /// Usage statistics for standard collections
     pub std_collections: LibraryUsage,
@@ -397,7 +397,7 @@ pub struct SystemLibraryStats {
 }
 
 /// Library usage information
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct LibraryUsage {
     /// Number of allocations
     pub allocation_count: usize,
@@ -414,7 +414,7 @@ pub struct LibraryUsage {
 }
 
 /// Concurrency safety analysis
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct ConcurrencyAnalysis {
     /// Thread Safety Allocations
     pub thread_safety_allocations: usize,
@@ -437,7 +437,7 @@ pub struct ConcurrencyAnalysis {
 }
 
 /// Scope analysis
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct ScopeAnalysis {
     /// Total Scopes
     pub total_scopes: usize,
@@ -458,7 +458,7 @@ pub struct ScopeAnalysis {
 }
 
 /// Scope lifecycle metrics
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct ScopeLifecycleMetrics {
     /// Name of the scope
     pub scope_name: String,
@@ -505,7 +505,7 @@ pub struct ScopeLifecycleMetrics {
 }
 
 /// Scope information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ScopeInfo {
     /// Name
     pub name: String,
@@ -542,7 +542,7 @@ pub struct ScopeInfo {
 }
 
 /// Scope hierarchy
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct ScopeHierarchy {
     /// Root Scopes
     pub root_scopes: Vec<String>,
@@ -559,7 +559,7 @@ pub struct ScopeHierarchy {
 }
 
 /// Risk distribution analysis for memory allocations
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct RiskDistribution {
     /// Low Risk
     pub low_risk: usize,
@@ -572,7 +572,7 @@ pub struct RiskDistribution {
 }
 
 /// Type-specific lifecycle pattern analysis
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct TypeLifecyclePattern {
     /// Type Name
     pub type_name: String,
@@ -589,7 +589,7 @@ pub struct TypeLifecyclePattern {
 }
 
 /// Growth reason for tracking allocation growth
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum GrowthReason {
     /// Initial allocation
     Initial,
@@ -634,7 +634,7 @@ pub enum ScopeEventType {
 }
 
 /// Growth event tracking allocation growth patterns
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct GrowthEvent {
     /// Timestamp
     pub timestamp: u64,
@@ -651,7 +651,7 @@ pub struct GrowthEvent {
 }
 
 /// Borrow event for tracking borrowing patterns
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct BorrowEvent {
     /// Timestamp
     pub timestamp: u64,
@@ -666,7 +666,7 @@ pub struct BorrowEvent {
 }
 
 /// Move event for tracking ownership transfers
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct MoveEvent {
     /// Timestamp
     pub timestamp: u64,
@@ -681,7 +681,7 @@ pub struct MoveEvent {
 }
 
 /// Variable relationship tracking
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct VariableRelationship {
     /// Source Var
     pub source_var: String,
@@ -694,7 +694,7 @@ pub struct VariableRelationship {
 }
 
 /// Potential memory leak detection
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PotentialLeak {
     /// Memory pointer address
     pub ptr: usize,
@@ -782,7 +782,7 @@ pub struct ScopeEvent {
 }
 
 /// Stack trace data for analysis
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct StackTraceData {
     /// Memory allocation hotspots
     pub hotspots: Vec<StackTraceHotspot>,
@@ -793,7 +793,7 @@ pub struct StackTraceData {
 }
 
 /// Stack trace hotspot
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct StackTraceHotspot {
     /// Name of the function
     pub function_name: String,
@@ -808,7 +808,7 @@ pub struct StackTraceHotspot {
 }
 
 /// Allocation pattern analysis
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct AllocationPattern {
     /// Type of allocation pattern
     pub pattern_type: String,
@@ -821,7 +821,7 @@ pub struct AllocationPattern {
 }
 
 /// Stack frame for stack traces
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct StackFrame {
     /// Name of the function
     pub function_name: String,
@@ -834,7 +834,7 @@ pub struct StackFrame {
 }
 
 /// Safety violation types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub enum SafetyViolation {
     /// Potential memory leak detected
     PotentialLeak {
@@ -873,7 +873,7 @@ pub enum SafetyViolation {
 }
 
 /// Allocation hotspot information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct AllocationHotspot {
     /// Location information
     pub location: HotspotLocation,
@@ -888,7 +888,7 @@ pub struct AllocationHotspot {
 }
 
 /// Hotspot location information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct HotspotLocation {
     /// Name of the function
     pub function_name: String,
