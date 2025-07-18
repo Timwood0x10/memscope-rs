@@ -14,27 +14,49 @@ pub type TrackingResult<T> = Result<T, TrackingError>;
 /// Comprehensive error type for the tracking system
 #[derive(Debug)]
 pub enum TrackingError {
+    /// Memory allocation operation failed
     AllocationFailed(String),
+    /// Memory deallocation operation failed
     DeallocationFailed(String),
+    /// Memory tracking is currently disabled
     TrackingDisabled,
+    /// The provided pointer is invalid or null
     InvalidPointer(String),
+    /// Error occurred during data serialization
     SerializationError(String),
+    /// Error occurred during visualization generation
     VisualizationError(String),
+    /// Thread safety violation detected
     ThreadSafetyError(String),
+    /// Configuration parameter is invalid
     ConfigurationError(String),
+    /// Error occurred during memory analysis
     AnalysisError(String),
+    /// Error occurred during data export
     ExportError(String),
+    /// Memory corruption detected
     MemoryCorruption(String),
+    /// Unsafe operation detected and flagged
     UnsafeOperationDetected(String),
+    /// Foreign Function Interface error
     FFIError(String),
+    /// Scope management error
     ScopeError(String),
+    /// Borrow checker violation detected
     BorrowCheckError(String),
+    /// Lifetime management error
     LifetimeError(String),
+    /// Type inference failed
     TypeInferenceError(String),
+    /// Performance threshold exceeded
     PerformanceError(String),
+    /// System resources exhausted
     ResourceExhausted(String),
+    /// Internal system error
     InternalError(String),
+    /// Input/output operation failed
     IoError(std::io::Error),
+    /// Lock acquisition failed
     LockError(String),
 }
 
@@ -262,13 +284,21 @@ impl MemoryStats {
 /// Memory type analysis
 #[derive(Debug, Clone)]
 pub struct MemoryTypeInfo {
+    /// Name of the memory type
     pub type_name: String,
+    /// Total size in bytes for this type
     pub total_size: usize,
+    /// Number of allocations of this type
     pub allocation_count: usize,
+    /// Average size of allocations for this type
     pub average_size: usize,
+    /// Size of the largest allocation for this type
     pub largest_allocation: usize,
+    /// Size of the smallest allocation for this type
     pub smallest_allocation: usize,
+    /// Number of currently active instances
     pub active_instances: usize,
+    /// Number of leaked instances
     pub leaked_instances: usize,
 }
 

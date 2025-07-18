@@ -199,7 +199,7 @@ jobs:
 
       - name: Check licenses and dependencies
         run: |
-          # 如果项目中没有 deny.toml，创建一个基本的
+          # If project does not have deny.toml, create a basic one
           if [ ! -f deny.toml ]; then
             echo "Creating basic deny.toml configuration"
             cat > deny.toml << EOF
@@ -371,10 +371,10 @@ jobs:
           echo "Released on $(date +'%Y-%m-%d')" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           
-          # 从 CHANGELOG.md 提取相关部分（如果存在）
+          # Extract related part from CHANGELOG.md (if exists)
           if [ -f CHANGELOG.md ]; then
             echo "Extracting release notes from CHANGELOG.md"
-            # 尝试提取当前版本的变更日志
+            # Try to extract the change log of the current version
             sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$ d' >> RELEASE_NOTES.md
           else
             echo "### Features" >> RELEASE_NOTES.md
@@ -409,7 +409,7 @@ jobs:
             memscope-rs-linux-aarch64/memscope-rs
             memscope-rs-macos-aarch64/memscope-rs
           body_path: RELEASE_NOTES.md
-          draft: true  # 创建草稿发布，允许手动检查
+          draft: true  # Create draft release, allow manual checking
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -428,7 +428,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 验证 Cargo.toml 中的版本与标签匹配
+      # Verify version in Cargo.toml matches tag
       - name: Verify version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}

@@ -90,8 +90,8 @@ fn test_json_export_lightweight() {
     assert!(stats.is_ok(), "Should get stats");
     
     let stats = stats.unwrap();
-    // Remove useless comparison warning
-    assert!(stats.active_memory >= 0, "Stats should be valid");
+    // Check that stats are reasonable
+    assert!(stats.total_allocations < 1_000_000, "Stats should be reasonable");
     
     // Test memory by type
     let memory_by_type = tracker.get_memory_by_type();
