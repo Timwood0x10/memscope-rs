@@ -242,16 +242,12 @@ fn generate_html_template(
 
             <!-- Memory Analysis Tab -->
             <div class="tab-content" id="memory-analysis">
-                <div class="svg-container">
-                    <img src="{memory_analysis_svg}" alt="Memory Analysis" class="svg-image" />
-                </div>
+                <!-- Dynamic visualization will be rendered here by JavaScript -->
             </div>
 
             <!-- Lifecycle Timeline Tab -->
             <div class="tab-content" id="lifecycle">
-                <div class="svg-container">
-                    <img src="{lifecycle_timeline_svg}" alt="Lifecycle Timeline" class="svg-image" />
-                </div>
+                <!-- Dynamic visualization will be rendered here by JavaScript -->
             </div>
 
             <!-- Unsafe/FFI Tab -->
@@ -301,8 +297,6 @@ fn generate_html_template(
 </html>"#,
         css = CSS_CONTENT,
         javascript = JS_CONTENT,
-        memory_analysis_svg = memory_analysis_svg,
-        lifecycle_timeline_svg = lifecycle_timeline_svg,
         unsafe_ffi_html = unsafe_ffi_html,
         json_data = json_data
     );
