@@ -82,16 +82,22 @@ class MemScopeVisualizer {
         const stats = this.data.stats;
         const container = document.getElementById('memoryStats');
         
-        const memoryUtilization = (stats.current_memory / stats.peak_memory * 100).toFixed(1);
+        // 安全的数值计算
+        const currentMemory = stats.current_memory || 0;
+        const peakMemory = stats.peak_memory || 0;
+        const activeAllocations = stats.active_allocations || 0;
+        const totalAllocations = stats.total_allocations || this.data.allocations.length || 0;
+        
+        const memoryUtilization = peakMemory > 0 ? (currentMemory / peakMemory * 100).toFixed(1) : '0.0';
         
         container.innerHTML = `
             <div class="memory-stat">
                 <span class="stat-label">Current Memory</span>
-                <span class="stat-value">${this.formatBytes(stats.current_memory)}</span>
+                <span class="stat-value">${this.formatBytes(currentMemory)}</span>
             </div>
             <div class="memory-stat">
                 <span class="stat-label">Peak Memory</span>
-                <span class="stat-value">${this.formatBytes(stats.peak_memory)}</span>
+                <span class="stat-value">${this.formatBytes(peakMemory)}</span>
             </div>
             <div class="memory-stat">
                 <span class="stat-label">Memory Utilization</span>
@@ -99,11 +105,11 @@ class MemScopeVisualizer {
             </div>
             <div class="memory-stat">
                 <span class="stat-label">Active Allocations</span>
-                <span class="stat-value">${stats.active_allocations.toLocaleString()}</span>
+                <span class="stat-value">${activeAllocations.toLocaleString()}</span>
             </div>
             <div class="memory-stat">
                 <span class="stat-label">Total Allocations</span>
-                <span class="stat-value">${stats.total_allocations.toLocaleString()}</span>
+                <span class="stat-value">${totalAllocations.toLocaleString()}</span>
             </div>
         `;
     }
@@ -400,27 +406,32 @@ class MemScopeVisualizer {
         const container = document.getElementById('metricCards');
         const stats = this.data.stats;
         
-        const utilizationPercent = Math.round((stats.current_memory / stats.peak_memory) * 100);
+        // 安全的数值计算，避免NaN
+        const currentMemory = stats.current_memory || 0;
+        const peakMemory = stats.peak_memory || 0;
+        const activeAllocations = stats.active_allocations || 0;
+        
+        const utilizationPercent = peakMemory > 0 ? Math.round((currentMemory / peakMemory) * 100) : 0;
         
         const metrics = [
             {
                 label: 'Active Memory',
-                value: this.formatBytes(stats.current_memory),
+                value: this.formatBytes(currentMemory),
                 percent: utilizationPercent,
                 color: '#3498db',
                 status: utilizationPercent > 80 ? 'HIGH' : utilizationPercent > 50 ? 'MEDIUM' : 'LOW'
             },
             {
                 label: 'Peak Memory', 
-                value: this.formatBytes(stats.peak_memory),
+                value: this.formatBytes(peakMemory),
                 percent: 100,
                 color: '#e74c3c',
                 status: 'HIGH'
             },
             {
                 label: 'Active Allocs',
-                value: stats.active_allocations.toLocaleString(),
-                percent: 100,
+                value: activeAllocations.toLocaleString(),
+                percent: Math.min(100, (activeAllocations / Math.max(1, this.data.allocations.length)) * 100),
                 color: '#2ecc71',
                 status: 'NORMAL'
             }
@@ -700,20 +711,33 @@ class MemScopeVisualizer {
     }
 
     getTypeColor(typeName) {
+        if (!typeName || typeName === 'Unknown') {
+            return '#95a5a6';
+        }
+        
         const colors = {
             'Vec': '#3498db',
             'String': '#2ecc71', 
             'Box': '#e74c3c',
             'HashMap': '#9b59b6',
             'BTreeMap': '#f39c12',
-            'Unknown': '#95a5a6'
+            'Small Object': '#1abc9c',
+            'Medium Structure': '#3498db',
+            'Large Buffer': '#e74c3c',
+            'Huge Object': '#8e44ad'
         };
         
+        // 精确匹配
+        if (colors[typeName]) {
+            return colors[typeName];
+        }
+        
+        // 部分匹配
         for (const [key, color] of Object.entries(colors)) {
             if (typeName.includes(key)) return color;
         }
         
-        // 为未知类型生成一致的颜色
+        // 为其他类型生成一致的颜色
         let hash = 0;
         for (let i = 0; i < typeName.length; i++) {
             hash = typeName.charCodeAt(i) + ((hash << 5) - hash);
@@ -1148,6 +1172,11 @@ class MemScopeVisualizer {
     renderTrendsChart(allocations) {
         const container = document.getElementById('trendsChart');
         
+        if (allocations.length === 0) {
+            container.innerHTML = '<div class="no-data">No allocation data for trends</div>';
+            return;
+        }
+        
         // 计算累积内存使用
         let cumulativeMemory = 0;
         const dataPoints = allocations.map((alloc, index) => {
@@ -1160,33 +1189,106 @@ class MemScopeVisualizer {
         });
         
         const maxMemory = Math.max(...dataPoints.map(p => p.y));
-        const chartWidth = 400;
-        const chartHeight = 150;
         
+        // 大幅增加图表尺寸，让它更加突出
+        const chartWidth = 600;
+        const chartHeight = 280;
+        const margin = { top: 20, right: 40, bottom: 60, left: 60 };
+        const innerWidth = chartWidth - margin.left - margin.right;
+        const innerHeight = chartHeight - margin.top - margin.bottom;
+        
+        // 修复路径计算，确保不越界，添加边距
         const pathData = dataPoints.map((point, index) => {
-            const x = (point.x / (dataPoints.length - 1)) * chartWidth;
-            const y = chartHeight - (point.y / maxMemory) * chartHeight;
-            return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+            const x = dataPoints.length > 1 ? 
+                margin.left + (point.x / (dataPoints.length - 1)) * innerWidth : 
+                margin.left + innerWidth / 2;
+            const y = maxMemory > 0 ? 
+                margin.top + innerHeight - (point.y / maxMemory) * innerHeight : 
+                margin.top + innerHeight / 2;
+            
+            // 确保坐标在有效范围内
+            const safeX = Math.max(margin.left, Math.min(margin.left + innerWidth, x));
+            const safeY = Math.max(margin.top, Math.min(margin.top + innerHeight, y));
+            
+            return index === 0 ? `M ${safeX} ${safeY}` : `L ${safeX} ${safeY}`;
         }).join(' ');
         
-        container.innerHTML = `
-            <svg width="${chartWidth}" height="${chartHeight + 40}" viewBox="0 0 ${chartWidth} ${chartHeight + 40}">
-                <defs>
-                    <linearGradient id="trendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style="stop-color:#3498db;stop-opacity:0.8" />
-                        <stop offset="100%" style="stop-color:#3498db;stop-opacity:0.1" />
-                    </linearGradient>
-                </defs>
-                <path d="${pathData} L ${chartWidth} ${chartHeight} L 0 ${chartHeight} Z" 
-                      fill="url(#trendGradient)" stroke="none"/>
-                <path d="${pathData}" fill="none" stroke="#3498db" stroke-width="2"/>
-                <text x="0" y="${chartHeight + 20}" font-size="10" fill="#7f8c8d">Start</text>
-                <text x="${chartWidth}" y="${chartHeight + 20}" font-size="10" fill="#7f8c8d" text-anchor="end">Now</text>
-                <text x="${chartWidth/2}" y="${chartHeight + 35}" font-size="10" fill="#7f8c8d" text-anchor="middle">
-                    Peak: ${this.formatBytes(maxMemory)}
+        // 生成网格线
+        const gridLines = [];
+        for (let i = 0; i <= 5; i++) {
+            const y = margin.top + (i / 5) * innerHeight;
+            const value = maxMemory * (1 - i / 5);
+            gridLines.push(`
+                <line x1="${margin.left}" y1="${y}" x2="${margin.left + innerWidth}" y2="${y}" 
+                      stroke="#ecf0f1" stroke-width="1"/>
+                <text x="${margin.left - 10}" y="${y + 4}" text-anchor="end" font-size="10" fill="#7f8c8d">
+                    ${this.formatBytes(value)}
                 </text>
-            </svg>
+            `);
+        }
+        
+        container.innerHTML = `
+            <div class="chart-container">
+                <svg width="100%" height="${chartHeight + 40}" viewBox="0 0 ${chartWidth} ${chartHeight + 40}" class="trends-svg">
+                    <defs>
+                        <linearGradient id="trendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#3498db;stop-opacity:0.6" />
+                            <stop offset="100%" style="stop-color:#3498db;stop-opacity:0.1" />
+                        </linearGradient>
+                        <filter id="dropShadow">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(52, 152, 219, 0.3)"/>
+                        </filter>
+                    </defs>
+                    
+                    <!-- 背景 -->
+                    <rect x="${margin.left}" y="${margin.top}" width="${innerWidth}" height="${innerHeight}" 
+                          fill="#f8fafc" stroke="#ecf0f1" stroke-width="1" rx="4"/>
+                    
+                    <!-- 网格线 -->
+                    ${gridLines.join('')}
+                    
+                    <!-- 数据可视化 -->
+                    ${dataPoints.length > 1 ? `
+                        <!-- 填充区域 -->
+                        <path d="${pathData} L ${margin.left + innerWidth} ${margin.top + innerHeight} L ${margin.left} ${margin.top + innerHeight} Z" 
+                              fill="url(#trendGradient)" stroke="none"/>
+                        
+                        <!-- 趋势线 -->
+                        <path d="${pathData}" fill="none" stroke="#3498db" stroke-width="3" 
+                              filter="url(#dropShadow)" stroke-linecap="round"/>
+                        
+                        <!-- 数据点 -->
+                        ${dataPoints.map((point, index) => {
+                            const x = margin.left + (point.x / (dataPoints.length - 1)) * innerWidth;
+                            const y = margin.top + innerHeight - (point.y / maxMemory) * innerHeight;
+                            return `
+                                <circle cx="${x}" cy="${y}" r="4" fill="#3498db" stroke="white" stroke-width="2"
+                                        class="data-point" data-index="${index}"/>
+                            `;
+                        }).join('')}
+                    ` : `
+                        <circle cx="${margin.left + innerWidth/2}" cy="${margin.top + innerHeight/2}" r="8" 
+                                fill="#3498db" stroke="white" stroke-width="3"/>
+                        <text x="${margin.left + innerWidth/2}" y="${margin.top + innerHeight/2 + 30}" 
+                              text-anchor="middle" font-size="12" fill="#7f8c8d">
+                            Single allocation
+                        </text>
+                    `}
+                    
+                    <!-- 坐标轴标签 -->
+                    <text x="${margin.left}" y="${chartHeight + 20}" font-size="12" fill="#7f8c8d">Start</text>
+                    <text x="${margin.left + innerWidth}" y="${chartHeight + 20}" font-size="12" fill="#7f8c8d" text-anchor="end">Now</text>
+                    
+                    <!-- 标题 -->
+                    <text x="${chartWidth/2}" y="15" text-anchor="middle" font-size="14" font-weight="600" fill="#2c3e50">
+                        Memory Growth Over Time (Peak: ${this.formatBytes(maxMemory)})
+                    </text>
+                </svg>
+            </div>
         `;
+        
+        // 添加数据点交互
+        this.setupTrendsInteraction(dataPoints);
     }
 
     // 模块9: 变量分配时间轴
@@ -1279,11 +1381,16 @@ class MemScopeVisualizer {
         const stats = this.data.stats;
         const allocations = this.data.allocations;
         
-        // 计算关键指标
-        const efficiency = ((stats.current_memory / stats.peak_memory) * 100).toFixed(1);
-        const avgSize = allocations.length > 0 ? (stats.current_memory / allocations.length) : 0;
-        const trackedVars = allocations.filter(a => a.var_name).length;
-        const trackedPercentage = ((trackedVars / allocations.length) * 100).toFixed(1);
+        // 计算关键指标 - 安全计算避免NaN
+        const currentMemory = stats.current_memory || 0;
+        const peakMemory = stats.peak_memory || 0;
+        const efficiency = peakMemory > 0 ? ((currentMemory / peakMemory) * 100).toFixed(1) : '0.0';
+        
+        const totalMemoryUsed = allocations.reduce((sum, a) => sum + (a.size || 0), 0);
+        const avgSize = allocations.length > 0 ? (totalMemoryUsed / allocations.length) : 0;
+        
+        const trackedVars = allocations.filter(a => a.var_name && a.var_name !== 'Unknown').length;
+        const trackedPercentage = allocations.length > 0 ? ((trackedVars / allocations.length) * 100).toFixed(1) : '0.0';
         
         container.innerHTML = `
             <div class="summary-header">
@@ -1407,6 +1514,30 @@ class MemScopeVisualizer {
     highlightElementsByColor(color) {
         // 高亮显示对应颜色的元素
         console.log(`Highlighting elements with color: ${color}`);
+    }
+
+    setupTrendsInteraction(dataPoints) {
+        document.querySelectorAll('.data-point').forEach((point, index) => {
+            const data = dataPoints[index];
+            
+            point.addEventListener('mouseenter', (e) => {
+                point.setAttribute('r', '6');
+                point.style.filter = 'brightness(1.2)';
+                
+                this.showTooltip(e, {
+                    title: `Data Point ${index + 1}`,
+                    size: this.formatBytes(data.y),
+                    type: 'Cumulative Memory',
+                    timestamp: new Date(data.timestamp / 1000000).toLocaleString()
+                });
+            });
+            
+            point.addEventListener('mouseleave', () => {
+                point.setAttribute('r', '4');
+                point.style.filter = 'none';
+                this.hideTooltip();
+            });
+        });
     }
 }
 

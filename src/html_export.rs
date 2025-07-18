@@ -149,15 +149,35 @@ fn prepare_json_data(
         .unwrap_or_default()
         .as_secs();
     
+    // 转换分配数据为正确的格式
+    let formatted_allocations: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
+        json!({
+            "ptr": alloc.ptr,
+            "size": alloc.size,
+            "timestamp": alloc.timestamp_alloc,
+            "var_name": alloc.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", alloc.ptr)),
+            "type_name": alloc.type_name.as_ref().unwrap_or(&"Unknown".to_string()),
+            "call_stack": alloc.stack_trace.as_ref().map(|stack| {
+                stack.iter().map(|frame| {
+                    json!({
+                        "function_name": frame,
+                        "file_name": "unknown",
+                        "line_number": 0
+                    })
+                }).collect::<Vec<_>>()
+            }).unwrap_or_default()
+        })
+    }).collect();
+    
     let json_obj = json!({
-        "allocations": allocations,
+        "allocations": formatted_allocations,
         "stats": stats,
         "memoryByType": memory_by_type,
         "unsafeFFI": unsafe_ffi_tracker.map(|t| {
             json!({
                 "allocations": t.get_enhanced_allocations().unwrap_or_default(),
                 "violations": t.get_safety_violations().unwrap_or_default(),
-                "boundaryEvents": Vec::<serde_json::Value>::new(), // Placeholder for boundary events
+                "boundaryEvents": Vec::<serde_json::Value>::new(),
                 "stats": serde_json::json!({})
             })
         }),
