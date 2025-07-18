@@ -357,14 +357,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let bytes = unsafe_union.as_bytes;
         println!("   🔀 Union as bytes: {:02X?}", &bytes[0..4]);
         
-        unsafe_union.as_floats = [3.14159, 2.71828];
+        unsafe_union.as_floats = [std::f32::consts::PI, std::f32::consts::E];
         let reinterpreted = unsafe_union.as_u64;
         println!("   🔀 Union reinterpreted: 0x{:016X}", reinterpreted);
         
         // Unsafe transmutation (demonstrating both safe and unsafe approaches)
-        let float_bits: u32 = f32::to_bits(3.14159f32); // Safe approach
+        let float_bits: u32 = f32::to_bits(std::f32::consts::PI); // Safe approach
         let back_to_float: f32 = f32::from_bits(float_bits); // Safe approach
-        println!("   🔄 Safe bit conversion: {} -> 0x{:08X} -> {}", 3.14159f32, float_bits, back_to_float);
+        println!("   🔄 Safe bit conversion: {} -> 0x{:08X} -> {}", std::f32::consts::PI, float_bits, back_to_float);
         
         // Demonstrate actual unsafe transmutation with incompatible types
         #[repr(C)]

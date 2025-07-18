@@ -248,7 +248,7 @@ fn test_data_structure_coverage() {
     println!("Array created (not tracked due to trait requirements)");
     
     // 5. Tuples (skip tracking since tuples don't implement Trackable)
-    let _tuple_data = (1, "hello", 3.14);
+    let _tuple_data = (1, "hello", std::f64::consts::PI);
     // Note: Tuples don't implement Trackable trait
     println!("Tuple created (not tracked due to trait requirements)");
     
