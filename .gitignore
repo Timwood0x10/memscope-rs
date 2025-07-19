@@ -12,7 +12,6 @@
 *.swp
 *.swo
 *~
-.kiro
 
 # OS generated files
 .DS_Store
@@ -48,12 +47,6 @@ tarpaulin-report.html
 # Temporary files
 tmp_*
 temp_*
-*.tmp
-
-# HTML files
-*.html
-*.htm
-!template.html
 
 # Log files
 *.log

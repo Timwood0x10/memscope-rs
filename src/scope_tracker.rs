@@ -107,7 +107,7 @@ impl ScopeTracker {
         // Update scope stack
         {
             let mut scope_stack = self.scope_stack.lock().unwrap();
-            scope_stack.entry(thread_id).or_insert_with(Vec::new).push(scope_id);
+            scope_stack.entry(thread_id).or_default().push(scope_id);
         }
 
         // Update hierarchy
@@ -118,7 +118,7 @@ impl ScopeTracker {
             if let Some(parent) = parent_scope {
                 hierarchy.relationships
                     .entry(parent)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(name.clone());
             } else {
                 hierarchy.root_scopes.push(name);
@@ -137,7 +137,7 @@ impl ScopeTracker {
         let mut scope_info = {
             let mut active_scopes = self.active_scopes.lock().unwrap();
             active_scopes.remove(&scope_id)
-                .ok_or_else(|| TrackingError::InvalidPointer(format!("Invalid scope ID: {}", scope_id)))?
+                .ok_or_else(|| TrackingError::InvalidPointer(format!("Invalid scope ID: {scope_id}")))?
         };
 
         // Update end time

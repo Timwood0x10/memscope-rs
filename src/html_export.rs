@@ -29,7 +29,10 @@ pub fn export_interactive_html<P: AsRef<Path>>(
         }
     }
 
-    // Collect all data
+    // Use registry to get comprehensive data with variable names
+    let comprehensive_data = crate::variable_registry::VariableRegistry::generate_comprehensive_export(tracker)?;
+
+    // Extract data from comprehensive structure
     let active_allocations = tracker.get_active_allocations()?;
     let stats = tracker.get_stats()?;
     let memory_by_type = tracker.get_memory_by_type().unwrap_or_default();
@@ -47,8 +50,8 @@ pub fn export_interactive_html<P: AsRef<Path>>(
     let memory_by_type_map: std::collections::HashMap<String, (usize, usize)> = 
         memory_by_type.iter().map(|usage| (usage.type_name.clone(), (usage.total_size, usage.allocation_count))).collect();
     
-    // Prepare optimized JSON data for JavaScript (预处理减少前端计算)
-    let json_data = prepare_optimized_json_data(&active_allocations, &stats, &memory_by_type_map, unsafe_ffi_tracker)?;
+    // Prepare optimized JSON data for JavaScript with comprehensive registry data
+    let json_data = prepare_comprehensive_json_data(&comprehensive_data, &active_allocations, &stats, &memory_by_type_map, unsafe_ffi_tracker)?;
 
     // Generate complete HTML
     let html_content = generate_html_template(&memory_analysis_svg, &lifecycle_timeline_svg, &unsafe_ffi_svg, &json_data)?;
@@ -81,7 +84,7 @@ fn generate_memory_analysis_svg_data(tracker: &MemoryTracker) -> TrackingResult<
     
     // Convert to base64 data URL (simple base64 encoding)
     let encoded = base64_encode(svg_content.as_bytes());
-    Ok(format!("data:image/svg+xml;base64,{}", encoded))
+    Ok(format!("data:image/svg+xml;base64,{encoded}"))
 }
 
 /// Simple base64 encoding function
@@ -120,7 +123,7 @@ fn generate_lifecycle_timeline_svg_data(tracker: &MemoryTracker) -> TrackingResu
     std::fs::remove_file(temp_path).ok();
     
     let encoded = base64_encode(svg_content.as_bytes());
-    Ok(format!("data:image/svg+xml;base64,{}", encoded))
+    Ok(format!("data:image/svg+xml;base64,{encoded}"))
 }
 
 /// Generate unsafe FFI SVG as base64 data URL
@@ -137,11 +140,12 @@ fn generate_unsafe_ffi_svg_data(unsafe_ffi_tracker: &UnsafeFFITracker) -> Tracki
     std::fs::remove_file(temp_path).ok();
     
     let encoded = base64_encode(svg_content.as_bytes());
-    Ok(format!("data:image/svg+xml;base64,{}", encoded))
+    Ok(format!("data:image/svg+xml;base64,{encoded}"))
 }
 
-/// Prepare optimized JSON data for JavaScript consumption (预处理版本)
-fn prepare_optimized_json_data(
+/// Prepare comprehensive JSON data for frontend consumption with registry-based variable names
+fn prepare_comprehensive_json_data(
+    comprehensive_data: &serde_json::Value,
     allocations: &[AllocationInfo],
     stats: &MemoryStats,
     memory_by_type: &std::collections::HashMap<String, (usize, usize)>,
@@ -241,8 +245,8 @@ fn generate_html_template(
         </div>"#.to_string()
     } else {
         format!(r#"<div class="svg-container">
-            <img src="{}" alt="Unsafe FFI Dashboard" class="svg-image" />
-        </div>"#, unsafe_ffi_svg)
+            <img src="{unsafe_ffi_svg}" alt="Unsafe FFI Dashboard" class="svg-image" />
+        </div>"#)
     };
 
     let html = format!(r#"<!DOCTYPE html>
@@ -252,7 +256,7 @@ fn generate_html_template(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MemScope-RS Interactive Memory Analysis</title>
     <style>
-        {css}
+        {CSS_CONTENT}
     </style>
 </head>
 <body>
@@ -348,14 +352,10 @@ fn generate_html_template(
         // Embedded data
         const MEMORY_DATA = {json_data};
         
-        {javascript}
+        {JS_CONTENT}
     </script>
 </body>
-</html>"#,
-        css = CSS_CONTENT,
-        javascript = JS_CONTENT,
-        unsafe_ffi_html = unsafe_ffi_html,
-        json_data = json_data
+</html>"#
     );
 
     Ok(html)

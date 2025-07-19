@@ -400,6 +400,10 @@ fn test_memory_pools_and_custom_allocation_patterns() {
         fn get_type_name(&self) -> &'static str {
             "MemoryPool"
         }
+
+        fn get_size_estimate(&self) -> usize {
+            self.blocks.len() * self.block_size
+        }
     }
 
     let mut pool = MemoryPool::new(1024, 10);

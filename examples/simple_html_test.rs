@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Export HTML report
     let html_path = "simple_memory_report.html";
-    println!("📊 Exporting HTML report to: {}", html_path);
+    println!("📊 Exporting HTML report to: {html_path}");
     
     export_interactive_html(
         &tracker, 
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     
     println!("✅ HTML report generated successfully!");
-    println!("📂 Open '{}' in your browser to view the report", html_path);
+    println!("📂 Open '{html_path}' in your browser to view the report");
     
     Ok(())
 }

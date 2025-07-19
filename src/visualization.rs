@@ -7,7 +7,7 @@ use crate::utils::{format_bytes, get_simple_type, get_type_color, get_type_gradi
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use svg::node::element::{Circle, Group, Line, Rectangle, Style, Text as SvgText ,Definitions, LinearGradient, Stop, Marker, Polygon};
+use svg::node::element::{Circle, Group, Line, Rectangle, Style, Text as SvgText ,Definitions, Marker, Polygon};
 use svg::Document;
 
 use crate::unsafe_ffi_tracker::{
@@ -381,7 +381,7 @@ fn add_relationships_section(
         document = document.add(group_bg);
 
         // Scope label
-        let scope_label = SvgText::new(format!("Scope: {}", scope_name))
+        let scope_label = SvgText::new(format!("Scope: {scope_name}"))
             .set("x", group_x - 10)
             .set("y", group_y - 5)
             .set("font-size", 12)
@@ -561,7 +561,7 @@ fn calculate_scope_lifetime(scope_name: &str, vars: &[&AllocationInfo]) -> u64 {
         // Local scope: calculate based on variable lifetimes
         let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
         let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
-        let span = (end - start) as u64;
+        let span = end - start;
         if span == 0 {
             // If variables allocated at same time, estimate reasonable duration
             100 // 100ms default for local scopes
@@ -799,7 +799,7 @@ fn export_scope_analysis_json(
                 );
                 var_data.insert(
                     "timestamp".to_string(),
-                    Value::Number((var.timestamp_alloc as u64).into()),
+                    Value::Number(var.timestamp_alloc.into()),
                 );
                 variables.push(Value::Object(var_data));
             }
@@ -812,10 +812,10 @@ fn export_scope_analysis_json(
 
     // Write to JSON file
     let json_content = serde_json::to_string_pretty(&Value::Object(analysis)).map_err(|e| {
-        TrackingError::SerializationError(format!("JSON serialization failed: {}", e))
+        TrackingError::SerializationError(format!("JSON serialization failed: {e}"))
     })?;
 
-    std::fs::write("scope_analysis.json", json_content).map_err(|e| TrackingError::IoError(e))?;
+    std::fs::write("scope_analysis.json", json_content).map_err(TrackingError::IoError)?;
 
     tracing::info!("Exported complete scope analysis to scope_analysis.json");
     Ok(())
@@ -855,7 +855,7 @@ fn get_duration_color(ratio: f64, is_global: bool) -> String {
         let g = (base_g as f64 + (target_g as f64 - base_g as f64) * smooth_ratio) as u8;
         let b = (base_b as f64 + (target_b as f64 - base_b as f64) * smooth_ratio) as u8;
 
-        format!("#{:02X}{:02X}{:02X}", r, g, b)
+        format!("#{r:02X}{g:02X}{b:02X}")
     }
 }
 
@@ -890,7 +890,7 @@ fn add_matrix_layout_section(
             if !vars.is_empty() {
                 let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
                 let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
-                (end - start) as u64
+                end - start
             } else {
                 0
             }
@@ -973,7 +973,7 @@ fn render_scope_matrix_fixed(
     let actual_width = dynamic_width.max(width);
     let actual_height = dynamic_height.max(height);
 
-    let mut matrix_group = Group::new().set("transform", format!("translate({}, {})", x, y));
+    let mut matrix_group = Group::new().set("transform", format!("translate({x}, {y})"));
 
     // ENHANCED SCOPE LIFETIME CALCULATION
     let duration = calculate_scope_lifetime(scope_name, vars);
@@ -1072,7 +1072,7 @@ fn render_scope_matrix_fixed(
 
         // Type label with enhanced color coding
         let (type_start_color, _) = get_type_gradient_colors(&type_name);
-        let type_label = SvgText::new(format!("({})", type_name))
+        let type_label = SvgText::new(format!("({type_name})"))
             .set("x", 18)
             .set("y", var_y + 22)
             .set("font-size", 9)
@@ -1125,7 +1125,7 @@ fn render_scope_matrix_fixed(
         matrix_group = matrix_group.add(size_label);
 
         // LIFETIME on separate line to prevent overlap
-        let time_label = SvgText::new(format!("Active {}ms", duration_ms))
+        let time_label = SvgText::new(format!("Active {duration_ms}ms"))
             .set("x", 20)
             .set("y", var_y + 30)
             .set("font-size", 7)
@@ -1555,12 +1555,10 @@ fn add_allocation_source_breakdown(
     }
 
     // Create simple bar chart instead of pie chart
-    let sources = vec![
-        ("Safe Rust", safe_count, "#2ecc71"),
+    let sources = [("Safe Rust", safe_count, "#2ecc71"),
         ("Unsafe Rust", unsafe_count, "#e74c3c"),
         ("FFI", ffi_count, "#3498db"),
-        ("Cross-boundary", cross_boundary_count, "#9b59b6"),
-    ];
+        ("Cross-boundary", cross_boundary_count, "#9b59b6")];
 
     for (i, (label, count, color)) in sources.iter().enumerate() {
         if *count > 0 {
@@ -1628,7 +1626,7 @@ fn add_memory_safety_status(
         .set("y", start_y)
         .set("width", width)
         .set("height", height)
-        .set("fill", format!("{}20", bg_color))
+        .set("fill", format!("{bg_color}20"))
         .set("stroke", bg_color)
         .set("stroke-width", 2)
         .set("rx", 10);
@@ -1674,7 +1672,7 @@ fn add_memory_safety_status(
                 SafetyViolation::CrossBoundaryRisk { .. } => "Cross-Boundary Risk",
             };
 
-            let violation_item = SvgText::new(format!("• {}", description))
+            let violation_item = SvgText::new(format!("• {description}"))
                 .set("x", start_x + 30)
                 .set("y", y)
                 .set("font-size", 12)

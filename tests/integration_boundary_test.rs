@@ -169,7 +169,7 @@ fn test_memory_pressure_scenarios() {
     let memory_increase = pressure_stats.active_memory.saturating_sub(initial_stats.active_memory);
     
     if memory_increase > 0 {
-        println!("Memory pressure test: {} bytes increase detected", memory_increase);
+        println!("Memory pressure test: {memory_increase} bytes increase detected");
     } else {
         println!("Memory pressure test: No significant memory increase detected");
         println!("This may be expected in test environments with limited tracking");
@@ -205,7 +205,7 @@ fn test_error_recovery_scenarios() {
     // Should either succeed or fail gracefully
     match invalid_result {
         Ok(_) => println!("Invalid pointer association succeeded"),
-        Err(e) => println!("Invalid pointer association failed gracefully: {}", e),
+        Err(e) => println!("Invalid pointer association failed gracefully: {e}"),
     }
     
     // 2. Double deallocation attempt (should not crash)
@@ -217,7 +217,7 @@ fn test_error_recovery_scenarios() {
     let dealloc_result = tracker.track_deallocation(ptr);
     match dealloc_result {
         Ok(_) => println!("Manual deallocation succeeded"),
-        Err(e) => println!("Manual deallocation failed gracefully: {}", e),
+        Err(e) => println!("Manual deallocation failed gracefully: {e}"),
     }
     
     // 3. Stats retrieval should still work

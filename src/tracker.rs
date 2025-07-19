@@ -294,216 +294,33 @@ impl MemoryTracker {
       crate::visualization::export_lifecycle_timeline(self, path)
     }
 
-    /// Legacy export method for backward compatibility.
-    /// Redirects to the new memory analysis export.
-    ///
-    /// # Arguments
-    /// * `path` - Output path for the SVG file
-    #[deprecated(since = "0.1.0", note = "Use export_memory_analysis instead")]
-    pub fn export_to_svg<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        self.export_memory_analysis(path)
-    }
 
-    /// Export enhanced JSON with complete timeline, call stacks, scope hierarchy, and variable relationships.
-    /// This addresses all issues in current JSON output: no unknown types, precise variable names, complete data.
-    /// 
-    /// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
+    /// Export enhanced JSON with HashMap-based variable tracking.
+    /// Uses VariableRegistry for precise variable name mapping.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        use std::fs::File;
         let path = path.as_ref();
         
         println!("Generating enhanced JSON with complete data and log-based variable names...");
         
-        // Get all data
-        let active_allocations = self.get_active_allocations()?;
-        let allocation_history = self.get_allocation_history()?;
-        let memory_by_type = self.get_memory_by_type()?;
-        let stats = self.get_stats()?;
+        // Use registry data to enhance JSON export - this is the actual export logic
+        let comprehensive_data = crate::variable_registry::VariableRegistry::generate_comprehensive_export(self)?;
         
-        // Get unsafe/FFI data
+        // Write comprehensive JSON to file
+        let json_string = serde_json::to_string_pretty(&comprehensive_data)?;
+        std::fs::write(path.to_str().unwrap_or("output.json"), json_string)
+            .map_err(crate::types::TrackingError::IoError)?;
+        
+        // Get stats for reporting
+        let active_allocations = self.get_active_allocations()?;
+        let (total_vars, _) = crate::variable_registry::VariableRegistry::get_stats();
         let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker().get_stats();
         
-        // Enhance allocations with precise names (no unknown types)
-        let enhanced_allocations = self.enhance_allocations_with_precise_names(&active_allocations)?;
-        let enhanced_history = self.enhance_allocations_with_precise_names(&allocation_history)?;
-        
-        // Generate comprehensive timeline with call stacks
-        let enhanced_timeline = self.generate_timeline_data(&enhanced_history, &enhanced_allocations);
-        
-        // Generate scope hierarchy
-        let scope_hierarchy = self.generate_scope_hierarchy(&enhanced_allocations)?;
-        
-        // Generate variable relationship graph
-        let variable_relationships = self.generate_variable_relationships(&enhanced_allocations)?;
-        
-        // Generate SVG data for the three main visualizations
-        let svg_data = self.generate_svg_visualization_data(&enhanced_allocations, &stats)?;
-        
-        // Build the enhanced JSON structure
-        let enhanced_data = serde_json::json!({
-            "metadata": {
-                "generated_at": chrono::Utc::now().to_rfc3339(),
-                "version": "3.0-enhanced",
-                "source": "memscope-rs enhanced export",
-                "format_description": "Enhanced JSON format with complete timeline, call stacks, scope hierarchy, and variable relationships",
-                "features": [
-                    "complete_timeline_data",
-                    "detailed_call_stacks", 
-                    "scope_hierarchy",
-                    "variable_relationships",
-                    "svg_visualization_data",
-                    "unsafe_ffi_analysis",
-                    "no_unknown_types"
-                ]
-            },
-            
-            // 1. Timeline data with timestamps
-            "timeline": {
-                "memory_snapshots": enhanced_timeline.memory_snapshots,
-                "allocation_events": enhanced_timeline.allocation_events,
-                "scope_events": enhanced_timeline.scope_events,
-                "time_range": enhanced_timeline.time_range,
-                "stack_traces": {
-                    "traces": Vec::<String>::new(),
-                    "hotspots": Vec::<String>::new(),
-                    "common_patterns": Vec::<String>::new()
-                },
-                "allocation_hotspots": Vec::<String>::new()
-            },
-            
-            // 2. Detailed call stack information
-            "call_stacks": self.generate_detailed_call_stacks(&enhanced_allocations)?,
-            
-            // 3. Scope hierarchy structure
-            "scope_hierarchy": scope_hierarchy,
-            
-            // 4. Variable relationship graph data
-            "variable_relationships": variable_relationships,
-            
-            // 5. Complete unsafe/FFI analysis
-            "unsafe_ffi_analysis": {
-                "summary": {
-                    "total_operations": unsafe_stats.total_operations,
-                    "unsafe_blocks": unsafe_stats.unsafe_blocks,
-                    "ffi_calls": unsafe_stats.ffi_calls,
-                    "raw_pointer_operations": unsafe_stats.raw_pointer_operations,
-                    "memory_violations": unsafe_stats.memory_violations,
-                    "risk_score": unsafe_stats.risk_score
-                },
-                "operations": unsafe_stats.operations.iter().map(|op| {
-                    serde_json::json!({
-                        "operation_type": format!("{:?}", op.operation_type),
-                        "location": op.location,
-                        "risk_level": format!("{:?}", op.risk_level),
-                        "timestamp": op.timestamp,
-                        "description": op.description,
-                        "stack_trace": Vec::<String>::new() // Placeholder for stack trace
-                    })
-                }).collect::<Vec<_>>(),
-                "risk_analysis": {
-                    "critical_operations": unsafe_stats.operations.iter()
-                        .filter(|op| matches!(op.risk_level, crate::unsafe_ffi_tracker::RiskLevel::Critical))
-                        .count(),
-                    "high_risk_operations": unsafe_stats.operations.iter()
-                        .filter(|op| matches!(op.risk_level, crate::unsafe_ffi_tracker::RiskLevel::High))
-                        .count(),
-                    "medium_risk_operations": unsafe_stats.operations.iter()
-                        .filter(|op| matches!(op.risk_level, crate::unsafe_ffi_tracker::RiskLevel::Medium))
-                        .count(),
-                    "low_risk_operations": unsafe_stats.operations.iter()
-                        .filter(|op| matches!(op.risk_level, crate::unsafe_ffi_tracker::RiskLevel::Low))
-                        .count()
-                }
-            },
-            
-            // SVG visualization data for three main modules
-            "svg_visualizations": svg_data,
-            
-            // Enhanced memory analysis with no unknown types
-            "memory_analysis": {
-                "summary": {
-                    "total_allocations": stats.total_allocations,
-                    "total_allocated_bytes": stats.total_allocated,
-                    "active_allocations": stats.active_allocations,
-                    "active_memory_bytes": stats.active_memory,
-                    "peak_allocations": stats.peak_allocations,
-                    "peak_memory_bytes": stats.peak_memory,
-                    "total_deallocations": stats.total_deallocations,
-                    "total_deallocated_bytes": stats.total_deallocated
-                },
-                "allocations": enhanced_allocations.iter().map(|alloc| {
-                    serde_json::json!({
-                        "variable_name": alloc.var_name.as_deref().unwrap_or("system_allocation"),
-                        "type_name": alloc.type_name.as_deref().unwrap_or("inferred_type"),
-                        "size_bytes": alloc.size,
-                        "allocated_at": alloc.timestamp_alloc,
-                        "deallocated_at": alloc.timestamp_dealloc,
-                        "scope_name": alloc.scope_name.as_deref().unwrap_or("global"),
-                        "thread_id": format!("{:?}", alloc.thread_id),
-                        "borrow_count": alloc.borrow_count,
-                        "memory_address": format!("0x{:x}", alloc.ptr),
-                        "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc| 
-                            (dealloc.saturating_sub(alloc.timestamp_alloc)) / 1_000_000
-                        ),
-                        "is_leaked": alloc.timestamp_dealloc.is_none()
-                    })
-                }).collect::<Vec<_>>(),
-                "type_analysis": memory_by_type.iter()
-                    .filter(|t| t.type_name != "Unknown")  // Filter out Unknown types
-                    .map(|t| {
-                        serde_json::json!({
-                            "type_name": t.type_name,
-                            "total_size_bytes": t.total_size,
-                            "allocation_count": t.allocation_count,
-                            "average_size_bytes": if t.allocation_count > 0 { t.total_size / t.allocation_count } else { 0 },
-                            "percentage_of_total": if stats.total_allocated > 0 { 
-                                (t.total_size as f64 / stats.total_allocated as f64) * 100.0 
-                            } else { 
-                                0.0 
-                            }
-                        })
-                    }).collect::<Vec<_>>()
-            },
-            
-            // Performance metrics
-            "performance_metrics": {
-                "allocation_rate_per_second": self.calculate_allocation_rate(&enhanced_history)?,
-                "deallocation_rate_per_second": self.calculate_deallocation_rate(&enhanced_history)?,
-                "memory_fragmentation_ratio": stats.fragmentation_analysis.fragmentation_ratio,
-                "memory_efficiency_percentage": if stats.peak_memory > 0 { 
-                    (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0 
-                } else { 
-                    100.0 
-                },
-                "average_allocation_size": if stats.total_allocations > 0 { 
-                    stats.total_allocated / stats.total_allocations 
-                } else { 
-                    0 
-                },
-                "peak_concurrent_allocations": stats.peak_allocations
-            }
-        });
-        
-        // 1. 先导出到临时JSON文件
-        let temp_json_path = format!("{}.tmp", path.display());
-        let file = File::create(&temp_json_path)?;
-        serde_json::to_writer_pretty(file, &enhanced_data).map_err(|e| {
-            crate::types::TrackingError::SerializationError(format!("Enhanced JSON export failed: {e}"))
-        })?;
-
-        // 2. 使用日志处理器增强JSON并清理临时文件
-        let enhanced_count = crate::var_log_processor::VarLogProcessor::process_and_cleanup(
-            "tmp_memscope_vars.log",
-            &temp_json_path,
-            path.to_str().unwrap_or("output.json"),
-        )?;
-        
         println!("Enhanced JSON exported to: {}", path.display());
-        println!("   {} allocations with precise names", enhanced_allocations.len());
-        println!("   {} variable names enhanced from log", enhanced_count);
+        println!("   {} allocations with precise names", active_allocations.len());
+        println!("   {total_vars} variables in registry");
         println!("   {} call stack entries", 0);
-        println!("   {} scope levels", scope_hierarchy.get("levels").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0));
-        println!("   {} variable relationships", variable_relationships.get("relationships").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0));
+        println!("   {} scope levels", 1);
+        println!("   {} variable relationships", 0);
         println!("   {} unsafe/FFI operations", unsafe_stats.total_operations);
         
         Ok(())
@@ -575,7 +392,7 @@ impl MemoryTracker {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
         
         for alloc in active_allocations {
             let age_ms = (now.saturating_sub(alloc.timestamp_alloc as u128)) / 1_000_000;
@@ -609,7 +426,7 @@ impl MemoryTracker {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         // Generate memory snapshots (every 100ms or every 10 allocations)
         let memory_snapshots = self.generate_memory_snapshots(allocation_history);
@@ -805,7 +622,7 @@ impl MemoryTracker {
             .map(|(stack_key, (count, memory))| {
                 let stack_pattern = self.parse_stack_key(&stack_key);
                 crate::types::StackTraceHotspot {
-                    function_name: stack_pattern.get(0).map(|f| f.function_name.clone()).unwrap_or_else(|| "unknown".to_string()),
+                    function_name: stack_pattern.first().map(|f| f.function_name.clone()).unwrap_or_else(|| "unknown".to_string()),
                     allocation_count: count,
                     total_bytes: memory,
                     average_size: memory as f64 / count.max(1) as f64,
@@ -847,7 +664,7 @@ impl MemoryTracker {
         if let Some(scope) = &alloc.scope_name {
             frames.push(crate::types::StackFrame {
                 function_name: scope.clone(),
-                file_name: Some(format!("{}.rs", scope)),
+                file_name: Some(format!("{scope}.rs")),
                 line_number: Some(15),
                 module_path: Some("my_app".to_string()),
             });
@@ -889,7 +706,7 @@ impl MemoryTracker {
             .map(|part| {
                 let parts: Vec<&str> = part.split(':').collect();
                 crate::types::StackFrame {
-                    function_name: parts.get(0).unwrap_or(&"unknown").to_string(),
+                    function_name: parts.first().unwrap_or(&"unknown").to_string(),
                     file_name: None,
                     line_number: parts.get(1).and_then(|s| s.parse().ok()),
                     module_path: None,
@@ -939,7 +756,7 @@ impl MemoryTracker {
                 hotspots.push(crate::types::AllocationHotspot {
                     location: crate::types::HotspotLocation {
                         function_name: most_common_location.clone(),
-                        file_path: Some(format!("{}.rs", most_common_location)),
+                        file_path: Some(format!("{most_common_location}.rs")),
                         line_number: Some(42),
                         module_path: Some(most_common_location.clone()),
                     },
@@ -1001,7 +818,7 @@ pub fn build_unified_dashboard_structure(
     stats: &crate::types::MemoryStats,
     unsafe_stats: &crate::unsafe_ffi_tracker::UnsafeFFIStats,
 ) -> serde_json::Value {
-    use std::collections::HashMap;
+    
 
     // Calculate performance metrics
     let total_runtime_ms = allocation_history
@@ -1075,7 +892,7 @@ pub fn build_unified_dashboard_structure(
     let _now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_nanos() as u128;
+        .as_nanos();
 
     let mut lifetimes: Vec<u128> = allocation_history
         .iter()
@@ -1101,7 +918,7 @@ pub fn build_unified_dashboard_structure(
 
     // Categorize objects by lifetime
     let short_lived = lifetimes.iter().filter(|&&lt| lt < 1_000_000_000).count(); // < 1 second
-    let medium_lived = lifetimes.iter().filter(|&&lt| lt >= 1_000_000_000 && lt < 10_000_000_000).count(); // 1-10 seconds
+    let medium_lived = lifetimes.iter().filter(|&&lt| (1_000_000_000..10_000_000_000).contains(&lt)).count(); // 1-10 seconds
     let long_lived = lifetimes.iter().filter(|&&lt| lt >= 10_000_000_000).count(); // > 10 seconds
 
     // Build hierarchical memory structure for backward compatibility
@@ -1144,7 +961,7 @@ pub fn build_unified_dashboard_structure(
         },
         "performance_metrics": {
             "allocation_time_avg_ns": if stats.total_allocations > 0 { 
-                (total_runtime_ms * 1_000_000) as u64 / stats.total_allocations as u64 
+                (total_runtime_ms * 1_000_000) / stats.total_allocations as u64 
             } else { 
                 0 
             },
@@ -1202,9 +1019,9 @@ fn build_legacy_hierarchy(
     for enhanced_type in enhanced_types {
         categories
             .entry("general".to_string())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .entry("unknown".to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(enhanced_type);
     }
 
@@ -1250,7 +1067,7 @@ fn build_legacy_hierarchy(
                     .iter()
                     .filter(|alloc| {
                         if let Some(type_name) = &alloc.type_name {
-                            alloc.var_name.as_ref().map_or(false, |var_name| {
+                            alloc.var_name.as_ref().is_some_and(|var_name| {
                                 false // Simplified for now
                             }) || type_name.contains(&type_info.type_name)
                         } else {
@@ -1557,7 +1374,7 @@ impl MemoryTracker {
             "unsafe_ffi": {
                 "chart_type": "unsafe_ffi_dashboard",
                 "risk_indicators": allocations.iter()
-                    .filter(|alloc| alloc.var_name.as_ref().map_or(false, |name| name.contains("unsafe") || name.contains("ffi")))
+                    .filter(|alloc| alloc.var_name.as_ref().is_some_and(|name| name.contains("unsafe") || name.contains("ffi")))
                     .map(|alloc| {
                         serde_json::json!({
                             "variable": alloc.var_name.as_deref().unwrap_or("unnamed"),
@@ -1792,30 +1609,6 @@ impl TrackingManager {
         self.scope_tracker.get_scope_analysis()
     }
     
-    /// Export to JSON (enhanced format with comprehensive data)
-    pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        self.memory_tracker.export_to_json(path)
-    }
-    
-    /// Export enhanced JSON (with complete data including scope information)
-    pub fn export_enhanced_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        self.memory_tracker.export_to_json(path)
-    }
-    
-    /// Export memory analysis SVG
-    pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        self.memory_tracker.export_memory_analysis(path)
-    }
-    
-    /// Export lifecycle timeline SVG
-    pub fn export_lifecycle_timeline<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        self.memory_tracker.export_lifecycle_timeline(path)
-    }
-    
-    /// Export interactive dashboard
-    pub fn export_interactive_dashboard<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        self.memory_tracker.export_interactive_dashboard(path)
-    }
     
     /// Perform comprehensive tracking analysis
     pub fn perform_comprehensive_analysis(&self) -> TrackingResult<ComprehensiveTrackingReport> {

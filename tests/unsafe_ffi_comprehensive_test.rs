@@ -82,7 +82,7 @@ fn test_enhanced_deallocation() {
     // Should either succeed or fail gracefully
     match dealloc_result {
         Ok(_) => println!("Deallocation tracked successfully"),
-        Err(e) => println!("Deallocation failed gracefully: {}", e),
+        Err(e) => println!("Deallocation failed gracefully: {e}"),
     }
 }
 

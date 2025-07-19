@@ -132,7 +132,7 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         }
     } else {
         // For simple type names without namespace
-        if clean_type.len() > 0 {
+        if !clean_type.is_empty() {
             (clean_type.to_string(), "Custom Types".to_string())
         } else {
             ("Unknown Type".to_string(), "Unknown".to_string())
@@ -265,7 +265,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "HashMap".to_string()
             } else {
-                format!("HashMap<{}>", inner)
+                format!("HashMap<{inner}>")
             },
         }
     } else if type_name.contains("BTreeMap") || type_name.contains("btree::map") {
@@ -277,7 +277,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "BTreeMap".to_string()
             } else {
-                format!("BTreeMap<{}>", inner)
+                format!("BTreeMap<{inner}>")
             },
         }
     } else if type_name.contains("HashSet") || type_name.contains("hash::set") {
@@ -289,7 +289,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "HashSet".to_string()
             } else {
-                format!("HashSet<{}>", inner)
+                format!("HashSet<{inner}>")
             },
         }
     } else if type_name.contains("Vec") && !type_name.contains("VecDeque") {
@@ -301,7 +301,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Vec".to_string()
             } else {
-                format!("Vec<{}>", inner)
+                format!("Vec<{inner}>")
             },
         }
     } else if type_name.contains("VecDeque") {
@@ -313,7 +313,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "VecDeque".to_string()
             } else {
-                format!("VecDeque<{}>", inner)
+                format!("VecDeque<{inner}>")
             },
         }
     }
@@ -343,7 +343,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Box".to_string()
             } else {
-                format!("Box<{}>", inner)
+                format!("Box<{inner}>")
             },
         }
     } else if type_name.contains("Rc<") {
@@ -355,7 +355,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Rc".to_string()
             } else {
-                format!("Rc<{}>", inner)
+                format!("Rc<{inner}>")
             },
         }
     } else if type_name.contains("Arc<") {
@@ -367,7 +367,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Arc".to_string()
             } else {
-                format!("Arc<{}>", inner)
+                format!("Arc<{inner}>")
             },
         }
     }
@@ -404,7 +404,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
 
 /// Extract generic parameters from type names (enhanced version)
 pub fn extract_generic_params(type_name: &str, container: &str) -> String {
-    if let Some(start) = type_name.find(&format!("{}<", container)) {
+    if let Some(start) = type_name.find(&format!("{container}<")) {
         let start = start + container.len() + 1;
         if let Some(end) = find_matching_bracket(type_name, start - 1) {
             let inner = &type_name[start..end];

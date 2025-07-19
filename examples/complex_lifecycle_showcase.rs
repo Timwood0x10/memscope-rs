@@ -137,7 +137,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     let mut large_vec = Vec::with_capacity(1000);
     track_var!(large_vec).unwrap();
     for i in 0..2000 {
-        large_vec.push(format!("Item {}", i));
+        large_vec.push(format!("Item {i}"));
     }
     println!(
         "✓ Large Vec: grew from capacity 1000 to {} elements",
@@ -149,7 +149,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     let mut growing_string = String::new();
     track_var!(growing_string).unwrap();
     for i in 0..100 {
-        growing_string.push_str(&format!("Data chunk {} | ", i));
+        growing_string.push_str(&format!("Data chunk {i} | "));
     }
     println!("✓ Growing String: {} bytes", growing_string.len());
     keep_alive.push(Box::new(growing_string) as Box<dyn std::any::Any>);
@@ -163,7 +163,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     let mut hash_map = HashMap::new();
     for i in 0..500 {
         // Increased from 50 to 500
-        hash_map.insert(format!("key_with_longer_string_{}", i), i * 2);
+        hash_map.insert(format!("key_with_longer_string_{i}"), i * 2);
     }
     let boxed_hash_map = Box::new(hash_map);
     track_var!(boxed_hash_map).unwrap();
@@ -173,7 +173,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     let mut hash_set = HashSet::new();
     for i in 0..250 {
         // Increased from 30 to 250
-        hash_set.insert(format!("unique_item_with_longer_name_{}", i));
+        hash_set.insert(format!("unique_item_with_longer_name_{i}"));
     }
     let boxed_hash_set = Box::new(hash_set);
     track_var!(boxed_hash_set).unwrap();
@@ -183,7 +183,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     let mut btree_map = BTreeMap::new();
     for i in 0..300 {
         // Increased from 25 to 300
-        btree_map.insert(i, format!("value_with_much_longer_string_data_{}", i));
+        btree_map.insert(i, format!("value_with_much_longer_string_data_{i}"));
     }
     let boxed_btree_map = Box::new(btree_map);
     track_var!(boxed_btree_map).unwrap();
@@ -299,10 +299,10 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
     };
 
     for i in 0..10 {
-        db_conn.connection_pool.push(format!("conn_{}", i));
+        db_conn.connection_pool.push(format!("conn_{i}"));
         db_conn
             .active_queries
-            .push_back(format!("SELECT * FROM table_{}", i));
+            .push_back(format!("SELECT * FROM table_{i}"));
     }
     let boxed_db_conn = Box::new(db_conn);
     track_var!(boxed_db_conn).unwrap();
@@ -337,7 +337,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
     for i in 0..5 {
         let mut node = GraphNode {
             id: i,
-            data: format!("Node {} data", i),
+            data: format!("Node {i} data"),
             neighbors: Vec::new(),
             metadata: BTreeMap::new(),
         };
@@ -374,7 +374,7 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
         for j in 0..10 {
             inner_map.insert(j, vec![format!("item_{}_{}", i, j); 3]);
         }
-        nested_structure.insert(format!("group_{}", i), inner_map);
+        nested_structure.insert(format!("group_{i}"), inner_map);
     }
     let boxed_nested = Box::new(nested_structure);
     track_var!(boxed_nested).unwrap();
@@ -410,7 +410,7 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
             if i % 500 == 0 {
                 stream_processor
                     .error_log
-                    .push(format!("Warning at byte {}", i));
+                    .push(format!("Warning at byte {i}"));
             }
         }
     }
@@ -455,7 +455,7 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
     // Session storage
     let mut sessions = HashMap::new();
     for i in 0..50 {
-        let session_id = format!("sess_{:08x}", i);
+        let session_id = format!("sess_{i:08x}");
         let session_data = HashMap::from([
             ("user_id".to_string(), format!("{}", 1000 + i)),
             (
@@ -509,7 +509,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
     // Input data queue
     let mut input_queue = VecDeque::new();
     for i in 0..500 {
-        input_queue.push_back(format!("data_record_{:06}", i));
+        input_queue.push_back(format!("data_record_{i:06}"));
     }
     let boxed_input_queue = Box::new(input_queue);
     track_var!(boxed_input_queue).unwrap();
@@ -521,14 +521,14 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
 
     // Stage 1: Parse and validate (simulate processing)
     for i in 0..500 {
-        let processed = format!("validated_data_record_{:06}", i);
+        let processed = format!("validated_data_record_{i:06}");
         stage1_results.push(processed);
     }
     track_var!(stage1_results).unwrap();
 
     // Stage 2: Transform and enrich
     for record in &stage1_results {
-        let enriched = format!("enriched_{}_with_metadata", record);
+        let enriched = format!("enriched_{record}_with_metadata");
         stage2_results.push(enriched);
     }
     track_var!(stage2_results).unwrap();
@@ -670,19 +670,19 @@ fn generate_final_analysis() {
     println!("\n🎨 Exporting Visualizations and Data:");
 
     if let Err(e) = tracker.export_memory_analysis("./complex_memory_analysis.svg") {
-        println!("❌ Memory analysis export failed: {}", e);
+        println!("❌ Memory analysis export failed: {e}");
     } else {
         println!("✅ Memory analysis exported to: ./complex_memory_analysis.svg");
     }
 
     if let Err(e) = tracker.export_lifecycle_timeline("./complex_lifecycle_timeline.svg") {
-        println!("❌ Lifecycle timeline export failed: {}", e);
+        println!("❌ Lifecycle timeline export failed: {e}");
     } else {
         println!("✅ Enhanced lifecycle timeline exported to: ./complex_lifecycle_timeline.svg");
     }
 
     if let Err(e) = tracker.export_to_json("./complex_lifecycle_snapshot.json") {
-        println!("❌ JSON snapshot export failed: {}", e);
+        println!("❌ JSON snapshot export failed: {e}");
     } else {
         println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");
     }
@@ -690,7 +690,7 @@ fn generate_final_analysis() {
     // Then generate HTML dashboard based on JSON
     println!("📊 Generating interactive HTML dashboard from JSON...");
     if let Err(e)  = tracker.export_interactive_dashboard("complex_lifecycle_showcase.html") {
-        println!("❌ html snapshot export failed: {}", e);
+        println!("❌ html snapshot export failed: {e}");
     }else{
         println!("✅ HTML exported to: ./complex_lifecycle_showcase.html");
     }

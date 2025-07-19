@@ -2,8 +2,7 @@
 // This module provides all analysis functionality including memory analysis, performance metrics, and safety analysis
 
 use crate::types::*;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Main analysis interface - consolidates all analysis functionality
 pub struct AnalysisManager {

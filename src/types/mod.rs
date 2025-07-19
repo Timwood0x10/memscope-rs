@@ -92,28 +92,28 @@ impl Clone for TrackingError {
 impl std::fmt::Display for TrackingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TrackingError::AllocationFailed(msg) => write!(f, "Allocation failed: {}", msg),
-            TrackingError::DeallocationFailed(msg) => write!(f, "Deallocation failed: {}", msg),
+            TrackingError::AllocationFailed(msg) => write!(f, "Allocation failed: {msg}"),
+            TrackingError::DeallocationFailed(msg) => write!(f, "Deallocation failed: {msg}"),
             TrackingError::TrackingDisabled => write!(f, "Memory tracking is disabled"),
-            TrackingError::InvalidPointer(msg) => write!(f, "Invalid pointer: {}", msg),
-            TrackingError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
-            TrackingError::VisualizationError(msg) => write!(f, "Visualization error: {}", msg),
-            TrackingError::ThreadSafetyError(msg) => write!(f, "Thread safety error: {}", msg),
-            TrackingError::ConfigurationError(msg) => write!(f, "Configuration error: {}", msg),
-            TrackingError::AnalysisError(msg) => write!(f, "Analysis error: {}", msg),
-            TrackingError::ExportError(msg) => write!(f, "Export error: {}", msg),
-            TrackingError::MemoryCorruption(msg) => write!(f, "Memory corruption detected: {}", msg),
-            TrackingError::UnsafeOperationDetected(msg) => write!(f, "Unsafe operation detected: {}", msg),
-            TrackingError::FFIError(msg) => write!(f, "FFI error: {}", msg),
-            TrackingError::ScopeError(msg) => write!(f, "Scope error: {}", msg),
-            TrackingError::BorrowCheckError(msg) => write!(f, "Borrow check error: {}", msg),
-            TrackingError::LifetimeError(msg) => write!(f, "Lifetime error: {}", msg),
-            TrackingError::TypeInferenceError(msg) => write!(f, "Type inference error: {}", msg),
-            TrackingError::PerformanceError(msg) => write!(f, "Performance error: {}", msg),
-            TrackingError::ResourceExhausted(msg) => write!(f, "Resource exhausted: {}", msg),
-            TrackingError::InternalError(msg) => write!(f, "Internal error: {}", msg),
-            TrackingError::IoError(err) => write!(f, "IO error: {}", err),
-            TrackingError::LockError(msg) => write!(f, "Lock error: {}", msg),
+            TrackingError::InvalidPointer(msg) => write!(f, "Invalid pointer: {msg}"),
+            TrackingError::SerializationError(msg) => write!(f, "Serialization error: {msg}"),
+            TrackingError::VisualizationError(msg) => write!(f, "Visualization error: {msg}"),
+            TrackingError::ThreadSafetyError(msg) => write!(f, "Thread safety error: {msg}"),
+            TrackingError::ConfigurationError(msg) => write!(f, "Configuration error: {msg}"),
+            TrackingError::AnalysisError(msg) => write!(f, "Analysis error: {msg}"),
+            TrackingError::ExportError(msg) => write!(f, "Export error: {msg}"),
+            TrackingError::MemoryCorruption(msg) => write!(f, "Memory corruption detected: {msg}"),
+            TrackingError::UnsafeOperationDetected(msg) => write!(f, "Unsafe operation detected: {msg}"),
+            TrackingError::FFIError(msg) => write!(f, "FFI error: {msg}"),
+            TrackingError::ScopeError(msg) => write!(f, "Scope error: {msg}"),
+            TrackingError::BorrowCheckError(msg) => write!(f, "Borrow check error: {msg}"),
+            TrackingError::LifetimeError(msg) => write!(f, "Lifetime error: {msg}"),
+            TrackingError::TypeInferenceError(msg) => write!(f, "Type inference error: {msg}"),
+            TrackingError::PerformanceError(msg) => write!(f, "Performance error: {msg}"),
+            TrackingError::ResourceExhausted(msg) => write!(f, "Resource exhausted: {msg}"),
+            TrackingError::InternalError(msg) => write!(f, "Internal error: {msg}"),
+            TrackingError::IoError(err) => write!(f, "IO error: {err}"),
+            TrackingError::LockError(msg) => write!(f, "Lock error: {msg}"),
         }
     }
 }
@@ -128,7 +128,7 @@ impl From<std::io::Error> for TrackingError {
 
 impl From<serde_json::Error> for TrackingError {
     fn from(error: serde_json::Error) -> Self {
-        TrackingError::SerializationError(format!("JSON error: {}", error))
+        TrackingError::SerializationError(format!("JSON error: {error}"))
     }
 }
 

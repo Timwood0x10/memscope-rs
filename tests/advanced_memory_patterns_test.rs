@@ -306,6 +306,10 @@ fn test_custom_drop_implementations() {
         fn get_type_name(&self) -> &'static str {
             "CustomDrop"
         }
+
+        fn get_size_estimate(&self) -> usize {
+            self.data.get_size_estimate() + self.name.len()
+        }
     }
 
     let custom1 = CustomDrop {

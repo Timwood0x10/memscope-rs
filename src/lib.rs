@@ -6,7 +6,6 @@
 //! for exporting memory usage data in various formats.
 
 #![warn(missing_docs)]
-#![allow(dead_code, unused_variables, unused_imports)]
 
 /// Memory allocation tracking and analysis
 pub mod allocator;
@@ -19,8 +18,8 @@ pub mod scope_tracker;
 pub mod tracker;
 /// Type definitions and data structures
 pub mod types;
-/// Variable log processor for efficient variable name association
-pub mod var_log_processor;
+/// Variable registry for lightweight HashMap-based variable tracking
+pub mod variable_registry;
 /// Unsafe and FFI operation tracking
 pub mod unsafe_ffi_tracker;
 /// Utility functions
@@ -57,6 +56,9 @@ pub trait Trackable {
 
     /// Get the type name for this value.
     fn get_type_name(&self) -> &'static str;
+    
+    /// Get estimated size of the allocation.
+    fn get_size_estimate(&self) -> usize;
 }
 
 // Implement Trackable for common heap-allocated types
@@ -72,6 +74,10 @@ impl<T> Trackable for Vec<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<Vec<T>>()
     }
+    
+    fn get_size_estimate(&self) -> usize {
+        self.capacity() * std::mem::size_of::<T>()
+    }
 }
 
 impl Trackable for String {
@@ -86,6 +92,10 @@ impl Trackable for String {
     fn get_type_name(&self) -> &'static str {
         "String"
     }
+    
+    fn get_size_estimate(&self) -> usize {
+        self.capacity()
+    }
 }
 
 impl<T> Trackable for Box<T> {
@@ -95,6 +105,10 @@ impl<T> Trackable for Box<T> {
 
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<Box<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<T>()
     }
 }
 
@@ -108,6 +122,10 @@ impl<T> Trackable for std::rc::Rc<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::rc::Rc<T>>()
     }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<T>() + std::mem::size_of::<usize>() * 2 // Data + ref counts
+    }
 }
 
 impl<T> Trackable for std::sync::Arc<T> {
@@ -119,6 +137,10 @@ impl<T> Trackable for std::sync::Arc<T> {
 
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::sync::Arc<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<T>() + std::mem::size_of::<std::sync::atomic::AtomicUsize>() * 2 // Data + atomic ref counts
     }
 }
 
@@ -151,18 +173,15 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         let tracker = get_global_tracker();
         let type_name = var.get_type_name().to_string();
 
-        // 1. 记录变量信息到临时日志文件（新增的关键步骤）
-        // 这确保即使变量后来被释放，名称信息也会被保留用于JSON导出
-        tracing::debug!("About to log variable '{}' to file", var_name);
-        let log_result = crate::var_log_processor::VarLogProcessor::log_variable(
-            "tmp_memscope_vars.log",
+        // 1. Register variable in HashMap registry (lightweight and fast)
+        let _ = crate::variable_registry::VariableRegistry::register_variable(
             ptr,
-            var_name,
-            &type_name,
+            var_name.to_string(),
+            type_name.clone(),
+            var.get_size_estimate(),
         );
-        tracing::debug!("Log variable result: {:?}", log_result);
 
-        // 2. 原有的跟踪逻辑保持不变
+        // 2. Original tracking logic remains unchanged
         tracing::debug!(
             "Tracking variable '{}' of type '{}' at ptr 0x{:x}",
             var_name,

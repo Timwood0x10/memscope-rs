@@ -286,7 +286,7 @@ impl UnsafeFFITracker {
                 }
                 
                 tracing::error!("Invalid free detected at {:x}", ptr);
-                return Err(TrackingError::InvalidPointer(format!("Invalid pointer: 0x{:x}", ptr)));
+                return Err(TrackingError::InvalidPointer(format!("Invalid pointer: 0x{ptr:x}")));
             }
         }
 
@@ -367,11 +367,7 @@ impl UnsafeFFITracker {
         if let Ok(allocations) = self.enhanced_allocations.lock() {
             for allocation in allocations.values() {
                 let alloc_time = allocation.base.timestamp_alloc as u128;
-                let age = if current_time >= alloc_time {
-                    current_time - alloc_time
-                } else {
-                    0 // Handle case where allocation timestamp is in the future
-                };
+                let age = current_time.saturating_sub(alloc_time);
                 if age > threshold_ms && allocation.base.is_active() {
                     leaks.push(SafetyViolation::PotentialLeak {
                         allocation_stack: allocation.call_stack.clone(),
@@ -522,11 +518,11 @@ impl UnsafeFFITracker {
             let (op_type, risk_level, description) = match &allocation.source {
                 AllocationSource::UnsafeRust { unsafe_block_location, .. } => {
                     (UnsafeOperationType::UnsafeBlock, RiskLevel::Medium, 
-                     format!("Unsafe block at {}", unsafe_block_location))
+                     format!("Unsafe block at {unsafe_block_location}"))
                 }
                 AllocationSource::FfiC { library_name, function_name, .. } => {
                     (UnsafeOperationType::FfiCall, RiskLevel::High,
-                     format!("FFI call to {}::{}", library_name, function_name))
+                     format!("FFI call to {library_name}::{function_name}"))
                 }
                 AllocationSource::CrossBoundary { .. } => {
                     (UnsafeOperationType::CrossBoundaryTransfer, RiskLevel::Medium,

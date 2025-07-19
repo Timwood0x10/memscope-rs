@@ -111,7 +111,7 @@ fn test_all_unsafe_ffi_methods() {
     // Should either succeed or fail gracefully
     match dealloc_result {
         Ok(_) => println!("Enhanced deallocation succeeded"),
-        Err(e) => println!("Enhanced deallocation failed gracefully: {}", e),
+        Err(e) => println!("Enhanced deallocation failed gracefully: {e}"),
     }
     
     // 4. Boundary events

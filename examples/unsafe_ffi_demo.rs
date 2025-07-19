@@ -109,7 +109,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Note: We don't actually call dealloc again, just test the tracking
             match unsafe_ffi_tracker.track_enhanced_deallocation(ptr as usize) {
                 Ok(_) => println!("   ❌ Double-free not detected (unexpected)"),
-                Err(e) => println!("   ✅ Double-free detected: {}", e),
+                Err(e) => println!("   ✅ Double-free detected: {e}"),
             }
         }
     }
@@ -170,9 +170,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|a| a.cross_boundary_events.len())
         .sum();
     
-    println!("   📊 Unsafe Rust allocations: {}", unsafe_count);
-    println!("   📊 FFI allocations: {}", ffi_count);
-    println!("   📊 Cross-boundary events: {}", cross_boundary_events);
+    println!("   📊 Unsafe Rust allocations: {unsafe_count}");
+    println!("   📊 FFI allocations: {ffi_count}");
+    println!("   📊 Cross-boundary events: {cross_boundary_events}");
 
     println!("\n🎉 Unsafe Rust & FFI Memory Analysis Complete!");
     println!("📁 Check the generated files:");

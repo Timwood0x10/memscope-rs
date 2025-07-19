@@ -22,10 +22,10 @@ fn main() {
             }
             
             if let Err(e) = std::fs::copy("interactive_template.html", output) {
-                eprintln!("❌ Error creating template: {}", e);
+                eprintln!("❌ Error creating template: {e}");
                 std::process::exit(1);
             }
-            println!("✅ Created interactive template: {}", output);
+            println!("✅ Created interactive template: {output}");
         },
         "generate" => {
             if args.len() < 4 {
@@ -39,7 +39,7 @@ fn main() {
             let template_file = args.get(4).unwrap_or(&default_template);
             
             if let Err(e) = embed_json_to_html(json_file, template_file, output_file) {
-                eprintln!("❌ Error generating report: {}", e);
+                eprintln!("❌ Error generating report: {e}");
                 std::process::exit(1);
             }
         },
@@ -57,17 +57,16 @@ fn embed_json_to_html(json_file: &str, template_file: &str, output_file: &str) -
     let inline_script = format!(
         r#"<script type="text/javascript">
 // Embedded JSON data for offline analysis
-window.EMBEDDED_MEMORY_DATA = {};
+window.EMBEDDED_MEMORY_DATA = {json_content};
 console.log('📊 Loaded embedded memory analysis data');
-</script>"#,
-        json_content
+</script>"#
     );
     
     let final_html = template_content.replace("<!-- DATA_INJECTION_POINT -->", &inline_script);
     
     std::fs::write(output_file, final_html)?;
     
-    println!("✅ Generated self-contained HTML report: {}", output_file);
+    println!("✅ Generated self-contained HTML report: {output_file}");
     Ok(())
 }
 

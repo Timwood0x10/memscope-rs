@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 
                 image_buffers.push(buffer);
-                println!("   ✅ Created {}x{} image buffer ({} bytes)", width, height, size);
+                println!("   ✅ Created {width}x{height} image buffer ({size} bytes)");
             }
         }
     }
@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 
                 db_records.push(record);
-                println!("   ✅ Allocated database record {} ({} bytes)", i, total_size);
+                println!("   ✅ Allocated database record {i} ({total_size} bytes)");
             }
         }
     }
@@ -162,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 
                 unsafe_allocations.push((ptr, layout));
-                println!("   ✅ Unsafe allocation {} ({} bytes)", i, size);
+                println!("   ✅ Unsafe allocation {i} ({size} bytes)");
             }
         }
     }
@@ -170,12 +170,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. String operations across FFI boundary
     println!("\n📝 4. String Operations (FFI)");
     
-    let strings = vec![
-        "Hello, FFI world!",
+    let strings = ["Hello, FFI world!",
         "Complex memory operations",
         "Cross-boundary transfers",
-        "Unsafe Rust analysis",
-    ];
+        "Unsafe Rust analysis"];
     
     let mut c_strings = Vec::new();
     for (i, rust_str) in strings.iter().enumerate() {
@@ -200,7 +198,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
                 
                 c_strings.push(c_ptr);
-                println!("   ✅ Transferred string {} to C memory ({} bytes)", i, len);
+                println!("   ✅ Transferred string {i} to C memory ({len} bytes)");
             }
         }
     }
@@ -242,7 +240,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         
                         ptr = new_ptr;
-                        println!("   ✅ Reallocated buffer {} to {} bytes", i, new_size);
+                        println!("   ✅ Reallocated buffer {i} to {new_size} bytes");
                     }
                 }
                 
@@ -273,7 +271,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Attempt second free
             match unsafe_ffi_tracker.track_enhanced_deallocation(test_ptr as usize) {
                 Ok(_) => println!("   ❌ Double-free not detected"),
-                Err(e) => println!("   ✅ Double-free detected: {}", e),
+                Err(e) => println!("   ✅ Double-free detected: {e}"),
             }
         }
     }
@@ -283,7 +281,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Demonstrate unsafe pointer validation attempts (these operations are actually safe)
     let aligned_check = (fake_ptr as usize) % std::mem::align_of::<usize>() == 0;
-    println!("   🔍 Fake pointer alignment check: {}", aligned_check);
+    println!("   🔍 Fake pointer alignment check: {aligned_check}");
     
     // Null pointer check (safe operation)
     if fake_ptr.is_null() {
@@ -301,7 +299,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     match unsafe_ffi_tracker.track_enhanced_deallocation(fake_ptr as usize) {
         Ok(_) => println!("   ❌ Invalid free not detected"),
-        Err(e) => println!("   ✅ Invalid free detected: {}", e),
+        Err(e) => println!("   ✅ Invalid free detected: {e}"),
     }
 
     // 6.5. Advanced Unsafe Operations Showcase
@@ -329,16 +327,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Unsafe slice creation from raw parts
             let unsafe_slice = slice::from_raw_parts(base_ptr as *const u8, 1024);
             let checksum: u32 = unsafe_slice.iter().map(|&b| b as u32).sum();
-            println!("   🔢 Memory checksum: 0x{:08X}", checksum);
+            println!("   🔢 Memory checksum: 0x{checksum:08X}");
             
             // Unsafe memory comparison
             let cmp_result = std::ptr::eq(base_ptr, offset_ptr.byte_sub(256));
-            println!("   🔍 Pointer equality check: {}", cmp_result);
+            println!("   🔍 Pointer equality check: {cmp_result}");
             
             // Unsafe volatile operations
             std::ptr::write_volatile(end_ptr as *mut u8, 0x42);
             let volatile_read = std::ptr::read_volatile(end_ptr as *const u8);
-            println!("   📡 Volatile read result: 0x{:02X}", volatile_read);
+            println!("   📡 Volatile read result: 0x{volatile_read:02X}");
             
             mock_free(base_ptr);
         }
@@ -359,7 +357,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         unsafe_union.as_floats = [std::f32::consts::PI, std::f32::consts::E];
         let reinterpreted = unsafe_union.as_u64;
-        println!("   🔀 Union reinterpreted: 0x{:016X}", reinterpreted);
+        println!("   🔀 Union reinterpreted: 0x{reinterpreted:016X}");
         
         // Unsafe transmutation (demonstrating both safe and unsafe approaches)
         let float_bits: u32 = f32::to_bits(std::f32::consts::PI); // Safe approach
@@ -374,12 +372,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let unsafe_struct = UnsafeStruct { a: 0x1234, b: 0x5678 };
         let as_u32: u32 = std::mem::transmute(unsafe_struct);
-        println!("   🔄 Unsafe struct transmute: {{a: 0x1234, b: 0x5678}} -> 0x{:08X}", as_u32);
+        println!("   🔄 Unsafe struct transmute: {{a: 0x1234, b: 0x5678}} -> 0x{as_u32:08X}");
         
         // Unsafe transmutation between function pointers
         let fn_ptr: fn() = || {};
-        let raw_fn_ptr: *const () = std::mem::transmute(fn_ptr);
-        println!("   🔄 Function pointer transmute: {:p}", raw_fn_ptr);
+        let raw_fn_ptr: *const () = fn_ptr as *const ();
+        println!("   🔄 Function pointer transmute: {raw_fn_ptr:p}");
     }
 
     // 7. Create some intentional leaks
@@ -400,7 +398,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let offset_ptr = leak_ptr.byte_add(128);
                 *(offset_ptr as *mut u32) = 0xDEADBEEF;
                 
-                println!("   ⚠️  Created intentional leak {} ({} bytes)", i, leak_size);
+                println!("   ⚠️  Created intentional leak {i} ({leak_size} bytes)");
                 // Not freeing these intentionally
             }
         }
@@ -415,7 +413,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Unsafe validation before cleanup
             if !buffer.is_null() {
                 let first_byte = *(buffer as *const u8);
-                println!("   🧹 Cleaning image buffer (first byte: 0x{:02X})", first_byte);
+                println!("   🧹 Cleaning image buffer (first byte: 0x{first_byte:02X})");
             }
             image_free_buffer(buffer);
         }
@@ -427,7 +425,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Unsafe memory inspection before cleanup
             if !record.is_null() {
                 let header = *(record as *const u32);
-                println!("   🧹 Cleaning DB record (header: 0x{:08X})", header);
+                println!("   🧹 Cleaning DB record (header: 0x{header:08X})");
             }
             db_free_record(record);
         }
@@ -439,7 +437,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Additional unsafe validation
             let size_check = layout.size();
             if size_check > 0 {
-                println!("   🧹 Deallocating unsafe memory ({} bytes)", size_check);
+                println!("   🧹 Deallocating unsafe memory ({size_check} bytes)");
             }
             dealloc(ptr, layout); 
         }
@@ -456,7 +454,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     len += 1;
                     ptr = ptr.add(1);
                 }
-                println!("   🧹 Cleaning C string (length: {})", len);
+                println!("   🧹 Cleaning C string (length: {len})");
             }
             mock_free(c_str as *mut c_void);
         }
@@ -468,7 +466,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !buffer.is_null() {
                 // Unsafe pattern check
                 let pattern = *(buffer as *const u64);
-                println!("   🧹 Cleaning dynamic buffer (pattern: 0x{:016X})", pattern);
+                println!("   🧹 Cleaning dynamic buffer (pattern: 0x{pattern:016X})");
             }
             mock_free(buffer);
         }
@@ -511,15 +509,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("\n   📈 Allocation Sources:");
     for (source, count) in source_counts {
-        println!("      • {}: {}", source, count);
+        println!("      • {source}: {count}");
     }
     
     println!("\n   📈 FFI Libraries:");
     for (library, count) in library_counts {
-        println!("      • {}: {}", library, count);
+        println!("      • {library}: {count}");
     }
     
-    println!("   📈 Total boundary events: {}", total_boundary_events);
+    println!("   📈 Total boundary events: {total_boundary_events}");
 
     // 10. Generate reports
     println!("\n📁 10. Generating Reports");
@@ -557,7 +555,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   • FFI Libraries: libc, libimage, libdb");
     println!("   • Operations: image processing, database records, string transfers");
     println!("   • Safety violations: {} detected", violations.len());
-    println!("   • Cross-boundary events: {} total", total_boundary_events);
+    println!("   • Cross-boundary events: {total_boundary_events} total");
     println!("   • Memory leaks: {} potential leaks", leaks.len());
 
     Ok(())

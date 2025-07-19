@@ -28,16 +28,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Export interactive HTML report
     let html_path = "memory_analysis_report.html";
-    println!("📊 Exporting interactive HTML report to: {}", html_path);
+    println!("📊 Exporting interactive HTML report to: {html_path}");
     
     export_interactive_html(
         &tracker, 
         Some(&unsafe_ffi_tracker), 
         html_path
     )?;
+
+
+    let json_path = "demo_json.jsom";
+    tracker.export_to_json(json_path);
+    println!("export json ");
     
     println!("✅ HTML report generated successfully!");
-    println!("📂 Open '{}' in your web browser to view the interactive analysis", html_path);
+    println!("📂 Open '{html_path}' in your web browser to view the interactive analysis");
     println!("🌐 The report works offline and includes:");
     println!("   • 📊 Memory analysis dashboard");
     println!("   • ⏱️ Lifecycle timeline visualization");
@@ -49,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Export another report with unsafe data
     let html_path_with_unsafe = "memory_analysis_with_unsafe.html";
-    println!("📊 Exporting report with unsafe operations to: {}", html_path_with_unsafe);
+    println!("📊 Exporting report with unsafe operations to: {html_path_with_unsafe}");
     
     export_interactive_html(
         &tracker, 
@@ -66,7 +71,7 @@ fn create_sample_allocations() {
     // Create various types of allocations for demonstration
     
     // 1. Basic collections
-    let mut numbers = vec![1, 2, 3, 4, 5];
+    let numbers = vec![1, 2, 3, 4, 5];
     track_var!(numbers);
     
     let mut large_vec: Vec<u64> = Vec::with_capacity(1000);

@@ -140,7 +140,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
     if clean_type.contains("Vec<") || clean_type.contains("vec::Vec") {
         let inner = extract_generic_inner_type(clean_type, "Vec");
         return (
-            format!("Vec<{}>", inner),
+            format!("Vec<{inner}>"),
             "Collections".to_string(),
             "Vec<T>".to_string(),
         );
@@ -319,7 +319,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
     if clean_type.contains("Box<") {
         let inner = extract_generic_inner_type(clean_type, "Box");
         return (
-            format!("Box<{}>", inner),
+            format!("Box<{inner}>"),
             "Smart Pointers".to_string(),
             "Box<T>".to_string(),
         );
@@ -328,7 +328,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
     if clean_type.contains("Rc<") {
         let inner = extract_generic_inner_type(clean_type, "Rc");
         return (
-            format!("Rc<{}>", inner),
+            format!("Rc<{inner}>"),
             "Smart Pointers".to_string(),
             "Rc<T>".to_string(),
         );
@@ -337,7 +337,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
     if clean_type.contains("Arc<") {
         let inner = extract_generic_inner_type(clean_type, "Arc");
         return (
-            format!("Arc<{}>", inner),
+            format!("Arc<{inner}>"),
             "Smart Pointers".to_string(),
             "Arc<T>".to_string(),
         );
@@ -350,7 +350,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
 
 /// Extract generic inner type for display
 fn extract_generic_inner_type(type_name: &str, container: &str) -> String {
-    if let Some(start) = type_name.find(&format!("{}<", container)) {
+    if let Some(start) = type_name.find(&format!("{container}<")) {
         let start = start + container.len() + 1;
         if let Some(end) = type_name[start..].rfind('>') {
             let inner = &type_name[start..start + end];
@@ -381,7 +381,7 @@ fn extract_and_accumulate_inner_types_enhanced(
             .or_insert((0, 0, Vec::new()));
         entry.0 += size / 4; // Rough estimation of inner type contribution
         entry.1 += count;
-        entry.2.push(format!("from {}", type_name));
+        entry.2.push(format!("from {type_name}"));
         // tracing::info!("Accumulated {} bytes for inner type '{}' from '{}'", size / 4, inner_type, type_name);
     }
 }
@@ -399,9 +399,9 @@ fn extract_inner_primitive_types_enhanced(type_name: &str) -> Vec<String> {
     for primitive in &primitives {
         if type_name.contains(primitive) {
             // Make sure it's actually the primitive type, not part of another word
-            if type_name.contains(&format!("{}>", primitive))
-                || type_name.contains(&format!("{},", primitive))
-                || type_name.contains(&format!(" {}", primitive))
+            if type_name.contains(&format!("{primitive}>"))
+                || type_name.contains(&format!("{primitive},"))
+                || type_name.contains(&format!(" {primitive}"))
                 || type_name.ends_with(primitive)
             {
                 inner_types.push(primitive.to_string());
@@ -751,19 +751,19 @@ pub fn add_enhanced_header(
         }, 100.0, "#e74c3c"),
         (
             "Active Allocs",
-            format!("{}", active_allocations),
+            format!("{active_allocations}"),
             (active_allocations as f64 / 1000.0 * 100.0).min(100.0),
             "#2ecc71",
         ),
         (
             "Reclamation",
-            format!("{:.1}%", memory_reclamation_rate),
+            format!("{memory_reclamation_rate:.1}%"),
             memory_reclamation_rate,
             "#f39c12",
         ),
         (
             "Efficiency",
-            format!("{:.1}%", allocator_efficiency),
+            format!("{allocator_efficiency:.1}%"),
             allocator_efficiency,
             "#9b59b6",
         ),
@@ -781,7 +781,7 @@ pub fn add_enhanced_header(
         ),
         (
             "Fragmentation",
-            format!("{:.1}%", memory_fragmentation),
+            format!("{memory_fragmentation:.1}%"),
             memory_fragmentation,
             "#95a5a6",
         ),
@@ -856,18 +856,18 @@ pub fn add_enhanced_header(
             .set("stroke-linecap", "round")
             .set(
                 "stroke-dasharray",
-                format!("{} {}", circumference, circumference),
+                format!("{circumference} {circumference}"),
             )
             .set("stroke-dashoffset", progress_offset)
             .set(
                 "transform",
-                format!("rotate(-90 {} {})", ring_center_x, ring_center_y),
+                format!("rotate(-90 {ring_center_x} {ring_center_y})"),
             )
             .set("style", "transition: stroke-dashoffset 0.5s ease;");
         document = document.add(progress_ring);
 
         // Percentage text in center of ring
-        let percent_text = SvgText::new(format!("{:.0}%", percentage))
+        let percent_text = SvgText::new(format!("{percentage:.0}%"))
             .set("x", ring_center_x)
             .set("y", ring_center_y + 4)
             .set("text-anchor", "middle")
@@ -1013,7 +1013,6 @@ struct IntegratedTreemapArea {
 }
 
 /// Render integrated treemap with real data - placeholder function
-
 /// Render treemap with real memory data matching task.md layout
 fn render_real_data_treemap(
     mut document: Document,
@@ -1329,7 +1328,7 @@ fn build_collections_node(
     for collection_type in collections_types {
         subcategory_groups
             .entry(collection_type.subcategory.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(collection_type);
     }
 
@@ -1368,7 +1367,7 @@ fn build_collections_node(
                 .to_string();
 
             collections_children.push(TreemapNode {
-                name: format!("{} ({:.1}%)", subcategory, relative_percentage),
+                name: format!("{subcategory} ({relative_percentage:.1}%)"),
                 size: category_total,
                 percentage: (category_total as f64 / total_memory as f64) * 100.0,
                 color,
@@ -1419,7 +1418,7 @@ fn build_basic_types_node(basic_types: &[&EnhancedTypeInfo], total_memory: usize
     for basic_type in basic_types {
         subcategory_groups
             .entry(basic_type.subcategory.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(basic_type);
     }
 
@@ -1458,7 +1457,7 @@ fn build_basic_types_node(basic_types: &[&EnhancedTypeInfo], total_memory: usize
                 .to_string();
 
             basic_types_children.push(TreemapNode {
-                name: format!("{} ({:.1}%)", subcategory, relative_percentage),
+                name: format!("{subcategory} ({relative_percentage:.1}%)"),
                 size: category_total,
                 percentage: (category_total as f64 / total_memory as f64) * 100.0,
                 color,
@@ -1765,7 +1764,7 @@ fn render_smart_horizontal_band(
 
         // Child percentage
         let percentage_text = if let Some(pct) = child_relative_percentage {
-            format!("({})", pct)
+            format!("({pct})")
         } else {
             format!(
                 "({:.0}%)",
@@ -2156,7 +2155,7 @@ pub fn add_memory_timeline(
                 simplified_type
             };
             
-            let label_text = format!("{} ({}) {}", truncated_var_name, truncated_type, size_info);
+            let label_text = format!("{truncated_var_name} ({truncated_type}) {size_info}");
 
             let label = SvgText::new(label_text)
                 .set("x", label_start_x)
@@ -2194,7 +2193,7 @@ pub fn add_memory_timeline(
     // Add note about data limitation
     let total_tracked = tracked_allocs.len();
     if total_tracked > max_items {
-        let note_text = format!("Note: Showing top {} variables with highest memory usage and longest lifecycles (out of {} total tracked variables)", max_items, total_tracked);
+        let note_text = format!("Note: Showing top {max_items} variables with highest memory usage and longest lifecycles (out of {total_tracked} total tracked variables)");
         let note = SvgText::new(note_text)
             .set("x", chart_x + 20)
             .set("y", chart_y + chart_height - 10)
@@ -2738,7 +2737,6 @@ pub fn add_comprehensive_summary(
 }
 
 /// Add CSS styles for interactive elements
-
 /// Add enhanced memory allocation timeline with multiple visualization options
 pub fn add_enhanced_timeline_dashboard(
     mut document: Document,
@@ -2791,12 +2789,10 @@ pub fn add_enhanced_timeline_dashboard(
     document = document.add(dashboard_title);
     
     // Create circular progress indicators
-    let metrics = vec![
-        ("Active Memory", memory_efficiency, "#3498db"),
+    let metrics = [("Active Memory", memory_efficiency, "#3498db"),
         ("Allocation Efficiency", allocation_efficiency, "#2ecc71"),
         ("Memory Fragmentation", 100.0 - fragmentation_ratio, "#e74c3c"),
-        ("Peak Usage", if stats.peak_memory > 0 { (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0 } else { 0.0 }, "#f39c12"),
-    ];
+        ("Peak Usage", if stats.peak_memory > 0 { (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0 } else { 0.0 }, "#f39c12")];
     
     for (i, (label, percentage, color)) in metrics.iter().enumerate() {
         let x = 200 + i * 350;
@@ -2827,12 +2823,12 @@ pub fn add_enhanced_timeline_dashboard(
             .set("stroke-width", 8)
             .set("stroke-dasharray", dash_array)
             .set("stroke-dashoffset", 0)
-            .set("transform", format!("rotate(-90 {} {})", x, y))
+            .set("transform", format!("rotate(-90 {x} {y})"))
             .set("stroke-linecap", "round");
         document = document.add(progress_circle);
         
         // Percentage text
-        let percentage_text = SvgText::new(&format!("{:.0}%", percentage))
+        let percentage_text = SvgText::new(format!("{percentage:.0}%"))
             .set("x", x)
             .set("y", y + 5)
             .set("text-anchor", "middle")
@@ -2923,7 +2919,7 @@ pub fn add_enhanced_timeline_dashboard(
         let scope_name = extract_scope_name(var.var_name.as_ref().unwrap());
         scope_groups
             .entry(scope_name)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(*var);
     }
 
@@ -3063,7 +3059,7 @@ pub fn add_enhanced_timeline_dashboard(
 
         // Format time more readably
         let formatted_time = if time_point < 1000.0 {
-            format!("{:.1}ms", time_point)
+            format!("{time_point:.1}ms")
         } else if time_point < 60000.0 {
             format!("{:.2}s", time_point / 1000.0)
         } else {
@@ -3123,7 +3119,7 @@ pub fn add_enhanced_timeline_dashboard(
         document = document.add(scope_bg);
 
         // Scope name label
-        let scope_label = SvgText::new(format!("Scope: {}", scope_name))
+        let scope_label = SvgText::new(format!("Scope: {scope_name}"))
             .set("x", plot_x - 15)
             .set("y", scope_y + (row_height * 0.4) as i32)
             .set("text-anchor", "end")
@@ -3254,7 +3250,7 @@ pub fn add_enhanced_timeline_dashboard(
 
     // Compact system allocation label
     let unknown_label = if unknown_count > 0 {
-        format!("System ({} allocs)", unknown_count)
+        format!("System ({unknown_count} allocs)")
     } else {
         "No System Allocs".to_string()
     };
@@ -3297,7 +3293,7 @@ pub fn add_enhanced_timeline_dashboard(
     // Add note about data limitation for Memory Allocation Timeline
     let total_tracked = tracked_vars.len();
     if total_tracked > max_vars_to_show {
-        let note_text = format!("Note: Showing top {} variables with highest memory usage and longest lifecycles (out of {} total tracked variables)", max_vars_to_show, total_tracked);
+        let note_text = format!("Note: Showing top {max_vars_to_show} variables with highest memory usage and longest lifecycles (out of {total_tracked} total tracked variables)");
         let note = SvgText::new(note_text)
             .set("x", chart_x + 20)
             .set("y", chart_y + chart_height - 10)
