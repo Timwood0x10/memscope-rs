@@ -220,3 +220,14 @@ pub fn init() {
 
     tracing::info!("memscope-rs initialized");
 }
+
+/// Enable automatic JSON export when program ends
+/// Call this at the beginning of your program to enable auto-export
+pub fn enable_auto_export(export_path: Option<&str>) {
+    std::env::set_var("MEMSCOPE_AUTO_EXPORT", "1");
+    if let Some(path) = export_path {
+        std::env::set_var("MEMSCOPE_EXPORT_PATH", path);
+    }
+    println!("📋 Auto-export enabled - JSON will be exported to: {}", 
+             export_path.unwrap_or("memscope_final_snapshot.json"));
+}

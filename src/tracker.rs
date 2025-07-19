@@ -1705,3 +1705,25 @@ pub fn exit_scope(scope_id: crate::scope_tracker::ScopeId) -> TrackingResult<()>
     let manager = TrackingManager::new();
     manager.exit_scope(scope_id)
 }
+
+impl Drop for MemoryTracker {
+    fn drop(&mut self) {
+        // Auto-export JSON before cleanup if enabled
+        if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
+            let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
+                .unwrap_or_else(|_| "memscope_final_snapshot.json".to_string());
+            
+            println!("🔄 Auto-exporting final memory snapshot to: {}", export_path);
+            if let Err(e) = self.export_to_json(&export_path) {
+                eprintln!("❌ Failed to auto-export JSON: {}", e);
+            } else {
+                println!("✅ Final memory snapshot exported successfully");
+            }
+        }
+        
+        // Clean up any remaining allocations
+        if let Ok(mut active) = self.active_allocations.lock() {
+            active.clear();
+        }
+    }
+}
