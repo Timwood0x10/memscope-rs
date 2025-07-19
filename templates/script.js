@@ -163,30 +163,75 @@ class MemScopeVisualizer {
         allocationsToProcess.forEach(alloc => {
             let typeName = alloc.type_name;
             
-            // 改进类型推断逻辑
-            if (!typeName || typeName === 'Unknown' || typeName === null) {
-                // 基于大小和变量名推断类型
-                if (alloc.size <= 8) {
-                    typeName = 'Small Primitive';
-                } else if (alloc.size <= 32) {
-                    typeName = 'Medium Object';
-                } else if (alloc.size <= 1024) {
-                    typeName = 'Large Structure';
-                } else {
-                    typeName = 'Buffer/Collection';
-                }
-                
-                // 基于变量名进一步推断
-                if (alloc.var_name) {
+            // 智能类型推断 - 充分利用JSON中的完整数据
+            if (!typeName || typeName === 'Unknown' || typeName === null || typeName === '') {
+                // 优先基于变量名推断（JSON中有完整的变量名）
+                if (alloc.var_name && alloc.var_name !== 'unknown') {
                     const varName = alloc.var_name.toLowerCase();
-                    if (varName.includes('vec') || varName.includes('array')) {
-                        typeName = 'Vec/Array';
+                    if (varName.includes('vec') || varName.includes('vector')) {
+                        typeName = 'Vec<T>';
                     } else if (varName.includes('string') || varName.includes('str')) {
                         typeName = 'String';
                     } else if (varName.includes('map') || varName.includes('hash')) {
-                        typeName = 'HashMap/Map';
-                    } else if (varName.includes('box') || varName.includes('ptr')) {
-                        typeName = 'Box/Pointer';
+                        typeName = 'HashMap<K,V>';
+                    } else if (varName.includes('box')) {
+                        typeName = 'Box<T>';
+                    } else if (varName.includes('rc')) {
+                        typeName = 'Rc<T>';
+                    } else if (varName.includes('arc')) {
+                        typeName = 'Arc<T>';
+                    } else if (varName.includes('buffer') || varName.includes('buf')) {
+                        typeName = 'Buffer';
+                    } else if (varName.includes('data') || varName.includes('value')) {
+                        // 基于大小进一步细化
+                        if (alloc.size <= 8) {
+                            typeName = 'Primitive';
+                        } else if (alloc.size <= 64) {
+                            typeName = 'Struct';
+                        } else {
+                            typeName = 'Complex Data';
+                        }
+                    } else {
+                        // 基于大小推断
+                        if (alloc.size <= 8) {
+                            typeName = 'Small Value';
+                        } else if (alloc.size <= 32) {
+                            typeName = 'Medium Object';
+                        } else if (alloc.size <= 1024) {
+                            typeName = 'Large Structure';
+                        } else {
+                            typeName = 'Buffer/Collection';
+                        }
+                    }
+                } else {
+                    // 没有变量名时，基于大小和调用栈推断
+                    if (alloc.call_stack && alloc.call_stack.length > 0) {
+                        const topFrame = alloc.call_stack[0];
+                        if (topFrame.function_name) {
+                            const funcName = topFrame.function_name.toLowerCase();
+                            if (funcName.includes('vec') || funcName.includes('vector')) {
+                                typeName = 'Vec<T>';
+                            } else if (funcName.includes('string')) {
+                                typeName = 'String';
+                            } else if (funcName.includes('alloc')) {
+                                typeName = 'Raw Allocation';
+                            } else {
+                                typeName = 'Inferred Type';
+                            }
+                        }
+                    } else {
+                        // 最后基于大小推断
+                        if (alloc.size <= 8) {
+                            typeName = 'Primitive';
+                        } else if (alloc.size <= 32) {
+                            typeName = 'Small Struct';
+                        } else if (alloc.size <= 1024) {
+                            typeName = 'Medium Struct';
+                        } else if (alloc.size <= 1048576) {
+                            typeName = 'Large Buffer';
+                        } else {
+                            typeName = 'Huge Object';
+                        }
                     }
                 }
             }
@@ -234,7 +279,7 @@ class MemScopeVisualizer {
                 <span class="type-name">${alloc.var_name}</span>
                 <div class="type-stats">
                     <span class="type-size">${this.formatBytes(alloc.size)}</span>
-                    <span class="type-count">${alloc.type_name || 'Unknown'}</span>
+                    <span class="type-count">${this.getDisplayTypeName(alloc)}</span>
                 </div>
             </div>
         `).join('');
@@ -398,7 +443,7 @@ class MemScopeVisualizer {
                     <span class="allocation-name">${alloc.var_name || `Ptr ${alloc.ptr.toString(16)}`}</span>
                     <span class="allocation-size">${this.formatBytes(alloc.size)}</span>
                 </div>
-                <div class="allocation-type">${alloc.type_name || 'Unknown Type'}</div>
+                <div class="allocation-type">${this.getDisplayTypeName(alloc)}</div>
                 <div class="allocation-details">
                     <div>Address: 0x${alloc.ptr.toString(16)}</div>
                     <div>Timestamp: ${new Date(alloc.timestamp / 1000000).toLocaleString()}</div>
@@ -431,7 +476,7 @@ class MemScopeVisualizer {
         
         const details = `
             Variable: ${alloc.var_name || 'Unnamed'}
-            Type: ${alloc.type_name || 'Unknown'}
+            Type: ${this.getDisplayTypeName(alloc)}
             Size: ${this.formatBytes(alloc.size)}
             Address: 0x${alloc.ptr.toString(16)}
             Timestamp: ${new Date(alloc.timestamp / 1000000).toLocaleString()}
@@ -729,7 +774,7 @@ class MemScopeVisualizer {
                 this.showTooltip(e, {
                     title: allocation.var_name || `Allocation ${allocation.ptr.toString(16)}`,
                     size: this.formatBytes(allocation.size),
-                    type: allocation.type_name || 'Unknown',
+                    type: this.getDisplayTypeName(allocation),
                     timestamp: new Date(allocation.timestamp / 1000000).toLocaleString()
                 });
             });
@@ -752,7 +797,7 @@ class MemScopeVisualizer {
         
         // 聚合类型数据
         this.data.allocations.forEach(alloc => {
-            const typeName = alloc.type_name || 'Unknown';
+            const typeName = this.getDisplayTypeName(alloc);
             if (!typeMap.has(typeName)) {
                 typeMap.set(typeName, { size: 0, count: 0, color: this.getTypeColor(typeName) });
             }
@@ -968,6 +1013,71 @@ class MemScopeVisualizer {
         `).join('');
     }
 
+    // 获取显示用的类型名称 - 智能推断，避免显示Unknown
+    getDisplayTypeName(alloc) {
+        let typeName = alloc.type_name;
+        
+        // 如果类型名为空或Unknown，进行智能推断
+        if (!typeName || typeName === 'Unknown' || typeName === null || typeName === '') {
+            // 优先基于变量名推断
+            if (alloc.var_name && alloc.var_name !== 'unknown') {
+                const varName = alloc.var_name.toLowerCase();
+                if (varName.includes('vec') || varName.includes('vector')) {
+                    return 'Vec<T>';
+                } else if (varName.includes('string') || varName.includes('str')) {
+                    return 'String';
+                } else if (varName.includes('map') || varName.includes('hash')) {
+                    return 'HashMap<K,V>';
+                } else if (varName.includes('box')) {
+                    return 'Box<T>';
+                } else if (varName.includes('rc')) {
+                    return 'Rc<T>';
+                } else if (varName.includes('arc')) {
+                    return 'Arc<T>';
+                } else if (varName.includes('buffer') || varName.includes('buf')) {
+                    return 'Buffer';
+                } else {
+                    // 基于大小推断
+                    if (alloc.size <= 8) {
+                        return 'Primitive';
+                    } else if (alloc.size <= 64) {
+                        return 'Small Struct';
+                    } else if (alloc.size <= 1024) {
+                        return 'Medium Struct';
+                    } else {
+                        return 'Large Object';
+                    }
+                }
+            } else {
+                // 基于调用栈推断
+                if (alloc.call_stack && alloc.call_stack.length > 0) {
+                    const topFrame = alloc.call_stack[0];
+                    if (topFrame.function_name) {
+                        const funcName = topFrame.function_name.toLowerCase();
+                        if (funcName.includes('vec')) return 'Vec<T>';
+                        if (funcName.includes('string')) return 'String';
+                        if (funcName.includes('alloc')) return 'Raw Allocation';
+                    }
+                }
+                
+                // 最后基于大小推断
+                if (alloc.size <= 8) {
+                    return 'Primitive';
+                } else if (alloc.size <= 32) {
+                    return 'Small Object';
+                } else if (alloc.size <= 1024) {
+                    return 'Medium Object';
+                } else if (alloc.size <= 1048576) {
+                    return 'Large Buffer';
+                } else {
+                    return 'Huge Object';
+                }
+            }
+        }
+        
+        return typeName;
+    }
+
     loadMoreAllocations() {
         // 实现加载更多功能
         console.log('Loading more allocations...');
@@ -988,20 +1098,65 @@ class MemScopeVisualizer {
     }
 
     getTypeColor(typeName) {
-        if (!typeName || typeName === 'Unknown' || typeName === null) {
-            return '#95a5a6';
+        // 处理空值情况
+        if (!typeName || typeName === 'Unknown' || typeName === null || typeName === '') {
+            return '#95a5a6'; // 灰色表示未知
         }
         
+        // 扩展的颜色映射 - 覆盖更多Rust类型
         const colors = {
+            // 集合类型
+            'Vec<T>': '#3498db',
             'Vec': '#3498db',
-            'String': '#2ecc71', 
-            'Box': '#e74c3c',
+            'vector': '#3498db',
+            'Array': '#2980b9',
+            'HashMap<K,V>': '#9b59b6',
             'HashMap': '#9b59b6',
-            'BTreeMap': '#f39c12',
-            'Small Object': '#1abc9c',
-            'Medium Structure': '#3498db',
-            'Large Buffer': '#e74c3c',
-            'Huge Object': '#8e44ad'
+            'BTreeMap': '#8e44ad',
+            'HashSet': '#e67e22',
+            
+            // 字符串类型
+            'String': '#2ecc71',
+            'str': '#27ae60',
+            '&str': '#27ae60',
+            
+            // 智能指针
+            'Box<T>': '#e74c3c',
+            'Box': '#e74c3c',
+            'Rc<T>': '#f39c12',
+            'Rc': '#f39c12',
+            'Arc<T>': '#d35400',
+            'Arc': '#d35400',
+            'RefCell': '#e67e22',
+            
+            // 基础类型
+            'Primitive': '#1abc9c',
+            'Small Value': '#16a085',
+            'i32': '#1abc9c',
+            'i64': '#1abc9c',
+            'u32': '#16a085',
+            'u64': '#16a085',
+            'f32': '#17a2b8',
+            'f64': '#17a2b8',
+            'bool': '#6f42c1',
+            
+            // 结构体类型
+            'Struct': '#34495e',
+            'Small Struct': '#2c3e50',
+            'Medium Struct': '#34495e',
+            'Complex Data': '#5d6d7e',
+            
+            // 缓冲区类型
+            'Buffer': '#f1c40f',
+            'Large Buffer': '#f39c12',
+            'Huge Object': '#e74c3c',
+            'Raw Allocation': '#95a5a6',
+            
+            // 推断类型
+            'Inferred Type': '#7f8c8d',
+            'Medium Object': '#85929e',
+            'Large Structure': '#566573',
+            'Buffer/Collection': '#f4d03f'
         };
         
         // 精确匹配
@@ -1009,18 +1164,35 @@ class MemScopeVisualizer {
             return colors[typeName];
         }
         
-        // 部分匹配
-        for (const [key, color] of Object.entries(colors)) {
-            if (typeName.includes(key)) return color;
+        // 部分匹配 - 按优先级排序
+        const partialMatches = [
+            ['Vec', '#3498db'],
+            ['String', '#2ecc71'],
+            ['Box', '#e74c3c'],
+            ['Rc', '#f39c12'],
+            ['Arc', '#d35400'],
+            ['HashMap', '#9b59b6'],
+            ['Map', '#8e44ad'],
+            ['Set', '#e67e22'],
+            ['Buffer', '#f1c40f'],
+            ['Primitive', '#1abc9c'],
+            ['Struct', '#34495e'],
+            ['Data', '#5d6d7e']
+        ];
+        
+        for (const [pattern, color] of partialMatches) {
+            if (typeName.includes(pattern)) {
+                return color;
+            }
         }
         
-        // 为其他类型生成一致的颜色
+        // 为其他类型生成一致的颜色（基于类型名哈希）
         let hash = 0;
         for (let i = 0; i < typeName.length; i++) {
             hash = typeName.charCodeAt(i) + ((hash << 5) - hash);
         }
         const hue = Math.abs(hash) % 360;
-        return `hsl(${hue}, 70%, 50%)`;
+        return `hsl(${hue}, 65%, 55%)`; // 稍微调整饱和度和亮度
     }
 
     getTimeColor(intensity) {
@@ -1143,7 +1315,7 @@ class MemScopeVisualizer {
                 
             case 'type':
                 const typeColors = new Map();
-                const uniqueTypes = [...new Set(allocations.map(a => a.type_name || 'Unknown'))];
+                const uniqueTypes = [...new Set(allocations.map(a => this.getDisplayTypeName(a)))];
                 uniqueTypes.forEach((type, index) => {
                     typeColors.set(type, this.getTypeColor(type));
                 });
