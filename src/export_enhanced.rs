@@ -744,7 +744,11 @@ pub fn add_enhanced_header(
             (active_memory as f64 / peak_memory.max(1) as f64 * 100.0).min(100.0),
             "#3498db",
         ),
-        ("Peak Memory", format_bytes(peak_memory), 100.0, "#e74c3c"),
+        ("Peak Memory", {
+            let formatted = format_bytes(peak_memory);
+            tracing::info!("SVG add_enhanced_header - Formatting peak_memory: {} bytes -> {}", peak_memory, formatted);
+            formatted
+        }, 100.0, "#e74c3c"),
         (
             "Active Allocs",
             format!("{}", active_allocations),

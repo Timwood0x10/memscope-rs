@@ -61,6 +61,9 @@ pub fn export_interactive_html<P: AsRef<Path>>(
 fn generate_memory_analysis_svg_data(tracker: &MemoryTracker) -> TrackingResult<String> {
     use crate::visualization::export_memory_analysis;
     
+    // FIXED: Also create the main SVG file with correct peak memory values
+    export_memory_analysis(tracker, "moderate_unsafe_ffi_memory_analysis.svg")?;
+    
     // Create temporary file for SVG
     let temp_path = "tmp_rovodev_memory_analysis.svg";
     export_memory_analysis(tracker, temp_path)?;

@@ -524,8 +524,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 10. Generate reports
     println!("\n📁 10. Generating Reports");
     
-    tracker.export_memory_analysis("moderate_unsafe_ffi_memory_analysis.svg")?;
-    println!("   ✅ Standard memory analysis exported");
+    // FIXED: Remove early SVG export that uses incorrect peak memory values
+    // The correct SVG will be generated during HTML export with accurate data
     
     tracker.export_lifecycle_timeline("moderate_unsafe_ffi_lifecycle_timeline.svg")?;
     println!("   ✅ Lifecycle timeline exported");

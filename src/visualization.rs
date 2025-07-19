@@ -31,8 +31,13 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
         }
     }
 
-    let active_allocations = tracker.get_active_allocations()?;
+    // FIXED: Get stats and allocations at the same time to ensure data consistency
     let stats = tracker.get_stats()?;
+    let active_allocations = tracker.get_active_allocations()?;
+    
+    // Debug: Log the peak memory value used in SVG export
+    tracing::info!("SVG Export - Using peak_memory: {} bytes ({})", 
+                   stats.peak_memory, crate::utils::format_bytes(stats.peak_memory));
 
     let document = create_memory_analysis_svg(&active_allocations, &stats, tracker)?;
 
@@ -973,7 +978,9 @@ fn render_scope_matrix_fixed(
     // ENHANCED SCOPE LIFETIME CALCULATION
     let duration = calculate_scope_lifetime(scope_name, vars);
     let total_memory = vars.iter().map(|v| v.size).sum::<usize>();
-    let _peak_memory = vars.iter().map(|v| v.size).max().unwrap_or(0);
+    // FIXED: Remove incorrect peak_memory calculation - this was calculating max single allocation
+    // instead of peak total memory. Peak memory should come from stats.peak_memory which is
+    // the historical maximum of total active memory, not the maximum single allocation size.
     let active_vars = vars.len();
 
     // Calculate duration ratio (0.0 to 1.0)
