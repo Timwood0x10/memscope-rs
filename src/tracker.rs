@@ -214,7 +214,7 @@ impl MemoryTracker {
         }
     }
 
-    /// Get memory usage grouped by type.
+    /// Get memory usage grouped by type with smart inference.
     pub fn get_memory_by_type(&self) -> TrackingResult<Vec<TypeMemoryUsage>> {
         // Clone the active allocations to avoid holding the lock for too long
         let active_clone = {
@@ -229,11 +229,27 @@ impl MemoryTracker {
         };
 
         let mut type_usage: HashMap<String, (usize, usize)> = HashMap::with_capacity(active_clone.len());
+        let registry = crate::variable_registry::VariableRegistry::get_all_variables();
 
         for allocation in active_clone {
-            let type_name = allocation
-                .type_name
-                .unwrap_or("Unknown".to_string());
+            // Use smart inference to get type name - same logic as in variable_registry
+            let type_name = if let Some(var_info) = registry.get(&allocation.ptr) {
+                // Highest priority: registry data
+                var_info.type_name.clone()
+            } else if let Some(existing_type) = &allocation.type_name {
+                if existing_type != "Unknown" {
+                    // Use existing type if it's not Unknown
+                    existing_type.clone()
+                } else {
+                    // Apply smart inference for Unknown types
+                    let (_, inferred_type) = crate::variable_registry::VariableRegistry::infer_allocation_info(&allocation);
+                    inferred_type
+                }
+            } else {
+                // Apply smart inference for missing types
+                let (_, inferred_type) = crate::variable_registry::VariableRegistry::infer_allocation_info(&allocation);
+                inferred_type
+            };
 
             let (total_size, count) = type_usage.entry(type_name).or_insert((0, 0));
             *total_size = total_size.saturating_add(allocation.size);
