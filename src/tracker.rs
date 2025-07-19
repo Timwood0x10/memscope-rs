@@ -306,11 +306,13 @@ impl MemoryTracker {
 
     /// Export enhanced JSON with complete timeline, call stacks, scope hierarchy, and variable relationships.
     /// This addresses all issues in current JSON output: no unknown types, precise variable names, complete data.
+    /// 
+    /// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         use std::fs::File;
         let path = path.as_ref();
         
-        println!("Generating enhanced JSON with complete data...");
+        println!("Generating enhanced JSON with complete data and log-based variable names...");
         
         // Get all data
         let active_allocations = self.get_active_allocations()?;
@@ -482,14 +484,23 @@ impl MemoryTracker {
             }
         });
         
-        // Write to file
-        let file = File::create(path)?;
+        // 1. 先导出到临时JSON文件
+        let temp_json_path = format!("{}.tmp", path.display());
+        let file = File::create(&temp_json_path)?;
         serde_json::to_writer_pretty(file, &enhanced_data).map_err(|e| {
             crate::types::TrackingError::SerializationError(format!("Enhanced JSON export failed: {e}"))
         })?;
+
+        // 2. 使用日志处理器增强JSON并清理临时文件
+        let enhanced_count = crate::var_log_processor::VarLogProcessor::process_and_cleanup(
+            "tmp_memscope_vars.log",
+            &temp_json_path,
+            path.to_str().unwrap_or("output.json"),
+        )?;
         
         println!("Enhanced JSON exported to: {}", path.display());
         println!("   {} allocations with precise names", enhanced_allocations.len());
+        println!("   {} variable names enhanced from log", enhanced_count);
         println!("   {} call stack entries", 0);
         println!("   {} scope levels", scope_hierarchy.get("levels").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0));
         println!("   {} variable relationships", variable_relationships.get("relationships").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0));

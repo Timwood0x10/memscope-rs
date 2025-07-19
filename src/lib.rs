@@ -19,6 +19,8 @@ pub mod scope_tracker;
 pub mod tracker;
 /// Type definitions and data structures
 pub mod types;
+/// Variable log processor for efficient variable name association
+pub mod var_log_processor;
 /// Unsafe and FFI operation tracking
 pub mod unsafe_ffi_tracker;
 /// Utility functions
@@ -141,24 +143,37 @@ macro_rules! track_var {
 
 /// Internal implementation function for the track_var! macro.
 /// This function should not be called directly.
+/// 
+/// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
 #[doc(hidden)]
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
     if let Some(ptr) = var.get_heap_ptr() {
         let tracker = get_global_tracker();
         let type_name = var.get_type_name().to_string();
 
-        // Debug: Print tracking attempt
-        // tracing::debug!(
-        //     "Tracking variable '{}' of type '{}' at ptr {:x}",
-        //     var_name,
-        //     type_name,
-        //     ptr
-        // );
+        // 1. 记录变量信息到临时日志文件（新增的关键步骤）
+        // 这确保即使变量后来被释放，名称信息也会被保留用于JSON导出
+        tracing::debug!("About to log variable '{}' to file", var_name);
+        let log_result = crate::var_log_processor::VarLogProcessor::log_variable(
+            "tmp_memscope_vars.log",
+            ptr,
+            var_name,
+            &type_name,
+        );
+        tracing::debug!("Log variable result: {:?}", log_result);
+
+        // 2. 原有的跟踪逻辑保持不变
+        tracing::debug!(
+            "Tracking variable '{}' of type '{}' at ptr 0x{:x}",
+            var_name,
+            type_name,
+            ptr
+        );
 
         tracker.associate_var(ptr, var_name.to_string(), type_name)
     } else {
         // Variable doesn't have a heap allocation (e.g., empty Vec)
-        // tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
+        tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
         Ok(())
     }
 }

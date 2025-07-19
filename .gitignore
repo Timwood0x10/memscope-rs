@@ -48,6 +48,7 @@ tarpaulin-report.html
 # Temporary files
 tmp_*
 temp_*
+*.tmp
 
 # HTML files
 *.html
