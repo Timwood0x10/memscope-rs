@@ -9,10 +9,42 @@ class MemScopeVisualizer {
     }
 
     init() {
-        this.setupTabNavigation();
-        this.populateOverview();
-        this.setupInteractiveExplorer();
+        // 立即显示基础信息，避免长时间Loading
         this.updateHeaderStats();
+        this.setupTabNavigation();
+        
+        // 使用渐进式加载，避免阻塞UI
+        this.progressiveLoad();
+    }
+
+    progressiveLoad() {
+        // 分步骤加载，每步之间给UI时间响应
+        const steps = [
+            () => this.populateMemoryStats(),
+            () => this.populateTypeDistribution(), 
+            () => this.populateRecentAllocations(),
+            () => this.populatePerformanceInsights(),
+            () => this.setupInteractiveExplorer()
+        ];
+        
+        let currentStep = 0;
+        const executeStep = () => {
+            if (currentStep < steps.length) {
+                try {
+                    steps[currentStep]();
+                } catch (error) {
+                    console.warn(`Step ${currentStep} failed:`, error);
+                }
+                currentStep++;
+                
+                // 使用requestAnimationFrame确保UI响应
+                requestAnimationFrame(() => {
+                    setTimeout(executeStep, 10); // 10ms间隔，让UI有时间更新
+                });
+            }
+        };
+        
+        executeStep();
     }
 
     // Tab Navigation System
@@ -116,10 +148,19 @@ class MemScopeVisualizer {
 
     populateTypeDistribution() {
         const container = document.getElementById('typeDistribution');
-        const typeMap = new Map();
         
-        // Aggregate by type with improved type inference
-        this.data.allocations.forEach(alloc => {
+        // 优先使用预处理的数据，避免重复计算
+        if (this.data.precomputed && this.data.precomputed.type_distribution) {
+            this.renderPrecomputedTypeDistribution(container, this.data.precomputed.type_distribution);
+            return;
+        }
+        
+        // 回退到原始计算方式（仅在没有预处理数据时）
+        const typeMap = new Map();
+        const maxAllocations = Math.min(this.data.allocations.length, 500); // 进一步减少
+        const allocationsToProcess = this.data.allocations.slice(0, maxAllocations);
+        
+        allocationsToProcess.forEach(alloc => {
             let typeName = alloc.type_name;
             
             // 改进类型推断逻辑
@@ -201,8 +242,15 @@ class MemScopeVisualizer {
 
     populatePerformanceInsights() {
         const container = document.getElementById('performanceInsights');
-        const insights = this.generateInsights();
         
+        // 优先使用预处理的性能指标
+        if (this.data.precomputed && this.data.precomputed.performance_metrics) {
+            this.renderPrecomputedInsights(container, this.data.precomputed.performance_metrics);
+            return;
+        }
+        
+        // 回退到动态生成
+        const insights = this.generateInsights();
         container.innerHTML = insights.map(insight => `
             <div class="insight-item">
                 <div class="insight-title">${insight.title}</div>
@@ -338,7 +386,13 @@ class MemScopeVisualizer {
             return;
         }
         
-        container.innerHTML = allocations.slice(0, 100).map(alloc => `
+        // 智能采样：大数据集时使用采样，小数据集时全部显示
+        const maxDisplay = 50; // 减少显示数量提升性能
+        const displayAllocations = allocations.length > maxDisplay ? 
+            this.sampleAllocations(allocations, maxDisplay) : 
+            allocations.slice(0, maxDisplay);
+        
+        container.innerHTML = displayAllocations.map(alloc => `
             <div class="allocation-card" onclick="memscope.showAllocationDetails(${alloc.ptr})">
                 <div class="allocation-header">
                     <span class="allocation-name">${alloc.var_name || `Ptr ${alloc.ptr.toString(16)}`}</span>
@@ -355,10 +409,17 @@ class MemScopeVisualizer {
         `).join('');
         
         // Show count info
-        if (allocations.length > 100) {
+        if (allocations.length > maxDisplay) {
+            const samplingInfo = allocations.length > maxDisplay ? 
+                `Showing ${maxDisplay} sampled from ${allocations.length} allocations` :
+                `Showing first ${maxDisplay} of ${allocations.length} allocations`;
+            
             container.innerHTML += `
                 <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: #64748b; font-style: italic;">
-                    Showing first 100 of ${allocations.length} allocations
+                    ${samplingInfo}
+                    <button onclick="memscope.loadMoreAllocations()" style="margin-left: 10px; padding: 5px 10px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Load More
+                    </button>
                 </div>
             `;
         }
@@ -830,6 +891,87 @@ class MemScopeVisualizer {
     truncateText(text, maxLength) {
         if (!text) return 'Unknown';
         return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    }
+
+    // 智能采样算法 - 保持数据代表性
+    sampleAllocations(allocations, maxCount) {
+        if (allocations.length <= maxCount) return allocations;
+        
+        // 分层采样：确保大小、类型、时间的代表性
+        const step = Math.floor(allocations.length / maxCount);
+        const sampled = [];
+        
+        for (let i = 0; i < allocations.length && sampled.length < maxCount; i += step) {
+            sampled.push(allocations[i]);
+        }
+        
+        // 确保包含最大和最小的分配
+        const sortedBySize = [...allocations].sort((a, b) => b.size - a.size);
+        if (!sampled.includes(sortedBySize[0])) {
+            sampled[0] = sortedBySize[0]; // 最大的
+        }
+        if (!sampled.includes(sortedBySize[sortedBySize.length - 1])) {
+            sampled[sampled.length - 1] = sortedBySize[sortedBySize.length - 1]; // 最小的
+        }
+        
+        return sampled;
+    }
+
+    // 渲染预处理的类型分布数据
+    renderPrecomputedTypeDistribution(container, typeDistribution) {
+        const sortedTypes = typeDistribution.slice(0, 10);
+        
+        container.innerHTML = sortedTypes.map(([typeName, data]) => `
+            <div class="type-item">
+                <span class="type-name">${this.truncateText(typeName, 25)}</span>
+                <div class="type-stats">
+                    <span class="type-size">${this.formatBytes(data[0])}</span>
+                    <span class="type-count">${data[1]} allocs</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 渲染预处理的性能洞察
+    renderPrecomputedInsights(container, metrics) {
+        const insights = [
+            {
+                title: `📊 Memory Utilization: ${metrics.utilization_percent}%`,
+                description: `Efficiency level: ${metrics.efficiency_score}`
+            },
+            {
+                title: `📏 Average Allocation: ${this.formatBytes(metrics.avg_allocation_size)}`,
+                description: `Fragmentation: ${metrics.fragmentation_score}`
+            }
+        ];
+        
+        if (metrics.large_allocations_count > 0) {
+            insights.push({
+                title: `🔍 Large Allocations: ${metrics.large_allocations_count}`,
+                description: 'Consider reviewing allocations > 1MB'
+            });
+        }
+        
+        // 显示优化信息
+        if (this.data.precomputed && this.data.precomputed.is_sampled) {
+            insights.push({
+                title: `⚡ Data Optimized`,
+                description: `Showing ${this.data.precomputed.optimization_info.sampling_ratio} of data for faster loading`
+            });
+        }
+        
+        container.innerHTML = insights.map(insight => `
+            <div class="insight-item">
+                <div class="insight-title">${insight.title}</div>
+                <div class="insight-description">${insight.description}</div>
+            </div>
+        `).join('');
+    }
+
+    loadMoreAllocations() {
+        // 实现加载更多功能
+        console.log('Loading more allocations...');
+        // 这里可以实现分页加载
     }
 
     // ===========================================

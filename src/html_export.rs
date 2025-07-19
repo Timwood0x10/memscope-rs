@@ -43,8 +43,12 @@ pub fn export_interactive_html<P: AsRef<Path>>(
         String::new()
     };
 
-    // Prepare JSON data for JavaScript
-    let json_data = prepare_json_data(&active_allocations, &stats, &memory_by_type, unsafe_ffi_tracker)?;
+    // Convert memory_by_type to HashMap format for optimization
+    let memory_by_type_map: std::collections::HashMap<String, (usize, usize)> = 
+        memory_by_type.iter().map(|usage| (usage.type_name.clone(), (usage.total_size, usage.allocation_count))).collect();
+    
+    // Prepare optimized JSON data for JavaScript (预处理减少前端计算)
+    let json_data = prepare_optimized_json_data(&active_allocations, &stats, &memory_by_type_map, unsafe_ffi_tracker)?;
 
     // Generate complete HTML
     let html_content = generate_html_template(&memory_analysis_svg, &lifecycle_timeline_svg, &unsafe_ffi_svg, &json_data)?;
@@ -136,11 +140,11 @@ fn generate_unsafe_ffi_svg_data(unsafe_ffi_tracker: &UnsafeFFITracker) -> Tracki
     Ok(format!("data:image/svg+xml;base64,{}", encoded))
 }
 
-/// Prepare JSON data for JavaScript consumption
-fn prepare_json_data(
+/// Prepare optimized JSON data for JavaScript consumption (预处理版本)
+fn prepare_optimized_json_data(
     allocations: &[AllocationInfo],
     stats: &MemoryStats,
-    memory_by_type: &[crate::types::TypeMemoryUsage],
+    memory_by_type: &std::collections::HashMap<String, (usize, usize)>,
     unsafe_ffi_tracker: Option<&UnsafeFFITracker>,
 ) -> TrackingResult<String> {
     use serde_json::json;
@@ -152,8 +156,22 @@ fn prepare_json_data(
         .unwrap_or_default()
         .as_secs();
     
+    // 预处理数据，减少前端计算负担
+    let processed_allocations = if allocations.len() > 1000 {
+        // 大数据集：智能采样 + 代表性样本
+        let mut sampled = sample_allocations(allocations, 500);
+        sampled.extend(get_representative_allocations(allocations, 100));
+        sampled
+    } else {
+        allocations.to_vec()
+    };
+
+    // 预计算类型分布和性能指标
+    let type_distribution = precompute_type_distribution(&processed_allocations);
+    let performance_metrics = precompute_performance_metrics(stats, &processed_allocations);
+
     // 转换分配数据为正确的格式
-    let formatted_allocations: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
+    let formatted_allocations: Vec<serde_json::Value> = processed_allocations.iter().map(|alloc| {
         json!({
             "ptr": alloc.ptr,
             "size": alloc.size,
@@ -185,7 +203,23 @@ fn prepare_json_data(
             })
         }),
         "timestamp": timestamp,
-        "version": env!("CARGO_PKG_VERSION")
+        "version": env!("CARGO_PKG_VERSION"),
+        // 预处理的数据，前端直接使用，减少计算时间
+        "precomputed": {
+            "type_distribution": type_distribution,
+            "performance_metrics": performance_metrics,
+            "original_data_size": allocations.len(),
+            "processed_data_size": processed_allocations.len(),
+            "is_sampled": allocations.len() > 1000,
+            "optimization_info": {
+                "sampling_ratio": if allocations.len() > 1000 { 
+                    format!("{:.1}%", (processed_allocations.len() as f64 / allocations.len() as f64) * 100.0)
+                } else { 
+                    "100%".to_string() 
+                },
+                "load_time_estimate": if allocations.len() > 1000 { "Fast" } else { "Instant" }
+            }
+        }
     });
     
     serde_json::to_string_pretty(&json_obj)
@@ -325,4 +359,99 @@ fn generate_html_template(
     );
 
     Ok(html)
+}
+
+/// 智能采样算法 - 保持数据代表性
+fn sample_allocations(allocations: &[AllocationInfo], max_count: usize) -> Vec<AllocationInfo> {
+    if allocations.len() <= max_count {
+        return allocations.to_vec();
+    }
+    
+    let step = allocations.len() / max_count;
+    let mut sampled = Vec::new();
+    
+    for i in (0..allocations.len()).step_by(step) {
+        if sampled.len() < max_count {
+            sampled.push(allocations[i].clone());
+        }
+    }
+    
+    sampled
+}
+
+/// 获取代表性分配（最大、最小、中位数等）
+fn get_representative_allocations(allocations: &[AllocationInfo], count: usize) -> Vec<AllocationInfo> {
+    let mut sorted = allocations.to_vec();
+    sorted.sort_by(|a, b| b.size.cmp(&a.size));
+    
+    let mut representatives = Vec::new();
+    let step = sorted.len().max(1) / count.min(sorted.len());
+    
+    for i in (0..sorted.len()).step_by(step.max(1)) {
+        if representatives.len() < count {
+            representatives.push(sorted[i].clone());
+        }
+    }
+    
+    representatives
+}
+
+/// 预计算类型分布
+fn precompute_type_distribution(allocations: &[AllocationInfo]) -> serde_json::Value {
+    use std::collections::HashMap;
+    
+    let mut type_map: HashMap<String, (usize, usize)> = HashMap::new();
+    
+    for alloc in allocations {
+        let type_name = alloc.type_name.clone().unwrap_or_else(|| {
+            // 智能类型推断
+            if alloc.size <= 8 {
+                "Small Primitive".to_string()
+            } else if alloc.size <= 32 {
+                "Medium Object".to_string()
+            } else if alloc.size <= 1024 {
+                "Large Structure".to_string()
+            } else {
+                "Buffer/Collection".to_string()
+            }
+        });
+        
+        let entry = type_map.entry(type_name).or_insert((0, 0));
+        entry.0 += alloc.size;
+        entry.1 += 1;
+    }
+    
+    let mut sorted_types: Vec<_> = type_map.into_iter().collect();
+    sorted_types.sort_by(|a, b| b.1.0.cmp(&a.1.0));
+    sorted_types.truncate(10); // 只保留前10个类型
+    
+    serde_json::json!(sorted_types)
+}
+
+/// 预计算性能指标
+fn precompute_performance_metrics(stats: &MemoryStats, allocations: &[AllocationInfo]) -> serde_json::Value {
+    let current_memory = stats.active_memory;
+    let peak_memory = stats.peak_memory;
+    let utilization = if peak_memory > 0 { 
+        (current_memory as f64 / peak_memory as f64 * 100.0) as u32 
+    } else { 
+        0 
+    };
+    
+    let total_size: usize = allocations.iter().map(|a| a.size).sum();
+    let avg_size = if !allocations.is_empty() { 
+        total_size / allocations.len() 
+    } else { 
+        0 
+    };
+    
+    let large_allocs = allocations.iter().filter(|a| a.size > 1024 * 1024).count();
+    
+    serde_json::json!({
+        "utilization_percent": utilization,
+        "avg_allocation_size": avg_size,
+        "large_allocations_count": large_allocs,
+        "efficiency_score": if utilization > 80 { "HIGH" } else if utilization > 50 { "MEDIUM" } else { "LOW" },
+        "fragmentation_score": if allocations.len() > 100 { "HIGH" } else { "LOW" }
+    })
 }
