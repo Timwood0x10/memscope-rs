@@ -21,6 +21,7 @@ svg = "0.18.0"
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0.12"
 backtrace = { version = "0.3", features = ["serde"], optional = true }
+rayon = "1.8"
 
 [lib]
 name = "memscope_rs"
@@ -38,7 +39,7 @@ test = []
 
 [dev-dependencies]
 crossbeam = "0.8"
-rayon = "1.7"
+rayon = "1.8"
 parking_lot = "0.12"
 tracing-test = "0.2"
 tempfile = "3.10.1" # Or a compatible version

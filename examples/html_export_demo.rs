@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
 
-    let json_path = "demo_json.jsom";
+    let json_path = "demo_json.json";
     tracker.export_to_json(json_path);
     println!("export json ");
     

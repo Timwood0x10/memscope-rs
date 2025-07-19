@@ -39,6 +39,8 @@ memory_*.svg
 *_analysis.json
 *_visualization.svg
 
+*.html
+*.json
 # Coverage reports
 /target/coverage/
 cobertura.xml
