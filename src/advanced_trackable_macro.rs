@@ -45,6 +45,15 @@ macro_rules! impl_advanced_trackable {
                     generic_info: None,
                     dynamic_type_info: None,
                     runtime_state: None,
+                    stack_allocation: None,
+                    temporary_object: None,
+                    fragmentation_analysis: None,
+                    generic_instantiation: None,
+                    type_relationships: None,
+                    type_usage: None,
+                    function_call_tracking: None,
+                    lifecycle_tracking: None,
+                    access_tracking: None,
                 };
                 
                 Some(crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, &allocation))
@@ -91,6 +100,15 @@ macro_rules! impl_advanced_trackable {
                     generic_info: None,
                     dynamic_type_info: None,
                     runtime_state: None,
+                    stack_allocation: None,
+                    temporary_object: None,
+                    fragmentation_analysis: None,
+                    generic_instantiation: None,
+                    type_relationships: None,
+                    type_usage: None,
+                    function_call_tracking: None,
+                    lifecycle_tracking: None,
+                    access_tracking: None,
                 };
                 
                 Some(crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, &allocation))

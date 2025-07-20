@@ -300,6 +300,24 @@ pub struct AllocationInfo {
     pub dynamic_type_info: Option<DynamicTypeInfo>,
     /// Runtime state information
     pub runtime_state: Option<RuntimeStateInfo>,
+    /// Stack allocation information (if allocated on stack)
+    pub stack_allocation: Option<StackAllocationInfo>,
+    /// Temporary object information (if this is a temporary)
+    pub temporary_object: Option<TemporaryObjectInfo>,
+    /// Memory fragmentation analysis
+    pub fragmentation_analysis: Option<EnhancedFragmentationAnalysis>,
+    /// Enhanced generic instantiation tracking
+    pub generic_instantiation: Option<GenericInstantiationInfo>,
+    /// Type relationship information
+    pub type_relationships: Option<TypeRelationshipInfo>,
+    /// Type usage information
+    pub type_usage: Option<TypeUsageInfo>,
+    /// Function call tracking (if allocation is function-related)
+    pub function_call_tracking: Option<FunctionCallTrackingInfo>,
+    /// Object lifecycle tracking
+    pub lifecycle_tracking: Option<ObjectLifecycleInfo>,
+    /// Memory access pattern tracking
+    pub access_tracking: Option<MemoryAccessTrackingInfo>,
 }
 
 impl<'de> serde::Deserialize<'de> for AllocationInfo {
@@ -341,6 +359,15 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             generic_info: None,
             dynamic_type_info: None,
             runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
         })
     }
 }
@@ -369,6 +396,15 @@ impl AllocationInfo {
             generic_info: None,
             dynamic_type_info: None,
             runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
         }
     }
 
@@ -1408,6 +1444,1264 @@ pub struct GcInfo {
     pub average_pause_time_ms: f64,
     /// Memory reclaimed
     pub memory_reclaimed: usize,
+}
+
+/// Stack allocation tracking information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StackAllocationInfo {
+    /// Stack frame identifier
+    pub frame_id: usize,
+    /// Variable name on stack
+    pub var_name: String,
+    /// Stack offset from frame pointer
+    pub stack_offset: isize,
+    /// Size of stack allocation
+    pub size: usize,
+    /// Function name where allocated
+    pub function_name: String,
+    /// Stack depth level
+    pub stack_depth: usize,
+    /// Lifetime scope information
+    pub scope_info: StackScopeInfo,
+}
+
+/// Stack scope information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StackScopeInfo {
+    /// Scope type (function, block, loop, etc.)
+    pub scope_type: ScopeType,
+    /// Scope start line number
+    pub start_line: Option<u32>,
+    /// Scope end line number
+    pub end_line: Option<u32>,
+    /// Parent scope identifier
+    pub parent_scope: Option<usize>,
+    /// Nested scope level
+    pub nesting_level: usize,
+}
+
+/// Scope type enumeration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ScopeType {
+    Function,
+    Block,
+    Loop,
+    Conditional,
+    Match,
+    Closure,
+    Async,
+    Unsafe,
+}
+
+/// Temporary object tracking
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TemporaryObjectInfo {
+    /// Temporary object identifier
+    pub temp_id: usize,
+    /// Creation timestamp
+    pub created_at: u64,
+    /// Destruction timestamp
+    pub destroyed_at: Option<u64>,
+    /// Lifetime in nanoseconds
+    pub lifetime_ns: Option<u64>,
+    /// Creation context
+    pub creation_context: CreationContext,
+    /// Usage pattern
+    pub usage_pattern: TemporaryUsagePattern,
+    /// Memory location type
+    pub location_type: MemoryLocationType,
+}
+
+/// Creation context for temporary objects
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreationContext {
+    /// Function where created
+    pub function_name: String,
+    /// Expression type that created the temporary
+    pub expression_type: ExpressionType,
+    /// Source location
+    pub source_location: Option<SourceLocation>,
+    /// Call stack at creation
+    pub call_stack: Vec<String>,
+}
+
+/// Expression type that creates temporaries
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ExpressionType {
+    FunctionCall,
+    MethodCall,
+    OperatorOverload,
+    Conversion,
+    Literal,
+    Aggregate,
+    Conditional,
+    Match,
+}
+
+/// Source location information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SourceLocation {
+    /// File path
+    pub file: String,
+    /// Line number
+    pub line: u32,
+    /// Column number
+    pub column: u32,
+}
+
+/// Temporary usage pattern
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TemporaryUsagePattern {
+    /// Used immediately and discarded
+    Immediate,
+    /// Passed to function
+    FunctionArgument,
+    /// Used in expression chain
+    ExpressionChain,
+    /// Stored temporarily
+    TemporaryStorage,
+    /// Moved to permanent location
+    MovedToPermanent,
+}
+
+/// Memory location type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryLocationType {
+    Stack,
+    Heap,
+    Register,
+    Static,
+    ThreadLocal,
+}
+
+/// Enhanced memory fragmentation analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnhancedFragmentationAnalysis {
+    /// Total heap size
+    pub total_heap_size: usize,
+    /// Used heap size
+    pub used_heap_size: usize,
+    /// Free heap size
+    pub free_heap_size: usize,
+    /// Number of free blocks
+    pub free_block_count: usize,
+    /// Free block size distribution
+    pub free_block_distribution: Vec<BlockSizeRange>,
+    /// Fragmentation metrics
+    pub fragmentation_metrics: FragmentationMetrics,
+    /// Allocation patterns causing fragmentation
+    pub fragmentation_causes: Vec<FragmentationCause>,
+}
+
+/// Block size range for distribution analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlockSizeRange {
+    /// Minimum size in range
+    pub min_size: usize,
+    /// Maximum size in range
+    pub max_size: usize,
+    /// Number of blocks in this range
+    pub block_count: usize,
+    /// Total size of blocks in this range
+    pub total_size: usize,
+}
+
+/// Fragmentation metrics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FragmentationMetrics {
+    /// External fragmentation ratio
+    pub external_fragmentation: f64,
+    /// Internal fragmentation ratio
+    pub internal_fragmentation: f64,
+    /// Largest free block size
+    pub largest_free_block: usize,
+    /// Average free block size
+    pub average_free_block_size: f64,
+    /// Fragmentation severity level
+    pub severity_level: FragmentationSeverity,
+}
+
+/// Fragmentation severity levels
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum FragmentationSeverity {
+    Low,
+    Moderate,
+    High,
+    Critical,
+}
+
+/// Fragmentation cause analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FragmentationCause {
+    /// Cause type
+    pub cause_type: FragmentationCauseType,
+    /// Description of the cause
+    pub description: String,
+    /// Impact on fragmentation
+    pub impact_level: ImpactLevel,
+    /// Suggested mitigation
+    pub mitigation_suggestion: String,
+}
+
+/// Types of fragmentation causes
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum FragmentationCauseType {
+    /// Mixed allocation sizes
+    MixedAllocationSizes,
+    /// Frequent allocation/deallocation
+    FrequentAllocDealloc,
+    /// Long-lived allocations blocking coalescing
+    LongLivedAllocations,
+    /// Poor allocation strategy
+    PoorAllocationStrategy,
+    /// Memory leaks
+    MemoryLeaks,
+}
+
+/// Impact level enumeration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ImpactLevel {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+/// Enhanced generic instantiation tracking
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GenericInstantiationInfo {
+    /// Base generic type name
+    pub base_type: String,
+    /// Concrete type parameters
+    pub concrete_parameters: Vec<ConcreteTypeParameter>,
+    /// Instantiation location
+    pub instantiation_location: SourceLocation,
+    /// Instantiation frequency
+    pub instantiation_count: usize,
+    /// Memory usage per instantiation
+    pub memory_per_instance: usize,
+    /// Total memory usage across all instances
+    pub total_memory_usage: usize,
+    /// Compilation time impact
+    pub compilation_impact: CompilationImpact,
+    /// Runtime performance characteristics
+    pub performance_characteristics: PerformanceCharacteristics,
+}
+
+/// Concrete type parameter with detailed information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConcreteTypeParameter {
+    /// Parameter name
+    pub name: String,
+    /// Concrete type
+    pub concrete_type: String,
+    /// Type complexity score
+    pub complexity_score: u32,
+    /// Memory footprint
+    pub memory_footprint: usize,
+    /// Alignment requirements
+    pub alignment: usize,
+    /// Whether type implements common traits
+    pub trait_implementations: Vec<String>,
+    /// Type category
+    pub type_category: TypeCategory,
+}
+
+/// Type category classification
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TypeCategory {
+    Primitive,
+    Struct,
+    Enum,
+    Union,
+    Tuple,
+    Array,
+    Slice,
+    Reference,
+    Pointer,
+    Function,
+    Closure,
+    TraitObject,
+    Generic,
+    Associated,
+}
+
+/// Compilation impact assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CompilationImpact {
+    /// Estimated compilation time increase (milliseconds)
+    pub compilation_time_ms: u64,
+    /// Code size increase (bytes)
+    pub code_size_increase: usize,
+    /// LLVM IR complexity score
+    pub ir_complexity_score: u32,
+    /// Optimization difficulty level
+    pub optimization_difficulty: OptimizationDifficulty,
+}
+
+/// Optimization difficulty levels
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum OptimizationDifficulty {
+    Easy,
+    Moderate,
+    Hard,
+    VeryHard,
+}
+
+/// Performance characteristics of instantiated types
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PerformanceCharacteristics {
+    /// Average allocation time (nanoseconds)
+    pub avg_allocation_time_ns: f64,
+    /// Average deallocation time (nanoseconds)
+    pub avg_deallocation_time_ns: f64,
+    /// Memory access pattern
+    pub access_pattern: MemoryAccessPattern,
+    /// Cache performance impact
+    pub cache_impact: CacheImpact,
+    /// Branch prediction impact
+    pub branch_prediction_impact: BranchPredictionImpact,
+}
+
+/// Cache impact assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CacheImpact {
+    /// L1 cache impact score
+    pub l1_impact_score: f64,
+    /// L2 cache impact score
+    pub l2_impact_score: f64,
+    /// L3 cache impact score
+    pub l3_impact_score: f64,
+    /// Cache line utilization efficiency
+    pub cache_line_efficiency: f64,
+}
+
+/// Branch prediction impact
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BranchPredictionImpact {
+    /// Branch misprediction rate
+    pub misprediction_rate: f64,
+    /// Impact on pipeline stalls
+    pub pipeline_stall_impact: f64,
+    /// Predictability score
+    pub predictability_score: f64,
+}
+
+/// Type inheritance and composition relationships
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TypeRelationshipInfo {
+    /// Type name
+    pub type_name: String,
+    /// Parent types (traits, base structs)
+    pub parent_types: Vec<ParentTypeInfo>,
+    /// Child types (implementors, derived types)
+    pub child_types: Vec<ChildTypeInfo>,
+    /// Composed types (fields, associated types)
+    pub composed_types: Vec<ComposedTypeInfo>,
+    /// Relationship complexity score
+    pub complexity_score: u32,
+    /// Inheritance depth
+    pub inheritance_depth: u32,
+    /// Composition breadth
+    pub composition_breadth: u32,
+}
+
+/// Parent type information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParentTypeInfo {
+    /// Parent type name
+    pub type_name: String,
+    /// Relationship type
+    pub relationship_type: RelationshipType,
+    /// Inheritance level
+    pub inheritance_level: u32,
+    /// Memory layout impact
+    pub memory_impact: MemoryImpact,
+}
+
+/// Child type information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChildTypeInfo {
+    /// Child type name
+    pub type_name: String,
+    /// Relationship type
+    pub relationship_type: RelationshipType,
+    /// Specialization level
+    pub specialization_level: u32,
+    /// Usage frequency
+    pub usage_frequency: u32,
+}
+
+/// Composed type information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComposedTypeInfo {
+    /// Composed type name
+    pub type_name: String,
+    /// Field or association name
+    pub field_name: String,
+    /// Composition type
+    pub composition_type: CompositionType,
+    /// Memory offset (if applicable)
+    pub memory_offset: Option<usize>,
+    /// Access frequency
+    pub access_frequency: u32,
+}
+
+/// Type relationship types
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RelationshipType {
+    TraitImplementation,
+    TraitBound,
+    Inheritance,
+    Association,
+    Aggregation,
+    Composition,
+    Dependency,
+}
+
+/// Composition types
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CompositionType {
+    Field,
+    AssociatedType,
+    GenericParameter,
+    NestedType,
+    Reference,
+    SmartPointer,
+}
+
+/// Type usage frequency and context tracking
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TypeUsageInfo {
+    /// Type name
+    pub type_name: String,
+    /// Total usage count
+    pub total_usage_count: u64,
+    /// Usage contexts
+    pub usage_contexts: Vec<UsageContext>,
+    /// Usage patterns over time
+    pub usage_timeline: Vec<UsageTimePoint>,
+    /// Hot paths where type is used
+    pub hot_paths: Vec<HotPath>,
+    /// Performance impact of usage
+    pub performance_impact: TypePerformanceImpact,
+}
+
+/// Usage context information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UsageContext {
+    /// Context type
+    pub context_type: ContextType,
+    /// Function or module name
+    pub location: String,
+    /// Usage frequency in this context
+    pub frequency: u32,
+    /// Performance characteristics in this context
+    pub performance_metrics: ContextPerformanceMetrics,
+}
+
+/// Context types where types are used
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ContextType {
+    FunctionParameter,
+    FunctionReturn,
+    LocalVariable,
+    StructField,
+    EnumVariant,
+    TraitMethod,
+    GenericConstraint,
+    ClosureCapture,
+    AsyncContext,
+    UnsafeContext,
+}
+
+/// Performance metrics within specific contexts
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContextPerformanceMetrics {
+    /// Average execution time in this context
+    pub avg_execution_time_ns: f64,
+    /// Memory allocation frequency
+    pub allocation_frequency: f64,
+    /// Cache miss rate in this context
+    pub cache_miss_rate: f64,
+    /// Branch misprediction rate
+    pub branch_misprediction_rate: f64,
+}
+
+/// Usage time point for timeline analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UsageTimePoint {
+    /// Timestamp
+    pub timestamp: u64,
+    /// Usage count at this time
+    pub usage_count: u32,
+    /// Memory usage at this time
+    pub memory_usage: usize,
+    /// Performance metrics at this time
+    pub performance_snapshot: PerformanceSnapshot,
+}
+
+/// Performance snapshot at a specific time
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PerformanceSnapshot {
+    /// CPU usage percentage
+    pub cpu_usage: f64,
+    /// Memory usage percentage
+    pub memory_usage: f64,
+    /// Cache hit rate
+    pub cache_hit_rate: f64,
+    /// Throughput (operations per second)
+    pub throughput: f64,
+}
+
+/// Hot path information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HotPath {
+    /// Path identifier
+    pub path_id: String,
+    /// Function call sequence
+    pub call_sequence: Vec<String>,
+    /// Execution frequency
+    pub execution_frequency: u64,
+    /// Total execution time
+    pub total_execution_time_ns: u64,
+    /// Average execution time
+    pub avg_execution_time_ns: f64,
+    /// Memory allocations in this path
+    pub memory_allocations: u32,
+    /// Performance bottlenecks
+    pub bottlenecks: Vec<PerformanceBottleneck>,
+}
+
+/// Performance bottleneck information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PerformanceBottleneck {
+    /// Bottleneck type
+    pub bottleneck_type: BottleneckType,
+    /// Location in code
+    pub location: String,
+    /// Impact severity
+    pub severity: ImpactLevel,
+    /// Description
+    pub description: String,
+    /// Suggested optimization
+    pub optimization_suggestion: String,
+}
+
+/// Types of performance bottlenecks
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BottleneckType {
+    MemoryAllocation,
+    MemoryDeallocation,
+    CacheMiss,
+    BranchMisprediction,
+    FunctionCall,
+    DataMovement,
+    Synchronization,
+    IO,
+}
+
+/// Type performance impact assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TypePerformanceImpact {
+    /// Overall performance score (0-100)
+    pub performance_score: f64,
+    /// Memory efficiency score (0-100)
+    pub memory_efficiency_score: f64,
+    /// CPU efficiency score (0-100)
+    pub cpu_efficiency_score: f64,
+    /// Cache efficiency score (0-100)
+    pub cache_efficiency_score: f64,
+    /// Optimization recommendations
+    pub optimization_recommendations: Vec<OptimizationRecommendation>,
+}
+
+/// Optimization recommendation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OptimizationRecommendation {
+    /// Recommendation type
+    pub recommendation_type: RecommendationType,
+    /// Priority level
+    pub priority: Priority,
+    /// Description
+    pub description: String,
+    /// Expected performance improvement
+    pub expected_improvement: f64,
+    /// Implementation difficulty
+    pub implementation_difficulty: ImplementationDifficulty,
+}
+
+/// Types of optimization recommendations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RecommendationType {
+    MemoryLayout,
+    AlgorithmChange,
+    DataStructureChange,
+    CachingStrategy,
+    MemoryPooling,
+    LazyInitialization,
+    Inlining,
+    Vectorization,
+    Parallelization,
+}
+
+/// Priority levels
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Priority {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+/// Implementation difficulty levels
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ImplementationDifficulty {
+    Easy,
+    Medium,
+    Hard,
+    VeryHard,
+}
+
+/// Function call frequency and call stack tracking
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FunctionCallTrackingInfo {
+    /// Function name
+    pub function_name: String,
+    /// Module path
+    pub module_path: String,
+    /// Total call count
+    pub total_call_count: u64,
+    /// Call frequency per second
+    pub call_frequency_per_sec: f64,
+    /// Average execution time per call
+    pub avg_execution_time_ns: f64,
+    /// Total execution time
+    pub total_execution_time_ns: u64,
+    /// Call stack information
+    pub call_stack_info: CallStackInfo,
+    /// Memory allocations per call
+    pub memory_allocations_per_call: f64,
+    /// Performance characteristics
+    pub performance_characteristics: FunctionPerformanceCharacteristics,
+    /// Call patterns
+    pub call_patterns: Vec<CallPattern>,
+}
+
+/// Call stack information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CallStackInfo {
+    /// Maximum call stack depth
+    pub max_stack_depth: u32,
+    /// Average call stack depth
+    pub avg_stack_depth: f64,
+    /// Most common call sequences
+    pub common_call_sequences: Vec<CallSequence>,
+    /// Recursive call detection
+    pub recursive_calls: Vec<RecursiveCallInfo>,
+    /// Stack overflow risk assessment
+    pub stack_overflow_risk: StackOverflowRisk,
+}
+
+/// Call sequence information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CallSequence {
+    /// Sequence of function names
+    pub function_sequence: Vec<String>,
+    /// Frequency of this sequence
+    pub frequency: u32,
+    /// Average execution time for this sequence
+    pub avg_execution_time_ns: f64,
+    /// Memory usage pattern for this sequence
+    pub memory_usage_pattern: MemoryUsagePattern,
+}
+
+/// Memory usage pattern
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryUsagePattern {
+    /// Peak memory usage in sequence
+    pub peak_memory_usage: usize,
+    /// Average memory usage
+    pub avg_memory_usage: usize,
+    /// Memory allocation frequency
+    pub allocation_frequency: f64,
+    /// Memory deallocation frequency
+    pub deallocation_frequency: f64,
+    /// Memory leak potential
+    pub leak_potential: LeakPotential,
+}
+
+/// Memory leak potential assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LeakPotential {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+/// Recursive call information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecursiveCallInfo {
+    /// Function name
+    pub function_name: String,
+    /// Maximum recursion depth
+    pub max_recursion_depth: u32,
+    /// Average recursion depth
+    pub avg_recursion_depth: f64,
+    /// Tail recursion optimization potential
+    pub tail_recursion_potential: bool,
+    /// Stack usage per recursion level
+    pub stack_usage_per_level: usize,
+    /// Performance impact of recursion
+    pub recursion_performance_impact: RecursionPerformanceImpact,
+}
+
+/// Recursion performance impact
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecursionPerformanceImpact {
+    /// Stack overhead per call
+    pub stack_overhead_per_call: usize,
+    /// Function call overhead
+    pub call_overhead_ns: f64,
+    /// Cache impact of deep recursion
+    pub cache_impact: f64,
+    /// Optimization recommendations
+    pub optimization_recommendations: Vec<String>,
+}
+
+/// Stack overflow risk assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum StackOverflowRisk {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+/// Function performance characteristics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FunctionPerformanceCharacteristics {
+    /// CPU usage percentage
+    pub cpu_usage_percent: f64,
+    /// Memory usage characteristics
+    pub memory_characteristics: FunctionMemoryCharacteristics,
+    /// I/O characteristics
+    pub io_characteristics: IOCharacteristics,
+    /// Concurrency characteristics
+    pub concurrency_characteristics: ConcurrencyCharacteristics,
+    /// Performance bottlenecks
+    pub bottlenecks: Vec<PerformanceBottleneck>,
+}
+
+/// Function memory characteristics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FunctionMemoryCharacteristics {
+    /// Stack memory usage
+    pub stack_memory_usage: usize,
+    /// Heap memory allocations
+    pub heap_allocations: u32,
+    /// Memory access pattern
+    pub access_pattern: MemoryAccessPattern,
+    /// Cache efficiency
+    pub cache_efficiency: f64,
+    /// Memory bandwidth utilization
+    pub memory_bandwidth_utilization: f64,
+}
+
+/// I/O characteristics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IOCharacteristics {
+    /// File I/O operations
+    pub file_io_operations: u32,
+    /// Network I/O operations
+    pub network_io_operations: u32,
+    /// Average I/O wait time
+    pub avg_io_wait_time_ns: f64,
+    /// I/O throughput
+    pub io_throughput_bytes_per_sec: f64,
+    /// I/O efficiency score
+    pub io_efficiency_score: f64,
+}
+
+/// Concurrency characteristics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConcurrencyCharacteristics {
+    /// Thread safety level
+    pub thread_safety_level: ThreadSafetyLevel,
+    /// Lock contention frequency
+    pub lock_contention_frequency: f64,
+    /// Parallel execution potential
+    pub parallel_execution_potential: f64,
+    /// Synchronization overhead
+    pub synchronization_overhead_ns: f64,
+    /// Deadlock risk assessment
+    pub deadlock_risk: DeadlockRisk,
+}
+
+/// Thread safety levels
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ThreadSafetyLevel {
+    ThreadSafe,
+    ConditionallyThreadSafe,
+    NotThreadSafe,
+    Unknown,
+}
+
+/// Deadlock risk assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DeadlockRisk {
+    None,
+    Low,
+    Medium,
+    High,
+}
+
+/// Call pattern information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CallPattern {
+    /// Pattern type
+    pub pattern_type: CallPatternType,
+    /// Pattern description
+    pub description: String,
+    /// Frequency of this pattern
+    pub frequency: u32,
+    /// Performance impact
+    pub performance_impact: f64,
+    /// Optimization potential
+    pub optimization_potential: f64,
+}
+
+/// Types of call patterns
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CallPatternType {
+    Sequential,
+    Recursive,
+    Iterative,
+    Conditional,
+    Parallel,
+    Asynchronous,
+    Callback,
+    EventDriven,
+}
+
+/// Object lifecycle event tracking
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectLifecycleInfo {
+    /// Object identifier
+    pub object_id: usize,
+    /// Object type name
+    pub type_name: String,
+    /// Lifecycle events
+    pub lifecycle_events: Vec<LifecycleEvent>,
+    /// Total lifetime duration
+    pub total_lifetime_ns: Option<u64>,
+    /// Lifecycle stage durations
+    pub stage_durations: LifecycleStageDurations,
+    /// Lifecycle efficiency metrics
+    pub efficiency_metrics: LifecycleEfficiencyMetrics,
+    /// Lifecycle patterns
+    pub lifecycle_patterns: Vec<LifecyclePattern>,
+}
+
+/// Lifecycle event information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LifecycleEvent {
+    /// Event type
+    pub event_type: LifecycleEventType,
+    /// Timestamp when event occurred
+    pub timestamp: u64,
+    /// Location where event occurred
+    pub location: SourceLocation,
+    /// Memory state at event time
+    pub memory_state: MemoryState,
+    /// Performance metrics at event time
+    pub performance_metrics: EventPerformanceMetrics,
+    /// Call stack at event time
+    pub call_stack: Vec<String>,
+}
+
+/// Types of lifecycle events
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LifecycleEventType {
+    Creation,
+    Initialization,
+    FirstUse,
+    Move,
+    Copy,
+    Clone,
+    Borrow,
+    MutableBorrow,
+    BorrowRelease,
+    Modification,
+    LastUse,
+    Drop,
+    Destruction,
+    MemoryReclaim,
+}
+
+/// Memory state at event time
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryState {
+    /// Memory location
+    pub memory_location: MemoryLocationType,
+    /// Memory address
+    pub memory_address: usize,
+    /// Object size
+    pub object_size: usize,
+    /// Reference count (if applicable)
+    pub reference_count: Option<u32>,
+    /// Borrow state
+    pub borrow_state: BorrowState,
+}
+
+/// Borrow state information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BorrowState {
+    NotBorrowed,
+    SharedBorrow { count: u32 },
+    MutableBorrow,
+    MovedOut,
+}
+
+/// Performance metrics at event time
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EventPerformanceMetrics {
+    /// CPU cycles consumed by event
+    pub cpu_cycles: u64,
+    /// Memory bandwidth used
+    pub memory_bandwidth_bytes: usize,
+    /// Cache misses caused by event
+    pub cache_misses: u32,
+    /// Event processing time
+    pub processing_time_ns: u64,
+}
+
+/// Lifecycle stage durations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LifecycleStageDurations {
+    /// Time from creation to first use
+    pub creation_to_first_use_ns: Option<u64>,
+    /// Time spent in active use
+    pub active_use_duration_ns: Option<u64>,
+    /// Time from last use to destruction
+    pub last_use_to_destruction_ns: Option<u64>,
+    /// Time spent borrowed
+    pub borrowed_duration_ns: u64,
+    /// Time spent idle
+    pub idle_duration_ns: u64,
+}
+
+/// Lifecycle efficiency metrics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LifecycleEfficiencyMetrics {
+    /// Utilization ratio (active time / total time)
+    pub utilization_ratio: f64,
+    /// Memory efficiency (useful operations / memory usage)
+    pub memory_efficiency: f64,
+    /// Performance efficiency score
+    pub performance_efficiency: f64,
+    /// Resource waste assessment
+    pub resource_waste: ResourceWasteAssessment,
+}
+
+/// Resource waste assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResourceWasteAssessment {
+    /// Wasted memory percentage
+    pub wasted_memory_percent: f64,
+    /// Wasted CPU cycles percentage
+    pub wasted_cpu_percent: f64,
+    /// Premature destruction events
+    pub premature_destructions: u32,
+    /// Unused object instances
+    pub unused_instances: u32,
+    /// Optimization opportunities
+    pub optimization_opportunities: Vec<String>,
+}
+
+/// Lifecycle pattern information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LifecyclePattern {
+    /// Pattern type
+    pub pattern_type: LifecyclePatternType,
+    /// Pattern frequency
+    pub frequency: u32,
+    /// Pattern efficiency
+    pub efficiency_score: f64,
+    /// Associated performance impact
+    pub performance_impact: f64,
+    /// Optimization suggestions
+    pub optimization_suggestions: Vec<String>,
+}
+
+/// Types of lifecycle patterns
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LifecyclePatternType {
+    ShortLived,
+    LongLived,
+    Cyclical,
+    OnDemand,
+    Cached,
+    Pooled,
+    Singleton,
+    Factory,
+    RAII,
+}
+
+/// Memory access pattern tracking
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryAccessTrackingInfo {
+    /// Memory region identifier
+    pub region_id: usize,
+    /// Memory address range
+    pub address_range: AddressRange,
+    /// Access events
+    pub access_events: Vec<MemoryAccessEvent>,
+    /// Access statistics
+    pub access_statistics: MemoryAccessStatistics,
+    /// Access patterns
+    pub access_patterns: Vec<AccessPattern>,
+    /// Performance impact
+    pub performance_impact: MemoryAccessPerformanceImpact,
+}
+
+/// Memory address range
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AddressRange {
+    /// Start address
+    pub start_address: usize,
+    /// End address
+    pub end_address: usize,
+    /// Size in bytes
+    pub size: usize,
+}
+
+/// Memory access event
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryAccessEvent {
+    /// Access type
+    pub access_type: MemoryAccessType,
+    /// Timestamp
+    pub timestamp: u64,
+    /// Memory address
+    pub address: usize,
+    /// Access size
+    pub size: usize,
+    /// Function that performed the access
+    pub function_name: String,
+    /// Access latency
+    pub latency_ns: u64,
+    /// Cache hit/miss information
+    pub cache_info: CacheAccessInfo,
+}
+
+/// Types of memory access
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryAccessType {
+    Read,
+    Write,
+    ReadModifyWrite,
+    Prefetch,
+    Flush,
+}
+
+/// Cache access information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CacheAccessInfo {
+    /// L1 cache hit
+    pub l1_hit: bool,
+    /// L2 cache hit
+    pub l2_hit: bool,
+    /// L3 cache hit
+    pub l3_hit: bool,
+    /// Memory access required
+    pub memory_access: bool,
+    /// Access latency breakdown
+    pub latency_breakdown: CacheLatencyBreakdown,
+}
+
+/// Cache latency breakdown
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CacheLatencyBreakdown {
+    /// L1 cache latency
+    pub l1_latency_ns: f64,
+    /// L2 cache latency
+    pub l2_latency_ns: f64,
+    /// L3 cache latency
+    pub l3_latency_ns: f64,
+    /// Main memory latency
+    pub memory_latency_ns: f64,
+}
+
+/// Memory access statistics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryAccessStatistics {
+    /// Total read operations
+    pub total_reads: u64,
+    /// Total write operations
+    pub total_writes: u64,
+    /// Read/write ratio
+    pub read_write_ratio: f64,
+    /// Average access frequency per second
+    pub avg_access_frequency: f64,
+    /// Peak access frequency
+    pub peak_access_frequency: f64,
+    /// Access locality metrics
+    pub locality_metrics: LocalityMetrics,
+    /// Bandwidth utilization
+    pub bandwidth_utilization: BandwidthUtilization,
+}
+
+/// Memory locality metrics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocalityMetrics {
+    /// Temporal locality score (0-1)
+    pub temporal_locality: f64,
+    /// Spatial locality score (0-1)
+    pub spatial_locality: f64,
+    /// Sequential access percentage
+    pub sequential_access_percent: f64,
+    /// Random access percentage
+    pub random_access_percent: f64,
+    /// Stride pattern detection
+    pub stride_patterns: Vec<StridePattern>,
+}
+
+/// Stride pattern information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StridePattern {
+    /// Stride size in bytes
+    pub stride_size: usize,
+    /// Pattern frequency
+    pub frequency: u32,
+    /// Pattern efficiency
+    pub efficiency_score: f64,
+    /// Cache friendliness
+    pub cache_friendliness: f64,
+}
+
+/// Bandwidth utilization information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BandwidthUtilization {
+    /// Peak bandwidth usage (bytes/sec)
+    pub peak_bandwidth: f64,
+    /// Average bandwidth usage
+    pub avg_bandwidth: f64,
+    /// Bandwidth efficiency percentage
+    pub efficiency_percent: f64,
+    /// Bottleneck identification
+    pub bottlenecks: Vec<BandwidthBottleneck>,
+}
+
+/// Bandwidth bottleneck information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BandwidthBottleneck {
+    /// Bottleneck location
+    pub location: BandwidthBottleneckLocation,
+    /// Impact severity
+    pub severity: ImpactLevel,
+    /// Description
+    pub description: String,
+    /// Mitigation suggestions
+    pub mitigation_suggestions: Vec<String>,
+}
+
+/// Bandwidth bottleneck locations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BandwidthBottleneckLocation {
+    L1Cache,
+    L2Cache,
+    L3Cache,
+    MainMemory,
+    MemoryController,
+    SystemBus,
+    PCIe,
+    Network,
+}
+
+/// Access pattern information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AccessPattern {
+    /// Pattern type
+    pub pattern_type: AccessPatternType,
+    /// Pattern description
+    pub description: String,
+    /// Frequency of this pattern
+    pub frequency: u32,
+    /// Performance characteristics
+    pub performance_characteristics: AccessPatternPerformance,
+    /// Optimization potential
+    pub optimization_potential: f64,
+}
+
+/// Types of access patterns
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AccessPatternType {
+    Sequential,
+    Random,
+    Strided,
+    Hotspot,
+    Sparse,
+    Dense,
+    Temporal,
+    Spatial,
+}
+
+/// Access pattern performance characteristics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AccessPatternPerformance {
+    /// Cache hit rate for this pattern
+    pub cache_hit_rate: f64,
+    /// Average latency for this pattern
+    pub avg_latency_ns: f64,
+    /// Bandwidth efficiency
+    pub bandwidth_efficiency: f64,
+    /// Prefetcher effectiveness
+    pub prefetcher_effectiveness: f64,
+}
+
+/// Memory access performance impact
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryAccessPerformanceImpact {
+    /// Overall performance score
+    pub performance_score: f64,
+    /// Cache efficiency impact
+    pub cache_efficiency_impact: f64,
+    /// Memory bandwidth impact
+    pub bandwidth_impact: f64,
+    /// CPU pipeline impact
+    pub pipeline_impact: f64,
+    /// Optimization recommendations
+    pub optimization_recommendations: Vec<MemoryOptimizationRecommendation>,
+}
+
+/// Memory optimization recommendation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryOptimizationRecommendation {
+    /// Recommendation type
+    pub recommendation_type: MemoryOptimizationType,
+    /// Priority
+    pub priority: Priority,
+    /// Expected improvement
+    pub expected_improvement: f64,
+    /// Implementation effort
+    pub implementation_effort: ImplementationDifficulty,
+    /// Description
+    pub description: String,
+}
+
+/// Types of memory optimizations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryOptimizationType {
+    DataLayout,
+    AccessPattern,
+    Prefetching,
+    Caching,
+    MemoryPooling,
+    NUMA,
+    Vectorization,
+    Compression,
 }
 
 // TODO: Gradually move types to these modules:
