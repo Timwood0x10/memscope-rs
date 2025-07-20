@@ -59,6 +59,16 @@ pub trait Trackable {
     
     /// Get estimated size of the allocation.
     fn get_size_estimate(&self) -> usize;
+    
+    /// Get the reference count for smart pointers (default: 1 for non-smart pointers)
+    fn get_ref_count(&self) -> usize {
+        1
+    }
+    
+    /// Get the data pointer for grouping related instances (default: same as heap_ptr)
+    fn get_data_ptr(&self) -> usize {
+        self.get_heap_ptr().unwrap_or(0)
+    }
 }
 
 // Implement Trackable for common heap-allocated types
@@ -112,16 +122,15 @@ impl<T> Trackable for Box<T> {
     }
 }
 
-// Global counter for generating unique synthetic pointers for smart pointers
-// Use a smaller starting value to avoid JSON precision issues
-static SMART_POINTER_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0x7000_0000);
-
 impl<T> Trackable for std::rc::Rc<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
-        // For Rc, we generate a unique synthetic pointer using a global counter
-        // This ensures each TrackedVariable<Rc<T>> gets a unique identifier
-        // even when they share the same underlying data
-        Some(SMART_POINTER_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        // For Rc, we create a truly unique identifier by using the Rc instance address
+        // This ensures each TrackedVariable<Rc<T>> gets a completely unique identifier
+        let instance_ptr = self as *const _ as usize;
+        
+        // Use the instance pointer directly, but ensure it's in a safe range for JSON
+        // Add an offset to distinguish from regular heap pointers
+        Some(0x5000_0000 + (instance_ptr % 0x0FFF_FFFF))
     }
 
     fn get_type_name(&self) -> &'static str {
@@ -131,14 +140,27 @@ impl<T> Trackable for std::rc::Rc<T> {
     fn get_size_estimate(&self) -> usize {
         std::mem::size_of::<T>() + std::mem::size_of::<usize>() * 2 // Data + ref counts
     }
+    
+    /// Get the reference count for this Rc
+    fn get_ref_count(&self) -> usize {
+        std::rc::Rc::strong_count(self)
+    }
+    
+    /// Get the data pointer for grouping related Rc instances
+    fn get_data_ptr(&self) -> usize {
+        std::rc::Rc::as_ptr(self) as usize
+    }
 }
 
 impl<T> Trackable for std::sync::Arc<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
-        // For Arc, we generate a unique synthetic pointer using a global counter
-        // This ensures each TrackedVariable<Arc<T>> gets a unique identifier
-        // even when they share the same underlying data
-        Some(SMART_POINTER_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        // For Arc, we create a truly unique identifier by using the Arc instance address
+        // This ensures each TrackedVariable<Arc<T>> gets a completely unique identifier
+        let instance_ptr = self as *const _ as usize;
+        
+        // Use the instance pointer directly, but ensure it's in a safe range for JSON
+        // Add an offset to distinguish from regular heap pointers and Rc
+        Some(0x6000_0000 + (instance_ptr % 0x0FFF_FFFF))
     }
 
     fn get_type_name(&self) -> &'static str {
@@ -147,6 +169,16 @@ impl<T> Trackable for std::sync::Arc<T> {
     
     fn get_size_estimate(&self) -> usize {
         std::mem::size_of::<T>() + std::mem::size_of::<std::sync::atomic::AtomicUsize>() * 2 // Data + atomic ref counts
+    }
+    
+    /// Get the reference count for this Arc
+    fn get_ref_count(&self) -> usize {
+        std::sync::Arc::strong_count(self)
+    }
+    
+    /// Get the data pointer for grouping related Arc instances
+    fn get_data_ptr(&self) -> usize {
+        std::sync::Arc::as_ptr(self) as usize
     }
 }
 
@@ -191,6 +223,9 @@ macro_rules! track_var {
     }};
 }
 
+// Global counter for generating unique identifiers for TrackedVariable instances
+static TRACKED_VARIABLE_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
 /// A wrapper that provides automatic lifecycle tracking for variables.
 ///
 /// This struct wraps any `Trackable` type and automatically handles:
@@ -202,6 +237,7 @@ pub struct TrackedVariable<T: Trackable> {
     var_name: String,
     ptr: Option<usize>,
     creation_time: u64,
+    unique_id: usize, // Unique identifier for this TrackedVariable instance
 }
 
 impl<T: Trackable> TrackedVariable<T> {
@@ -212,12 +248,25 @@ impl<T: Trackable> TrackedVariable<T> {
             .unwrap_or_default()
             .as_nanos() as u64;
 
-        let ptr = value.get_heap_ptr();
+        let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let type_name = value.get_type_name().to_string();
+        let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
+        
+        // For smart pointers, use a unique synthetic pointer based on the TrackedVariable instance
+        let ptr = if is_smart_pointer {
+            // Generate a unique pointer for this TrackedVariable instance
+            if type_name.contains("::Rc<") {
+                Some(0x5000_0000 + unique_id)
+            } else {
+                Some(0x6000_0000 + unique_id)
+            }
+        } else {
+            value.get_heap_ptr()
+        };
         
         // Track creation
         if let Some(ptr_val) = ptr {
             let tracker = get_global_tracker();
-            let type_name = value.get_type_name().to_string();
 
             // Register in variable registry
             let _ = crate::variable_registry::VariableRegistry::register_variable(
@@ -226,24 +275,29 @@ impl<T: Trackable> TrackedVariable<T> {
                 type_name.clone(),
                 value.get_size_estimate(),
             );
-
-            // Special handling for Rc/Arc types - they need synthetic allocations
-            let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
             
             if is_smart_pointer {
-                // For Rc/Arc, always create a synthetic allocation since they don't go through the allocator
-                let _ = tracker.create_synthetic_allocation(
+                // For Rc/Arc, always create a specialized smart pointer allocation
+                let ref_count = value.get_ref_count();
+                let data_ptr = value.get_data_ptr();
+                
+                let _ = tracker.create_smart_pointer_allocation(
                     ptr_val,
                     value.get_size_estimate(),
                     var_name.clone(),
                     type_name.clone(),
                     creation_time,
+                    ref_count,
+                    data_ptr,
                 );
                 
                 tracing::debug!(
-                    "🎯 Created synthetic allocation for smart pointer '{}' at ptr 0x{:x}",
+                    "🎯 Created smart pointer allocation for '{}' at unique ptr 0x{:x} (id={}), ref_count={}, data_ptr=0x{:x}",
                     var_name,
-                    ptr_val
+                    ptr_val,
+                    unique_id,
+                    ref_count,
+                    data_ptr
                 );
             } else {
                 // For regular types, check if already tracked to prevent duplicates
@@ -273,6 +327,7 @@ impl<T: Trackable> TrackedVariable<T> {
             var_name,
             ptr,
             creation_time,
+            unique_id,
         }
     }
 
@@ -325,12 +380,50 @@ impl<T: Trackable> TrackedVariable<T> {
             lifetime_ms
         );
     }
+
+    /// Internal method to track smart pointer destruction with enhanced metadata.
+    fn track_smart_pointer_destruction(var_name: &str, ptr: usize, creation_time: u64, final_ref_count: usize) {
+        let destruction_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        let lifetime_ms = (destruction_time.saturating_sub(creation_time)) / 1_000_000;
+
+        // Update variable registry with destruction info
+        let _ = crate::variable_registry::VariableRegistry::mark_variable_destroyed(
+            ptr,
+            destruction_time,
+        );
+
+        // Track smart pointer deallocation with enhanced metadata
+        let tracker = get_global_tracker();
+        let _ = tracker.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count);
+
+        tracing::debug!(
+            "💀 Destroyed smart pointer '{}' at ptr 0x{:x}, lifetime: {}ms, final_ref_count: {}",
+            var_name,
+            ptr,
+            lifetime_ms,
+            final_ref_count
+        );
+    }
 }
 
 impl<T: Trackable> Drop for TrackedVariable<T> {
     fn drop(&mut self) {
         if let Some(ptr_val) = self.ptr {
-            Self::track_destruction(&self.var_name, ptr_val, self.creation_time);
+            let type_name = self.inner.get_type_name();
+            let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
+            
+            if is_smart_pointer {
+                // For smart pointers, get the final reference count before destruction
+                let final_ref_count = self.inner.get_ref_count();
+                Self::track_smart_pointer_destruction(&self.var_name, ptr_val, self.creation_time, final_ref_count);
+            } else {
+                // For regular types, use standard destruction tracking
+                Self::track_destruction(&self.var_name, ptr_val, self.creation_time);
+            }
         }
     }
 }
@@ -365,8 +458,9 @@ impl<T: Trackable + std::fmt::Display> std::fmt::Display for TrackedVariable<T> 
 
 impl<T: Trackable + Clone> Clone for TrackedVariable<T> {
     fn clone(&self) -> Self {
-        // Create a new tracked variable for the clone
-        Self::new(self.inner.clone(), format!("{}_clone", self.var_name))
+        // Create a new tracked variable for the clone with a unique name
+        let clone_name = format!("{}_clone_{}", self.var_name, self.unique_id);
+        Self::new(self.inner.clone(), clone_name)
     }
 }
 

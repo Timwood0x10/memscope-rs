@@ -336,6 +336,11 @@ fn execute_with_tracking(command_args: &[&String], env_vars: &[(&str, &str)]) ->
         return Err(format!("Command failed with exit code: {:?}", status.code()).into());
     }
 
+    // Give some time for all Drop destructors to complete
+    // This is crucial for TrackedVariable Drop implementations to finish
+    println!("⏳ Waiting for cleanup to complete...");
+    std::thread::sleep(std::time::Duration::from_millis(200));
+
     Ok(())
 }
 

@@ -294,6 +294,139 @@ impl MemoryTracker {
         }
     }
 
+    /// Create a specialized synthetic allocation for Rc/Arc with reference counting support.
+    pub fn create_smart_pointer_allocation(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: String,
+        type_name: String,
+        creation_time: u64,
+        ref_count: usize,
+        data_ptr: usize,
+    ) -> TrackingResult<()> {
+        let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.var_name = Some(var_name.clone());
+        allocation.type_name = Some(type_name.clone());
+        allocation.timestamp_alloc = creation_time;
+        
+        // Use try_lock to avoid blocking
+        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+            (Ok(mut active), Ok(mut stats)) => {
+                // Add to active allocations
+                active.insert(ptr, allocation.clone());
+                
+                // Update statistics
+                stats.total_allocations = stats.total_allocations.saturating_add(1);
+                stats.total_allocated = stats.total_allocated.saturating_add(size);
+                stats.active_allocations = stats.active_allocations.saturating_add(1);
+                stats.active_memory = stats.active_memory.saturating_add(size);
+                
+                // Release locks before updating history
+                drop(stats);
+                drop(active);
+                
+                // Add to allocation history
+                if let Ok(mut history) = self.allocation_history.try_lock() {
+                    history.push(allocation);
+                }
+                
+                tracing::debug!(
+                    "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x}",
+                    var_name,
+                    type_name,
+                    ptr,
+                    size,
+                    ref_count,
+                    data_ptr
+                );
+                
+                Ok(())
+            }
+            _ => {
+                // If we can't get locks immediately, skip to avoid deadlock
+                tracing::warn!(
+                    "⚠️ Failed to create smart pointer allocation for '{}' due to lock contention",
+                    var_name
+                );
+                Ok(())
+            }
+        }
+    }
+
+    /// Track the deallocation of a smart pointer with enhanced metadata.
+    pub fn track_smart_pointer_deallocation(
+        &self,
+        ptr: usize,
+        lifetime_ms: u64,
+        final_ref_count: usize,
+    ) -> TrackingResult<()> {
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        
+        // Use try_lock to avoid blocking during high deallocation activity
+        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+            (Ok(mut active), Ok(mut stats)) => {
+                if let Some(mut allocation) = active.remove(&ptr) {
+                    // Set deallocation timestamp and lifetime
+                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
+                    
+                    // Update statistics with overflow protection
+                    stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+                    stats.total_deallocated =
+                        stats.total_deallocated.saturating_add(allocation.size);
+                    stats.active_allocations = stats.active_allocations.saturating_sub(1);
+                    stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+                    
+                    // Release locks before updating history
+                    drop(stats);
+                    drop(active);
+                    
+                    // Update allocation history with enhanced smart pointer info
+                    if let Ok(mut history) = self.allocation_history.try_lock() {
+                        // Find and update the corresponding entry in history
+                        let mut found = false;
+                        for history_entry in history.iter_mut() {
+                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none() {
+                                history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                                history_entry.lifetime_ms = Some(lifetime_ms);
+                                found = true;
+                                
+                                tracing::debug!(
+                                    "🎯 Updated smart pointer history entry: ptr=0x{:x}, lifetime={}ms, final_ref_count={}",
+                                    ptr,
+                                    lifetime_ms,
+                                    final_ref_count
+                                );
+                                break;
+                            }
+                        }
+                        
+                        if !found {
+                            // If not found, add the allocation with lifetime info
+                            allocation.lifetime_ms = Some(lifetime_ms);
+                            history.push(allocation);
+                            
+                            tracing::debug!(
+                                "⚠️ Added new smart pointer history entry: ptr=0x{:x}, lifetime={}ms, final_ref_count={}",
+                                ptr,
+                                lifetime_ms,
+                                final_ref_count
+                            );
+                        }
+                    }
+                }
+                Ok(())
+            }
+            _ => {
+                // If we can't get locks immediately, skip tracking to avoid deadlock
+                Ok(())
+            }
+        }
+    }
+
     /// Associate a variable name and type with an allocation.
     pub fn associate_var(
         &self,
