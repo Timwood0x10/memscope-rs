@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use crate::types::*;
+// Remove unused imports - types are now defined locally
 
 // Stack Frame and Boundary Types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -534,37 +535,37 @@ pub struct GenericTypeAnalysisReport {
     pub instantiation_analysis: Vec<crate::types::GenericInstantiationInfo>,
     pub code_bloat_assessment: CodeBloatAssessment,
     pub optimization_recommendations: Vec<crate::types::MemoryOptimizationRecommendation>,
-    pub monomorphization_statistics: MonomorphizationStatistics,
+    pub monomorphization_statistics: crate::enhanced_memory_analysis::MonomorphizationStatistics,
     pub performance_characteristics: PerformanceCharacteristics,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectLifecycleAnalysisReport {
-    pub lifecycle_reports: Vec<ObjectLifecycle>,
+    pub lifecycle_reports: Vec<ObjectLifecycleInfo>,
     pub lifecycle_patterns: Vec<LifecyclePattern>,
     pub resource_waste_analysis: ResourceWasteAnalysis,
-    pub lifecycle_optimizations: Vec<LifecycleOptimization>,
-    pub efficiency_metrics: EfficiencyMetrics,
-    pub object_relationship_graph: ObjectRelationshipGraph,
+    pub lifecycle_optimizations: Vec<crate::enhanced_memory_analysis::LifecycleOptimization>,
+    pub efficiency_metrics: crate::enhanced_memory_analysis::EfficiencyMetrics,
+    pub object_relationship_graph: crate::enhanced_memory_analysis::ObjectRelationshipGraph,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryAccessAnalysisReport {
     pub access_patterns: Vec<AccessPattern>,
-    pub layout_recommendations: Vec<LayoutRecommendation>,
-    pub actual_access_tracking: ActualAccessTracking,
-    pub bandwidth_utilization: BandwidthUtilization,
-    pub locality_analysis: LocalityAnalysis,
+    pub layout_recommendations: Vec<crate::enhanced_memory_analysis::LayoutRecommendation>,
+    pub actual_access_tracking: crate::enhanced_memory_analysis::ActualAccessTracking,
+    pub bandwidth_utilization: crate::enhanced_memory_analysis::BandwidthUtilization,
+    pub locality_analysis: crate::enhanced_memory_analysis::LocalityAnalysis,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheOptimizationReport {
-    pub cache_line_analysis: CacheLineAnalysis,
-    pub data_structure_optimizations: Vec<DataStructureOptimization>,
-    pub access_pattern_optimizations: Vec<AccessPatternOptimization>,
-    pub cache_efficiency_metrics: CacheEfficiencyMetrics,
-    pub optimization_recommendations: Vec<CacheOptimizationRecommendation>,
-    pub performance_projections: PerformanceProjections,
+    pub cache_line_analysis: crate::enhanced_memory_analysis::CacheLineAnalysis,
+    pub data_structure_optimizations: Vec<crate::enhanced_memory_analysis::DataStructureOptimization>,
+    pub access_pattern_optimizations: Vec<crate::enhanced_memory_analysis::AccessPatternOptimization>,
+    pub cache_efficiency_metrics: LifecycleEfficiencyMetrics,
+    pub optimization_recommendations: Vec<OptimizationRecommendation>,
+    pub performance_projections: PerformanceImplication,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -636,7 +637,7 @@ pub enum WasteCategoryType {
 // Additional supporting types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MemoryLocation {
-    Stack(StackFrameInfo),
+    Stack(crate::enhanced_memory_analysis::StackFrameInfo),
     Heap(HeapRegionInfo),
     Ambiguous(AmbiguityReason),
 }
@@ -673,8 +674,8 @@ pub struct EnhancedFragmentationAnalysis {
     pub fragmentation_causes: Vec<FragmentationCause>,
     pub mitigation_strategies: Vec<FragmentationMitigationStrategy>,
     pub fragmentation_trends: FragmentationTrends,
-    pub real_time_monitoring: RealTimeMonitoringData,
-    pub adaptive_recommendations: Vec<AdaptiveRecommendation>,
+    pub real_time_monitoring: crate::enhanced_memory_analysis::RealTimeMonitoringData,
+    pub adaptive_recommendations: Vec<crate::enhanced_memory_analysis::AdaptiveRecommendation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -730,7 +731,7 @@ pub enum OptimizationStrategy {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FragmentationTrendAnalysis {
-    pub historical_data: Vec<FragmentationSnapshot>,
+    pub historical_data: Vec<FragmentationAnalysis>,
     pub trend_direction: TrendDirection,
     pub projected_levels: Vec<FragmentationProjection>,
     pub fragmentation_levels: Vec<f64>,
@@ -794,6 +795,13 @@ pub struct FragmentationProjection {
     pub time_horizon_hours: u32,
     pub projected_fragmentation: f64,
     pub confidence: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ScalabilityImpact {
+    Positive,
+    Neutral,
+    Negative,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

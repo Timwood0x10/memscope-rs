@@ -204,7 +204,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note: DatabasePool doesn't implement Trackable, so we track its components instead
 
     let shared_config = Arc::new(Mutex::new(HashMap::<String, String>::new()));
-    track_var!(shared_config)?;
+    let _tracked_shared_config = track_var!(shared_config.clone());
 
     // Add some configuration
     {
@@ -225,7 +225,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for user in &users {
         for endpoint in &endpoints {
             let response = web_server.handle_request(user, endpoint);
-            track_var!(response)?;
+            let _tracked_response = track_var!(response);
 
             // Simulate database queries
             let query = format!(
@@ -234,11 +234,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 user
             );
             let db_result = db_pool.execute_query(&query);
-            track_var!(db_result)?;
+            let _tracked_db_result = track_var!(db_result);
 
             // Track the query string as well
             let query_string = query.clone();
-            track_var!(query_string)?;
+            let _tracked_query_string = track_var!(query_string);
         }
     }
 
@@ -248,7 +248,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nPhase 3: Background Task Processing");
 
     let task_results = background_task_processor();
-    track_var!(task_results)?;
+    let _tracked_task_results = track_var!(task_results);
 
     println!("Completed background task processing");
 
@@ -256,7 +256,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nPhase 4: Data Processing Pipeline");
 
     let pipeline_results = data_processing_pipeline();
-    track_var!(pipeline_results)?;
+    let _tracked_pipeline_results = track_var!(pipeline_results);
 
     println!("Data processing pipeline completed");
 
@@ -265,23 +265,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Large data structures
     let large_dataset = vec![0u8; 1024 * 1024]; // 1MB
-    track_var!(large_dataset)?;
+    let _tracked_large_dataset = track_var!(large_dataset);
 
     let string_collection: Vec<String> = (0..1000)
         .map(|i| format!("String item number {i} with some additional content"))
         .collect();
-    track_var!(string_collection)?;
+    let _tracked_string_collection = track_var!(string_collection);
 
     // Reference counted data
     let shared_data = std::rc::Rc::new(vec![0u64; 10000]);
-    track_var!(shared_data)?;
+    let _tracked_shared_data = track_var!(shared_data.clone());
 
     let shared_clone = std::rc::Rc::clone(&shared_data);
-    track_var!(shared_clone)?;
+    let _tracked_shared_clone = track_var!(shared_clone);
 
     // Thread-safe shared data
     let arc_data = Arc::new(String::from("Shared across threads"));
-    track_var!(arc_data)?;
+    let _tracked_arc_data = track_var!(arc_data);
 
     println!("Memory-intensive operations completed");
 
@@ -308,7 +308,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     let thread_results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
-    track_var!(thread_results)?;
+    let _tracked_thread_results = track_var!(thread_results);
 
     println!("Multi-threaded processing completed");
 

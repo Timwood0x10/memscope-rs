@@ -3,8 +3,7 @@
 //! This module analyzes and categorizes the "unknown" 5% of memory regions
 //! that cannot be precisely classified as stack or heap allocations.
 
-use crate::types::*;
-use crate::enhanced_types::*;
+use crate::types::{AllocationInfo, ImplementationDifficulty};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
@@ -200,7 +199,7 @@ impl UnknownMemoryAnalyzer {
     }
 
     /// Identify allocations that cannot be classified
-    fn identify_unknown_allocations(&self, allocations: &[AllocationInfo]) -> Vec<&AllocationInfo> {
+    fn identify_unknown_allocations<'a>(&self, allocations: &'a [AllocationInfo]) -> Vec<&'a AllocationInfo> {
         allocations.iter()
             .filter(|alloc| self.is_unknown_allocation(alloc))
             .collect()
@@ -355,7 +354,7 @@ impl UnknownMemoryAnalyzer {
                 "Monitor dynamic library loading".to_string(),
             ],
             expected_improvement: 60.0,
-            implementation_difficulty: ImplementationDifficulty::High,
+            implementation_difficulty: ImplementationDifficulty::Hard,
         });
 
         // FFI call interception
@@ -405,42 +404,42 @@ impl UnknownMemoryAnalyzer {
             .any(|((start, end), _)| ptr >= *start && ptr < *end)
     }
 
-    fn identify_memory_mapped_regions(&self, allocations: &[&AllocationInfo]) -> Vec<&AllocationInfo> {
+    fn identify_memory_mapped_regions<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
         allocations.iter()
             .filter(|alloc| self.is_likely_mmap_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_thread_local_storage(&self, allocations: &[&AllocationInfo]) -> Vec<&AllocationInfo> {
+    fn identify_thread_local_storage<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
         allocations.iter()
             .filter(|alloc| self.is_likely_tls_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_library_regions(&self, allocations: &[&AllocationInfo]) -> Vec<&AllocationInfo> {
+    fn identify_library_regions<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
         allocations.iter()
             .filter(|alloc| self.is_likely_library_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_ffi_allocations(&self, allocations: &[&AllocationInfo]) -> Vec<&AllocationInfo> {
+    fn identify_ffi_allocations<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
         allocations.iter()
             .filter(|alloc| self.is_likely_ffi_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_system_regions(&self, allocations: &[&AllocationInfo]) -> Vec<&AllocationInfo> {
+    fn identify_system_regions<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
         allocations.iter()
             .filter(|alloc| self.is_likely_system_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_pre_tracking_allocations(&self, allocations: &[&AllocationInfo]) -> Vec<&AllocationInfo> {
+    fn identify_pre_tracking_allocations<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
         allocations.iter()
             .filter(|alloc| self.is_likely_pre_tracking_allocation(alloc))
             .copied()

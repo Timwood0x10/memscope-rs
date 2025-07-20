@@ -543,7 +543,7 @@ pub struct TypeMemoryUsage {
 }
 
 /// Fragmentation analysis
-#[derive(Debug, Clone, Default, serde::Serialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct FragmentationAnalysis {
     /// Ratio of fragmented to total memory
     pub fragmentation_ratio: f64,
@@ -1011,7 +1011,7 @@ pub struct AllocationPattern {
 }
 
 /// Stack frame for stack traces
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StackFrame {
     /// Name of the function
     pub function_name: String,
