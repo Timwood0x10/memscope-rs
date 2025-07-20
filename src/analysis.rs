@@ -16,19 +16,19 @@ impl AnalysisManager {
     }
     
     /// Analyze memory fragmentation
-    pub fn analyze_fragmentation(&self, allocations: &[AllocationInfo]) -> FragmentationAnalysis {
+    pub fn analyze_fragmentation(&self, _allocations: &[AllocationInfo]) -> FragmentationAnalysis {
         // Simple implementation for now
         FragmentationAnalysis::default()
     }
     
     /// Analyze system library usage
-    pub fn analyze_system_libraries(&self, allocations: &[AllocationInfo]) -> SystemLibraryStats {
+    pub fn analyze_system_libraries(&self, _allocations: &[AllocationInfo]) -> SystemLibraryStats {
         // Simple implementation for now
         SystemLibraryStats::default()
     }
     
     /// Analyze concurrency safety
-    pub fn analyze_concurrency_safety(&self, allocations: &[AllocationInfo]) -> ConcurrencyAnalysis {
+    pub fn analyze_concurrency_safety(&self, _allocations: &[AllocationInfo]) -> ConcurrencyAnalysis {
         // Simple implementation for now
         ConcurrencyAnalysis::default()
     }

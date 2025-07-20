@@ -920,10 +920,10 @@ impl MemoryTracker {
         };
 
         // Generate stack trace data
-        let stack_traces = self.generate_stack_trace_data(allocation_history);
+        let _stack_traces = self.generate_stack_trace_data(allocation_history);
         
         // Generate allocation hotspots
-        let allocation_hotspots = self.generate_allocation_hotspots(allocation_history);
+        let _allocation_hotspots = self.generate_allocation_hotspots(allocation_history);
 
         crate::types::TimelineData {
             memory_snapshots,
@@ -1536,7 +1536,7 @@ fn build_legacy_hierarchy(
                     .iter()
                     .filter(|alloc| {
                         if let Some(type_name) = &alloc.type_name {
-                            alloc.var_name.as_ref().is_some_and(|var_name| {
+                            alloc.var_name.as_ref().is_some_and(|_var_name| {
                                 false // Simplified for now
                             }) || type_name.contains(&type_info.type_name)
                         } else {

@@ -145,7 +145,7 @@ fn generate_unsafe_ffi_svg_data(unsafe_ffi_tracker: &UnsafeFFITracker) -> Tracki
 
 /// Prepare comprehensive JSON data for frontend consumption with registry-based variable names
 fn prepare_comprehensive_json_data(
-    comprehensive_data: &serde_json::Value,
+    _comprehensive_data: &serde_json::Value,
     allocations: &[AllocationInfo],
     stats: &MemoryStats,
     memory_by_type: &std::collections::HashMap<String, (usize, usize)>,
@@ -232,8 +232,8 @@ fn prepare_comprehensive_json_data(
 
 /// Generate complete HTML template with embedded CSS and JavaScript
 fn generate_html_template(
-    memory_analysis_svg: &str,
-    lifecycle_timeline_svg: &str,
+    _memory_analysis_svg: &str,
+    _lifecycle_timeline_svg: &str,
     unsafe_ffi_svg: &str,
     json_data: &str,
 ) -> TrackingResult<String> {

@@ -297,7 +297,7 @@ fn test_thread_local_recursion_prevention() {
     for i in 0..100 {
         // Rapid allocations that might trigger internal allocations
         let data = format!("Test string number {i} with some content");
-        let _ = track_var!(data);
+        let _ = track_var!(data.clo);
         allocations.push(data);
 
         // Also create some vectors (but store as strings for consistency)
