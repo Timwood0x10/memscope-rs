@@ -43,6 +43,10 @@ pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use html_export::export_interactive_html;
 
+// Re-export the derive macro when the derive feature is enabled
+#[cfg(feature = "derive")]
+pub use memscope_derive::Trackable;
+
 // Set up the global allocator when the tracking-allocator feature is enabled
 #[cfg(feature = "tracking-allocator")]
 #[global_allocator]
@@ -68,6 +72,11 @@ pub trait Trackable {
     /// Get the data pointer for grouping related instances (default: same as heap_ptr)
     fn get_data_ptr(&self) -> usize {
         self.get_heap_ptr().unwrap_or(0)
+    }
+    
+    /// Get all internal heap allocations for composite types (default: empty for simple types)
+    fn get_internal_allocations(&self, _var_name: &str) -> Vec<(usize, String)> {
+        Vec::new()
     }
 }
 
@@ -196,6 +205,256 @@ impl<K, V> Trackable for std::collections::HashMap<K, V> {
     fn get_size_estimate(&self) -> usize {
         // Rough estimate: capacity * (key_size + value_size + overhead)
         self.capacity() * (std::mem::size_of::<K>() + std::mem::size_of::<V>() + 16)
+    }
+}
+
+impl<K, V> Trackable for std::collections::BTreeMap<K, V> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self as *const _ as usize)
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::collections::BTreeMap<K, V>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        // BTreeMap nodes: rough estimate
+        self.len() * (std::mem::size_of::<K>() + std::mem::size_of::<V>() + 32)
+    }
+}
+
+impl<T> Trackable for std::collections::HashSet<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self as *const _ as usize)
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::collections::HashSet<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        self.capacity() * (std::mem::size_of::<T>() + 8) // T + hash overhead
+    }
+}
+
+impl<T> Trackable for std::collections::BTreeSet<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self as *const _ as usize)
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::collections::BTreeSet<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        self.len() * (std::mem::size_of::<T>() + 24) // T + tree node overhead
+    }
+}
+
+impl<T> Trackable for std::collections::VecDeque<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        if self.capacity() > 0 {
+            Some(self.as_slices().0.as_ptr() as usize)
+        } else {
+            None
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::collections::VecDeque<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        self.capacity() * std::mem::size_of::<T>()
+    }
+}
+
+impl<T> Trackable for std::collections::LinkedList<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self as *const _ as usize)
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::collections::LinkedList<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        self.len() * (std::mem::size_of::<T>() + std::mem::size_of::<usize>() * 2) // T + prev/next pointers
+    }
+}
+
+impl<T> Trackable for std::collections::BinaryHeap<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        if self.capacity() > 0 {
+            Some(self as *const _ as usize)
+        } else {
+            None
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::collections::BinaryHeap<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        self.capacity() * std::mem::size_of::<T>()
+    }
+}
+
+impl<T> Trackable for std::rc::Weak<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        // Weak pointers don't own the data, but we can track the weak reference itself
+        let instance_ptr = self as *const _ as usize;
+        Some(0x7000_0000 + (instance_ptr % 0x0FFF_FFFF))
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::rc::Weak<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<std::rc::Weak<T>>()
+    }
+    
+    fn get_ref_count(&self) -> usize {
+        self.weak_count()
+    }
+}
+
+impl<T> Trackable for std::sync::Weak<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        // Weak pointers don't own the data, but we can track the weak reference itself
+        let instance_ptr = self as *const _ as usize;
+        Some(0x8000_0000 + (instance_ptr % 0x0FFF_FFFF))
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::sync::Weak<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<std::sync::Weak<T>>()
+    }
+    
+    fn get_ref_count(&self) -> usize {
+        self.weak_count()
+    }
+}
+
+impl<T> Trackable for std::cell::RefCell<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        // RefCell itself doesn't allocate, but we track the cell
+        Some(self as *const _ as usize)
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::cell::RefCell<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<std::cell::RefCell<T>>()
+    }
+}
+
+impl<T> Trackable for std::sync::Mutex<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        // Mutex itself doesn't allocate, but we track the mutex
+        Some(self as *const _ as usize)
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::sync::Mutex<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<std::sync::Mutex<T>>()
+    }
+}
+
+impl<T> Trackable for std::sync::RwLock<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        // RwLock itself doesn't allocate, but we track the lock
+        Some(self as *const _ as usize)
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<std::sync::RwLock<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        std::mem::size_of::<std::sync::RwLock<T>>()
+    }
+}
+
+// Implement for Option<T> where T: Trackable
+impl<T: Trackable> Trackable for Option<T> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        match self {
+            Some(value) => value.get_heap_ptr(),
+            None => None,
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<Option<T>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        match self {
+            Some(value) => std::mem::size_of::<Option<T>>() + value.get_size_estimate(),
+            None => std::mem::size_of::<Option<T>>(),
+        }
+    }
+    
+    fn get_internal_allocations(&self, var_name: &str) -> Vec<(usize, String)> {
+        match self {
+            Some(value) => value.get_internal_allocations(&format!("{}::Some", var_name)),
+            None => Vec::new(),
+        }
+    }
+}
+
+// Implement for Result<T, E> where T: Trackable, E: Trackable
+impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        match self {
+            Ok(value) => value.get_heap_ptr(),
+            Err(error) => error.get_heap_ptr(),
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<Result<T, E>>()
+    }
+    
+    fn get_size_estimate(&self) -> usize {
+        match self {
+            Ok(value) => std::mem::size_of::<Result<T, E>>() + value.get_size_estimate(),
+            Err(error) => std::mem::size_of::<Result<T, E>>() + error.get_size_estimate(),
+        }
+    }
+    
+    fn get_internal_allocations(&self, var_name: &str) -> Vec<(usize, String)> {
+        match self {
+            Ok(value) => value.get_internal_allocations(&format!("{}::Ok", var_name)),
+            Err(error) => error.get_internal_allocations(&format!("{}::Err", var_name)),
+        }
     }
 }
 
@@ -618,3 +877,4 @@ fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {
     
     Ok(())
 }
+

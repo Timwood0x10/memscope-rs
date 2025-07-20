@@ -1,0 +1,12 @@
+/Users/scc/code/rustcode/trace_tools/memscope-derive/target/debug/deps/proc_macro2-f16ffbe9c3c182e4.d: /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/lib.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/marker.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/parse.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/rcvec.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/detection.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/fallback.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/extra.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/wrapper.rs
+
+/Users/scc/code/rustcode/trace_tools/memscope-derive/target/debug/deps/libproc_macro2-f16ffbe9c3c182e4.rmeta: /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/lib.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/marker.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/parse.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/rcvec.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/detection.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/fallback.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/extra.rs /Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/wrapper.rs
+
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/lib.rs:
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/marker.rs:
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/parse.rs:
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/rcvec.rs:
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/detection.rs:
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/fallback.rs:
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/extra.rs:
+/Users/scc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/wrapper.rs:

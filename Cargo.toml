@@ -24,6 +24,7 @@ backtrace = { version = "0.3", features = ["serde"], optional = true }
 rayon = "1.8"
 clap = { version = "4.0", features = ["derive"] }
 libc = "0.2"
+memscope-derive = { path = "./memscope-derive", optional = true }
 
 [lib]
 name = "memscope_rs"
@@ -36,6 +37,7 @@ path = "src/bin/generate_report.rs"
 [features]
 backtrace = ["dep:backtrace"]
 tracking-allocator = []
+derive = ["dep:memscope-derive"]
 default = ["tracking-allocator"]
 test = []
 
