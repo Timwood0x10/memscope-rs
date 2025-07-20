@@ -1,16 +1,25 @@
 //! Enhanced types for comprehensive memory analysis
-//! 
-//! This module contains additional type definitions needed for the enhanced memory analysis system
+//!
+//! This module contains additional type definitions needed for the enhanced memory analysis system.
+//! These types support advanced memory tracking features including stack/heap distinction,
+//! temporary object optimization, fragmentation monitoring, generic type analysis,
+//! object lifecycle tracking, and memory access pattern analysis.
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use crate::types::*;
-// Remove unused imports - types are now defined locally
+// Import specific types rather than wildcard to avoid conflicts
+use crate::types::{
+    AccessPattern, AllocationInfo, BranchPredictionImpact, CacheImpact, CreationContext,
+    FragmentationAnalysis, LifecycleEfficiencyMetrics, LifecyclePattern, MemoryAccessPattern,
+    MemoryOptimizationRecommendation, ObjectLifecycleInfo, OptimizationPotential,
+    OptimizationRecommendation, PerformanceCharacteristics, PerformanceImpact,
+    ResourceWasteAssessment, ScopeType, TemporaryUsagePattern,
+};
 
 // Stack Frame and Boundary Types
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StackFrame {
+pub struct EnhancedStackFrame {
     pub frame_id: u64,
     pub function_name: String,
     pub allocations: Vec<usize>,
@@ -31,18 +40,18 @@ impl StackBoundaries {
         // This is a simplified implementation
         let stack_base = 0x7fff_0000_0000; // Typical stack base on x64
         let stack_size = 8 * 1024 * 1024; // 8MB default stack size
-        
+
         Self {
             stack_base,
             stack_top: stack_base + stack_size,
             stack_size,
         }
     }
-    
+
     pub fn contains(&self, ptr: usize) -> bool {
         ptr >= self.stack_base && ptr < self.stack_top
     }
-    
+
     pub fn get_frame_base(&self, frame_id: u64) -> usize {
         // Estimate frame base from frame ID
         self.stack_base + (frame_id as usize * 4096)
@@ -124,12 +133,18 @@ pub struct TemporaryLifetimeAnalysis {
     pub scope_escape_analysis: EscapeAnalysis,
 }
 
+/// Analysis of how a variable escapes its scope
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EscapeAnalysis {
+    /// Variable does not escape its local scope
     DoesNotEscape,
+    /// Variable escapes to the heap (stored in a heap allocation)
     EscapesToHeap,
+    /// Variable escapes to the calling function
     EscapesToCaller,
+    /// Variable escapes to a global scope
     EscapesToGlobal,
+    /// Escape behavior is unknown or cannot be determined
     Unknown,
 }
 
@@ -137,16 +152,20 @@ pub enum EscapeAnalysis {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationEvent {
     pub timestamp: u64,
-    pub event_type: AllocationEventType,
+    pub event_type: EnhancedAllocationEventType,
     pub ptr: usize,
     pub size: usize,
     pub type_name: Option<String>,
 }
 
+/// Types of memory allocation events
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum AllocationEventType {
+pub enum EnhancedAllocationEventType {
+    /// Memory allocation event
     Allocate,
+    /// Memory deallocation event
     Deallocate,
+    /// Memory reallocation event (resize)
     Reallocate,
 }
 
@@ -167,8 +186,8 @@ impl RealTimeMetrics {
             memory_pressure: 0.0,
         }
     }
-    
-    pub fn update_allocation(&mut self, allocation: &AllocationInfo) {
+
+    pub fn update_allocation(&mut self, _allocation: &AllocationInfo) {
         // Update metrics based on new allocation
         self.allocation_rate += 1.0;
         // Additional metric updates would go here
@@ -201,11 +220,16 @@ pub enum MitigationStrategyType {
     CustomAllocator,
 }
 
+/// Complexity levels for implementing optimization strategies
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ImplementationComplexity {
+    /// Low complexity - easy to implement with minimal changes
     Low,
+    /// Medium complexity - requires moderate changes but straightforward
     Medium,
+    /// High complexity - requires significant changes and careful planning
     High,
+    /// Very high complexity - requires extensive changes and deep system knowledge
     VeryHigh,
 }
 
@@ -246,6 +270,20 @@ pub struct FragmentationImpact {
     pub severity: FragmentationSeverity,
     pub affected_allocations: Vec<usize>,
     pub estimated_waste: usize,
+    pub impact_level: ImpactLevel,
+}
+
+/// Impact level of fragmentation on memory performance
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ImpactLevel {
+    /// Low impact - minimal effect on performance
+    Low,
+    /// Medium impact - noticeable effect on performance
+    Medium,
+    /// High impact - significant effect on performance
+    High,
+    /// Critical impact - severe effect on performance, requires immediate attention
+    Critical,
 }
 
 // Additional Analysis Report Types
@@ -267,12 +305,18 @@ pub struct OptimizationCandidate {
     pub implementation_effort: ImplementationDifficulty,
 }
 
+/// Types of memory optimization strategies
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OptimizationType {
+    /// Eliminate temporary object creation entirely
     EliminateTemporary,
+    /// Reuse existing allocations instead of creating new ones
     ReuseAllocation,
+    /// Use memory pools for similar-sized allocations
     PoolAllocation,
+    /// Initialize objects only when needed
     LazyInitialization,
+    /// Avoid unnecessary copying of objects
     CopyElision,
 }
 
@@ -292,11 +336,16 @@ pub struct HotTemporaryPattern {
     pub optimization_priority: Priority,
 }
 
+/// Priority levels for optimization recommendations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Priority {
+    /// Low priority - minimal impact on performance or memory usage
     Low,
+    /// Medium priority - moderate impact on performance or memory usage
     Medium,
+    /// High priority - significant impact on performance or memory usage
     High,
+    /// Critical priority - severe impact on performance or memory usage, should be addressed immediately
     Critical,
 }
 
@@ -308,12 +357,18 @@ pub struct OptimizationSuggestion {
     pub expected_improvement: f64,
 }
 
+/// Categories of memory optimization techniques
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OptimizationCategory {
+    /// Optimizing memory layout of data structures
     MemoryLayout,
+    /// Reducing temporary object creation and lifetime
     TemporaryObjectReduction,
+    /// Optimizing for cache efficiency
     CacheOptimization,
+    /// Improving allocation strategy
     AllocationStrategy,
+    /// Better management of object lifecycles
     LifecycleManagement,
 }
 
@@ -350,11 +405,16 @@ pub struct FragmentationTrends {
     pub predicted_future_state: FragmentationPrediction,
 }
 
+/// Direction of fragmentation trend over time
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TrendDirection {
+    /// Fragmentation is decreasing over time
     Improving,
+    /// Fragmentation is relatively constant
     Stable,
+    /// Fragmentation is increasing over time
     Degrading,
+    /// Fragmentation is changing unpredictably
     Volatile,
 }
 
@@ -487,6 +547,10 @@ pub enum PerformanceImplicationType {
     MemoryLatency,
     AllocationOverhead,
     FragmentationImpact,
+    MemoryOptimization,
+    Positive,
+    Negative,
+    Neutral,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -561,8 +625,10 @@ pub struct MemoryAccessAnalysisReport {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheOptimizationReport {
     pub cache_line_analysis: crate::enhanced_memory_analysis::CacheLineAnalysis,
-    pub data_structure_optimizations: Vec<crate::enhanced_memory_analysis::DataStructureOptimization>,
-    pub access_pattern_optimizations: Vec<crate::enhanced_memory_analysis::AccessPatternOptimization>,
+    pub data_structure_optimizations:
+        Vec<crate::enhanced_memory_analysis::DataStructureOptimization>,
+    pub access_pattern_optimizations:
+        Vec<crate::enhanced_memory_analysis::AccessPatternOptimization>,
     pub cache_efficiency_metrics: LifecycleEfficiencyMetrics,
     pub optimization_recommendations: Vec<OptimizationRecommendation>,
     pub performance_projections: PerformanceImplication,
@@ -689,11 +755,16 @@ pub struct FragmentationMetrics {
     pub memory_utilization_ratio: f64,
 }
 
+/// Severity levels of memory fragmentation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FragmentationSeverity {
+    /// Low severity - minimal fragmentation, little impact on performance
     Low,
+    /// Moderate severity - noticeable fragmentation, some impact on performance
     Moderate,
+    /// High severity - significant fragmentation, considerable impact on performance
     High,
+    /// Critical severity - severe fragmentation, major impact on performance
     Critical,
 }
 
@@ -819,4 +890,3 @@ pub struct CurrentFragmentationState {
     pub severity_level: FragmentationSeverity,
     pub timestamp: u64,
 }
-
