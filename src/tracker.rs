@@ -158,24 +158,30 @@ impl MemoryTracker {
                     // Update allocation history with deallocation timestamp AND lifetime
                     if let Ok(mut history) = self.allocation_history.try_lock() {
                         // Find and update the corresponding entry in history
-                        if let Some(history_entry) = history.iter_mut().find(|entry| entry.ptr == ptr && entry.timestamp_dealloc.is_none()) {
-                            history_entry.timestamp_dealloc = Some(dealloc_timestamp);
-                            // This is the key enhancement - set the precise lifetime_ms from TrackedVariable
-                            history_entry.lifetime_ms = Some(lifetime_ms);
-                            
-                            tracing::debug!(
-                                "🎯 Updated existing history entry: ptr=0x{:x}, lifetime={}ms",
-                                ptr,
-                                lifetime_ms
-                            );
-                        } else {
-                            // Only add if there's really no matching entry
-                            // This should be rare since TrackedVariable should only track existing allocations
+                        // For synthetic allocations, we need to be more flexible in our search
+                        let mut found = false;
+                        for history_entry in history.iter_mut() {
+                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none() {
+                                history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                                history_entry.lifetime_ms = Some(lifetime_ms);
+                                found = true;
+                                
+                                tracing::debug!(
+                                    "🎯 Updated existing history entry: ptr=0x{:x}, lifetime={}ms",
+                                    ptr,
+                                    lifetime_ms
+                                );
+                                break;
+                            }
+                        }
+                        
+                        if !found {
+                            // If not found, add the allocation with lifetime info
                             allocation.lifetime_ms = Some(lifetime_ms);
                             history.push(allocation);
                             
                             tracing::debug!(
-                                "⚠️ Added new history entry for ptr=0x{:x}, lifetime={}ms (this should be rare)",
+                                "⚠️ Added new history entry for ptr=0x{:x}, lifetime={}ms",
                                 ptr,
                                 lifetime_ms
                             );
@@ -227,6 +233,62 @@ impl MemoryTracker {
             }
             Err(_) => {
                 // If we can't get the lock immediately, skip the update
+                Ok(())
+            }
+        }
+    }
+
+    /// Create a synthetic allocation for smart pointers (Rc/Arc) that don't go through the allocator.
+    pub fn create_synthetic_allocation(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: String,
+        type_name: String,
+        creation_time: u64,
+    ) -> TrackingResult<()> {
+        let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.var_name = Some(var_name.clone());
+        allocation.type_name = Some(type_name.clone());
+        allocation.timestamp_alloc = creation_time;
+        
+        // Use try_lock to avoid blocking
+        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+            (Ok(mut active), Ok(mut stats)) => {
+                // Add to active allocations
+                active.insert(ptr, allocation.clone());
+                
+                // Update statistics
+                stats.total_allocations = stats.total_allocations.saturating_add(1);
+                stats.total_allocated = stats.total_allocated.saturating_add(size);
+                stats.active_allocations = stats.active_allocations.saturating_add(1);
+                stats.active_memory = stats.active_memory.saturating_add(size);
+                
+                // Release locks before updating history
+                drop(stats);
+                drop(active);
+                
+                // Add to allocation history
+                if let Ok(mut history) = self.allocation_history.try_lock() {
+                    history.push(allocation);
+                }
+                
+                tracing::debug!(
+                    "🎯 Created synthetic allocation for '{}' ({}): ptr=0x{:x}, size={}",
+                    var_name,
+                    type_name,
+                    ptr,
+                    size
+                );
+                
+                Ok(())
+            }
+            _ => {
+                // If we can't get locks immediately, skip to avoid deadlock
+                tracing::warn!(
+                    "⚠️ Failed to create synthetic allocation for '{}' due to lock contention",
+                    var_name
+                );
                 Ok(())
             }
         }

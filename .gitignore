@@ -32,6 +32,8 @@ Thumbs.db
 !images/*.svg
 !images/*.json
 
+aim/*
+
 memory_*.json
 memory_*.svg
 *_test.json

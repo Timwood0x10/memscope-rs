@@ -112,11 +112,16 @@ impl<T> Trackable for Box<T> {
     }
 }
 
+// Global counter for generating unique synthetic pointers for smart pointers
+// Use a smaller starting value to avoid JSON precision issues
+static SMART_POINTER_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0x7000_0000);
+
 impl<T> Trackable for std::rc::Rc<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
-        // For Rc, the allocation tracking is complex because Rc uses a control block
-        // We'll track the Rc itself rather than the inner data to avoid pointer issues
-        Some(std::rc::Rc::as_ptr(self) as usize)
+        // For Rc, we generate a unique synthetic pointer using a global counter
+        // This ensures each TrackedVariable<Rc<T>> gets a unique identifier
+        // even when they share the same underlying data
+        Some(SMART_POINTER_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
     }
 
     fn get_type_name(&self) -> &'static str {
@@ -130,9 +135,10 @@ impl<T> Trackable for std::rc::Rc<T> {
 
 impl<T> Trackable for std::sync::Arc<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
-        // For Arc, the allocation tracking is complex because Arc uses a control block
-        // We'll track the Arc itself rather than the inner data to avoid pointer issues
-        Some(std::sync::Arc::as_ptr(self) as usize)
+        // For Arc, we generate a unique synthetic pointer using a global counter
+        // This ensures each TrackedVariable<Arc<T>> gets a unique identifier
+        // even when they share the same underlying data
+        Some(SMART_POINTER_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
     }
 
     fn get_type_name(&self) -> &'static str {
@@ -221,26 +227,45 @@ impl<T: Trackable> TrackedVariable<T> {
                 value.get_size_estimate(),
             );
 
-            // Only associate with tracker if it's not already tracked
-            // This prevents duplicate synthetic allocations
-            if let Ok(active_allocations) = tracker.get_active_allocations() {
-                let already_tracked = active_allocations.iter().any(|alloc| alloc.ptr == ptr_val);
-                if !already_tracked {
-                    let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
-                } else {
-                    // Just update the existing allocation with variable info
-                    let _ = tracker.update_allocation_info(ptr_val, var_name.clone(), type_name);
-                }
+            // Special handling for Rc/Arc types - they need synthetic allocations
+            let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
+            
+            if is_smart_pointer {
+                // For Rc/Arc, always create a synthetic allocation since they don't go through the allocator
+                let _ = tracker.create_synthetic_allocation(
+                    ptr_val,
+                    value.get_size_estimate(),
+                    var_name.clone(),
+                    type_name.clone(),
+                    creation_time,
+                );
+                
+                tracing::debug!(
+                    "🎯 Created synthetic allocation for smart pointer '{}' at ptr 0x{:x}",
+                    var_name,
+                    ptr_val
+                );
             } else {
-                // Fallback: try to associate anyway
-                let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+                // For regular types, check if already tracked to prevent duplicates
+                if let Ok(active_allocations) = tracker.get_active_allocations() {
+                    let already_tracked = active_allocations.iter().any(|alloc| alloc.ptr == ptr_val);
+                    if !already_tracked {
+                        let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+                    } else {
+                        // Just update the existing allocation with variable info
+                        let _ = tracker.update_allocation_info(ptr_val, var_name.clone(), type_name);
+                    }
+                } else {
+                    // Fallback: try to associate anyway
+                    let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+                }
+                
+                tracing::debug!(
+                    "🎯 Created tracked variable '{}' at ptr 0x{:x}",
+                    var_name,
+                    ptr_val
+                );
             }
-
-            tracing::debug!(
-                "🎯 Created tracked variable '{}' at ptr 0x{:x}",
-                var_name,
-                ptr_val
-            );
         }
 
         Self {
