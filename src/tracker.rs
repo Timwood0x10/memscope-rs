@@ -310,6 +310,30 @@ impl MemoryTracker {
         allocation.type_name = Some(type_name.clone());
         allocation.timestamp_alloc = creation_time;
         
+        // Determine smart pointer type
+        let pointer_type = if type_name.contains("std::rc::Rc") {
+            crate::types::SmartPointerType::Rc
+        } else if type_name.contains("std::sync::Arc") {
+            crate::types::SmartPointerType::Arc
+        } else if type_name.contains("std::rc::Weak") {
+            crate::types::SmartPointerType::RcWeak
+        } else if type_name.contains("std::sync::Weak") {
+            crate::types::SmartPointerType::ArcWeak
+        } else if type_name.contains("Box") {
+            crate::types::SmartPointerType::Box
+        } else {
+            crate::types::SmartPointerType::Rc // Default fallback
+        };
+        
+        // Create smart pointer info
+        let smart_pointer_info = if matches!(pointer_type, crate::types::SmartPointerType::RcWeak | crate::types::SmartPointerType::ArcWeak) {
+            crate::types::SmartPointerInfo::new_weak(data_ptr, pointer_type, ref_count)
+        } else {
+            crate::types::SmartPointerInfo::new_rc_arc(data_ptr, pointer_type, ref_count, 0)
+        };
+        
+        allocation.smart_pointer_info = Some(smart_pointer_info);
+        
         // Use try_lock to avoid blocking
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
@@ -351,6 +375,114 @@ impl MemoryTracker {
                 );
                 Ok(())
             }
+        }
+    }
+    
+    /// Track smart pointer clone relationship
+    pub fn track_smart_pointer_clone(
+        &self,
+        clone_ptr: usize,
+        source_ptr: usize,
+        data_ptr: usize,
+        new_ref_count: usize,
+        weak_count: usize,
+    ) -> TrackingResult<()> {
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                // Update source pointer's clone list
+                if let Some(source_alloc) = active.get_mut(&source_ptr) {
+                    if let Some(ref mut smart_info) = source_alloc.smart_pointer_info {
+                        smart_info.record_clone(clone_ptr, source_ptr);
+                        smart_info.update_ref_count(new_ref_count, weak_count);
+                    }
+                }
+                
+                // Update clone pointer's source reference
+                if let Some(clone_alloc) = active.get_mut(&clone_ptr) {
+                    if let Some(ref mut smart_info) = clone_alloc.smart_pointer_info {
+                        smart_info.cloned_from = Some(source_ptr);
+                        smart_info.update_ref_count(new_ref_count, weak_count);
+                    }
+                }
+                
+                tracing::debug!(
+                    "🔗 Tracked clone relationship: 0x{:x} -> 0x{:x}, data_ptr=0x{:x}, ref_count={}",
+                    source_ptr,
+                    clone_ptr,
+                    data_ptr,
+                    new_ref_count
+                );
+                
+                Ok(())
+            }
+            Err(_) => {
+                // Skip if we can't get the lock
+                Ok(())
+            }
+        }
+    }
+    
+    /// Update reference count for a smart pointer
+    pub fn update_smart_pointer_ref_count(
+        &self,
+        ptr: usize,
+        strong_count: usize,
+        weak_count: usize,
+    ) -> TrackingResult<()> {
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                if let Some(allocation) = active.get_mut(&ptr) {
+                    if let Some(ref mut smart_info) = allocation.smart_pointer_info {
+                        smart_info.update_ref_count(strong_count, weak_count);
+                        
+                        tracing::debug!(
+                            "📊 Updated ref count for 0x{:x}: strong={}, weak={}",
+                            ptr,
+                            strong_count,
+                            weak_count
+                        );
+                    }
+                }
+                Ok(())
+            }
+            Err(_) => Ok(())
+        }
+    }
+    
+    /// Mark smart pointer data as implicitly deallocated
+    pub fn mark_smart_pointer_data_deallocated(&self, data_ptr: usize) -> TrackingResult<()> {
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                // Find all smart pointers pointing to this data
+                let mut affected_ptrs = Vec::new();
+                
+                for (ptr, allocation) in active.iter() {
+                    if let Some(ref smart_info) = allocation.smart_pointer_info {
+                        if smart_info.data_ptr == data_ptr {
+                            affected_ptrs.push(*ptr);
+                        }
+                    }
+                }
+                
+                // Mark them as implicitly deallocated
+                let affected_count = affected_ptrs.len();
+                for ptr in affected_ptrs {
+                    if let Some(allocation) = active.get_mut(&ptr) {
+                        if let Some(ref mut smart_info) = allocation.smart_pointer_info {
+                            smart_info.mark_implicitly_deallocated();
+                        }
+                    }
+                }
+                
+                tracing::debug!(
+                    "💀 Marked data 0x{:x} as deallocated, affecting {} smart pointers",
+                    data_ptr,
+                    affected_count
+                );
+                
+                Ok(())
+            }
+            Err(_) => Ok(())
         }
     }
 

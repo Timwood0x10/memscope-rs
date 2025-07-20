@@ -132,6 +132,134 @@ impl From<serde_json::Error> for TrackingError {
     }
 }
 
+/// Smart pointer specific information for Rc/Arc tracking
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SmartPointerInfo {
+    /// Data pointer - points to the actual data being shared
+    pub data_ptr: usize,
+    
+    /// Clone relationship tracking
+    pub cloned_from: Option<usize>,
+    pub clones: Vec<usize>,
+    
+    /// Reference count history (timestamp, count)
+    pub ref_count_history: Vec<RefCountSnapshot>,
+    
+    /// Weak reference information
+    pub weak_count: Option<usize>,
+    pub is_weak_reference: bool,
+    
+    /// Lifecycle information
+    pub is_data_owner: bool,  // Is this the last strong reference?
+    pub is_implicitly_deallocated: bool, // Was data deallocated when this was dropped?
+    
+    /// Smart pointer type
+    pub pointer_type: SmartPointerType,
+}
+
+/// Reference count snapshot at a specific time
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RefCountSnapshot {
+    pub timestamp: u64,
+    pub strong_count: usize,
+    pub weak_count: usize,
+}
+
+/// Type of smart pointer
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SmartPointerType {
+    Rc,
+    Arc,
+    RcWeak,
+    ArcWeak,
+    Box,
+}
+
+impl SmartPointerInfo {
+    /// Create new smart pointer info for Rc/Arc
+    pub fn new_rc_arc(data_ptr: usize, pointer_type: SmartPointerType, strong_count: usize, weak_count: usize) -> Self {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+            
+        Self {
+            data_ptr,
+            cloned_from: None,
+            clones: Vec::new(),
+            ref_count_history: vec![RefCountSnapshot {
+                timestamp,
+                strong_count,
+                weak_count,
+            }],
+            weak_count: Some(weak_count),
+            is_weak_reference: false,
+            is_data_owner: strong_count == 1,
+            is_implicitly_deallocated: false,
+            pointer_type,
+        }
+    }
+    
+    /// Create new smart pointer info for Weak references
+    pub fn new_weak(data_ptr: usize, pointer_type: SmartPointerType, weak_count: usize) -> Self {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+            
+        Self {
+            data_ptr,
+            cloned_from: None,
+            clones: Vec::new(),
+            ref_count_history: vec![RefCountSnapshot {
+                timestamp,
+                strong_count: 0, // Weak references don't contribute to strong count
+                weak_count,
+            }],
+            weak_count: Some(weak_count),
+            is_weak_reference: true,
+            is_data_owner: false,
+            is_implicitly_deallocated: false,
+            pointer_type,
+        }
+    }
+    
+    /// Record a clone relationship
+    pub fn record_clone(&mut self, clone_ptr: usize, source_ptr: usize) {
+        if self.cloned_from.is_none() {
+            self.cloned_from = Some(source_ptr);
+        }
+        self.clones.push(clone_ptr);
+    }
+    
+    /// Update reference count
+    pub fn update_ref_count(&mut self, strong_count: usize, weak_count: usize) {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+            
+        self.ref_count_history.push(RefCountSnapshot {
+            timestamp,
+            strong_count,
+            weak_count,
+        });
+        
+        self.weak_count = Some(weak_count);
+        self.is_data_owner = strong_count == 1 && !self.is_weak_reference;
+    }
+    
+    /// Mark as implicitly deallocated (data was freed when this pointer was dropped)
+    pub fn mark_implicitly_deallocated(&mut self) {
+        self.is_implicitly_deallocated = true;
+    }
+    
+    /// Get the latest reference counts
+    pub fn latest_ref_counts(&self) -> Option<&RefCountSnapshot> {
+        self.ref_count_history.last()
+    }
+}
+
 /// Information about a memory allocation
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AllocationInfo {
@@ -161,6 +289,8 @@ pub struct AllocationInfo {
     pub is_leaked: bool,
     /// Precise lifetime in milliseconds (calculated from creation to destruction)
     pub lifetime_ms: Option<u64>,
+    /// Smart pointer specific information
+    pub smart_pointer_info: Option<SmartPointerInfo>,
 }
 
 impl<'de> serde::Deserialize<'de> for AllocationInfo {
@@ -197,6 +327,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             stack_trace: helper.stack_trace,
             is_leaked: helper.is_leaked,
             lifetime_ms: helper.lifetime_ms,
+            smart_pointer_info: None, // Default for deserialization
         })
     }
 }
@@ -220,6 +351,7 @@ impl AllocationInfo {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            smart_pointer_info: None,
         }
     }
 

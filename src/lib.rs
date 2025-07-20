@@ -78,6 +78,16 @@ pub trait Trackable {
     fn get_internal_allocations(&self, _var_name: &str) -> Vec<(usize, String)> {
         Vec::new()
     }
+    
+    /// Track clone relationship for smart pointers (default: no-op for non-smart pointers)
+    fn track_clone_relationship(&self, _clone_ptr: usize, _source_ptr: usize) {
+        // Default implementation does nothing
+    }
+    
+    /// Update reference count tracking for smart pointers (default: no-op for non-smart pointers)
+    fn update_ref_count_tracking(&self, _ptr: usize) {
+        // Default implementation does nothing
+    }
 }
 
 // Implement Trackable for common heap-allocated types
@@ -159,6 +169,33 @@ impl<T> Trackable for std::rc::Rc<T> {
     fn get_data_ptr(&self) -> usize {
         std::rc::Rc::as_ptr(self) as usize
     }
+    
+    fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
+        let tracker = crate::tracker::get_global_tracker();
+        let data_ptr = self.get_data_ptr();
+        let strong_count = std::rc::Rc::strong_count(self);
+        let weak_count = std::rc::Rc::weak_count(self);
+        
+        if let Err(e) = tracker.track_smart_pointer_clone(
+            clone_ptr,
+            source_ptr,
+            data_ptr,
+            strong_count,
+            weak_count,
+        ) {
+            tracing::warn!("Failed to track Rc clone relationship: {}", e);
+        }
+    }
+    
+    fn update_ref_count_tracking(&self, ptr: usize) {
+        let tracker = crate::tracker::get_global_tracker();
+        let strong_count = std::rc::Rc::strong_count(self);
+        let weak_count = std::rc::Rc::weak_count(self);
+        
+        if let Err(e) = tracker.update_smart_pointer_ref_count(ptr, strong_count, weak_count) {
+            tracing::warn!("Failed to update Rc ref count: {}", e);
+        }
+    }
 }
 
 impl<T> Trackable for std::sync::Arc<T> {
@@ -188,6 +225,33 @@ impl<T> Trackable for std::sync::Arc<T> {
     /// Get the data pointer for grouping related Arc instances
     fn get_data_ptr(&self) -> usize {
         std::sync::Arc::as_ptr(self) as usize
+    }
+    
+    fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
+        let tracker = crate::tracker::get_global_tracker();
+        let data_ptr = self.get_data_ptr();
+        let strong_count = std::sync::Arc::strong_count(self);
+        let weak_count = std::sync::Arc::weak_count(self);
+        
+        if let Err(e) = tracker.track_smart_pointer_clone(
+            clone_ptr,
+            source_ptr,
+            data_ptr,
+            strong_count,
+            weak_count,
+        ) {
+            tracing::warn!("Failed to track Arc clone relationship: {}", e);
+        }
+    }
+    
+    fn update_ref_count_tracking(&self, ptr: usize) {
+        let tracker = crate::tracker::get_global_tracker();
+        let strong_count = std::sync::Arc::strong_count(self);
+        let weak_count = std::sync::Arc::weak_count(self);
+        
+        if let Err(e) = tracker.update_smart_pointer_ref_count(ptr, strong_count, weak_count) {
+            tracing::warn!("Failed to update Arc ref count: {}", e);
+        }
     }
 }
 
@@ -335,6 +399,15 @@ impl<T> Trackable for std::rc::Weak<T> {
     fn get_ref_count(&self) -> usize {
         self.weak_count()
     }
+    
+    fn get_data_ptr(&self) -> usize {
+        // Try to upgrade and get data pointer, return 0 if data is gone
+        if let Some(upgraded) = self.upgrade() {
+            std::rc::Rc::as_ptr(&upgraded) as usize
+        } else {
+            0 // Data has been deallocated
+        }
+    }
 }
 
 impl<T> Trackable for std::sync::Weak<T> {
@@ -354,6 +427,15 @@ impl<T> Trackable for std::sync::Weak<T> {
     
     fn get_ref_count(&self) -> usize {
         self.weak_count()
+    }
+    
+    fn get_data_ptr(&self) -> usize {
+        // Try to upgrade and get data pointer, return 0 if data is gone
+        if let Some(upgraded) = self.upgrade() {
+            std::sync::Arc::as_ptr(&upgraded) as usize
+        } else {
+            0 // Data has been deallocated
+        }
     }
 }
 
