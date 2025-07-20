@@ -62,7 +62,7 @@ temp_*
 # Documentation build
 /target/doc/
 
-/target/**
+memscope-derive/target/
 # Local configuration
 .env
 .env.local
