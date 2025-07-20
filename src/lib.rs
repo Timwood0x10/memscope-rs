@@ -221,8 +221,20 @@ impl<T: Trackable> TrackedVariable<T> {
                 value.get_size_estimate(),
             );
 
-            // Associate with tracker
-            let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+            // Only associate with tracker if it's not already tracked
+            // This prevents duplicate synthetic allocations
+            if let Ok(active_allocations) = tracker.get_active_allocations() {
+                let already_tracked = active_allocations.iter().any(|alloc| alloc.ptr == ptr_val);
+                if !already_tracked {
+                    let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+                } else {
+                    // Just update the existing allocation with variable info
+                    let _ = tracker.update_allocation_info(ptr_val, var_name.clone(), type_name);
+                }
+            } else {
+                // Fallback: try to associate anyway
+                let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+            }
 
             tracing::debug!(
                 "🎯 Created tracked variable '{}' at ptr 0x{:x}",
@@ -277,9 +289,9 @@ impl<T: Trackable> TrackedVariable<T> {
             destruction_time,
         );
 
-        // Track deallocation in memory tracker
+        // Track deallocation with precise lifetime in memory tracker
         let tracker = get_global_tracker();
-        let _ = tracker.track_deallocation(ptr);
+        let _ = tracker.track_deallocation_with_lifetime(ptr, lifetime_ms);
 
         tracing::debug!(
             "💀 Destroyed tracked variable '{}' at ptr 0x{:x}, lifetime: {}ms",

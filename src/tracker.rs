@@ -129,6 +129,109 @@ impl MemoryTracker {
         }
     }
 
+    /// Track a memory deallocation with precise lifetime information.
+    /// This method is specifically designed for TrackedVariable to ensure accurate lifetime_ms calculation.
+    pub fn track_deallocation_with_lifetime(&self, ptr: usize, lifetime_ms: u64) -> TrackingResult<()> {
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        
+        // Use try_lock to avoid blocking during high deallocation activity
+        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+            (Ok(mut active), Ok(mut stats)) => {
+                if let Some(mut allocation) = active.remove(&ptr) {
+                    // Set deallocation timestamp and lifetime
+                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
+                    
+                    // Update statistics with overflow protection
+                    stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+                    stats.total_deallocated =
+                        stats.total_deallocated.saturating_add(allocation.size);
+                    stats.active_allocations = stats.active_allocations.saturating_sub(1);
+                    stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+                    
+                    // Release locks before updating history
+                    drop(stats);
+                    drop(active);
+                    
+                    // Update allocation history with deallocation timestamp AND lifetime
+                    if let Ok(mut history) = self.allocation_history.try_lock() {
+                        // Find and update the corresponding entry in history
+                        if let Some(history_entry) = history.iter_mut().find(|entry| entry.ptr == ptr && entry.timestamp_dealloc.is_none()) {
+                            history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                            // This is the key enhancement - set the precise lifetime_ms from TrackedVariable
+                            history_entry.lifetime_ms = Some(lifetime_ms);
+                            
+                            tracing::debug!(
+                                "🎯 Updated existing history entry: ptr=0x{:x}, lifetime={}ms",
+                                ptr,
+                                lifetime_ms
+                            );
+                        } else {
+                            // Only add if there's really no matching entry
+                            // This should be rare since TrackedVariable should only track existing allocations
+                            allocation.lifetime_ms = Some(lifetime_ms);
+                            history.push(allocation);
+                            
+                            tracing::debug!(
+                                "⚠️ Added new history entry for ptr=0x{:x}, lifetime={}ms (this should be rare)",
+                                ptr,
+                                lifetime_ms
+                            );
+                        }
+                    }
+                    
+                    tracing::debug!(
+                        "🎯 Tracked deallocation with precise lifetime: ptr=0x{:x}, lifetime={}ms",
+                        ptr,
+                        lifetime_ms
+                    );
+                }
+                Ok(())
+            }
+            _ => {
+                // If we can't get locks immediately, skip tracking to avoid deadlock
+                Ok(())
+            }
+        }
+    }
+
+    /// Update allocation info for an existing allocation without creating duplicates.
+    pub fn update_allocation_info(
+        &self,
+        ptr: usize,
+        var_name: String,
+        type_name: String,
+    ) -> TrackingResult<()> {
+        // Use try_lock to avoid blocking if the allocator is currently tracking
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                if let Some(allocation) = active.get_mut(&ptr) {
+                    allocation.var_name = Some(var_name.clone());
+                    allocation.type_name = Some(type_name.clone());
+                    tracing::debug!(
+                        "Updated existing allocation info for variable '{}' at {:x}",
+                        var_name,
+                        ptr
+                    );
+                    Ok(())
+                } else {
+                    tracing::debug!(
+                        "Allocation not found for update: variable '{}' at {:x}",
+                        var_name,
+                        ptr
+                    );
+                    Ok(())
+                }
+            }
+            Err(_) => {
+                // If we can't get the lock immediately, skip the update
+                Ok(())
+            }
+        }
+    }
+
     /// Associate a variable name and type with an allocation.
     pub fn associate_var(
         &self,

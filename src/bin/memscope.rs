@@ -7,11 +7,72 @@ fn main() {
         .version("0.1.0")
         .author("MemScope Team")
         .about("Memory analysis tool for Rust programs")
+        .subcommand(
+            ClapCommand::new("run")
+                .about("Run and track program memory")
+                .arg(
+                    Arg::new("command")
+                        .help("Command to run (e.g., 'cargo run --release')")
+                        .required(true)
+                        .num_args(1..)
+                )
+                .arg(
+                    Arg::new("export")
+                        .long("export")
+                        .value_name("FORMAT")
+                        .help("Export format: json, html, or both")
+                        .value_parser(["json", "html", "both"])
+                        .default_value("json")
+                )
+                .arg(
+                    Arg::new("output")
+                        .short('o')
+                        .long("output")
+                        .value_name("PATH")
+                        .help("Output file path (without extension)")
+                        .default_value("memscope_analysis")
+                )
+                .arg(
+                    Arg::new("auto-track")
+                        .long("auto-track")
+                        .help("Automatically track all allocations")
+                        .action(clap::ArgAction::SetTrue)
+                )
+                .arg(
+                    Arg::new("wait-completion")
+                        .long("wait-completion")
+                        .help("Wait for program completion before exporting")
+                        .action(clap::ArgAction::SetTrue)
+                )
+        )
+        .subcommand(
+            ClapCommand::new("analyze")
+                .about("Analyze existing memory snapshot")
+                .arg(
+                    Arg::new("input")
+                        .help("Input JSON file")
+                        .required(true)
+                )
+                .arg(
+                    Arg::new("output")
+                        .help("Output HTML file")
+                        .required(true)
+                )
+                .arg(
+                    Arg::new("format")
+                        .long("format")
+                        .value_name("FORMAT")
+                        .help("Output format: html, svg, or both")
+                        .value_parser(["html", "svg", "both"])
+                        .default_value("html")
+                )
+        )
+        // Legacy mode (backward compatibility)
         .arg(
             Arg::new("export")
                 .long("export")
                 .value_name("FORMAT")
-                .help("Export format: json, html, or both")
+                .help("Export format: json, html, or both (legacy mode)")
                 .value_parser(["json", "html", "both"])
         )
         .arg(
@@ -19,53 +80,71 @@ fn main() {
                 .short('o')
                 .long("output")
                 .value_name("PATH")
-                .help("Output file path (without extension)")
+                .help("Output file path (legacy mode)")
                 .default_value("memscope_analysis")
         )
         .arg(
             Arg::new("auto-track")
                 .long("auto-track")
-                .help("Automatically track all allocations")
+                .help("Automatically track all allocations (legacy mode)")
                 .action(clap::ArgAction::SetTrue)
         )
         .arg(
             Arg::new("command")
-                .help("Command to run (e.g., 'cargo run --release')")
-                .required(true)
+                .help("Command to run (legacy mode)")
                 .num_args(1..)
         )
         .get_matches();
 
-    let export_format = matches.get_one::<String>("export");
+    println!("🚀 MemScope - Memory Analysis Tool");
+
+    match matches.subcommand() {
+        Some(("run", sub_matches)) => {
+            handle_run_command(sub_matches);
+        }
+        Some(("analyze", sub_matches)) => {
+            handle_analyze_command(sub_matches);
+        }
+        _ => {
+            // Legacy mode for backward compatibility
+            handle_legacy_mode(&matches);
+        }
+    }
+}
+
+fn handle_run_command(matches: &clap::ArgMatches) {
+    let command_args: Vec<&String> = matches.get_many::<String>("command").unwrap().collect();
+    let export_format = matches.get_one::<String>("export").unwrap();
     let output_path = matches.get_one::<String>("output").unwrap();
     let auto_track = matches.get_flag("auto-track");
-    let command_args: Vec<&String> = matches.get_many::<String>("command").unwrap().collect();
+    let wait_completion = matches.get_flag("wait-completion");
 
-    println!("🚀 MemScope - Memory Analysis Tool");
     println!("📋 Command: {}", command_args.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" "));
-    
-    if let Some(format) = export_format {
-        println!("📊 Export format: {}", format);
-        println!("📁 Output path: {}", output_path);
-    }
+    println!("📊 Export format: {}", export_format);
+    println!("📁 Output path: {}", output_path);
     
     if auto_track {
         println!("🔍 Auto-tracking enabled");
+    }
+    
+    if wait_completion {
+        println!("⏳ Wait-for-completion enabled");
     }
 
     // Set environment variables for the target process
     let mut env_vars = vec![
         ("MEMSCOPE_ENABLED", "1"),
         ("MEMSCOPE_AUTO_EXPORT", "1"),
+        ("MEMSCOPE_EXPORT_FORMAT", export_format),
+        ("MEMSCOPE_EXPORT_PATH", output_path),
     ];
     
     if auto_track {
         env_vars.push(("MEMSCOPE_AUTO_TRACK", "1"));
     }
     
-    if let Some(format) = export_format {
-        env_vars.push(("MEMSCOPE_EXPORT_FORMAT", format));
-        env_vars.push(("MEMSCOPE_EXPORT_PATH", output_path));
+    if wait_completion {
+        env_vars.push(("MEMSCOPE_WAIT_COMPLETION", "1"));
     }
 
     // Execute the target command with memory tracking
@@ -74,19 +153,158 @@ fn main() {
     match result {
         Ok(()) => {
             println!("✅ Program execution completed successfully");
+            println!("📊 Memory analysis exported to: {}", output_path);
             
-            if export_format.is_some() {
-                println!("📊 Memory analysis exported to: {}", output_path);
-                
-                // Post-process the exported data if needed
-                post_process_analysis(output_path, export_format.unwrap());
-            }
+            // Post-process the exported data
+            post_process_analysis(output_path, export_format);
         }
         Err(e) => {
             eprintln!("❌ Program execution failed: {}", e);
             std::process::exit(1);
         }
     }
+}
+
+fn handle_analyze_command(matches: &clap::ArgMatches) {
+    let input_path = matches.get_one::<String>("input").unwrap();
+    let output_path = matches.get_one::<String>("output").unwrap();
+    let format = matches.get_one::<String>("format").unwrap();
+
+    println!("🔍 Analyzing existing memory snapshot");
+    println!("📄 Input: {}", input_path);
+    println!("📄 Output: {}", output_path);
+    println!("📊 Format: {}", format);
+
+    let result = analyze_existing_snapshot(input_path, output_path, format);
+    
+    match result {
+        Ok(()) => {
+            println!("✅ Analysis completed successfully");
+            println!("📊 Report generated: {}", output_path);
+        }
+        Err(e) => {
+            eprintln!("❌ Analysis failed: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_legacy_mode(matches: &clap::ArgMatches) {
+    let export_format = matches.get_one::<String>("export");
+    let output_path = matches.get_one::<String>("output").unwrap();
+    let auto_track = matches.get_flag("auto-track");
+    
+    if let Some(command_args) = matches.get_many::<String>("command") {
+        let command_args: Vec<&String> = command_args.collect();
+        
+        println!("⚠️  Using legacy mode - consider using 'memscope run' instead");
+        println!("📋 Command: {}", command_args.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" "));
+        
+        if let Some(format) = export_format {
+            println!("📊 Export format: {}", format);
+            println!("📁 Output path: {}", output_path);
+        }
+        
+        if auto_track {
+            println!("🔍 Auto-tracking enabled");
+        }
+
+        // Set environment variables for the target process
+        let mut env_vars = vec![
+            ("MEMSCOPE_ENABLED", "1"),
+            ("MEMSCOPE_AUTO_EXPORT", "1"),
+        ];
+        
+        if auto_track {
+            env_vars.push(("MEMSCOPE_AUTO_TRACK", "1"));
+        }
+        
+        if let Some(format) = export_format {
+            env_vars.push(("MEMSCOPE_EXPORT_FORMAT", format));
+            env_vars.push(("MEMSCOPE_EXPORT_PATH", output_path));
+        }
+
+        // Execute the target command with memory tracking
+        let result = execute_with_tracking(&command_args, &env_vars);
+        
+        match result {
+            Ok(()) => {
+                println!("✅ Program execution completed successfully");
+                
+                if export_format.is_some() {
+                    println!("📊 Memory analysis exported to: {}", output_path);
+                    
+                    // Post-process the exported data if needed
+                    post_process_analysis(output_path, export_format.unwrap());
+                }
+            }
+            Err(e) => {
+                eprintln!("❌ Program execution failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        eprintln!("❌ No command provided. Use 'memscope run <command>' or 'memscope analyze <input> <output>'");
+        std::process::exit(1);
+    }
+}
+
+fn analyze_existing_snapshot(input_path: &str, output_path: &str, format: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if !Path::new(input_path).exists() {
+        return Err(format!("Input file not found: {}", input_path).into());
+    }
+
+    match format {
+        "html" => {
+            // Generate HTML report from JSON
+            generate_html_report(input_path, output_path)?;
+        }
+        "svg" => {
+            // Generate SVG visualization from JSON
+            generate_svg_visualization(input_path, output_path)?;
+        }
+        "both" => {
+            let html_output = output_path.replace(".html", "").replace(".svg", "") + ".html";
+            let svg_output = output_path.replace(".html", "").replace(".svg", "") + ".svg";
+            generate_html_report(input_path, &html_output)?;
+            generate_svg_visualization(input_path, &svg_output)?;
+        }
+        _ => {
+            return Err(format!("Unsupported format: {}", format).into());
+        }
+    }
+
+    Ok(())
+}
+
+fn generate_html_report(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("🌐 Generating HTML report...");
+    
+    // Read the JSON data
+    let json_content = std::fs::read_to_string(input_path)?;
+    
+    // Create HTML content
+    let html_content = format!(
+        "<!DOCTYPE html>\n<html>\n<head>\n    <title>MemScope Analysis Report</title>\n    <style>\n        body {{ font-family: Arial, sans-serif; margin: 20px; }}\n        .header {{ background: #f0f0f0; padding: 20px; border-radius: 5px; }}\n        .section {{ margin: 20px 0; }}\n        .data {{ background: #f9f9f9; padding: 10px; border-radius: 3px; }}\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>🚀 MemScope Analysis Report</h1>\n        <p>Generated from: {}</p>\n    </div>\n    <div class=\"section\">\n        <h2>📊 Memory Analysis Data</h2>\n        <div class=\"data\">\n            <pre>{}</pre>\n        </div>\n    </div>\n</body>\n</html>",
+        input_path, 
+        json_content
+    );
+    
+    std::fs::write(output_path, html_content)?;
+    Ok(())
+}
+
+fn generate_svg_visualization(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("📈 Generating SVG visualization...");
+    
+    // Create SVG content
+    let svg_content = format!(
+        "<svg width=\"800\" height=\"600\" xmlns=\"http://www.w3.org/2000/svg\">\n    <rect width=\"800\" height=\"600\" fill=\"#f0f0f0\"/>\n    <text x=\"400\" y=\"50\" text-anchor=\"middle\" font-size=\"24\" font-weight=\"bold\">MemScope Visualization</text>\n    <text x=\"400\" y=\"80\" text-anchor=\"middle\" font-size=\"14\">Generated from: {}</text>\n    <text x=\"400\" y=\"300\" text-anchor=\"middle\" font-size=\"16\">SVG visualization would be generated here</text>\n</svg>",
+        input_path
+    );
+    
+    std::fs::write(output_path, svg_content)?;
+    Ok(())
 }
 
 fn execute_with_tracking(command_args: &[&String], env_vars: &[(&str, &str)]) -> Result<(), Box<dyn std::error::Error>> {

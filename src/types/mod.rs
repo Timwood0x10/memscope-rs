@@ -159,6 +159,8 @@ pub struct AllocationInfo {
     pub stack_trace: Option<Vec<String>>,
     /// Whether this allocation is considered leaked
     pub is_leaked: bool,
+    /// Precise lifetime in milliseconds (calculated from creation to destruction)
+    pub lifetime_ms: Option<u64>,
 }
 
 impl<'de> serde::Deserialize<'de> for AllocationInfo {
@@ -178,6 +180,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             borrow_count: usize,
             stack_trace: Option<Vec<String>>,
             is_leaked: bool,
+            lifetime_ms: Option<u64>,
         }
 
         let helper = AllocationInfoHelper::deserialize(deserializer)?;
@@ -193,6 +196,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             borrow_count: helper.borrow_count,
             stack_trace: helper.stack_trace,
             is_leaked: helper.is_leaked,
+            lifetime_ms: helper.lifetime_ms,
         })
     }
 }
@@ -215,6 +219,7 @@ impl AllocationInfo {
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
+            lifetime_ms: None,
         }
     }
 
