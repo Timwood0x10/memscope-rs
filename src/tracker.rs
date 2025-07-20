@@ -86,16 +86,39 @@ impl MemoryTracker {
 
     /// Track a memory deallocation.
     pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<()> {
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        
         // Use try_lock to avoid blocking during high deallocation activity
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
-                if let Some(allocation) = active.remove(&ptr) {
+                if let Some(mut allocation) = active.remove(&ptr) {
+                    // Set deallocation timestamp
+                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
+                    
                     // Update statistics with overflow protection
                     stats.total_deallocations = stats.total_deallocations.saturating_add(1);
                     stats.total_deallocated =
                         stats.total_deallocated.saturating_add(allocation.size);
                     stats.active_allocations = stats.active_allocations.saturating_sub(1);
                     stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+                    
+                    // Release locks before updating history
+                    drop(stats);
+                    drop(active);
+                    
+                    // Update allocation history with deallocation timestamp
+                    if let Ok(mut history) = self.allocation_history.try_lock() {
+                        // Find and update the corresponding entry in history
+                        if let Some(history_entry) = history.iter_mut().find(|entry| entry.ptr == ptr) {
+                            history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                        } else {
+                            // If not found in history, add the deallocated allocation
+                            history.push(allocation);
+                        }
+                    }
                 }
                 Ok(())
             }
@@ -1710,14 +1733,54 @@ impl Drop for MemoryTracker {
     fn drop(&mut self) {
         // Auto-export JSON before cleanup if enabled
         if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
+            let export_format = std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
             let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
-                .unwrap_or_else(|_| "memscope_final_snapshot.json".to_string());
+                .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
             
-            println!("🔄 Auto-exporting final memory snapshot to: {}", export_path);
-            if let Err(e) = self.export_to_json(&export_path) {
-                eprintln!("❌ Failed to auto-export JSON: {}", e);
-            } else {
-                println!("✅ Final memory snapshot exported successfully");
+            println!("🔄 Auto-exporting final memory snapshot...");
+            
+            // Export based on format
+            match export_format.as_str() {
+                "json" => {
+                    let json_path = format!("{}.json", export_path);
+                    if let Err(e) = self.export_to_json(&json_path) {
+                        eprintln!("❌ Failed to auto-export JSON: {}", e);
+                    } else {
+                        println!("✅ JSON exported to: {}", json_path);
+                    }
+                }
+                "html" => {
+                    let html_path = format!("{}.html", export_path);
+                    if let Err(e) = self.export_interactive_dashboard(&html_path) {
+                        eprintln!("❌ Failed to auto-export HTML: {}", e);
+                    } else {
+                        println!("✅ HTML dashboard exported to: {}", html_path);
+                    }
+                }
+                "both" => {
+                    let json_path = format!("{}.json", export_path);
+                    let html_path = format!("{}.html", export_path);
+                    
+                    if let Err(e) = self.export_to_json(&json_path) {
+                        eprintln!("❌ Failed to auto-export JSON: {}", e);
+                    } else {
+                        println!("✅ JSON exported to: {}", json_path);
+                    }
+                    
+                    if let Err(e) = self.export_interactive_dashboard(&html_path) {
+                        eprintln!("❌ Failed to auto-export HTML: {}", e);
+                    } else {
+                        println!("✅ HTML dashboard exported to: {}", html_path);
+                    }
+                }
+                _ => {
+                    let json_path = format!("{}.json", export_path);
+                    if let Err(e) = self.export_to_json(&json_path) {
+                        eprintln!("❌ Failed to auto-export JSON: {}", e);
+                    } else {
+                        println!("✅ Final memory snapshot exported to: {}", json_path);
+                    }
+                }
             }
         }
         

@@ -70,6 +70,14 @@ impl VariableRegistry {
         }
     }
 
+    /// Mark a variable as destroyed with destruction timestamp
+    pub fn mark_variable_destroyed(address: usize, destruction_time: u64) -> TrackingResult<()> {
+        // For now, we keep the variable in registry but could add destruction_time field
+        // This method ensures the variable registry is aware of destruction events
+        tracing::debug!("Variable at address 0x{:x} destroyed at {}", address, destruction_time);
+        Ok(())
+    }
+
     /// Get all variable mappings
     pub fn get_all_variables() -> HashMap<usize, VariableInfo> {
         if let Ok(registry) = get_global_registry().try_lock() {
