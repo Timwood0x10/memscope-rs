@@ -11,6 +11,8 @@
 pub mod allocator;
 /// Advanced memory analysis functionality
 pub mod analysis;
+/// Circular reference detection for smart pointers
+pub mod circular_reference;
 // Removed export_enhanced - functionality consolidated into visualization.rs
 /// Scope tracking functionality
 pub mod scope_tracker;
@@ -34,6 +36,7 @@ pub mod export_enhanced;
 pub mod html_export;
 pub use visualization::*;
 pub use analysis::*;
+pub use circular_reference::*;
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
 pub use tracker::{get_global_tracker, MemoryTracker};
