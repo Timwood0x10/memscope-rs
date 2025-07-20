@@ -7,6 +7,10 @@
 
 #![warn(missing_docs)]
 
+/// Advanced type analysis framework
+pub mod advanced_types;
+/// Macro for advanced type Trackable implementations
+pub mod advanced_trackable_macro;
 /// Memory allocation tracking and analysis
 pub mod allocator;
 /// Advanced memory analysis functionality
@@ -37,6 +41,7 @@ pub mod html_export;
 pub use visualization::*;
 pub use analysis::*;
 pub use circular_reference::*;
+pub use advanced_types::*;
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
 pub use tracker::{get_global_tracker, MemoryTracker};
@@ -90,6 +95,37 @@ pub trait Trackable {
     /// Update reference count tracking for smart pointers (default: no-op for non-smart pointers)
     fn update_ref_count_tracking(&self, _ptr: usize) {
         // Default implementation does nothing
+    }
+    
+    /// Get advanced type analysis information (default: None for simple types)
+    fn get_advanced_type_info(&self) -> Option<crate::advanced_types::AdvancedTypeInfo> {
+        // Check if this is an advanced type and analyze it
+        let type_name = self.get_type_name();
+        if crate::advanced_types::is_advanced_type(type_name) {
+            // Create a minimal allocation info for analysis
+            let allocation = crate::types::AllocationInfo {
+                ptr: self.get_heap_ptr().unwrap_or(0),
+                size: self.get_size_estimate(),
+                var_name: None,
+                type_name: Some(type_name.to_string()),
+                scope_name: None,
+                timestamp_alloc: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u64,
+                timestamp_dealloc: None,
+                thread_id: std::thread::current().id(),
+                borrow_count: 0,
+                stack_trace: None,
+                is_leaked: false,
+                lifetime_ms: None,
+                smart_pointer_info: None,
+            };
+            
+            Some(crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, &allocation))
+        } else {
+            None
+        }
     }
 }
 
@@ -442,50 +478,29 @@ impl<T> Trackable for std::sync::Weak<T> {
     }
 }
 
-impl<T> Trackable for std::cell::RefCell<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        // RefCell itself doesn't allocate, but we track the cell
-        Some(self as *const _ as usize)
-    }
+// Use the macro to implement Trackable for advanced types
+impl_advanced_trackable!(std::cell::RefCell<T>, 0xA000_0000);
+impl_advanced_trackable!(std::sync::Mutex<T>, 0xB000_0000);
+impl_advanced_trackable!(std::sync::RwLock<T>, 0xC000_0000);
 
-    fn get_type_name(&self) -> &'static str {
-        std::any::type_name::<std::cell::RefCell<T>>()
-    }
-    
-    fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<std::cell::RefCell<T>>()
-    }
-}
-
-impl<T> Trackable for std::sync::Mutex<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        // Mutex itself doesn't allocate, but we track the mutex
-        Some(self as *const _ as usize)
-    }
-
-    fn get_type_name(&self) -> &'static str {
-        std::any::type_name::<std::sync::Mutex<T>>()
-    }
-    
-    fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<std::sync::Mutex<T>>()
-    }
-}
-
-impl<T> Trackable for std::sync::RwLock<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        // RwLock itself doesn't allocate, but we track the lock
-        Some(self as *const _ as usize)
-    }
-
-    fn get_type_name(&self) -> &'static str {
-        std::any::type_name::<std::sync::RwLock<T>>()
-    }
-    
-    fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<std::sync::RwLock<T>>()
-    }
-}
+// Additional advanced types with the macro
+impl_advanced_trackable!(std::cell::Cell<T>, 0xA100_0000);
+impl_advanced_trackable!(std::sync::mpsc::Sender<T>, 0xD000_0000);
+impl_advanced_trackable!(std::sync::mpsc::Receiver<T>, 0xD100_0000);
+impl_advanced_trackable!(std::sync::atomic::AtomicBool, 0xE000_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicUsize, 0xE100_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicIsize, 0xE200_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicU8, 0xE300_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicU16, 0xE400_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicU32, 0xE500_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicU64, 0xE600_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicI8, 0xE700_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicI16, 0xE800_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicI32, 0xE900_0000, no_generics);
+impl_advanced_trackable!(std::sync::atomic::AtomicI64, 0xEA00_0000, no_generics);
+impl_advanced_trackable!(std::mem::ManuallyDrop<T>, 0xF000_0000);
+impl_advanced_trackable!(std::mem::MaybeUninit<T>, 0xF100_0000);
+impl_advanced_trackable!(std::pin::Pin<T>, 0xF200_0000);
 
 // Implement for Option<T> where T: Trackable
 impl<T: Trackable> Trackable for Option<T> {

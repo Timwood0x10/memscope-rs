@@ -50,6 +50,11 @@ impl AnalysisManager {
         crate::circular_reference::detect_circular_references(allocations)
     }
     
+    /// Analyze advanced types (Cell, RefCell, Mutex, etc.)
+    pub fn analyze_advanced_types(&self, allocations: &[AllocationInfo]) -> crate::advanced_types::AdvancedTypeAnalysisReport {
+        crate::advanced_types::analyze_advanced_types(allocations)
+    }
+    
     /// Perform comprehensive analysis
     pub fn perform_comprehensive_analysis(
         &self,
@@ -61,6 +66,7 @@ impl AnalysisManager {
         let concurrency = self.analyze_concurrency_safety(allocations);
         let unsafe_stats = self.get_unsafe_ffi_stats();
         let circular_refs = self.analyze_circular_references(allocations);
+        let advanced_types = self.analyze_advanced_types(allocations);
         
         ComprehensiveAnalysisReport {
             fragmentation_analysis: fragmentation,
@@ -68,6 +74,7 @@ impl AnalysisManager {
             concurrency_analysis: concurrency,
             unsafe_ffi_stats: unsafe_stats,
             circular_reference_analysis: circular_refs,
+            advanced_type_analysis: advanced_types,
             memory_stats: stats.clone(),
             analysis_timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -96,6 +103,8 @@ pub struct ComprehensiveAnalysisReport {
     pub unsafe_ffi_stats: crate::unsafe_ffi_tracker::UnsafeFFIStats,
     /// Circular reference analysis for smart pointers
     pub circular_reference_analysis: crate::circular_reference::CircularReferenceAnalysis,
+    /// Advanced type analysis (Cell, RefCell, Mutex, etc.)
+    pub advanced_type_analysis: crate::advanced_types::AdvancedTypeAnalysisReport,
     /// Overall memory statistics
     pub memory_stats: MemoryStats,
     /// Timestamp when analysis was performed
