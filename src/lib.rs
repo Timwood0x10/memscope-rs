@@ -34,6 +34,12 @@ pub mod utils;
 pub mod visualization;
 
 // Re-export key functions from unified modules
+/// Enhanced memory analysis functionality
+pub mod enhanced_memory_analysis;
+/// Enhanced types for comprehensive memory analysis
+pub mod enhanced_types;
+/// Unknown memory regions analysis
+pub mod unknown_memory_regions;
 /// Enhanced export functionality
 pub mod export_enhanced;
 /// HTML export functionality for interactive visualization
@@ -50,6 +56,7 @@ pub use unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use html_export::export_interactive_html;
+pub use enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 
 // Re-export the derive macro when the derive feature is enabled
 #[cfg(feature = "derive")]
