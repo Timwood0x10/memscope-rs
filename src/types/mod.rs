@@ -7,6 +7,7 @@
 // Essential types that are used throughout the codebase
 use std::collections::HashMap;
 use std::thread;
+use serde::{Deserialize, Serialize};
 
 /// Result type for tracking operations
 pub type TrackingResult<T> = Result<T, TrackingError>;
@@ -291,6 +292,14 @@ pub struct AllocationInfo {
     pub lifetime_ms: Option<u64>,
     /// Smart pointer specific information
     pub smart_pointer_info: Option<SmartPointerInfo>,
+    /// Detailed memory layout information
+    pub memory_layout: Option<MemoryLayoutInfo>,
+    /// Generic type information
+    pub generic_info: Option<GenericTypeInfo>,
+    /// Dynamic type information (trait objects)
+    pub dynamic_type_info: Option<DynamicTypeInfo>,
+    /// Runtime state information
+    pub runtime_state: Option<RuntimeStateInfo>,
 }
 
 impl<'de> serde::Deserialize<'de> for AllocationInfo {
@@ -328,6 +337,10 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             is_leaked: helper.is_leaked,
             lifetime_ms: helper.lifetime_ms,
             smart_pointer_info: None, // Default for deserialization
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
         })
     }
 }
@@ -352,6 +365,10 @@ impl AllocationInfo {
             is_leaked: false,
             lifetime_ms: None,
             smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
         }
     }
 
@@ -1035,6 +1052,362 @@ pub struct HotspotLocation {
     pub line_number: Option<u32>,
     /// Module path
     pub module_path: Option<String>,
+}
+
+/// Detailed memory layout analysis information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryLayoutInfo {
+    /// Total size of the type in bytes
+    pub total_size: usize,
+    /// Alignment requirement of the type
+    pub alignment: usize,
+    /// Field layout information
+    pub field_layout: Vec<FieldLayoutInfo>,
+    /// Padding byte information
+    pub padding_info: PaddingAnalysis,
+    /// Memory layout efficiency analysis
+    pub layout_efficiency: LayoutEfficiency,
+}
+
+/// Field layout information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldLayoutInfo {
+    /// Field name
+    pub field_name: String,
+    /// Field type
+    pub field_type: String,
+    /// Field offset within the struct
+    pub offset: usize,
+    /// Field size
+    pub size: usize,
+    /// Field alignment requirement
+    pub alignment: usize,
+    /// Whether this is a padding field
+    pub is_padding: bool,
+}
+
+/// Padding byte analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaddingAnalysis {
+    /// Total number of padding bytes
+    pub total_padding_bytes: usize,
+    /// Padding byte locations
+    pub padding_locations: Vec<PaddingLocation>,
+    /// Padding ratio (padding bytes / total size)
+    pub padding_ratio: f64,
+    /// Optimization suggestions
+    pub optimization_suggestions: Vec<String>,
+}
+
+/// Padding byte location
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaddingLocation {
+    /// Padding start offset
+    pub start_offset: usize,
+    /// Padding size
+    pub size: usize,
+    /// Padding reason
+    pub reason: PaddingReason,
+}
+
+/// Padding reason
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PaddingReason {
+    /// Field alignment
+    FieldAlignment,
+    /// Struct tail alignment
+    StructAlignment,
+    /// Enum discriminant alignment
+    EnumDiscriminant,
+    /// Other reason
+    Other(String),
+}
+
+/// Layout efficiency analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LayoutEfficiency {
+    /// Memory utilization (useful data / total size)
+    pub memory_utilization: f64,
+    /// Cache friendliness score (0-100)
+    pub cache_friendliness: f64,
+    /// Alignment waste in bytes
+    pub alignment_waste: usize,
+    /// Optimization potential assessment
+    pub optimization_potential: OptimizationPotential,
+}
+
+/// Optimization potential assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum OptimizationPotential {
+    /// No optimization needed
+    None,
+    /// Minor optimization
+    Minor { potential_savings: usize },
+    /// Moderate optimization
+    Moderate { potential_savings: usize, suggestions: Vec<String> },
+    /// Major optimization
+    Major { potential_savings: usize, suggestions: Vec<String> },
+}
+
+/// Generic type information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GenericTypeInfo {
+    /// Generic base type name
+    pub base_type: String,
+    /// Generic type parameters
+    pub type_parameters: Vec<TypeParameter>,
+    /// Monomorphization information
+    pub monomorphization_info: MonomorphizationInfo,
+    /// Generic constraint information
+    pub constraints: Vec<GenericConstraint>,
+}
+
+/// Generic type parameter
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TypeParameter {
+    /// Parameter name
+    pub name: String,
+    /// Concrete type
+    pub concrete_type: String,
+    /// Type size
+    pub size: usize,
+    /// Type alignment
+    pub alignment: usize,
+    /// Whether this is a lifetime parameter
+    pub is_lifetime: bool,
+}
+
+/// Monomorphization information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MonomorphizationInfo {
+    /// Number of monomorphization instances
+    pub instance_count: usize,
+    /// Memory usage per instance
+    pub per_instance_memory: usize,
+    /// Total memory usage
+    pub total_memory_usage: usize,
+    /// Code bloat assessment
+    pub code_bloat_assessment: CodeBloatLevel,
+}
+
+/// Code bloat level
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CodeBloatLevel {
+    Low,
+    Moderate,
+    High,
+    Excessive,
+}
+
+/// Generic constraint
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GenericConstraint {
+    /// Constraint type
+    pub constraint_type: ConstraintType,
+    /// Constraint description
+    pub description: String,
+    /// Impact on memory layout
+    pub memory_impact: MemoryImpact,
+}
+
+/// Constraint type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ConstraintType {
+    Trait(String),
+    Lifetime(String),
+    Associated(String),
+    Where(String),
+}
+
+/// Memory impact
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryImpact {
+    None,
+    SizeIncrease(usize),
+    AlignmentChange(usize),
+    LayoutChange(String),
+}
+
+/// Dynamic type information (trait objects)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DynamicTypeInfo {
+    /// Trait name
+    pub trait_name: String,
+    /// Virtual function table information
+    pub vtable_info: VTableInfo,
+    /// Concrete object type (if determinable)
+    pub concrete_type: Option<String>,
+    /// Dynamic dispatch overhead
+    pub dispatch_overhead: DispatchOverhead,
+    /// Type erasure information
+    pub type_erasure_info: TypeErasureInfo,
+}
+
+/// Virtual function table information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VTableInfo {
+    /// VTable size
+    pub vtable_size: usize,
+    /// Number of methods
+    pub method_count: usize,
+    /// VTable pointer offset
+    pub vtable_ptr_offset: usize,
+    /// Method list
+    pub methods: Vec<VTableMethod>,
+}
+
+/// Virtual function table method
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VTableMethod {
+    /// Method name
+    pub name: String,
+    /// Method signature
+    pub signature: String,
+    /// Offset in vtable
+    pub vtable_offset: usize,
+}
+
+/// Dynamic dispatch overhead
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DispatchOverhead {
+    /// Indirect call overhead in nanoseconds
+    pub indirect_call_overhead_ns: f64,
+    /// Cache miss probability
+    pub cache_miss_probability: f64,
+    /// Branch misprediction rate
+    pub branch_misprediction_rate: f64,
+    /// Overall performance impact assessment
+    pub performance_impact: PerformanceImpact,
+}
+
+/// Performance impact
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PerformanceImpact {
+    Negligible,
+    Minor,
+    Moderate,
+    Significant,
+    Severe,
+}
+
+/// Type erasure information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TypeErasureInfo {
+    /// Whether original type information is recoverable
+    pub type_info_recoverable: bool,
+    /// Type size information
+    pub size_info: Option<usize>,
+    /// Alignment information
+    pub alignment_info: Option<usize>,
+    /// Destructor information
+    pub destructor_info: Option<String>,
+}
+
+/// Runtime state information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RuntimeStateInfo {
+    /// CPU usage information
+    pub cpu_usage: CpuUsageInfo,
+    /// Memory pressure
+    pub memory_pressure: MemoryPressureInfo,
+    /// Cache performance
+    pub cache_performance: CachePerformanceInfo,
+    /// Allocator state
+    pub allocator_state: AllocatorStateInfo,
+    /// Garbage collection information (if applicable)
+    pub gc_info: Option<GcInfo>,
+}
+
+/// CPU usage information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CpuUsageInfo {
+    /// Current CPU usage percentage
+    pub current_usage_percent: f64,
+    /// Average CPU usage percentage
+    pub average_usage_percent: f64,
+    /// Peak CPU usage percentage
+    pub peak_usage_percent: f64,
+    /// CPU intensive operations count
+    pub intensive_operations_count: usize,
+}
+
+/// Memory pressure information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryPressureInfo {
+    /// Current memory pressure level
+    pub pressure_level: MemoryPressureLevel,
+    /// Available memory percentage
+    pub available_memory_percent: f64,
+    /// Memory allocation failures count
+    pub allocation_failures: usize,
+    /// Memory fragmentation level
+    pub fragmentation_level: f64,
+}
+
+/// Memory pressure level
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryPressureLevel {
+    Low,
+    Moderate,
+    High,
+    Critical,
+}
+
+/// Cache performance information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CachePerformanceInfo {
+    /// L1 cache hit rate
+    pub l1_hit_rate: f64,
+    /// L2 cache hit rate
+    pub l2_hit_rate: f64,
+    /// L3 cache hit rate
+    pub l3_hit_rate: f64,
+    /// Cache miss penalty in nanoseconds
+    pub cache_miss_penalty_ns: f64,
+    /// Memory access pattern analysis
+    pub access_pattern: MemoryAccessPattern,
+}
+
+/// Memory access pattern
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryAccessPattern {
+    Sequential,
+    Random,
+    Strided { stride: usize },
+    Clustered,
+    Mixed,
+}
+
+/// Allocator state information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AllocatorStateInfo {
+    /// Allocator type
+    pub allocator_type: String,
+    /// Heap size
+    pub heap_size: usize,
+    /// Used heap space
+    pub heap_used: usize,
+    /// Free blocks count
+    pub free_blocks_count: usize,
+    /// Largest free block size
+    pub largest_free_block: usize,
+    /// Allocator efficiency score
+    pub efficiency_score: f64,
+}
+
+/// Garbage collection information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GcInfo {
+    /// GC type
+    pub gc_type: String,
+    /// GC runs count
+    pub gc_runs: usize,
+    /// Total GC time in milliseconds
+    pub total_gc_time_ms: u64,
+    /// Average GC pause time
+    pub average_pause_time_ms: f64,
+    /// Memory reclaimed
+    pub memory_reclaimed: usize,
 }
 
 // TODO: Gradually move types to these modules:

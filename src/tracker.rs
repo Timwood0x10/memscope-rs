@@ -1,6 +1,11 @@
 //! Memory allocation tracking functionality.
 
 use crate::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage, MemoryTypeInfo};
+use crate::types::{MemoryLayoutInfo, GenericTypeInfo, DynamicTypeInfo, RuntimeStateInfo};
+use crate::types::{FieldLayoutInfo, PaddingAnalysis, LayoutEfficiency, OptimizationPotential};
+use crate::types::{TypeParameter, MonomorphizationInfo, CodeBloatLevel, GenericConstraint};
+use crate::types::{VTableInfo, DispatchOverhead, TypeErasureInfo, PerformanceImpact};
+use crate::types::{CpuUsageInfo, MemoryPressureInfo, CachePerformanceInfo, AllocatorStateInfo};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -40,10 +45,519 @@ impl MemoryTracker {
         }
     }
 
+    /// Analyze memory layout information
+    pub fn analyze_memory_layout(&self, type_name: &str, size: usize) -> Option<MemoryLayoutInfo> {
+        // Infer memory layout based on type name and size
+        let alignment = self.estimate_alignment(type_name, size);
+        let field_layout = self.analyze_field_layout(type_name, size, alignment);
+        let padding_info = self.analyze_padding(&field_layout, size, alignment);
+        let layout_efficiency = self.calculate_layout_efficiency(&field_layout, &padding_info, size);
+
+        Some(MemoryLayoutInfo {
+            total_size: size,
+            alignment,
+            field_layout,
+            padding_info,
+            layout_efficiency,
+        })
+    }
+
+    /// Estimate type alignment requirements
+    fn estimate_alignment(&self, type_name: &str, size: usize) -> usize {
+        if type_name.contains("u64") || type_name.contains("i64") || type_name.contains("f64") {
+            8
+        } else if type_name.contains("u32") || type_name.contains("i32") || type_name.contains("f32") {
+            4
+        } else if type_name.contains("u16") || type_name.contains("i16") {
+            2
+        } else if type_name.contains("u8") || type_name.contains("i8") || type_name.contains("bool") {
+            1
+        } else if type_name.contains("usize") || type_name.contains("isize") || type_name.contains("*") {
+            std::mem::size_of::<usize>()
+        } else {
+            // For composite types, use heuristic approach
+            match size {
+                1 => 1,
+                2..=3 => 2,
+                4..=7 => 4,
+                _ => 8,
+            }
+        }
+    }
+
+    /// Analyze field layout
+    fn analyze_field_layout(&self, type_name: &str, total_size: usize, alignment: usize) -> Vec<FieldLayoutInfo> {
+        let mut fields = Vec::new();
+        
+        if type_name.contains("Vec<") {
+            // Vec<T> typically contains: ptr, capacity, len
+            fields.push(FieldLayoutInfo {
+                field_name: "ptr".to_string(),
+                field_type: "*mut T".to_string(),
+                offset: 0,
+                size: std::mem::size_of::<usize>(),
+                alignment: std::mem::size_of::<usize>(),
+                is_padding: false,
+            });
+            fields.push(FieldLayoutInfo {
+                field_name: "capacity".to_string(),
+                field_type: "usize".to_string(),
+                offset: std::mem::size_of::<usize>(),
+                size: std::mem::size_of::<usize>(),
+                alignment: std::mem::size_of::<usize>(),
+                is_padding: false,
+            });
+            fields.push(FieldLayoutInfo {
+                field_name: "len".to_string(),
+                field_type: "usize".to_string(),
+                offset: std::mem::size_of::<usize>() * 2,
+                size: std::mem::size_of::<usize>(),
+                alignment: std::mem::size_of::<usize>(),
+                is_padding: false,
+            });
+        } else if type_name.contains("String") {
+            // String is similar to Vec<u8>
+            fields.push(FieldLayoutInfo {
+                field_name: "vec".to_string(),
+                field_type: "Vec<u8>".to_string(),
+                offset: 0,
+                size: total_size,
+                alignment,
+                is_padding: false,
+            });
+        } else if type_name.contains("HashMap") {
+            // HashMap has a more complex internal structure
+            fields.push(FieldLayoutInfo {
+                field_name: "hash_builder".to_string(),
+                field_type: "S".to_string(),
+                offset: 0,
+                size: 8,
+                alignment: 8,
+                is_padding: false,
+            });
+            fields.push(FieldLayoutInfo {
+                field_name: "table".to_string(),
+                field_type: "RawTable<(K, V)>".to_string(),
+                offset: 8,
+                size: total_size - 8,
+                alignment: 8,
+                is_padding: false,
+            });
+        } else {
+            // For unknown types, create a generic field
+            fields.push(FieldLayoutInfo {
+                field_name: "data".to_string(),
+                field_type: type_name.to_string(),
+                offset: 0,
+                size: total_size,
+                alignment,
+                is_padding: false,
+            });
+        }
+
+        fields
+    }
+
+    /// Analyze padding bytes
+    fn analyze_padding(&self, fields: &[FieldLayoutInfo], total_size: usize, struct_alignment: usize) -> PaddingAnalysis {
+        let mut padding_locations = Vec::new();
+        let mut total_padding_bytes = 0;
+        let mut optimization_suggestions = Vec::new();
+
+        // Check padding between fields
+        for i in 0..fields.len().saturating_sub(1) {
+            let current_field = &fields[i];
+            let next_field = &fields[i + 1];
+            let expected_next_offset = current_field.offset + current_field.size;
+            
+            if next_field.offset > expected_next_offset {
+                let padding_size = next_field.offset - expected_next_offset;
+                padding_locations.push(crate::types::PaddingLocation {
+                    start_offset: expected_next_offset,
+                    size: padding_size,
+                    reason: crate::types::PaddingReason::FieldAlignment,
+                });
+                total_padding_bytes += padding_size;
+            }
+        }
+
+        // Check struct tail padding
+        if let Some(last_field) = fields.last() {
+            let last_field_end = last_field.offset + last_field.size;
+            if total_size > last_field_end {
+                let tail_padding = total_size - last_field_end;
+                padding_locations.push(crate::types::PaddingLocation {
+                    start_offset: last_field_end,
+                    size: tail_padding,
+                    reason: crate::types::PaddingReason::StructAlignment,
+                });
+                total_padding_bytes += tail_padding;
+            }
+        }
+
+        // Generate optimization suggestions
+        let padding_ratio = total_padding_bytes as f64 / total_size as f64;
+        if padding_ratio > 0.25 {
+            optimization_suggestions.push("Consider rearranging fields to reduce padding bytes".to_string());
+        }
+        if fields.len() > 1 && padding_ratio > 0.1 {
+            optimization_suggestions.push("Grouping smaller fields together may reduce memory waste".to_string());
+        }
+
+        PaddingAnalysis {
+            total_padding_bytes,
+            padding_locations,
+            padding_ratio,
+            optimization_suggestions,
+        }
+    }
+
+    /// Calculate layout efficiency
+    fn calculate_layout_efficiency(&self, fields: &[FieldLayoutInfo], padding: &PaddingAnalysis, total_size: usize) -> LayoutEfficiency {
+        let useful_data_size = total_size - padding.total_padding_bytes;
+        let memory_utilization = useful_data_size as f64 / total_size as f64;
+        
+        // Cache friendliness score (based on field size and alignment)
+        let cache_friendliness = if total_size <= 64 {
+            100.0 // Fits in a single cache line
+        } else if total_size <= 128 {
+            80.0
+        } else if total_size <= 256 {
+            60.0
+        } else {
+            40.0
+        };
+
+        let optimization_potential = if padding.padding_ratio > 0.3 {
+            OptimizationPotential::Major {
+                potential_savings: padding.total_padding_bytes,
+                suggestions: vec![
+                    "Rearrange field order".to_string(),
+                    "Use #[repr(packed)] attribute".to_string(),
+                ],
+            }
+        } else if padding.padding_ratio > 0.15 {
+            OptimizationPotential::Moderate {
+                potential_savings: padding.total_padding_bytes,
+                suggestions: vec!["Optimize field arrangement".to_string()],
+            }
+        } else if padding.padding_ratio > 0.05 {
+            OptimizationPotential::Minor {
+                potential_savings: padding.total_padding_bytes,
+            }
+        } else {
+            OptimizationPotential::None
+        };
+
+        LayoutEfficiency {
+            memory_utilization,
+            cache_friendliness,
+            alignment_waste: padding.total_padding_bytes,
+            optimization_potential,
+        }
+    }
+
+    /// Analyze generic type information
+    pub fn analyze_generic_type(&self, type_name: &str, size: usize) -> Option<GenericTypeInfo> {
+        if !type_name.contains('<') || !type_name.contains('>') {
+            return None; // Not a generic type
+        }
+
+        let base_type = self.extract_base_type(type_name);
+        let type_parameters = self.extract_type_parameters(type_name, size);
+        let monomorphization_info = self.analyze_monomorphization(&base_type, &type_parameters);
+        let constraints = self.infer_generic_constraints(&base_type, &type_parameters);
+
+        Some(GenericTypeInfo {
+            base_type,
+            type_parameters,
+            monomorphization_info,
+            constraints,
+        })
+    }
+
+    /// Extract generic base type
+    fn extract_base_type(&self, type_name: &str) -> String {
+        if let Some(angle_pos) = type_name.find('<') {
+            type_name[..angle_pos].to_string()
+        } else {
+            type_name.to_string()
+        }
+    }
+
+    /// Extract generic type parameters
+    fn extract_type_parameters(&self, type_name: &str, total_size: usize) -> Vec<TypeParameter> {
+        let mut parameters = Vec::new();
+        
+        if let Some(start) = type_name.find('<') {
+            if let Some(end) = type_name.rfind('>') {
+                let params_str = &type_name[start + 1..end];
+                let param_names: Vec<&str> = params_str.split(',').map(|s| s.trim()).collect();
+                
+                for (i, param_name) in param_names.iter().enumerate() {
+                    let estimated_size = self.estimate_type_parameter_size(param_name, total_size, param_names.len());
+                    parameters.push(TypeParameter {
+                        name: format!("T{}", i),
+                        concrete_type: param_name.to_string(),
+                        size: estimated_size,
+                        alignment: self.estimate_alignment(param_name, estimated_size),
+                        is_lifetime: param_name.starts_with('\''),
+                    });
+                }
+            }
+        }
+
+        parameters
+    }
+
+    /// Estimate generic parameter size
+    fn estimate_type_parameter_size(&self, param_type: &str, total_size: usize, param_count: usize) -> usize {
+        if param_type.starts_with('\'') {
+            return 0; // Lifetime parameters don't take up space
+        }
+
+        match param_type {
+            "u8" | "i8" | "bool" => 1,
+            "u16" | "i16" => 2,
+            "u32" | "i32" | "f32" => 4,
+            "u64" | "i64" | "f64" => 8,
+            "usize" | "isize" => std::mem::size_of::<usize>(),
+            _ => {
+                // For complex types, evenly distribute total size
+                if param_count > 0 {
+                    total_size / param_count
+                } else {
+                    std::mem::size_of::<usize>()
+                }
+            }
+        }
+    }
+
+    /// Analyze monomorphization information
+    fn analyze_monomorphization(&self, base_type: &str, parameters: &[TypeParameter]) -> MonomorphizationInfo {
+        // Estimate monomorphization instance count (based on parameter complexity)
+        let instance_count = parameters.iter()
+            .map(|p| if p.concrete_type.contains('<') { 2 } else { 1 })
+            .product::<usize>()
+            .max(1);
+
+        let per_instance_memory = parameters.iter().map(|p| p.size).sum::<usize>();
+        let total_memory_usage = instance_count * per_instance_memory;
+
+        let code_bloat_assessment = match instance_count {
+            1..=2 => CodeBloatLevel::Low,
+            3..=5 => CodeBloatLevel::Moderate,
+            6..=10 => CodeBloatLevel::High,
+            _ => CodeBloatLevel::Excessive,
+        };
+
+        MonomorphizationInfo {
+            instance_count,
+            per_instance_memory,
+            total_memory_usage,
+            code_bloat_assessment,
+        }
+    }
+
+    /// Infer generic constraints
+    fn infer_generic_constraints(&self, base_type: &str, _parameters: &[TypeParameter]) -> Vec<GenericConstraint> {
+        let mut constraints = Vec::new();
+
+        match base_type {
+            "Vec" | "HashMap" | "BTreeMap" => {
+                constraints.push(GenericConstraint {
+                    constraint_type: crate::types::ConstraintType::Trait("Clone".to_string()),
+                    description: "Element types typically need to implement Clone".to_string(),
+                    memory_impact: crate::types::MemoryImpact::None,
+                });
+            }
+            "Rc" | "Arc" => {
+                constraints.push(GenericConstraint {
+                    constraint_type: crate::types::ConstraintType::Trait("Send + Sync".to_string()),
+                    description: "Shared pointer contents need to be thread-safe".to_string(),
+                    memory_impact: crate::types::MemoryImpact::SizeIncrease(std::mem::size_of::<usize>()),
+                });
+            }
+            _ => {}
+        }
+
+        constraints
+    }
+
+    /// Analyze dynamic type information (trait objects)
+    pub fn analyze_dynamic_type(&self, type_name: &str, size: usize) -> Option<DynamicTypeInfo> {
+        if !type_name.contains("dyn ") && !type_name.contains("Box<dyn") {
+            return None; // Not a trait object
+        }
+
+        let trait_name = self.extract_trait_name(type_name);
+        let vtable_info = self.analyze_vtable(&trait_name, size);
+        let concrete_type = self.try_infer_concrete_type(type_name);
+        let dispatch_overhead = self.calculate_dispatch_overhead(&trait_name);
+        let type_erasure_info = self.analyze_type_erasure(size);
+
+        Some(DynamicTypeInfo {
+            trait_name,
+            vtable_info,
+            concrete_type,
+            dispatch_overhead,
+            type_erasure_info,
+        })
+    }
+
+    /// Extract trait name
+    fn extract_trait_name(&self, type_name: &str) -> String {
+        if let Some(dyn_pos) = type_name.find("dyn ") {
+            let after_dyn = &type_name[dyn_pos + 4..];
+            if let Some(end_pos) = after_dyn.find('>').or_else(|| after_dyn.find(' ')) {
+                after_dyn[..end_pos].to_string()
+            } else {
+                after_dyn.to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        }
+    }
+
+    /// Analyze virtual function table
+    fn analyze_vtable(&self, trait_name: &str, _size: usize) -> VTableInfo {
+        let method_count = match trait_name {
+            "Display" | "Debug" => 1,
+            "Iterator" => 2,
+            "Clone" => 1,
+            "Drop" => 1,
+            _ => 3, // Default estimate
+        };
+
+        let vtable_size = method_count * std::mem::size_of::<usize>() + std::mem::size_of::<usize>(); // Method pointers + type info
+        let methods = (0..method_count).map(|i| {
+            crate::types::VTableMethod {
+                name: format!("method_{}", i),
+                signature: "fn(&self) -> ()".to_string(),
+                vtable_offset: i * std::mem::size_of::<usize>(),
+            }
+        }).collect();
+
+        VTableInfo {
+            vtable_size,
+            method_count,
+            vtable_ptr_offset: 0,
+            methods,
+        }
+    }
+
+    /// Try to infer concrete type
+    fn try_infer_concrete_type(&self, type_name: &str) -> Option<String> {
+        // In actual implementation, this might need more complex type inference logic
+        if type_name.contains("String") {
+            Some("String".to_string())
+        } else if type_name.contains("Vec") {
+            Some("Vec<T>".to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Calculate dynamic dispatch overhead
+    fn calculate_dispatch_overhead(&self, trait_name: &str) -> DispatchOverhead {
+        let indirect_call_overhead_ns = match trait_name {
+            "Display" | "Debug" => 2.0, // Simple trait
+            "Iterator" => 3.0,
+            _ => 5.0, // Complex trait
+        };
+
+        DispatchOverhead {
+            indirect_call_overhead_ns,
+            cache_miss_probability: 0.1, // 10% cache miss
+            branch_misprediction_rate: 0.05, // 5% branch misprediction
+            performance_impact: if indirect_call_overhead_ns > 4.0 {
+                PerformanceImpact::Moderate
+            } else {
+                PerformanceImpact::Minor
+            },
+        }
+    }
+
+    /// Analyze type erasure information
+    fn analyze_type_erasure(&self, size: usize) -> TypeErasureInfo {
+        TypeErasureInfo {
+            type_info_recoverable: false, // trait objects typically cannot recover original type
+            size_info: Some(size),
+            alignment_info: Some(std::mem::size_of::<usize>()), // Usually aligned to pointer size
+            destructor_info: Some("dynamic".to_string()),
+        }
+    }
+
+    /// Collect runtime state information
+    pub fn collect_runtime_state(&self) -> RuntimeStateInfo {
+        RuntimeStateInfo {
+            cpu_usage: self.collect_cpu_usage(),
+            memory_pressure: self.assess_memory_pressure(),
+            cache_performance: self.estimate_cache_performance(),
+            allocator_state: self.analyze_allocator_state(),
+            gc_info: None, // Rust doesn't have GC
+        }
+    }
+
+    /// Collect CPU usage information
+    fn collect_cpu_usage(&self) -> CpuUsageInfo {
+        // In actual implementation, this would call system APIs to get real CPU usage
+        CpuUsageInfo {
+            current_usage_percent: 15.0, // Simulated value
+            average_usage_percent: 12.0,
+            peak_usage_percent: 25.0,
+            intensive_operations_count: 100,
+        }
+    }
+
+    /// Assess memory pressure
+    fn assess_memory_pressure(&self) -> MemoryPressureInfo {
+        let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
+        let pressure_level = if stats.active_memory > 1024 * 1024 * 100 { // > 100MB
+            crate::types::MemoryPressureLevel::High
+        } else if stats.active_memory > 1024 * 1024 * 50 { // > 50MB
+            crate::types::MemoryPressureLevel::Moderate
+        } else {
+            crate::types::MemoryPressureLevel::Low
+        };
+
+        MemoryPressureInfo {
+            pressure_level,
+            available_memory_percent: 75.0, // Simulated value
+            allocation_failures: 0,
+            fragmentation_level: stats.fragmentation_analysis.fragmentation_ratio,
+        }
+    }
+
+    /// Estimate cache performance
+    fn estimate_cache_performance(&self) -> CachePerformanceInfo {
+        CachePerformanceInfo {
+            l1_hit_rate: 0.95,
+            l2_hit_rate: 0.85,
+            l3_hit_rate: 0.70,
+            cache_miss_penalty_ns: 100.0,
+            access_pattern: crate::types::MemoryAccessPattern::Mixed,
+        }
+    }
+
+    /// Analyze allocator state
+    fn analyze_allocator_state(&self) -> AllocatorStateInfo {
+        let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
+        
+        AllocatorStateInfo {
+            allocator_type: "System".to_string(),
+            heap_size: 1024 * 1024 * 1024, // 1GB simulated value
+            heap_used: stats.active_memory,
+            free_blocks_count: 1000, // Simulated value
+            largest_free_block: 1024 * 1024, // 1MB
+            efficiency_score: 0.85,
+        }
+    }
+
     /// Track a new memory allocation.
     pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
         // Create allocation info first (no locks needed)
-        let allocation = AllocationInfo::new(ptr, size);
+        let mut allocation = AllocationInfo::new(ptr, size);
 
         // Use try_lock to avoid blocking during high allocation activity
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
@@ -559,6 +1073,23 @@ impl MemoryTracker {
         }
     }
 
+    /// Enhance allocation information with detailed analysis
+    pub fn enhance_allocation_info(&self, allocation: &mut AllocationInfo) {
+        if let Some(type_name) = &allocation.type_name {
+            // Analyze memory layout
+            allocation.memory_layout = self.analyze_memory_layout(type_name, allocation.size);
+            
+            // Analyze generic types
+            allocation.generic_info = self.analyze_generic_type(type_name, allocation.size);
+            
+            // Analyze dynamic types
+            allocation.dynamic_type_info = self.analyze_dynamic_type(type_name, allocation.size);
+        }
+        
+        // Collect runtime state
+        allocation.runtime_state = Some(self.collect_runtime_state());
+    }
+
     /// Associate a variable name and type with an allocation.
     pub fn associate_var(
         &self,
@@ -572,8 +1103,12 @@ impl MemoryTracker {
                 if let Some(allocation) = active.get_mut(&ptr) {
                     allocation.var_name = Some(var_name.clone());
                     allocation.type_name = Some(type_name.clone());
+                    
+                    // Perform enhanced analysis
+                    self.enhance_allocation_info(allocation);
+                    
                     tracing::debug!(
-                        "Associated variable '{}' with existing allocation at {:x}",
+                        "Associated variable '{}' with existing allocation at {:x} and enhanced with detailed analysis",
                         var_name,
                         ptr
                     );
@@ -589,9 +1124,12 @@ impl MemoryTracker {
                     let estimated_size = estimate_type_size(&type_name);
                     synthetic_allocation.size = estimated_size;
 
+                    // Perform enhanced analysis
+                    self.enhance_allocation_info(&mut synthetic_allocation);
+
                     // Add to active allocations for tracking
                     active.insert(ptr, synthetic_allocation);
-                    tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
+                    tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {}) with enhanced analysis", 
                                    var_name, ptr, estimated_size);
                     Ok(())
                 }

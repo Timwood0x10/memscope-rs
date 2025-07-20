@@ -120,6 +120,10 @@ pub trait Trackable {
                 is_leaked: false,
                 lifetime_ms: None,
                 smart_pointer_info: None,
+                memory_layout: None,
+                generic_info: None,
+                dynamic_type_info: None,
+                runtime_state: None,
             };
             
             Some(crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, &allocation))
