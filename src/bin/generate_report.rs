@@ -3,56 +3,61 @@ use std::env;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         print_usage();
         return;
     }
-    
+
     match args[1].as_str() {
         "template" => {
             let default_output = "interactive_template.html".to_string();
             let output = args.get(2).unwrap_or(&default_output);
-            
+
             // Check if source file exists
             if !std::path::Path::new("interactive_template.html").exists() {
                 eprintln!("❌ Source template 'interactive_template.html' not found!");
                 eprintln!("Please make sure the interactive_template.html file exists in the current directory.");
                 std::process::exit(1);
             }
-            
+
             if let Err(e) = std::fs::copy("interactive_template.html", output) {
                 eprintln!("❌ Error creating template: {e}");
                 std::process::exit(1);
             }
             println!("✅ Created interactive template: {output}");
-        },
+        }
         "generate" => {
             if args.len() < 4 {
-                eprintln!("❌ Usage: generate_report generate <json_file> <output_file> [template_file]");
+                eprintln!(
+                    "❌ Usage: generate_report generate <json_file> <output_file> [template_file]"
+                );
                 std::process::exit(1);
             }
-            
+
             let json_file = &args[2];
             let output_file = &args[3];
             let default_template = "report_template.html".to_string();
             let template_file = args.get(4).unwrap_or(&default_template);
-            
+
             if let Err(e) = embed_json_to_html(json_file, template_file, output_file) {
                 eprintln!("❌ Error generating report: {e}");
                 std::process::exit(1);
             }
-        },
+        }
         _ => {
             print_usage();
         }
     }
 }
 
-fn embed_json_to_html(json_file: &str, template_file: &str, output_file: &str) -> Result<(), Box<dyn std::error::Error>> {
-
+fn embed_json_to_html(
+    json_file: &str,
+    template_file: &str,
+    output_file: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let json_content = std::fs::read_to_string(json_file)?;
-    
+
     let template_content = std::fs::read_to_string(template_file)?;
     let inline_script = format!(
         r#"<script type="text/javascript">
@@ -61,11 +66,11 @@ window.EMBEDDED_MEMORY_DATA = {json_content};
 console.log('📊 Loaded embedded memory analysis data');
 </script>"#
     );
-    
+
     let final_html = template_content.replace("<!-- DATA_INJECTION_POINT -->", &inline_script);
-    
+
     std::fs::write(output_file, final_html)?;
-    
+
     println!("✅ Generated self-contained HTML report: {output_file}");
     Ok(())
 }

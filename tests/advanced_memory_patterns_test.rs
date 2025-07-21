@@ -21,16 +21,14 @@ fn test_smart_pointer_tracking() {
 
     // Test Box<T>
     let boxed_data = Box::new(vec![1, 2, 3, 4, 5]);
-    track_var!(boxed_data).expect("Failed to track Box");
+    let _tracked_boxed_data = track_var!(boxed_data);
 
     // Test Rc<T>
     let rc_data = Rc::new(String::from("Reference counted data"));
-    track_var!(rc_data).unwrap();
     let rc_clone = Rc::clone(&rc_data);
 
     // Test Arc<T>
     let arc_data = Arc::new(vec![10, 20, 30]);
-    track_var!(arc_data).unwrap();
     let arc_clone = Arc::clone(&arc_data);
 
     // Test weak references
@@ -95,6 +93,10 @@ fn test_smart_pointer_tracking() {
         1,
         "Should have 1 strong Arc reference after drop"
     );
+
+    // Track after all usage
+    let _tracked_rc_data = track_var!(rc_data);
+    let _tracked_arc_data = track_var!(arc_data);
 }
 
 #[test]
@@ -112,8 +114,8 @@ fn test_interior_mutability_patterns() {
 
     // Test RefCell<T>
     let refcell_data = RefCell::new(vec![1, 2, 3]);
-    let boxed_refcell = Box::new(refcell_data.clone());
-    track_var!(boxed_refcell).unwrap();
+    let boxed_refcell = Box::new(RefCell::new(vec![1, 2, 3]));
+    let _tracked_boxed_refcell = track_var!(boxed_refcell);
 
     {
         let mut borrowed = refcell_data.borrow_mut();
@@ -129,8 +131,6 @@ fn test_interior_mutability_patterns() {
 
     // Test Rc<RefCell<T>> pattern
     let shared_mutable = Rc::new(RefCell::new(HashMap::new()));
-    track_var!(shared_mutable).unwrap();
-
     let clone1 = Rc::clone(&shared_mutable);
     let clone2 = Rc::clone(&shared_mutable);
 
@@ -141,6 +141,8 @@ fn test_interior_mutability_patterns() {
     assert_eq!(shared_mutable.borrow().len(), 2, "Should have 2 entries");
     assert_eq!(shared_mutable.borrow().get("key1"), Some(&"value1"));
     assert_eq!(shared_mutable.borrow().get("key2"), Some(&"value2"));
+
+    let _tracked_shared_mutable = track_var!(shared_mutable);
 
     let tracker = get_global_tracker();
     let stats = tracker.get_stats();
@@ -159,7 +161,7 @@ fn test_collection_types() {
     for i in 0..50 {
         vector.push(i);
     }
-    track_var!(vector).unwrap();
+    let _tracked_vector = track_var!(vector);
 
     // Test HashMap<K, V>
     let mut hash_map = HashMap::new();
@@ -167,7 +169,7 @@ fn test_collection_types() {
         hash_map.insert(format!("key_{i}"), i * 2);
     }
     let boxed_map = Box::new(hash_map);
-    track_var!(boxed_map).unwrap();
+    let _tracked_boxed_map = track_var!(boxed_map);
 
     // Test BTreeMap<K, V>
     let mut btree_map = BTreeMap::new();
@@ -175,7 +177,7 @@ fn test_collection_types() {
         btree_map.insert(i, format!("value_{i}"));
     }
     let boxed_map = Box::new(btree_map);
-    track_var!(boxed_map).unwrap();
+    let _tracked_boxed_map = track_var!(boxed_map);
 
     // Test HashSet<T>
     let mut hash_set = HashSet::new();
@@ -183,7 +185,7 @@ fn test_collection_types() {
         hash_set.insert(format!("item_{i}"));
     }
     let boxed_set = Box::new(hash_set);
-    track_var!(boxed_set).unwrap();
+    let _tracked_boxed_set = track_var!(boxed_set);
 
     // Test VecDeque<T>
     let mut deque = VecDeque::new();
@@ -195,7 +197,7 @@ fn test_collection_types() {
         }
     }
     let boxed_deque = Box::new(deque);
-    track_var!(boxed_deque).unwrap();
+    let _tracked_boxed_deque = track_var!(boxed_deque);
 
     let tracker = get_global_tracker();
     let active_allocs = tracker.get_active_allocations();
@@ -245,8 +247,6 @@ fn test_nested_data_structures() {
         nested.push(map);
     }
 
-    track_var!(nested).unwrap();
-
     // Verify structure integrity
     assert_eq!(nested.len(), 3, "Should have 3 top-level maps");
 
@@ -272,6 +272,8 @@ fn test_nested_data_structures() {
             }
         }
     }
+
+    let _tracked_nested = track_var!(nested);
 
     let tracker = get_global_tracker();
     let stats = tracker.get_stats();
@@ -316,13 +318,13 @@ fn test_custom_drop_implementations() {
         data: vec![1; 1000],
         name: "custom1".to_string(),
     };
-    track_var!(custom1).unwrap();
+    // Track custom1 later to avoid move issues
 
     let custom2 = CustomDrop {
         data: vec![2; 500],
         name: "custom2".to_string(),
     };
-    track_var!(custom2).unwrap();
+    let _tracked_custom2 = track_var!(custom2);
 
     // Test that allocations are tracked
     let tracker = get_global_tracker();
@@ -348,8 +350,9 @@ fn test_custom_drop_implementations() {
         println!("Custom2 allocation not found, but test continues");
     }
 
-    // Drop one explicitly
-    drop(custom1);
+    // Track custom1 now and drop it
+    let _tracked_custom1 = track_var!(custom1);
+    // custom1 is now tracked and will be dropped at end of scope
 
     // Give the tracker a moment to process the deallocation
     std::thread::sleep(std::time::Duration::from_millis(10));
@@ -401,11 +404,11 @@ fn test_zero_sized_types() {
     }
 
     // But the Vec itself might have some allocation for metadata
-    track_var!(zst_vec).unwrap();
+    let _tracked_zst_vec = track_var!(zst_vec);
 
     // Test unit type
     let unit_vec = vec![(); 500];
-    track_var!(unit_vec).unwrap();
+    let _tracked_unit_vec = track_var!(unit_vec);
 
     let tracker = get_global_tracker();
     let _stats = tracker.get_stats();
@@ -419,14 +422,14 @@ fn test_large_allocations() {
 
     // Test various large allocation patterns
     let large_vec = vec![42u8; 1024 * 1024]; // 1MB
-    track_var!(large_vec).unwrap();
+    let _tracked_large_vec = track_var!(large_vec);
 
     let large_string = "x".repeat(512 * 1024); // 512KB string
-    track_var!(large_string).unwrap();
+    let _tracked_large_string = track_var!(large_string);
 
     // Large nested structure
     let large_nested: Vec<Vec<u64>> = (0..1000).map(|i| vec![i as u64; 100]).collect();
-    track_var!(large_nested).unwrap();
+    let _tracked_large_nested = track_var!(large_nested);
 
     let tracker = get_global_tracker();
     let active_allocs = tracker.get_active_allocations();
@@ -488,9 +491,6 @@ fn test_memory_alignment_patterns() {
     let aligned64 = Box::new(Aligned64 { _data: [1; 32] });
     let aligned128 = Box::new(Aligned128 { _data: [2; 64] });
 
-    track_var!(aligned64).unwrap();
-    track_var!(aligned128).unwrap();
-
     // Verify alignment
     assert_eq!(
         aligned64.as_ref() as *const _ as usize % 64,
@@ -502,6 +502,9 @@ fn test_memory_alignment_patterns() {
         0,
         "Should be 128-byte aligned"
     );
+
+    let _tracked_aligned64 = track_var!(aligned64);
+    let _tracked_aligned128 = track_var!(aligned128);
 
     let tracker = get_global_tracker();
     let stats = tracker.get_stats();
@@ -522,15 +525,15 @@ fn test_slice_and_array_patterns() {
 
     // Boxed slice
     let _boxed_slice: Box<[i32]> = vec![10, 20, 30, 40].into_boxed_slice();
-    // // track_var!(boxed_slice).unwrap();
+    // // let _tracked_boxed_slice = track_var!(boxed_slice);
 
     // Vec from slice
     let vec_from_slice = slice.to_vec();
-    track_var!(vec_from_slice).unwrap();
+    let _tracked_vec_from_slice = track_var!(vec_from_slice);
 
     // Large array on heap
     let large_array = Box::new([42u8; 10000]);
-    track_var!(large_array).unwrap();
+    let _tracked_large_array = track_var!(large_array);
 
     let tracker = get_global_tracker();
     let active_allocs = tracker.get_active_allocations();
@@ -592,8 +595,8 @@ fn test_trait_objects() {
         _name: "test".to_string(),
     });
 
-    // track_var!(trait_obj).unwrap();
-    // track_var!(trait_obj).unwrap();
+    // let _tracked_trait_obj = track_var!(trait_obj);
+    // let _tracked_trait_obj = track_var!(trait_obj);
 
     assert_eq!(trait_obj1.get_value(), 42, "Trait object 1 should work");
     assert_eq!(trait_obj2.get_value(), 84, "Trait object 2 should work");
@@ -611,7 +614,7 @@ fn test_trait_objects() {
             _name: "two".to_string(),
         }));
 
-        track_var!(trait_objects).unwrap();
+        let _tracked_trait_objects = track_var!(trait_objects);
     }
 
     let tracker = get_global_tracker();

@@ -7,10 +7,10 @@
 
 #![warn(missing_docs)]
 
-/// Advanced type analysis framework
-pub mod advanced_types;
 /// Macro for advanced type Trackable implementations
 pub mod advanced_trackable_macro;
+/// Advanced type analysis framework
+pub mod advanced_types;
 /// Memory allocation tracking and analysis
 pub mod allocator;
 /// Advanced memory analysis functionality
@@ -24,12 +24,12 @@ pub mod scope_tracker;
 pub mod tracker;
 /// Type definitions and data structures
 pub mod types;
-/// Variable registry for lightweight HashMap-based variable tracking
-pub mod variable_registry;
 /// Unsafe and FFI operation tracking
 pub mod unsafe_ffi_tracker;
 /// Utility functions
 pub mod utils;
+/// Variable registry for lightweight HashMap-based variable tracking
+pub mod variable_registry;
 /// Visualization and chart generation
 pub mod visualization;
 
@@ -38,25 +38,25 @@ pub mod visualization;
 pub mod enhanced_memory_analysis;
 /// Enhanced types for comprehensive memory analysis
 pub mod enhanced_types;
-/// Unknown memory regions analysis
-pub mod unknown_memory_regions;
 /// Enhanced export functionality
 pub mod export_enhanced;
 /// HTML export functionality for interactive visualization
 pub mod html_export;
-pub use visualization::*;
+/// Unknown memory regions analysis
+pub mod unknown_memory_regions;
+pub use advanced_types::*;
 pub use analysis::*;
 pub use circular_reference::*;
-pub use advanced_types::*;
+pub use visualization::*;
 // Re-export main types for easier use
 pub use allocator::TrackingAllocator;
+pub use enhanced_memory_analysis::EnhancedMemoryAnalyzer;
+pub use html_export::export_interactive_html;
 pub use tracker::{get_global_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
 pub use unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
-pub use html_export::export_interactive_html;
-pub use enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 
 // Re-export the derive macro when the derive feature is enabled
 #[cfg(feature = "derive")]
@@ -75,35 +75,35 @@ pub trait Trackable {
 
     /// Get the type name for this value.
     fn get_type_name(&self) -> &'static str;
-    
+
     /// Get estimated size of the allocation.
     fn get_size_estimate(&self) -> usize;
-    
+
     /// Get the reference count for smart pointers (default: 1 for non-smart pointers)
     fn get_ref_count(&self) -> usize {
         1
     }
-    
+
     /// Get the data pointer for grouping related instances (default: same as heap_ptr)
     fn get_data_ptr(&self) -> usize {
         self.get_heap_ptr().unwrap_or(0)
     }
-    
+
     /// Get all internal heap allocations for composite types (default: empty for simple types)
     fn get_internal_allocations(&self, _var_name: &str) -> Vec<(usize, String)> {
         Vec::new()
     }
-    
+
     /// Track clone relationship for smart pointers (default: no-op for non-smart pointers)
     fn track_clone_relationship(&self, _clone_ptr: usize, _source_ptr: usize) {
         // Default implementation does nothing
     }
-    
+
     /// Update reference count tracking for smart pointers (default: no-op for non-smart pointers)
     fn update_ref_count_tracking(&self, _ptr: usize) {
         // Default implementation does nothing
     }
-    
+
     /// Get advanced type analysis information (default: None for simple types)
     fn get_advanced_type_info(&self) -> Option<crate::advanced_types::AdvancedTypeInfo> {
         // Check if this is an advanced type and analyze it
@@ -141,8 +141,13 @@ pub trait Trackable {
                 lifecycle_tracking: None,
                 access_tracking: None,
             };
-            
-            Some(crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, &allocation))
+
+            Some(
+                crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(
+                    type_name,
+                    &allocation,
+                ),
+            )
         } else {
             None
         }
@@ -162,7 +167,7 @@ impl<T> Trackable for Vec<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<Vec<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         self.capacity() * std::mem::size_of::<T>()
     }
@@ -180,7 +185,7 @@ impl Trackable for String {
     fn get_type_name(&self) -> &'static str {
         "String"
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         self.capacity()
     }
@@ -194,7 +199,7 @@ impl<T> Trackable for Box<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<Box<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         std::mem::size_of::<T>()
     }
@@ -205,7 +210,7 @@ impl<T> Trackable for std::rc::Rc<T> {
         // For Rc, we create a truly unique identifier by using the Rc instance address
         // This ensures each TrackedVariable<Rc<T>> gets a completely unique identifier
         let instance_ptr = self as *const _ as usize;
-        
+
         // Use the instance pointer directly, but ensure it's in a safe range for JSON
         // Add an offset to distinguish from regular heap pointers
         Some(0x5000_0000 + (instance_ptr % 0x0FFF_FFFF))
@@ -214,27 +219,27 @@ impl<T> Trackable for std::rc::Rc<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::rc::Rc<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         std::mem::size_of::<T>() + std::mem::size_of::<usize>() * 2 // Data + ref counts
     }
-    
+
     /// Get the reference count for this Rc
     fn get_ref_count(&self) -> usize {
         std::rc::Rc::strong_count(self)
     }
-    
+
     /// Get the data pointer for grouping related Rc instances
     fn get_data_ptr(&self) -> usize {
         std::rc::Rc::as_ptr(self) as usize
     }
-    
+
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
         let tracker = crate::tracker::get_global_tracker();
         let data_ptr = self.get_data_ptr();
         let strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
-        
+
         if let Err(e) = tracker.track_smart_pointer_clone(
             clone_ptr,
             source_ptr,
@@ -245,12 +250,12 @@ impl<T> Trackable for std::rc::Rc<T> {
             tracing::warn!("Failed to track Rc clone relationship: {}", e);
         }
     }
-    
+
     fn update_ref_count_tracking(&self, ptr: usize) {
         let tracker = crate::tracker::get_global_tracker();
         let strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
-        
+
         if let Err(e) = tracker.update_smart_pointer_ref_count(ptr, strong_count, weak_count) {
             tracing::warn!("Failed to update Rc ref count: {}", e);
         }
@@ -262,7 +267,7 @@ impl<T> Trackable for std::sync::Arc<T> {
         // For Arc, we create a truly unique identifier by using the Arc instance address
         // This ensures each TrackedVariable<Arc<T>> gets a completely unique identifier
         let instance_ptr = self as *const _ as usize;
-        
+
         // Use the instance pointer directly, but ensure it's in a safe range for JSON
         // Add an offset to distinguish from regular heap pointers and Rc
         Some(0x6000_0000 + (instance_ptr % 0x0FFF_FFFF))
@@ -271,27 +276,28 @@ impl<T> Trackable for std::sync::Arc<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::sync::Arc<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<T>() + std::mem::size_of::<std::sync::atomic::AtomicUsize>() * 2 // Data + atomic ref counts
+        std::mem::size_of::<T>() + std::mem::size_of::<std::sync::atomic::AtomicUsize>() * 2
+        // Data + atomic ref counts
     }
-    
+
     /// Get the reference count for this Arc
     fn get_ref_count(&self) -> usize {
         std::sync::Arc::strong_count(self)
     }
-    
+
     /// Get the data pointer for grouping related Arc instances
     fn get_data_ptr(&self) -> usize {
         std::sync::Arc::as_ptr(self) as usize
     }
-    
+
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
         let tracker = crate::tracker::get_global_tracker();
         let data_ptr = self.get_data_ptr();
         let strong_count = std::sync::Arc::strong_count(self);
         let weak_count = std::sync::Arc::weak_count(self);
-        
+
         if let Err(e) = tracker.track_smart_pointer_clone(
             clone_ptr,
             source_ptr,
@@ -302,12 +308,12 @@ impl<T> Trackable for std::sync::Arc<T> {
             tracing::warn!("Failed to track Arc clone relationship: {}", e);
         }
     }
-    
+
     fn update_ref_count_tracking(&self, ptr: usize) {
         let tracker = crate::tracker::get_global_tracker();
         let strong_count = std::sync::Arc::strong_count(self);
         let weak_count = std::sync::Arc::weak_count(self);
-        
+
         if let Err(e) = tracker.update_smart_pointer_ref_count(ptr, strong_count, weak_count) {
             tracing::warn!("Failed to update Arc ref count: {}", e);
         }
@@ -324,7 +330,7 @@ impl<K, V> Trackable for std::collections::HashMap<K, V> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::collections::HashMap<K, V>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         // Rough estimate: capacity * (key_size + value_size + overhead)
         self.capacity() * (std::mem::size_of::<K>() + std::mem::size_of::<V>() + 16)
@@ -343,7 +349,7 @@ impl<K, V> Trackable for std::collections::BTreeMap<K, V> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::collections::BTreeMap<K, V>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         // BTreeMap nodes: rough estimate
         self.len() * (std::mem::size_of::<K>() + std::mem::size_of::<V>() + 32)
@@ -362,7 +368,7 @@ impl<T> Trackable for std::collections::HashSet<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::collections::HashSet<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         self.capacity() * (std::mem::size_of::<T>() + 8) // T + hash overhead
     }
@@ -380,7 +386,7 @@ impl<T> Trackable for std::collections::BTreeSet<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::collections::BTreeSet<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         self.len() * (std::mem::size_of::<T>() + 24) // T + tree node overhead
     }
@@ -398,7 +404,7 @@ impl<T> Trackable for std::collections::VecDeque<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::collections::VecDeque<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         self.capacity() * std::mem::size_of::<T>()
     }
@@ -416,9 +422,10 @@ impl<T> Trackable for std::collections::LinkedList<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::collections::LinkedList<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
-        self.len() * (std::mem::size_of::<T>() + std::mem::size_of::<usize>() * 2) // T + prev/next pointers
+        self.len() * (std::mem::size_of::<T>() + std::mem::size_of::<usize>() * 2)
+        // T + prev/next pointers
     }
 }
 
@@ -434,7 +441,7 @@ impl<T> Trackable for std::collections::BinaryHeap<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::collections::BinaryHeap<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         self.capacity() * std::mem::size_of::<T>()
     }
@@ -450,15 +457,15 @@ impl<T> Trackable for std::rc::Weak<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::rc::Weak<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         std::mem::size_of::<std::rc::Weak<T>>()
     }
-    
+
     fn get_ref_count(&self) -> usize {
         self.weak_count()
     }
-    
+
     fn get_data_ptr(&self) -> usize {
         // Try to upgrade and get data pointer, return 0 if data is gone
         if let Some(upgraded) = self.upgrade() {
@@ -479,15 +486,15 @@ impl<T> Trackable for std::sync::Weak<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<std::sync::Weak<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         std::mem::size_of::<std::sync::Weak<T>>()
     }
-    
+
     fn get_ref_count(&self) -> usize {
         self.weak_count()
     }
-    
+
     fn get_data_ptr(&self) -> usize {
         // Try to upgrade and get data pointer, return 0 if data is gone
         if let Some(upgraded) = self.upgrade() {
@@ -534,14 +541,14 @@ impl<T: Trackable> Trackable for Option<T> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<Option<T>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         match self {
             Some(value) => std::mem::size_of::<Option<T>>() + value.get_size_estimate(),
             None => std::mem::size_of::<Option<T>>(),
         }
     }
-    
+
     fn get_internal_allocations(&self, var_name: &str) -> Vec<(usize, String)> {
         match self {
             Some(value) => value.get_internal_allocations(&format!("{}::Some", var_name)),
@@ -562,14 +569,14 @@ impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
     fn get_type_name(&self) -> &'static str {
         std::any::type_name::<Result<T, E>>()
     }
-    
+
     fn get_size_estimate(&self) -> usize {
         match self {
             Ok(value) => std::mem::size_of::<Result<T, E>>() + value.get_size_estimate(),
             Err(error) => std::mem::size_of::<Result<T, E>>() + error.get_size_estimate(),
         }
     }
-    
+
     fn get_internal_allocations(&self, var_name: &str) -> Vec<(usize, String)> {
         match self {
             Ok(value) => value.get_internal_allocations(&format!("{}::Ok", var_name)),
@@ -603,7 +610,8 @@ macro_rules! track_var {
 }
 
 // Global counter for generating unique identifiers for TrackedVariable instances
-static TRACKED_VARIABLE_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+static TRACKED_VARIABLE_COUNTER: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(1);
 
 /// A wrapper that provides automatic lifecycle tracking for variables.
 ///
@@ -630,7 +638,7 @@ impl<T: Trackable> TrackedVariable<T> {
         let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let type_name = value.get_type_name().to_string();
         let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
-        
+
         // For smart pointers, use a unique synthetic pointer based on the TrackedVariable instance
         let ptr = if is_smart_pointer {
             // Generate a unique pointer for this TrackedVariable instance
@@ -642,7 +650,7 @@ impl<T: Trackable> TrackedVariable<T> {
         } else {
             value.get_heap_ptr()
         };
-        
+
         // Track creation
         if let Some(ptr_val) = ptr {
             let tracker = get_global_tracker();
@@ -654,12 +662,12 @@ impl<T: Trackable> TrackedVariable<T> {
                 type_name.clone(),
                 value.get_size_estimate(),
             );
-            
+
             if is_smart_pointer {
                 // For Rc/Arc, always create a specialized smart pointer allocation
                 let ref_count = value.get_ref_count();
                 let data_ptr = value.get_data_ptr();
-                
+
                 let _ = tracker.create_smart_pointer_allocation(
                     ptr_val,
                     value.get_size_estimate(),
@@ -669,7 +677,7 @@ impl<T: Trackable> TrackedVariable<T> {
                     ref_count,
                     data_ptr,
                 );
-                
+
                 tracing::debug!(
                     "🎯 Created smart pointer allocation for '{}' at unique ptr 0x{:x} (id={}), ref_count={}, data_ptr=0x{:x}",
                     var_name,
@@ -681,18 +689,23 @@ impl<T: Trackable> TrackedVariable<T> {
             } else {
                 // For regular types, check if already tracked to prevent duplicates
                 if let Ok(active_allocations) = tracker.get_active_allocations() {
-                    let already_tracked = active_allocations.iter().any(|alloc| alloc.ptr == ptr_val);
+                    let already_tracked =
+                        active_allocations.iter().any(|alloc| alloc.ptr == ptr_val);
                     if !already_tracked {
-                        let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+                        let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
                     } else {
                         // Just update the existing allocation with variable info
-                        let _ = tracker.update_allocation_info(ptr_val, var_name.clone(), type_name);
+                        let _ = tracker.update_allocation_info(
+                            ptr_val,
+                            var_name.clone(),
+                            type_name.clone(),
+                        );
                     }
                 } else {
                     // Fallback: try to associate anyway
-                    let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name);
+                    let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
                 }
-                
+
                 tracing::debug!(
                     "🎯 Created tracked variable '{}' at ptr 0x{:x}",
                     var_name,
@@ -726,7 +739,7 @@ impl<T: Trackable> TrackedVariable<T> {
         if let Some(ptr_val) = self.ptr {
             Self::track_destruction(&self.var_name, ptr_val, self.creation_time);
         }
-        
+
         // Prevent automatic Drop from running
         let inner = unsafe { std::ptr::read(&self.inner) };
         std::mem::forget(self);
@@ -761,7 +774,12 @@ impl<T: Trackable> TrackedVariable<T> {
     }
 
     /// Internal method to track smart pointer destruction with enhanced metadata.
-    fn track_smart_pointer_destruction(var_name: &str, ptr: usize, creation_time: u64, final_ref_count: usize) {
+    fn track_smart_pointer_destruction(
+        var_name: &str,
+        ptr: usize,
+        creation_time: u64,
+        final_ref_count: usize,
+    ) {
         let destruction_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -794,11 +812,16 @@ impl<T: Trackable> Drop for TrackedVariable<T> {
         if let Some(ptr_val) = self.ptr {
             let type_name = self.inner.get_type_name();
             let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
-            
+
             if is_smart_pointer {
                 // For smart pointers, get the final reference count before destruction
                 let final_ref_count = self.inner.get_ref_count();
-                Self::track_smart_pointer_destruction(&self.var_name, ptr_val, self.creation_time, final_ref_count);
+                Self::track_smart_pointer_destruction(
+                    &self.var_name,
+                    ptr_val,
+                    self.creation_time,
+                    final_ref_count,
+                );
             } else {
                 // For regular types, use standard destruction tracking
                 Self::track_destruction(&self.var_name, ptr_val, self.creation_time);
@@ -845,7 +868,7 @@ impl<T: Trackable + Clone> Clone for TrackedVariable<T> {
 
 /// Internal implementation function for the track_var! macro.
 /// This function should not be called directly.
-/// 
+///
 /// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
 #[doc(hidden)]
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
@@ -908,19 +931,21 @@ pub fn enable_auto_export(export_path: Option<&str>) {
     if let Some(path) = export_path {
         std::env::set_var("MEMSCOPE_EXPORT_PATH", path);
     }
-    
+
     // Install exit hook for automatic export
     install_exit_hook();
-    
-    println!("📋 Auto-export enabled - JSON will be exported to: {}", 
-             export_path.unwrap_or("memscope_final_snapshot.json"));
+
+    println!(
+        "📋 Auto-export enabled - JSON will be exported to: {}",
+        export_path.unwrap_or("memscope_final_snapshot.json")
+    );
 }
 
 /// Install program exit hook for automatic data export
 fn install_exit_hook() {
     use std::sync::Once;
     static HOOK_INSTALLED: Once = Once::new();
-    
+
     HOOK_INSTALLED.call_once(|| {
         // Install panic hook
         let original_hook = std::panic::take_hook();
@@ -929,14 +954,14 @@ fn install_exit_hook() {
             let _ = export_final_snapshot("memscope_panic_snapshot");
             original_hook(panic_info);
         }));
-        
+
         // Use libc atexit for reliable program exit handling
         extern "C" fn exit_handler() {
             if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
                 println!("🔄 Program ending, exporting final memory snapshot...");
                 let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
                     .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
-                
+
                 if let Err(e) = export_final_snapshot(&export_path) {
                     eprintln!("❌ Failed to export final snapshot: {}", e);
                 } else {
@@ -944,11 +969,11 @@ fn install_exit_hook() {
                 }
             }
         }
-        
+
         unsafe {
             libc::atexit(exit_handler);
         }
-        
+
         tracing::debug!("📌 Exit hooks installed for automatic memory export");
     });
 }
@@ -968,7 +993,7 @@ impl Drop for ExitGuard {
             println!("🔄 Program ending, exporting final memory snapshot...");
             let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
                 .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
-            
+
             if let Err(e) = export_final_snapshot(&export_path) {
                 eprintln!("❌ Failed to export final snapshot: {}", e);
             } else {
@@ -981,20 +1006,20 @@ impl Drop for ExitGuard {
 /// Export final memory snapshot with complete lifecycle data
 fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {
     let tracker = get_global_tracker();
-    
+
     // Force a final garbage collection attempt to capture any remaining deallocations
     std::thread::sleep(std::time::Duration::from_millis(10));
-    
+
     let json_path = format!("{}.json", base_path);
     tracker.export_to_json(&json_path)?;
-    
+
     // Also export HTML if requested
-    let export_format = std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
+    let export_format =
+        std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
     if export_format == "html" || export_format == "both" {
         let html_path = format!("{}.html", base_path);
         let _ = tracker.export_interactive_dashboard(&html_path);
     }
-    
+
     Ok(())
 }
-

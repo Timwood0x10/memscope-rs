@@ -6,8 +6,8 @@
 //! analysis framework.
 
 use crate::types::AllocationInfo;
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Categories of advanced Rust types based on their memory and concurrency characteristics
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -132,24 +132,24 @@ pub struct PerformanceInfo {
 /// Latency categories for operations
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LatencyCategory {
-    Immediate,    // < 1ns (atomic operations)
-    Fast,         // 1-10ns (simple operations)
-    Moderate,     // 10-100ns (syscalls, locks)
-    Slow,         // 100ns-1μs (complex operations)
-    VerySlow,     // > 1μs (blocking operations)
+    Immediate, // < 1ns (atomic operations)
+    Fast,      // 1-10ns (simple operations)
+    Moderate,  // 10-100ns (syscalls, locks)
+    Slow,      // 100ns-1μs (complex operations)
+    VerySlow,  // > 1μs (blocking operations)
 }
 
 /// Trait for advanced type analysis
 pub trait AdvancedTypeAnalyzer {
     /// Analyze the advanced type and return analysis information
     fn analyze_advanced_type(&self) -> AdvancedTypeInfo;
-    
+
     /// Get current state snapshot
     fn get_current_state(&self) -> TypeStateInfo;
-    
+
     /// Check for potential issues
     fn check_issues(&self) -> Vec<TypeIssue>;
-    
+
     /// Get performance characteristics
     fn get_performance_info(&self) -> PerformanceInfo;
 }
@@ -165,7 +165,7 @@ impl GenericAdvancedTypeAnalyzer {
         let state_info = Self::extract_state_info(type_name, allocation);
         let potential_issues = Self::check_potential_issues(type_name, &category, &behavior);
         let performance_info = Self::analyze_performance(type_name, &category);
-        
+
         AdvancedTypeInfo {
             category,
             behavior,
@@ -174,35 +174,49 @@ impl GenericAdvancedTypeAnalyzer {
             performance_info,
         }
     }
-    
+
     /// Categorize type based on its name
     fn categorize_type(type_name: &str) -> AdvancedTypeCategory {
         if type_name.contains("Cell") || type_name.contains("UnsafeCell") {
             AdvancedTypeCategory::InteriorMutability
-        } else if type_name.contains("Mutex") || type_name.contains("RwLock") || 
-                  type_name.contains("Condvar") || type_name.contains("Barrier") {
+        } else if type_name.contains("Mutex")
+            || type_name.contains("RwLock")
+            || type_name.contains("Condvar")
+            || type_name.contains("Barrier")
+        {
             AdvancedTypeCategory::Synchronization
-        } else if type_name.contains("Sender") || type_name.contains("Receiver") || 
-                  type_name.contains("mpsc") || type_name.contains("channel") {
+        } else if type_name.contains("Sender")
+            || type_name.contains("Receiver")
+            || type_name.contains("mpsc")
+            || type_name.contains("channel")
+        {
             AdvancedTypeCategory::Channel
         } else if type_name.contains("Atomic") {
             AdvancedTypeCategory::Atomic
         } else if type_name.contains("ThreadLocal") || type_name.contains("LocalKey") {
             AdvancedTypeCategory::ThreadLocal
-        } else if type_name.contains("ManuallyDrop") || type_name.contains("MaybeUninit") || 
-                  type_name.contains("Pin") {
+        } else if type_name.contains("ManuallyDrop")
+            || type_name.contains("MaybeUninit")
+            || type_name.contains("Pin")
+        {
             AdvancedTypeCategory::MemoryManagement
-        } else if type_name.contains("Future") || type_name.contains("Waker") || 
-                  type_name.contains("Context") || type_name.contains("async") {
+        } else if type_name.contains("Future")
+            || type_name.contains("Waker")
+            || type_name.contains("Context")
+            || type_name.contains("async")
+        {
             AdvancedTypeCategory::Async
         } else {
             // Default fallback - try to infer from other characteristics
             AdvancedTypeCategory::MemoryManagement
         }
     }
-    
+
     /// Analyze behavioral patterns
-    fn analyze_behavior_pattern(type_name: &str, category: &AdvancedTypeCategory) -> TypeBehaviorPattern {
+    fn analyze_behavior_pattern(
+        type_name: &str,
+        category: &AdvancedTypeCategory,
+    ) -> TypeBehaviorPattern {
         match category {
             AdvancedTypeCategory::InteriorMutability => TypeBehaviorPattern {
                 has_interior_mutability: true,
@@ -269,7 +283,7 @@ impl GenericAdvancedTypeAnalyzer {
             },
         }
     }
-    
+
     /// Extract current state information (limited without runtime introspection)
     fn extract_state_info(_type_name: &str, _allocation: &AllocationInfo) -> TypeStateInfo {
         // Note: Without runtime introspection, we can only provide limited state info
@@ -283,11 +297,15 @@ impl GenericAdvancedTypeAnalyzer {
             channel_info: None,
         }
     }
-    
+
     /// Check for potential issues based on type characteristics
-    fn check_potential_issues(type_name: &str, category: &AdvancedTypeCategory, behavior: &TypeBehaviorPattern) -> Vec<TypeIssue> {
+    fn check_potential_issues(
+        type_name: &str,
+        category: &AdvancedTypeCategory,
+        behavior: &TypeBehaviorPattern,
+    ) -> Vec<TypeIssue> {
         let mut issues = Vec::new();
-        
+
         // Check for common issues based on category
         match category {
             AdvancedTypeCategory::InteriorMutability => {
@@ -299,17 +317,20 @@ impl GenericAdvancedTypeAnalyzer {
                         location: None,
                     });
                 }
-            },
+            }
             AdvancedTypeCategory::Synchronization => {
                 if behavior.deadlock_potential {
                     issues.push(TypeIssue {
                         severity: IssueSeverity::Warning,
                         description: "Synchronization primitive has deadlock potential".to_string(),
-                        suggestion: Some("Ensure consistent lock ordering and consider using try_lock()".to_string()),
+                        suggestion: Some(
+                            "Ensure consistent lock ordering and consider using try_lock()"
+                                .to_string(),
+                        ),
                         location: None,
                     });
                 }
-            },
+            }
             AdvancedTypeCategory::Channel => {
                 issues.push(TypeIssue {
                     severity: IssueSeverity::Info,
@@ -317,13 +338,13 @@ impl GenericAdvancedTypeAnalyzer {
                     suggestion: Some("Consider using try_send/try_recv or timeouts".to_string()),
                     location: None,
                 });
-            },
+            }
             _ => {}
         }
-        
+
         issues
     }
-    
+
     /// Analyze performance characteristics
     fn analyze_performance(type_name: &str, category: &AdvancedTypeCategory) -> PerformanceInfo {
         match category {
@@ -337,13 +358,13 @@ impl GenericAdvancedTypeAnalyzer {
                     }
                 } else {
                     PerformanceInfo {
-                        overhead_factor: 2.0, // RefCell has runtime checks
+                        overhead_factor: 2.0,                          // RefCell has runtime checks
                         memory_overhead: std::mem::size_of::<usize>(), // Borrow counter
                         is_lock_free: true,
                         latency_category: LatencyCategory::Fast,
                     }
                 }
-            },
+            }
             AdvancedTypeCategory::Synchronization => PerformanceInfo {
                 overhead_factor: 10.0, // Significant overhead for locking
                 memory_overhead: std::mem::size_of::<usize>() * 2, // Lock state + wait queue
@@ -352,7 +373,7 @@ impl GenericAdvancedTypeAnalyzer {
             },
             AdvancedTypeCategory::Channel => PerformanceInfo {
                 overhead_factor: 5.0, // Moderate overhead
-                memory_overhead: 64, // Estimated buffer overhead
+                memory_overhead: 64,  // Estimated buffer overhead
                 is_lock_free: false,
                 latency_category: LatencyCategory::Moderate,
             },
@@ -363,7 +384,7 @@ impl GenericAdvancedTypeAnalyzer {
                 latency_category: LatencyCategory::Immediate,
             },
             AdvancedTypeCategory::ThreadLocal => PerformanceInfo {
-                overhead_factor: 3.0, // TLS lookup overhead
+                overhead_factor: 3.0,                          // TLS lookup overhead
                 memory_overhead: std::mem::size_of::<usize>(), // TLS key
                 is_lock_free: true,
                 latency_category: LatencyCategory::Fast,
@@ -376,7 +397,7 @@ impl GenericAdvancedTypeAnalyzer {
             },
             AdvancedTypeCategory::Async => PerformanceInfo {
                 overhead_factor: 4.0, // State machine overhead
-                memory_overhead: 32, // Estimated state machine size
+                memory_overhead: 32,  // Estimated state machine size
                 is_lock_free: true,
                 latency_category: LatencyCategory::Fast,
             },
@@ -432,39 +453,51 @@ pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAna
     let mut lock_free_count = 0;
     let mut total_count = 0;
     let mut latency_counts: HashMap<LatencyCategory, usize> = HashMap::new();
-    
+
     for allocation in allocations {
         if let Some(type_name) = &allocation.type_name {
             // Check if this is an advanced type we should analyze
             if is_advanced_type(type_name) {
-                let analysis = GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, allocation);
-                
-                // Categorize
+                let analysis =
+                    GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, allocation);
+
+                // Clone data before moving analysis
                 let category_key = format!("{:?}", analysis.category);
-                by_category.entry(category_key).or_insert_with(Vec::new).push(analysis.clone());
-                
+                let issues = analysis.potential_issues.clone();
+                let overhead_factor = analysis.performance_info.overhead_factor;
+                let memory_overhead = analysis.performance_info.memory_overhead;
+                let is_lock_free = analysis.performance_info.is_lock_free;
+                let latency_category = analysis.performance_info.latency_category.clone();
+
+                // Move analysis to category
+                by_category
+                    .entry(category_key)
+                    .or_insert_with(Vec::new)
+                    .push(analysis);
+
                 // Collect issues
-                all_issues.extend(analysis.potential_issues.clone());
-                
+                all_issues.extend(issues);
+
                 // Aggregate performance data
-                total_overhead_factor += analysis.performance_info.overhead_factor;
-                total_memory_overhead += analysis.performance_info.memory_overhead;
-                if analysis.performance_info.is_lock_free {
+                total_overhead_factor += overhead_factor;
+                total_memory_overhead += memory_overhead;
+                if is_lock_free {
                     lock_free_count += 1;
                 }
-                *latency_counts.entry(analysis.performance_info.latency_category.clone()).or_insert(0) += 1;
+                *latency_counts.entry(latency_category).or_insert(0) += 1;
                 total_count += 1;
             }
         }
     }
-    
+
     // Calculate performance summary
     let performance_summary = if total_count > 0 {
         PerformanceSummary {
             total_overhead_factor: total_overhead_factor / total_count as f64,
             total_memory_overhead,
             lock_free_percentage: (lock_free_count as f64 / total_count as f64) * 100.0,
-            dominant_latency_category: latency_counts.iter()
+            dominant_latency_category: latency_counts
+                .iter()
                 .max_by_key(|(_, count)| *count)
                 .map(|(category, _)| category.clone())
                 .unwrap_or(LatencyCategory::Fast),
@@ -477,10 +510,11 @@ pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAna
             dominant_latency_category: LatencyCategory::Immediate,
         }
     };
-    
+
     // Generate statistics
-    let statistics = generate_advanced_type_statistics(&by_category, &all_issues, &latency_counts, total_count);
-    
+    let statistics =
+        generate_advanced_type_statistics(&by_category, &all_issues, &latency_counts, total_count);
+
     AdvancedTypeAnalysisReport {
         by_category,
         all_issues,
@@ -491,20 +525,20 @@ pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAna
 
 /// Check if a type name represents an advanced type we should analyze
 pub fn is_advanced_type(type_name: &str) -> bool {
-    type_name.contains("Cell") || 
-    type_name.contains("Mutex") || 
-    type_name.contains("RwLock") ||
-    type_name.contains("Atomic") ||
-    type_name.contains("Sender") ||
-    type_name.contains("Receiver") ||
-    type_name.contains("ThreadLocal") ||
-    type_name.contains("ManuallyDrop") ||
-    type_name.contains("MaybeUninit") ||
-    type_name.contains("Pin") ||
-    type_name.contains("Future") ||
-    type_name.contains("Waker") ||
-    type_name.contains("Condvar") ||
-    type_name.contains("Barrier")
+    type_name.contains("Cell")
+        || type_name.contains("Mutex")
+        || type_name.contains("RwLock")
+        || type_name.contains("Atomic")
+        || type_name.contains("Sender")
+        || type_name.contains("Receiver")
+        || type_name.contains("ThreadLocal")
+        || type_name.contains("ManuallyDrop")
+        || type_name.contains("MaybeUninit")
+        || type_name.contains("Pin")
+        || type_name.contains("Future")
+        || type_name.contains("Waker")
+        || type_name.contains("Condvar")
+        || type_name.contains("Barrier")
 }
 
 /// Generate statistics for the analysis
@@ -518,18 +552,18 @@ fn generate_advanced_type_statistics(
     for (category, types) in by_category {
         by_category_stats.insert(category.clone(), types.len());
     }
-    
+
     let mut by_issue_severity = HashMap::new();
     for issue in all_issues {
         let severity_key = format!("{:?}", issue.severity);
         *by_issue_severity.entry(severity_key).or_insert(0) += 1;
     }
-    
+
     let mut by_latency_category = HashMap::new();
     for (category, count) in latency_counts {
         by_latency_category.insert(format!("{:?}", category), *count);
     }
-    
+
     AdvancedTypeStatistics {
         by_category: by_category_stats,
         by_issue_severity,

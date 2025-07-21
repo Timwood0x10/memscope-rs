@@ -2,13 +2,13 @@
 //! Generates self-contained HTML files with embedded CSS/JS for offline viewing
 
 use crate::tracker::MemoryTracker;
-use crate::types::{AllocationInfo, MemoryStats, TrackingResult, TrackingError};
+use crate::types::{AllocationInfo, MemoryStats, TrackingError, TrackingResult};
 use crate::unsafe_ffi_tracker::UnsafeFFITracker;
+use serde_json;
 use std::fs::File;
+use std::io::Read;
 use std::io::Write;
 use std::path::Path;
-use serde_json;
-use std::io::Read;
 
 // Embed CSS and JS content at compile time
 const CSS_CONTENT: &str = include_str!("../templates/styles.css");
@@ -30,7 +30,8 @@ pub fn export_interactive_html<P: AsRef<Path>>(
     }
 
     // Use registry to get comprehensive data with variable names
-    let comprehensive_data = crate::variable_registry::VariableRegistry::generate_comprehensive_export(tracker)?;
+    let comprehensive_data =
+        crate::variable_registry::VariableRegistry::generate_comprehensive_export(tracker)?;
 
     // Extract data from comprehensive structure
     let active_allocations = tracker.get_active_allocations()?;
@@ -47,14 +48,32 @@ pub fn export_interactive_html<P: AsRef<Path>>(
     };
 
     // Convert memory_by_type to HashMap format for optimization
-    let memory_by_type_map: std::collections::HashMap<String, (usize, usize)> = 
-        memory_by_type.iter().map(|usage| (usage.type_name.clone(), (usage.total_size, usage.allocation_count))).collect();
-    
+    let memory_by_type_map: std::collections::HashMap<String, (usize, usize)> = memory_by_type
+        .iter()
+        .map(|usage| {
+            (
+                usage.type_name.clone(),
+                (usage.total_size, usage.allocation_count),
+            )
+        })
+        .collect();
+
     // Prepare optimized JSON data for JavaScript with comprehensive registry data
-    let json_data = prepare_comprehensive_json_data(&comprehensive_data, &active_allocations, &stats, &memory_by_type_map, unsafe_ffi_tracker)?;
+    let json_data = prepare_comprehensive_json_data(
+        &comprehensive_data,
+        &active_allocations,
+        &stats,
+        &memory_by_type_map,
+        unsafe_ffi_tracker,
+    )?;
 
     // Generate complete HTML
-    let html_content = generate_html_template(&memory_analysis_svg, &lifecycle_timeline_svg, &unsafe_ffi_svg, &json_data)?;
+    let html_content = generate_html_template(
+        &memory_analysis_svg,
+        &lifecycle_timeline_svg,
+        &unsafe_ffi_svg,
+        &json_data,
+    )?;
 
     let mut file = File::create(path)?;
     file.write_all(html_content.as_bytes())
@@ -67,21 +86,21 @@ pub fn export_interactive_html<P: AsRef<Path>>(
 /// Generate memory analysis SVG as base64 data URL
 fn generate_memory_analysis_svg_data(tracker: &MemoryTracker) -> TrackingResult<String> {
     use crate::visualization::export_memory_analysis;
-    
+
     // FIXED: Also create the main SVG file with correct peak memory values
     export_memory_analysis(tracker, "moderate_unsafe_ffi_memory_analysis.svg")?;
-    
+
     // Create temporary file for SVG
     let temp_path = "tmp_rovodev_memory_analysis.svg";
     export_memory_analysis(tracker, temp_path)?;
-    
+
     let mut file = File::open(temp_path)?;
     let mut svg_content = String::new();
     file.read_to_string(&mut svg_content)?;
-    
+
     // Clean up temp file
     std::fs::remove_file(temp_path).ok();
-    
+
     // Convert to base64 data URL (simple base64 encoding)
     let encoded = base64_encode(svg_content.as_bytes());
     Ok(format!("data:image/svg+xml;base64,{encoded}"))
@@ -91,37 +110,45 @@ fn generate_memory_analysis_svg_data(tracker: &MemoryTracker) -> TrackingResult<
 fn base64_encode(input: &[u8]) -> String {
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut result = String::new();
-    
+
     for chunk in input.chunks(3) {
         let mut buf = [0u8; 3];
         for (i, &b) in chunk.iter().enumerate() {
             buf[i] = b;
         }
-        
+
         let b = ((buf[0] as u32) << 16) | ((buf[1] as u32) << 8) | (buf[2] as u32);
-        
+
         result.push(CHARS[((b >> 18) & 63) as usize] as char);
         result.push(CHARS[((b >> 12) & 63) as usize] as char);
-        result.push(if chunk.len() > 1 { CHARS[((b >> 6) & 63) as usize] as char } else { '=' });
-        result.push(if chunk.len() > 2 { CHARS[(b & 63) as usize] as char } else { '=' });
+        result.push(if chunk.len() > 1 {
+            CHARS[((b >> 6) & 63) as usize] as char
+        } else {
+            '='
+        });
+        result.push(if chunk.len() > 2 {
+            CHARS[(b & 63) as usize] as char
+        } else {
+            '='
+        });
     }
-    
+
     result
 }
 
 /// Generate lifecycle timeline SVG as base64 data URL
 fn generate_lifecycle_timeline_svg_data(tracker: &MemoryTracker) -> TrackingResult<String> {
     use crate::visualization::export_lifecycle_timeline;
-    
+
     let temp_path = "tmp_rovodev_lifecycle_timeline.svg";
     export_lifecycle_timeline(tracker, temp_path)?;
-    
+
     let mut file = File::open(temp_path)?;
     let mut svg_content = String::new();
     file.read_to_string(&mut svg_content)?;
-    
+
     std::fs::remove_file(temp_path).ok();
-    
+
     let encoded = base64_encode(svg_content.as_bytes());
     Ok(format!("data:image/svg+xml;base64,{encoded}"))
 }
@@ -129,16 +156,16 @@ fn generate_lifecycle_timeline_svg_data(tracker: &MemoryTracker) -> TrackingResu
 /// Generate unsafe FFI SVG as base64 data URL
 fn generate_unsafe_ffi_svg_data(unsafe_ffi_tracker: &UnsafeFFITracker) -> TrackingResult<String> {
     use crate::visualization::export_unsafe_ffi_dashboard;
-    
+
     let temp_path = "tmp_rovodev_unsafe_ffi.svg";
     export_unsafe_ffi_dashboard(unsafe_ffi_tracker, temp_path)?;
-    
+
     let mut file = File::open(temp_path)?;
     let mut svg_content = String::new();
     file.read_to_string(&mut svg_content)?;
-    
+
     std::fs::remove_file(temp_path).ok();
-    
+
     let encoded = base64_encode(svg_content.as_bytes());
     Ok(format!("data:image/svg+xml;base64,{encoded}"))
 }
@@ -153,13 +180,13 @@ fn prepare_comprehensive_json_data(
 ) -> TrackingResult<String> {
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
-    
+
     // Get current timestamp
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    
+
     // 预处理数据，减少前端计算负担
     let processed_allocations = if allocations.len() > 1000 {
         // 大数据集：智能采样 + 代表性样本
@@ -175,25 +202,28 @@ fn prepare_comprehensive_json_data(
     let performance_metrics = precompute_performance_metrics(stats, &processed_allocations);
 
     // 转换分配数据为正确的格式
-    let formatted_allocations: Vec<serde_json::Value> = processed_allocations.iter().map(|alloc| {
-        json!({
-            "ptr": alloc.ptr,
-            "size": alloc.size,
-            "timestamp": alloc.timestamp_alloc,
-            "var_name": alloc.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", alloc.ptr)),
-            "type_name": alloc.type_name.as_ref().unwrap_or(&"Unknown".to_string()),
-            "call_stack": alloc.stack_trace.as_ref().map(|stack| {
-                stack.iter().map(|frame| {
-                    json!({
-                        "function_name": frame,
-                        "file_name": "unknown",
-                        "line_number": 0
-                    })
-                }).collect::<Vec<_>>()
-            }).unwrap_or_default()
+    let formatted_allocations: Vec<serde_json::Value> = processed_allocations
+        .iter()
+        .map(|alloc| {
+            json!({
+                "ptr": alloc.ptr,
+                "size": alloc.size,
+                "timestamp": alloc.timestamp_alloc,
+                "var_name": alloc.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", alloc.ptr)),
+                "type_name": alloc.type_name.as_ref().unwrap_or(&"Unknown".to_string()),
+                "call_stack": alloc.stack_trace.as_ref().map(|stack| {
+                    stack.iter().map(|frame| {
+                        json!({
+                            "function_name": frame,
+                            "file_name": "unknown",
+                            "line_number": 0
+                        })
+                    }).collect::<Vec<_>>()
+                }).unwrap_or_default()
+            })
         })
-    }).collect();
-    
+        .collect();
+
     let json_obj = json!({
         "allocations": formatted_allocations,
         "stats": stats,
@@ -216,16 +246,16 @@ fn prepare_comprehensive_json_data(
             "processed_data_size": processed_allocations.len(),
             "is_sampled": allocations.len() > 1000,
             "optimization_info": {
-                "sampling_ratio": if allocations.len() > 1000 { 
+                "sampling_ratio": if allocations.len() > 1000 {
                     format!("{:.1}%", (processed_allocations.len() as f64 / allocations.len() as f64) * 100.0)
-                } else { 
-                    "100%".to_string() 
+                } else {
+                    "100%".to_string()
                 },
                 "load_time_estimate": if allocations.len() > 1000 { "Fast" } else { "Instant" }
             }
         }
     });
-    
+
     serde_json::to_string_pretty(&json_obj)
         .map_err(|e| TrackingError::SerializationError(format!("JSON serialization failed: {e}")))
 }
@@ -242,14 +272,18 @@ fn generate_html_template(
             <h3>⚠️ No Unsafe/FFI Data Available</h3>
             <p>This analysis did not detect any unsafe Rust code or FFI operations.</p>
             <p>This is generally a good sign for memory safety! 🎉</p>
-        </div>"#.to_string()
+        </div>"#
+            .to_string()
     } else {
-        format!(r#"<div class="svg-container">
+        format!(
+            r#"<div class="svg-container">
             <img src="{unsafe_ffi_svg}" alt="Unsafe FFI Dashboard" class="svg-image" />
-        </div>"#)
+        </div>"#
+        )
     };
 
-    let html = format!(r#"<!DOCTYPE html>
+    let html = format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -366,42 +400,45 @@ fn sample_allocations(allocations: &[AllocationInfo], max_count: usize) -> Vec<A
     if allocations.len() <= max_count {
         return allocations.to_vec();
     }
-    
+
     let step = allocations.len() / max_count;
     let mut sampled = Vec::new();
-    
+
     for i in (0..allocations.len()).step_by(step) {
         if sampled.len() < max_count {
             sampled.push(allocations[i].clone());
         }
     }
-    
+
     sampled
 }
 
 /// 获取代表性分配（最大、最小、中位数等）
-fn get_representative_allocations(allocations: &[AllocationInfo], count: usize) -> Vec<AllocationInfo> {
+fn get_representative_allocations(
+    allocations: &[AllocationInfo],
+    count: usize,
+) -> Vec<AllocationInfo> {
     let mut sorted = allocations.to_vec();
     sorted.sort_by(|a, b| b.size.cmp(&a.size));
-    
+
     let mut representatives = Vec::new();
     let step = sorted.len().max(1) / count.min(sorted.len());
-    
+
     for i in (0..sorted.len()).step_by(step.max(1)) {
         if representatives.len() < count {
             representatives.push(sorted[i].clone());
         }
     }
-    
+
     representatives
 }
 
 /// 预计算类型分布
 fn precompute_type_distribution(allocations: &[AllocationInfo]) -> serde_json::Value {
     use std::collections::HashMap;
-    
+
     let mut type_map: HashMap<String, (usize, usize)> = HashMap::new();
-    
+
     for alloc in allocations {
         let type_name = alloc.type_name.clone().unwrap_or_else(|| {
             // 智能类型推断
@@ -415,38 +452,41 @@ fn precompute_type_distribution(allocations: &[AllocationInfo]) -> serde_json::V
                 "Buffer/Collection".to_string()
             }
         });
-        
+
         let entry = type_map.entry(type_name).or_insert((0, 0));
         entry.0 += alloc.size;
         entry.1 += 1;
     }
-    
+
     let mut sorted_types: Vec<_> = type_map.into_iter().collect();
-    sorted_types.sort_by(|a, b| b.1.0.cmp(&a.1.0));
+    sorted_types.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
     sorted_types.truncate(10); // 只保留前10个类型
-    
+
     serde_json::json!(sorted_types)
 }
 
 /// 预计算性能指标
-fn precompute_performance_metrics(stats: &MemoryStats, allocations: &[AllocationInfo]) -> serde_json::Value {
+fn precompute_performance_metrics(
+    stats: &MemoryStats,
+    allocations: &[AllocationInfo],
+) -> serde_json::Value {
     let current_memory = stats.active_memory;
     let peak_memory = stats.peak_memory;
-    let utilization = if peak_memory > 0 { 
-        (current_memory as f64 / peak_memory as f64 * 100.0) as u32 
-    } else { 
-        0 
+    let utilization = if peak_memory > 0 {
+        (current_memory as f64 / peak_memory as f64 * 100.0) as u32
+    } else {
+        0
     };
-    
+
     let total_size: usize = allocations.iter().map(|a| a.size).sum();
-    let avg_size = if !allocations.is_empty() { 
-        total_size / allocations.len() 
-    } else { 
-        0 
+    let avg_size = if !allocations.is_empty() {
+        total_size / allocations.len()
+    } else {
+        0
     };
-    
+
     let large_allocs = allocations.iter().filter(|a| a.size > 1024 * 1024).count();
-    
+
     serde_json::json!({
         "utilization_percent": utilization,
         "avg_allocation_size": avg_size,

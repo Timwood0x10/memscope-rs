@@ -17,11 +17,11 @@ macro_rules! impl_advanced_trackable {
             fn get_type_name(&self) -> &'static str {
                 std::any::type_name::<$type>()
             }
-            
+
             fn get_size_estimate(&self) -> usize {
                 std::mem::size_of::<$type>()
             }
-            
+
             fn get_advanced_type_info(&self) -> Option<crate::advanced_types::AdvancedTypeInfo> {
                 let type_name = self.get_type_name();
                 let allocation = crate::types::AllocationInfo {
@@ -55,12 +55,17 @@ macro_rules! impl_advanced_trackable {
                     lifecycle_tracking: None,
                     access_tracking: None,
                 };
-                
-                Some(crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, &allocation))
+
+                Some(
+                    crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(
+                        type_name,
+                        &allocation,
+                    ),
+                )
             }
         }
     };
-    
+
     // Variant for types without generics
     ($type:ty, $offset:expr, no_generics) => {
         impl crate::Trackable for $type {
@@ -72,11 +77,11 @@ macro_rules! impl_advanced_trackable {
             fn get_type_name(&self) -> &'static str {
                 std::any::type_name::<$type>()
             }
-            
+
             fn get_size_estimate(&self) -> usize {
                 std::mem::size_of::<$type>()
             }
-            
+
             fn get_advanced_type_info(&self) -> Option<crate::advanced_types::AdvancedTypeInfo> {
                 let type_name = self.get_type_name();
                 let allocation = crate::types::AllocationInfo {
@@ -110,8 +115,13 @@ macro_rules! impl_advanced_trackable {
                     lifecycle_tracking: None,
                     access_tracking: None,
                 };
-                
-                Some(crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(type_name, &allocation))
+
+                Some(
+                    crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(
+                        type_name,
+                        &allocation,
+                    ),
+                )
             }
         }
     };

@@ -84,7 +84,7 @@ fn test_concurrent_variable_tracking() {
                 // so we'll test the underlying tracking mechanism
                 if let Some(ptr) = data.get_heap_ptr() {
                     let tracker = get_global_tracker();
-                    let _ = tracker.associate_var(ptr, var_name.clone(), "Vec<usize>".to_string());
+                    let _ = tracker.associate_var(ptr, var_name, "Vec<usize>".to_string());
                 }
 
                 // Keep data alive for a bit
@@ -158,7 +158,7 @@ fn test_shared_data_structures() {
 
     let final_data = {
         let guard = shared_data.lock();
-        (*guard).clone()
+        guard.clone()
     }; // Release lock immediately
     assert_eq!(
         final_data.len(),
@@ -168,7 +168,7 @@ fn test_shared_data_structures() {
 
     // Test that Arc itself can be tracked
     let arc_data = Arc::new(vec![1, 2, 3, 4, 5]);
-    track_var!(arc_data).unwrap();
+    let _tracked_arc_data = track_var!(arc_data);
 
     let tracker = get_global_tracker();
     let stats = tracker.get_stats();
@@ -183,7 +183,7 @@ fn test_crossbeam_scoped_threads() {
     ensure_init();
 
     let data = vec![1, 2, 3, 4, 5];
-    track_var!(data).unwrap();
+    let _tracked_data = track_var!(data);
 
     thread::scope(|s| {
         // Spawn threads that can access the main thread's data
@@ -214,7 +214,7 @@ fn test_rayon_parallel_processing() {
     ensure_init();
 
     let input_data: Vec<i32> = (0..1000).collect();
-    track_var!(input_data).unwrap();
+    let _tracked_input_data = track_var!(input_data.clone());
 
     // Parallel map operation
     let processed: Vec<String> = input_data
@@ -225,9 +225,8 @@ fn test_rayon_parallel_processing() {
         })
         .collect();
 
-    track_var!(processed).unwrap();
-
     assert_eq!(processed.len(), 1000, "Should process all items");
+    let _tracked_processed = track_var!(processed);
     assert_eq!(
         processed[0], "processed_0",
         "Should have correct first item"

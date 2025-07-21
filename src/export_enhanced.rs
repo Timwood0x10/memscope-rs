@@ -68,7 +68,7 @@ pub fn enhance_type_information(
                     let (alloc_simplified, _, _) =
                         analyze_type_with_detailed_subcategory(type_name);
                     if alloc_simplified == simplified_name {
-                        Some(var_name.clone())
+                        Some(var_name.to_string())
                     } else {
                         None
                     }
@@ -81,9 +81,9 @@ pub fn enhance_type_information(
 
         // Add the main type with subcategory information
         enhanced_types.push(EnhancedTypeInfo {
-            simplified_name: simplified_name.clone(),
-            category: category.clone(),
-            subcategory: subcategory.clone(),
+            simplified_name: simplified_name,
+            category: category,
+            subcategory: subcategory,
             total_size: usage.total_size,
             allocation_count: usage.allocation_count,
             variable_names,
@@ -345,7 +345,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
 
     // Fall back to original logic for other types
     let (simplified_name, category) = simplify_type_name(clean_type);
-    (simplified_name, category.clone(), "Other".to_string())
+    (simplified_name, category, "Other".to_string())
 }
 
 /// Extract generic inner type for display
@@ -376,9 +376,7 @@ fn extract_and_accumulate_inner_types_enhanced(
     // }
 
     for inner_type in inner_types {
-        let entry = stats
-            .entry(inner_type.clone())
-            .or_insert((0, 0, Vec::new()));
+        let entry = stats.entry(inner_type).or_insert((0, 0, Vec::new()));
         entry.0 += size / 4; // Rough estimation of inner type contribution
         entry.1 += count;
         entry.2.push(format!("from {type_name}"));
@@ -426,12 +424,13 @@ pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationC
 
         let type_name = allocation.type_name.as_ref().unwrap();
         let (_, category_name) = simplify_type_name(type_name);
+        let category_name_clone = category_name.clone();
 
         let category =
             categories
                 .entry(category_name.clone())
                 .or_insert_with(|| AllocationCategory {
-                    name: category_name.clone(),
+                    name: category_name_clone,
                     allocations: Vec::new(),
                     total_size: 0,
                     color: get_category_color(&category_name),
@@ -461,15 +460,14 @@ pub fn categorize_enhanced_allocations(
 
         let category_name = &enhanced_type.category;
 
-        let category =
-            categories
-                .entry(category_name.clone())
-                .or_insert_with(|| AllocationCategory {
-                    name: category_name.clone(),
-                    allocations: Vec::new(),
-                    total_size: 0,
-                    color: get_category_color(category_name),
-                });
+        let category = categories
+            .entry(category_name.to_string())
+            .or_insert_with(|| AllocationCategory {
+                name: category_name.to_string(),
+                allocations: Vec::new(),
+                total_size: 0,
+                color: get_category_color(category_name),
+            });
 
         // Create synthetic allocation info for display
         let mut synthetic_allocation = AllocationInfo::new(0, enhanced_type.total_size);
@@ -744,11 +742,20 @@ pub fn add_enhanced_header(
             (active_memory as f64 / peak_memory.max(1) as f64 * 100.0).min(100.0),
             "#3498db",
         ),
-        ("Peak Memory", {
-            let formatted = format_bytes(peak_memory);
-            tracing::info!("SVG add_enhanced_header - Formatting peak_memory: {} bytes -> {}", peak_memory, formatted);
-            formatted
-        }, 100.0, "#e74c3c"),
+        (
+            "Peak Memory",
+            {
+                let formatted = format_bytes(peak_memory);
+                tracing::info!(
+                    "SVG add_enhanced_header - Formatting peak_memory: {} bytes -> {}",
+                    peak_memory,
+                    formatted
+                );
+                formatted
+            },
+            100.0,
+            "#e74c3c",
+        ),
         (
             "Active Allocs",
             format!("{active_allocations}"),
@@ -1940,7 +1947,7 @@ pub fn add_categorized_allocations(
                     let short_var = if var_name.len() > 12 {
                         format!("{}...", &var_name[..9])
                     } else {
-                        var_name.clone()
+                        var_name.to_string()
                     };
                     Some(format!("{short_var}({simplified_type})"))
                 } else {
@@ -2039,14 +2046,16 @@ pub fn add_memory_timeline(
         .iter()
         .filter(|a| a.var_name.is_some())
         .collect();
-    
+
     // Sort by memory size (descending) and then by lifecycle duration (descending)
     tracked_allocs.sort_by(|a, b| {
         let size_cmp = b.size.cmp(&a.size);
         if size_cmp == std::cmp::Ordering::Equal {
             // If sizes are equal, sort by lifecycle duration (timestamp difference as proxy)
-            let a_duration = a.timestamp_dealloc.unwrap_or(a.timestamp_alloc + 1000) - a.timestamp_alloc;
-            let b_duration = b.timestamp_dealloc.unwrap_or(b.timestamp_alloc + 1000) - b.timestamp_alloc;
+            let a_duration =
+                a.timestamp_dealloc.unwrap_or(a.timestamp_alloc + 1000) - a.timestamp_alloc;
+            let b_duration =
+                b.timestamp_dealloc.unwrap_or(b.timestamp_alloc + 1000) - b.timestamp_alloc;
             b_duration.cmp(&a_duration)
         } else {
             size_cmp
@@ -2081,7 +2090,7 @@ pub fn add_memory_timeline(
     let label_width = 500; // More space for variable names
     let timeline_width = chart_width - label_width - 80; // Better margin
     let max_items = 10; // Show top 10 variables with highest memory usage and longest lifecycles
-    
+
     // Calculate optimal row height based on available space
     let available_height = chart_height - 120; // Reserve space for title, axis, and note
     let row_height = (available_height / max_items as i32).min(22).max(18);
@@ -2138,23 +2147,23 @@ pub fn add_memory_timeline(
             let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
             let (simplified_type, _) = simplify_type_name(type_name);
             let size_info = format_bytes(allocation.size);
-            
+
             // Smart truncation based on available space
             let max_var_name_length = 20;
             let max_type_length = 12;
-            
+
             let truncated_var_name = if var_name.len() > max_var_name_length {
                 format!("{}...", &var_name[..max_var_name_length - 3])
             } else {
-                var_name.clone()
+                var_name.to_string()
             };
-            
+
             let truncated_type = if simplified_type.len() > max_type_length {
                 format!("{}...", &simplified_type[..max_type_length - 3])
             } else {
                 simplified_type
             };
-            
+
             let label_text = format!("{truncated_var_name} ({truncated_type}) {size_info}");
 
             let label = SvgText::new(label_text)
@@ -2746,26 +2755,26 @@ pub fn add_enhanced_timeline_dashboard(
     // First, add the performance dashboard with circular progress indicators
     let dashboard_y = 120;
     let dashboard_height = 200;
-    
+
     // Calculate performance metrics
     let memory_efficiency = if stats.peak_memory > 0 {
         (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
     } else {
         0.0
     };
-    
+
     let allocation_efficiency = if stats.total_allocations > 0 {
         (stats.active_allocations as f64 / stats.total_allocations as f64) * 100.0
     } else {
         0.0
     };
-    
+
     let fragmentation_ratio = if stats.total_allocated > 0 {
         (1.0 - (stats.active_memory as f64 / stats.total_allocated as f64)) * 100.0
     } else {
         0.0
     };
-    
+
     // Performance Dashboard Section Background
     let dashboard_bg = Rectangle::new()
         .set("x", 50)
@@ -2777,7 +2786,7 @@ pub fn add_enhanced_timeline_dashboard(
         .set("stroke-width", 1)
         .set("rx", 12);
     document = document.add(dashboard_bg);
-    
+
     // Dashboard Title
     let dashboard_title = SvgText::new("Performance Dashboard")
         .set("x", 900)
@@ -2787,18 +2796,32 @@ pub fn add_enhanced_timeline_dashboard(
         .set("font-weight", "bold")
         .set("fill", "#FFFFFF");
     document = document.add(dashboard_title);
-    
+
     // Create circular progress indicators
-    let metrics = [("Active Memory", memory_efficiency, "#3498db"),
+    let metrics = [
+        ("Active Memory", memory_efficiency, "#3498db"),
         ("Allocation Efficiency", allocation_efficiency, "#2ecc71"),
-        ("Memory Fragmentation", 100.0 - fragmentation_ratio, "#e74c3c"),
-        ("Peak Usage", if stats.peak_memory > 0 { (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0 } else { 0.0 }, "#f39c12")];
-    
+        (
+            "Memory Fragmentation",
+            100.0 - fragmentation_ratio,
+            "#e74c3c",
+        ),
+        (
+            "Peak Usage",
+            if stats.peak_memory > 0 {
+                (stats.active_memory as f64 / stats.peak_memory as f64) * 100.0
+            } else {
+                0.0
+            },
+            "#f39c12",
+        ),
+    ];
+
     for (i, (label, percentage, color)) in metrics.iter().enumerate() {
         let x = 200 + i * 350;
         let y = dashboard_y + 100;
         let radius = 40;
-        
+
         // Background circle
         let bg_circle = Circle::new()
             .set("cx", x)
@@ -2808,12 +2831,12 @@ pub fn add_enhanced_timeline_dashboard(
             .set("stroke", "rgba(255,255,255,0.2)")
             .set("stroke-width", 8);
         document = document.add(bg_circle);
-        
+
         // Progress circle
         let circumference = 2.0 * std::f64::consts::PI * radius as f64;
         let progress = circumference * (percentage / 100.0);
         let dash_array = format!("{} {}", progress, circumference - progress);
-        
+
         let progress_circle = Circle::new()
             .set("cx", x)
             .set("cy", y)
@@ -2826,7 +2849,7 @@ pub fn add_enhanced_timeline_dashboard(
             .set("transform", format!("rotate(-90 {x} {y})"))
             .set("stroke-linecap", "round");
         document = document.add(progress_circle);
-        
+
         // Percentage text
         let percentage_text = SvgText::new(format!("{percentage:.0}%"))
             .set("x", x)
@@ -2836,7 +2859,7 @@ pub fn add_enhanced_timeline_dashboard(
             .set("font-weight", "bold")
             .set("fill", "#FFFFFF");
         document = document.add(percentage_text);
-        
+
         // Label
         let label_text = SvgText::new(*label)
             .set("x", x)
@@ -2900,27 +2923,29 @@ pub fn add_enhanced_timeline_dashboard(
         let size_cmp = b.size.cmp(&a.size);
         if size_cmp == std::cmp::Ordering::Equal {
             // If sizes are equal, sort by lifecycle duration (timestamp difference as proxy)
-            let a_duration = a.timestamp_dealloc.unwrap_or(a.timestamp_alloc + 1000) - a.timestamp_alloc;
-            let b_duration = b.timestamp_dealloc.unwrap_or(b.timestamp_alloc + 1000) - b.timestamp_alloc;
+            let a_duration =
+                a.timestamp_dealloc.unwrap_or(a.timestamp_alloc + 1000) - a.timestamp_alloc;
+            let b_duration =
+                b.timestamp_dealloc.unwrap_or(b.timestamp_alloc + 1000) - b.timestamp_alloc;
             b_duration.cmp(&a_duration)
         } else {
             size_cmp
         }
     });
-    
+
     // Limit to top 10 variables to prevent overflow
     let max_vars_to_show = 10;
-    let limited_tracked_vars: Vec<_> = sorted_tracked_vars.into_iter().take(max_vars_to_show).collect();
-    
+    let limited_tracked_vars: Vec<_> = sorted_tracked_vars
+        .into_iter()
+        .take(max_vars_to_show)
+        .collect();
+
     // Group limited variables by scope (extract scope from variable names)
     let mut scope_groups: std::collections::HashMap<String, Vec<&AllocationInfo>> =
         std::collections::HashMap::new();
     for var in &limited_tracked_vars {
         let scope_name = extract_scope_name(var.var_name.as_ref().unwrap());
-        scope_groups
-            .entry(scope_name)
-            .or_default()
-            .push(*var);
+        scope_groups.entry(scope_name).or_default().push(*var);
     }
 
     // Sort scopes for consistent display
@@ -3305,7 +3330,6 @@ pub fn add_enhanced_timeline_dashboard(
 
     Ok(document)
 }
-
 
 /// Add memory heatmap visualization (placeholder for now)
 pub fn add_memory_heatmap(

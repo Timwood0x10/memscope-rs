@@ -1,14 +1,14 @@
 //! Enhanced memory tracking for unsafe Rust and FFI operations
-//! 
+//!
 //! This module extends the basic memory tracking to handle:
 //! - Unsafe Rust memory operations (std::alloc::alloc, raw pointers)
 //! - FFI memory operations (malloc, free from C libraries)
 //! - Cross-boundary memory transfers
 //! - Safety violation detection
 use crate::types::{AllocationInfo, TrackingError, TrackingResult};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
-use serde::{Deserialize, Serialize};
 
 /// Enhanced allocation source tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,25 +16,25 @@ pub enum AllocationSource {
     /// Safe Rust allocation (through normal allocator)
     RustSafe,
     /// Unsafe Rust allocation with location info
-    UnsafeRust { 
+    UnsafeRust {
         /// Location of the unsafe block in source code
         unsafe_block_location: String,
         /// Call stack at the time of allocation
         call_stack: Vec<StackFrame>,
     },
     /// FFI allocation from C library
-    FfiC { 
+    FfiC {
         /// Name of the C library
-        library_name: String, 
+        library_name: String,
         /// Name of the C function that allocated
         function_name: String,
         /// Call stack at the time of allocation
         call_stack: Vec<StackFrame>,
     },
     /// Cross-boundary memory transfer
-    CrossBoundary { 
+    CrossBoundary {
         /// Source allocation context
-        from: Box<AllocationSource>, 
+        from: Box<AllocationSource>,
         /// Destination allocation context
         to: Box<AllocationSource>,
         /// Timestamp when transfer occurred
@@ -59,7 +59,7 @@ pub struct StackFrame {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SafetyViolation {
     /// Double free detected
-    DoubleFree { 
+    DoubleFree {
         /// Call stack from the first free operation
         first_free_stack: Vec<StackFrame>,
         /// Call stack from the second free operation
@@ -68,7 +68,7 @@ pub enum SafetyViolation {
         timestamp: u128,
     },
     /// Invalid free (pointer not in allocation table)
-    InvalidFree { 
+    InvalidFree {
         /// The pointer that was attempted to be freed
         attempted_pointer: usize,
         /// Call stack at the time of invalid free
@@ -77,7 +77,7 @@ pub enum SafetyViolation {
         timestamp: u128,
     },
     /// Potential memory leak
-    PotentialLeak { 
+    PotentialLeak {
         /// Call stack from the original allocation
         allocation_stack: Vec<StackFrame>,
         /// Timestamp when the allocation occurred
@@ -86,7 +86,7 @@ pub enum SafetyViolation {
         leak_detection_timestamp: u128,
     },
     /// Cross-boundary risk
-    CrossBoundaryRisk { 
+    CrossBoundaryRisk {
         /// Risk level of the cross-boundary operation
         risk_level: RiskLevel,
         /// Description of the risk
@@ -183,7 +183,7 @@ impl UnsafeFFITracker {
     ) -> TrackingResult<()> {
         let call_stack = self.capture_call_stack()?;
         let base_allocation = AllocationInfo::new(ptr, size);
-        
+
         let enhanced = EnhancedAllocationInfo {
             base: base_allocation,
             source: AllocationSource::UnsafeRust {
@@ -214,7 +214,7 @@ impl UnsafeFFITracker {
     ) -> TrackingResult<()> {
         let call_stack = self.capture_call_stack()?;
         let base_allocation = AllocationInfo::new(ptr, size);
-        
+
         let enhanced = EnhancedAllocationInfo {
             base: base_allocation,
             source: AllocationSource::FfiC {
@@ -222,7 +222,7 @@ impl UnsafeFFITracker {
                 function_name,
                 call_stack: call_stack.clone(),
             },
-            call_stack,
+            call_stack: call_stack.clone(),
             cross_boundary_events: Vec::new(),
             safety_violations: Vec::new(),
             ffi_tracked: true,
@@ -252,13 +252,15 @@ impl UnsafeFFITracker {
                     second_free_stack: call_stack.clone(),
                     timestamp,
                 };
-                
+
                 if let Ok(mut violations) = self.violations.lock() {
                     violations.push(violation);
                 }
-                
+
                 tracing::error!("Double free detected at {:x}", ptr);
-                return Err(TrackingError::MemoryCorruption("Memory corruption detected".to_string()));
+                return Err(TrackingError::MemoryCorruption(
+                    "Memory corruption detected".to_string(),
+                ));
             }
         }
 
@@ -266,12 +268,12 @@ impl UnsafeFFITracker {
         if let Ok(mut allocations) = self.enhanced_allocations.lock() {
             if let Some(mut allocation) = allocations.remove(&ptr) {
                 allocation.base.mark_deallocated();
-                
+
                 // Record in freed pointers
                 if let Ok(mut freed) = self.freed_pointers.lock() {
                     freed.insert(ptr, (call_stack, timestamp));
                 }
-                
+
                 tracing::info!("Tracked enhanced deallocation at {:x}", ptr);
             } else {
                 // Invalid free
@@ -280,13 +282,15 @@ impl UnsafeFFITracker {
                     stack: call_stack,
                     timestamp,
                 };
-                
+
                 if let Ok(mut violations) = self.violations.lock() {
                     violations.push(violation);
                 }
-                
+
                 tracing::error!("Invalid free detected at {:x}", ptr);
-                return Err(TrackingError::InvalidPointer(format!("Invalid pointer: 0x{ptr:x}")));
+                return Err(TrackingError::InvalidPointer(format!(
+                    "Invalid pointer: 0x{ptr:x}"
+                )));
             }
         }
 
@@ -345,14 +349,12 @@ impl UnsafeFFITracker {
     fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {
         // In a real implementation, this would use backtrace crate
         // For now, return a simplified stack
-        Ok(vec![
-            StackFrame {
-                function_name: "current_function".to_string(),
-                file_name: Some("src/unsafe_ffi_tracker.rs".to_string()),
-                line_number: Some(42),
-                is_unsafe: true,
-            }
-        ])
+        Ok(vec![StackFrame {
+            function_name: "current_function".to_string(),
+            file_name: Some("src/unsafe_ffi_tracker.rs".to_string()),
+            line_number: Some(42),
+            is_unsafe: true,
+        }])
     }
 
     /// Detect potential memory leaks
@@ -389,7 +391,8 @@ impl Default for UnsafeFFITracker {
 }
 
 /// Global instance of the enhanced tracker
-static GLOBAL_UNSAFE_FFI_TRACKER: std::sync::OnceLock<std::sync::Arc<UnsafeFFITracker>> = std::sync::OnceLock::new();
+static GLOBAL_UNSAFE_FFI_TRACKER: std::sync::OnceLock<std::sync::Arc<UnsafeFFITracker>> =
+    std::sync::OnceLock::new();
 
 /// Get the global unsafe/FFI tracker instance
 pub fn get_global_unsafe_ffi_tracker() -> std::sync::Arc<UnsafeFFITracker> {
@@ -401,24 +404,21 @@ pub fn get_global_unsafe_ffi_tracker() -> std::sync::Arc<UnsafeFFITracker> {
 /// Macro for tracking unsafe allocations
 #[macro_export]
 macro_rules! track_unsafe_alloc {
-    ($ptr:expr, $size:expr) => {
-        {
-            let tracker = $crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker();
-            let location = format!("{}:{}:{}", file!(), line!(), column!());
-            let _ = tracker.track_unsafe_allocation($ptr as usize, $size, location);
-        }
-    };
+    ($ptr:expr, $size:expr) => {{
+        let tracker = $crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker();
+        let location = format!("{}:{}:{}", file!(), line!(), column!());
+        let _ = tracker.track_unsafe_allocation($ptr as usize, $size, location);
+    }};
 }
 
 /// Macro for tracking FFI allocations
 #[macro_export]
 macro_rules! track_ffi_alloc {
-    ($ptr:expr, $size:expr, $lib:expr, $func:expr) => {
-        {
-            let tracker = $crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker();
-            let _ = tracker.track_ffi_allocation($ptr as usize, $size, $lib.to_string(), $func.to_string());
-        }
-    };
+    ($ptr:expr, $size:expr, $lib:expr, $func:expr) => {{
+        let tracker = $crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker();
+        let _ =
+            tracker.track_ffi_allocation($ptr as usize, $size, $lib.to_string(), $func.to_string());
+    }};
 }
 
 /// Statistics for unsafe and FFI operations
@@ -470,15 +470,20 @@ pub enum UnsafeOperationType {
     CrossBoundaryTransfer,
 }
 
-
 impl UnsafeFFITracker {
     /// Get statistics for unsafe and FFI operations
     pub fn get_stats(&self) -> UnsafeFFIStats {
-        let allocations = self.enhanced_allocations.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let violations = self.violations.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        
+        let allocations = self
+            .enhanced_allocations
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let violations = self
+            .violations
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
         let mut stats = UnsafeFFIStats::default();
-        
+
         // Count different types of operations
         for allocation in allocations.values() {
             match &allocation.source {
@@ -495,42 +500,52 @@ impl UnsafeFFITracker {
                 }
                 _ => {}
             }
-            
+
             // Count safety violations
             stats.memory_violations += allocation.safety_violations.len();
         }
-        
+
         // Add violations from the violations log
         stats.memory_violations += violations.len();
-        
+
         // Calculate risk score (simplified)
         stats.risk_score = if stats.total_operations > 0 {
-            let base_risk = (stats.unsafe_blocks as f64 * 1.0) + 
-                           (stats.ffi_calls as f64 * 2.0) + 
-                           (stats.memory_violations as f64 * 5.0);
+            let base_risk = (stats.unsafe_blocks as f64 * 1.0)
+                + (stats.ffi_calls as f64 * 2.0)
+                + (stats.memory_violations as f64 * 5.0);
             (base_risk / stats.total_operations as f64).min(10.0)
         } else {
             0.0
         };
-        
+
         // Create operation list (simplified)
         for allocation in allocations.values() {
             let (op_type, risk_level, description) = match &allocation.source {
-                AllocationSource::UnsafeRust { unsafe_block_location, .. } => {
-                    (UnsafeOperationType::UnsafeBlock, RiskLevel::Medium, 
-                     format!("Unsafe block at {unsafe_block_location}"))
-                }
-                AllocationSource::FfiC { library_name, function_name, .. } => {
-                    (UnsafeOperationType::FfiCall, RiskLevel::High,
-                     format!("FFI call to {library_name}::{function_name}"))
-                }
-                AllocationSource::CrossBoundary { .. } => {
-                    (UnsafeOperationType::CrossBoundaryTransfer, RiskLevel::Medium,
-                     "Cross-boundary memory transfer".to_string())
-                }
+                AllocationSource::UnsafeRust {
+                    unsafe_block_location,
+                    ..
+                } => (
+                    UnsafeOperationType::UnsafeBlock,
+                    RiskLevel::Medium,
+                    format!("Unsafe block at {unsafe_block_location}"),
+                ),
+                AllocationSource::FfiC {
+                    library_name,
+                    function_name,
+                    ..
+                } => (
+                    UnsafeOperationType::FfiCall,
+                    RiskLevel::High,
+                    format!("FFI call to {library_name}::{function_name}"),
+                ),
+                AllocationSource::CrossBoundary { .. } => (
+                    UnsafeOperationType::CrossBoundaryTransfer,
+                    RiskLevel::Medium,
+                    "Cross-boundary memory transfer".to_string(),
+                ),
                 _ => continue,
             };
-            
+
             stats.operations.push(UnsafeOperation {
                 operation_type: op_type,
                 location: "unknown".to_string(), // Could be enhanced with actual location
@@ -539,10 +554,10 @@ impl UnsafeFFITracker {
                 description,
             });
         }
-        
+
         // Limit operations to avoid huge JSON
         stats.operations.truncate(50);
-        
+
         stats
     }
 }

@@ -51,8 +51,8 @@ fn massive_allocation_burst() {
     for i in 0..target_count {
         let payload = vec![i as u8; 256];
         let metadata = format!("Object {i} created during burst test");
-        track_var!(payload).ok();
-        track_var!(metadata).ok();
+        let _tracked_payload = track_var!(payload);
+        let _tracked_metadata = track_var!(metadata);
         allocations.push((payload, metadata));
 
         if i % 10_000 == 0 && i > 0 {
@@ -83,21 +83,21 @@ fn memory_fragmentation_test() {
         match i % 3 {
             0 => {
                 let data = vec![i as u8; 32];
-                track_var!(data).ok();
+                let _tracked_data = track_var!(data);
                 small_objects.push(data);
             }
             1 => {
                 let data = vec![i as u8; 512];
                 let name = format!("medium_{i}");
-                track_var!(data).ok();
-                track_var!(name).ok();
+                let _tracked_data = track_var!(data);
+                let _tracked_name = track_var!(name);
                 medium_objects.push((data, name));
             }
             2 => {
                 let data = vec![i as u8; 4096];
                 let children: Vec<String> = Vec::new();
-                track_var!(data).ok();
-                track_var!(children).ok();
+                let _tracked_data = track_var!(data);
+                let _tracked_children = track_var!(children);
                 large_objects.push((data, children));
             }
             _ => unreachable!(),
@@ -134,7 +134,7 @@ fn concurrent_allocation_storm() {
                 match thread_id % 4 {
                     0 => {
                         let data = vec![(thread_id + i) as u8; 256];
-                        track_var!(data).ok();
+                        let _tracked_data = track_var!(data);
                         local_allocations.push(data);
                     }
                     1 => {
@@ -142,8 +142,8 @@ fn concurrent_allocation_storm() {
                         for j in 0..10 {
                             let key = format!("key_{thread_id}_{j}");
                             let value = vec![j as u8; 64];
-                            track_var!(key).ok();
-                            track_var!(value).ok();
+                            let _tracked_key = track_var!(key);
+                            let _tracked_value = track_var!(value);
                             map.insert(key, value);
                         }
                         local_allocations.push(vec![thread_id as u8; 128]);
@@ -152,7 +152,7 @@ fn concurrent_allocation_storm() {
                         let mut items = Vec::new();
                         for j in 0..20 {
                             let item = format!("item_{thread_id}_{i}_{j}");
-                            track_var!(item).ok();
+                            let _tracked_item = track_var!(item);
                             items.push(item);
                         }
                         local_allocations.push(vec![thread_id as u8; 256]);
@@ -161,7 +161,7 @@ fn concurrent_allocation_storm() {
                         let mut data = Vec::new();
                         for j in 0..15 {
                             let item = vec![(thread_id + j) as u8; 128];
-                            track_var!(item).ok();
+                            let _tracked_item = track_var!(item);
                             data.push(item);
                         }
                         local_allocations.push(vec![thread_id as u8; 512]);
@@ -199,8 +199,8 @@ fn large_object_stress_test() {
         let size = 1024 * 1024 * (i + 1) / 10; // Up to ~10MB objects
         let massive_data = vec![i as u8; size];
         let description = format!("Very large object {i} with {size} bytes");
-        track_var!(massive_data).ok();
-        track_var!(description).ok();
+        let _tracked_massive_data = track_var!(massive_data);
+        let _tracked_description = track_var!(description);
 
         large_objects.push((massive_data, description));
 
@@ -241,8 +241,8 @@ fn rapid_alloc_dealloc_cycles() {
         for i in 0..objects_per_cycle {
             let data = vec![(cycle + i) as u8; 1024];
             let metadata = format!("cycle_{cycle}_object_{i}");
-            track_var!(data).ok();
-            track_var!(metadata).ok();
+            let _tracked_data = track_var!(data);
+            let _tracked_metadata = track_var!(metadata);
 
             cycle_objects.push((data, metadata));
         }

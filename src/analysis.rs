@@ -14,47 +14,56 @@ impl AnalysisManager {
     pub fn new() -> Self {
         Self {}
     }
-    
+
     /// Analyze memory fragmentation
     pub fn analyze_fragmentation(&self, _allocations: &[AllocationInfo]) -> FragmentationAnalysis {
         // Simple implementation for now
         FragmentationAnalysis::default()
     }
-    
+
     /// Analyze system library usage
     pub fn analyze_system_libraries(&self, _allocations: &[AllocationInfo]) -> SystemLibraryStats {
         // Simple implementation for now
         SystemLibraryStats::default()
     }
-    
+
     /// Analyze concurrency safety
-    pub fn analyze_concurrency_safety(&self, _allocations: &[AllocationInfo]) -> ConcurrencyAnalysis {
+    pub fn analyze_concurrency_safety(
+        &self,
+        _allocations: &[AllocationInfo],
+    ) -> ConcurrencyAnalysis {
         // Simple implementation for now
         ConcurrencyAnalysis::default()
     }
-    
+
     /// Get unsafe/FFI tracker instance
     pub fn get_unsafe_ffi_tracker(&self) -> Arc<crate::unsafe_ffi_tracker::UnsafeFFITracker> {
         // Delegate to existing global tracker
         crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
     }
-    
+
     /// Get unsafe/FFI statistics
     pub fn get_unsafe_ffi_stats(&self) -> crate::unsafe_ffi_tracker::UnsafeFFIStats {
         // Get stats from the global tracker
         self.get_unsafe_ffi_tracker().get_stats()
     }
-    
+
     /// Analyze circular references in smart pointers
-    pub fn analyze_circular_references(&self, allocations: &[AllocationInfo]) -> crate::circular_reference::CircularReferenceAnalysis {
+    pub fn analyze_circular_references(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> crate::circular_reference::CircularReferenceAnalysis {
         crate::circular_reference::detect_circular_references(allocations)
     }
-    
+
     /// Analyze advanced types (Cell, RefCell, Mutex, etc.)
-    pub fn analyze_advanced_types(&self, allocations: &[AllocationInfo]) -> crate::advanced_types::AdvancedTypeAnalysisReport {
+    pub fn analyze_advanced_types(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> crate::advanced_types::AdvancedTypeAnalysisReport {
         crate::advanced_types::analyze_advanced_types(allocations)
     }
-    
+
     /// Perform comprehensive analysis
     pub fn perform_comprehensive_analysis(
         &self,
@@ -67,7 +76,7 @@ impl AnalysisManager {
         let unsafe_stats = self.get_unsafe_ffi_stats();
         let circular_refs = self.analyze_circular_references(allocations);
         let advanced_types = self.analyze_advanced_types(allocations);
-        
+
         ComprehensiveAnalysisReport {
             fragmentation_analysis: fragmentation,
             system_library_stats: system_libs,

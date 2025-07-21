@@ -1,12 +1,12 @@
 //! Variable Registry - Simple HashMap-based variable name tracking
-//! 
+//!
 //! This module provides a lightweight alternative to log-based tracking,
 //! using a global HashMap to store variable address -> variable info mappings.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
 use crate::types::TrackingResult;
 use rayon::prelude::*;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// Variable information stored in registry
 #[derive(Debug, Clone, serde::Serialize)]
@@ -22,7 +22,8 @@ pub struct VariableInfo {
 }
 
 /// Global variable registry using HashMap for fast lookups
-static GLOBAL_VARIABLE_REGISTRY: OnceLock<Arc<Mutex<HashMap<usize, VariableInfo>>>> = OnceLock::new();
+static GLOBAL_VARIABLE_REGISTRY: OnceLock<Arc<Mutex<HashMap<usize, VariableInfo>>>> =
+    OnceLock::new();
 
 /// Get or initialize the global variable registry
 fn get_global_registry() -> Arc<Mutex<HashMap<usize, VariableInfo>>> {
@@ -74,7 +75,11 @@ impl VariableRegistry {
     pub fn mark_variable_destroyed(address: usize, destruction_time: u64) -> TrackingResult<()> {
         // For now, we keep the variable in registry but could add destruction_time field
         // This method ensures the variable registry is aware of destruction events
-        tracing::debug!("Variable at address 0x{:x} destroyed at {}", address, destruction_time);
+        tracing::debug!(
+            "Variable at address 0x{:x} destroyed at {}",
+            address,
+            destruction_time
+        );
         Ok(())
     }
 
@@ -95,48 +100,54 @@ impl VariableRegistry {
         if allocations.len() < 100 {
             return Self::enhance_allocations_sequential(allocations);
         }
-        
-        println!("🚀 Processing {} allocations with parallel optimization...", allocations.len());
-        
+
+        println!(
+            "🚀 Processing {} allocations with parallel optimization...",
+            allocations.len()
+        );
+
         let registry = Self::get_all_variables();
         let start_time = std::time::Instant::now();
-        
+
         // Use parallel processing for large datasets
         let enhanced: Vec<serde_json::Value> = allocations
             .par_iter()
-            .map(|alloc| {
-                Self::classify_single_allocation(alloc, &registry)
-            })
+            .map(|alloc| Self::classify_single_allocation(alloc, &registry))
             .collect();
-        
+
         let duration = start_time.elapsed();
-        println!("✅ Parallel processing completed in {:?} ({:.2} allocs/ms)", 
-                 duration, allocations.len() as f64 / duration.as_millis() as f64);
-        
+        println!(
+            "✅ Parallel processing completed in {:?} ({:.2} allocs/ms)",
+            duration,
+            allocations.len() as f64 / duration.as_millis() as f64
+        );
+
         enhanced
     }
-    
+
     /// Sequential processing for small datasets
     fn enhance_allocations_sequential(
         allocations: &[crate::types::AllocationInfo],
     ) -> Vec<serde_json::Value> {
         let registry = Self::get_all_variables();
-        
-        allocations.iter().map(|alloc| {
-            Self::classify_single_allocation(alloc, &registry)
-        }).collect()
+
+        allocations
+            .iter()
+            .map(|alloc| Self::classify_single_allocation(alloc, &registry))
+            .collect()
     }
-    
+
     /// Classify and enhance allocations with user/system distinction and scope information
     fn classify_and_enhance_allocations(
         allocations: &[crate::types::AllocationInfo],
         registry: &HashMap<usize, VariableInfo>,
     ) -> Vec<serde_json::Value> {
-        allocations.par_iter().map(|alloc| {
-            Self::classify_single_allocation(alloc, registry)
-        }).collect()
+        allocations
+            .par_iter()
+            .map(|alloc| Self::classify_single_allocation(alloc, registry))
+            .collect()
     }
-    
+
     /// Classify a single allocation as user or system with full context
     fn classify_single_allocation(
         alloc: &crate::types::AllocationInfo,
@@ -156,7 +167,7 @@ impl VariableRegistry {
                 "tracking_method": "track_var_macro",
                 "registry_timestamp": var_info.timestamp,
                 "registry_size": var_info.size,
-                "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc| 
+                "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc|
                     (dealloc.saturating_sub(alloc.timestamp_alloc)) / 1_000_000
                 ),
                 "current_age_ms": if alloc.timestamp_dealloc.is_none() {
@@ -172,7 +183,7 @@ impl VariableRegistry {
                 "is_active": alloc.timestamp_dealloc.is_none()
             });
         }
-        
+
         // Check if allocation has explicit variable information (user allocation)
         if let (Some(var_name), Some(type_name)) = (&alloc.var_name, &alloc.type_name) {
             return serde_json::json!({
@@ -185,7 +196,7 @@ impl VariableRegistry {
                 "scope_name": alloc.scope_name.as_deref().unwrap_or("main"),
                 "allocation_source": "user",
                 "tracking_method": "explicit_tracking",
-                "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc| 
+                "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc|
                     (dealloc.saturating_sub(alloc.timestamp_alloc)) / 1_000_000
                 ),
                 "current_age_ms": if alloc.timestamp_dealloc.is_none() {
@@ -200,11 +211,11 @@ impl VariableRegistry {
                 "is_active": alloc.timestamp_dealloc.is_none()
             });
         }
-        
+
         // This is a system allocation - apply smart inference
         let (inferred_var_name, inferred_type_name) = Self::infer_allocation_info_cached(alloc);
         let system_category = Self::categorize_system_allocation(alloc);
-        
+
         serde_json::json!({
             "ptr": alloc.ptr,
             "size": alloc.size,
@@ -216,7 +227,7 @@ impl VariableRegistry {
             "allocation_source": "system",
             "tracking_method": "automatic_inference",
             "system_category": system_category,
-            "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc| 
+            "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc|
                 (dealloc.saturating_sub(alloc.timestamp_alloc)) / 1_000_000
             ),
             "current_age_ms": if alloc.timestamp_dealloc.is_none() {
@@ -231,7 +242,7 @@ impl VariableRegistry {
             "is_active": alloc.timestamp_dealloc.is_none()
         })
     }
-    
+
     /// Extract scope information from variable name
     fn extract_scope_from_var_name(var_name: &str) -> String {
         // Try to extract scope from variable name patterns
@@ -240,7 +251,7 @@ impl VariableRegistry {
                 return scope_part.to_string();
             }
         }
-        
+
         // Check for common scope patterns
         if var_name.starts_with("main_") {
             "main".to_string()
@@ -252,106 +263,120 @@ impl VariableRegistry {
             "global".to_string()
         }
     }
-    
+
     /// Categorize system allocations for better understanding
     fn categorize_system_allocation(alloc: &crate::types::AllocationInfo) -> String {
         match alloc.size {
             1..=16 => "small_system_alloc",
-            17..=64 => "medium_system_alloc", 
+            17..=64 => "medium_system_alloc",
             65..=1024 => "large_system_alloc",
             1025..=65536 => "buffer_allocation",
-            _ => "huge_allocation"
-        }.to_string()
+            _ => "huge_allocation",
+        }
+        .to_string()
     }
-    
+
     /// Group allocations by scope for better organization
     fn group_by_scope(
-        active: &[serde_json::Value], 
-        history: &[serde_json::Value]
+        active: &[serde_json::Value],
+        history: &[serde_json::Value],
     ) -> serde_json::Value {
         let mut scopes: HashMap<String, Vec<&serde_json::Value>> = HashMap::new();
-        
+
         // Group active allocations
         for alloc in active {
             if let Some(scope) = alloc["scope_name"].as_str() {
                 scopes.entry(scope.to_string()).or_default().push(alloc);
             }
         }
-        
+
         // Group history allocations
         for alloc in history {
             if let Some(scope) = alloc["scope_name"].as_str() {
                 scopes.entry(scope.to_string()).or_default().push(alloc);
             }
         }
-        
-        let scope_summary: HashMap<String, serde_json::Value> = scopes.into_iter()
+
+        let scope_summary: HashMap<String, serde_json::Value> = scopes
+            .into_iter()
             .map(|(scope_name, allocations)| {
-                let total_size: u64 = allocations.iter()
+                let total_size: u64 = allocations
+                    .iter()
                     .map(|a| a["size"].as_u64().unwrap_or(0))
                     .sum();
-                
-                (scope_name.clone(), serde_json::json!({
-                    "scope_name": scope_name,
-                    "allocation_count": allocations.len(),
-                    "total_size_bytes": total_size,
-                    "allocations": allocations
-                }))
+
+                (
+                    scope_name.clone(),
+                    serde_json::json!({
+                        "scope_name": scope_name,
+                        "allocation_count": allocations.len(),
+                        "total_size_bytes": total_size,
+                        "allocations": allocations
+                    }),
+                )
             })
             .collect();
-        
+
         serde_json::json!(scope_summary)
     }
-    
+
     /// Get scope summary from registry
     fn get_scope_summary(registry: &HashMap<usize, VariableInfo>) -> serde_json::Value {
         let mut scope_counts: HashMap<String, usize> = HashMap::new();
-        
+
         for var_info in registry.values() {
             let scope = Self::extract_scope_from_var_name(&var_info.var_name);
             *scope_counts.entry(scope).or_insert(0) += 1;
         }
-        
+
         serde_json::json!(scope_counts)
     }
-    
+
     /// Analyze lifecycle statistics for lifetime_ms patterns
     fn analyze_lifecycle_statistics(
         user_active: &[serde_json::Value],
-        user_history: &[serde_json::Value], 
+        user_history: &[serde_json::Value],
         system_active: &[serde_json::Value],
-        system_history: &[serde_json::Value]
+        system_history: &[serde_json::Value],
     ) -> serde_json::Value {
         // Combine all allocations for analysis
-        let all_user: Vec<&serde_json::Value> = user_active.iter().chain(user_history.iter()).collect();
-        let all_system: Vec<&serde_json::Value> = system_active.iter().chain(system_history.iter()).collect();
-        
+        let all_user: Vec<&serde_json::Value> =
+            user_active.iter().chain(user_history.iter()).collect();
+        let all_system: Vec<&serde_json::Value> =
+            system_active.iter().chain(system_history.iter()).collect();
+
         // Analyze user allocations - now all should have lifetime_ms values
-        let user_lifetimes: Vec<u64> = all_user.iter()
+        let user_lifetimes: Vec<u64> = all_user
+            .iter()
             .filter_map(|a| a["lifetime_ms"].as_u64())
             .collect();
-        
-        let user_active_count = all_user.iter()
+
+        let user_active_count = all_user
+            .iter()
             .filter(|a| a["is_active"].as_bool().unwrap_or(false))
             .count();
-        
-        let user_deallocated_count = all_user.iter()
+
+        let user_deallocated_count = all_user
+            .iter()
             .filter(|a| a["timestamp_dealloc"].is_null() == false)
             .count();
-        
+
         // Analyze system allocations - now all should have lifetime_ms values
-        let system_lifetimes: Vec<u64> = all_system.iter()
+        let system_lifetimes: Vec<u64> = all_system
+            .iter()
             .filter_map(|a| a["lifetime_ms"].as_u64())
             .collect();
-        
-        let system_active_count = all_system.iter()
+
+        let system_active_count = all_system
+            .iter()
             .filter(|a| a["is_active"].as_bool().unwrap_or(false))
             .count();
-        
-        let system_deallocated_count = all_system.iter()
+
+        let system_deallocated_count = all_system
+            .iter()
             .filter(|a| a["timestamp_dealloc"].is_null() == false)
             .count();
-        
+
         serde_json::json!({
             "user_allocations": {
                 "total_count": all_user.len(),
@@ -388,35 +413,41 @@ impl VariableRegistry {
             }
         })
     }
-    
+
     /// Analyze deallocation patterns for timestamp_dealloc
     fn analyze_deallocation_patterns(
         user_active: &[serde_json::Value],
         user_history: &[serde_json::Value],
-        system_active: &[serde_json::Value], 
-        system_history: &[serde_json::Value]
+        system_active: &[serde_json::Value],
+        system_history: &[serde_json::Value],
     ) -> serde_json::Value {
-        let all_user: Vec<&serde_json::Value> = user_active.iter().chain(user_history.iter()).collect();
-        let all_system: Vec<&serde_json::Value> = system_active.iter().chain(system_history.iter()).collect();
-        
+        let all_user: Vec<&serde_json::Value> =
+            user_active.iter().chain(user_history.iter()).collect();
+        let all_system: Vec<&serde_json::Value> =
+            system_active.iter().chain(system_history.iter()).collect();
+
         // Analyze deallocation timestamps
-        let user_dealloc_times: Vec<u64> = all_user.iter()
+        let user_dealloc_times: Vec<u64> = all_user
+            .iter()
             .filter_map(|a| a["timestamp_dealloc"].as_u64())
             .collect();
-        
-        let system_dealloc_times: Vec<u64> = all_system.iter()
+
+        let system_dealloc_times: Vec<u64> = all_system
+            .iter()
             .filter_map(|a| a["timestamp_dealloc"].as_u64())
             .collect();
-        
+
         // Count null deallocations (active/leaked allocations)
-        let user_null_dealloc = all_user.iter()
+        let user_null_dealloc = all_user
+            .iter()
             .filter(|a| a["timestamp_dealloc"].is_null())
             .count();
-        
-        let system_null_dealloc = all_system.iter()
+
+        let system_null_dealloc = all_system
+            .iter()
             .filter(|a| a["timestamp_dealloc"].is_null())
             .count();
-        
+
         serde_json::json!({
             "user_deallocations": {
                 "total_deallocated": user_dealloc_times.len(),
@@ -427,7 +458,7 @@ impl VariableRegistry {
                 "earliest_dealloc": user_dealloc_times.iter().min().copied(),
                 "latest_dealloc": user_dealloc_times.iter().max().copied(),
                 "deallocation_timespan_ms": if user_dealloc_times.len() > 1 {
-                    user_dealloc_times.iter().max().unwrap_or(&0) - 
+                    user_dealloc_times.iter().max().unwrap_or(&0) -
                     user_dealloc_times.iter().min().unwrap_or(&0)
                 } else { 0 }
             },
@@ -440,7 +471,7 @@ impl VariableRegistry {
                 "earliest_dealloc": system_dealloc_times.iter().min().copied(),
                 "latest_dealloc": system_dealloc_times.iter().max().copied(),
                 "deallocation_timespan_ms": if system_dealloc_times.len() > 1 {
-                    system_dealloc_times.iter().max().unwrap_or(&0) - 
+                    system_dealloc_times.iter().max().unwrap_or(&0) -
                     system_dealloc_times.iter().min().unwrap_or(&0)
                 } else { 0 }
             },
@@ -457,7 +488,7 @@ impl VariableRegistry {
             }
         })
     }
-    
+
     /// Calculate detailed lifetime statistics
     fn calculate_lifetime_stats(lifetimes: &[u64]) -> serde_json::Value {
         if lifetimes.is_empty() {
@@ -465,20 +496,20 @@ impl VariableRegistry {
                 "count": 0,
                 "categories": {
                     "very_short": 0,    // < 1ms
-                    "short": 0,         // 1-10ms  
+                    "short": 0,         // 1-10ms
                     "medium": 0,        // 10-100ms
                     "long": 0,          // 100-1000ms
                     "very_long": 0      // > 1000ms
                 }
             });
         }
-        
+
         let mut very_short = 0;
         let mut short = 0;
         let mut medium = 0;
         let mut long = 0;
         let mut very_long = 0;
-        
+
         for &lifetime in lifetimes {
             match lifetime {
                 0..=1 => very_short += 1,
@@ -488,7 +519,7 @@ impl VariableRegistry {
                 _ => very_long += 1,
             }
         }
-        
+
         serde_json::json!({
             "count": lifetimes.len(),
             "categories": {
@@ -506,16 +537,16 @@ impl VariableRegistry {
             }
         })
     }
-    
+
     /// Calculate percentile for lifetime analysis
     fn calculate_percentile(sorted_values: &[u64], percentile: f64) -> u64 {
         if sorted_values.is_empty() {
             return 0;
         }
-        
+
         let mut values = sorted_values.to_vec();
         values.sort_unstable();
-        
+
         let index = (percentile / 100.0 * (values.len() - 1) as f64) as usize;
         values[index.min(values.len() - 1)]
     }
@@ -532,64 +563,77 @@ impl VariableRegistry {
             (24, "string_alloc", "String"),
             (32, "string_alloc", "String"),
         ];
-        
+
         // Fast lookup for common sizes
         for &(size, var_prefix, type_name) in COMMON_TYPES {
             if alloc.size == size {
                 return (
                     format!("{}_{:x}", var_prefix, alloc.ptr),
-                    type_name.to_string()
+                    type_name.to_string(),
                 );
             }
         }
-        
+
         // Fallback to original logic for uncommon sizes
         Self::infer_allocation_info(alloc)
     }
-    
+
     /// Smart inference for system allocations based on size patterns and common allocations
     pub fn infer_allocation_info(alloc: &crate::types::AllocationInfo) -> (String, String) {
         let size = alloc.size;
-        
+
         // Common allocation size patterns for type inference
         let (var_name, type_name) = match size {
             // String allocations (common sizes)
-            8..=32 if size.is_power_of_two() => {
-                (format!("string_alloc_{:x}", alloc.ptr), "String".to_string())
-            },
+            8..=32 if size.is_power_of_two() => (
+                format!("string_alloc_{:x}", alloc.ptr),
+                "String".to_string(),
+            ),
             // Vec allocations (multiples of common element sizes)
             s if s % 8 == 0 && s >= 16 => {
                 let elements = s / 8;
-                (format!("vec_i64_{}elem_{:x}", elements, alloc.ptr), "Vec<i64>".to_string())
-            },
+                (
+                    format!("vec_i64_{}elem_{:x}", elements, alloc.ptr),
+                    "Vec<i64>".to_string(),
+                )
+            }
             s if s % 4 == 0 && s >= 8 => {
                 let elements = s / 4;
-                (format!("vec_i32_{}elem_{:x}", elements, alloc.ptr), "Vec<i32>".to_string())
-            },
+                (
+                    format!("vec_i32_{}elem_{:x}", elements, alloc.ptr),
+                    "Vec<i32>".to_string(),
+                )
+            }
             // Box allocations (single element sizes)
             1 => (format!("box_u8_{:x}", alloc.ptr), "Box<u8>".to_string()),
             2 => (format!("box_u16_{:x}", alloc.ptr), "Box<u16>".to_string()),
             4 => (format!("box_u32_{:x}", alloc.ptr), "Box<u32>".to_string()),
             8 => (format!("box_u64_{:x}", alloc.ptr), "Box<u64>".to_string()),
             // HashMap/BTreeMap allocations (typically larger, irregular sizes)
-            s if s >= 64 && s % 16 == 0 => {
-                (format!("hashmap_alloc_{:x}", alloc.ptr), "HashMap<K,V>".to_string())
-            },
+            s if s >= 64 && s % 16 == 0 => (
+                format!("hashmap_alloc_{:x}", alloc.ptr),
+                "HashMap<K,V>".to_string(),
+            ),
             // Large allocations (likely buffers or large collections)
             s if s >= 1024 => {
                 let kb = s / 1024;
-                (format!("large_buffer_{}kb_{:x}", kb, alloc.ptr), "LargeBuffer".to_string())
-            },
-            // Small system allocations
-            s if s <= 16 => {
-                (format!("small_alloc_{}b_{:x}", s, alloc.ptr), "SmallAlloc".to_string())
-            },
-            // Default case with size hint
-            _ => {
-                (format!("system_alloc_{}b_{:x}", size, alloc.ptr), "SystemAlloc".to_string())
+                (
+                    format!("large_buffer_{}kb_{:x}", kb, alloc.ptr),
+                    "LargeBuffer".to_string(),
+                )
             }
+            // Small system allocations
+            s if s <= 16 => (
+                format!("small_alloc_{}b_{:x}", s, alloc.ptr),
+                "SmallAlloc".to_string(),
+            ),
+            // Default case with size hint
+            _ => (
+                format!("system_alloc_{}b_{:x}", size, alloc.ptr),
+                "SystemAlloc".to_string(),
+            ),
         };
-        
+
         (var_name, type_name)
     }
 
@@ -599,7 +643,7 @@ impl VariableRegistry {
     ) -> TrackingResult<serde_json::Value> {
         let start_time = std::time::Instant::now();
         println!("🔄 Starting comprehensive export generation with allocation classification...");
-        
+
         // Get tracker data in parallel where possible
         let (active_allocations, other_data) = rayon::join(
             || tracker.get_active_allocations(),
@@ -609,9 +653,9 @@ impl VariableRegistry {
                 let stats = tracker.get_stats();
                 let registry = Self::get_all_variables();
                 (history, memory_types, stats, registry)
-            }
+            },
         );
-        
+
         let active_allocations = active_allocations?;
         let (allocation_history, memory_by_type, stats, registry) = {
             let allocation_history = other_data.0?;
@@ -620,43 +664,51 @@ impl VariableRegistry {
             let registry = other_data.3;
             (allocation_history, memory_by_type, stats, registry)
         };
-        
-        println!("📊 Data loaded: {} active, {} history, {} registry entries", 
-                 active_allocations.len(), allocation_history.len(), registry.len());
-        
+
+        println!(
+            "📊 Data loaded: {} active, {} history, {} registry entries",
+            active_allocations.len(),
+            allocation_history.len(),
+            registry.len()
+        );
+
         // Filter out very small allocations to reduce processing overhead
         let filtered_active: Vec<_> = if active_allocations.len() > 10000 {
-            active_allocations.into_iter()
+            active_allocations
+                .into_iter()
                 .filter(|alloc| alloc.size >= 8)
                 .collect()
         } else {
             active_allocations
         };
-        
+
         let filtered_history: Vec<_> = if allocation_history.len() > 50000 {
-            allocation_history.into_iter()
+            allocation_history
+                .into_iter()
                 .filter(|alloc| alloc.size >= 8)
                 .collect()
         } else {
             allocation_history
         };
-        
+
         // Classify and enhance allocations in parallel
         let (classified_active, classified_history) = rayon::join(
             || Self::classify_and_enhance_allocations(&filtered_active, &registry),
-            || Self::classify_and_enhance_allocations(&filtered_history, &registry)
+            || Self::classify_and_enhance_allocations(&filtered_history, &registry),
         );
-        
+
         // Separate user and system allocations
-        let (user_active, system_active): (Vec<_>, Vec<_>) = classified_active.into_iter()
+        let (user_active, system_active): (Vec<_>, Vec<_>) = classified_active
+            .into_iter()
             .partition(|alloc| alloc["allocation_source"] == "user");
-        
-        let (user_history, system_history): (Vec<_>, Vec<_>) = classified_history.into_iter()
+
+        let (user_history, system_history): (Vec<_>, Vec<_>) = classified_history
+            .into_iter()
             .partition(|alloc| alloc["allocation_source"] == "user");
-        
+
         // Group user variables by scope
         let user_scopes = Self::group_by_scope(&user_active, &user_history);
-        
+
         // Build comprehensive result with clear separation
         let comprehensive_data = serde_json::json!({
             "memory_analysis": {
@@ -708,13 +760,15 @@ impl VariableRegistry {
                 ]
             }
         });
-        
+
         let total_time = start_time.elapsed();
-        println!("✅ Export completed in {:?} - User: {}, System: {}", 
-                 total_time, 
-                 user_active.len() + user_history.len(),
-                 system_active.len() + system_history.len());
-        
+        println!(
+            "✅ Export completed in {:?} - User: {}, System: {}",
+            total_time,
+            user_active.len() + user_history.len(),
+            system_active.len() + system_history.len()
+        );
+
         Ok(comprehensive_data)
     }
 
@@ -730,7 +784,8 @@ impl VariableRegistry {
     pub fn get_stats() -> (usize, usize) {
         if let Ok(registry) = get_global_registry().try_lock() {
             let total = registry.len();
-            let recent = registry.values()
+            let recent = registry
+                .values()
                 .filter(|v| {
                     let now = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)

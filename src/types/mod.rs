@@ -5,9 +5,9 @@
 // Since we removed types_original.rs, we need to recreate the essential types here
 
 // Essential types that are used throughout the codebase
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::thread;
-use serde::{Deserialize, Serialize};
 
 /// Result type for tracking operations
 pub type TrackingResult<T> = Result<T, TrackingError>;
@@ -75,7 +75,9 @@ impl Clone for TrackingError {
             TrackingError::AnalysisError(s) => TrackingError::AnalysisError(s.clone()),
             TrackingError::ExportError(s) => TrackingError::ExportError(s.clone()),
             TrackingError::MemoryCorruption(s) => TrackingError::MemoryCorruption(s.clone()),
-            TrackingError::UnsafeOperationDetected(s) => TrackingError::UnsafeOperationDetected(s.clone()),
+            TrackingError::UnsafeOperationDetected(s) => {
+                TrackingError::UnsafeOperationDetected(s.clone())
+            }
             TrackingError::FFIError(s) => TrackingError::FFIError(s.clone()),
             TrackingError::ScopeError(s) => TrackingError::ScopeError(s.clone()),
             TrackingError::BorrowCheckError(s) => TrackingError::BorrowCheckError(s.clone()),
@@ -84,7 +86,9 @@ impl Clone for TrackingError {
             TrackingError::PerformanceError(s) => TrackingError::PerformanceError(s.clone()),
             TrackingError::ResourceExhausted(s) => TrackingError::ResourceExhausted(s.clone()),
             TrackingError::InternalError(s) => TrackingError::InternalError(s.clone()),
-            TrackingError::IoError(e) => TrackingError::IoError(std::io::Error::new(e.kind(), e.to_string())),
+            TrackingError::IoError(e) => {
+                TrackingError::IoError(std::io::Error::new(e.kind(), e.to_string()))
+            }
             TrackingError::LockError(s) => TrackingError::LockError(s.clone()),
         }
     }
@@ -104,7 +108,9 @@ impl std::fmt::Display for TrackingError {
             TrackingError::AnalysisError(msg) => write!(f, "Analysis error: {msg}"),
             TrackingError::ExportError(msg) => write!(f, "Export error: {msg}"),
             TrackingError::MemoryCorruption(msg) => write!(f, "Memory corruption detected: {msg}"),
-            TrackingError::UnsafeOperationDetected(msg) => write!(f, "Unsafe operation detected: {msg}"),
+            TrackingError::UnsafeOperationDetected(msg) => {
+                write!(f, "Unsafe operation detected: {msg}")
+            }
             TrackingError::FFIError(msg) => write!(f, "FFI error: {msg}"),
             TrackingError::ScopeError(msg) => write!(f, "Scope error: {msg}"),
             TrackingError::BorrowCheckError(msg) => write!(f, "Borrow check error: {msg}"),
@@ -138,22 +144,22 @@ impl From<serde_json::Error> for TrackingError {
 pub struct SmartPointerInfo {
     /// Data pointer - points to the actual data being shared
     pub data_ptr: usize,
-    
+
     /// Clone relationship tracking
     pub cloned_from: Option<usize>,
     pub clones: Vec<usize>,
-    
+
     /// Reference count history (timestamp, count)
     pub ref_count_history: Vec<RefCountSnapshot>,
-    
+
     /// Weak reference information
     pub weak_count: Option<usize>,
     pub is_weak_reference: bool,
-    
+
     /// Lifecycle information
-    pub is_data_owner: bool,  // Is this the last strong reference?
+    pub is_data_owner: bool, // Is this the last strong reference?
     pub is_implicitly_deallocated: bool, // Was data deallocated when this was dropped?
-    
+
     /// Smart pointer type
     pub pointer_type: SmartPointerType,
 }
@@ -178,12 +184,17 @@ pub enum SmartPointerType {
 
 impl SmartPointerInfo {
     /// Create new smart pointer info for Rc/Arc
-    pub fn new_rc_arc(data_ptr: usize, pointer_type: SmartPointerType, strong_count: usize, weak_count: usize) -> Self {
+    pub fn new_rc_arc(
+        data_ptr: usize,
+        pointer_type: SmartPointerType,
+        strong_count: usize,
+        weak_count: usize,
+    ) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
-            
+
         Self {
             data_ptr,
             cloned_from: None,
@@ -200,14 +211,14 @@ impl SmartPointerInfo {
             pointer_type,
         }
     }
-    
+
     /// Create new smart pointer info for Weak references
     pub fn new_weak(data_ptr: usize, pointer_type: SmartPointerType, weak_count: usize) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
-            
+
         Self {
             data_ptr,
             cloned_from: None,
@@ -224,7 +235,7 @@ impl SmartPointerInfo {
             pointer_type,
         }
     }
-    
+
     /// Record a clone relationship
     pub fn record_clone(&mut self, clone_ptr: usize, source_ptr: usize) {
         if self.cloned_from.is_none() {
@@ -232,29 +243,29 @@ impl SmartPointerInfo {
         }
         self.clones.push(clone_ptr);
     }
-    
+
     /// Update reference count
     pub fn update_ref_count(&mut self, strong_count: usize, weak_count: usize) {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
-            
+
         self.ref_count_history.push(RefCountSnapshot {
             timestamp,
             strong_count,
             weak_count,
         });
-        
+
         self.weak_count = Some(weak_count);
         self.is_data_owner = strong_count == 1 && !self.is_weak_reference;
     }
-    
+
     /// Mark as implicitly deallocated (data was freed when this pointer was dropped)
     pub fn mark_implicitly_deallocated(&mut self) {
         self.is_implicitly_deallocated = true;
     }
-    
+
     /// Get the latest reference counts
     pub fn latest_ref_counts(&self) -> Option<&RefCountSnapshot> {
         self.ref_count_history.last()
@@ -410,10 +421,12 @@ impl AllocationInfo {
 
     /// Mark this allocation as deallocated with current timestamp
     pub fn mark_deallocated(&mut self) {
-        self.timestamp_dealloc = Some(std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64);
+        self.timestamp_dealloc = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos() as u64,
+        );
     }
 
     /// Check if this allocation is still active (not deallocated)
@@ -1180,9 +1193,15 @@ pub enum OptimizationPotential {
     /// Minor optimization
     Minor { potential_savings: usize },
     /// Moderate optimization
-    Moderate { potential_savings: usize, suggestions: Vec<String> },
+    Moderate {
+        potential_savings: usize,
+        suggestions: Vec<String>,
+    },
     /// Major optimization
-    Major { potential_savings: usize, suggestions: Vec<String> },
+    Major {
+        potential_savings: usize,
+        suggestions: Vec<String>,
+    },
 }
 
 /// Generic type information
@@ -2706,6 +2725,6 @@ pub enum MemoryOptimizationType {
 
 // TODO: Gradually move types to these modules:
 // pub mod core;
-// pub mod allocation; 
+// pub mod allocation;
 // pub mod visualization;
 // pub mod analysis;

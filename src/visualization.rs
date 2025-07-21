@@ -7,15 +7,14 @@ use crate::utils::{format_bytes, get_simple_type, get_type_color, get_type_gradi
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use svg::node::element::{Circle, Group, Line, Rectangle, Style, Text as SvgText ,Definitions, Marker, Polygon};
+use svg::node::element::{
+    Circle, Definitions, Group, Line, Marker, Polygon, Rectangle, Style, Text as SvgText,
+};
 use svg::Document;
 
 use crate::unsafe_ffi_tracker::{
-    AllocationSource, BoundaryEventType, EnhancedAllocationInfo, 
-    SafetyViolation, UnsafeFFITracker
+    AllocationSource, BoundaryEventType, EnhancedAllocationInfo, SafetyViolation, UnsafeFFITracker,
 };
-
-
 
 /// Export memory analysis visualization showing variable names, types, and usage
 pub fn export_memory_analysis<P: AsRef<Path>>(
@@ -34,10 +33,13 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     // FIXED: Get stats and allocations at the same time to ensure data consistency
     let stats = tracker.get_stats()?;
     let active_allocations = tracker.get_active_allocations()?;
-    
+
     // Debug: Log the peak memory value used in SVG export
-    tracing::info!("SVG Export - Using peak_memory: {} bytes ({})", 
-                   stats.peak_memory, crate::utils::format_bytes(stats.peak_memory));
+    tracing::info!(
+        "SVG Export - Using peak_memory: {} bytes ({})",
+        stats.peak_memory,
+        crate::utils::format_bytes(stats.peak_memory)
+    );
 
     let document = create_memory_analysis_svg(&active_allocations, &stats, tracker)?;
 
@@ -96,7 +98,8 @@ fn create_memory_analysis_svg(
     document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
     // 3. Performance Dashboard
-    document = crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
+    document =
+        crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
 
     // 4. Memory Allocation Heatmap
     document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
@@ -389,7 +392,7 @@ fn add_relationships_section(
             .set("fill", "#FFFFFF");
         document = document.add(scope_label);
 
-        scope_positions.insert(scope_name.clone(), (group_x, group_y));
+        scope_positions.insert(scope_name, (group_x, group_y));
     }
 
     // Note: Relationship analysis removed to eliminate unused code
@@ -448,7 +451,7 @@ fn draw_variable_node(
     let display_name = if var_name.len() > 8 {
         format!("{}...", &var_name[..6])
     } else {
-        var_name.clone()
+        var_name.to_string()
     };
 
     let name_label = SvgText::new(display_name)
@@ -644,7 +647,7 @@ fn prioritize_scopes_for_display<'a>(
         .map(|(name, vars)| {
             let priority = calculate_scope_priority(name, vars);
             let total_memory: usize = vars.iter().map(|v| v.size).sum();
-            (name.clone(), vars.clone(), priority, total_memory)
+            (name, vars, priority, total_memory)
         })
         .collect();
 
@@ -653,7 +656,7 @@ fn prioritize_scopes_for_display<'a>(
 
     scopes_with_priority
         .into_iter()
-        .map(|(name, vars, _, _)| (name, vars))
+        .map(|(name, vars, _, _)| (name.clone(), vars.clone()))
         .collect()
 }
 
@@ -761,7 +764,10 @@ fn export_scope_analysis_json(
         let is_displayed = displayed_scopes.iter().any(|(name, _)| name == scope_name);
 
         let mut scope_data = Map::new();
-        scope_data.insert("scope_name".to_string(), Value::String(scope_name.clone()));
+        scope_data.insert(
+            "scope_name".to_string(),
+            Value::String(scope_name.to_string()),
+        );
         scope_data.insert(
             "total_memory".to_string(),
             Value::Number((total_memory as u64).into()),
@@ -788,7 +794,7 @@ fn export_scope_analysis_json(
         for var in vars {
             if let Some(var_name) = &var.var_name {
                 let mut var_data = Map::new();
-                var_data.insert("name".to_string(), Value::String(var_name.clone()));
+                var_data.insert("name".to_string(), Value::String(var_name.to_string()));
                 var_data.insert(
                     "type".to_string(),
                     Value::String(var.type_name.as_deref().unwrap_or("Unknown").to_string()),
@@ -912,15 +918,15 @@ fn add_matrix_layout_section(
         let row = i / 3;
         let x = start_x + (col as i32 * spacing_x);
         let y = start_y + (row as i32 * spacing_y);
-        positions.push((scope_name.clone(), x, y));
+        positions.push((scope_name, x, y));
     }
 
     // Draw relationship lines first (only for displayed scopes)
     for (i, (scope_name, x, y)) in positions.iter().enumerate() {
-        if scope_name != "Global" && i > 0 {
+        if *scope_name != "Global" && i > 0 {
             // Find Global scope position
             if let Some((_, global_x, global_y)) =
-                positions.iter().find(|(name, _, _)| name == "Global")
+                positions.iter().find(|(name, _, _)| *name == "Global")
             {
                 let line = Line::new()
                     .set("x1", global_x + base_matrix_width / 2)
@@ -1061,7 +1067,7 @@ fn render_scope_matrix_fixed(
         matrix_group = matrix_group.add(card_bg);
 
         // Variable name with enhanced styling
-        let var_label = SvgText::new(var_name.clone())
+        let var_label = SvgText::new(var_name)
             .set("x", 18)
             .set("y", var_y + 8)
             .set("font-size", 12)
@@ -1238,9 +1244,10 @@ pub fn enhance_type_information(
             .iter()
             .filter_map(|alloc| {
                 if let (Some(var_name), Some(type_name)) = (&alloc.var_name, &alloc.type_name) {
-                    let (alloc_simplified, _, _) = analyze_type_with_detailed_subcategory(type_name);
+                    let (alloc_simplified, _, _) =
+                        analyze_type_with_detailed_subcategory(type_name);
                     if alloc_simplified == simplified_name {
-                        Some(var_name.clone())
+                        Some(var_name)
                     } else {
                         None
                     }
@@ -1249,6 +1256,7 @@ pub fn enhance_type_information(
                 }
             })
             .take(5) // Limit to 5 variable names
+            .map(|s| s.to_string())
             .collect();
 
         // Add the main type with subcategory information
@@ -1335,8 +1343,6 @@ pub fn categorize_enhanced_allocations(
     crate::export_enhanced::categorize_enhanced_allocations(enhanced_types)
 }
 
-
-
 /// Export comprehensive unsafe/FFI memory analysis to dedicated SVG
 pub fn export_unsafe_ffi_dashboard<P: AsRef<Path>>(
     tracker: &UnsafeFFITracker,
@@ -1408,7 +1414,7 @@ fn add_svg_definitions(document: Document) -> Document {
         .add(
             Polygon::new()
                 .set("points", "0 0, 10 3.5, 0 7")
-                .set("fill", "#e74c3c")
+                .set("fill", "#e74c3c"),
         );
     defs = defs.add(arrow_marker);
 
@@ -1432,16 +1438,20 @@ fn add_dashboard_header(
     document = document.add(title);
 
     // Calculate key metrics
-    let unsafe_count = allocations.iter()
+    let unsafe_count = allocations
+        .iter()
         .filter(|a| matches!(a.source, AllocationSource::UnsafeRust { .. }))
         .count();
-    let ffi_count = allocations.iter()
+    let ffi_count = allocations
+        .iter()
         .filter(|a| matches!(a.source, AllocationSource::FfiC { .. }))
         .count();
-    let cross_boundary_events: usize = allocations.iter()
+    let cross_boundary_events: usize = allocations
+        .iter()
         .map(|a| a.cross_boundary_events.len())
         .sum();
-    let total_unsafe_memory: usize = allocations.iter()
+    let total_unsafe_memory: usize = allocations
+        .iter()
         .filter(|a| !matches!(a.source, AllocationSource::RustSafe))
         .map(|a| a.base.size)
         .sum();
@@ -1450,9 +1460,17 @@ fn add_dashboard_header(
     let metrics = vec![
         ("Unsafe Allocations", unsafe_count.to_string(), "#e74c3c"),
         ("FFI Allocations", ffi_count.to_string(), "#3498db"),
-        ("Boundary Crossings", cross_boundary_events.to_string(), "#f39c12"),
+        (
+            "Boundary Crossings",
+            cross_boundary_events.to_string(),
+            "#f39c12",
+        ),
         ("Safety Violations", violations.len().to_string(), "#e67e22"),
-        ("Unsafe Memory", format_bytes(total_unsafe_memory), "#9b59b6"),
+        (
+            "Unsafe Memory",
+            format_bytes(total_unsafe_memory),
+            "#9b59b6",
+        ),
     ];
 
     for (i, (label, value, color)) in metrics.iter().enumerate() {
@@ -1473,7 +1491,7 @@ fn add_dashboard_header(
         document = document.add(card);
 
         // Value
-        let value_text = SvgText::new(value.clone())
+        let value_text = SvgText::new(value)
             .set("x", x)
             .set("y", y - 5)
             .set("text-anchor", "middle")
@@ -1555,10 +1573,12 @@ fn add_allocation_source_breakdown(
     }
 
     // Create simple bar chart instead of pie chart
-    let sources = [("Safe Rust", safe_count, "#2ecc71"),
+    let sources = [
+        ("Safe Rust", safe_count, "#2ecc71"),
         ("Unsafe Rust", unsafe_count, "#e74c3c"),
         ("FFI", ffi_count, "#3498db"),
-        ("Cross-boundary", cross_boundary_count, "#9b59b6")];
+        ("Cross-boundary", cross_boundary_count, "#9b59b6"),
+    ];
 
     for (i, (label, count, color)) in sources.iter().enumerate() {
         if *count > 0 {
@@ -1620,7 +1640,11 @@ fn add_memory_safety_status(
     document = document.add(title);
 
     // Background
-    let bg_color = if violations.is_empty() { "#27ae60" } else { "#e74c3c" };
+    let bg_color = if violations.is_empty() {
+        "#27ae60"
+    } else {
+        "#e74c3c"
+    };
     let bg = Rectangle::new()
         .set("x", start_x)
         .set("y", start_y)
@@ -1643,28 +1667,30 @@ fn add_memory_safety_status(
             .set("fill", "#27ae60");
         document = document.add(safe_text);
 
-        let safe_desc = SvgText::new("All unsafe operations and FFI calls appear to be memory-safe")
-            .set("x", start_x + width / 2)
-            .set("y", start_y + 180)
-            .set("text-anchor", "middle")
-            .set("font-size", 12)
-            .set("fill", "#2ecc71");
+        let safe_desc =
+            SvgText::new("All unsafe operations and FFI calls appear to be memory-safe")
+                .set("x", start_x + width / 2)
+                .set("y", start_y + 180)
+                .set("text-anchor", "middle")
+                .set("font-size", 12)
+                .set("fill", "#2ecc71");
         document = document.add(safe_desc);
     } else {
         // Violations detected
-        let violation_text = SvgText::new(format!("{} Safety Violations Detected", violations.len()))
-            .set("x", start_x + width / 2)
-            .set("y", start_y + 120)
-            .set("text-anchor", "middle")
-            .set("font-size", 16)
-            .set("font-weight", "bold")
-            .set("fill", "#e74c3c");
+        let violation_text =
+            SvgText::new(format!("{} Safety Violations Detected", violations.len()))
+                .set("x", start_x + width / 2)
+                .set("y", start_y + 120)
+                .set("text-anchor", "middle")
+                .set("font-size", 16)
+                .set("font-weight", "bold")
+                .set("fill", "#e74c3c");
         document = document.add(violation_text);
 
         // List violations
         for (i, violation) in violations.iter().take(5).enumerate() {
             let y = start_y + 160 + i as i32 * 20;
-            
+
             let description = match violation {
                 SafetyViolation::DoubleFree { .. } => "Double Free",
                 SafetyViolation::InvalidFree { .. } => "Invalid Free",
@@ -1847,7 +1873,8 @@ fn add_unsafe_hotspots(
     document = document.add(bg);
 
     // Find unsafe allocations
-    let unsafe_allocations: Vec<_> = allocations.iter()
+    let unsafe_allocations: Vec<_> = allocations
+        .iter()
         .filter(|a| !matches!(a.source, AllocationSource::RustSafe))
         .collect();
 

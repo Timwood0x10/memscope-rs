@@ -1,16 +1,18 @@
 //! Memory allocation tracking functionality.
 
-use crate::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage, MemoryTypeInfo};
-use crate::types::{MemoryLayoutInfo, GenericTypeInfo, DynamicTypeInfo, RuntimeStateInfo};
-use crate::types::{FieldLayoutInfo, PaddingAnalysis, LayoutEfficiency, OptimizationPotential};
-use crate::types::{TypeParameter, MonomorphizationInfo, CodeBloatLevel, GenericConstraint};
-use crate::types::{VTableInfo, DispatchOverhead, TypeErasureInfo, PerformanceImpact};
-use crate::types::{CpuUsageInfo, MemoryPressureInfo, CachePerformanceInfo, AllocatorStateInfo};
-use crate::types::{StackAllocationInfo, TemporaryObjectInfo, EnhancedFragmentationAnalysis};
+use crate::types::{AllocationInfo, MemoryStats, MemoryTypeInfo, TrackingResult, TypeMemoryUsage};
+use crate::types::{AllocatorStateInfo, CachePerformanceInfo, CpuUsageInfo, MemoryPressureInfo};
+use crate::types::{CodeBloatLevel, GenericConstraint, MonomorphizationInfo, TypeParameter};
+use crate::types::{CreationContext, ExpressionType, ScopeType, SourceLocation, StackScopeInfo};
+use crate::types::{DispatchOverhead, PerformanceImpact, TypeErasureInfo, VTableInfo};
+use crate::types::{DynamicTypeInfo, GenericTypeInfo, MemoryLayoutInfo, RuntimeStateInfo};
+use crate::types::{EnhancedFragmentationAnalysis, StackAllocationInfo, TemporaryObjectInfo};
+use crate::types::{FieldLayoutInfo, LayoutEfficiency, OptimizationPotential, PaddingAnalysis};
+use crate::types::{
+    FragmentationMetrics, FragmentationSeverity, MemoryLocationType, TemporaryUsagePattern,
+};
+use crate::types::{FunctionCallTrackingInfo, MemoryAccessTrackingInfo, ObjectLifecycleInfo};
 use crate::types::{GenericInstantiationInfo, TypeRelationshipInfo, TypeUsageInfo};
-use crate::types::{FunctionCallTrackingInfo, ObjectLifecycleInfo, MemoryAccessTrackingInfo};
-use crate::types::{StackScopeInfo, ScopeType, CreationContext, ExpressionType, SourceLocation};
-use crate::types::{TemporaryUsagePattern, MemoryLocationType, FragmentationMetrics, FragmentationSeverity};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -56,7 +58,8 @@ impl MemoryTracker {
         let alignment = self.estimate_alignment(type_name, size);
         let field_layout = self.analyze_field_layout(type_name, size, alignment);
         let padding_info = self.analyze_padding(&field_layout, size, alignment);
-        let layout_efficiency = self.calculate_layout_efficiency(&field_layout, &padding_info, size);
+        let layout_efficiency =
+            self.calculate_layout_efficiency(&field_layout, &padding_info, size);
 
         Some(MemoryLayoutInfo {
             total_size: size,
@@ -71,13 +74,20 @@ impl MemoryTracker {
     fn estimate_alignment(&self, type_name: &str, size: usize) -> usize {
         if type_name.contains("u64") || type_name.contains("i64") || type_name.contains("f64") {
             8
-        } else if type_name.contains("u32") || type_name.contains("i32") || type_name.contains("f32") {
+        } else if type_name.contains("u32")
+            || type_name.contains("i32")
+            || type_name.contains("f32")
+        {
             4
         } else if type_name.contains("u16") || type_name.contains("i16") {
             2
-        } else if type_name.contains("u8") || type_name.contains("i8") || type_name.contains("bool") {
+        } else if type_name.contains("u8") || type_name.contains("i8") || type_name.contains("bool")
+        {
             1
-        } else if type_name.contains("usize") || type_name.contains("isize") || type_name.contains("*") {
+        } else if type_name.contains("usize")
+            || type_name.contains("isize")
+            || type_name.contains("*")
+        {
             std::mem::size_of::<usize>()
         } else {
             // For composite types, use heuristic approach
@@ -91,9 +101,14 @@ impl MemoryTracker {
     }
 
     /// Analyze field layout
-    fn analyze_field_layout(&self, type_name: &str, total_size: usize, alignment: usize) -> Vec<FieldLayoutInfo> {
+    fn analyze_field_layout(
+        &self,
+        type_name: &str,
+        total_size: usize,
+        alignment: usize,
+    ) -> Vec<FieldLayoutInfo> {
         let mut fields = Vec::new();
-        
+
         if type_name.contains("Vec<") {
             // Vec<T> typically contains: ptr, capacity, len
             fields.push(FieldLayoutInfo {
@@ -164,7 +179,12 @@ impl MemoryTracker {
     }
 
     /// Analyze padding bytes
-    fn analyze_padding(&self, fields: &[FieldLayoutInfo], total_size: usize, struct_alignment: usize) -> PaddingAnalysis {
+    fn analyze_padding(
+        &self,
+        fields: &[FieldLayoutInfo],
+        total_size: usize,
+        struct_alignment: usize,
+    ) -> PaddingAnalysis {
         let mut padding_locations = Vec::new();
         let mut total_padding_bytes = 0;
         let mut optimization_suggestions = Vec::new();
@@ -174,7 +194,7 @@ impl MemoryTracker {
             let current_field = &fields[i];
             let next_field = &fields[i + 1];
             let expected_next_offset = current_field.offset + current_field.size;
-            
+
             if next_field.offset > expected_next_offset {
                 let padding_size = next_field.offset - expected_next_offset;
                 padding_locations.push(crate::types::PaddingLocation {
@@ -203,10 +223,12 @@ impl MemoryTracker {
         // Generate optimization suggestions
         let padding_ratio = total_padding_bytes as f64 / total_size as f64;
         if padding_ratio > 0.25 {
-            optimization_suggestions.push("Consider rearranging fields to reduce padding bytes".to_string());
+            optimization_suggestions
+                .push("Consider rearranging fields to reduce padding bytes".to_string());
         }
         if fields.len() > 1 && padding_ratio > 0.1 {
-            optimization_suggestions.push("Grouping smaller fields together may reduce memory waste".to_string());
+            optimization_suggestions
+                .push("Grouping smaller fields together may reduce memory waste".to_string());
         }
 
         PaddingAnalysis {
@@ -218,10 +240,15 @@ impl MemoryTracker {
     }
 
     /// Calculate layout efficiency
-    fn calculate_layout_efficiency(&self, fields: &[FieldLayoutInfo], padding: &PaddingAnalysis, total_size: usize) -> LayoutEfficiency {
+    fn calculate_layout_efficiency(
+        &self,
+        fields: &[FieldLayoutInfo],
+        padding: &PaddingAnalysis,
+        total_size: usize,
+    ) -> LayoutEfficiency {
         let useful_data_size = total_size - padding.total_padding_bytes;
         let memory_utilization = useful_data_size as f64 / total_size as f64;
-        
+
         // Cache friendliness score (based on field size and alignment)
         let cache_friendliness = if total_size <= 64 {
             100.0 // Fits in a single cache line
@@ -293,14 +320,18 @@ impl MemoryTracker {
     /// Extract generic type parameters
     fn extract_type_parameters(&self, type_name: &str, total_size: usize) -> Vec<TypeParameter> {
         let mut parameters = Vec::new();
-        
+
         if let Some(start) = type_name.find('<') {
             if let Some(end) = type_name.rfind('>') {
                 let params_str = &type_name[start + 1..end];
                 let param_names: Vec<&str> = params_str.split(',').map(|s| s.trim()).collect();
-                
+
                 for (i, param_name) in param_names.iter().enumerate() {
-                    let estimated_size = self.estimate_type_parameter_size(param_name, total_size, param_names.len());
+                    let estimated_size = self.estimate_type_parameter_size(
+                        param_name,
+                        total_size,
+                        param_names.len(),
+                    );
                     parameters.push(TypeParameter {
                         name: format!("T{}", i),
                         concrete_type: param_name.to_string(),
@@ -316,7 +347,12 @@ impl MemoryTracker {
     }
 
     /// Estimate generic parameter size
-    fn estimate_type_parameter_size(&self, param_type: &str, total_size: usize, param_count: usize) -> usize {
+    fn estimate_type_parameter_size(
+        &self,
+        param_type: &str,
+        total_size: usize,
+        param_count: usize,
+    ) -> usize {
         if param_type.starts_with('\'') {
             return 0; // Lifetime parameters don't take up space
         }
@@ -339,9 +375,14 @@ impl MemoryTracker {
     }
 
     /// Analyze monomorphization information
-    fn analyze_monomorphization(&self, base_type: &str, parameters: &[TypeParameter]) -> MonomorphizationInfo {
+    fn analyze_monomorphization(
+        &self,
+        base_type: &str,
+        parameters: &[TypeParameter],
+    ) -> MonomorphizationInfo {
         // Estimate monomorphization instance count (based on parameter complexity)
-        let instance_count = parameters.iter()
+        let instance_count = parameters
+            .iter()
             .map(|p| if p.concrete_type.contains('<') { 2 } else { 1 })
             .product::<usize>()
             .max(1);
@@ -365,7 +406,11 @@ impl MemoryTracker {
     }
 
     /// Infer generic constraints
-    fn infer_generic_constraints(&self, base_type: &str, _parameters: &[TypeParameter]) -> Vec<GenericConstraint> {
+    fn infer_generic_constraints(
+        &self,
+        base_type: &str,
+        _parameters: &[TypeParameter],
+    ) -> Vec<GenericConstraint> {
         let mut constraints = Vec::new();
 
         match base_type {
@@ -380,7 +425,10 @@ impl MemoryTracker {
                 constraints.push(GenericConstraint {
                     constraint_type: crate::types::ConstraintType::Trait("Send + Sync".to_string()),
                     description: "Shared pointer contents need to be thread-safe".to_string(),
-                    memory_impact: crate::types::MemoryImpact::SizeIncrease(std::mem::size_of::<usize>()),
+                    memory_impact: crate::types::MemoryImpact::SizeIncrease(std::mem::size_of::<
+                        usize,
+                    >(
+                    )),
                 });
             }
             _ => {}
@@ -434,14 +482,15 @@ impl MemoryTracker {
             _ => 3, // Default estimate
         };
 
-        let vtable_size = method_count * std::mem::size_of::<usize>() + std::mem::size_of::<usize>(); // Method pointers + type info
-        let methods = (0..method_count).map(|i| {
-            crate::types::VTableMethod {
+        let vtable_size =
+            method_count * std::mem::size_of::<usize>() + std::mem::size_of::<usize>(); // Method pointers + type info
+        let methods = (0..method_count)
+            .map(|i| crate::types::VTableMethod {
                 name: format!("method_{}", i),
                 signature: "fn(&self) -> ()".to_string(),
                 vtable_offset: i * std::mem::size_of::<usize>(),
-            }
-        }).collect();
+            })
+            .collect();
 
         VTableInfo {
             vtable_size,
@@ -473,7 +522,7 @@ impl MemoryTracker {
 
         DispatchOverhead {
             indirect_call_overhead_ns,
-            cache_miss_probability: 0.1, // 10% cache miss
+            cache_miss_probability: 0.1,     // 10% cache miss
             branch_misprediction_rate: 0.05, // 5% branch misprediction
             performance_impact: if indirect_call_overhead_ns > 4.0 {
                 PerformanceImpact::Moderate
@@ -518,9 +567,11 @@ impl MemoryTracker {
     /// Assess memory pressure
     fn assess_memory_pressure(&self) -> MemoryPressureInfo {
         let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
-        let pressure_level = if stats.active_memory > 1024 * 1024 * 100 { // > 100MB
+        let pressure_level = if stats.active_memory > 1024 * 1024 * 100 {
+            // > 100MB
             crate::types::MemoryPressureLevel::High
-        } else if stats.active_memory > 1024 * 1024 * 50 { // > 50MB
+        } else if stats.active_memory > 1024 * 1024 * 50 {
+            // > 50MB
             crate::types::MemoryPressureLevel::Moderate
         } else {
             crate::types::MemoryPressureLevel::Low
@@ -548,23 +599,27 @@ impl MemoryTracker {
     /// Analyze allocator state
     fn analyze_allocator_state(&self) -> AllocatorStateInfo {
         let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
-        
+
         AllocatorStateInfo {
             allocator_type: "System".to_string(),
             heap_size: 1024 * 1024 * 1024, // 1GB simulated value
             heap_used: stats.active_memory,
-            free_blocks_count: 1000, // Simulated value
+            free_blocks_count: 1000,         // Simulated value
             largest_free_block: 1024 * 1024, // 1MB
             efficiency_score: 0.85,
         }
     }
 
     /// Analyze stack allocation information
-    pub fn analyze_stack_allocation(&self, type_name: &str, ptr: usize) -> Option<StackAllocationInfo> {
+    pub fn analyze_stack_allocation(
+        &self,
+        type_name: &str,
+        ptr: usize,
+    ) -> Option<StackAllocationInfo> {
         // Heuristic: if pointer is in typical stack range, consider it stack allocation
         let stack_start = 0x7fff_0000_0000; // Typical stack start on x64
-        let stack_end = 0x7fff_ffff_ffff;   // Typical stack end on x64
-        
+        let stack_end = 0x7fff_ffff_ffff; // Typical stack end on x64
+
         if ptr >= stack_start && ptr <= stack_end {
             Some(StackAllocationInfo {
                 frame_id: (ptr >> 12) & 0xffff, // Use high bits as frame ID
@@ -613,9 +668,16 @@ impl MemoryTracker {
     }
 
     /// Analyze temporary object information
-    pub fn analyze_temporary_object(&self, type_name: &str, ptr: usize) -> Option<TemporaryObjectInfo> {
+    pub fn analyze_temporary_object(
+        &self,
+        type_name: &str,
+        ptr: usize,
+    ) -> Option<TemporaryObjectInfo> {
         // Heuristic: consider objects with certain patterns as temporaries
-        if type_name.contains("&") || type_name.contains("temp") || self.is_likely_temporary(type_name) {
+        if type_name.contains("&")
+            || type_name.contains("temp")
+            || self.is_likely_temporary(type_name)
+        {
             Some(TemporaryObjectInfo {
                 temp_id: ptr,
                 created_at: std::time::SystemTime::now()
@@ -644,27 +706,27 @@ impl MemoryTracker {
 
     /// Check if type is likely to be temporary
     fn is_likely_temporary(&self, type_name: &str) -> bool {
-        type_name.contains("&") || 
-        type_name.contains("Iterator") ||
-        type_name.contains("Ref") ||
-        type_name.starts_with("impl ")
+        type_name.contains("&")
+            || type_name.contains("Iterator")
+            || type_name.contains("Ref")
+            || type_name.starts_with("impl ")
     }
 
     /// Analyze memory fragmentation
     pub fn analyze_memory_fragmentation(&self) -> EnhancedFragmentationAnalysis {
         let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
-        
+
         // Simulate fragmentation analysis
         let total_heap_size = 1024 * 1024 * 1024; // 1GB
         let used_heap_size = stats.active_memory;
         let free_heap_size = total_heap_size - used_heap_size;
-        
+
         let external_fragmentation = if free_heap_size > 0 {
             0.1 // 10% external fragmentation estimate
         } else {
             0.0
         };
-        
+
         let severity_level = if external_fragmentation > 0.3 {
             FragmentationSeverity::Critical
         } else if external_fragmentation > 0.2 {
@@ -701,27 +763,29 @@ impl MemoryTracker {
                 average_free_block_size: free_heap_size as f64 / 100.0,
                 severity_level,
             },
-            fragmentation_causes: vec![
-                crate::types::FragmentationCause {
-                    cause_type: crate::types::FragmentationCauseType::MixedAllocationSizes,
-                    description: "Mixed allocation sizes causing fragmentation".to_string(),
-                    impact_level: crate::types::ImpactLevel::Medium,
-                    mitigation_suggestion: "Use memory pools for similar-sized allocations".to_string(),
-                },
-            ],
+            fragmentation_causes: vec![crate::types::FragmentationCause {
+                cause_type: crate::types::FragmentationCauseType::MixedAllocationSizes,
+                description: "Mixed allocation sizes causing fragmentation".to_string(),
+                impact_level: crate::types::ImpactLevel::Medium,
+                mitigation_suggestion: "Use memory pools for similar-sized allocations".to_string(),
+            }],
         }
     }
 
     /// Analyze enhanced generic instantiation
-    pub fn analyze_generic_instantiation(&self, type_name: &str, size: usize) -> Option<GenericInstantiationInfo> {
+    pub fn analyze_generic_instantiation(
+        &self,
+        type_name: &str,
+        size: usize,
+    ) -> Option<GenericInstantiationInfo> {
         if !type_name.contains('<') || !type_name.contains('>') {
             return None;
         }
 
         let base_type = self.extract_base_type(type_name);
-        
+
         Some(GenericInstantiationInfo {
-            base_type: base_type.clone(),
+            base_type: base_type,
             concrete_parameters: self.extract_concrete_parameters(type_name),
             instantiation_location: SourceLocation {
                 file: "unknown.rs".to_string(),
@@ -757,19 +821,20 @@ impl MemoryTracker {
     }
 
     /// Extract concrete type parameters
-    fn extract_concrete_parameters(&self, type_name: &str) -> Vec<crate::types::ConcreteTypeParameter> {
+    fn extract_concrete_parameters(
+        &self,
+        type_name: &str,
+    ) -> Vec<crate::types::ConcreteTypeParameter> {
         // Simplified parameter extraction
-        vec![
-            crate::types::ConcreteTypeParameter {
-                name: "T".to_string(),
-                concrete_type: "i32".to_string(),
-                complexity_score: 1,
-                memory_footprint: 4,
-                alignment: 4,
-                trait_implementations: vec!["Copy".to_string(), "Clone".to_string()],
-                type_category: crate::types::TypeCategory::Primitive,
-            }
-        ]
+        vec![crate::types::ConcreteTypeParameter {
+            name: "T".to_string(),
+            concrete_type: "i32".to_string(),
+            complexity_score: 1,
+            memory_footprint: 4,
+            alignment: 4,
+            trait_implementations: vec!["Copy".to_string(), "Clone".to_string()],
+            type_category: crate::types::TypeCategory::Primitive,
+        }]
     }
 
     /// Analyze type relationships
@@ -788,9 +853,15 @@ impl MemoryTracker {
     /// Calculate type complexity score
     fn calculate_type_complexity(&self, type_name: &str) -> u32 {
         let mut score = 1;
-        if type_name.contains('<') { score += 2; }
-        if type_name.contains("dyn") { score += 3; }
-        if type_name.contains("impl") { score += 2; }
+        if type_name.contains('<') {
+            score += 2;
+        }
+        if type_name.contains("dyn") {
+            score += 3;
+        }
+        if type_name.contains("impl") {
+            score += 2;
+        }
         score += type_name.matches(',').count() as u32;
         score
     }
@@ -814,7 +885,10 @@ impl MemoryTracker {
     }
 
     /// Track function calls
-    pub fn track_function_calls(&self, scope_name: Option<&str>) -> Option<FunctionCallTrackingInfo> {
+    pub fn track_function_calls(
+        &self,
+        scope_name: Option<&str>,
+    ) -> Option<FunctionCallTrackingInfo> {
         if let Some(function_name) = scope_name {
             Some(FunctionCallTrackingInfo {
                 function_name: function_name.to_string(),
@@ -864,38 +938,40 @@ impl MemoryTracker {
     }
 
     /// Track object lifecycle
-    pub fn track_object_lifecycle(&self, ptr: usize, type_name: &str) -> Option<ObjectLifecycleInfo> {
+    pub fn track_object_lifecycle(
+        &self,
+        ptr: usize,
+        type_name: &str,
+    ) -> Option<ObjectLifecycleInfo> {
         Some(ObjectLifecycleInfo {
             object_id: ptr,
             type_name: type_name.to_string(),
-            lifecycle_events: vec![
-                crate::types::LifecycleEvent {
-                    event_type: crate::types::LifecycleEventType::Creation,
-                    timestamp: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_nanos() as u64,
-                    location: SourceLocation {
-                        file: "unknown.rs".to_string(),
-                        line: 0,
-                        column: 0,
-                    },
-                    memory_state: crate::types::MemoryState {
-                        memory_location: MemoryLocationType::Heap,
-                        memory_address: ptr,
-                        object_size: self.estimate_type_size(type_name),
-                        reference_count: None,
-                        borrow_state: crate::types::BorrowState::NotBorrowed,
-                    },
-                    performance_metrics: crate::types::EventPerformanceMetrics {
-                        cpu_cycles: 1000,
-                        memory_bandwidth_bytes: 64,
-                        cache_misses: 1,
-                        processing_time_ns: 100,
-                    },
-                    call_stack: vec!["main".to_string()],
-                }
-            ],
+            lifecycle_events: vec![crate::types::LifecycleEvent {
+                event_type: crate::types::LifecycleEventType::Creation,
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u64,
+                location: SourceLocation {
+                    file: "unknown.rs".to_string(),
+                    line: 0,
+                    column: 0,
+                },
+                memory_state: crate::types::MemoryState {
+                    memory_location: MemoryLocationType::Heap,
+                    memory_address: ptr,
+                    object_size: self.estimate_type_size(type_name),
+                    reference_count: None,
+                    borrow_state: crate::types::BorrowState::NotBorrowed,
+                },
+                performance_metrics: crate::types::EventPerformanceMetrics {
+                    cpu_cycles: 1000,
+                    memory_bandwidth_bytes: 64,
+                    cache_misses: 1,
+                    processing_time_ns: 100,
+                },
+                call_stack: vec!["main".to_string()],
+            }],
             total_lifetime_ns: None,
             stage_durations: crate::types::LifecycleStageDurations {
                 creation_to_first_use_ns: None,
@@ -921,7 +997,11 @@ impl MemoryTracker {
     }
 
     /// Track memory access patterns
-    pub fn track_memory_access_patterns(&self, ptr: usize, size: usize) -> Option<MemoryAccessTrackingInfo> {
+    pub fn track_memory_access_patterns(
+        &self,
+        ptr: usize,
+        size: usize,
+    ) -> Option<MemoryAccessTrackingInfo> {
         Some(MemoryAccessTrackingInfo {
             region_id: ptr,
             address_range: crate::types::AddressRange {
@@ -1011,29 +1091,31 @@ impl MemoryTracker {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
-        
+
         // Use try_lock to avoid blocking during high deallocation activity
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
                 if let Some(mut allocation) = active.remove(&ptr) {
                     // Set deallocation timestamp
                     allocation.timestamp_dealloc = Some(dealloc_timestamp);
-                    
+
                     // Update statistics with overflow protection
                     stats.total_deallocations = stats.total_deallocations.saturating_add(1);
                     stats.total_deallocated =
                         stats.total_deallocated.saturating_add(allocation.size);
                     stats.active_allocations = stats.active_allocations.saturating_sub(1);
                     stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
-                    
+
                     // Release locks before updating history
                     drop(stats);
                     drop(active);
-                    
+
                     // Update allocation history with deallocation timestamp
                     if let Ok(mut history) = self.allocation_history.try_lock() {
                         // Find and update the corresponding entry in history
-                        if let Some(history_entry) = history.iter_mut().find(|entry| entry.ptr == ptr) {
+                        if let Some(history_entry) =
+                            history.iter_mut().find(|entry| entry.ptr == ptr)
+                        {
                             history_entry.timestamp_dealloc = Some(dealloc_timestamp);
                         } else {
                             // If not found in history, add the deallocated allocation
@@ -1052,41 +1134,46 @@ impl MemoryTracker {
 
     /// Track a memory deallocation with precise lifetime information.
     /// This method is specifically designed for TrackedVariable to ensure accurate lifetime_ms calculation.
-    pub fn track_deallocation_with_lifetime(&self, ptr: usize, lifetime_ms: u64) -> TrackingResult<()> {
+    pub fn track_deallocation_with_lifetime(
+        &self,
+        ptr: usize,
+        lifetime_ms: u64,
+    ) -> TrackingResult<()> {
         let dealloc_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
-        
+
         // Use try_lock to avoid blocking during high deallocation activity
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
                 if let Some(mut allocation) = active.remove(&ptr) {
                     // Set deallocation timestamp and lifetime
                     allocation.timestamp_dealloc = Some(dealloc_timestamp);
-                    
+
                     // Update statistics with overflow protection
                     stats.total_deallocations = stats.total_deallocations.saturating_add(1);
                     stats.total_deallocated =
                         stats.total_deallocated.saturating_add(allocation.size);
                     stats.active_allocations = stats.active_allocations.saturating_sub(1);
                     stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
-                    
+
                     // Release locks before updating history
                     drop(stats);
                     drop(active);
-                    
+
                     // Update allocation history with deallocation timestamp AND lifetime
                     if let Ok(mut history) = self.allocation_history.try_lock() {
                         // Find and update the corresponding entry in history
                         // For synthetic allocations, we need to be more flexible in our search
                         let mut found = false;
                         for history_entry in history.iter_mut() {
-                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none() {
+                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none()
+                            {
                                 history_entry.timestamp_dealloc = Some(dealloc_timestamp);
                                 history_entry.lifetime_ms = Some(lifetime_ms);
                                 found = true;
-                                
+
                                 tracing::debug!(
                                     "🎯 Updated existing history entry: ptr=0x{:x}, lifetime={}ms",
                                     ptr,
@@ -1095,12 +1182,12 @@ impl MemoryTracker {
                                 break;
                             }
                         }
-                        
+
                         if !found {
                             // If not found, add the allocation with lifetime info
                             allocation.lifetime_ms = Some(lifetime_ms);
                             history.push(allocation);
-                            
+
                             tracing::debug!(
                                 "⚠️ Added new history entry for ptr=0x{:x}, lifetime={}ms",
                                 ptr,
@@ -1108,7 +1195,7 @@ impl MemoryTracker {
                             );
                         }
                     }
-                    
+
                     tracing::debug!(
                         "🎯 Tracked deallocation with precise lifetime: ptr=0x{:x}, lifetime={}ms",
                         ptr,
@@ -1172,28 +1259,28 @@ impl MemoryTracker {
         allocation.var_name = Some(var_name.clone());
         allocation.type_name = Some(type_name.clone());
         allocation.timestamp_alloc = creation_time;
-        
+
         // Use try_lock to avoid blocking
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
                 // Add to active allocations
                 active.insert(ptr, allocation.clone());
-                
+
                 // Update statistics
                 stats.total_allocations = stats.total_allocations.saturating_add(1);
                 stats.total_allocated = stats.total_allocated.saturating_add(size);
                 stats.active_allocations = stats.active_allocations.saturating_add(1);
                 stats.active_memory = stats.active_memory.saturating_add(size);
-                
+
                 // Release locks before updating history
                 drop(stats);
                 drop(active);
-                
+
                 // Add to allocation history
                 if let Ok(mut history) = self.allocation_history.try_lock() {
-                    history.push(allocation);
+                    history.push(allocation.clone());
                 }
-                
+
                 tracing::debug!(
                     "🎯 Created synthetic allocation for '{}' ({}): ptr=0x{:x}, size={}",
                     var_name,
@@ -1201,7 +1288,7 @@ impl MemoryTracker {
                     ptr,
                     size
                 );
-                
+
                 Ok(())
             }
             _ => {
@@ -1230,7 +1317,7 @@ impl MemoryTracker {
         allocation.var_name = Some(var_name.clone());
         allocation.type_name = Some(type_name.clone());
         allocation.timestamp_alloc = creation_time;
-        
+
         // Determine smart pointer type
         let pointer_type = if type_name.contains("std::rc::Rc") {
             crate::types::SmartPointerType::Rc
@@ -1245,37 +1332,40 @@ impl MemoryTracker {
         } else {
             crate::types::SmartPointerType::Rc // Default fallback
         };
-        
+
         // Create smart pointer info
-        let smart_pointer_info = if matches!(pointer_type, crate::types::SmartPointerType::RcWeak | crate::types::SmartPointerType::ArcWeak) {
+        let smart_pointer_info = if matches!(
+            pointer_type,
+            crate::types::SmartPointerType::RcWeak | crate::types::SmartPointerType::ArcWeak
+        ) {
             crate::types::SmartPointerInfo::new_weak(data_ptr, pointer_type, ref_count)
         } else {
             crate::types::SmartPointerInfo::new_rc_arc(data_ptr, pointer_type, ref_count, 0)
         };
-        
+
         allocation.smart_pointer_info = Some(smart_pointer_info);
-        
+
         // Use try_lock to avoid blocking
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
                 // Add to active allocations
                 active.insert(ptr, allocation.clone());
-                
+
                 // Update statistics
                 stats.total_allocations = stats.total_allocations.saturating_add(1);
                 stats.total_allocated = stats.total_allocated.saturating_add(size);
                 stats.active_allocations = stats.active_allocations.saturating_add(1);
                 stats.active_memory = stats.active_memory.saturating_add(size);
-                
+
                 // Release locks before updating history
                 drop(stats);
                 drop(active);
-                
+
                 // Add to allocation history
                 if let Ok(mut history) = self.allocation_history.try_lock() {
                     history.push(allocation);
                 }
-                
+
                 tracing::debug!(
                     "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x}",
                     var_name,
@@ -1285,7 +1375,7 @@ impl MemoryTracker {
                     ref_count,
                     data_ptr
                 );
-                
+
                 Ok(())
             }
             _ => {
@@ -1298,7 +1388,7 @@ impl MemoryTracker {
             }
         }
     }
-    
+
     /// Track smart pointer clone relationship
     pub fn track_smart_pointer_clone(
         &self,
@@ -1317,7 +1407,7 @@ impl MemoryTracker {
                         smart_info.update_ref_count(new_ref_count, weak_count);
                     }
                 }
-                
+
                 // Update clone pointer's source reference
                 if let Some(clone_alloc) = active.get_mut(&clone_ptr) {
                     if let Some(ref mut smart_info) = clone_alloc.smart_pointer_info {
@@ -1325,7 +1415,7 @@ impl MemoryTracker {
                         smart_info.update_ref_count(new_ref_count, weak_count);
                     }
                 }
-                
+
                 tracing::debug!(
                     "🔗 Tracked clone relationship: 0x{:x} -> 0x{:x}, data_ptr=0x{:x}, ref_count={}",
                     source_ptr,
@@ -1333,7 +1423,7 @@ impl MemoryTracker {
                     data_ptr,
                     new_ref_count
                 );
-                
+
                 Ok(())
             }
             Err(_) => {
@@ -1342,7 +1432,7 @@ impl MemoryTracker {
             }
         }
     }
-    
+
     /// Update reference count for a smart pointer
     pub fn update_smart_pointer_ref_count(
         &self,
@@ -1355,7 +1445,7 @@ impl MemoryTracker {
                 if let Some(allocation) = active.get_mut(&ptr) {
                     if let Some(ref mut smart_info) = allocation.smart_pointer_info {
                         smart_info.update_ref_count(strong_count, weak_count);
-                        
+
                         tracing::debug!(
                             "📊 Updated ref count for 0x{:x}: strong={}, weak={}",
                             ptr,
@@ -1366,17 +1456,17 @@ impl MemoryTracker {
                 }
                 Ok(())
             }
-            Err(_) => Ok(())
+            Err(_) => Ok(()),
         }
     }
-    
+
     /// Mark smart pointer data as implicitly deallocated
     pub fn mark_smart_pointer_data_deallocated(&self, data_ptr: usize) -> TrackingResult<()> {
         match self.active_allocations.try_lock() {
             Ok(mut active) => {
                 // Find all smart pointers pointing to this data
                 let mut affected_ptrs = Vec::new();
-                
+
                 for (ptr, allocation) in active.iter() {
                     if let Some(ref smart_info) = allocation.smart_pointer_info {
                         if smart_info.data_ptr == data_ptr {
@@ -1384,7 +1474,7 @@ impl MemoryTracker {
                         }
                     }
                 }
-                
+
                 // Mark them as implicitly deallocated
                 let affected_count = affected_ptrs.len();
                 for ptr in affected_ptrs {
@@ -1394,16 +1484,16 @@ impl MemoryTracker {
                         }
                     }
                 }
-                
+
                 tracing::debug!(
                     "💀 Marked data 0x{:x} as deallocated, affecting {} smart pointers",
                     data_ptr,
                     affected_count
                 );
-                
+
                 Ok(())
             }
-            Err(_) => Ok(())
+            Err(_) => Ok(()),
         }
     }
 
@@ -1418,35 +1508,36 @@ impl MemoryTracker {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
-        
+
         // Use try_lock to avoid blocking during high deallocation activity
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
                 if let Some(mut allocation) = active.remove(&ptr) {
                     // Set deallocation timestamp and lifetime
                     allocation.timestamp_dealloc = Some(dealloc_timestamp);
-                    
+
                     // Update statistics with overflow protection
                     stats.total_deallocations = stats.total_deallocations.saturating_add(1);
                     stats.total_deallocated =
                         stats.total_deallocated.saturating_add(allocation.size);
                     stats.active_allocations = stats.active_allocations.saturating_sub(1);
                     stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
-                    
+
                     // Release locks before updating history
                     drop(stats);
                     drop(active);
-                    
+
                     // Update allocation history with enhanced smart pointer info
                     if let Ok(mut history) = self.allocation_history.try_lock() {
                         // Find and update the corresponding entry in history
                         let mut found = false;
                         for history_entry in history.iter_mut() {
-                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none() {
+                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none()
+                            {
                                 history_entry.timestamp_dealloc = Some(dealloc_timestamp);
                                 history_entry.lifetime_ms = Some(lifetime_ms);
                                 found = true;
-                                
+
                                 tracing::debug!(
                                     "🎯 Updated smart pointer history entry: ptr=0x{:x}, lifetime={}ms, final_ref_count={}",
                                     ptr,
@@ -1456,12 +1547,12 @@ impl MemoryTracker {
                                 break;
                             }
                         }
-                        
+
                         if !found {
                             // If not found, add the allocation with lifetime info
                             allocation.lifetime_ms = Some(lifetime_ms);
                             history.push(allocation);
-                            
+
                             tracing::debug!(
                                 "⚠️ Added new smart pointer history entry: ptr=0x{:x}, lifetime={}ms, final_ref_count={}",
                                 ptr,
@@ -1485,41 +1576,44 @@ impl MemoryTracker {
         if let Some(type_name) = &allocation.type_name {
             // Analyze memory layout
             allocation.memory_layout = self.analyze_memory_layout(type_name, allocation.size);
-            
+
             // Analyze generic types
             allocation.generic_info = self.analyze_generic_type(type_name, allocation.size);
-            
+
             // Analyze dynamic types
             allocation.dynamic_type_info = self.analyze_dynamic_type(type_name, allocation.size);
-            
+
             // Analyze stack allocation (if applicable)
             allocation.stack_allocation = self.analyze_stack_allocation(type_name, allocation.ptr);
-            
+
             // Analyze temporary objects
             allocation.temporary_object = self.analyze_temporary_object(type_name, allocation.ptr);
-            
+
             // Enhanced generic instantiation tracking
-            allocation.generic_instantiation = self.analyze_generic_instantiation(type_name, allocation.size);
-            
+            allocation.generic_instantiation =
+                self.analyze_generic_instantiation(type_name, allocation.size);
+
             // Type relationship analysis
             allocation.type_relationships = self.analyze_type_relationships(type_name);
-            
+
             // Type usage tracking
             allocation.type_usage = self.track_type_usage(type_name);
-            
+
             // Function call tracking
-            allocation.function_call_tracking = self.track_function_calls(allocation.scope_name.as_deref());
-            
+            allocation.function_call_tracking =
+                self.track_function_calls(allocation.scope_name.as_deref());
+
             // Object lifecycle tracking
             allocation.lifecycle_tracking = self.track_object_lifecycle(allocation.ptr, type_name);
-            
+
             // Memory access pattern tracking
-            allocation.access_tracking = self.track_memory_access_patterns(allocation.ptr, allocation.size);
+            allocation.access_tracking =
+                self.track_memory_access_patterns(allocation.ptr, allocation.size);
         }
-        
+
         // Collect runtime state
         allocation.runtime_state = Some(self.collect_runtime_state());
-        
+
         // Analyze memory fragmentation
         allocation.fragmentation_analysis = Some(self.analyze_memory_fragmentation());
     }
@@ -1537,10 +1631,10 @@ impl MemoryTracker {
                 if let Some(allocation) = active.get_mut(&ptr) {
                     allocation.var_name = Some(var_name.clone());
                     allocation.type_name = Some(type_name.clone());
-                    
+
                     // Perform enhanced analysis
                     self.enhance_allocation_info(allocation);
-                    
+
                     tracing::debug!(
                         "Associated variable '{}' with existing allocation at {:x} and enhanced with detailed analysis",
                         var_name,
@@ -1580,22 +1674,22 @@ impl MemoryTracker {
     /// Get current memory usage statistics with advanced analysis.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
         let base_stats = match self.stats.lock() {
-            Ok(stats) => stats.clone(),
+            Ok(stats) => stats,
             Err(poisoned) => {
                 // Handle poisoned lock by recovering the data
                 let stats = poisoned.into_inner();
-                stats.clone()
+                stats
             }
         };
-        
+
         // Get active allocations for advanced analysis
         let active_allocations = self.get_active_allocations()?;
-        
+
         // Perform advanced analysis
         let fragmentation_analysis = crate::analysis::analyze_fragmentation(&active_allocations);
         let system_library_stats = crate::analysis::analyze_system_libraries(&active_allocations);
         let concurrency_analysis = crate::analysis::analyze_concurrency_safety(&active_allocations);
-        
+
         Ok(MemoryStats {
             total_allocations: base_stats.total_allocations,
             total_deallocations: base_stats.total_deallocations,
@@ -1607,7 +1701,7 @@ impl MemoryTracker {
             peak_memory: base_stats.peak_memory,
             leaked_allocations: base_stats.leaked_allocations,
             leaked_memory: base_stats.leaked_memory,
-            lifecycle_stats: base_stats.lifecycle_stats,
+            lifecycle_stats: base_stats.lifecycle_stats.clone(),
             allocations: active_allocations,
             fragmentation_analysis,
             system_library_stats,
@@ -1653,7 +1747,8 @@ impl MemoryTracker {
             }
         };
 
-        let mut type_usage: HashMap<String, (usize, usize)> = HashMap::with_capacity(active_clone.len());
+        let mut type_usage: HashMap<String, (usize, usize)> =
+            HashMap::with_capacity(active_clone.len());
         let registry = crate::variable_registry::VariableRegistry::get_all_variables();
 
         for allocation in active_clone {
@@ -1667,12 +1762,16 @@ impl MemoryTracker {
                     existing_type.clone()
                 } else {
                     // Apply smart inference for Unknown types
-                    let (_, inferred_type) = crate::variable_registry::VariableRegistry::infer_allocation_info(&allocation);
+                    let (_, inferred_type) =
+                        crate::variable_registry::VariableRegistry::infer_allocation_info(
+                            &allocation,
+                        );
                     inferred_type
                 }
             } else {
                 // Apply smart inference for missing types
-                let (_, inferred_type) = crate::variable_registry::VariableRegistry::infer_allocation_info(&allocation);
+                let (_, inferred_type) =
+                    crate::variable_registry::VariableRegistry::infer_allocation_info(&allocation);
                 inferred_type
             };
 
@@ -1685,11 +1784,15 @@ impl MemoryTracker {
             .into_iter()
             .map(
                 |(type_name, (total_size, allocation_count))| TypeMemoryUsage {
-                    type_name: type_name.clone(),
+                    type_name: type_name,
                     total_size,
                     allocation_count,
-                    average_size: if allocation_count > 0 { total_size as f64 / allocation_count as f64 } else { 0.0 },
-                    peak_size: total_size, // Approximation
+                    average_size: if allocation_count > 0 {
+                        total_size as f64 / allocation_count as f64
+                    } else {
+                        0.0
+                    },
+                    peak_size: total_size,    // Approximation
                     current_size: total_size, // Approximation
                     efficiency_score: if allocation_count > 0 { 1.0 } else { 0.0 }, // Placeholder
                 },
@@ -1703,7 +1806,10 @@ impl MemoryTracker {
     }
 
     /// Export interactive HTML dashboard with embedded SVG charts
-    pub fn export_interactive_dashboard<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+    pub fn export_interactive_dashboard<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> TrackingResult<()> {
         // Simple HTML export for now
         let html_content = r#"<!DOCTYPE html>
 <html><head><title>Memory Dashboard</title></head>
@@ -1712,7 +1818,6 @@ impl MemoryTracker {
         std::fs::write(path, html_content)?;
         Ok(())
     }
-
 
     /// Export memory analysis visualization showing variable names, types, and usage patterns.
     /// This creates a comprehensive memory analysis with call stack analysis, timeline, and categorization.
@@ -1732,38 +1837,41 @@ impl MemoryTracker {
         &self,
         path: P,
     ) -> TrackingResult<()> {
-      crate::visualization::export_lifecycle_timeline(self, path)
+        crate::visualization::export_lifecycle_timeline(self, path)
     }
-
 
     /// Export enhanced JSON with HashMap-based variable tracking.
     /// Uses VariableRegistry for precise variable name mapping.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         let path = path.as_ref();
-        
+
         println!("Generating enhanced JSON with complete data and log-based variable names...");
-        
+
         // Use registry data to enhance JSON export - this is the actual export logic
-        let comprehensive_data = crate::variable_registry::VariableRegistry::generate_comprehensive_export(self)?;
-        
+        let comprehensive_data =
+            crate::variable_registry::VariableRegistry::generate_comprehensive_export(self)?;
+
         // Write comprehensive JSON to file
         let json_string = serde_json::to_string_pretty(&comprehensive_data)?;
         std::fs::write(path.to_str().unwrap_or("output.json"), json_string)
             .map_err(crate::types::TrackingError::IoError)?;
-        
+
         // Get stats for reporting
         let active_allocations = self.get_active_allocations()?;
         let (total_vars, _) = crate::variable_registry::VariableRegistry::get_stats();
         let unsafe_stats = crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker().get_stats();
-        
+
         println!("Enhanced JSON exported to: {}", path.display());
-        println!("   {} allocations with precise names", active_allocations.len());
+        println!(
+            "   {} allocations with precise names",
+            active_allocations.len()
+        );
         println!("   {total_vars} variables in registry");
         println!("   {} call stack entries", 0);
         println!("   {} scope levels", 1);
         println!("   {} variable relationships", 0);
         println!("   {} unsafe/FFI operations", unsafe_stats.total_operations);
-        
+
         Ok(())
     }
 }
@@ -1776,10 +1884,14 @@ impl Default for MemoryTracker {
 
 impl MemoryTracker {
     /// Track growth events for a variable
-    fn track_growth_events(&self, var_name: &str, allocation_history: &[AllocationInfo]) -> Vec<crate::types::GrowthEvent> {
+    fn track_growth_events(
+        &self,
+        var_name: &str,
+        allocation_history: &[AllocationInfo],
+    ) -> Vec<crate::types::GrowthEvent> {
         let mut growth_events = Vec::new();
         let mut last_size = 0;
-        
+
         for alloc in allocation_history {
             if let Some(name) = &alloc.var_name {
                 if name == var_name && alloc.size > last_size {
@@ -1787,38 +1899,65 @@ impl MemoryTracker {
                         timestamp: alloc.timestamp_alloc,
                         old_size: last_size,
                         new_size: alloc.size,
-                        growth_factor: if last_size > 0 { alloc.size as f64 / last_size as f64 } else { 1.0 },
-                        reason: if last_size > 0 { crate::types::GrowthReason::Expansion } else { crate::types::GrowthReason::Initial },
-                        var_name: alloc.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                        growth_factor: if last_size > 0 {
+                            alloc.size as f64 / last_size as f64
+                        } else {
+                            1.0
+                        },
+                        reason: if last_size > 0 {
+                            crate::types::GrowthReason::Expansion
+                        } else {
+                            crate::types::GrowthReason::Initial
+                        },
+                        var_name: alloc
+                            .var_name
+                            .clone()
+                            .unwrap_or_else(|| "unknown".to_string()),
                     });
                     last_size = alloc.size;
                 }
             }
         }
-        
+
         growth_events
     }
-    
+
     /// Track borrow events for a variable
-    fn track_borrow_events(&self, _var_name: &str, _allocation_history: &[AllocationInfo]) -> Vec<crate::types::BorrowEvent> {
+    fn track_borrow_events(
+        &self,
+        _var_name: &str,
+        _allocation_history: &[AllocationInfo],
+    ) -> Vec<crate::types::BorrowEvent> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
-    
+
     /// Track move events for a variable
-    fn track_move_events(&self, _var_name: &str, _allocation_history: &[AllocationInfo]) -> Vec<crate::types::MoveEvent> {
+    fn track_move_events(
+        &self,
+        _var_name: &str,
+        _allocation_history: &[AllocationInfo],
+    ) -> Vec<crate::types::MoveEvent> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
-    
+
     /// Track variable relationships
-    fn track_variable_relationships(&self, _var_name: &str, _active_allocations: &[AllocationInfo]) -> Vec<crate::types::VariableRelationship> {
+    fn track_variable_relationships(
+        &self,
+        _var_name: &str,
+        _active_allocations: &[AllocationInfo],
+    ) -> Vec<crate::types::VariableRelationship> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
-    
+
     /// Calculate minimum allocation size for a type
-    fn calculate_min_allocation_size(&self, type_name: &str, allocation_history: &[AllocationInfo]) -> usize {
+    fn calculate_min_allocation_size(
+        &self,
+        type_name: &str,
+        allocation_history: &[AllocationInfo],
+    ) -> usize {
         allocation_history
             .iter()
             .filter(|alloc| alloc.type_name.as_deref() == Some(type_name))
@@ -1826,36 +1965,45 @@ impl MemoryTracker {
             .min()
             .unwrap_or(0)
     }
-    
+
     /// Detect potential memory leaks
-    fn detect_potential_leaks(&self, active_allocations: &[AllocationInfo]) -> Vec<crate::types::PotentialLeak> {
+    fn detect_potential_leaks(
+        &self,
+        active_allocations: &[AllocationInfo],
+    ) -> Vec<crate::types::PotentialLeak> {
         let mut leaks = Vec::new();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        
+
         for alloc in active_allocations {
             let age_ms = (now.saturating_sub(alloc.timestamp_alloc as u128)) / 1_000_000;
-            
+
             // Consider allocations older than 10 seconds as potential leaks
             if age_ms > 10_000 {
                 let confidence = if age_ms > 60_000 { 0.9 } else { 0.5 };
-                
+
                 leaks.push(crate::types::PotentialLeak {
                     ptr: alloc.ptr,
                     size: alloc.size,
                     age_ms: age_ms.try_into().unwrap_or(u64::MAX),
                     var_name: alloc.var_name.clone(),
                     type_name: alloc.type_name.clone(),
-                    severity: if confidence > 0.8 { "high".to_string() } else if confidence > 0.5 { "medium".to_string() } else { "low".to_string() },
+                    severity: if confidence > 0.8 {
+                        "high".to_string()
+                    } else if confidence > 0.5 {
+                        "medium".to_string()
+                    } else {
+                        "low".to_string()
+                    },
                 });
             }
         }
-        
+
         leaks
     }
-    
+
     /// Convert unsafe violations from unsafe tracker
     fn convert_unsafe_violations(&self) -> Vec<crate::types::SafetyViolation> {
         // Simplified implementation - return empty for now
@@ -1863,7 +2011,11 @@ impl MemoryTracker {
     }
 
     /// Generate timeline data with stack traces and hotspots
-    pub fn generate_timeline_data(&self, allocation_history: &[AllocationInfo], _active_allocations: &[AllocationInfo]) -> crate::types::TimelineData {
+    pub fn generate_timeline_data(
+        &self,
+        allocation_history: &[AllocationInfo],
+        _active_allocations: &[AllocationInfo],
+    ) -> crate::types::TimelineData {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -1871,20 +2023,25 @@ impl MemoryTracker {
 
         // Generate memory snapshots (every 100ms or every 10 allocations)
         let memory_snapshots = self.generate_memory_snapshots(allocation_history);
-        
+
         // Generate allocation events
         let allocation_events = self.generate_allocation_events(allocation_history);
-        
+
         // Generate scope events
         let scope_events = self.generate_scope_events(allocation_history);
-        
+
         // Calculate time range
-        let start_time = allocation_history.iter().map(|a| a.timestamp_alloc).min().unwrap_or(now as u64);
-        let end_time = allocation_history.iter()
+        let start_time = allocation_history
+            .iter()
+            .map(|a| a.timestamp_alloc)
+            .min()
+            .unwrap_or(now as u64);
+        let end_time = allocation_history
+            .iter()
             .filter_map(|a| a.timestamp_dealloc.or(Some(now as u64)))
             .max()
             .unwrap_or(now as u64);
-        
+
         let time_range = crate::types::TimeRange {
             start_time,
             end_time,
@@ -1893,7 +2050,7 @@ impl MemoryTracker {
 
         // Generate stack trace data
         let _stack_traces = self.generate_stack_trace_data(allocation_history);
-        
+
         // Generate allocation hotspots
         let _allocation_hotspots = self.generate_allocation_hotspots(allocation_history);
 
@@ -1906,22 +2063,26 @@ impl MemoryTracker {
     }
 
     /// Generate memory snapshots over time
-    fn generate_memory_snapshots(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::MemorySnapshot> {
+    fn generate_memory_snapshots(
+        &self,
+        allocation_history: &[AllocationInfo],
+    ) -> Vec<crate::types::MemorySnapshot> {
         let mut snapshots = Vec::new();
         let mut current_memory = 0;
         let mut current_allocations = 0;
-        let mut scope_breakdown: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        
+        let mut scope_breakdown: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+
         // Group allocations by time windows (every 100ms)
         let mut events: Vec<_> = allocation_history.iter().collect();
         events.sort_by_key(|a| a.timestamp_alloc);
-        
+
         let start_time = events.first().map(|a| a.timestamp_alloc).unwrap_or(0);
         let window_size = 100_000_000; // 100ms in nanoseconds
-        
+
         let mut current_window = start_time;
         let mut window_allocations = Vec::new();
-        
+
         for alloc in events {
             if alloc.timestamp_alloc >= current_window + window_size {
                 // Process current window
@@ -1934,21 +2095,21 @@ impl MemoryTracker {
                         top_types: vec![],
                     });
                 }
-                
+
                 // Move to next window
                 current_window = alloc.timestamp_alloc;
                 window_allocations.clear();
             }
-            
+
             window_allocations.push(alloc);
             current_memory = current_memory.saturating_add(alloc.size);
             current_allocations = current_allocations.saturating_add(1);
-            
+
             // Update scope breakdown
             let scope = alloc.scope_name.as_deref().unwrap_or("global");
             *scope_breakdown.entry(scope.to_string()).or_insert(0) += alloc.size;
         }
-        
+
         // Add final snapshot
         if !window_allocations.is_empty() {
             snapshots.push(crate::types::MemorySnapshot {
@@ -1959,14 +2120,17 @@ impl MemoryTracker {
                 top_types: vec![],
             });
         }
-        
+
         snapshots
     }
 
     /// Generate allocation events
-    fn generate_allocation_events(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::AllocationEvent> {
+    fn generate_allocation_events(
+        &self,
+        allocation_history: &[AllocationInfo],
+    ) -> Vec<crate::types::AllocationEvent> {
         let mut events = Vec::new();
-        
+
         for alloc in allocation_history {
             // Allocation event
             events.push(crate::types::AllocationEvent {
@@ -1977,7 +2141,7 @@ impl MemoryTracker {
                 var_name: alloc.var_name.clone(),
                 type_name: alloc.type_name.clone(),
             });
-            
+
             // Deallocation event (if applicable)
             if let Some(dealloc_time) = alloc.timestamp_dealloc {
                 events.push(crate::types::AllocationEvent {
@@ -1990,20 +2154,27 @@ impl MemoryTracker {
                 });
             }
         }
-        
+
         // Sort by timestamp
         events.sort_by_key(|e| e.timestamp);
         events
     }
 
     /// Generate scope events
-    fn generate_scope_events(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::ScopeEvent> {
+    fn generate_scope_events(
+        &self,
+        allocation_history: &[AllocationInfo],
+    ) -> Vec<crate::types::ScopeEvent> {
         let mut scope_events = Vec::new();
-        let mut scope_states: std::collections::HashMap<String, (u128, usize)> = std::collections::HashMap::new();
-        
+        let mut scope_states: std::collections::HashMap<String, (u128, usize)> =
+            std::collections::HashMap::new();
+
         for alloc in allocation_history {
-            let scope_name = alloc.scope_name.clone().unwrap_or_else(|| "global".to_string());
-            
+            let scope_name = alloc
+                .scope_name
+                .clone()
+                .unwrap_or_else(|| "global".to_string());
+
             // Check if this is the first time we see this scope
             if !scope_states.contains_key(&scope_name) {
                 scope_events.push(crate::types::ScopeEvent {
@@ -2013,75 +2184,86 @@ impl MemoryTracker {
                     memory_usage: 0,
                     variable_count: 0,
                 });
-                scope_states.insert(scope_name.clone(), (alloc.timestamp_alloc as u128, alloc.size));
+                scope_states.insert(
+                    scope_name.clone(),
+                    (alloc.timestamp_alloc as u128, alloc.size),
+                );
             } else {
                 // Update memory impact
                 if let Some((_, ref mut memory)) = scope_states.get_mut(&scope_name) {
                     *memory += alloc.size;
                 }
             }
-            
+
             // Generate exit event if deallocation happened
             if let Some(dealloc_time) = alloc.timestamp_dealloc {
                 if let Some((_, memory)) = scope_states.get(&scope_name) {
                     scope_events.push(crate::types::ScopeEvent {
                         timestamp: dealloc_time,
                         event_type: crate::types::ScopeEventType::Exit,
-                        scope_name: scope_name.clone(),
+                        scope_name: scope_name,
                         memory_usage: *memory,
                         variable_count: 1,
                     });
                 }
             }
         }
-        
+
         scope_events.sort_by_key(|e| e.timestamp);
         scope_events
     }
 
     /// Generate stack trace data
-    fn generate_stack_trace_data(&self, allocation_history: &[AllocationInfo]) -> crate::types::StackTraceData {
+    fn generate_stack_trace_data(
+        &self,
+        allocation_history: &[AllocationInfo],
+    ) -> crate::types::StackTraceData {
         let mut traces = std::collections::HashMap::new();
-        let mut stack_stats: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
-        
+        let mut stack_stats: std::collections::HashMap<String, (usize, usize)> =
+            std::collections::HashMap::new();
+
         // Generate synthetic stack traces for each allocation
         for alloc in allocation_history {
             let stack_id = format!("stack_{}", alloc.ptr);
             let stack_frames = self.generate_synthetic_stack_trace(alloc);
-            
-            traces.insert(stack_id.clone(), stack_frames.clone());
-            
+
+            traces.insert(stack_id, stack_frames.clone());
+
             // Update statistics
             let stack_key = self.stack_frames_to_key(&stack_frames);
             let (count, memory) = stack_stats.entry(stack_key).or_insert((0, 0));
             *count += 1;
             *memory += alloc.size;
         }
-        
+
         // Generate hotspots
-        let hotspots = stack_stats.into_iter()
+        let hotspots = stack_stats
+            .into_iter()
             .map(|(stack_key, (count, memory))| {
                 let stack_pattern = self.parse_stack_key(&stack_key);
                 crate::types::StackTraceHotspot {
-                    function_name: stack_pattern.first().map(|f| f.function_name.clone()).unwrap_or_else(|| "unknown".to_string()),
+                    function_name: stack_pattern
+                        .first()
+                        .map(|f| f.function_name.clone())
+                        .unwrap_or_else(|| "unknown".to_string()),
                     allocation_count: count,
                     total_bytes: memory,
                     average_size: memory as f64 / count.max(1) as f64,
-                    percentage: (memory as f64 / allocation_history.iter().map(|a| a.size).sum::<usize>() as f64) * 100.0,
+                    percentage: (memory as f64
+                        / allocation_history.iter().map(|a| a.size).sum::<usize>() as f64)
+                        * 100.0,
                 }
             })
             .collect();
-        
+
         // Generate common patterns
-        let common_patterns = vec![
-            crate::types::AllocationPattern {
-                pattern_type: "Vec allocations in loops".to_string(),
-                frequency: allocation_history.len() / 4,
-                total_bytes: allocation_history.iter().map(|a| a.size).sum::<usize>() / 4,
-                description: "Frequent Vec allocations detected in loop patterns".to_string(),
-            }
-        ];
-        
+        let common_patterns = vec![crate::types::AllocationPattern {
+            pattern_type: "Vec allocations in loops".to_string(),
+            frequency: allocation_history.len() / 4,
+            total_bytes: allocation_history.iter().map(|a| a.size).sum::<usize>() / 4,
+            description: "Frequent Vec allocations detected in loop patterns".to_string(),
+        }];
+
         crate::types::StackTraceData {
             hotspots,
             allocation_patterns: common_patterns,
@@ -2090,9 +2272,12 @@ impl MemoryTracker {
     }
 
     /// Generate synthetic stack trace for an allocation
-    fn generate_synthetic_stack_trace(&self, alloc: &AllocationInfo) -> Vec<crate::types::StackFrame> {
+    fn generate_synthetic_stack_trace(
+        &self,
+        alloc: &AllocationInfo,
+    ) -> Vec<crate::types::StackFrame> {
         let mut frames = Vec::new();
-        
+
         // Add main frame
         frames.push(crate::types::StackFrame {
             function_name: "main".to_string(),
@@ -2100,7 +2285,7 @@ impl MemoryTracker {
             line_number: Some(42),
             module_path: Some("my_app".to_string()),
         });
-        
+
         // Add scope-specific frame
         if let Some(scope) = &alloc.scope_name {
             frames.push(crate::types::StackFrame {
@@ -2110,7 +2295,7 @@ impl MemoryTracker {
                 module_path: Some("my_app".to_string()),
             });
         }
-        
+
         // Add type-specific frame
         if let Some(type_name) = &alloc.type_name {
             if type_name.contains("Vec") {
@@ -2129,13 +2314,14 @@ impl MemoryTracker {
                 });
             }
         }
-        
+
         frames
     }
 
     /// Convert stack frames to a key for grouping
     fn stack_frames_to_key(&self, frames: &[crate::types::StackFrame]) -> String {
-        frames.iter()
+        frames
+            .iter()
             .map(|f| format!("{}:{}", f.function_name, f.line_number.unwrap_or(0)))
             .collect::<Vec<_>>()
             .join("|")
@@ -2157,60 +2343,81 @@ impl MemoryTracker {
     }
 
     /// Generate allocation hotspots over time
-    fn generate_allocation_hotspots(&self, allocation_history: &[AllocationInfo]) -> Vec<crate::types::AllocationHotspot> {
+    fn generate_allocation_hotspots(
+        &self,
+        allocation_history: &[AllocationInfo],
+    ) -> Vec<crate::types::AllocationHotspot> {
         let mut hotspots = Vec::new();
         let window_size = 1_000_000_000; // 1 second windows
-        
+
         if allocation_history.is_empty() {
             return hotspots;
         }
-        
-        let start_time = allocation_history.iter().map(|a| a.timestamp_alloc).min().unwrap_or(0);
-        let end_time = allocation_history.iter().map(|a| a.timestamp_alloc).max().unwrap_or(0);
-        
+
+        let start_time = allocation_history
+            .iter()
+            .map(|a| a.timestamp_alloc)
+            .min()
+            .unwrap_or(0);
+        let end_time = allocation_history
+            .iter()
+            .map(|a| a.timestamp_alloc)
+            .max()
+            .unwrap_or(0);
+
         let mut current_window = start_time;
-        
+
         while current_window < end_time {
             let window_end = current_window + window_size;
-            
+
             // Find allocations in this window
-            let window_allocs: Vec<_> = allocation_history.iter()
+            let window_allocs: Vec<_> = allocation_history
+                .iter()
                 .filter(|a| a.timestamp_alloc >= current_window && a.timestamp_alloc < window_end)
                 .collect();
-            
+
             if !window_allocs.is_empty() {
                 let total_memory: usize = window_allocs.iter().map(|a| a.size).sum();
                 let allocation_count = window_allocs.len();
-                
+
                 // Find the most common location in this window
-                let mut location_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                let mut location_counts: std::collections::HashMap<String, usize> =
+                    std::collections::HashMap::new();
                 for alloc in &window_allocs {
-                    let location = alloc.scope_name.clone().unwrap_or_else(|| "global".to_string());
+                    let location = alloc
+                        .scope_name
+                        .clone()
+                        .unwrap_or_else(|| "global".to_string());
                     *location_counts.entry(location).or_insert(0) += 1;
                 }
-                
-                let most_common_location = location_counts.into_iter()
+
+                let most_common_location = location_counts
+                    .into_iter()
                     .max_by_key(|(_, count)| *count)
                     .map(|(location, _)| location)
                     .unwrap_or_else(|| "global".to_string());
-                
+
                 hotspots.push(crate::types::AllocationHotspot {
                     location: crate::types::HotspotLocation {
                         function_name: most_common_location.clone(),
                         file_path: Some(format!("{most_common_location}.rs")),
                         line_number: Some(42),
-                        module_path: Some(most_common_location.clone()),
+                        module_path: Some(most_common_location),
                     },
                     allocation_count,
                     total_bytes: total_memory,
-                    average_size: if allocation_count > 0 { total_memory as f64 / allocation_count as f64 } else { 0.0 },
+                    average_size: if allocation_count > 0 {
+                        total_memory as f64 / allocation_count as f64
+                    } else {
+                        0.0
+                    },
                     frequency: allocation_count as f64,
                 });
             }
-            
+
             current_window = window_end;
         }
-        
+
         hotspots
     }
 }
@@ -2259,8 +2466,6 @@ pub fn build_unified_dashboard_structure(
     stats: &crate::types::MemoryStats,
     unsafe_stats: &crate::unsafe_ffi_tracker::UnsafeFFIStats,
 ) -> serde_json::Value {
-    
-
     // Calculate performance metrics
     let total_runtime_ms = allocation_history
         .iter()
@@ -2272,8 +2477,9 @@ pub fn build_unified_dashboard_structure(
                 .iter()
                 .map(|a| a.timestamp_alloc)
                 .min()
-                .unwrap_or(0)
-        ) / 1_000_000; // Convert nanoseconds to milliseconds
+                .unwrap_or(0),
+        )
+        / 1_000_000; // Convert nanoseconds to milliseconds
 
     let allocation_rate = if total_runtime_ms > 0 {
         (stats.total_allocations as f64 * 1000.0) / total_runtime_ms as f64
@@ -2315,7 +2521,8 @@ pub fn build_unified_dashboard_structure(
         .collect();
 
     // Prepare unsafe operations for frontend
-    let unsafe_operations: Vec<_> = unsafe_stats.operations
+    let unsafe_operations: Vec<_> = unsafe_stats
+        .operations
         .iter()
         .take(50) // Limit to avoid huge JSON files
         .map(|op| {
@@ -2359,13 +2566,17 @@ pub fn build_unified_dashboard_structure(
 
     // Categorize objects by lifetime
     let short_lived = lifetimes.iter().filter(|&&lt| lt < 1_000_000_000).count(); // < 1 second
-    let medium_lived = lifetimes.iter().filter(|&&lt| (1_000_000_000..10_000_000_000).contains(&lt)).count(); // 1-10 seconds
+    let medium_lived = lifetimes
+        .iter()
+        .filter(|&&lt| (1_000_000_000..10_000_000_000).contains(&lt))
+        .count(); // 1-10 seconds
     let long_lived = lifetimes.iter().filter(|&&lt| lt >= 10_000_000_000).count(); // > 10 seconds
 
     // Build hierarchical memory structure for backward compatibility
     // Simple type enhancement for now
-    let enhanced_types: Vec<MemoryTypeInfo> = memory_by_type.iter().map(|usage| {
-        MemoryTypeInfo {
+    let enhanced_types: Vec<MemoryTypeInfo> = memory_by_type
+        .iter()
+        .map(|usage| MemoryTypeInfo {
             type_name: usage.type_name.clone(),
             total_size: usage.total_size,
             allocation_count: usage.allocation_count,
@@ -2374,8 +2585,8 @@ pub fn build_unified_dashboard_structure(
             smallest_allocation: if usage.total_size > 0 { 1 } else { 0 },
             active_instances: usage.allocation_count,
             leaked_instances: 0,
-        }
-    }).collect();
+        })
+        .collect();
     let memory_hierarchy = build_legacy_hierarchy(&enhanced_types, active_allocations, stats);
 
     // Build the unified dashboard structure
@@ -2401,10 +2612,10 @@ pub fn build_unified_dashboard_structure(
             "operations": unsafe_operations
         },
         "performance_metrics": {
-            "allocation_time_avg_ns": if stats.total_allocations > 0 { 
-                (total_runtime_ms * 1_000_000) / stats.total_allocations as u64 
-            } else { 
-                0 
+            "allocation_time_avg_ns": if stats.total_allocations > 0 {
+                (total_runtime_ms * 1_000_000) / stats.total_allocations as u64
+            } else {
+                0
             },
             "allocation_time_max_ns": total_runtime_ms * 1_000_000, // Simplified
             "memory_throughput_mb_s": if total_runtime_ms > 0 {
@@ -2447,15 +2658,12 @@ pub fn build_unified_dashboard_structure(
 fn build_legacy_hierarchy(
     enhanced_types: &[MemoryTypeInfo],
     active_allocations: &[AllocationInfo],
-    stats: &crate::types::MemoryStats,
+    _stats: &crate::types::MemoryStats,
 ) -> serde_json::Value {
     use std::collections::HashMap;
 
     // Group enhanced types by category and subcategory
-    let mut categories: HashMap<
-        String,
-        HashMap<String, Vec<&MemoryTypeInfo>>,
-    > = HashMap::new();
+    let mut categories: HashMap<String, HashMap<String, Vec<&MemoryTypeInfo>>> = HashMap::new();
 
     for enhanced_type in enhanced_types {
         categories
@@ -2565,30 +2773,35 @@ fn build_legacy_hierarchy(
 
 impl MemoryTracker {
     /// Enhance allocations with precise names, eliminating unknown types
-    fn enhance_allocations_with_precise_names(&self, allocations: &[AllocationInfo]) -> TrackingResult<Vec<AllocationInfo>> {
+    fn enhance_allocations_with_precise_names(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> TrackingResult<Vec<AllocationInfo>> {
         let mut enhanced = Vec::new();
-        
+
         for alloc in allocations {
             let mut enhanced_alloc = alloc.clone();
-            
+
             // If no variable name, generate one based on size and type
             if enhanced_alloc.var_name.is_none() {
                 let (smart_name, smart_type) = analyze_system_allocation(alloc);
                 enhanced_alloc.var_name = Some(smart_name);
                 enhanced_alloc.type_name = Some(smart_type);
             }
-            
+
             // If type is unknown, infer from size and context
-            if enhanced_alloc.type_name.as_deref() == Some("Unknown") || enhanced_alloc.type_name.is_none() {
+            if enhanced_alloc.type_name.as_deref() == Some("Unknown")
+                || enhanced_alloc.type_name.is_none()
+            {
                 enhanced_alloc.type_name = Some(self.infer_type_from_context(alloc));
             }
-            
+
             enhanced.push(enhanced_alloc);
         }
-        
+
         Ok(enhanced)
     }
-    
+
     /// Infer type from allocation context
     fn infer_type_from_context(&self, alloc: &AllocationInfo) -> String {
         match alloc.size {
@@ -2601,16 +2814,19 @@ impl MemoryTracker {
             _ => "Large Memory Block".to_string(),
         }
     }
-    
+
     /// Generate scope hierarchy
-    fn generate_scope_hierarchy(&self, allocations: &[AllocationInfo]) -> TrackingResult<serde_json::Value> {
+    fn generate_scope_hierarchy(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> TrackingResult<serde_json::Value> {
         let mut scope_tree = std::collections::HashMap::new();
         let mut scope_stats = std::collections::HashMap::new();
-        
+
         for alloc in allocations {
             let scope = alloc.scope_name.as_deref().unwrap_or("global");
             let parts: Vec<&str> = scope.split("::").collect();
-            
+
             // Build hierarchy
             let mut current_path = String::new();
             for (i, part) in parts.iter().enumerate() {
@@ -2618,15 +2834,17 @@ impl MemoryTracker {
                     current_path.push_str("::");
                 }
                 current_path.push_str(part);
-                
-                let entry = scope_tree.entry(current_path.clone()).or_insert_with(|| serde_json::json!({
-                    "name": part,
-                    "full_path": current_path.clone(),
-                    "level": i,
-                    "children": [],
-                    "allocations": []
-                }));
-                
+
+                let entry = scope_tree.entry(current_path.clone()).or_insert_with(|| {
+                    serde_json::json!({
+                        "name": part,
+                        "full_path": current_path,
+                        "level": i,
+                        "children": [],
+                        "allocations": []
+                    })
+                });
+
                 // Add allocation to this scope
                 if let Some(allocations_array) = entry.get_mut("allocations") {
                     if let Some(array) = allocations_array.as_array_mut() {
@@ -2638,15 +2856,16 @@ impl MemoryTracker {
                     }
                 }
             }
-            
+
             // Update scope statistics
             let stats = scope_stats.entry(scope.to_string()).or_insert((0, 0));
             stats.0 += alloc.size;
             stats.1 += 1;
         }
-        
+
         // Convert to hierarchical structure
-        let levels: Vec<_> = scope_tree.into_iter()
+        let levels: Vec<_> = scope_tree
+            .into_iter()
             .map(|(path, mut data)| {
                 if let Some(stats) = scope_stats.get(&path) {
                     data["total_memory"] = serde_json::json!(stats.0);
@@ -2655,7 +2874,7 @@ impl MemoryTracker {
                 data
             })
             .collect();
-        
+
         Ok(serde_json::json!({
             "levels": levels,
             "total_scopes": scope_stats.len(),
@@ -2668,25 +2887,29 @@ impl MemoryTracker {
             }).collect::<Vec<_>>()
         }))
     }
-    
+
     /// Generate variable relationships
-    fn generate_variable_relationships(&self, allocations: &[AllocationInfo]) -> TrackingResult<serde_json::Value> {
+    fn generate_variable_relationships(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> TrackingResult<serde_json::Value> {
         let mut relationships = Vec::new();
         let mut variable_map = std::collections::HashMap::new();
-        
+
         // Build variable map
         for alloc in allocations {
             if let Some(var_name) = &alloc.var_name {
-                variable_map.insert(var_name.clone(), alloc);
+                variable_map.insert(var_name, alloc);
             }
         }
-        
+
         // Find relationships based on naming patterns and types
         for (var_name, alloc) in &variable_map {
             // Find related variables
             for (other_name, other_alloc) in &variable_map {
                 if var_name != other_name {
-                    let relationship_type = self.determine_relationship_type(var_name, other_name, alloc, other_alloc);
+                    let relationship_type =
+                        self.determine_relationship_type(var_name, other_name, alloc, other_alloc);
                     if let Some(rel_type) = relationship_type {
                         relationships.push(serde_json::json!({
                             "source": var_name,
@@ -2708,7 +2931,7 @@ impl MemoryTracker {
                 }
             }
         }
-        
+
         Ok(serde_json::json!({
             "relationships": relationships,
             "total_variables": variable_map.len(),
@@ -2721,65 +2944,82 @@ impl MemoryTracker {
             }
         }))
     }
-    
+
     /// Determine relationship type between two variables
-    fn determine_relationship_type(&self, var1: &str, var2: &str, alloc1: &AllocationInfo, alloc2: &AllocationInfo) -> Option<String> {
+    fn determine_relationship_type(
+        &self,
+        var1: &str,
+        var2: &str,
+        alloc1: &AllocationInfo,
+        alloc2: &AllocationInfo,
+    ) -> Option<String> {
         // Check for naming patterns
         if var1.contains("clone") && var2.replace("_clone", "") == var1.replace("_clone", "") {
             return Some("clone".to_string());
         }
-        
+
         if var1.ends_with("_ref") && var2 == var1.trim_end_matches("_ref") {
             return Some("reference".to_string());
         }
-        
+
         // Check for type relationships
         if let (Some(type1), Some(type2)) = (&alloc1.type_name, &alloc2.type_name) {
-            if type1.contains("Box") && type2.contains(&type1.replace("Box<", "").replace(">", "")) {
+            if type1.contains("Box") && type2.contains(&type1.replace("Box<", "").replace(">", ""))
+            {
                 return Some("ownership".to_string());
             }
-            
+
             if type1.contains("Vec") && type2.contains(&extract_vec_inner_type(type1)) {
                 return Some("collection_item".to_string());
             }
         }
-        
+
         // Check for scope relationships
         if alloc1.scope_name == alloc2.scope_name && alloc1.scope_name.is_some() {
             return Some("scope_related".to_string());
         }
-        
+
         None
     }
-    
+
     /// Calculate relationship strength
-    fn calculate_relationship_strength(&self, alloc1: &AllocationInfo, alloc2: &AllocationInfo) -> f64 {
+    fn calculate_relationship_strength(
+        &self,
+        alloc1: &AllocationInfo,
+        alloc2: &AllocationInfo,
+    ) -> f64 {
         let mut strength: f64 = 0.0;
-        
+
         // Same scope increases strength
         if alloc1.scope_name == alloc2.scope_name {
             strength += 0.3;
         }
-        
+
         // Similar allocation times increase strength
         let time_diff = alloc1.timestamp_alloc.abs_diff(alloc2.timestamp_alloc);
-        if time_diff < 1_000_000 { // Within 1ms
+        if time_diff < 1_000_000 {
+            // Within 1ms
             strength += 0.4;
-        } else if time_diff < 10_000_000 { // Within 10ms
+        } else if time_diff < 10_000_000 {
+            // Within 10ms
             strength += 0.2;
         }
-        
+
         // Similar sizes increase strength
         let size_ratio = (alloc1.size as f64) / (alloc2.size as f64).max(1.0);
         if size_ratio > 0.5 && size_ratio < 2.0 {
             strength += 0.3;
         }
-        
+
         strength.min(1.0)
     }
-    
+
     /// Generate SVG visualization data
-    fn generate_svg_visualization_data(&self, allocations: &[AllocationInfo], stats: &MemoryStats) -> TrackingResult<serde_json::Value> {
+    fn generate_svg_visualization_data(
+        &self,
+        allocations: &[AllocationInfo],
+        stats: &MemoryStats,
+    ) -> TrackingResult<serde_json::Value> {
         Ok(serde_json::json!({
             "memory_analysis": {
                 "chart_type": "memory_analysis",
@@ -2827,7 +3067,7 @@ impl MemoryTracker {
             }
         }))
     }
-    
+
     /// Get color for type visualization
     fn get_type_color(&self, type_name: &str) -> String {
         match type_name {
@@ -2839,54 +3079,65 @@ impl MemoryTracker {
             _ => "#607D8B".to_string(),
         }
     }
-    
+
     /// Assess risk level for unsafe operations
     fn assess_risk_level(&self, alloc: &AllocationInfo) -> String {
-        if alloc.size > 1024 * 1024 { // > 1MB
+        if alloc.size > 1024 * 1024 {
+            // > 1MB
             "high".to_string()
-        } else if alloc.size > 64 * 1024 { // > 64KB
+        } else if alloc.size > 64 * 1024 {
+            // > 64KB
             "medium".to_string()
         } else {
             "low".to_string()
         }
     }
-    
+
     /// Generate detailed call stacks
-    fn generate_detailed_call_stacks(&self, allocations: &[AllocationInfo]) -> TrackingResult<serde_json::Value> {
+    fn generate_detailed_call_stacks(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> TrackingResult<serde_json::Value> {
         let mut call_stacks = std::collections::HashMap::new();
-        
+
         for alloc in allocations {
             let stack_id = format!("stack_{}", alloc.ptr);
             let frames = self.generate_synthetic_stack_trace(alloc);
-            
-            call_stacks.insert(stack_id, serde_json::json!({
-                "frames": frames.iter().map(|frame| {
-                    serde_json::json!({
-                        "function": frame.function_name,
-                        "file": frame.file_name,
-                        "line": frame.line_number,
-                        "module": frame.module_path
-                    })
-                }).collect::<Vec<_>>(),
-                "allocation_info": {
-                    "variable": alloc.var_name.as_deref().unwrap_or("unnamed"),
-                    "size": alloc.size,
-                    "timestamp": alloc.timestamp_alloc
-                }
-            }));
+
+            call_stacks.insert(
+                stack_id,
+                serde_json::json!({
+                    "frames": frames.iter().map(|frame| {
+                        serde_json::json!({
+                            "function": frame.function_name,
+                            "file": frame.file_name,
+                            "line": frame.line_number,
+                            "module": frame.module_path
+                        })
+                    }).collect::<Vec<_>>(),
+                    "allocation_info": {
+                        "variable": alloc.var_name.as_deref().unwrap_or("unnamed"),
+                        "size": alloc.size,
+                        "timestamp": alloc.timestamp_alloc
+                    }
+                }),
+            );
         }
-        
+
         Ok(serde_json::json!({
             "stacks": call_stacks,
             "total_stacks": call_stacks.len(),
             "unique_functions": self.count_unique_functions(&call_stacks)
         }))
     }
-    
+
     /// Count unique functions in call stacks
-    fn count_unique_functions(&self, call_stacks: &std::collections::HashMap<String, serde_json::Value>) -> usize {
+    fn count_unique_functions(
+        &self,
+        call_stacks: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> usize {
         let mut functions = std::collections::HashSet::new();
-        
+
         for stack in call_stacks.values() {
             if let Some(frames) = stack.get("frames").and_then(|f| f.as_array()) {
                 for frame in frames {
@@ -2896,39 +3147,42 @@ impl MemoryTracker {
                 }
             }
         }
-        
+
         functions.len()
     }
-    
+
     /// Calculate allocation rate
     fn calculate_allocation_rate(&self, history: &[AllocationInfo]) -> TrackingResult<f64> {
         if history.is_empty() {
             return Ok(0.0);
         }
-        
+
         let start_time = history.iter().map(|a| a.timestamp_alloc).min().unwrap_or(0);
         let end_time = history.iter().map(|a| a.timestamp_alloc).max().unwrap_or(0);
         let duration_seconds = (end_time - start_time) as f64 / 1_000_000_000.0;
-        
+
         if duration_seconds > 0.0 {
             Ok(history.len() as f64 / duration_seconds)
         } else {
             Ok(0.0)
         }
     }
-    
+
     /// Calculate deallocation rate
     fn calculate_deallocation_rate(&self, history: &[AllocationInfo]) -> TrackingResult<f64> {
-        let deallocated_count = history.iter().filter(|a| a.timestamp_dealloc.is_some()).count();
-        
+        let deallocated_count = history
+            .iter()
+            .filter(|a| a.timestamp_dealloc.is_some())
+            .count();
+
         if history.is_empty() {
             return Ok(0.0);
         }
-        
+
         let start_time = history.iter().map(|a| a.timestamp_alloc).min().unwrap_or(0);
         let end_time = history.iter().map(|a| a.timestamp_alloc).max().unwrap_or(0);
         let duration_seconds = (end_time - start_time) as f64 / 1_000_000_000.0;
-        
+
         if duration_seconds > 0.0 {
             Ok(deallocated_count as f64 / duration_seconds)
         } else {
@@ -2957,14 +3211,14 @@ fn analyze_system_allocation(alloc: &AllocationInfo) -> (String, String) {
         65..=1024 => format!("large_object_{:x}", alloc.ptr),
         _ => format!("huge_object_{:x}", alloc.ptr),
     };
-    
+
     let smart_type = match size {
         1..=8 => "Small Object/String".to_string(),
         9..=64 => "Medium Structure".to_string(),
         65..=1024 => "Large Buffer".to_string(),
         _ => "Huge Memory Block".to_string(),
     };
-    
+
     (smart_name, smart_type)
 }
 
@@ -2973,7 +3227,7 @@ fn analyze_system_allocation(alloc: &AllocationInfo) -> (String, String) {
 // ============================================================================
 
 /// Main tracking interface - consolidates all tracking functionality
-/// 
+///
 /// This provides a unified interface that combines memory tracking and scope tracking
 /// while preserving all existing functionality.
 pub struct TrackingManager {
@@ -2989,68 +3243,77 @@ impl TrackingManager {
             scope_tracker: crate::scope_tracker::get_global_scope_tracker(),
         }
     }
-    
+
     /// Get the memory tracker instance
     pub fn memory_tracker(&self) -> &Arc<MemoryTracker> {
         &self.memory_tracker
     }
-    
+
     /// Get the scope tracker instance
     pub fn scope_tracker(&self) -> &Arc<crate::scope_tracker::ScopeTracker> {
         &self.scope_tracker
     }
-    
+
     /// Track memory allocation
     pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
         self.memory_tracker.track_allocation(ptr, size)
     }
-    
+
     /// Track memory deallocation
     pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<()> {
         self.memory_tracker.track_deallocation(ptr)
     }
-    
+
     /// Associate variable with memory allocation
-    pub fn associate_var(&self, ptr: usize, var_name: String, type_name: String) -> TrackingResult<()> {
+    pub fn associate_var(
+        &self,
+        ptr: usize,
+        var_name: String,
+        type_name: String,
+    ) -> TrackingResult<()> {
         self.memory_tracker.associate_var(ptr, var_name, type_name)
     }
-    
+
     /// Enter a new scope
     pub fn enter_scope(&self, name: String) -> TrackingResult<crate::scope_tracker::ScopeId> {
         self.scope_tracker.enter_scope(name)
     }
-    
+
     /// Exit a scope
     pub fn exit_scope(&self, scope_id: crate::scope_tracker::ScopeId) -> TrackingResult<()> {
         self.scope_tracker.exit_scope(scope_id)
     }
-    
+
     /// Associate variable with current scope
-    pub fn associate_variable(&self, variable_name: String, memory_size: usize) -> TrackingResult<()> {
-        self.scope_tracker.associate_variable(variable_name, memory_size)
+    pub fn associate_variable(
+        &self,
+        variable_name: String,
+        memory_size: usize,
+    ) -> TrackingResult<()> {
+        self.scope_tracker
+            .associate_variable(variable_name, memory_size)
     }
-    
+
     /// Get memory statistics
     pub fn get_stats(&self) -> TrackingResult<crate::types::MemoryStats> {
         self.memory_tracker.get_stats()
     }
-    
+
     /// Get active allocations
     pub fn get_active_allocations(&self) -> TrackingResult<Vec<crate::types::AllocationInfo>> {
         self.memory_tracker.get_active_allocations()
     }
-    
+
     /// Get allocation history
     pub fn get_allocation_history(&self) -> TrackingResult<Vec<crate::types::AllocationInfo>> {
         self.memory_tracker.get_allocation_history()
     }
-    
+
     /// Get scope analysis
     pub fn get_scope_analysis(&self) -> TrackingResult<crate::types::ScopeAnalysis> {
         self.scope_tracker.get_scope_analysis()
     }
-    
-    
+
     /// Perform comprehensive tracking analysis
     pub fn perform_comprehensive_analysis(&self) -> TrackingResult<ComprehensiveTrackingReport> {
         let memory_stats = self.get_stats()?;
@@ -3058,7 +3321,7 @@ impl TrackingManager {
         let allocation_history = self.get_allocation_history()?;
         let scope_analysis = self.get_scope_analysis()?;
         let scope_metrics = self.scope_tracker.get_scope_lifecycle_metrics()?;
-        
+
         Ok(ComprehensiveTrackingReport {
             memory_stats,
             active_allocations,
@@ -3135,12 +3398,13 @@ impl Drop for MemoryTracker {
     fn drop(&mut self) {
         // Auto-export JSON before cleanup if enabled
         if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
-            let export_format = std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
+            let export_format =
+                std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
             let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
                 .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
-            
+
             println!("🔄 Auto-exporting final memory snapshot...");
-            
+
             // Export based on format
             match export_format.as_str() {
                 "json" => {
@@ -3162,13 +3426,13 @@ impl Drop for MemoryTracker {
                 "both" => {
                     let json_path = format!("{}.json", export_path);
                     let html_path = format!("{}.html", export_path);
-                    
+
                     if let Err(e) = self.export_to_json(&json_path) {
                         eprintln!("❌ Failed to auto-export JSON: {}", e);
                     } else {
                         println!("✅ JSON exported to: {}", json_path);
                     }
-                    
+
                     if let Err(e) = self.export_interactive_dashboard(&html_path) {
                         eprintln!("❌ Failed to auto-export HTML: {}", e);
                     } else {
@@ -3185,7 +3449,7 @@ impl Drop for MemoryTracker {
                 }
             }
         }
-        
+
         // Clean up any remaining allocations
         if let Ok(mut active) = self.active_allocations.lock() {
             active.clear();

@@ -1,10 +1,10 @@
 //! Unknown Memory Regions Analysis
-//! 
+//!
 //! This module analyzes and categorizes the "unknown" 5% of memory regions
 //! that cannot be precisely classified as stack or heap allocations.
 
 use crate::types::{AllocationInfo, ImplementationDifficulty};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Detailed analysis of unknown memory regions
@@ -25,10 +25,15 @@ pub struct UnknownMemoryRegionAnalysis {
 /// Categories of unknown memory regions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnknownMemoryCategory {
+    /// Type of unknown memory region
     pub category_type: UnknownRegionType,
+    /// Description of this category of unknown memory
     pub description: String,
+    /// Estimated size of this memory category in bytes
     pub estimated_size: usize,
+    /// Confidence level in the identification (0.0-1.0)
     pub confidence_level: f64,
+    /// Examples of memory regions in this category
     pub examples: Vec<UnknownMemoryExample>,
 }
 
@@ -64,9 +69,13 @@ pub enum UnknownRegionType {
 /// Specific examples of unknown memory
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnknownMemoryExample {
+    /// Address range of this unknown memory region (start, end)
     pub address_range: (usize, usize),
+    /// Size of this memory region in bytes
     pub size: usize,
+    /// Suspected origin or source of this memory allocation
     pub suspected_origin: String,
+    /// Observed pattern of memory access for this region
     pub access_pattern: MemoryAccessPattern,
 }
 
@@ -75,7 +84,9 @@ pub struct UnknownMemoryExample {
 pub enum UnknownMemoryCause {
     /// FFI calls to C/C++ libraries
     ForeignFunctionInterface {
+        /// Name of the library containing the FFI function
         library_name: String,
+        /// Name of the specific function if known
         function_name: Option<String>,
     },
     /// Memory mapping operations
@@ -105,55 +116,88 @@ pub enum UnknownMemoryCause {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Types of memory mappings
 pub enum MappingType {
+    /// Memory mapped from a file
     FileMapping,
+    /// Anonymous memory mapping not backed by a file
     AnonymousMapping,
+    /// Shared memory mapping accessible by multiple processes
     SharedMapping,
+    /// Memory mapped from a device
     DeviceMapping,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Types of system-level memory allocations
 pub enum SystemAllocationType {
+    /// Memory buffers used by the kernel
     KernelBuffers,
+    /// Memory allocated for device drivers
     DriverMemory,
+    /// System-level caches
     SystemCaches,
+    /// Memory reserved for hardware use
     HardwareReserved,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Types of memory associated with threads
 pub enum ThreadMemoryType {
+    /// Thread stack memory
     ThreadStack,
+    /// Thread-local storage areas
     ThreadLocalStorage,
+    /// Thread control block structures
     ThreadControlBlock,
+    /// Memory used for thread synchronization primitives
     ThreadSynchronization,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Types of gaps in memory instrumentation coverage
 pub enum InstrumentationGapType {
+    /// Memory allocated during early program bootstrap before instrumentation is active
     EarlyBootstrap,
+    /// Memory used by signal handlers that may bypass normal allocation paths
     SignalHandlers,
+    /// Memory used by interrupt handlers
     InterruptHandlers,
+    /// Memory operations performed atomically that might be missed by instrumentation
     AtomicOperations,
+    /// Memory optimizations performed by the compiler that bypass instrumentation
     CompilerOptimizations,
 }
 
 /// Strategies to reduce unknown memory regions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnknownRegionReductionStrategy {
+    /// Type of strategy to reduce unknown memory regions
     pub strategy_type: ReductionStrategyType,
+    /// Description of the strategy
     pub description: String,
+    /// Steps to implement this strategy
     pub implementation_steps: Vec<String>,
+    /// Expected percentage improvement in unknown region reduction
     pub expected_improvement: f64,
+    /// Difficulty level of implementing this strategy
     pub implementation_difficulty: ImplementationDifficulty,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Types of strategies to reduce unknown memory regions
 pub enum ReductionStrategyType {
+    /// Improve instrumentation to capture more memory operations
     EnhancedInstrumentation,
+    /// Better resolution of symbols and debug information
     BetterSymbolResolution,
+    /// Track memory mapping operations more comprehensively
     MemoryMappingTracking,
+    /// Intercept and track foreign function interface calls
     FfiCallInterception,
+    /// Monitor system calls related to memory operations
     SystemCallMonitoring,
+    /// Implement thread-aware memory tracking
     ThreadAwareTracking,
 }
 
@@ -165,6 +209,7 @@ pub struct UnknownMemoryAnalyzer {
 }
 
 impl UnknownMemoryAnalyzer {
+    /// Creates a new instance of UnknownMemoryAnalyzer with empty collections
     pub fn new() -> Self {
         Self {
             known_system_regions: HashMap::new(),
@@ -174,7 +219,10 @@ impl UnknownMemoryAnalyzer {
     }
 
     /// Analyze unknown memory regions in detail
-    pub fn analyze_unknown_regions(&mut self, allocations: &[AllocationInfo]) -> UnknownMemoryRegionAnalysis {
+    pub fn analyze_unknown_regions(
+        &mut self,
+        allocations: &[AllocationInfo],
+    ) -> UnknownMemoryRegionAnalysis {
         let total_memory: usize = allocations.iter().map(|a| a.size).sum();
         let unknown_allocations = self.identify_unknown_allocations(allocations);
         let total_unknown: usize = unknown_allocations.iter().map(|a| a.size).sum();
@@ -182,10 +230,10 @@ impl UnknownMemoryAnalyzer {
 
         // Categorize unknown regions
         let unknown_categories = self.categorize_unknown_regions(&unknown_allocations);
-        
+
         // Identify potential causes
         let potential_causes = self.identify_potential_causes(&unknown_allocations);
-        
+
         // Generate reduction strategies
         let reduction_strategies = self.generate_reduction_strategies(&unknown_categories);
 
@@ -199,8 +247,12 @@ impl UnknownMemoryAnalyzer {
     }
 
     /// Identify allocations that cannot be classified
-    fn identify_unknown_allocations<'a>(&self, allocations: &'a [AllocationInfo]) -> Vec<&'a AllocationInfo> {
-        allocations.iter()
+    fn identify_unknown_allocations<'a>(
+        &self,
+        allocations: &'a [AllocationInfo],
+    ) -> Vec<&'a AllocationInfo> {
+        allocations
+            .iter()
             .filter(|alloc| self.is_unknown_allocation(alloc))
             .collect()
     }
@@ -222,7 +274,10 @@ impl UnknownMemoryAnalyzer {
     }
 
     /// Categorize unknown memory regions
-    fn categorize_unknown_regions(&self, unknown_allocations: &[&AllocationInfo]) -> Vec<UnknownMemoryCategory> {
+    fn categorize_unknown_regions(
+        &self,
+        unknown_allocations: &[&AllocationInfo],
+    ) -> Vec<UnknownMemoryCategory> {
         let mut categories = Vec::new();
 
         // Memory-mapped regions
@@ -230,7 +285,8 @@ impl UnknownMemoryAnalyzer {
         if !mmap_allocations.is_empty() {
             categories.push(UnknownMemoryCategory {
                 category_type: UnknownRegionType::MemoryMappedRegions,
-                description: "Memory-mapped files, shared memory, and anonymous mappings".to_string(),
+                description: "Memory-mapped files, shared memory, and anonymous mappings"
+                    .to_string(),
                 estimated_size: mmap_allocations.iter().map(|a| a.size).sum(),
                 confidence_level: 0.8,
                 examples: self.generate_examples(&mmap_allocations, "Memory mapping"),
@@ -301,14 +357,19 @@ impl UnknownMemoryAnalyzer {
     }
 
     /// Identify potential causes for unknown regions
-    fn identify_potential_causes(&self, unknown_allocations: &[&AllocationInfo]) -> Vec<UnknownMemoryCause> {
+    fn identify_potential_causes(
+        &self,
+        unknown_allocations: &[&AllocationInfo],
+    ) -> Vec<UnknownMemoryCause> {
         let mut causes = Vec::new();
 
         // Check for FFI-related allocations
         for allocation in unknown_allocations {
             if self.is_likely_ffi_allocation(allocation) {
                 causes.push(UnknownMemoryCause::ForeignFunctionInterface {
-                    library_name: self.guess_library_name(allocation).unwrap_or_else(|| "unknown".to_string()),
+                    library_name: self
+                        .guess_library_name(allocation)
+                        .unwrap_or_else(|| "unknown".to_string()),
                     function_name: None,
                 });
             }
@@ -340,7 +401,10 @@ impl UnknownMemoryAnalyzer {
     }
 
     /// Generate strategies to reduce unknown regions
-    fn generate_reduction_strategies(&self, categories: &[UnknownMemoryCategory]) -> Vec<UnknownRegionReductionStrategy> {
+    fn generate_reduction_strategies(
+        &self,
+        categories: &[UnknownMemoryCategory],
+    ) -> Vec<UnknownRegionReductionStrategy> {
         let mut strategies = Vec::new();
 
         // Enhanced instrumentation
@@ -400,47 +464,72 @@ impl UnknownMemoryAnalyzer {
     }
 
     fn is_known_system_region(&self, ptr: usize) -> bool {
-        self.known_system_regions.iter()
+        self.known_system_regions
+            .iter()
             .any(|((start, end), _)| ptr >= *start && ptr < *end)
     }
 
-    fn identify_memory_mapped_regions<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
-        allocations.iter()
+    fn identify_memory_mapped_regions<'a>(
+        &self,
+        allocations: &[&'a AllocationInfo],
+    ) -> Vec<&'a AllocationInfo> {
+        allocations
+            .iter()
             .filter(|alloc| self.is_likely_mmap_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_thread_local_storage<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
-        allocations.iter()
+    fn identify_thread_local_storage<'a>(
+        &self,
+        allocations: &[&'a AllocationInfo],
+    ) -> Vec<&'a AllocationInfo> {
+        allocations
+            .iter()
             .filter(|alloc| self.is_likely_tls_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_library_regions<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
-        allocations.iter()
+    fn identify_library_regions<'a>(
+        &self,
+        allocations: &[&'a AllocationInfo],
+    ) -> Vec<&'a AllocationInfo> {
+        allocations
+            .iter()
             .filter(|alloc| self.is_likely_library_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_ffi_allocations<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
-        allocations.iter()
+    fn identify_ffi_allocations<'a>(
+        &self,
+        allocations: &[&'a AllocationInfo],
+    ) -> Vec<&'a AllocationInfo> {
+        allocations
+            .iter()
             .filter(|alloc| self.is_likely_ffi_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_system_regions<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
-        allocations.iter()
+    fn identify_system_regions<'a>(
+        &self,
+        allocations: &[&'a AllocationInfo],
+    ) -> Vec<&'a AllocationInfo> {
+        allocations
+            .iter()
             .filter(|alloc| self.is_likely_system_allocation(alloc))
             .copied()
             .collect()
     }
 
-    fn identify_pre_tracking_allocations<'a>(&self, allocations: &[&'a AllocationInfo]) -> Vec<&'a AllocationInfo> {
-        allocations.iter()
+    fn identify_pre_tracking_allocations<'a>(
+        &self,
+        allocations: &[&'a AllocationInfo],
+    ) -> Vec<&'a AllocationInfo> {
+        allocations
+            .iter()
             .filter(|alloc| self.is_likely_pre_tracking_allocation(alloc))
             .copied()
             .collect()
@@ -459,7 +548,8 @@ impl UnknownMemoryAnalyzer {
 
     fn is_likely_library_allocation(&self, allocation: &AllocationInfo) -> bool {
         // Check if address is in known library ranges
-        self.library_mappings.values()
+        self.library_mappings
+            .values()
             .any(|lib| lib.contains_address(allocation.ptr))
     }
 
@@ -479,32 +569,44 @@ impl UnknownMemoryAnalyzer {
     }
 
     fn is_in_thread_range(&self, ptr: usize) -> bool {
-        self.thread_memory_ranges.values()
-            .any(|ranges| ranges.iter().any(|(start, end)| ptr >= *start && ptr < *end))
+        self.thread_memory_ranges.values().any(|ranges| {
+            ranges
+                .iter()
+                .any(|(start, end)| ptr >= *start && ptr < *end)
+        })
     }
 
     fn has_memory_mapping_pattern(&self, allocations: &[&AllocationInfo]) -> bool {
         // Check for patterns typical of memory mapping
-        allocations.iter().any(|alloc| self.is_likely_mmap_allocation(alloc))
+        allocations
+            .iter()
+            .any(|alloc| self.is_likely_mmap_allocation(alloc))
     }
 
     fn has_threading_pattern(&self, allocations: &[&AllocationInfo]) -> bool {
         // Check for patterns typical of threading
-        allocations.iter().any(|alloc| self.is_likely_tls_allocation(alloc))
+        allocations
+            .iter()
+            .any(|alloc| self.is_likely_tls_allocation(alloc))
     }
 
     fn guess_library_name(&self, allocation: &AllocationInfo) -> Option<String> {
         // Try to guess which library an allocation belongs to
         for (name, info) in &self.library_mappings {
             if info.contains_address(allocation.ptr) {
-                return Some(name.clone());
+                return Some(name.to_string());
             }
         }
         None
     }
 
-    fn generate_examples(&self, allocations: &[&AllocationInfo], origin: &str) -> Vec<UnknownMemoryExample> {
-        allocations.iter()
+    fn generate_examples(
+        &self,
+        allocations: &[&AllocationInfo],
+        origin: &str,
+    ) -> Vec<UnknownMemoryExample> {
+        allocations
+            .iter()
             .take(3) // Limit to 3 examples
             .map(|alloc| UnknownMemoryExample {
                 address_range: (alloc.ptr, alloc.ptr + alloc.size),
@@ -518,30 +620,45 @@ impl UnknownMemoryAnalyzer {
 
 // Supporting types
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Information about a system memory region
 pub struct SystemRegionInfo {
+    /// Type of system region (e.g., "kernel", "driver", "cache")
     pub region_type: String,
+    /// Description of the region's purpose
     pub description: String,
+    /// Whether the region is read-only
     pub read_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Information about a mapped library in memory
 pub struct LibraryMappingInfo {
+    /// Starting address of the library mapping
     pub start_address: usize,
+    /// Ending address of the library mapping
     pub end_address: usize,
+    /// Memory permissions for this mapping (e.g., "r-x", "rw-")
     pub permissions: String,
+    /// Path to the library file on disk
     pub file_path: String,
 }
 
 impl LibraryMappingInfo {
+    /// Checks if the given address is within this library's memory mapping
     pub fn contains_address(&self, addr: usize) -> bool {
         addr >= self.start_address && addr < self.end_address
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Patterns of memory access observed in memory regions
 pub enum MemoryAccessPattern {
+    /// Memory is accessed sequentially from start to end
     Sequential,
+    /// Memory is accessed in a random, non-sequential pattern
     Random,
+    /// Memory is accessed sparsely with large gaps between accesses
     Sparse,
+    /// Memory access pattern is unknown or cannot be determined
     Unknown,
 }

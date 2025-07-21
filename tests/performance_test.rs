@@ -197,7 +197,7 @@ fn benchmark_concurrent_performance() {
 
     let handles: Vec<_> = (0..num_threads)
         .map(|thread_id| {
-            let tracker = tracker.clone();
+            let tracker = tracker;
             std::thread::spawn(move || {
                 for i in 0..operations_per_thread {
                     let ptr = thread_id * 10000 + i;
@@ -254,14 +254,14 @@ fn benchmark_memory_usage_of_tracker() {
 
     // Clear any existing data to get a clean baseline
     // Note: We can't actually clear the tracker, so we'll work with relative measurements
-    
+
     // Create a smaller, more controlled test
     let mut allocations = Vec::new();
     let mut tracked_ptrs = Vec::new();
-    
+
     // Get baseline
     let initial_stats = tracker.get_stats().unwrap();
-    
+
     // Create exactly 100 tracked allocations with known sizes
     for i in 0..100 {
         let data = vec![i; 10]; // 10 * 4 = 40 bytes each
@@ -274,36 +274,40 @@ fn benchmark_memory_usage_of_tracker() {
     let final_stats = tracker.get_stats().unwrap();
 
     // Calculate the difference
-    let new_tracked_memory = final_stats.active_memory.saturating_sub(initial_stats.active_memory);
-    let new_allocation_count = final_stats.active_allocations.saturating_sub(initial_stats.active_allocations);
+    let new_tracked_memory = final_stats
+        .active_memory
+        .saturating_sub(initial_stats.active_memory);
+    let new_allocation_count = final_stats
+        .active_allocations
+        .saturating_sub(initial_stats.active_allocations);
 
     // Expected data size: 100 allocations * 40 bytes each = 4000 bytes
     let expected_data_size = 100 * 40;
-    
+
     println!("Memory usage benchmark:");
     println!("  Created allocations: 100");
     println!("  New tracked allocations: {new_allocation_count}");
     println!("  New tracked memory: {new_tracked_memory} bytes");
     println!("  Expected data size: {expected_data_size} bytes");
-    
+
     // More lenient check - focus on whether tracking is working rather than exact overhead
     if new_allocation_count > 0 {
         let total_per_allocation = new_tracked_memory / new_allocation_count;
         println!("  Total memory per allocation: {total_per_allocation} bytes");
-        
+
         // Check that we're tracking a reasonable number of our allocations
         assert!(
             new_allocation_count >= 10,
             "Too few new allocations tracked: {new_allocation_count} (expected >= 10)"
         );
-        
+
         // More realistic check: total memory per allocation should be reasonable
         // This includes both data and metadata
         assert!(
             total_per_allocation < 25000,
             "Total memory per allocation too high: {total_per_allocation} bytes (expected < 25000 bytes)"
         );
-        
+
         // Ensure we're actually tracking some memory (very lenient check)
         assert!(
             new_tracked_memory > 1000,

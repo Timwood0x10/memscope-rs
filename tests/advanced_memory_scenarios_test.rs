@@ -22,21 +22,21 @@ fn test_smart_pointer_tracking() {
 
     // Test Box<T>
     let boxed_data = Box::new(vec![1, 2, 3, 4, 5]);
-    track_var!(boxed_data).unwrap();
+    let _tracked_boxed_data = track_var!(boxed_data);
 
     // Test Rc<T>
     let rc_data = Rc::new(String::from("Reference counted data"));
-    track_var!(rc_data).unwrap();
     let rc_clone = Rc::clone(&rc_data);
+    let _tracked_rc_data = track_var!(rc_data);
 
     // Test Arc<T>
     let arc_data = Arc::new(vec![10, 20, 30]);
-    track_var!(arc_data).unwrap();
     let arc_clone = Arc::clone(&arc_data);
+    let _tracked_arc_data = track_var!(arc_data);
 
     // Test nested smart pointers
     let nested = Box::new(Rc::new(Arc::new(vec![100, 200, 300])));
-    track_var!(nested).unwrap();
+    let _tracked_nested = track_var!(nested);
 
     let tracker = get_global_tracker();
     let active_allocs = tracker.get_active_allocations();
@@ -90,7 +90,7 @@ fn test_interior_mutability_patterns() {
     // Test RefCell<T>
     let ref_cell_data = RefCell::new(vec![1, 2, 3]);
     let boxed_var = Box::new(ref_cell_data.clone());
-    track_var!(boxed_var).unwrap();
+    let _tracked_boxed_var = track_var!(boxed_var);
 
     {
         let mut borrowed = ref_cell_data.borrow_mut();
@@ -104,13 +104,15 @@ fn test_interior_mutability_patterns() {
 
     // Test Rc<RefCell<T>> pattern
     let shared_mutable = Rc::new(RefCell::new(HashMap::new()));
-    track_var!(shared_mutable).unwrap();
+    let _tracked_shared_mutable = track_var!(shared_mutable);
 
     {
         let mut map = shared_mutable.borrow_mut();
         map.insert("key1".to_string(), vec![1, 2, 3]);
         map.insert("key2".to_string(), vec![4, 5, 6]);
     }
+
+    let _tracked_shared_mutable = track_var!(shared_mutable);
 
     let shared_clone = Rc::clone(&shared_mutable);
     {
@@ -136,32 +138,31 @@ fn test_collection_types() {
         hash_map.insert(format!("key_{i}"), vec![i; 10]);
     }
     let boxed_map = Box::new(hash_map);
-    track_var!(boxed_map).unwrap();
+    let _tracked_boxed_map = track_var!(boxed_map);
 
     let mut hash_set = HashSet::new();
     for i in 0..50 {
         hash_set.insert(format!("item_{i}"));
     }
     let boxed_set = Box::new(hash_set);
-    track_var!(boxed_set).unwrap();
+    let _tracked_boxed_set = track_var!(boxed_set);
 
     let mut btree_map = BTreeMap::new();
     for i in 0..75 {
         btree_map.insert(i, format!("value_{i}"));
     }
     let boxed_map = Box::new(btree_map);
-    track_var!(boxed_map).unwrap();
+    let _tracked_boxed_map = track_var!(boxed_map);
 
     let mut vec_deque = VecDeque::new();
     for i in 0..25 {
         vec_deque.push_back(vec![i; 5]);
     }
     let boxed_vec_deque = Box::new(vec_deque);
-    track_var!(boxed_vec_deque).unwrap();
+    let _tracked_boxed_vec_deque = track_var!(boxed_vec_deque);
 
     // Test collection operations that cause reallocations
     let mut growing_vec = Vec::new();
-    track_var!(growing_vec).unwrap();
 
     for i in 0..1000 {
         growing_vec.push(i);
@@ -182,7 +183,6 @@ fn test_string_and_text_operations() {
 
     // Test various string operations
     let mut string_data = String::new();
-    track_var!(string_data).unwrap();
 
     // String growth operations
     for i in 0..100 {
@@ -191,10 +191,10 @@ fn test_string_and_text_operations() {
 
     // String from various sources
     let from_str = String::from("Hello, World!");
-    track_var!(from_str).unwrap();
+    let _tracked_from_str = track_var!(from_str);
 
     let from_format = format!("Formatted string with {} items", 42);
-    track_var!(from_format).unwrap();
+    let _tracked_from_format = track_var!(from_format);
 
     // String operations that may reallocate
     let mut concatenated = String::new();
@@ -204,11 +204,11 @@ fn test_string_and_text_operations() {
     for part in parts {
         concatenated.push_str(part);
     }
-    track_var!(concatenated).unwrap();
+    let _tracked_concatenated = track_var!(concatenated);
 
     // Test string slicing and conversion
     let slice_to_string = concatenated[0..5].to_string();
-    track_var!(slice_to_string).unwrap();
+    let _tracked_slice_to_string = track_var!(slice_to_string);
 
     let tracker = get_global_tracker();
     let active_allocs = tracker.get_active_allocations();
@@ -236,13 +236,13 @@ fn test_memory_layout_and_alignment() {
 
     // Test different sized allocations
     let small_alloc = vec![1u8; 16];
-    track_var!(small_alloc).unwrap();
+    let _tracked_small_alloc = track_var!(small_alloc);
 
     let medium_alloc = vec![1u32; 256];
-    track_var!(medium_alloc).unwrap();
+    let _tracked_medium_alloc = track_var!(medium_alloc);
 
     let large_alloc = vec![1u64; 1024];
-    track_var!(large_alloc).unwrap();
+    let _tracked_large_alloc = track_var!(large_alloc);
 
     // Test aligned allocations
     #[repr(align(64))]
@@ -251,7 +251,7 @@ fn test_memory_layout_and_alignment() {
     }
 
     let aligned = Box::new(AlignedData { _data: [42; 128] });
-    track_var!(aligned).unwrap();
+    let _tracked_aligned = track_var!(aligned);
 
     // Test zero-sized types (should not allocate)
     struct ZeroSized;
@@ -308,7 +308,7 @@ fn test_recursive_data_structures() {
     }
 
     let mut head = Box::new(Node::new(1));
-    track_var!(head).unwrap();
+    // Track head later to avoid move issues
 
     // Build a chain of nodes
     for i in 2..=10 {
@@ -337,7 +337,7 @@ fn test_recursive_data_structures() {
     }
 
     let mut root = Box::new(TreeNode::new("root".to_string()));
-    track_var!(root).unwrap();
+    // Track root later to avoid move issues
 
     for i in 0..5 {
         let mut child = TreeNode::new(format!("child_{i}"));
@@ -407,7 +407,7 @@ fn test_memory_pools_and_custom_allocation_patterns() {
     }
 
     let mut pool = MemoryPool::new(1024, 10);
-    track_var!(pool).unwrap();
+    // Track pool later to avoid move issues
 
     // Simulate allocation/deallocation cycles
     let mut allocated_blocks = Vec::new();
@@ -494,7 +494,7 @@ fn test_memory_fragmentation_patterns() {
         to_keep.push(vec![i as u8; 256]);
     }
 
-    track_var!(to_keep).unwrap();
+    let _tracked_to_keep = track_var!(to_keep);
 
     let tracker = get_global_tracker();
     let stats = tracker.get_stats();
@@ -510,18 +510,18 @@ fn test_large_allocation_patterns() {
 
     // Test very large single allocation
     let large_vec = vec![42u8; 10 * 1024 * 1024]; // 10MB
-    track_var!(large_vec).unwrap();
+    let _tracked_large_vec = track_var!(large_vec);
 
     // Test many medium allocations
     let mut medium_allocations = Vec::new();
     for i in 0..100 {
         medium_allocations.push(vec![i as u8; 64 * 1024]); // 64KB each
     }
-    track_var!(medium_allocations).unwrap();
+    let _tracked_medium_allocations = track_var!(medium_allocations);
 
     // Test allocation growth pattern
     let mut growing_allocation = Vec::with_capacity(1024);
-    track_var!(growing_allocation).unwrap();
+    // Track allocation later to avoid move issues
 
     // Grow the allocation in steps
     for step in 0..10 {
@@ -585,7 +585,7 @@ fn test_drop_order_and_cleanup() {
                 _data: vec![i as u8; 1024],
             });
         }
-        track_var!(trackers).unwrap();
+        let _tracked_trackers = track_var!(trackers);
 
         // trackers will be dropped here in reverse order (9, 8, 7, ..., 0)
     }

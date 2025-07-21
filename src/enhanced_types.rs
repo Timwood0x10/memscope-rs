@@ -10,11 +10,10 @@ use std::collections::HashMap;
 use std::time::Duration;
 // Import specific types rather than wildcard to avoid conflicts
 use crate::types::{
-    AccessPattern, AllocationInfo, BranchPredictionImpact, CacheImpact, CreationContext,
-    FragmentationAnalysis, LifecycleEfficiencyMetrics, LifecyclePattern, MemoryAccessPattern,
-    MemoryOptimizationRecommendation, ObjectLifecycleInfo, OptimizationPotential,
-    OptimizationRecommendation, PerformanceCharacteristics, PerformanceImpact,
-    ResourceWasteAssessment, ScopeType, TemporaryUsagePattern,
+    AccessPattern, AllocationInfo, CreationContext, FragmentationAnalysis,
+    LifecycleEfficiencyMetrics, LifecyclePattern, ObjectLifecycleInfo, OptimizationPotential,
+    OptimizationRecommendation, PerformanceCharacteristics, PerformanceImpact, ScopeType,
+    TemporaryUsagePattern,
 };
 
 // Stack Frame and Boundary Types
@@ -708,50 +707,81 @@ pub enum MemoryLocation {
     Ambiguous(AmbiguityReason),
 }
 
+/// Reasons why memory allocation tracking might be ambiguous or uncertain
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AmbiguityReason {
+    /// Insufficient metadata available to accurately track the allocation
     InsufficientMetadata,
+    /// Address is at the border of tracked memory regions
     BorderlineAddress,
+    /// Memory tracking data has been corrupted
     CorruptedTracking,
+    /// Allocation was made by an external system not fully tracked by this tool
     ExternalAllocation,
 }
 
+/// Information about a heap memory region managed by an allocator
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeapRegionInfo {
+    /// Starting address of the heap region
     pub region_start: usize,
+    /// Ending address of the heap region
     pub region_end: usize,
+    /// Name of the allocator managing this heap region
     pub allocator_name: String,
+    /// Type of heap region (main heap, large object heap, etc.)
     pub region_type: HeapRegionType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Types of heap regions managed by memory allocators
 pub enum HeapRegionType {
+    /// Main heap area for general allocations
     MainHeap,
+    /// Specialized heap area for large object allocations
     LargeObjectHeap,
+    /// Specialized heap area for small object allocations
     SmallObjectHeap,
+    /// Thread-local heap areas
     ThreadLocalHeap,
 }
 
 // Fragmentation analysis types
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Comprehensive analysis of memory fragmentation with metrics, causes, and recommendations
 pub struct EnhancedFragmentationAnalysis {
+    /// Metrics quantifying different aspects of memory fragmentation
     pub fragmentation_metrics: FragmentationMetrics,
+    /// Assessment of fragmentation severity level
     pub fragmentation_severity: FragmentationSeverity,
+    /// Identified causes contributing to memory fragmentation
     pub fragmentation_causes: Vec<FragmentationCause>,
+    /// Strategies to mitigate the identified fragmentation issues
     pub mitigation_strategies: Vec<FragmentationMitigationStrategy>,
+    /// Analysis of fragmentation trends over time
     pub fragmentation_trends: FragmentationTrends,
+    /// Real-time monitoring data for ongoing fragmentation analysis
     pub real_time_monitoring: crate::enhanced_memory_analysis::RealTimeMonitoringData,
+    /// Adaptive recommendations based on current fragmentation patterns
     pub adaptive_recommendations: Vec<crate::enhanced_memory_analysis::AdaptiveRecommendation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Quantitative metrics measuring different aspects of memory fragmentation
 pub struct FragmentationMetrics {
+    /// Ratio of external fragmentation (unusable gaps between allocations)
     pub external_fragmentation_ratio: f64,
+    /// Ratio of internal fragmentation (unused space within allocations)
     pub internal_fragmentation_ratio: f64,
+    /// Combined ratio of all fragmentation types
     pub total_fragmentation_ratio: f64,
+    /// Size of the largest contiguous free memory block
     pub largest_free_block: usize,
+    /// Total number of free memory blocks
     pub free_block_count: usize,
+    /// Average size of free memory blocks
     pub average_free_block_size: f64,
+    /// Ratio of memory actually used vs. total allocated
     pub memory_utilization_ratio: f64,
 }
 
@@ -770,123 +800,197 @@ pub enum FragmentationSeverity {
 
 // Additional missing types for enhanced memory analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Represents a potential optimization for temporary memory usage patterns
 pub struct TemporaryOptimization {
+    /// Type of optimization strategy to apply
     pub optimization_type: OptimizationType,
+    /// Expected performance or memory benefit as a ratio (higher is better)
     pub expected_benefit: f64,
+    /// Estimated difficulty of implementing this optimization
     pub implementation_effort: ImplementationDifficulty,
+    /// Detailed description of the optimization approach
     pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Statistical analysis of temporary memory allocation patterns
 pub struct TemporaryPatternStatistics {
+    /// Total number of temporary allocation patterns identified
     pub total_patterns: usize,
+    /// Distribution of different pattern classifications and their frequencies
     pub pattern_distribution: HashMap<TemporaryPatternClassification, usize>,
+    /// Memory impact (in bytes) of each pattern classification
     pub memory_impact: HashMap<TemporaryPatternClassification, usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Analysis of performance impacts caused by temporary object allocations
 pub struct TemporaryObjectPerformanceImpact {
+    /// Computational overhead of allocation operations (normalized ratio)
     pub allocation_overhead: f64,
+    /// Computational overhead of deallocation operations (normalized ratio)
     pub deallocation_overhead: f64,
+    /// Impact on CPU cache efficiency (normalized ratio, lower is better)
     pub cache_impact: f64,
+    /// Combined performance cost metric (normalized ratio, lower is better)
     pub overall_cost: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Strategies for optimizing memory usage patterns
 pub enum OptimizationStrategy {
+    /// Completely eliminate the temporary allocation
     Eliminate,
+    /// Reuse existing objects instead of creating new ones
     Reuse,
+    /// Use object pooling to reduce allocation/deallocation overhead
     Pool,
+    /// Defer allocation until absolutely necessary
     Defer,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Analysis of memory fragmentation trends over time
 pub struct FragmentationTrendAnalysis {
+    /// Historical fragmentation analysis data points
     pub historical_data: Vec<FragmentationAnalysis>,
+    /// Direction of the fragmentation trend (increasing, decreasing, stable)
     pub trend_direction: TrendDirection,
+    /// Projected future fragmentation levels
     pub projected_levels: Vec<FragmentationProjection>,
+    /// Historical fragmentation level measurements as raw values
     pub fragmentation_levels: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Strategy that adapts to changing fragmentation conditions
 pub struct AdaptiveFragmentationStrategy {
+    /// Name of the adaptive strategy
     pub strategy_name: String,
+    /// Conditions that trigger this strategy to be applied
     pub trigger_conditions: Vec<String>,
+    /// Actions to take when the strategy is triggered
     pub actions: Vec<String>,
+    /// Estimated effectiveness score of this strategy (0.0-1.0)
     pub effectiveness_score: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Real-time metrics for monitoring memory fragmentation
 pub struct RealTimeFragmentationMetrics {
+    /// Current fragmentation ratio (0.0-1.0, higher means more fragmented)
     pub current_fragmentation: f64,
+    /// Rate of memory allocations per second
     pub allocation_rate: f64,
+    /// Rate of memory deallocations per second
     pub deallocation_rate: f64,
+    /// Current memory pressure (0.0-1.0, higher means more pressure)
     pub memory_pressure: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Data for visualizing memory fragmentation patterns
 pub struct FragmentationVisualizationData {
+    /// Map of memory blocks showing allocated and free regions
     pub memory_map: Vec<MemoryBlock>,
+    /// Heatmap data showing fragmentation intensity across memory regions
     pub fragmentation_heatmap: Vec<f64>,
+    /// Timeline of allocation events for temporal visualization
     pub allocation_timeline: Vec<AllocationEvent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Recommendation for mitigating memory fragmentation issues
 pub struct FragmentationMitigationRecommendation {
+    /// Type of mitigation strategy being recommended
     pub strategy_type: MitigationStrategyType,
+    /// Detailed description of the recommendation
     pub description: String,
+    /// Expected improvement in fragmentation metrics (0.0-1.0)
     pub expected_improvement: f64,
+    /// Estimated complexity of implementing this recommendation
     pub implementation_complexity: ImplementationComplexity,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Analysis of trends in memory usage or fragmentation metrics
 pub struct TrendAnalysis {
+    /// Direction of the trend (increasing, decreasing, stable)
     pub direction: TrendDirection,
+    /// Rate of change per time unit
     pub rate_of_change: f64,
+    /// Confidence level in the trend analysis (0.0-1.0)
     pub confidence: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Represents a cyclical pattern in memory usage or fragmentation
 pub struct CyclicalPattern {
+    /// Name or identifier for this pattern
     pub pattern_name: String,
+    /// Duration of one complete cycle
     pub cycle_duration: Duration,
+    /// Amplitude of the cycle (magnitude of change)
     pub amplitude: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Represents an anomaly detected in memory fragmentation patterns
 pub struct FragmentationAnomaly {
+    /// Type or category of the anomaly
     pub anomaly_type: String,
+    /// Severity of the anomaly (0.0-1.0, higher is more severe)
     pub severity: f64,
+    /// Timestamp when the anomaly was detected
     pub timestamp: u64,
+    /// Detailed description of the anomaly
     pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Projection of future memory fragmentation levels
 pub struct FragmentationProjection {
+    /// Time horizon for the projection in hours
     pub time_horizon_hours: u32,
+    /// Projected fragmentation ratio at the specified time horizon
     pub projected_fragmentation: f64,
+    /// Confidence level in the projection (0.0-1.0)
     pub confidence: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Impact of memory usage patterns on system scalability
 pub enum ScalabilityImpact {
+    /// Positive impact on scalability (improves as scale increases)
     Positive,
+    /// Neutral impact on scalability (neither improves nor worsens with scale)
     Neutral,
+    /// Negative impact on scalability (worsens as scale increases)
     Negative,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Strategy that adapts to mitigate memory fragmentation based on thresholds
 pub struct AdaptiveMitigationStrategy {
+    /// Name of the adaptive mitigation strategy
     pub strategy_name: String,
+    /// Threshold value that triggers this strategy (typically a fragmentation ratio)
     pub trigger_threshold: f64,
+    /// Actions to take when the strategy is triggered
     pub actions: Vec<String>,
+    /// Expected effectiveness of this strategy (0.0-1.0)
     pub expected_effectiveness: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Current state of memory fragmentation
 pub struct CurrentFragmentationState {
+    /// Current external fragmentation ratio (0.0-1.0)
     pub external_fragmentation: f64,
+    /// Current internal fragmentation ratio (0.0-1.0)
     pub internal_fragmentation: f64,
+    /// Assessment of the current fragmentation severity
     pub severity_level: FragmentationSeverity,
+    /// Timestamp when this state was captured
     pub timestamp: u64,
 }

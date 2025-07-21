@@ -89,7 +89,7 @@ impl DatabasePool {
 
         // Simulate query result
         let result = format!("Result for: {query}").into_bytes();
-        self.query_cache.insert(query.to_string(), result.clone());
+        self.query_cache.insert(query.to_string(), result);
         result
     }
 }
@@ -137,7 +137,7 @@ impl WebServer {
             _ => b"404 Not Found".to_vec(),
         };
 
-        self.response_cache.insert(response_key, response.clone());
+        self.response_cache.insert(response_key, response);
         response
     }
 }
@@ -204,7 +204,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note: DatabasePool doesn't implement Trackable, so we track its components instead
 
     let shared_config = Arc::new(Mutex::new(HashMap::<String, String>::new()));
-    let _tracked_shared_config = track_var!(shared_config.clone());
 
     // Add some configuration
     {
@@ -213,6 +212,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.insert("cache_size".to_string(), "1024".to_string());
         config.insert("log_level".to_string(), "info".to_string());
     }
+
+    let _tracked_shared_config = track_var!(shared_config);
 
     println!("Core components initialized");
 
@@ -237,7 +238,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _tracked_db_result = track_var!(db_result);
 
             // Track the query string as well
-            let query_string = query.clone();
+            let query_string = query;
             let _tracked_query_string = track_var!(query_string);
         }
     }
@@ -274,9 +275,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Reference counted data
     let shared_data = std::rc::Rc::new(vec![0u64; 10000]);
-    let _tracked_shared_data = track_var!(shared_data.clone());
 
     let shared_clone = std::rc::Rc::clone(&shared_data);
+    let _tracked_shared_data = track_var!(shared_data);
     let _tracked_shared_clone = track_var!(shared_clone);
 
     // Thread-safe shared data
