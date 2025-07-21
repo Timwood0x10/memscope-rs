@@ -226,7 +226,7 @@ fn test_rayon_parallel_processing() {
         .collect();
 
     assert_eq!(processed.len(), 1000, "Should process all items");
-    let _tracked_processed = track_var!(processed);
+    let _tracked_processed = track_var!(processed.clone());
     assert_eq!(
         processed[0], "processed_0",
         "Should have correct first item"

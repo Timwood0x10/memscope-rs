@@ -94,7 +94,7 @@ impl VariableRegistry {
 
     /// Enhance tracker allocations with variable names from registry (optimized with parallel processing)
     pub fn enhance_allocations_with_registry(
-        allocations: &[crate::types::AllocationInfo],
+        allocations: &[crate::core::types::AllocationInfo],
     ) -> Vec<serde_json::Value> {
         // Early return for small datasets
         if allocations.len() < 100 {
@@ -127,7 +127,7 @@ impl VariableRegistry {
 
     /// Sequential processing for small datasets
     fn enhance_allocations_sequential(
-        allocations: &[crate::types::AllocationInfo],
+        allocations: &[crate::core::types::AllocationInfo],
     ) -> Vec<serde_json::Value> {
         let registry = Self::get_all_variables();
 
@@ -139,7 +139,7 @@ impl VariableRegistry {
 
     /// Classify and enhance allocations with user/system distinction and scope information
     fn classify_and_enhance_allocations(
-        allocations: &[crate::types::AllocationInfo],
+        allocations: &[crate::core::types::AllocationInfo],
         registry: &HashMap<usize, VariableInfo>,
     ) -> Vec<serde_json::Value> {
         allocations
@@ -150,7 +150,7 @@ impl VariableRegistry {
 
     /// Classify a single allocation as user or system with full context
     fn classify_single_allocation(
-        alloc: &crate::types::AllocationInfo,
+        alloc: &crate::core::types::AllocationInfo,
         registry: &HashMap<usize, VariableInfo>,
     ) -> serde_json::Value {
         // Check if this is a user-tracked variable (highest priority)
@@ -265,7 +265,7 @@ impl VariableRegistry {
     }
 
     /// Categorize system allocations for better understanding
-    fn categorize_system_allocation(alloc: &crate::types::AllocationInfo) -> String {
+    fn categorize_system_allocation(alloc: &crate::core::types::AllocationInfo) -> String {
         match alloc.size {
             1..=16 => "small_system_alloc",
             17..=64 => "medium_system_alloc",
@@ -552,7 +552,9 @@ impl VariableRegistry {
     }
 
     /// Smart inference with caching for better performance
-    pub fn infer_allocation_info_cached(alloc: &crate::types::AllocationInfo) -> (String, String) {
+    pub fn infer_allocation_info_cached(
+        alloc: &crate::core::types::AllocationInfo,
+    ) -> (String, String) {
         // Use a simple cache for common sizes to avoid repeated string formatting
         static COMMON_TYPES: &[(usize, &str, &str)] = &[
             (1, "box_u8", "Box<u8>"),
@@ -579,7 +581,7 @@ impl VariableRegistry {
     }
 
     /// Smart inference for system allocations based on size patterns and common allocations
-    pub fn infer_allocation_info(alloc: &crate::types::AllocationInfo) -> (String, String) {
+    pub fn infer_allocation_info(alloc: &crate::core::types::AllocationInfo) -> (String, String) {
         let size = alloc.size;
 
         // Common allocation size patterns for type inference
@@ -639,7 +641,7 @@ impl VariableRegistry {
 
     /// Generate comprehensive export data with clear separation of system vs user allocations
     pub fn generate_comprehensive_export(
-        tracker: &crate::tracker::MemoryTracker,
+        tracker: &crate::core::tracker::MemoryTracker,
     ) -> TrackingResult<serde_json::Value> {
         let start_time = std::time::Instant::now();
         println!("🔄 Starting comprehensive export generation with allocation classification...");

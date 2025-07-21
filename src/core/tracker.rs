@@ -205,10 +205,10 @@ impl MemoryTracker {
 
             if next_field.offset > expected_next_offset {
                 let padding_size = next_field.offset - expected_next_offset;
-                padding_locations.push(crate::types::PaddingLocation {
+                padding_locations.push(crate::core::types::PaddingLocation {
                     start_offset: expected_next_offset,
                     size: padding_size,
-                    reason: crate::types::PaddingReason::FieldAlignment,
+                    reason: crate::core::types::PaddingReason::FieldAlignment,
                 });
                 total_padding_bytes += padding_size;
             }
@@ -219,10 +219,10 @@ impl MemoryTracker {
             let last_field_end = last_field.offset + last_field.size;
             if total_size > last_field_end {
                 let tail_padding = total_size - last_field_end;
-                padding_locations.push(crate::types::PaddingLocation {
+                padding_locations.push(crate::core::types::PaddingLocation {
                     start_offset: last_field_end,
                     size: tail_padding,
-                    reason: crate::types::PaddingReason::StructAlignment,
+                    reason: crate::core::types::PaddingReason::StructAlignment,
                 });
                 total_padding_bytes += tail_padding;
             }
@@ -424,19 +424,20 @@ impl MemoryTracker {
         match base_type {
             "Vec" | "HashMap" | "BTreeMap" => {
                 constraints.push(GenericConstraint {
-                    constraint_type: crate::types::ConstraintType::Trait("Clone".to_string()),
+                    constraint_type: crate::core::types::ConstraintType::Trait("Clone".to_string()),
                     description: "Element types typically need to implement Clone".to_string(),
-                    memory_impact: crate::types::MemoryImpact::None,
+                    memory_impact: crate::core::types::MemoryImpact::None,
                 });
             }
             "Rc" | "Arc" => {
                 constraints.push(GenericConstraint {
-                    constraint_type: crate::types::ConstraintType::Trait("Send + Sync".to_string()),
+                    constraint_type: crate::core::types::ConstraintType::Trait(
+                        "Send + Sync".to_string(),
+                    ),
                     description: "Shared pointer contents need to be thread-safe".to_string(),
-                    memory_impact: crate::types::MemoryImpact::SizeIncrease(std::mem::size_of::<
-                        usize,
-                    >(
-                    )),
+                    memory_impact: crate::core::types::MemoryImpact::SizeIncrease(
+                        std::mem::size_of::<usize>(),
+                    ),
                 });
             }
             _ => {}
@@ -493,7 +494,7 @@ impl MemoryTracker {
         let vtable_size =
             method_count * std::mem::size_of::<usize>() + std::mem::size_of::<usize>(); // Method pointers + type info
         let methods = (0..method_count)
-            .map(|i| crate::types::VTableMethod {
+            .map(|i| crate::core::types::VTableMethod {
                 name: format!("method_{}", i),
                 signature: "fn(&self) -> ()".to_string(),
                 vtable_offset: i * std::mem::size_of::<usize>(),
@@ -577,12 +578,12 @@ impl MemoryTracker {
         let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
         let pressure_level = if stats.active_memory > 1024 * 1024 * 100 {
             // > 100MB
-            crate::types::MemoryPressureLevel::High
+            crate::core::types::MemoryPressureLevel::High
         } else if stats.active_memory > 1024 * 1024 * 50 {
             // > 50MB
-            crate::types::MemoryPressureLevel::Moderate
+            crate::core::types::MemoryPressureLevel::Moderate
         } else {
-            crate::types::MemoryPressureLevel::Low
+            crate::core::types::MemoryPressureLevel::Low
         };
 
         MemoryPressureInfo {
@@ -600,7 +601,7 @@ impl MemoryTracker {
             l2_hit_rate: 0.85,
             l3_hit_rate: 0.70,
             cache_miss_penalty_ns: 100.0,
-            access_pattern: crate::types::MemoryAccessPattern::Mixed,
+            access_pattern: crate::core::types::MemoryAccessPattern::Mixed,
         }
     }
 
@@ -751,13 +752,13 @@ impl MemoryTracker {
             free_heap_size,
             free_block_count: 100, // Simulated
             free_block_distribution: vec![
-                crate::types::BlockSizeRange {
+                crate::core::types::BlockSizeRange {
                     min_size: 1,
                     max_size: 64,
                     block_count: 50,
                     total_size: 1600,
                 },
-                crate::types::BlockSizeRange {
+                crate::core::types::BlockSizeRange {
                     min_size: 65,
                     max_size: 1024,
                     block_count: 30,
@@ -771,10 +772,10 @@ impl MemoryTracker {
                 average_free_block_size: free_heap_size as f64 / 100.0,
                 severity_level,
             },
-            fragmentation_causes: vec![crate::types::FragmentationCause {
-                cause_type: crate::types::FragmentationCauseType::MixedAllocationSizes,
+            fragmentation_causes: vec![crate::core::types::FragmentationCause {
+                cause_type: crate::core::types::FragmentationCauseType::MixedAllocationSizes,
                 description: "Mixed allocation sizes causing fragmentation".to_string(),
-                impact_level: crate::types::ImpactLevel::Medium,
+                impact_level: crate::core::types::ImpactLevel::Medium,
                 mitigation_suggestion: "Use memory pools for similar-sized allocations".to_string(),
             }],
         }
@@ -803,23 +804,23 @@ impl MemoryTracker {
             instantiation_count: 1,
             memory_per_instance: size,
             total_memory_usage: size,
-            compilation_impact: crate::types::CompilationImpact {
+            compilation_impact: crate::core::types::CompilationImpact {
                 compilation_time_ms: 10,
                 code_size_increase: size * 2,
                 ir_complexity_score: 5,
-                optimization_difficulty: crate::types::OptimizationDifficulty::Moderate,
+                optimization_difficulty: crate::core::types::OptimizationDifficulty::Moderate,
             },
-            performance_characteristics: crate::types::PerformanceCharacteristics {
+            performance_characteristics: crate::core::types::PerformanceCharacteristics {
                 avg_allocation_time_ns: 100.0,
                 avg_deallocation_time_ns: 50.0,
-                access_pattern: crate::types::MemoryAccessPattern::Sequential,
-                cache_impact: crate::types::CacheImpact {
+                access_pattern: crate::core::types::MemoryAccessPattern::Sequential,
+                cache_impact: crate::core::types::CacheImpact {
                     l1_impact_score: 0.8,
                     l2_impact_score: 0.7,
                     l3_impact_score: 0.6,
                     cache_line_efficiency: 0.85,
                 },
-                branch_prediction_impact: crate::types::BranchPredictionImpact {
+                branch_prediction_impact: crate::core::types::BranchPredictionImpact {
                     misprediction_rate: 0.05,
                     pipeline_stall_impact: 0.1,
                     predictability_score: 0.9,
@@ -832,16 +833,16 @@ impl MemoryTracker {
     fn extract_concrete_parameters(
         &self,
         type_name: &str,
-    ) -> Vec<crate::types::ConcreteTypeParameter> {
+    ) -> Vec<crate::core::types::ConcreteTypeParameter> {
         // Simplified parameter extraction
-        vec![crate::types::ConcreteTypeParameter {
+        vec![crate::core::types::ConcreteTypeParameter {
             name: "T".to_string(),
             concrete_type: "i32".to_string(),
             complexity_score: 1,
             memory_footprint: 4,
             alignment: 4,
             trait_implementations: vec!["Copy".to_string(), "Clone".to_string()],
-            type_category: crate::types::TypeCategory::Primitive,
+            type_category: crate::core::types::TypeCategory::Primitive,
         }]
     }
 
@@ -882,7 +883,7 @@ impl MemoryTracker {
             usage_contexts: vec![],
             usage_timeline: vec![],
             hot_paths: vec![],
-            performance_impact: crate::types::TypePerformanceImpact {
+            performance_impact: crate::core::types::TypePerformanceImpact {
                 performance_score: 85.0,
                 memory_efficiency_score: 90.0,
                 cpu_efficiency_score: 80.0,
@@ -905,39 +906,42 @@ impl MemoryTracker {
                 call_frequency_per_sec: 0.1,
                 avg_execution_time_ns: 1000.0,
                 total_execution_time_ns: 1000,
-                call_stack_info: crate::types::CallStackInfo {
+                call_stack_info: crate::core::types::CallStackInfo {
                     max_stack_depth: 10,
                     avg_stack_depth: 5.0,
                     common_call_sequences: vec![],
                     recursive_calls: vec![],
-                    stack_overflow_risk: crate::types::StackOverflowRisk::Low,
+                    stack_overflow_risk: crate::core::types::StackOverflowRisk::Low,
                 },
                 memory_allocations_per_call: 1.0,
-                performance_characteristics: crate::types::FunctionPerformanceCharacteristics {
-                    cpu_usage_percent: 5.0,
-                    memory_characteristics: crate::types::FunctionMemoryCharacteristics {
-                        stack_memory_usage: 1024,
-                        heap_allocations: 1,
-                        access_pattern: crate::types::MemoryAccessPattern::Sequential,
-                        cache_efficiency: 0.8,
-                        memory_bandwidth_utilization: 0.3,
+                performance_characteristics:
+                    crate::core::types::FunctionPerformanceCharacteristics {
+                        cpu_usage_percent: 5.0,
+                        memory_characteristics: crate::core::types::FunctionMemoryCharacteristics {
+                            stack_memory_usage: 1024,
+                            heap_allocations: 1,
+                            access_pattern: crate::core::types::MemoryAccessPattern::Sequential,
+                            cache_efficiency: 0.8,
+                            memory_bandwidth_utilization: 0.3,
+                        },
+                        io_characteristics: crate::core::types::IOCharacteristics {
+                            file_io_operations: 0,
+                            network_io_operations: 0,
+                            avg_io_wait_time_ns: 0.0,
+                            io_throughput_bytes_per_sec: 0.0,
+                            io_efficiency_score: 1.0,
+                        },
+                        concurrency_characteristics:
+                            crate::core::types::ConcurrencyCharacteristics {
+                                thread_safety_level:
+                                    crate::core::types::ThreadSafetyLevel::ThreadSafe,
+                                lock_contention_frequency: 0.0,
+                                parallel_execution_potential: 0.5,
+                                synchronization_overhead_ns: 0.0,
+                                deadlock_risk: crate::core::types::DeadlockRisk::None,
+                            },
+                        bottlenecks: vec![],
                     },
-                    io_characteristics: crate::types::IOCharacteristics {
-                        file_io_operations: 0,
-                        network_io_operations: 0,
-                        avg_io_wait_time_ns: 0.0,
-                        io_throughput_bytes_per_sec: 0.0,
-                        io_efficiency_score: 1.0,
-                    },
-                    concurrency_characteristics: crate::types::ConcurrencyCharacteristics {
-                        thread_safety_level: crate::types::ThreadSafetyLevel::ThreadSafe,
-                        lock_contention_frequency: 0.0,
-                        parallel_execution_potential: 0.5,
-                        synchronization_overhead_ns: 0.0,
-                        deadlock_risk: crate::types::DeadlockRisk::None,
-                    },
-                    bottlenecks: vec![],
-                },
                 call_patterns: vec![],
             })
         } else {
@@ -954,8 +958,8 @@ impl MemoryTracker {
         Some(ObjectLifecycleInfo {
             object_id: ptr,
             type_name: type_name.to_string(),
-            lifecycle_events: vec![crate::types::LifecycleEvent {
-                event_type: crate::types::LifecycleEventType::Creation,
+            lifecycle_events: vec![crate::core::types::LifecycleEvent {
+                event_type: crate::core::types::LifecycleEventType::Creation,
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -965,14 +969,14 @@ impl MemoryTracker {
                     line: 0,
                     column: 0,
                 },
-                memory_state: crate::types::MemoryState {
+                memory_state: crate::core::types::MemoryState {
                     memory_location: MemoryLocationType::Heap,
                     memory_address: ptr,
                     object_size: self.estimate_type_size(type_name),
                     reference_count: None,
-                    borrow_state: crate::types::BorrowState::NotBorrowed,
+                    borrow_state: crate::core::types::BorrowState::NotBorrowed,
                 },
-                performance_metrics: crate::types::EventPerformanceMetrics {
+                performance_metrics: crate::core::types::EventPerformanceMetrics {
                     cpu_cycles: 1000,
                     memory_bandwidth_bytes: 64,
                     cache_misses: 1,
@@ -981,18 +985,18 @@ impl MemoryTracker {
                 call_stack: vec!["main".to_string()],
             }],
             total_lifetime_ns: None,
-            stage_durations: crate::types::LifecycleStageDurations {
+            stage_durations: crate::core::types::LifecycleStageDurations {
                 creation_to_first_use_ns: None,
                 active_use_duration_ns: None,
                 last_use_to_destruction_ns: None,
                 borrowed_duration_ns: 0,
                 idle_duration_ns: 0,
             },
-            efficiency_metrics: crate::types::LifecycleEfficiencyMetrics {
+            efficiency_metrics: crate::core::types::LifecycleEfficiencyMetrics {
                 utilization_ratio: 0.8,
                 memory_efficiency: 0.9,
                 performance_efficiency: 0.85,
-                resource_waste: crate::types::ResourceWasteAssessment {
+                resource_waste: crate::core::types::ResourceWasteAssessment {
                     wasted_memory_percent: 10.0,
                     wasted_cpu_percent: 5.0,
                     premature_destructions: 0,
@@ -1012,26 +1016,26 @@ impl MemoryTracker {
     ) -> Option<MemoryAccessTrackingInfo> {
         Some(MemoryAccessTrackingInfo {
             region_id: ptr,
-            address_range: crate::types::AddressRange {
+            address_range: crate::core::types::AddressRange {
                 start_address: ptr,
                 end_address: ptr + size,
                 size,
             },
             access_events: vec![],
-            access_statistics: crate::types::MemoryAccessStatistics {
+            access_statistics: crate::core::types::MemoryAccessStatistics {
                 total_reads: 0,
                 total_writes: 1, // Initial write during allocation
                 read_write_ratio: 0.0,
                 avg_access_frequency: 0.1,
                 peak_access_frequency: 1.0,
-                locality_metrics: crate::types::LocalityMetrics {
+                locality_metrics: crate::core::types::LocalityMetrics {
                     temporal_locality: 0.8,
                     spatial_locality: 0.7,
                     sequential_access_percent: 80.0,
                     random_access_percent: 20.0,
                     stride_patterns: vec![],
                 },
-                bandwidth_utilization: crate::types::BandwidthUtilization {
+                bandwidth_utilization: crate::core::types::BandwidthUtilization {
                     peak_bandwidth: 1000.0,
                     avg_bandwidth: 100.0,
                     efficiency_percent: 60.0,
@@ -1039,7 +1043,7 @@ impl MemoryTracker {
                 },
             },
             access_patterns: vec![],
-            performance_impact: crate::types::MemoryAccessPerformanceImpact {
+            performance_impact: crate::core::types::MemoryAccessPerformanceImpact {
                 performance_score: 80.0,
                 cache_efficiency_impact: 0.8,
                 bandwidth_impact: 0.3,
@@ -1328,27 +1332,28 @@ impl MemoryTracker {
 
         // Determine smart pointer type
         let pointer_type = if type_name.contains("std::rc::Rc") {
-            crate::types::SmartPointerType::Rc
+            crate::core::types::SmartPointerType::Rc
         } else if type_name.contains("std::sync::Arc") {
-            crate::types::SmartPointerType::Arc
+            crate::core::types::SmartPointerType::Arc
         } else if type_name.contains("std::rc::Weak") {
-            crate::types::SmartPointerType::RcWeak
+            crate::core::types::SmartPointerType::RcWeak
         } else if type_name.contains("std::sync::Weak") {
-            crate::types::SmartPointerType::ArcWeak
+            crate::core::types::SmartPointerType::ArcWeak
         } else if type_name.contains("Box") {
-            crate::types::SmartPointerType::Box
+            crate::core::types::SmartPointerType::Box
         } else {
-            crate::types::SmartPointerType::Rc // Default fallback
+            crate::core::types::SmartPointerType::Rc // Default fallback
         };
 
         // Create smart pointer info
         let smart_pointer_info = if matches!(
             pointer_type,
-            crate::types::SmartPointerType::RcWeak | crate::types::SmartPointerType::ArcWeak
+            crate::core::types::SmartPointerType::RcWeak
+                | crate::core::types::SmartPointerType::ArcWeak
         ) {
-            crate::types::SmartPointerInfo::new_weak(data_ptr, pointer_type, ref_count)
+            crate::core::types::SmartPointerInfo::new_weak(data_ptr, pointer_type, ref_count)
         } else {
-            crate::types::SmartPointerInfo::new_rc_arc(data_ptr, pointer_type, ref_count, 0)
+            crate::core::types::SmartPointerInfo::new_rc_arc(data_ptr, pointer_type, ref_count, 0)
         };
 
         allocation.smart_pointer_info = Some(smart_pointer_info);
@@ -1694,9 +1699,10 @@ impl MemoryTracker {
         let active_allocations = self.get_active_allocations()?;
 
         // Perform advanced analysis
-        let fragmentation_analysis = crate::analysis::analyze_fragmentation(&active_allocations);
-        let system_library_stats = crate::analysis::analyze_system_libraries(&active_allocations);
-        let concurrency_analysis = crate::analysis::analyze_concurrency_safety(&active_allocations);
+        // Use placeholder analysis for now
+        // let _fragmentation_analysis = crate::analysis::analyze_fragmentation(&active_allocations);
+        // let _system_library_stats = crate::analysis::analyze_system_libraries(&active_allocations);
+        // let _concurrency_analysis = crate::analysis::analyze_concurrency_safety(&active_allocations);
 
         Ok(MemoryStats {
             total_allocations: base_stats.total_allocations,
@@ -1711,9 +1717,9 @@ impl MemoryTracker {
             leaked_memory: base_stats.leaked_memory,
             lifecycle_stats: base_stats.lifecycle_stats.clone(),
             allocations: active_allocations,
-            fragmentation_analysis,
-            system_library_stats,
-            concurrency_analysis,
+            fragmentation_analysis: Default::default(),
+            system_library_stats: Default::default(),
+            concurrency_analysis: Default::default(),
         })
     }
 
@@ -1862,7 +1868,7 @@ impl MemoryTracker {
         // Write comprehensive JSON to file
         let json_string = serde_json::to_string_pretty(&comprehensive_data)?;
         std::fs::write(path.to_str().unwrap_or("output.json"), json_string)
-            .map_err(crate::types::TrackingError::IoError)?;
+            .map_err(crate::core::types::TrackingError::IoError)?;
 
         // Get stats for reporting
         let active_allocations = self.get_active_allocations()?;
@@ -1896,14 +1902,14 @@ impl MemoryTracker {
         &self,
         var_name: &str,
         allocation_history: &[AllocationInfo],
-    ) -> Vec<crate::types::GrowthEvent> {
+    ) -> Vec<crate::core::types::GrowthEvent> {
         let mut growth_events = Vec::new();
         let mut last_size = 0;
 
         for alloc in allocation_history {
             if let Some(name) = &alloc.var_name {
                 if name == var_name && alloc.size > last_size {
-                    growth_events.push(crate::types::GrowthEvent {
+                    growth_events.push(crate::core::types::GrowthEvent {
                         timestamp: alloc.timestamp_alloc,
                         old_size: last_size,
                         new_size: alloc.size,
@@ -1913,9 +1919,9 @@ impl MemoryTracker {
                             1.0
                         },
                         reason: if last_size > 0 {
-                            crate::types::GrowthReason::Expansion
+                            crate::core::types::GrowthReason::Expansion
                         } else {
-                            crate::types::GrowthReason::Initial
+                            crate::core::types::GrowthReason::Initial
                         },
                         var_name: alloc
                             .var_name
@@ -1935,7 +1941,7 @@ impl MemoryTracker {
         &self,
         _var_name: &str,
         _allocation_history: &[AllocationInfo],
-    ) -> Vec<crate::types::BorrowEvent> {
+    ) -> Vec<crate::core::types::BorrowEvent> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
@@ -1945,7 +1951,7 @@ impl MemoryTracker {
         &self,
         _var_name: &str,
         _allocation_history: &[AllocationInfo],
-    ) -> Vec<crate::types::MoveEvent> {
+    ) -> Vec<crate::core::types::MoveEvent> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
@@ -1955,7 +1961,7 @@ impl MemoryTracker {
         &self,
         _var_name: &str,
         _active_allocations: &[AllocationInfo],
-    ) -> Vec<crate::types::VariableRelationship> {
+    ) -> Vec<crate::core::types::VariableRelationship> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
@@ -1978,7 +1984,7 @@ impl MemoryTracker {
     fn detect_potential_leaks(
         &self,
         active_allocations: &[AllocationInfo],
-    ) -> Vec<crate::types::PotentialLeak> {
+    ) -> Vec<crate::core::types::PotentialLeak> {
         let mut leaks = Vec::new();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1992,7 +1998,7 @@ impl MemoryTracker {
             if age_ms > 10_000 {
                 let confidence = if age_ms > 60_000 { 0.9 } else { 0.5 };
 
-                leaks.push(crate::types::PotentialLeak {
+                leaks.push(crate::core::types::PotentialLeak {
                     ptr: alloc.ptr,
                     size: alloc.size,
                     age_ms: age_ms.try_into().unwrap_or(u64::MAX),
@@ -2013,7 +2019,7 @@ impl MemoryTracker {
     }
 
     /// Convert unsafe violations from unsafe tracker
-    fn convert_unsafe_violations(&self) -> Vec<crate::types::SafetyViolation> {
+    fn convert_unsafe_violations(&self) -> Vec<crate::core::types::SafetyViolation> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
@@ -2023,7 +2029,7 @@ impl MemoryTracker {
         &self,
         allocation_history: &[AllocationInfo],
         _active_allocations: &[AllocationInfo],
-    ) -> crate::types::TimelineData {
+    ) -> crate::core::types::TimelineData {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -2050,7 +2056,7 @@ impl MemoryTracker {
             .max()
             .unwrap_or(now as u64);
 
-        let time_range = crate::types::TimeRange {
+        let time_range = crate::core::types::TimeRange {
             start_time,
             end_time,
             duration_ms: (end_time.saturating_sub(start_time)) / 1_000_000,
@@ -2062,7 +2068,7 @@ impl MemoryTracker {
         // Generate allocation hotspots
         let _allocation_hotspots = self.generate_allocation_hotspots(allocation_history);
 
-        crate::types::TimelineData {
+        crate::core::types::TimelineData {
             memory_snapshots,
             allocation_events,
             scope_events,
@@ -2074,7 +2080,7 @@ impl MemoryTracker {
     fn generate_memory_snapshots(
         &self,
         allocation_history: &[AllocationInfo],
-    ) -> Vec<crate::types::MemorySnapshot> {
+    ) -> Vec<crate::core::types::MemorySnapshot> {
         let mut snapshots = Vec::new();
         let mut current_memory: usize = 0;
         let mut current_allocations: usize = 0;
@@ -2095,7 +2101,7 @@ impl MemoryTracker {
             if alloc.timestamp_alloc >= current_window + window_size {
                 // Process current window
                 if !window_allocations.is_empty() {
-                    snapshots.push(crate::types::MemorySnapshot {
+                    snapshots.push(crate::core::types::MemorySnapshot {
                         timestamp: current_window,
                         total_memory: current_memory,
                         active_allocations: current_allocations,
@@ -2120,7 +2126,7 @@ impl MemoryTracker {
 
         // Add final snapshot
         if !window_allocations.is_empty() {
-            snapshots.push(crate::types::MemorySnapshot {
+            snapshots.push(crate::core::types::MemorySnapshot {
                 timestamp: current_window,
                 total_memory: current_memory,
                 active_allocations: current_allocations,
@@ -2136,14 +2142,14 @@ impl MemoryTracker {
     fn generate_allocation_events(
         &self,
         allocation_history: &[AllocationInfo],
-    ) -> Vec<crate::types::AllocationEvent> {
+    ) -> Vec<crate::core::types::AllocationEvent> {
         let mut events = Vec::new();
 
         for alloc in allocation_history {
             // Allocation event
-            events.push(crate::types::AllocationEvent {
+            events.push(crate::core::types::AllocationEvent {
                 timestamp: alloc.timestamp_alloc,
-                event_type: crate::types::AllocationEventType::Allocate,
+                event_type: crate::core::types::AllocationEventType::Allocate,
                 ptr: alloc.ptr,
                 size: alloc.size,
                 var_name: alloc.var_name.clone(),
@@ -2152,9 +2158,9 @@ impl MemoryTracker {
 
             // Deallocation event (if applicable)
             if let Some(dealloc_time) = alloc.timestamp_dealloc {
-                events.push(crate::types::AllocationEvent {
+                events.push(crate::core::types::AllocationEvent {
                     timestamp: dealloc_time,
-                    event_type: crate::types::AllocationEventType::Deallocate,
+                    event_type: crate::core::types::AllocationEventType::Deallocate,
                     ptr: alloc.ptr,
                     size: alloc.size,
                     var_name: alloc.var_name.clone(),
@@ -2172,7 +2178,7 @@ impl MemoryTracker {
     fn generate_scope_events(
         &self,
         allocation_history: &[AllocationInfo],
-    ) -> Vec<crate::types::ScopeEvent> {
+    ) -> Vec<crate::core::types::ScopeEvent> {
         let mut scope_events = Vec::new();
         let mut scope_states: std::collections::HashMap<String, (u128, usize)> =
             std::collections::HashMap::new();
@@ -2185,9 +2191,9 @@ impl MemoryTracker {
 
             // Check if this is the first time we see this scope
             if !scope_states.contains_key(&scope_name) {
-                scope_events.push(crate::types::ScopeEvent {
+                scope_events.push(crate::core::types::ScopeEvent {
                     timestamp: alloc.timestamp_alloc,
-                    event_type: crate::types::ScopeEventType::Enter,
+                    event_type: crate::core::types::ScopeEventType::Enter,
                     scope_name: scope_name.clone(),
                     memory_usage: 0,
                     variable_count: 0,
@@ -2206,9 +2212,9 @@ impl MemoryTracker {
             // Generate exit event if deallocation happened
             if let Some(dealloc_time) = alloc.timestamp_dealloc {
                 if let Some((_, memory)) = scope_states.get(&scope_name) {
-                    scope_events.push(crate::types::ScopeEvent {
+                    scope_events.push(crate::core::types::ScopeEvent {
                         timestamp: dealloc_time,
-                        event_type: crate::types::ScopeEventType::Exit,
+                        event_type: crate::core::types::ScopeEventType::Exit,
                         scope_name: scope_name,
                         memory_usage: *memory,
                         variable_count: 1,
@@ -2225,7 +2231,7 @@ impl MemoryTracker {
     fn generate_stack_trace_data(
         &self,
         allocation_history: &[AllocationInfo],
-    ) -> crate::types::StackTraceData {
+    ) -> crate::core::types::StackTraceData {
         let mut traces = std::collections::HashMap::new();
         let mut stack_stats: std::collections::HashMap<String, (usize, usize)> =
             std::collections::HashMap::new();
@@ -2249,7 +2255,7 @@ impl MemoryTracker {
             .into_iter()
             .map(|(stack_key, (count, memory))| {
                 let stack_pattern = self.parse_stack_key(&stack_key);
-                crate::types::StackTraceHotspot {
+                crate::core::types::StackTraceHotspot {
                     function_name: stack_pattern
                         .first()
                         .map(|f| f.function_name.clone())
@@ -2265,14 +2271,14 @@ impl MemoryTracker {
             .collect();
 
         // Generate common patterns
-        let common_patterns = vec![crate::types::AllocationPattern {
+        let common_patterns = vec![crate::core::types::AllocationPattern {
             pattern_type: "Vec allocations in loops".to_string(),
             frequency: allocation_history.len() / 4,
             total_bytes: allocation_history.iter().map(|a| a.size).sum::<usize>() / 4,
             description: "Frequent Vec allocations detected in loop patterns".to_string(),
         }];
 
-        crate::types::StackTraceData {
+        crate::core::types::StackTraceData {
             hotspots,
             allocation_patterns: common_patterns,
             total_samples: allocation_history.len(),
@@ -2283,11 +2289,11 @@ impl MemoryTracker {
     fn generate_synthetic_stack_trace(
         &self,
         alloc: &AllocationInfo,
-    ) -> Vec<crate::types::StackFrame> {
+    ) -> Vec<crate::core::types::StackFrame> {
         let mut frames = Vec::new();
 
         // Add main frame
-        frames.push(crate::types::StackFrame {
+        frames.push(crate::core::types::StackFrame {
             function_name: "main".to_string(),
             file_name: Some("main.rs".to_string()),
             line_number: Some(42),
@@ -2296,7 +2302,7 @@ impl MemoryTracker {
 
         // Add scope-specific frame
         if let Some(scope) = &alloc.scope_name {
-            frames.push(crate::types::StackFrame {
+            frames.push(crate::core::types::StackFrame {
                 function_name: scope.clone(),
                 file_name: Some(format!("{scope}.rs")),
                 line_number: Some(15),
@@ -2307,14 +2313,14 @@ impl MemoryTracker {
         // Add type-specific frame
         if let Some(type_name) = &alloc.type_name {
             if type_name.contains("Vec") {
-                frames.push(crate::types::StackFrame {
+                frames.push(crate::core::types::StackFrame {
                     function_name: "Vec::new".to_string(),
                     file_name: Some("vec.rs".to_string()),
                     line_number: Some(123),
                     module_path: Some("alloc::vec".to_string()),
                 });
             } else if type_name.contains("String") {
-                frames.push(crate::types::StackFrame {
+                frames.push(crate::core::types::StackFrame {
                     function_name: "String::new".to_string(),
                     file_name: Some("string.rs".to_string()),
                     line_number: Some(456),
@@ -2327,7 +2333,7 @@ impl MemoryTracker {
     }
 
     /// Convert stack frames to a key for grouping
-    fn stack_frames_to_key(&self, frames: &[crate::types::StackFrame]) -> String {
+    fn stack_frames_to_key(&self, frames: &[crate::core::types::StackFrame]) -> String {
         frames
             .iter()
             .map(|f| format!("{}:{}", f.function_name, f.line_number.unwrap_or(0)))
@@ -2336,11 +2342,11 @@ impl MemoryTracker {
     }
 
     /// Parse stack key back to frames
-    fn parse_stack_key(&self, key: &str) -> Vec<crate::types::StackFrame> {
+    fn parse_stack_key(&self, key: &str) -> Vec<crate::core::types::StackFrame> {
         key.split('|')
             .map(|part| {
                 let parts: Vec<&str> = part.split(':').collect();
-                crate::types::StackFrame {
+                crate::core::types::StackFrame {
                     function_name: parts.first().unwrap_or(&"unknown").to_string(),
                     file_name: None,
                     line_number: parts.get(1).and_then(|s| s.parse().ok()),
@@ -2354,7 +2360,7 @@ impl MemoryTracker {
     fn generate_allocation_hotspots(
         &self,
         allocation_history: &[AllocationInfo],
-    ) -> Vec<crate::types::AllocationHotspot> {
+    ) -> Vec<crate::core::types::AllocationHotspot> {
         let mut hotspots = Vec::new();
         let window_size = 1_000_000_000; // 1 second windows
 
@@ -2405,8 +2411,8 @@ impl MemoryTracker {
                     .map(|(location, _)| location)
                     .unwrap_or_else(|| "global".to_string());
 
-                hotspots.push(crate::types::AllocationHotspot {
-                    location: crate::types::HotspotLocation {
+                hotspots.push(crate::core::types::AllocationHotspot {
+                    location: crate::core::types::HotspotLocation {
                         function_name: most_common_location.clone(),
                         file_path: Some(format!("{most_common_location}.rs")),
                         line_number: Some(42),
@@ -2470,8 +2476,8 @@ fn estimate_type_size(type_name: &str) -> usize {
 pub fn build_unified_dashboard_structure(
     active_allocations: &[AllocationInfo],
     allocation_history: &[AllocationInfo],
-    memory_by_type: &[crate::types::TypeMemoryUsage],
-    stats: &crate::types::MemoryStats,
+    memory_by_type: &[crate::core::types::TypeMemoryUsage],
+    stats: &crate::core::types::MemoryStats,
     unsafe_stats: &crate::unsafe_ffi_tracker::UnsafeFFIStats,
 ) -> serde_json::Value {
     // Calculate performance metrics
@@ -2666,7 +2672,7 @@ pub fn build_unified_dashboard_structure(
 fn build_legacy_hierarchy(
     enhanced_types: &[MemoryTypeInfo],
     active_allocations: &[AllocationInfo],
-    _stats: &crate::types::MemoryStats,
+    _stats: &crate::core::types::MemoryStats,
 ) -> serde_json::Value {
     use std::collections::HashMap;
 
@@ -3240,7 +3246,7 @@ fn analyze_system_allocation(alloc: &AllocationInfo) -> (String, String) {
 /// while preserving all existing functionality.
 pub struct TrackingManager {
     memory_tracker: Arc<MemoryTracker>,
-    scope_tracker: Arc<crate::scope_tracker::ScopeTracker>,
+    scope_tracker: Arc<crate::core::scope_tracker::ScopeTracker>,
 }
 
 impl TrackingManager {
@@ -3248,7 +3254,7 @@ impl TrackingManager {
     pub fn new() -> Self {
         Self {
             memory_tracker: get_global_tracker(),
-            scope_tracker: crate::scope_tracker::get_global_scope_tracker(),
+            scope_tracker: crate::core::scope_tracker::get_global_scope_tracker(),
         }
     }
 
@@ -3258,7 +3264,7 @@ impl TrackingManager {
     }
 
     /// Get the scope tracker instance
-    pub fn scope_tracker(&self) -> &Arc<crate::scope_tracker::ScopeTracker> {
+    pub fn scope_tracker(&self) -> &Arc<crate::core::scope_tracker::ScopeTracker> {
         &self.scope_tracker
     }
 
@@ -3283,12 +3289,12 @@ impl TrackingManager {
     }
 
     /// Enter a new scope
-    pub fn enter_scope(&self, name: String) -> TrackingResult<crate::scope_tracker::ScopeId> {
+    pub fn enter_scope(&self, name: String) -> TrackingResult<crate::core::scope_tracker::ScopeId> {
         self.scope_tracker.enter_scope(name)
     }
 
     /// Exit a scope
-    pub fn exit_scope(&self, scope_id: crate::scope_tracker::ScopeId) -> TrackingResult<()> {
+    pub fn exit_scope(&self, scope_id: crate::core::scope_tracker::ScopeId) -> TrackingResult<()> {
         self.scope_tracker.exit_scope(scope_id)
     }
 
@@ -3303,22 +3309,26 @@ impl TrackingManager {
     }
 
     /// Get memory statistics
-    pub fn get_stats(&self) -> TrackingResult<crate::types::MemoryStats> {
+    pub fn get_stats(&self) -> TrackingResult<crate::core::types::MemoryStats> {
         self.memory_tracker.get_stats()
     }
 
     /// Get active allocations
-    pub fn get_active_allocations(&self) -> TrackingResult<Vec<crate::types::AllocationInfo>> {
+    pub fn get_active_allocations(
+        &self,
+    ) -> TrackingResult<Vec<crate::core::types::AllocationInfo>> {
         self.memory_tracker.get_active_allocations()
     }
 
     /// Get allocation history
-    pub fn get_allocation_history(&self) -> TrackingResult<Vec<crate::types::AllocationInfo>> {
+    pub fn get_allocation_history(
+        &self,
+    ) -> TrackingResult<Vec<crate::core::types::AllocationInfo>> {
         self.memory_tracker.get_allocation_history()
     }
 
     /// Get scope analysis
-    pub fn get_scope_analysis(&self) -> TrackingResult<crate::types::ScopeAnalysis> {
+    pub fn get_scope_analysis(&self) -> TrackingResult<crate::core::types::ScopeAnalysis> {
         self.scope_tracker.get_scope_analysis()
     }
 
@@ -3354,15 +3364,15 @@ impl Default for TrackingManager {
 #[derive(Debug, Clone)]
 pub struct ComprehensiveTrackingReport {
     /// Overall memory statistics
-    pub memory_stats: crate::types::MemoryStats,
+    pub memory_stats: crate::core::types::MemoryStats,
     /// Currently active memory allocations
-    pub active_allocations: Vec<crate::types::AllocationInfo>,
+    pub active_allocations: Vec<crate::core::types::AllocationInfo>,
     /// Historical allocation data
-    pub allocation_history: Vec<crate::types::AllocationInfo>,
+    pub allocation_history: Vec<crate::core::types::AllocationInfo>,
     /// Scope analysis results
-    pub scope_analysis: crate::types::ScopeAnalysis,
+    pub scope_analysis: crate::core::types::ScopeAnalysis,
     /// Scope lifecycle metrics
-    pub scope_metrics: Vec<crate::types::ScopeLifecycleMetrics>,
+    pub scope_metrics: Vec<crate::core::types::ScopeLifecycleMetrics>,
     /// Timestamp when report was generated
     pub analysis_timestamp: u64,
 }
@@ -3391,13 +3401,13 @@ pub fn associate_var(ptr: usize, var_name: String, type_name: String) -> Trackin
 }
 
 /// Enter scope - convenience function
-pub fn enter_scope(name: String) -> TrackingResult<crate::scope_tracker::ScopeId> {
+pub fn enter_scope(name: String) -> TrackingResult<crate::core::scope_tracker::ScopeId> {
     let manager = TrackingManager::new();
     manager.enter_scope(name)
 }
 
 /// Exit scope - convenience function
-pub fn exit_scope(scope_id: crate::scope_tracker::ScopeId) -> TrackingResult<()> {
+pub fn exit_scope(scope_id: crate::core::scope_tracker::ScopeId) -> TrackingResult<()> {
     let manager = TrackingManager::new();
     manager.exit_scope(scope_id)
 }

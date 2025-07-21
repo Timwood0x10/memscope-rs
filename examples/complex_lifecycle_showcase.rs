@@ -305,7 +305,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
             .push_back(format!("SELECT * FROM table_{i}"));
     }
     let boxed_db_conn = Box::new(db_conn);
-    let _tracked_boxed_db_conn = track_var!(boxed_db_conn);
+    let _tracked_boxed_db_conn = track_var!(boxed_db_conn.clone());
     println!(
         "✓ Box<DatabaseConnection>: {} connections, {} active queries",
         boxed_db_conn.connection_pool.len(),

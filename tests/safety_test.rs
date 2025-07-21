@@ -231,7 +231,7 @@ fn test_trackable_trait_edge_cases() {
 
     // Test with capacity but no elements
     let mut vec_with_capacity = Vec::with_capacity(100);
-    let result = track_var!(vec_with_capacity);
+    let result = track_var!(vec_with_capacity.clone());
     assert!(true, "Should handle Vec with capacity");
 
     // Add elements after tracking
@@ -316,7 +316,7 @@ fn test_thread_local_recursion_prevention() {
 
         // Also create some vectors (but store as strings for consistency)
         let vec_data = vec![i; 10];
-        let _ = track_var!(vec_data);
+        let _ = track_var!(vec_data.clone());
         allocations.push(format!("Vec data: {vec_data:?}"));
     }
 

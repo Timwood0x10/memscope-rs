@@ -2,6 +2,8 @@
 //!
 //! This module provides the test subcommand functionality.
 
+use crate::core::tracker::get_global_tracker;
+use crate::track_var;
 use clap::ArgMatches;
 use std::error::Error;
 
@@ -63,7 +65,7 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn _original_main() {
+fn test_enhanced_memory_analysis() {
     // Create some test allocations
     let vec1 = track_var!(vec![1, 2, 3, 4, 5]);
     let vec2 = track_var!(vec![6, 7, 8, 9, 10]);
@@ -76,7 +78,7 @@ fn _original_main() {
     }
 
     // Get all allocations
-    let tracker = memscope_rs::get_global_tracker();
+    let tracker = get_global_tracker();
     let allocations = match tracker.get_active_allocations() {
         Ok(allocs) => allocs,
         Err(e) => {
@@ -86,44 +88,13 @@ fn _original_main() {
     };
 
     // Run enhanced analysis
-    let report = analyze_memory_with_enhanced_features(&allocations);
+    let report = crate::analysis::analyze_memory_with_enhanced_features()
+        .unwrap_or_else(|e| format!("Error: {}", e));
 
     // Print summary
     println!("Enhanced Memory Analysis Summary:");
     println!("--------------------------------");
-    println!("Analysis duration: {} ms", report.analysis_duration_ms);
-    println!(
-        "Stack allocations: {}",
-        report.stack_heap_analysis.stack_allocations.len()
-    );
-    println!(
-        "Heap allocations: {}",
-        report.stack_heap_analysis.heap_allocations.len()
-    );
-    println!(
-        "Temporary objects: {}",
-        report.temp_object_analysis.temporary_objects.len()
-    );
-    println!(
-        "Fragmentation level: {:.2}%",
-        report
-            .fragmentation_analysis
-            .current_fragmentation
-            .total_fragmentation_ratio
-            * 100.0
-    );
-    println!(
-        "Generic instantiations: {}",
-        report.generic_analysis.instantiation_analysis.len()
-    );
-    println!(
-        "Lifecycle reports: {}",
-        report.lifecycle_analysis.lifecycle_reports.len()
-    );
-    println!(
-        "Overall recommendations: {}",
-        report.overall_recommendations.len()
-    );
+    println!("Report: {}", report);
 
     // Keep variables alive until the end
     println!("Vec1 length: {}", vec1.len());

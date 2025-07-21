@@ -32,7 +32,7 @@ fn benchmark_allocation_tracking_overhead() {
     let mut tracked_allocations = Vec::new();
     for i in 0..iterations {
         let data = vec![i; 100];
-        let _ = track_var!(data);
+        let _ = track_var!(data.clone());
         tracked_allocations.push(data);
     }
     let tracked_duration = start.elapsed();
@@ -77,7 +77,7 @@ fn benchmark_stats_retrieval() {
     let mut allocations = Vec::new();
     for i in 0..100 {
         let data = vec![i; 50];
-        let _ = track_var!(data);
+        let _ = track_var!(data.clone());
         allocations.push(data);
     }
 
@@ -113,7 +113,7 @@ fn benchmark_export_performance() {
     let mut allocations = Vec::new();
     for i in 0..200 {
         let data = vec![i; 100];
-        let _ = track_var!(data);
+        let _ = track_var!(data.clone());
         allocations.push(data);
     }
 
@@ -266,7 +266,7 @@ fn benchmark_memory_usage_of_tracker() {
     for i in 0..100 {
         let data = vec![i; 10]; // 10 * 4 = 40 bytes each
         let ptr = data.as_ptr() as usize;
-        let _ = track_var!(data);
+        let _ = track_var!(data.clone());
         tracked_ptrs.push(ptr);
         allocations.push(data);
     }

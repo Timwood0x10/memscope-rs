@@ -92,7 +92,7 @@ pub trait Trackable {
         let type_name = self.get_type_name();
         if crate::advanced_types::is_advanced_type(type_name) {
             // Create a minimal allocation info for analysis
-            let allocation = crate::types::AllocationInfo {
+            let allocation = crate::core::types::AllocationInfo {
                 ptr: self.get_heap_ptr().unwrap_or(0),
                 size: self.get_size_estimate(),
                 var_name: None,
@@ -217,7 +217,7 @@ impl<T> Trackable for std::rc::Rc<T> {
     }
 
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
-        let tracker = crate::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_global_tracker();
         let data_ptr = self.get_data_ptr();
         let strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
@@ -234,7 +234,7 @@ impl<T> Trackable for std::rc::Rc<T> {
     }
 
     fn update_ref_count_tracking(&self, ptr: usize) {
-        let tracker = crate::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_global_tracker();
         let strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
 
@@ -275,7 +275,7 @@ impl<T> Trackable for std::sync::Arc<T> {
     }
 
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
-        let tracker = crate::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_global_tracker();
         let data_ptr = self.get_data_ptr();
         let strong_count = std::sync::Arc::strong_count(self);
         let weak_count = std::sync::Arc::weak_count(self);
@@ -292,7 +292,7 @@ impl<T> Trackable for std::sync::Arc<T> {
     }
 
     fn update_ref_count_tracking(&self, ptr: usize) {
-        let tracker = crate::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_global_tracker();
         let strong_count = std::sync::Arc::strong_count(self);
         let weak_count = std::sync::Arc::weak_count(self);
 

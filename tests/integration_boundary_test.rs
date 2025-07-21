@@ -76,7 +76,7 @@ fn test_rapid_allocation_deallocation() {
 fn test_nested_scope_tracking() {
     ensure_init();
     let _tracker = get_global_tracker();
-    let scope_tracker = memscope_rs::scope_tracker::get_global_scope_tracker();
+    let scope_tracker = memscope_rs::core::scope_tracker::get_global_scope_tracker();
 
     // Test nested scopes
     let outer_scope = scope_tracker
@@ -187,7 +187,7 @@ fn test_memory_pressure_scenarios() {
 
     for i in 0..10 {
         let large_data = vec![i as u8; 10_000]; // 10KB each
-        let _ = track_var!(large_data);
+        let _ = track_var!(large_data.clone());
         large_allocations.push(large_data);
     }
 
@@ -265,7 +265,7 @@ fn test_comprehensive_export_integration() {
     ensure_init();
     let tracker = get_global_tracker();
     let unsafe_tracker = get_global_unsafe_ffi_tracker();
-    let scope_tracker = memscope_rs::scope_tracker::get_global_scope_tracker();
+    let scope_tracker = memscope_rs::core::scope_tracker::get_global_scope_tracker();
 
     // Create comprehensive test scenario
     let scope_id = scope_tracker

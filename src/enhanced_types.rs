@@ -595,9 +595,9 @@ pub enum StackHeapOptimizationType {
 // Missing report types for enhanced memory analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenericTypeAnalysisReport {
-    pub instantiation_analysis: Vec<crate::types::GenericInstantiationInfo>,
+    pub instantiation_analysis: Vec<crate::core::types::GenericInstantiationInfo>,
     pub code_bloat_assessment: CodeBloatAssessment,
-    pub optimization_recommendations: Vec<crate::types::MemoryOptimizationRecommendation>,
+    pub optimization_recommendations: Vec<crate::core::types::MemoryOptimizationRecommendation>,
     pub monomorphization_statistics: crate::enhanced_memory_analysis::MonomorphizationStatistics,
     pub performance_characteristics: PerformanceCharacteristics,
 }
