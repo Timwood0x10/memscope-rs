@@ -1,9 +1,9 @@
 //! HTML export functionality for interactive memory visualization
 //! Generates self-contained HTML files with embedded CSS/JS for offline viewing
 
-use crate::tracker::MemoryTracker;
-use crate::types::{AllocationInfo, MemoryStats, TrackingError, TrackingResult};
-use crate::unsafe_ffi_tracker::UnsafeFFITracker;
+use crate::analysis::unsafe_ffi_tracker::UnsafeFFITracker;
+use crate::core::tracker::MemoryTracker;
+use crate::core::types::{AllocationInfo, MemoryStats, TrackingError, TrackingResult};
 use serde_json;
 use std::fs::File;
 use std::io::Read;
@@ -11,8 +11,8 @@ use std::io::Write;
 use std::path::Path;
 
 // Embed CSS and JS content at compile time
-const CSS_CONTENT: &str = include_str!("../templates/styles.css");
-const JS_CONTENT: &str = include_str!("../templates/script.js");
+const CSS_CONTENT: &str = include_str!("../../templates/styles.css");
+const JS_CONTENT: &str = include_str!("../../templates/script.js");
 
 /// Export comprehensive interactive HTML report
 pub fn export_interactive_html<P: AsRef<Path>>(

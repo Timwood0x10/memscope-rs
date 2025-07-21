@@ -1,8 +1,44 @@
-use clap::{Arg, Command as ClapCommand};
+//! Memory analysis command implementation
+//!
+//! This module provides the analyze subcommand functionality.
+
+use clap::ArgMatches;
+use std::error::Error;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-fn main() {
+/// Run the analyze command
+pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    // Extract arguments from matches
+    let command_args: Vec<&String> = matches
+        .get_many::<String>("command")
+        .ok_or("Command argument is required")?
+        .collect();
+    let export_format = matches
+        .get_one::<String>("export")
+        .map(|s| s.as_str())
+        .unwrap_or("html");
+    let output_path = matches
+        .get_one::<String>("output")
+        .map(|s| s.as_str())
+        .unwrap_or("memory_analysis");
+
+    println!("🔍 Starting memory analysis...");
+    println!("Command: {:?}", command_args);
+    println!("Export format: {}", export_format);
+    println!("Output path: {}", output_path);
+
+    // Initialize memory tracking
+    crate::init();
+
+    // Execute the command with memory tracking
+    execute_with_tracking(&command_args, &[])?;
+
+    Ok(())
+}
+
+fn _original_main() {
+    use clap::{Arg, Command as ClapCommand};
     let matches = ClapCommand::new("memscope")
         .version("0.1.0")
         .author("MemScope Team")

@@ -1,8 +1,8 @@
 //! Unified visualization module for memscope-rs
 //! Provides memory analysis and lifecycle timeline SVG exports
 
-use crate::tracker::MemoryTracker;
-use crate::types::{AllocationInfo, MemoryStats, TrackingError, TrackingResult};
+use crate::core::tracker::MemoryTracker;
+use crate::core::types::{AllocationInfo, MemoryStats, TrackingError, TrackingResult};
 use crate::utils::{format_bytes, get_simple_type, get_type_color, get_type_gradient_colors};
 use std::collections::HashMap;
 use std::fs::File;
@@ -1218,7 +1218,7 @@ fn estimate_variable_duration(var: &AllocationInfo) -> u64 {
 // Core SVG Generation Functions (moved from export_enhanced.rs for consolidation)
 // ============================================================================
 
-use crate::types::TypeMemoryUsage;
+use crate::core::types::TypeMemoryUsage;
 
 // Using EnhancedTypeInfo from export_enhanced module
 

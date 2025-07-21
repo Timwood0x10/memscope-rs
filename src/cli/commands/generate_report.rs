@@ -1,8 +1,43 @@
-// use memscope_rs::get_global_tracker;
-use std::env;
+//! Report generation command implementation
+//!
+//! This module provides the report generation subcommand functionality.
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
+use clap::ArgMatches;
+use std::error::Error;
+
+/// Run the generate report command
+pub fn run_generate_report(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let input_file = matches
+        .get_one::<String>("input")
+        .ok_or("Input file is required")?;
+    let output_file = matches
+        .get_one::<String>("output")
+        .ok_or("Output file is required")?;
+    let format = matches
+        .get_one::<String>("format")
+        .map(|s| s.as_str())
+        .unwrap_or("html");
+
+    println!("📊 Generating report...");
+    println!("Input file: {}", input_file);
+    println!("Output file: {}", output_file);
+    println!("Format: {}", format);
+
+    match format {
+        "html" => {
+            let default_template = "report_template.html".to_string();
+            embed_json_to_html(input_file, &default_template, output_file)?;
+        }
+        _ => {
+            return Err(format!("Unsupported format: {}", format).into());
+        }
+    }
+
+    Ok(())
+}
+
+fn _original_main() {
+    let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
         print_usage();

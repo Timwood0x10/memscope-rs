@@ -1,7 +1,7 @@
 //! Enhanced export functionality for memory tracking data.
 
-use crate::tracker::MemoryTracker;
-use crate::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage};
+use crate::core::tracker::MemoryTracker;
+use crate::core::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage};
 use crate::utils::{format_bytes, get_category_color, simplify_type_name};
 
 /// Calculate real median and P95 percentiles from allocation sizes

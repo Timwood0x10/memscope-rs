@@ -5,7 +5,7 @@
 //! each type individually, we identify common patterns and provide a generic
 //! analysis framework.
 
-use crate::types::AllocationInfo;
+use crate::core::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

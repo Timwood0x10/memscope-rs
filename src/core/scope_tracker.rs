@@ -1,6 +1,6 @@
 //! Scope tracking functionality for memory analysis
 
-use crate::types::*;
+use crate::core::types::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -259,7 +259,7 @@ impl ScopeTracker {
                     medium_term_allocations: 0,
                     long_term_allocations: 0,
                     suspected_leaks: 0,
-                    risk_distribution: crate::types::RiskDistribution::default(),
+                    risk_distribution: crate::core::types::RiskDistribution::default(),
                     scope_metrics: Vec::new(),
                     type_lifecycle_patterns: Vec::new(),
                 }

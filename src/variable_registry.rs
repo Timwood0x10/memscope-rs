@@ -3,7 +3,7 @@
 //! This module provides a lightweight alternative to log-based tracking,
 //! using a global HashMap to store variable address -> variable info mappings.
 
-use crate::types::TrackingResult;
+use crate::core::types::TrackingResult;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};

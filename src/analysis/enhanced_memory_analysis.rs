@@ -9,13 +9,13 @@
 //! - Complete object lifecycle tracking with resource waste identification
 //! - Memory access pattern analysis for cache optimization
 
-use crate::enhanced_types::*;
-use crate::types::AllocationInfo;
-use crate::types::{
+use crate::core::types::AllocationInfo;
+use crate::core::types::{
     AccessPattern, BranchPredictionImpact, CacheImpact, CreationContext,
     LifecycleEfficiencyMetrics, MemoryAccessPattern, OptimizationRecommendation,
     PerformanceCharacteristics, ResourceWasteAssessment, ScopeType,
 };
+use crate::enhanced_types::*;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

@@ -11,52 +11,34 @@
 pub mod advanced_trackable_macro;
 /// Advanced type analysis framework
 pub mod advanced_types;
-/// Memory allocation tracking and analysis
-pub mod allocator;
 /// Advanced memory analysis functionality
 pub mod analysis;
-/// Circular reference detection for smart pointers
-pub mod circular_reference;
-// Removed export_enhanced - functionality consolidated into visualization.rs
-/// Scope tracking functionality
-pub mod scope_tracker;
+/// Command-line interface functionality
+pub mod cli;
 /// Core memory tracking functionality
-pub mod tracker;
-/// Type definitions and data structures
-pub mod types;
-/// Unsafe and FFI operation tracking
-pub mod unsafe_ffi_tracker;
+pub mod core;
+/// Export and visualization functionality
+pub mod export;
 /// Utility functions
 pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
 pub mod variable_registry;
-/// Visualization and chart generation
-pub mod visualization;
 
 // Re-export key functions from unified modules
-/// Enhanced memory analysis functionality
-pub mod enhanced_memory_analysis;
 /// Enhanced types for comprehensive memory analysis
 pub mod enhanced_types;
-/// Enhanced export functionality
-pub mod export_enhanced;
-/// HTML export functionality for interactive visualization
-pub mod html_export;
-/// Unknown memory regions analysis
-pub mod unknown_memory_regions;
 pub use advanced_types::*;
 pub use analysis::*;
-pub use circular_reference::*;
-pub use visualization::*;
+pub use export::*;
 // Re-export main types for easier use
-pub use allocator::TrackingAllocator;
-pub use enhanced_memory_analysis::EnhancedMemoryAnalyzer;
-pub use html_export::export_interactive_html;
-pub use tracker::{get_global_tracker, MemoryTracker};
-pub use types::{AllocationInfo, TrackingError, TrackingResult};
-pub use unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
+pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
+pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
+pub use core::allocator::TrackingAllocator;
+pub use core::tracker::{get_global_tracker, MemoryTracker};
+pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
+pub use export::html_export::export_interactive_html;
+pub use export::visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
-pub use visualization::{export_lifecycle_timeline, export_memory_analysis};
 
 // Re-export the derive macro when the derive feature is enabled
 #[cfg(feature = "derive")]
@@ -740,10 +722,10 @@ impl<T: Trackable> TrackedVariable<T> {
             Self::track_destruction(&self.var_name, ptr_val, self.creation_time);
         }
 
-        // Prevent automatic Drop from running
-        let inner = unsafe { std::ptr::read(&self.inner) };
-        std::mem::forget(self);
-        inner
+        // Safe ownership transfer using ManuallyDrop
+        let manual_drop_self = std::mem::ManuallyDrop::new(self);
+        // SAFETY: We're taking ownership of the inner value and preventing Drop from running
+        unsafe { std::ptr::read(&manual_drop_self.inner) }
     }
 
     /// Internal method to track variable destruction.

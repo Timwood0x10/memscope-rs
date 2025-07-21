@@ -3,7 +3,7 @@
 //! This module analyzes and categorizes the "unknown" 5% of memory regions
 //! that cannot be precisely classified as stack or heap allocations.
 
-use crate::types::{AllocationInfo, ImplementationDifficulty};
+use crate::core::types::{AllocationInfo, ImplementationDifficulty};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

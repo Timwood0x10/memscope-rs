@@ -1,18 +1,26 @@
 //! Memory allocation tracking functionality.
 
-use crate::types::{AllocationInfo, MemoryStats, MemoryTypeInfo, TrackingResult, TypeMemoryUsage};
-use crate::types::{AllocatorStateInfo, CachePerformanceInfo, CpuUsageInfo, MemoryPressureInfo};
-use crate::types::{CodeBloatLevel, GenericConstraint, MonomorphizationInfo, TypeParameter};
-use crate::types::{CreationContext, ExpressionType, ScopeType, SourceLocation, StackScopeInfo};
-use crate::types::{DispatchOverhead, PerformanceImpact, TypeErasureInfo, VTableInfo};
-use crate::types::{DynamicTypeInfo, GenericTypeInfo, MemoryLayoutInfo, RuntimeStateInfo};
-use crate::types::{EnhancedFragmentationAnalysis, StackAllocationInfo, TemporaryObjectInfo};
-use crate::types::{FieldLayoutInfo, LayoutEfficiency, OptimizationPotential, PaddingAnalysis};
-use crate::types::{
+use crate::core::types::{
+    AllocationInfo, MemoryStats, MemoryTypeInfo, TrackingResult, TypeMemoryUsage,
+};
+use crate::core::types::{
+    AllocatorStateInfo, CachePerformanceInfo, CpuUsageInfo, MemoryPressureInfo,
+};
+use crate::core::types::{CodeBloatLevel, GenericConstraint, MonomorphizationInfo, TypeParameter};
+use crate::core::types::{
+    CreationContext, ExpressionType, ScopeType, SourceLocation, StackScopeInfo,
+};
+use crate::core::types::{DispatchOverhead, PerformanceImpact, TypeErasureInfo, VTableInfo};
+use crate::core::types::{DynamicTypeInfo, GenericTypeInfo, MemoryLayoutInfo, RuntimeStateInfo};
+use crate::core::types::{EnhancedFragmentationAnalysis, StackAllocationInfo, TemporaryObjectInfo};
+use crate::core::types::{
+    FieldLayoutInfo, LayoutEfficiency, OptimizationPotential, PaddingAnalysis,
+};
+use crate::core::types::{
     FragmentationMetrics, FragmentationSeverity, MemoryLocationType, TemporaryUsagePattern,
 };
-use crate::types::{FunctionCallTrackingInfo, MemoryAccessTrackingInfo, ObjectLifecycleInfo};
-use crate::types::{GenericInstantiationInfo, TypeRelationshipInfo, TypeUsageInfo};
+use crate::core::types::{FunctionCallTrackingInfo, MemoryAccessTrackingInfo, ObjectLifecycleInfo};
+use crate::core::types::{GenericInstantiationInfo, TypeRelationshipInfo, TypeUsageInfo};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -2068,8 +2076,8 @@ impl MemoryTracker {
         allocation_history: &[AllocationInfo],
     ) -> Vec<crate::types::MemorySnapshot> {
         let mut snapshots = Vec::new();
-        let mut current_memory = 0;
-        let mut current_allocations = 0;
+        let mut current_memory: usize = 0;
+        let mut current_allocations: usize = 0;
         let mut scope_breakdown: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
 

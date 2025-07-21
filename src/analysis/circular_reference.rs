@@ -3,7 +3,7 @@
 //! This module provides functionality to detect circular references in Rc/Arc
 //! smart pointers that can lead to memory leaks.
 
-use crate::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
+use crate::core::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 

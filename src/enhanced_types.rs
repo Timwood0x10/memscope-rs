@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 // Import specific types rather than wildcard to avoid conflicts
-use crate::types::{
+use crate::core::types::{
     AccessPattern, AllocationInfo, CreationContext, FragmentationAnalysis,
     LifecycleEfficiencyMetrics, LifecyclePattern, ObjectLifecycleInfo, OptimizationPotential,
     OptimizationRecommendation, PerformanceCharacteristics, PerformanceImpact, ScopeType,
@@ -236,7 +236,7 @@ pub enum ImplementationComplexity {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StackAllocationDetails {
     pub allocation: AllocationInfo,
-    pub frame_info: crate::types::StackFrame,
+    pub frame_info: crate::core::types::StackFrame,
     pub stack_depth: usize,
     pub scope_analysis: StackScopeAnalysis,
 }
