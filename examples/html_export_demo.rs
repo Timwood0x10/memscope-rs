@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     export_interactive_html(&tracker, Some(&unsafe_ffi_tracker), html_path)?;
 
     let json_path = "demo_json.json";
-    tracker.export_to_json(json_path);
+    let _ = tracker.export_to_json(json_path);
     println!("export json ");
 
     println!("✅ HTML report generated successfully!");

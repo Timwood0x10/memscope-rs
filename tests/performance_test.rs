@@ -197,7 +197,7 @@ fn benchmark_concurrent_performance() {
 
     let handles: Vec<_> = (0..num_threads)
         .map(|thread_id| {
-            let tracker = tracker;
+            let tracker = tracker.clone();
             std::thread::spawn(move || {
                 for i in 0..operations_per_thread {
                     let ptr = thread_id * 10000 + i;

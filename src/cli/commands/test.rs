@@ -32,19 +32,25 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
     println!("Creating test allocations...");
 
     // Create some test allocations
-    let vec1 = track_var!(vec![1, 2, 3, 4, 5]);
-    let vec2 = track_var!(vec![6, 7, 8, 9, 10]);
-    let string1 = track_var!(String::from("Hello, World!"));
-    let boxed1 = track_var!(Box::new(42));
+    let vec1 = vec![1, 2, 3, 4, 5];
+    let vec2 = vec![6, 7, 8, 9, 10];
+    let string1 = String::from("Hello, World!");
+    let boxed1 = Box::new(42);
+    
+    track_var!(vec1);
+    track_var!(vec2);
+    track_var!(string1);
+    track_var!(boxed1);
 
     // Create some temporary objects
     for i in 0..10 {
-        let _temp = track_var!(vec![i; i]);
+        let temp = vec![i; i];
+        track_var!(temp);
     }
 
     // Get all allocations
     let tracker = get_global_tracker();
-    let allocations = match tracker.get_active_allocations() {
+    let _allocations = match tracker.get_active_allocations() {
         Ok(allocs) => allocs,
         Err(e) => {
             println!("Error getting allocations: {}", e);
@@ -54,7 +60,7 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
 
     println!("Enhanced Memory Analysis Summary:");
     println!("--------------------------------");
-    println!("Total active allocations: {}", allocations.len());
+    println!("Total active allocations: {}", _allocations.len());
 
     // Keep variables alive until the end
     println!("Vec1 length: {}", vec1.len());
@@ -67,19 +73,25 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
 
 fn test_enhanced_memory_analysis() {
     // Create some test allocations
-    let vec1 = track_var!(vec![1, 2, 3, 4, 5]);
-    let vec2 = track_var!(vec![6, 7, 8, 9, 10]);
-    let string1 = track_var!(String::from("Hello, World!"));
-    let boxed1 = track_var!(Box::new(42));
+    let vec1 = vec![1, 2, 3, 4, 5];
+    let vec2 = vec![6, 7, 8, 9, 10];
+    let string1 = String::from("Hello, World!");
+    let boxed1 = Box::new(42);
+    
+    track_var!(vec1);
+    track_var!(vec2);
+    track_var!(string1);
+    track_var!(boxed1);
 
     // Create some temporary objects
     for i in 0..10 {
-        let _temp = track_var!(vec![i; i]);
+        let temp = vec![i; i];
+        track_var!(temp);
     }
 
     // Get all allocations
     let tracker = get_global_tracker();
-    let allocations = match tracker.get_active_allocations() {
+    let _allocations = match tracker.get_active_allocations() {
         Ok(allocs) => allocs,
         Err(e) => {
             println!("Error getting allocations: {}", e);

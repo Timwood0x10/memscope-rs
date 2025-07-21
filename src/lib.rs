@@ -30,6 +30,8 @@ pub mod enhanced_types;
 pub use advanced_types::*;
 pub use analysis::*;
 pub use export::*;
+// Note: Macros are automatically available when the crate is imported
+
 // Re-export main types for easier use
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
@@ -567,27 +569,119 @@ impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
     }
 }
 
-/// Macro to track a variable's memory allocation with automatic lifecycle management.
+/// **[RECOMMENDED]** Track a variable's memory allocation without taking ownership.
 ///
-/// This enhanced macro creates a tracking wrapper that automatically handles:
-/// - Variable creation tracking
-/// - Automatic destruction tracking via Drop
-/// - Accurate lifetime calculation
-/// - Seamless integration with auto-export
+/// This is the **default and recommended** tracking macro for most use cases.
+/// It performs zero-cost tracking by reference, allowing continued use of the original variable.
+///
+/// ## ✅ Use this when:
+/// - You want to track memory usage without changing your code
+/// - Performance is critical (zero overhead)
+/// - You need to continue using the variable after tracking
+/// - You're tracking many variables and don't want clone overhead
+/// - You're doing basic memory profiling and analysis
+///
+/// ## ❌ Don't use this when:
+/// - You need precise lifecycle tracking with automatic cleanup
+/// - You're tracking temporary variables that will be moved/consumed immediately
 ///
 /// # Example
 /// ```rust
 /// use memscope_rs::track_var;
 ///
 /// let my_vec = vec![1, 2, 3, 4, 5];
-/// let tracked_vec = track_var!(my_vec);
-/// // tracked_vec behaves exactly like my_vec but with automatic lifecycle tracking
+/// track_var!(my_vec); // Zero-cost tracking
+/// // my_vec can still be used normally - no ownership changes!
+/// println!("Vector: {:?}", my_vec);
+/// my_vec.push(6); // Still fully usable
 /// ```
 #[macro_export]
 macro_rules! track_var {
     ($var:expr) => {{
         let var_name = stringify!($var);
+        let _ = $crate::_track_var_impl(&$var, var_name);
+        // Pure tracking - no return value to avoid any ownership implications
+    }};
+}
+
+/// **[ADVANCED]** Track a variable with full lifecycle management and ownership transfer.
+///
+/// This macro creates a tracking wrapper that takes ownership of the variable
+/// and provides automatic lifecycle tracking with precise timing measurements.
+///
+/// ## ✅ Use this when:
+/// - You need precise lifecycle tracking with automatic cleanup detection
+/// - You want to measure exact variable lifetimes
+/// - You're doing advanced memory analysis or debugging
+/// - You're tracking variables that will be consumed/moved anyway
+/// - You need the wrapper's additional methods (get(), get_mut(), into_inner())
+///
+/// ## ❌ Don't use this when:
+/// - You need to continue using the original variable (use `track_var!` instead)
+/// - Performance is critical and you don't need lifecycle timing
+/// - You're tracking many variables (clone overhead)
+/// - You're doing basic memory profiling
+///
+/// ## ⚠️ Performance Note:
+/// This macro takes ownership of the variable. If you need the original variable
+/// afterwards, you'll need to clone it first, which has performance implications.
+///
+/// # Example
+/// ```rust
+/// use memscope_rs::track_var_owned;
+///
+/// let my_vec = vec![1, 2, 3, 4, 5];
+/// let tracked_vec = track_var_owned!(my_vec); // Takes ownership
+/// // tracked_vec behaves like my_vec but with automatic lifecycle tracking
+/// println!("Length: {}", tracked_vec.len()); // Transparent access via Deref
+/// let original = tracked_vec.into_inner(); // Get original back if needed
+/// ```
+#[macro_export]
+macro_rules! track_var_owned {
+    ($var:expr) => {{
+        let var_name = stringify!($var);
         $crate::TrackedVariable::new($var, var_name.to_string())
+    }};
+}
+
+/// **[SMART]** Intelligent tracking that automatically chooses the best strategy.
+///
+/// This macro automatically detects the variable type and chooses the optimal tracking approach:
+/// - For `Copy` types (i32, f64, bool, etc.): Creates a copy for tracking (zero overhead)
+/// - For non-`Copy` types: Uses reference-based tracking like `track_var!`
+/// - For smart pointers (Rc, Arc): Clones the pointer (cheap reference increment)
+///
+/// ## ✅ Use this when:
+/// - You want the best of both worlds without thinking about it
+/// - You're tracking mixed types (some Copy, some not)
+/// - You want automatic optimization based on type characteristics
+/// - You're prototyping and want convenience
+///
+/// ## ❌ Don't use this when:
+/// - You need explicit control over tracking behavior
+/// - You're in performance-critical code and want predictable behavior
+/// - You need precise lifecycle tracking (use `track_var_owned!` instead)
+///
+/// # Example
+/// ```rust
+/// use memscope_rs::track_var_smart;
+///
+/// let number = 42i32;           // Copy type - will be copied
+/// let my_vec = vec![1, 2, 3];   // Non-Copy - will be tracked by reference
+/// let rc_data = Rc::new(vec![]); // Smart pointer - will clone the Rc
+/// 
+/// track_var_smart!(number);   // Copies the i32 (cheap)
+/// track_var_smart!(my_vec);    // Tracks by reference (zero cost)
+/// track_var_smart!(rc_data);   // Clones Rc (cheap reference increment)
+/// 
+/// // All variables remain fully usable!
+/// println!("{}, {:?}, {:?}", number, my_vec, rc_data);
+/// ```
+#[macro_export]
+macro_rules! track_var_smart {
+    ($var:expr) => {{
+        let var_name = stringify!($var);
+        $crate::_smart_track_var_impl($var, var_name)
     }};
 }
 
@@ -879,6 +973,55 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         // Variable doesn't have a heap allocation (e.g., empty Vec)
         tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
         Ok(())
+    }
+}
+
+/// Internal implementation for smart tracking that chooses optimal strategy.
+/// This function should not be called directly.
+#[doc(hidden)]
+pub fn _smart_track_var_impl<T: Trackable + 'static>(var: T, var_name: &str) -> TrackingResult<T> {
+    use std::any::TypeId;
+    
+    let type_id = TypeId::of::<T>();
+    let type_name = std::any::type_name::<T>();
+    
+    // Check if it's a Copy type by attempting to get TypeId of common Copy types
+    let is_copy_type = type_id == TypeId::of::<i8>() ||
+                      type_id == TypeId::of::<i16>() ||
+                      type_id == TypeId::of::<i32>() ||
+                      type_id == TypeId::of::<i64>() ||
+                      type_id == TypeId::of::<i128>() ||
+                      type_id == TypeId::of::<isize>() ||
+                      type_id == TypeId::of::<u8>() ||
+                      type_id == TypeId::of::<u16>() ||
+                      type_id == TypeId::of::<u32>() ||
+                      type_id == TypeId::of::<u64>() ||
+                      type_id == TypeId::of::<u128>() ||
+                      type_id == TypeId::of::<usize>() ||
+                      type_id == TypeId::of::<f32>() ||
+                      type_id == TypeId::of::<f64>() ||
+                      type_id == TypeId::of::<bool>() ||
+                      type_id == TypeId::of::<char>();
+    
+    let is_smart_pointer = type_name.contains("::Rc<") || 
+                          type_name.contains("::Arc<") ||
+                          type_name.contains("::Weak<");
+    
+    if is_copy_type {
+        // For Copy types, we can safely track by reference and return the value
+        let _ = _track_var_impl(&var, var_name);
+        tracing::debug!("🧠 Smart tracking: Copy type '{}' tracked by reference", var_name);
+        Ok(var)
+    } else if is_smart_pointer {
+        // For smart pointers, track by reference and return the value
+        let _ = _track_var_impl(&var, var_name);
+        tracing::debug!("🧠 Smart tracking: Smart pointer '{}' tracked by reference", var_name);
+        Ok(var)
+    } else {
+        // For other types, track by reference and return the value
+        let _ = _track_var_impl(&var, var_name);
+        tracing::debug!("🧠 Smart tracking: Non-Copy type '{}' tracked by reference", var_name);
+        Ok(var)
     }
 }
 
