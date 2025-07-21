@@ -945,7 +945,7 @@ pub fn add_enhanced_type_chart(
 ) -> TrackingResult<Document> {
     // Optimized position to avoid overlap with other modules
     let chart_x = 50;
-    let chart_y = 720; // Moved up slightly for better spacing
+    let chart_y = 320; // Moved up significantly after removing timeline dashboard
     let chart_width = 850;
     let chart_height = 300; // Reduced height to prevent overlap
 
@@ -1863,7 +1863,7 @@ pub fn add_categorized_allocations(
     categories: &[AllocationCategory],
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 1080; // Adjusted to provide better spacing (720 + 300 + 60 margin)
+    let chart_y = 680; // Adjusted to provide better spacing (320 + 300 + 60 margin)
     let chart_width = 850;
     let chart_height = 280; // Slightly reduced height
 
@@ -2001,7 +2001,7 @@ pub fn add_memory_timeline(
     _stats: &MemoryStats,
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 1780;
+    let chart_y = 1380; // Moved up from 1780
     let chart_width = 1700;
     let chart_height = 300;
 
@@ -2221,7 +2221,7 @@ pub fn add_fragmentation_analysis(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 950;
-    let chart_y = 710; // Fix: adjust position to avoid overlap
+    let chart_y = 320; // Fix: adjust position to avoid overlap with header
     let chart_width = 750; // 修复：适应新的1600px宽度
     let chart_height = 300;
 
@@ -2344,7 +2344,7 @@ pub fn add_callstack_analysis(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let chart_x = 950;
-    let chart_y = 1060; // Fix: adjust position to avoid overlap
+    let chart_y = 680; // Fix: adjust position to avoid overlap
     let chart_width = 750; // 修复：适应新的1600px宽度
     let chart_height = 300;
 
@@ -2483,7 +2483,7 @@ pub fn add_memory_growth_trends(
     stats: &MemoryStats,
 ) -> TrackingResult<Document> {
     let chart_x = 50;
-    let chart_y = 1430;
+    let chart_y = 1040; // Moved up from 1430
     let chart_width = 1700;
     let chart_height = 300;
 
@@ -2595,7 +2595,7 @@ pub fn add_memory_growth_trends(
 /// Add interactive legend
 pub fn add_interactive_legend(mut document: Document) -> TrackingResult<Document> {
     let legend_x = 50;
-    let legend_y = 2130;
+    let legend_y = 1720; // Moved up from 2130
     let legend_width = 850;
     let legend_height = 250;
 
@@ -2669,7 +2669,7 @@ pub fn add_comprehensive_summary(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Document> {
     let summary_x = 950;
-    let summary_y = 2130;
+    let summary_y = 1720; // Moved up from 2130
     let summary_width = 800;
     let summary_height = 250;
 

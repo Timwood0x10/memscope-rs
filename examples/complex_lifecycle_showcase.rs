@@ -166,7 +166,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
         hash_map.insert(format!("key_with_longer_string_{i}"), i * 2);
     }
     let boxed_hash_map = Box::new(hash_map);
-    let _tracked_boxed_hash_map = track_var!(boxed_hash_map);
+    track_var!(boxed_hash_map);
     println!("✓ Box<HashMap>: {} entries", boxed_hash_map.len());
     keep_alive.push(boxed_hash_map as Box<dyn std::any::Any>);
 
@@ -176,7 +176,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
         hash_set.insert(format!("unique_item_with_longer_name_{i}"));
     }
     let boxed_hash_set = Box::new(hash_set);
-    let _tracked_boxed_hash_set = track_var!(boxed_hash_set);
+    track_var!(boxed_hash_set);
     println!("✓ Box<HashSet>: {} unique items", boxed_hash_set.len());
     keep_alive.push(boxed_hash_set as Box<dyn std::any::Any>);
 
@@ -186,7 +186,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
         btree_map.insert(i, format!("value_with_much_longer_string_data_{i}"));
     }
     let boxed_btree_map = Box::new(btree_map);
-    let _tracked_boxed_btree_map = track_var!(boxed_btree_map);
+    track_var!(boxed_btree_map);
     println!("✓ Box<BTreeMap>: {} sorted entries", boxed_btree_map.len());
     keep_alive.push(boxed_btree_map as Box<dyn std::any::Any>);
 
@@ -200,7 +200,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
         }
     }
     let boxed_vec_deque = Box::new(vec_deque);
-    let _tracked_boxed_vec_deque = track_var!(boxed_vec_deque);
+    track_var!(boxed_vec_deque);
     println!(
         "✓ Box<VecDeque>: {} items (front/back insertion)",
         boxed_vec_deque.len()
@@ -218,20 +218,20 @@ fn demonstrate_smart_pointers() -> Vec<Box<dyn std::any::Any>> {
 
     // Box pointers
     let boxed_large_data = Box::new(vec![0u8; 1024]);
-    let _tracked_boxed_large_data = track_var!(boxed_large_data);
+    track_var!(boxed_large_data);
     println!("✓ Box<Vec<u8>>: 1KB heap allocation");
 
     let boxed_string = Box::new(String::from("Boxed string data"));
-    let _tracked_boxed_string = track_var!(boxed_string);
+    track_var!(boxed_string);
     println!("✓ Box<String>: heap-allocated string");
 
     // Reference counting with Rc
     let shared_data = Rc::new(vec![1, 2, 3, 4, 5]);
-    let _tracked_shared_data = track_var!(shared_data);
+    track_var!(shared_data);
     let shared_clone1 = Rc::clone(&shared_data);
-    let _tracked_shared_clone1 = track_var!(shared_clone1);
+    track_var!(shared_clone1);
     let shared_clone2 = Rc::clone(&shared_data);
-    let _tracked_shared_clone2 = track_var!(shared_clone2);
+    track_var!(shared_clone2);
     println!(
         "✓ Rc<Vec<i32>>: {} references to shared data",
         Rc::strong_count(&shared_data)
@@ -239,9 +239,9 @@ fn demonstrate_smart_pointers() -> Vec<Box<dyn std::any::Any>> {
 
     // Thread-safe reference counting with Arc
     let thread_safe_data = Arc::new(String::from("Thread-safe shared string"));
-    let _tracked_thread_safe_data = track_var!(thread_safe_data);
+    track_var!(thread_safe_data);
     let arc_clone = Arc::clone(&thread_safe_data);
-    let _tracked_arc_clone = track_var!(arc_clone);
+    track_var!(arc_clone);
     println!(
         "✓ Arc<String>: {} references to thread-safe data",
         Arc::strong_count(&thread_safe_data)
@@ -249,7 +249,7 @@ fn demonstrate_smart_pointers() -> Vec<Box<dyn std::any::Any>> {
 
     // Interior mutability with RefCell
     let mutable_data = Rc::new(RefCell::new(vec![10, 20, 30]));
-    let _tracked_mutable_data = track_var!(mutable_data);
+    track_var!(mutable_data);
     {
         let mut borrowed = mutable_data.borrow_mut();
         borrowed.push(40);
@@ -287,7 +287,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
     user.preferences
         .insert("notifications".to_string(), "enabled".to_string());
     let boxed_user = Box::new(user);
-    let _tracked_boxed_user = track_var!(boxed_user);
+    track_var!(boxed_user);
     println!("✓ Box<User>: complex nested data with HashMap");
 
     // Database connection simulation
@@ -305,7 +305,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
             .push_back(format!("SELECT * FROM table_{i}"));
     }
     let boxed_db_conn = Box::new(db_conn);
-    let _tracked_boxed_db_conn = track_var!(boxed_db_conn);
+    track_var!(boxed_db_conn);
     println!(
         "✓ Box<DatabaseConnection>: {} connections, {} active queries",
         boxed_db_conn.connection_pool.len(),
@@ -320,7 +320,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
         access_count: 0,
     };
     let boxed_string_cache = Box::new(string_cache);
-    let _tracked_boxed_string_cache = track_var!(boxed_string_cache);
+    track_var!(boxed_string_cache);
 
     let vec_cache = CacheEntry {
         key: String::from("computed_results"),
@@ -329,7 +329,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
         access_count: 0,
     };
     let boxed_vec_cache = Box::new(vec_cache);
-    let _tracked_boxed_vec_cache = track_var!(boxed_vec_cache);
+    track_var!(boxed_vec_cache);
     println!("✓ Box<CacheEntry<T>>: generic cache structures");
 
     // Graph node with complex relationships
@@ -355,7 +355,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
 
         graph_nodes.push(node);
     }
-    let _tracked_graph_nodes = track_var!(graph_nodes);
+    track_var!(graph_nodes);
     println!("✓ Vec<GraphNode>: 5 interconnected nodes with metadata");
 
     println!();
@@ -377,14 +377,14 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
         nested_structure.insert(format!("group_{i}"), inner_map);
     }
     let boxed_nested = Box::new(nested_structure);
-    let _tracked_boxed_nested = track_var!(boxed_nested);
+    track_var!(boxed_nested);
     println!("✓ Box<HashMap<String, BTreeMap<i32, Vec<String>>>>: 3-level nesting");
 
     // Circular reference simulation (using Rc)
     let node_a = Rc::new(RefCell::new(vec!["Node A data".to_string()]));
     let node_b = Rc::new(RefCell::new(vec!["Node B data".to_string()]));
-    let _tracked_node_a = track_var!(node_a);
-    let _tracked_node_b = track_var!(node_b);
+    track_var!(node_a);
+    track_var!(node_b);
     println!("✓ Circular reference pattern: Rc<RefCell<Vec<String>>>");
 
     // Memory-intensive computation result
@@ -392,7 +392,7 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
     for i in 0..1000 {
         computation_result.push(format!("Result {}: {}", i, i * i));
     }
-    let _tracked_computation_result = track_var!(computation_result);
+    track_var!(computation_result);
     println!("✓ Large computation result: 1000 formatted strings");
 
     // Stream processing buffer (using Box to make trackable)
@@ -415,7 +415,7 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
         }
     }
     let boxed_stream_processor = Box::new(stream_processor);
-    let _tracked_boxed_stream_processor = track_var!(boxed_stream_processor);
+    track_var!(boxed_stream_processor);
     println!(
         "✓ Box<StreamProcessor>: buffer grew from 2KB to {} bytes, {} errors logged",
         boxed_stream_processor.buffer.len(),
@@ -450,7 +450,7 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
         "AuthController::login".to_string(),
     );
     let boxed_routes = Box::new(routes);
-    let _tracked_boxed_routes = track_var!(boxed_routes);
+    track_var!(boxed_routes);
 
     // Session storage
     let mut sessions = HashMap::new();
@@ -470,7 +470,7 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
         sessions.insert(session_id, session_data);
     }
     let boxed_sessions = Box::new(sessions);
-    let _tracked_boxed_sessions = track_var!(boxed_sessions);
+    track_var!(boxed_sessions);
 
     // Request log buffer
     let mut request_log = VecDeque::new();
@@ -489,7 +489,7 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
         }
     }
     let boxed_request_log = Box::new(request_log);
-    let _tracked_boxed_request_log = track_var!(boxed_request_log);
+    track_var!(boxed_request_log);
 
     println!(
         "✓ Web server: {} routes, {} sessions, {} log entries",
@@ -512,7 +512,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
         input_queue.push_back(format!("data_record_{i:06}"));
     }
     let boxed_input_queue = Box::new(input_queue);
-    let _tracked_boxed_input_queue = track_var!(boxed_input_queue);
+    track_var!(boxed_input_queue);
 
     // Processing stages
     let mut stage1_results = Vec::new();
@@ -538,6 +538,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
             .push(record);
     }
     let boxed_final_results = Box::new(final_results);
+    track_var!(boxed_final_results);
     // Error tracking
     let mut error_tracker = Vec::new();
     for i in 0..25 {
@@ -547,7 +548,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
             i * 20
         ));
     }
-    let _tracked_error_tracker = track_var!(error_tracker);
+    track_var!(error_tracker);
 
     println!(
         "✓ Data pipeline: {} → {} → {} groups, {} errors tracked",
@@ -673,11 +674,11 @@ fn generate_final_analysis() {
         println!("✅ Enhanced lifecycle timeline exported to: ./complex_lifecycle_timeline.svg");
     }
 
-    if let Err(e) = tracker.export_to_json("./complex_lifecycle_snapshot.json") {
-        println!("❌ JSON snapshot export failed: {e}");
-    } else {
-        println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");
-    }
+    // if let Err(e) = tracker.export_to_json("./complex_lifecycle_snapshot.json") {
+    //     println!("❌ JSON snapshot export failed: {e}");
+    // } else {
+    //     println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");
+    // }
 
     // Then generate HTML dashboard based on JSON
     println!("📊 Generating interactive HTML dashboard from JSON...");

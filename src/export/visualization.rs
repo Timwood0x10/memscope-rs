@@ -86,7 +86,7 @@ fn create_memory_analysis_svg(
 ) -> TrackingResult<Document> {
     // Create comprehensive memory analysis using the original enhanced export logic
     let width = 1800;
-    let height = 2400; // Tall document for comprehensive analysis
+    let height = 2000; // Reduced height after repositioning modules
 
     let mut document = Document::new()
         .set("viewBox", (0, 0, width, height))
@@ -97,9 +97,9 @@ fn create_memory_analysis_svg(
     // 1. Title: Rust Memory Usage Analysis
     document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
-    // 3. Performance Dashboard
-    document =
-        crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
+    // 3. Performance Dashboard - REMOVED to prevent overlap with header metrics
+    // document =
+    //     crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
 
     // 4. Memory Allocation Heatmap
     document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
