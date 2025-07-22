@@ -1906,13 +1906,7 @@ impl MemoryTracker {
         &self,
         path: P,
     ) -> TrackingResult<()> {
-        // Simple HTML export for now
-        let html_content = r#"<!DOCTYPE html>
-<html><head><title>Memory Dashboard</title></head>
-<body><h1>Interactive Memory Dashboard</h1><p>Dashboard content here</p></body>
-</html>"#;
-        std::fs::write(path, html_content)?;
-        Ok(())
+        crate::export::html_export::export_interactive_html(self, None, path)
     }
 
     /// Export memory analysis visualization showing variable names, types, and usage patterns.
@@ -1921,7 +1915,7 @@ impl MemoryTracker {
     /// # Arguments
     /// * `path` - Output path for the memory analysis SVG file (recommended: "program_name_memory_analysis.svg")
     pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        crate::visualization::export_memory_analysis(self, path)
+        crate::export::visualization::export_memory_analysis(self, path)
     }
 
     /// Export interactive lifecycle timeline showing variable lifecycles and relationships.
@@ -1933,7 +1927,7 @@ impl MemoryTracker {
         &self,
         path: P,
     ) -> TrackingResult<()> {
-        crate::visualization::export_lifecycle_timeline(self, path)
+        crate::export::visualization::export_lifecycle_timeline(self, path)
     }
 
     /// Export memory tracking data to 4 separate JSON files.

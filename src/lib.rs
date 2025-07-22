@@ -38,7 +38,6 @@ pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFIT
 pub use core::allocator::TrackingAllocator;
 pub use core::tracker::{get_global_tracker, MemoryTracker, ExportOptions};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
-pub use export::html_export::export_interactive_html;
 pub use export::visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 

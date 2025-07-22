@@ -3,9 +3,9 @@
 //! This example demonstrates how to use the HTML export functionality
 //! to generate interactive memory analysis reports.
 
-use memscope_rs::export_interactive_html;
 use memscope_rs::{get_global_tracker, get_global_unsafe_ffi_tracker, init, track_var};
 use std::collections::HashMap;
+use memscope_rs::export::html_export::export_interactive_html;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the memory tracking system
