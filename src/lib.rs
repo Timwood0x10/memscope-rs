@@ -974,11 +974,81 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
             ptr
         );
 
-        tracker.associate_var(ptr, var_name.to_string(), type_name)
+        tracker.associate_var(ptr, var_name.to_string(), type_name)?;
     } else {
         // Variable doesn't have a heap allocation (e.g., empty Vec)
         tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
-        Ok(())
+    }
+    Ok(())
+}
+
+impl MemoryTracker {
+    /// Export tracking data with complex type optimization (separate files for better performance)
+    pub fn export_to_json_optimized<P: AsRef<std::path::Path>>(
+        &self, 
+        path: P
+    ) -> TrackingResult<crate::export::complex_type_export::ComplexTypeExportResult> {
+        use crate::export::complex_type_export::{export_comprehensive_analysis_optimized, ComplexTypeExportConfig};
+        
+        let path = path.as_ref();
+        println!("🚀 Using optimized complex type export for maximum performance...");
+        
+        let start_time = std::time::Instant::now();
+        
+        // Get all necessary data
+        let allocations = self.get_active_allocations()?;
+        let stats = self.get_stats()?;
+        
+        // Perform comprehensive analysis
+        let analysis_manager = crate::analysis::AnalysisManager::new();
+        let comprehensive_report = analysis_manager.perform_comprehensive_analysis(&allocations, &stats);
+        
+        // Use optimized export configuration
+        let config = ComplexTypeExportConfig {
+            separate_complex_types: true,
+            compress_data: false,
+            chunk_size: 1000,
+            pretty_format: false, // Disable for performance
+        };
+        
+        // Export with complex type separation
+        let export_result = export_comprehensive_analysis_optimized(
+            &comprehensive_report,
+            &allocations,
+            path,
+            &config,
+        )?;
+        
+        let export_time = start_time.elapsed();
+        
+        // Performance reporting
+        println!("✅ Optimized export completed in {:.2}ms", export_time.as_millis());
+        println!("📊 Performance improvement: {:.1}%", export_result.export_stats.performance_improvement);
+        println!("📁 Main file: {} ({} bytes)", 
+                 export_result.main_file, 
+                 export_result.export_stats.main_file_size);
+        
+        if export_result.export_stats.complex_files_size > 0 {
+            println!("📁 Complex type files: {} bytes total", export_result.export_stats.complex_files_size);
+            
+            if let Some(ref file) = export_result.complex_types_file {
+                println!("   - Complex types: {}", file);
+            }
+            if let Some(ref file) = export_result.borrow_analysis_file {
+                println!("   - Borrow analysis: {}", file);
+            }
+            if let Some(ref file) = export_result.async_analysis_file {
+                println!("   - Async analysis: {}", file);
+            }
+            if let Some(ref file) = export_result.closure_analysis_file {
+                println!("   - Closure analysis: {}", file);
+            }
+            if let Some(ref file) = export_result.lifecycle_analysis_file {
+                println!("   - Lifecycle analysis: {}", file);
+            }
+        }
+        
+        Ok(export_result)
     }
 }
 
