@@ -110,9 +110,13 @@ pub struct TypeIssue {
 /// Severity levels for type issues
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum IssueSeverity {
+    /// Informational level
     Info,
+    /// Warning level
     Warning,
+    /// Error level
     Error,
+    /// Critical level
     Critical,
 }
 
@@ -132,11 +136,16 @@ pub struct PerformanceInfo {
 /// Latency categories for operations
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LatencyCategory {
-    Immediate, // < 1ns (atomic operations)
-    Fast,      // 1-10ns (simple operations)
-    Moderate,  // 10-100ns (syscalls, locks)
-    Slow,      // 100ns-1μs (complex operations)
-    VerySlow,  // > 1μs (blocking operations)
+    /// < 1ns (atomic operations)
+    Immediate,
+    /// 1-10ns (simple operations)
+    Fast,
+    /// 10-100ns (syscalls, locks)
+    Moderate,
+    /// 100ns-1μs (complex operations)
+    Slow,
+    /// > 1μs (blocking operations)
+    VerySlow,
 }
 
 /// Trait for advanced type analysis

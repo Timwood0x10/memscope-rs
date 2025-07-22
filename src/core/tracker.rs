@@ -191,7 +191,7 @@ impl MemoryTracker {
         &self,
         fields: &[FieldLayoutInfo],
         total_size: usize,
-        struct_alignment: usize,
+        _struct_alignment: usize,
     ) -> PaddingAnalysis {
         let mut padding_locations = Vec::new();
         let mut total_padding_bytes = 0;
@@ -250,7 +250,7 @@ impl MemoryTracker {
     /// Calculate layout efficiency
     fn calculate_layout_efficiency(
         &self,
-        fields: &[FieldLayoutInfo],
+        _fields: &[FieldLayoutInfo],
         padding: &PaddingAnalysis,
         total_size: usize,
     ) -> LayoutEfficiency {
@@ -385,7 +385,7 @@ impl MemoryTracker {
     /// Analyze monomorphization information
     fn analyze_monomorphization(
         &self,
-        base_type: &str,
+        _base_type: &str,
         parameters: &[TypeParameter],
     ) -> MonomorphizationInfo {
         // Estimate monomorphization instance count (based on parameter complexity)
@@ -416,12 +416,12 @@ impl MemoryTracker {
     /// Infer generic constraints
     fn infer_generic_constraints(
         &self,
-        base_type: &str,
+        _base_type: &str,
         _parameters: &[TypeParameter],
     ) -> Vec<GenericConstraint> {
         let mut constraints = Vec::new();
 
-        match base_type {
+        match _base_type {
             "Vec" | "HashMap" | "BTreeMap" => {
                 constraints.push(GenericConstraint {
                     constraint_type: crate::core::types::ConstraintType::Trait("Clone".to_string()),
@@ -1056,7 +1056,7 @@ impl MemoryTracker {
     /// Track a new memory allocation.
     pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
         // Create allocation info first (no locks needed)
-        let mut allocation = AllocationInfo::new(ptr, size);
+        let allocation = AllocationInfo::new(ptr, size);
 
         // Use try_lock to avoid blocking during high allocation activity
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {

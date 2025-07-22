@@ -669,11 +669,11 @@ macro_rules! track_var_owned {
 /// let number = 42i32;           // Copy type - will be copied
 /// let my_vec = vec![1, 2, 3];   // Non-Copy - will be tracked by reference
 /// let rc_data = Rc::new(vec![]); // Smart pointer - will clone the Rc
-/// 
+///
 /// track_var_smart!(number);   // Copies the i32 (cheap)
 /// track_var_smart!(my_vec);    // Tracks by reference (zero cost)
 /// track_var_smart!(rc_data);   // Clones Rc (cheap reference increment)
-/// 
+///
 /// // All variables remain fully usable!
 /// println!("{}, {:?}, {:?}", number, my_vec, rc_data);
 /// ```
@@ -981,46 +981,55 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
 #[doc(hidden)]
 pub fn _smart_track_var_impl<T: Trackable + 'static>(var: T, var_name: &str) -> TrackingResult<T> {
     use std::any::TypeId;
-    
+
     let type_id = TypeId::of::<T>();
     let type_name = std::any::type_name::<T>();
-    
+
     // Check if it's a Copy type by attempting to get TypeId of common Copy types
-    let is_copy_type = type_id == TypeId::of::<i8>() ||
-                      type_id == TypeId::of::<i16>() ||
-                      type_id == TypeId::of::<i32>() ||
-                      type_id == TypeId::of::<i64>() ||
-                      type_id == TypeId::of::<i128>() ||
-                      type_id == TypeId::of::<isize>() ||
-                      type_id == TypeId::of::<u8>() ||
-                      type_id == TypeId::of::<u16>() ||
-                      type_id == TypeId::of::<u32>() ||
-                      type_id == TypeId::of::<u64>() ||
-                      type_id == TypeId::of::<u128>() ||
-                      type_id == TypeId::of::<usize>() ||
-                      type_id == TypeId::of::<f32>() ||
-                      type_id == TypeId::of::<f64>() ||
-                      type_id == TypeId::of::<bool>() ||
-                      type_id == TypeId::of::<char>();
-    
-    let is_smart_pointer = type_name.contains("::Rc<") || 
-                          type_name.contains("::Arc<") ||
-                          type_name.contains("::Weak<");
-    
+    let is_copy_type = type_id == TypeId::of::<i8>()
+        || type_id == TypeId::of::<i16>()
+        || type_id == TypeId::of::<i32>()
+        || type_id == TypeId::of::<i64>()
+        || type_id == TypeId::of::<i128>()
+        || type_id == TypeId::of::<isize>()
+        || type_id == TypeId::of::<u8>()
+        || type_id == TypeId::of::<u16>()
+        || type_id == TypeId::of::<u32>()
+        || type_id == TypeId::of::<u64>()
+        || type_id == TypeId::of::<u128>()
+        || type_id == TypeId::of::<usize>()
+        || type_id == TypeId::of::<f32>()
+        || type_id == TypeId::of::<f64>()
+        || type_id == TypeId::of::<bool>()
+        || type_id == TypeId::of::<char>();
+
+    let is_smart_pointer = type_name.contains("::Rc<")
+        || type_name.contains("::Arc<")
+        || type_name.contains("::Weak<");
+
     if is_copy_type {
         // For Copy types, we can safely track by reference and return the value
         let _ = _track_var_impl(&var, var_name);
-        tracing::debug!("🧠 Smart tracking: Copy type '{}' tracked by reference", var_name);
+        tracing::debug!(
+            "🧠 Smart tracking: Copy type '{}' tracked by reference",
+            var_name
+        );
         Ok(var)
     } else if is_smart_pointer {
         // For smart pointers, track by reference and return the value
         let _ = _track_var_impl(&var, var_name);
-        tracing::debug!("🧠 Smart tracking: Smart pointer '{}' tracked by reference", var_name);
+        tracing::debug!(
+            "🧠 Smart tracking: Smart pointer '{}' tracked by reference",
+            var_name
+        );
         Ok(var)
     } else {
         // For other types, track by reference and return the value
         let _ = _track_var_impl(&var, var_name);
-        tracing::debug!("🧠 Smart tracking: Non-Copy type '{}' tracked by reference", var_name);
+        tracing::debug!(
+            "🧠 Smart tracking: Non-Copy type '{}' tracked by reference",
+            var_name
+        );
         Ok(var)
     }
 }
@@ -1104,29 +1113,11 @@ fn install_exit_hook() {
 }
 
 /// Guard struct that exports data when dropped (on program exit)
-struct ExitGuard;
+// Removed unused ExitGuard struct
 
-impl ExitGuard {
-    fn new() -> Self {
-        Self
-    }
-}
+// Removed unused ExitGuard implementation
 
-impl Drop for ExitGuard {
-    fn drop(&mut self) {
-        if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
-            println!("🔄 Program ending, exporting final memory snapshot...");
-            let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
-                .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
-
-            if let Err(e) = export_final_snapshot(&export_path) {
-                eprintln!("❌ Failed to export final snapshot: {}", e);
-            } else {
-                println!("✅ Final memory snapshot exported successfully");
-            }
-        }
-    }
-}
+// Removed unused ExitGuard Drop implementation
 
 /// Export final memory snapshot with complete lifecycle data
 fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {

@@ -36,7 +36,7 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
     let vec2 = vec![6, 7, 8, 9, 10];
     let string1 = String::from("Hello, World!");
     let boxed1 = Box::new(42);
-    
+
     track_var!(vec1);
     track_var!(vec2);
     track_var!(string1);
@@ -77,7 +77,7 @@ fn test_enhanced_memory_analysis() {
     let vec2 = vec![6, 7, 8, 9, 10];
     let string1 = String::from("Hello, World!");
     let boxed1 = Box::new(42);
-    
+
     track_var!(vec1);
     track_var!(vec2);
     track_var!(string1);

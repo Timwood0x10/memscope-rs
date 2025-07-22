@@ -8,8 +8,10 @@
 
 pub mod export_enhanced;
 pub mod html_export;
+pub mod separated_export_simple;
 pub mod visualization;
 
 // Re-export key export functions
 pub use html_export::export_interactive_html;
+pub use separated_export_simple::export_separated_json_simple;
 pub use visualization::{export_lifecycle_timeline, export_memory_analysis};

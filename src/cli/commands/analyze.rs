@@ -131,11 +131,11 @@ fn _original_main() {
             handle_run_command(sub_matches);
         }
         Some(("analyze", sub_matches)) => {
-            handle_analyze_command(sub_matches);
+            _handle_analyze_command(sub_matches);
         }
         _ => {
             // Legacy mode for backward compatibility
-            handle_legacy_mode(&matches);
+            _handle_legacy_mode(&matches);
         }
     }
 }
@@ -200,7 +200,7 @@ fn handle_run_command(matches: &clap::ArgMatches) {
     }
 }
 
-fn handle_analyze_command(matches: &clap::ArgMatches) {
+fn _handle_analyze_command(matches: &clap::ArgMatches) {
     let input_path = matches.get_one::<String>("input").unwrap();
     let output_path = matches.get_one::<String>("output").unwrap();
     let format = matches.get_one::<String>("format").unwrap();
@@ -224,7 +224,7 @@ fn handle_analyze_command(matches: &clap::ArgMatches) {
     }
 }
 
-fn handle_legacy_mode(matches: &clap::ArgMatches) {
+fn _handle_legacy_mode(matches: &clap::ArgMatches) {
     let export_format = matches.get_one::<String>("export");
     let output_path = matches.get_one::<String>("output").unwrap();
     let auto_track = matches.get_flag("auto-track");

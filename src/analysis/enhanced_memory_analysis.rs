@@ -27,7 +27,7 @@ pub struct StackFrameTracker {
     /// Known stack frames
     frames: HashMap<u64, EnhancedStackFrame>,
     /// Current stack depth
-    current_depth: usize,
+    _current_depth: usize,
 }
 
 /// Detects heap boundaries and segments
@@ -35,13 +35,13 @@ pub struct HeapBoundaryDetector {
     /// Known heap segments
     heap_segments: Vec<HeapSegment>,
     /// Allocator information
-    allocator_info: AllocatorInfo,
+    _allocator_info: AllocatorInfo,
 }
 
 /// Analyzes temporary objects for optimization
 pub struct TemporaryObjectAnalyzer {
     /// Detected temporary object patterns
-    patterns: HashMap<TemporaryPatternClassification, Vec<EnhancedTemporaryObjectInfo>>,
+    _patterns: HashMap<TemporaryPatternClassification, Vec<EnhancedTemporaryObjectInfo>>,
     /// Hot temporary patterns
     hot_patterns: Vec<HotTemporaryPattern>,
     /// Optimization suggestions
@@ -63,7 +63,7 @@ pub struct FragmentationMonitor {
 /// Tracks generic type instantiations
 pub struct GenericInstantiationTracker {
     /// Generic instantiations by type
-    instantiations: HashMap<String, Vec<crate::core::types::GenericInstantiationInfo>>,
+    _instantiations: HashMap<String, Vec<crate::core::types::GenericInstantiationInfo>>,
     /// Code bloat assessment
     bloat_assessment: CodeBloatAssessment,
 }
@@ -71,7 +71,7 @@ pub struct GenericInstantiationTracker {
 /// Manages object lifecycle tracking
 pub struct ObjectLifecycleManager {
     /// Object lifecycle information by pointer
-    lifecycles: HashMap<usize, crate::core::types::ObjectLifecycleInfo>,
+    _lifecycles: HashMap<usize, crate::core::types::ObjectLifecycleInfo>,
     /// Resource waste analysis
     waste_analysis: ResourceWasteAnalysis,
 }
@@ -79,7 +79,7 @@ pub struct ObjectLifecycleManager {
 /// Analyzes memory access patterns
 pub struct MemoryAccessPatternAnalyzer {
     /// Access patterns by memory region
-    patterns: HashMap<usize, Vec<AccessPattern>>,
+    _patterns: HashMap<usize, Vec<AccessPattern>>,
     /// Locality analysis
     locality: LocalityAnalysis,
 }
@@ -97,7 +97,7 @@ impl StackFrameTracker {
         Self {
             stack_boundaries: StackBoundaries::detect(),
             frames: HashMap::new(),
-            current_depth: 0,
+            _current_depth: 0,
         }
     }
 
@@ -121,6 +121,7 @@ impl StackFrameTracker {
 }
 
 impl HeapBoundaryDetector {
+    /// Create a new heap boundary detector
     pub fn new() -> Self {
         // Initialize with default system heap segment
         let default_segment = HeapSegment {
@@ -130,7 +131,7 @@ impl HeapBoundaryDetector {
 
         Self {
             heap_segments: vec![default_segment],
-            allocator_info: AllocatorInfo {
+            _allocator_info: AllocatorInfo {
                 name: "System".to_string(),
                 strategy: AllocationStrategy::FirstFit,
                 heap_segments: Vec::new(),
@@ -154,9 +155,10 @@ impl HeapBoundaryDetector {
 }
 
 impl TemporaryObjectAnalyzer {
+    /// Create a new temporary object analyzer  
     pub fn new() -> Self {
         Self {
-            patterns: HashMap::new(),
+            _patterns: HashMap::new(),
             hot_patterns: Vec::new(),
             suggestions: Vec::new(),
         }
@@ -209,7 +211,7 @@ impl TemporaryObjectAnalyzer {
         };
 
         // Add to patterns collection
-        self.patterns
+        self._patterns
             .entry(pattern)
             .or_insert_with(Vec::new)
             .push(enhanced_info.clone());
@@ -325,7 +327,7 @@ impl TemporaryObjectAnalyzer {
     fn update_hot_patterns(&mut self) {
         self.hot_patterns.clear();
 
-        for (pattern, instances) in &self.patterns {
+        for (pattern, instances) in &self._patterns {
             if instances.len() >= 5 {
                 // Calculate total memory impact
                 let total_memory: usize = instances.iter().map(|info| info.allocation.size).sum();
@@ -613,7 +615,7 @@ impl FragmentationMonitor {
 impl GenericInstantiationTracker {
     pub fn new() -> Self {
         Self {
-            instantiations: HashMap::new(),
+            _instantiations: HashMap::new(),
             bloat_assessment: CodeBloatAssessment {
                 bloat_level: BloatLevel::Low,
                 estimated_code_size_increase: 0.0,
@@ -627,7 +629,7 @@ impl GenericInstantiationTracker {
 impl ObjectLifecycleManager {
     pub fn new() -> Self {
         Self {
-            lifecycles: HashMap::new(),
+            _lifecycles: HashMap::new(),
             waste_analysis: ResourceWasteAnalysis {
                 wasted_allocations: 0,
                 total_wasted_memory: 0,
@@ -641,7 +643,7 @@ impl ObjectLifecycleManager {
 impl MemoryAccessPatternAnalyzer {
     pub fn new() -> Self {
         Self {
-            patterns: HashMap::new(),
+            _patterns: HashMap::new(),
             locality: LocalityAnalysis {
                 locality_score: 0.0,
             },
@@ -661,63 +663,97 @@ impl CachePerformanceOptimizer {
     }
 }
 
-// Simple stub types for missing structs with serde support
+/// Simple stub types for missing structs with serde support
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MonomorphizationStatistics {
+    /// Total number of instantiations
     pub total_instantiations: usize,
 }
+/// Efficiency metrics
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EfficiencyMetrics {
+    /// Efficiency score
     pub efficiency_score: f64,
 }
+/// Object relationship graph
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ObjectRelationshipGraph {
+    /// List of nodes in the graph
     pub nodes: Vec<String>,
 }
+/// Actual access tracking
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ActualAccessTracking {
+    /// Total number of accesses
     pub total_accesses: usize,
 }
+/// Locality analysis
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LocalityAnalysis {
+    /// Locality score
     pub locality_score: f64,
 }
+/// Cache line analysis
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CacheLineAnalysis {
+    /// Utilization percentage
     pub utilization_percentage: f64,
+    /// Estimated cache misses
     pub estimated_cache_misses: usize,
 }
+/// Bandwidth utilization
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BandwidthUtilization {
+    /// Utilization percentage
     pub utilization_percentage: f64,
 }
+/// Lifecycle optimization
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LifecycleOptimization {
+    /// Type of optimization
     pub optimization_type: String,
 }
+
+/// Layout recommendation
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LayoutRecommendation {
+    /// Recommendation for layout
     pub recommendation: String,
 }
+
+/// Data structure optimization
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DataStructureOptimization {
+    /// Type of optimization
     pub optimization_type: String,
 }
+
+/// Access pattern optimization
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AccessPatternOptimization {
+    /// Type of optimization
     pub optimization_type: String,
 }
+
+/// Stack frame information
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StackFrameInfo {
+    /// Function name
     pub function_name: String,
+    /// Frame ID
     pub frame_id: u64,
 }
+
+/// Real-time monitoring data
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RealTimeMonitoringData {
+    /// Current fragmentation level
     pub current_fragmentation_level: f64,
 }
+/// Adaptive recommendation
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AdaptiveRecommendation {
+    /// Type of recommendation
     pub recommendation_type: String,
 }
 
@@ -1324,7 +1360,7 @@ impl EnhancedMemoryAnalyzer {
     // All other methods are simplified or removed to ensure compilation
 }
 
-// Example function to demonstrate usage
+/// Example function to demonstrate usage
 pub fn analyze_memory_with_enhanced_features_detailed(
     allocations: &[AllocationInfo],
 ) -> EnhancedMemoryAnalysisReport {

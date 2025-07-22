@@ -91,26 +91,35 @@ pub enum UnknownMemoryCause {
     },
     /// Memory mapping operations
     MemoryMapping {
+        /// Type of memory mapping
         mapping_type: MappingType,
+        /// Path to the file if mapped from a file
         file_path: Option<String>,
     },
     /// System-level allocations
     SystemAllocations {
+        /// Type of system allocation
         allocation_type: SystemAllocationType,
     },
     /// Threading-related memory
     ThreadingMemory {
+        /// Thread ID if known
         thread_id: Option<u64>,
+        /// Type of threading memory
         memory_type: ThreadMemoryType,
     },
     /// Dynamic loading of libraries
     DynamicLoading {
+        /// Path to the library
         library_path: String,
+        /// Time when the library was loaded
         load_time: u64,
     },
     /// Instrumentation limitations
     InstrumentationGaps {
+        /// Type of instrumentation gap
         gap_type: InstrumentationGapType,
+        /// Description of the gap
         description: String,
     },
 }
@@ -403,7 +412,7 @@ impl UnknownMemoryAnalyzer {
     /// Generate strategies to reduce unknown regions
     fn generate_reduction_strategies(
         &self,
-        categories: &[UnknownMemoryCategory],
+        _categories: &[UnknownMemoryCategory],
     ) -> Vec<UnknownRegionReductionStrategy> {
         let mut strategies = Vec::new();
 
@@ -451,13 +460,13 @@ impl UnknownMemoryAnalyzer {
     }
 
     // Helper methods for region identification
-    fn is_in_stack_region(&self, ptr: usize) -> bool {
+    fn is_in_stack_region(&self, _ptr: usize) -> bool {
         // Check against known stack boundaries
         // This would use actual stack detection logic
         false // Placeholder
     }
 
-    fn is_in_heap_region(&self, ptr: usize) -> bool {
+    fn is_in_heap_region(&self, _ptr: usize) -> bool {
         // Check against known heap boundaries
         // This would use actual heap detection logic
         false // Placeholder

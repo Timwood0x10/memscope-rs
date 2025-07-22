@@ -9,6 +9,7 @@
 pub mod allocator;
 pub mod scope_tracker;
 pub mod tracker;
+/// Type definitions
 pub mod types;
 
 // Re-export key types for easier access

@@ -38,7 +38,6 @@ fn test_invalid_pointer_association() {
         "invalid_var".to_string(),
         "InvalidType".to_string(),
     );
-    
 }
 
 #[test]

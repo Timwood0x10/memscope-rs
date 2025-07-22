@@ -10,11 +10,17 @@ pub mod circular_reference;
 pub mod enhanced_memory_analysis;
 pub mod unknown_memory_regions;
 pub mod unsafe_ffi_tracker;
+pub mod variable_relationships;
 
 // Re-export key analysis functions
 pub use circular_reference::*;
 pub use enhanced_memory_analysis::{analyze_memory_with_enhanced_features, EnhancedMemoryAnalyzer};
 pub use unsafe_ffi_tracker::UnsafeFFITracker;
+pub use variable_relationships::{
+    build_variable_relationship_graph, GraphStatistics, RelationshipType as VarRelationshipType,
+    SmartPointerInfo as VarSmartPointerInfo, VariableCategory, VariableCluster, VariableNode,
+    VariableRelationship, VariableRelationshipGraph,
+};
 
 use crate::core::types::*;
 use std::sync::Arc;

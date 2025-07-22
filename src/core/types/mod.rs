@@ -147,6 +147,7 @@ pub struct SmartPointerInfo {
 
     /// Clone relationship tracking
     pub cloned_from: Option<usize>,
+    /// Clones of this smart pointer
     pub clones: Vec<usize>,
 
     /// Reference count history (timestamp, count)
@@ -154,11 +155,14 @@ pub struct SmartPointerInfo {
 
     /// Weak reference information
     pub weak_count: Option<usize>,
+    /// Is this a weak reference?
     pub is_weak_reference: bool,
 
     /// Lifecycle information
-    pub is_data_owner: bool, // Is this the last strong reference?
-    pub is_implicitly_deallocated: bool, // Was data deallocated when this was dropped?
+    /// Is this the last strong reference?
+    pub is_data_owner: bool,
+    /// Was data deallocated when this was dropped?
+    pub is_implicitly_deallocated: bool,
 
     /// Smart pointer type
     pub pointer_type: SmartPointerType,
@@ -167,18 +171,26 @@ pub struct SmartPointerInfo {
 /// Reference count snapshot at a specific time
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RefCountSnapshot {
+    /// Timestamp of the snapshot
     pub timestamp: u64,
+    /// Strong reference count
     pub strong_count: usize,
+    /// Weak reference count
     pub weak_count: usize,
 }
 
 /// Type of smart pointer
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum SmartPointerType {
+    /// Rc smart pointer
     Rc,
+    /// Arc smart pointer
     Arc,
+    /// RcWeak smart pointer
     RcWeak,
+    /// ArcWeak smart pointer
     ArcWeak,
+    /// Box smart pointer
     Box,
 }
 
@@ -1194,12 +1206,16 @@ pub enum OptimizationPotential {
     Minor { potential_savings: usize },
     /// Moderate optimization
     Moderate {
+        /// Potential savings in bytes
         potential_savings: usize,
+        /// Optimization suggestions
         suggestions: Vec<String>,
     },
     /// Major optimization
     Major {
+        /// Potential savings in bytes
         potential_savings: usize,
+        /// Optimization suggestions
         suggestions: Vec<String>,
     },
 }
@@ -1248,9 +1264,13 @@ pub struct MonomorphizationInfo {
 /// Code bloat level
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CodeBloatLevel {
+    /// Low code bloat
     Low,
+    /// Moderate code bloat
     Moderate,
+    /// High code bloat
     High,
+    /// Excessive code bloat
     Excessive,
 }
 
@@ -1268,18 +1288,26 @@ pub struct GenericConstraint {
 /// Constraint type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ConstraintType {
+    /// Trait constraint
     Trait(String),
+    /// Lifetime constraint
     Lifetime(String),
+    /// Associated type constraint
     Associated(String),
+    /// Where clause constraint
     Where(String),
 }
 
 /// Memory impact
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MemoryImpact {
+    /// No memory impact
     None,
+    /// Size increase
     SizeIncrease(usize),
+    /// Alignment change
     AlignmentChange(usize),
+    /// Layout change
     LayoutChange(String),
 }
 
@@ -1338,10 +1366,15 @@ pub struct DispatchOverhead {
 /// Performance impact
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PerformanceImpact {
+    /// Negligible performance impact
     Negligible,
+    /// Minor performance impact
     Minor,
+    /// Moderate performance impact
     Moderate,
+    /// Significant performance impact
     Significant,
+    /// Severe performance impact
     Severe,
 }
 
@@ -1402,9 +1435,13 @@ pub struct MemoryPressureInfo {
 /// Memory pressure level
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MemoryPressureLevel {
+    /// Low memory pressure
     Low,
+    /// Moderate memory pressure
     Moderate,
+    /// High memory pressure
     High,
+    /// Critical memory pressure
     Critical,
 }
 
@@ -1426,10 +1463,18 @@ pub struct CachePerformanceInfo {
 /// Memory access pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MemoryAccessPattern {
+    /// Sequential access pattern
     Sequential,
+    /// Random access pattern
     Random,
-    Strided { stride: usize },
+    /// Strided access pattern
+    Strided { 
+        /// Stride size
+        stride: usize 
+    },
+    /// Clustered access pattern
     Clustered,
+    /// Mixed access pattern
     Mixed,
 }
 
@@ -1502,13 +1547,19 @@ pub struct StackScopeInfo {
 /// Scope type enumeration
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ScopeType {
+    /// Function scope
     Function,
+    /// Block scope
     Block,
+    /// Loop scope
     Loop,
+    /// Conditional scope
     Conditional,
+    /// Match scope
     Match,
-    Closure,
+    /// Closure scope
     Async,
+    /// Unsafe scope
     Unsafe,
 }
 
@@ -1547,13 +1598,19 @@ pub struct CreationContext {
 /// Expression type that creates temporaries
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExpressionType {
+    /// Function call expression
     FunctionCall,
+    /// Method call expression
     MethodCall,
+    /// Operator overload expression
     OperatorOverload,
+    /// Conversion expression
     Conversion,
+    /// Literal expression
     Literal,
-    Aggregate,
+    /// Aggregate expression
     Conditional,
+    /// Match expression
     Match,
 }
 
@@ -1586,10 +1643,15 @@ pub enum TemporaryUsagePattern {
 /// Memory location type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MemoryLocationType {
+    /// Stack memory location
     Stack,
+    /// Heap memory location
     Heap,
+    /// Register memory location
     Register,
+    /// Static memory location
     Static,
+    /// Thread-local memory location
     ThreadLocal,
 }
 
@@ -1643,9 +1705,13 @@ pub struct FragmentationMetrics {
 /// Fragmentation severity levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FragmentationSeverity {
+    /// Low fragmentation severity
     Low,
+    /// Moderate fragmentation severity
     Moderate,
+    /// High fragmentation severity
     High,
+    /// Critical fragmentation severity
     Critical,
 }
 
@@ -1680,9 +1746,13 @@ pub enum FragmentationCauseType {
 /// Impact level enumeration
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ImpactLevel {
+    /// Low impact level
     Low,
+    /// Medium impact level
     Medium,
+    /// High impact level
     High,
+    /// Critical impact level
     Critical,
 }
 
@@ -1729,19 +1799,31 @@ pub struct ConcreteTypeParameter {
 /// Type category classification
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypeCategory {
+    /// Primitive type
     Primitive,
+    /// Struct type
     Struct,
+    /// Enum type
     Enum,
+    /// Union type
     Union,
+    /// Tuple type
     Tuple,
+    /// Array type
     Array,
+    /// Slice type
     Slice,
+    /// Reference type
     Reference,
+    /// Pointer type
     Pointer,
+    /// Function type
     Function,
-    Closure,
+    /// Closure type
     TraitObject,
+    /// Generic type
     Generic,
+    /// Associated type
     Associated,
 }
 
@@ -1761,9 +1843,13 @@ pub struct CompilationImpact {
 /// Optimization difficulty levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OptimizationDifficulty {
+    /// Easy optimization difficulty
     Easy,
+    /// Moderate optimization difficulty
     Moderate,
+    /// Hard optimization difficulty
     Hard,
+    /// Very hard optimization difficulty
     VeryHard,
 }
 
@@ -1869,23 +1955,34 @@ pub struct ComposedTypeInfo {
 /// Type relationship types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RelationshipType {
+    /// Trait implementation relationship
     TraitImplementation,
+    /// Trait bound relationship
     TraitBound,
+    /// Inheritance relationship
     Inheritance,
+    /// Association relationship
     Association,
-    Aggregation,
+    /// Aggregation relationship
     Composition,
+    /// Dependency relationship
     Dependency,
 }
 
 /// Composition types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CompositionType {
+    /// Field composition type
     Field,
+    /// Associated type composition type
     AssociatedType,
+    /// Generic parameter composition type
     GenericParameter,
+    /// Nested type composition type
     NestedType,
+    /// Reference composition type
     Reference,
+    /// Smart pointer composition type
     SmartPointer,
 }
 
@@ -1922,15 +2019,25 @@ pub struct UsageContext {
 /// Context types where types are used
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ContextType {
+    /// Function parameter context
     FunctionParameter,
+    /// Function return context
     FunctionReturn,
+    /// Local variable context
     LocalVariable,
+    /// Struct field context
     StructField,
+    /// Enum variant context
     EnumVariant,
+    /// Trait method context
     TraitMethod,
+    /// Generic constraint context
     GenericConstraint,
+    /// Closure capture context
     ClosureCapture,
+    /// Async context
     AsyncContext,
+    /// Unsafe context
     UnsafeContext,
 }
 
@@ -2010,13 +2117,21 @@ pub struct PerformanceBottleneck {
 /// Types of performance bottlenecks
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BottleneckType {
+    /// Memory allocation bottleneck
     MemoryAllocation,
+    /// Memory deallocation bottleneck
     MemoryDeallocation,
+    /// Cache miss bottleneck
     CacheMiss,
+    /// Branch misprediction bottleneck
     BranchMisprediction,
+    /// Function call bottleneck
     FunctionCall,
+    /// Data movement bottleneck
     DataMovement,
+    /// Synchronization bottleneck
     Synchronization,
+    /// I/O bottleneck
     IO,
 }
 
@@ -2053,32 +2168,49 @@ pub struct OptimizationRecommendation {
 /// Types of optimization recommendations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RecommendationType {
+    /// Memory layout optimization
     MemoryLayout,
+    /// Algorithm change recommendation
     AlgorithmChange,
+    /// Data structure change recommendation
     DataStructureChange,
+    /// Caching strategy recommendation
     CachingStrategy,
+    /// Memory pooling recommendation
     MemoryPooling,
+    /// Lazy initialization recommendation
     LazyInitialization,
+    /// Inlining recommendation
     Inlining,
+    /// Vectorization recommendation
     Vectorization,
+    /// Parallelization recommendation
     Parallelization,
 }
 
 /// Priority levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Priority {
+    /// Low priority
     Low,
+    /// Medium priority
     Medium,
+    /// High priority
     High,
+    /// Critical priority
     Critical,
 }
 
 /// Implementation difficulty levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ImplementationDifficulty {
+    /// Easy implementation difficulty
     Easy,
+    /// Medium implementation difficulty
     Medium,
+    /// Hard implementation difficulty
     Hard,
+    /// Very hard implementation difficulty
     VeryHard,
 }
 
@@ -2153,9 +2285,13 @@ pub struct MemoryUsagePattern {
 /// Memory leak potential assessment
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LeakPotential {
+    /// Low memory leak potential
     Low,
+    /// Medium memory leak potential
     Medium,
+    /// High memory leak potential
     High,
+    /// Critical memory leak potential
     Critical,
 }
 
@@ -2192,9 +2328,13 @@ pub struct RecursionPerformanceImpact {
 /// Stack overflow risk assessment
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StackOverflowRisk {
+    /// Low stack overflow risk
     Low,
+    /// Medium stack overflow risk
     Medium,
+    /// High stack overflow risk
     High,
+    /// Critical stack overflow risk
     Critical,
 }
 
@@ -2261,18 +2401,26 @@ pub struct ConcurrencyCharacteristics {
 /// Thread safety levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ThreadSafetyLevel {
+    /// Thread safe
     ThreadSafe,
+    /// Conditionally thread safe
     ConditionallyThreadSafe,
+    /// Not thread safe
     NotThreadSafe,
+    /// Unknown thread safety
     Unknown,
 }
 
 /// Deadlock risk assessment
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DeadlockRisk {
+    /// No deadlock risk
     None,
+    /// Low deadlock risk
     Low,
+    /// Medium deadlock risk
     Medium,
+    /// High deadlock risk
     High,
 }
 
@@ -2294,13 +2442,21 @@ pub struct CallPattern {
 /// Types of call patterns
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CallPatternType {
+    /// Sequential call pattern
     Sequential,
+    /// Recursive call pattern
     Recursive,
+    /// Iterative call pattern
     Iterative,
+    /// Conditional call pattern
     Conditional,
+    /// Parallel call pattern
     Parallel,
+    /// Asynchronous call pattern
     Asynchronous,
+    /// Callback call pattern
     Callback,
+    /// Event-driven call pattern
     EventDriven,
 }
 
@@ -2343,19 +2499,33 @@ pub struct LifecycleEvent {
 /// Types of lifecycle events
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LifecycleEventType {
+    /// Object creation
     Creation,
+    /// Object initialization
     Initialization,
+    /// Object first use
     FirstUse,
+    /// Object move
     Move,
+    /// Object copy
     Copy,
+    /// Object clone
     Clone,
+    /// Object borrow
     Borrow,
+    /// Object mutable borrow
     MutableBorrow,
+    /// Object borrow release
     BorrowRelease,
+    /// Object modification
     Modification,
+    /// Object last use
     LastUse,
+    /// Object drop
     Drop,
+    /// Object destruction
     Destruction,
+    /// Object memory reclaim
     MemoryReclaim,
 }
 
@@ -2377,9 +2547,16 @@ pub struct MemoryState {
 /// Borrow state information
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BorrowState {
+    /// Object is not borrowed
     NotBorrowed,
-    SharedBorrow { count: u32 },
+    /// Object is shared borrowed
+    SharedBorrow {
+        /// Number of shared borrows
+        count: u32,
+    },
+    /// Object is mutably borrowed
     MutableBorrow,
+    /// Object has been moved out
     MovedOut,
 }
 
@@ -2457,14 +2634,23 @@ pub struct LifecyclePattern {
 /// Types of lifecycle patterns
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LifecyclePatternType {
+    /// Short-lived objects
     ShortLived,
+    /// Long-lived objects
     LongLived,
+    /// Cyclical objects
     Cyclical,
+    /// On-demand objects
     OnDemand,
+    /// Cached objects
     Cached,
+    /// Pooled objects
     Pooled,
+    /// Singleton objects
     Singleton,
+    /// Factory objects
     Factory,
+    /// RAII objects
     RAII,
 }
 
@@ -2518,10 +2704,15 @@ pub struct MemoryAccessEvent {
 /// Types of memory access
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MemoryAccessType {
+    /// Read access
     Read,
+    /// Write access
     Write,
+    /// Read-modify-write access
     ReadModifyWrite,
+    /// Prefetch access
     Prefetch,
+    /// Flush access
     Flush,
 }
 
@@ -2629,13 +2820,19 @@ pub struct BandwidthBottleneck {
 /// Bandwidth bottleneck locations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BandwidthBottleneckLocation {
+    /// L1 cache bottleneck
     L1Cache,
+    /// L2 cache bottleneck
     L2Cache,
+    /// L3 cache bottleneck
     L3Cache,
+    /// Main memory bottleneck
     MainMemory,
-    MemoryController,
+    /// Memory controller bottleneck
     SystemBus,
+    /// PCIe bottleneck
     PCIe,
+    /// Network bottleneck
     Network,
 }
 
@@ -2657,13 +2854,21 @@ pub struct AccessPattern {
 /// Types of access patterns
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AccessPatternType {
+    /// Sequential access pattern
     Sequential,
+    /// Random access pattern
     Random,
+    /// Strided access pattern
     Strided,
+    /// Hotspot access pattern
     Hotspot,
+    /// Sparse access pattern
     Sparse,
+    /// Dense access pattern
     Dense,
+    /// Temporal access pattern
     Temporal,
+    /// Spatial access pattern
     Spatial,
 }
 
@@ -2713,13 +2918,21 @@ pub struct MemoryOptimizationRecommendation {
 /// Types of memory optimizations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MemoryOptimizationType {
+    /// Data layout optimization
     DataLayout,
+    /// Access pattern optimization
     AccessPattern,
+    /// Prefetching optimization
     Prefetching,
+    /// Caching optimization
     Caching,
+    /// Memory pooling optimization
     MemoryPooling,
+    /// NUMA optimization
     NUMA,
+    /// Vectorization optimization
     Vectorization,
+    /// Compression optimization
     Compression,
 }
 

@@ -116,7 +116,7 @@ impl ScopeTracker {
             let name_for_depth = name.clone();
             let name_for_relationship = name.clone();
             let name_for_root = name.clone();
-            let name_for_parent_check = name.clone();
+            let _name_for_parent_check = name.clone();
 
             hierarchy.depth_map.insert(name_for_depth, depth);
 
