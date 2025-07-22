@@ -256,7 +256,7 @@ fn prepare_comprehensive_json_data(
         }
     });
 
-    serde_json::to_string_pretty(&json_obj)
+    serde_json::to_string(&json_obj)
         .map_err(|e| TrackingError::SerializationError(format!("JSON serialization failed: {e}")))
 }
 

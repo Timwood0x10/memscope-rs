@@ -241,7 +241,7 @@ fn generate_variable_relationships_simple(
 
     let file_path = parent_dir.join(format!("{}_variable_relationships.json", base_name));
     let mut file = File::create(&file_path)?;
-    file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes())?;
+    file.write_all(serde_json::to_string(&json_data)?.as_bytes())?;
 
     tracing::debug!(
         "✅ Variable relationships JSON generated in {:?}",
@@ -289,7 +289,7 @@ fn generate_memory_analysis_simple(
 
     let file_path = parent_dir.join(format!("{}_memory_analysis.json", base_name));
     let mut file = File::create(&file_path)?;
-    file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes())?;
+    file.write_all(serde_json::to_string(&json_data)?.as_bytes())?;
 
     tracing::debug!(
         "✅ Memory analysis JSON generated in {:?}",
@@ -379,7 +379,7 @@ fn generate_lifetime_analysis_simple(
 
     let file_path = parent_dir.join(format!("{}_lifetime_analysis.json", base_name));
     let mut file = File::create(&file_path)?;
-    file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes())?;
+    file.write_all(serde_json::to_string(&json_data)?.as_bytes())?;
 
     tracing::debug!(
         "✅ Lifetime analysis JSON generated in {:?}",
@@ -451,7 +451,7 @@ fn generate_unsafe_ffi_analysis_simple(
 
     let file_path = parent_dir.join(format!("{}_unsafe_ffi_analysis.json", base_name));
     let mut file = File::create(&file_path)?;
-    file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes())?;
+    file.write_all(serde_json::to_string(&json_data)?.as_bytes())?;
 
     tracing::debug!(
         "✅ Unsafe/FFI analysis JSON generated in {:?}",

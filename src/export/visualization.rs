@@ -817,7 +817,7 @@ fn export_scope_analysis_json(
     analysis.insert("all_scopes".to_string(), Value::Array(all_scopes_data));
 
     // Write to JSON file
-    let json_content = serde_json::to_string_pretty(&Value::Object(analysis)).map_err(|e| {
+    let json_content = serde_json::to_string(&Value::Object(analysis)).map_err(|e| {
         TrackingError::SerializationError(format!("JSON serialization failed: {e}"))
     })?;
 
