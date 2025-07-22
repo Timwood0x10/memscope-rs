@@ -40,7 +40,7 @@ fn _original_main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
-        print_usage();
+        _print_usage();
         return;
     }
 
@@ -81,7 +81,7 @@ fn _original_main() {
             }
         }
         _ => {
-            print_usage();
+            _print_usage();
         }
     }
 }
@@ -110,7 +110,7 @@ console.log('📊 Loaded embedded memory analysis data');
     Ok(())
 }
 
-fn print_usage() {
+fn _print_usage() {
     println!("🔍 Memory Analysis Report Generator");
     println!();
     println!("Usage:");

@@ -71,7 +71,7 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn test_enhanced_memory_analysis() {
+fn _test_enhanced_memory_analysis() {
     // Create some test allocations
     let vec1 = vec![1, 2, 3, 4, 5];
     let vec2 = vec![6, 7, 8, 9, 10];

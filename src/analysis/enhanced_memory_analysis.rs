@@ -93,6 +93,7 @@ pub struct CachePerformanceOptimizer {
 }
 
 impl StackFrameTracker {
+    /// Create a new stack frame tracker
     pub fn new() -> Self {
         Self {
             stack_boundaries: StackBoundaries::detect(),
@@ -444,6 +445,7 @@ for i in 0..1000 {
 }
 
 impl FragmentationMonitor {
+    /// Create a new fragmentation monitor
     pub fn new() -> Self {
         Self {
             current_metrics: FragmentationMetrics {
@@ -613,6 +615,7 @@ impl FragmentationMonitor {
 }
 
 impl GenericInstantiationTracker {
+    /// Create a new generic instantiation tracker
     pub fn new() -> Self {
         Self {
             _instantiations: HashMap::new(),
@@ -627,6 +630,7 @@ impl GenericInstantiationTracker {
 }
 
 impl ObjectLifecycleManager {
+    /// Create a new object lifecycle manager
     pub fn new() -> Self {
         Self {
             _lifecycles: HashMap::new(),
@@ -641,6 +645,7 @@ impl ObjectLifecycleManager {
 }
 
 impl MemoryAccessPatternAnalyzer {
+    /// Create a new memory access pattern analyzer
     pub fn new() -> Self {
         Self {
             _patterns: HashMap::new(),
@@ -652,6 +657,7 @@ impl MemoryAccessPatternAnalyzer {
 }
 
 impl CachePerformanceOptimizer {
+    /// Create a new cache performance optimizer
     pub fn new() -> Self {
         Self {
             cache_line_analysis: CacheLineAnalysis {

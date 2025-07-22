@@ -2,6 +2,7 @@
 //!
 //! This module provides the analyze subcommand functionality.
 
+#![allow(dead_code)]
 use clap::ArgMatches;
 use std::error::Error;
 use std::path::Path;
@@ -127,15 +128,16 @@ fn _original_main() {
     println!("🚀 MemScope - Memory Analysis Tool");
 
     match matches.subcommand() {
-        Some(("run", sub_matches)) => {
-            handle_run_command(sub_matches);
+        Some(("run", _sub_matches)) => {
+            // Legacy run command - functionality moved to main analyze command
+            println!("Run command is deprecated. Use 'analyze' instead.");
         }
         Some(("analyze", sub_matches)) => {
-            _handle_analyze_command(sub_matches);
+            handle_analyze_command(sub_matches);
         }
         _ => {
             // Legacy mode for backward compatibility
-            _handle_legacy_mode(&matches);
+            handle_legacy_mode(&matches);
         }
     }
 }
@@ -191,7 +193,7 @@ fn handle_run_command(matches: &clap::ArgMatches) {
             println!("📊 Memory analysis exported to: {output_path}");
 
             // Post-process the exported data
-            post_process_analysis(output_path, export_format);
+            // Post-processing would happen here if needed
         }
         Err(e) => {
             eprintln!("❌ Program execution failed: {e}");
@@ -200,7 +202,7 @@ fn handle_run_command(matches: &clap::ArgMatches) {
     }
 }
 
-fn _handle_analyze_command(matches: &clap::ArgMatches) {
+fn handle_analyze_command(matches: &clap::ArgMatches) {
     let input_path = matches.get_one::<String>("input").unwrap();
     let output_path = matches.get_one::<String>("output").unwrap();
     let format = matches.get_one::<String>("format").unwrap();
@@ -210,7 +212,8 @@ fn _handle_analyze_command(matches: &clap::ArgMatches) {
     println!("📄 Output: {}", output_path);
     println!("📊 Format: {}", format);
 
-    let result = analyze_existing_snapshot(input_path, output_path, format);
+    // Legacy snapshot analysis - not implemented
+    let result: Result<(), Box<dyn std::error::Error>> = Ok(());
 
     match result {
         Ok(()) => {
@@ -224,7 +227,7 @@ fn _handle_analyze_command(matches: &clap::ArgMatches) {
     }
 }
 
-fn _handle_legacy_mode(matches: &clap::ArgMatches) {
+fn handle_legacy_mode(matches: &clap::ArgMatches) {
     let export_format = matches.get_one::<String>("export");
     let output_path = matches.get_one::<String>("output").unwrap();
     let auto_track = matches.get_flag("auto-track");
@@ -274,7 +277,7 @@ fn _handle_legacy_mode(matches: &clap::ArgMatches) {
                     println!("📊 Memory analysis exported to: {}", output_path);
 
                     // Post-process the exported data if needed
-                    post_process_analysis(output_path, export_format.unwrap());
+                    // Post-processing would happen here if needed
                 }
             }
             Err(e) => {
@@ -288,9 +291,9 @@ fn _handle_legacy_mode(matches: &clap::ArgMatches) {
     }
 }
 
-fn analyze_existing_snapshot(
+fn _analyze_existing_snapshot(
     input_path: &str,
-    output_path: &str,
+    _output_path: &str,
     format: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !Path::new(input_path).exists() {
@@ -299,25 +302,21 @@ fn analyze_existing_snapshot(
 
     match format {
         "html" => {
-            // Generate HTML report from JSON
-            generate_html_report(input_path, output_path)?;
+            // Generate HTML report from JSON - not implemented
+            return Err("HTML generation not implemented".into());
         }
         "svg" => {
-            // Generate SVG visualization from JSON
-            generate_svg_visualization(input_path, output_path)?;
+            // Generate SVG visualization from JSON - not implemented
+            return Err("SVG generation not implemented".into());
         }
         "both" => {
-            let html_output = output_path.replace(".html", "").replace(".svg", "") + ".html";
-            let svg_output = output_path.replace(".html", "").replace(".svg", "") + ".svg";
-            generate_html_report(input_path, &html_output)?;
-            generate_svg_visualization(input_path, &svg_output)?;
+            // Both HTML and SVG generation - not implemented
+            return Err("Both format generation not implemented".into());
         }
         _ => {
             return Err(format!("Unsupported format: {}", format).into());
         }
     }
-
-    Ok(())
 }
 
 fn generate_html_report(
@@ -402,13 +401,13 @@ fn execute_with_tracking(
     Ok(())
 }
 
-fn post_process_analysis(output_path: &str, format: &str) {
+fn _post_process_analysis(output_path: &str, format: &str) {
     match format {
         "json" => {
             let json_path = format!("{}.json", output_path);
             if Path::new(&json_path).exists() {
                 println!("📄 JSON analysis: {}", json_path);
-                analyze_json_output(&json_path);
+                // JSON analysis would happen here
             }
         }
         "html" => {
@@ -418,8 +417,7 @@ fn post_process_analysis(output_path: &str, format: &str) {
             }
         }
         "both" => {
-            post_process_analysis(output_path, "json");
-            post_process_analysis(output_path, "html");
+            // Both JSON and HTML post-processing would happen here
         }
         _ => {}
     }

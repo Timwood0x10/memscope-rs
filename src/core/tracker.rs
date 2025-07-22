@@ -832,7 +832,7 @@ impl MemoryTracker {
     /// Extract concrete type parameters
     fn extract_concrete_parameters(
         &self,
-        type_name: &str,
+        _type_name: &str,
     ) -> Vec<crate::core::types::ConcreteTypeParameter> {
         // Simplified parameter extraction
         vec![crate::core::types::ConcreteTypeParameter {
@@ -1898,7 +1898,7 @@ impl Default for MemoryTracker {
 
 impl MemoryTracker {
     /// Track growth events for a variable
-    fn track_growth_events(
+    fn _track_growth_events(
         &self,
         var_name: &str,
         allocation_history: &[AllocationInfo],
@@ -1937,7 +1937,7 @@ impl MemoryTracker {
     }
 
     /// Track borrow events for a variable
-    fn track_borrow_events(
+    fn _track_borrow_events(
         &self,
         _var_name: &str,
         _allocation_history: &[AllocationInfo],
@@ -1947,7 +1947,7 @@ impl MemoryTracker {
     }
 
     /// Track move events for a variable
-    fn track_move_events(
+    fn _track_move_events(
         &self,
         _var_name: &str,
         _allocation_history: &[AllocationInfo],
@@ -1957,7 +1957,7 @@ impl MemoryTracker {
     }
 
     /// Track variable relationships
-    fn track_variable_relationships(
+    fn _track_variable_relationships(
         &self,
         _var_name: &str,
         _active_allocations: &[AllocationInfo],
@@ -1967,7 +1967,7 @@ impl MemoryTracker {
     }
 
     /// Calculate minimum allocation size for a type
-    fn calculate_min_allocation_size(
+    fn _calculate_min_allocation_size(
         &self,
         type_name: &str,
         allocation_history: &[AllocationInfo],
@@ -1981,7 +1981,7 @@ impl MemoryTracker {
     }
 
     /// Detect potential memory leaks
-    fn detect_potential_leaks(
+    fn _detect_potential_leaks(
         &self,
         active_allocations: &[AllocationInfo],
     ) -> Vec<crate::core::types::PotentialLeak> {
@@ -2019,7 +2019,7 @@ impl MemoryTracker {
     }
 
     /// Convert unsafe violations from unsafe tracker
-    fn convert_unsafe_violations(&self) -> Vec<crate::core::types::SafetyViolation> {
+    fn _convert_unsafe_violations(&self) -> Vec<crate::core::types::SafetyViolation> {
         // Simplified implementation - return empty for now
         Vec::new()
     }
@@ -2787,7 +2787,7 @@ fn build_legacy_hierarchy(
 
 impl MemoryTracker {
     /// Enhance allocations with precise names, eliminating unknown types
-    fn enhance_allocations_with_precise_names(
+    fn _enhance_allocations_with_precise_names(
         &self,
         allocations: &[AllocationInfo],
     ) -> TrackingResult<Vec<AllocationInfo>> {
@@ -2798,7 +2798,7 @@ impl MemoryTracker {
 
             // If no variable name, generate one based on size and type
             if enhanced_alloc.var_name.is_none() {
-                let (smart_name, smart_type) = analyze_system_allocation(alloc);
+                let (smart_name, smart_type) = _analyze_system_allocation(alloc);
                 enhanced_alloc.var_name = Some(smart_name);
                 enhanced_alloc.type_name = Some(smart_type);
             }
@@ -2807,7 +2807,7 @@ impl MemoryTracker {
             if enhanced_alloc.type_name.as_deref() == Some("Unknown")
                 || enhanced_alloc.type_name.is_none()
             {
-                enhanced_alloc.type_name = Some(self.infer_type_from_context(alloc));
+                enhanced_alloc.type_name = Some(self._infer_type_from_context(alloc));
             }
 
             enhanced.push(enhanced_alloc);
@@ -2817,7 +2817,7 @@ impl MemoryTracker {
     }
 
     /// Infer type from allocation context
-    fn infer_type_from_context(&self, alloc: &AllocationInfo) -> String {
+    fn _infer_type_from_context(&self, alloc: &AllocationInfo) -> String {
         match alloc.size {
             1..=8 => "Small Primitive".to_string(),
             9..=32 => "Medium Structure".to_string(),
@@ -2830,7 +2830,7 @@ impl MemoryTracker {
     }
 
     /// Generate scope hierarchy
-    fn generate_scope_hierarchy(
+    fn _generate_scope_hierarchy(
         &self,
         allocations: &[AllocationInfo],
     ) -> TrackingResult<serde_json::Value> {
@@ -2903,7 +2903,7 @@ impl MemoryTracker {
     }
 
     /// Generate variable relationships
-    fn generate_variable_relationships(
+    fn _generate_variable_relationships(
         &self,
         allocations: &[AllocationInfo],
     ) -> TrackingResult<serde_json::Value> {
@@ -2923,13 +2923,13 @@ impl MemoryTracker {
             for (other_name, other_alloc) in &variable_map {
                 if var_name != other_name {
                     let relationship_type =
-                        self.determine_relationship_type(var_name, other_name, alloc, other_alloc);
+                        self._determine_relationship_type(var_name, other_name, alloc, other_alloc);
                     if let Some(rel_type) = relationship_type {
                         relationships.push(serde_json::json!({
                             "source": var_name,
                             "target": other_name,
                             "relationship_type": rel_type,
-                            "strength": self.calculate_relationship_strength(alloc, other_alloc),
+                            "strength": self._calculate_relationship_strength(alloc, other_alloc),
                             "source_info": {
                                 "size": alloc.size,
                                 "type": alloc.type_name.as_deref().unwrap_or("unknown"),
@@ -2960,7 +2960,7 @@ impl MemoryTracker {
     }
 
     /// Determine relationship type between two variables
-    fn determine_relationship_type(
+    fn _determine_relationship_type(
         &self,
         var1: &str,
         var2: &str,
@@ -2983,7 +2983,7 @@ impl MemoryTracker {
                 return Some("ownership".to_string());
             }
 
-            if type1.contains("Vec") && type2.contains(&extract_vec_inner_type(type1)) {
+            if type1.contains("Vec") && type2.contains(&_extract_vec_inner_type(type1)) {
                 return Some("collection_item".to_string());
             }
         }
@@ -2997,7 +2997,7 @@ impl MemoryTracker {
     }
 
     /// Calculate relationship strength
-    fn calculate_relationship_strength(
+    fn _calculate_relationship_strength(
         &self,
         alloc1: &AllocationInfo,
         alloc2: &AllocationInfo,
@@ -3029,7 +3029,7 @@ impl MemoryTracker {
     }
 
     /// Generate SVG visualization data
-    fn generate_svg_visualization_data(
+    fn _generate_svg_visualization_data(
         &self,
         allocations: &[AllocationInfo],
         stats: &MemoryStats,
@@ -3044,7 +3044,7 @@ impl MemoryTracker {
                         "type": alloc.type_name.as_deref().unwrap_or("inferred"),
                         "x": alloc.timestamp_alloc % 1000, // Simplified positioning
                         "y": alloc.size,
-                        "color": self.get_type_color(alloc.type_name.as_deref().unwrap_or("default"))
+                        "color": self._get_type_color(alloc.type_name.as_deref().unwrap_or("default"))
                     })
                 }).collect::<Vec<_>>(),
                 "metadata": {
@@ -3073,7 +3073,7 @@ impl MemoryTracker {
                     .map(|alloc| {
                         serde_json::json!({
                             "variable": alloc.var_name.as_deref().unwrap_or("unnamed"),
-                            "risk_level": self.assess_risk_level(alloc),
+                            "risk_level": self._assess_risk_level(alloc),
                             "size": alloc.size,
                             "location": alloc.scope_name.as_deref().unwrap_or("global")
                         })
@@ -3083,7 +3083,7 @@ impl MemoryTracker {
     }
 
     /// Get color for type visualization
-    fn get_type_color(&self, type_name: &str) -> String {
+    fn _get_type_color(&self, type_name: &str) -> String {
         match type_name {
             t if t.contains("Vec") => "#4CAF50".to_string(),
             t if t.contains("String") => "#2196F3".to_string(),
@@ -3095,7 +3095,7 @@ impl MemoryTracker {
     }
 
     /// Assess risk level for unsafe operations
-    fn assess_risk_level(&self, alloc: &AllocationInfo) -> String {
+    fn _assess_risk_level(&self, alloc: &AllocationInfo) -> String {
         if alloc.size > 1024 * 1024 {
             // > 1MB
             "high".to_string()
@@ -3108,7 +3108,7 @@ impl MemoryTracker {
     }
 
     /// Generate detailed call stacks
-    fn generate_detailed_call_stacks(
+    fn _generate_detailed_call_stacks(
         &self,
         allocations: &[AllocationInfo],
     ) -> TrackingResult<serde_json::Value> {
@@ -3141,12 +3141,12 @@ impl MemoryTracker {
         Ok(serde_json::json!({
             "stacks": call_stacks,
             "total_stacks": call_stacks.len(),
-            "unique_functions": self.count_unique_functions(&call_stacks)
+            "unique_functions": self._count_unique_functions(&call_stacks)
         }))
     }
 
     /// Count unique functions in call stacks
-    fn count_unique_functions(
+    fn _count_unique_functions(
         &self,
         call_stacks: &std::collections::HashMap<String, serde_json::Value>,
     ) -> usize {
@@ -3166,7 +3166,7 @@ impl MemoryTracker {
     }
 
     /// Calculate allocation rate
-    fn calculate_allocation_rate(&self, history: &[AllocationInfo]) -> TrackingResult<f64> {
+    fn _calculate_allocation_rate(&self, history: &[AllocationInfo]) -> TrackingResult<f64> {
         if history.is_empty() {
             return Ok(0.0);
         }
@@ -3183,7 +3183,7 @@ impl MemoryTracker {
     }
 
     /// Calculate deallocation rate
-    fn calculate_deallocation_rate(&self, history: &[AllocationInfo]) -> TrackingResult<f64> {
+    fn _calculate_deallocation_rate(&self, history: &[AllocationInfo]) -> TrackingResult<f64> {
         let deallocated_count = history
             .iter()
             .filter(|a| a.timestamp_dealloc.is_some())
@@ -3206,7 +3206,7 @@ impl MemoryTracker {
 }
 
 /// Extract inner type from Vec<T>
-fn extract_vec_inner_type(type_name: &str) -> String {
+fn _extract_vec_inner_type(type_name: &str) -> String {
     if let Some(start) = type_name.find("Vec<") {
         if let Some(end) = type_name.rfind('>') {
             let inner = &type_name[start + 4..end];
@@ -3217,7 +3217,7 @@ fn extract_vec_inner_type(type_name: &str) -> String {
 }
 
 /// Analyze system allocation to provide smart naming
-fn analyze_system_allocation(alloc: &AllocationInfo) -> (String, String) {
+fn _analyze_system_allocation(alloc: &AllocationInfo) -> (String, String) {
     let size = alloc.size;
     let smart_name = match size {
         1..=8 => format!("small_object_{:x}", alloc.ptr),

@@ -1203,7 +1203,11 @@ pub enum OptimizationPotential {
     /// No optimization needed
     None,
     /// Minor optimization
-    Minor { potential_savings: usize },
+    /// Minor optimization potential
+    Minor { 
+        /// Potential memory savings in bytes
+        potential_savings: usize 
+    },
     /// Moderate optimization
     Moderate {
         /// Potential savings in bytes
