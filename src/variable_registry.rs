@@ -193,7 +193,7 @@ impl VariableRegistry {
                 "timestamp_dealloc": alloc.timestamp_dealloc,
                 "variable_name": var_name,
                 "type_name": type_name,
-                "scope_name": alloc.scope_name.as_deref().unwrap_or("main"),
+                "scope_name": alloc.scope_name.as_deref().unwrap_or("user_scope"),
                 "allocation_source": "user",
                 "tracking_method": "explicit_tracking",
                 "lifetime_ms": alloc.timestamp_dealloc.map(|dealloc|
@@ -243,9 +243,14 @@ impl VariableRegistry {
         })
     }
 
-    /// Extract scope information from variable name
+    /// Extract scope information from variable name and current scope context
     fn extract_scope_from_var_name(var_name: &str) -> String {
-        // Try to extract scope from variable name patterns
+        // First, try to get the current scope from the scope tracker
+        if let Some(current_scope) = Self::get_current_scope_name() {
+            return current_scope;
+        }
+
+        // Fallback: Try to extract scope from variable name patterns
         if var_name.contains("::") {
             if let Some(scope_part) = var_name.split("::").next() {
                 return scope_part.to_string();
@@ -254,14 +259,43 @@ impl VariableRegistry {
 
         // Check for common scope patterns
         if var_name.starts_with("main_") {
-            "main".to_string()
+            "main_function".to_string()
         } else if var_name.starts_with("test_") {
-            "test".to_string()
+            "test_function".to_string()
         } else if var_name.starts_with("fn_") {
-            "function".to_string()
+            "user_function".to_string()
+        } else if var_name.contains("_vec") || var_name.contains("_string") || var_name.contains("_data") {
+            "user_scope".to_string()
+        } else if var_name.starts_with("boxed_") || var_name.starts_with("rc_") || var_name.starts_with("arc_") {
+            "user_scope".to_string()
         } else {
-            "global".to_string()
+            // For user variables, default to user_scope instead of global
+            "user_scope".to_string()
         }
+    }
+
+    /// Get the current scope name from the scope tracker
+    fn get_current_scope_name() -> Option<String> {
+        use crate::core::scope_tracker::get_global_scope_tracker;
+        
+        let scope_tracker = get_global_scope_tracker();
+        let thread_id = format!("{:?}", std::thread::current().id());
+        
+        // Try to get the current scope from the scope stack
+        if let Ok(scope_stack) = scope_tracker.scope_stack.try_lock() {
+            if let Some(thread_stack) = scope_stack.get(&thread_id) {
+                if let Some(&current_scope_id) = thread_stack.last() {
+                    // Get the scope name from active scopes
+                    if let Ok(active_scopes) = scope_tracker.active_scopes.try_lock() {
+                        if let Some(scope_info) = active_scopes.get(&current_scope_id) {
+                            return Some(scope_info.name.clone());
+                        }
+                    }
+                }
+            }
+        }
+        
+        None
     }
 
     /// Categorize system allocations for better understanding

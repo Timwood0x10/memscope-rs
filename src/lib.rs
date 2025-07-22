@@ -960,7 +960,14 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
             var.get_size_estimate(),
         );
 
-        // 2. Original tracking logic remains unchanged
+        // 2. Associate variable with current scope
+        let scope_tracker = crate::core::scope_tracker::get_global_scope_tracker();
+        let _ = scope_tracker.associate_variable(
+            var_name.to_string(),
+            var.get_size_estimate(),
+        );
+
+        // 3. Original tracking logic remains unchanged
         tracing::debug!(
             "Tracking variable '{}' of type '{}' at ptr 0x{:x}",
             var_name,

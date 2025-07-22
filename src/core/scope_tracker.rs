@@ -21,15 +21,15 @@ pub type ScopeId = u64;
 /// Core scope tracking functionality
 pub struct ScopeTracker {
     /// Active scopes (scope_id -> scope_info)
-    active_scopes: Mutex<HashMap<ScopeId, ScopeInfo>>,
+    pub active_scopes: Mutex<HashMap<ScopeId, ScopeInfo>>,
     /// Completed scopes for analysis
-    completed_scopes: Mutex<Vec<ScopeInfo>>,
+    pub completed_scopes: Mutex<Vec<ScopeInfo>>,
     /// Scope hierarchy relationships
-    scope_hierarchy: Mutex<ScopeHierarchy>,
+    pub scope_hierarchy: Mutex<ScopeHierarchy>,
     /// Next available scope ID
     next_scope_id: Mutex<ScopeId>,
     /// Current scope stack per thread
-    scope_stack: Mutex<HashMap<String, Vec<ScopeId>>>,
+    pub scope_stack: Mutex<HashMap<String, Vec<ScopeId>>>,
 }
 
 impl ScopeTracker {
