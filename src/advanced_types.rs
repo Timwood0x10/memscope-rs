@@ -548,6 +548,255 @@ pub fn is_advanced_type(type_name: &str) -> bool {
         || type_name.contains("Waker")
         || type_name.contains("Condvar")
         || type_name.contains("Barrier")
+        || type_name.contains("Arc<")
+        || type_name.contains("Rc<")
+        || type_name.contains("Weak<")
+        || type_name.contains("Box<dyn")
+        || type_name.contains("Cow<")
+        || type_name.contains("HashMap<")
+        || type_name.contains("BTreeMap<")
+        || type_name.contains("PhantomData<")
+}
+
+/// Analyze a type and return its category
+pub fn get_type_category(type_name: &str) -> Option<AdvancedTypeCategory> {
+    if type_name.contains("Cell<") || type_name.contains("RefCell<") || type_name.contains("UnsafeCell<") {
+        Some(AdvancedTypeCategory::InteriorMutability)
+    } else if type_name.contains("Mutex<") || type_name.contains("RwLock<") || type_name.contains("Condvar") {
+        Some(AdvancedTypeCategory::Synchronization)
+    } else if type_name.contains("mpsc::") || type_name.contains("Sender<") || type_name.contains("Receiver<") {
+        Some(AdvancedTypeCategory::Channel)
+    } else if type_name.contains("Atomic") {
+        Some(AdvancedTypeCategory::Atomic)
+    } else if type_name.contains("ThreadLocal<") || type_name.contains("LocalKey<") {
+        Some(AdvancedTypeCategory::ThreadLocal)
+    } else if type_name.contains("ManuallyDrop<") || type_name.contains("MaybeUninit<") || type_name.contains("Pin<") {
+        Some(AdvancedTypeCategory::MemoryManagement)
+    } else if type_name.contains("Future") || type_name.contains("Stream") || type_name.contains("Waker") || type_name.contains("Context") {
+        Some(AdvancedTypeCategory::Async)
+    } else {
+        None
+    }
+}
+
+/// Create behavior pattern for a type
+pub fn create_behavior_pattern(type_name: &str) -> TypeBehaviorPattern {
+    let category = get_type_category(type_name);
+    
+    match category {
+        Some(AdvancedTypeCategory::InteriorMutability) => TypeBehaviorPattern {
+            has_interior_mutability: true,
+            is_thread_safe: !type_name.contains("Cell<"), // Cell is not thread-safe, RefCell is not either
+            can_block: false,
+            manages_memory_layout: false,
+            deadlock_potential: false,
+            has_runtime_borrow_check: type_name.contains("RefCell<"),
+            has_runtime_overhead: type_name.contains("RefCell<"),
+        },
+        Some(AdvancedTypeCategory::Synchronization) => TypeBehaviorPattern {
+            has_interior_mutability: true,
+            is_thread_safe: true,
+            can_block: true,
+            manages_memory_layout: false,
+            deadlock_potential: true,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: true,
+        },
+        Some(AdvancedTypeCategory::Channel) => TypeBehaviorPattern {
+            has_interior_mutability: false,
+            is_thread_safe: true,
+            can_block: true,
+            manages_memory_layout: true,
+            deadlock_potential: false,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: true,
+        },
+        Some(AdvancedTypeCategory::Atomic) => TypeBehaviorPattern {
+            has_interior_mutability: true,
+            is_thread_safe: true,
+            can_block: false,
+            manages_memory_layout: false,
+            deadlock_potential: false,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: false,
+        },
+        Some(AdvancedTypeCategory::ThreadLocal) => TypeBehaviorPattern {
+            has_interior_mutability: true,
+            is_thread_safe: false,
+            can_block: false,
+            manages_memory_layout: true,
+            deadlock_potential: false,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: true,
+        },
+        Some(AdvancedTypeCategory::MemoryManagement) => TypeBehaviorPattern {
+            has_interior_mutability: type_name.contains("Pin<"),
+            is_thread_safe: false,
+            can_block: false,
+            manages_memory_layout: true,
+            deadlock_potential: false,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: false,
+        },
+        Some(AdvancedTypeCategory::Async) => TypeBehaviorPattern {
+            has_interior_mutability: false,
+            is_thread_safe: false,
+            can_block: false,
+            manages_memory_layout: true,
+            deadlock_potential: false,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: true,
+        },
+        None => TypeBehaviorPattern {
+            has_interior_mutability: false,
+            is_thread_safe: false,
+            can_block: false,
+            manages_memory_layout: false,
+            deadlock_potential: false,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: false,
+        },
+    }
+}
+
+/// Analyze a type and create AdvancedTypeInfo
+pub fn analyze_type(allocation: &AllocationInfo) -> Option<AdvancedTypeInfo> {
+    let type_name = allocation.type_name.as_ref()?;
+    
+    if !is_advanced_type(type_name) {
+        return None;
+    }
+    
+    let category = get_type_category(type_name)?;
+    let behavior = create_behavior_pattern(type_name);
+    
+    let mut issues = Vec::new();
+    let _recommendations: Vec<String> = Vec::new();
+    
+    // Analyze potential issues based on type behavior
+    if behavior.deadlock_potential {
+        issues.push(TypeIssue {
+            severity: IssueSeverity::Warning,
+            description: "Type has deadlock potential - ensure proper lock ordering".to_string(),
+            location: Some(format!("ptr: 0x{:x}", allocation.ptr)),
+            suggestion: Some("Consider using timeout-based locking or lock hierarchies".to_string()),
+        });
+    }
+    
+    if behavior.has_runtime_overhead && allocation.size > 1024 {
+        issues.push(TypeIssue {
+            severity: IssueSeverity::Warning,
+            description: "Large allocation with runtime overhead".to_string(),
+            location: Some(format!("ptr: 0x{:x}, size: {}", allocation.ptr, allocation.size)),
+            suggestion: Some("Consider using more efficient alternatives for large data".to_string()),
+        });
+    }
+    
+    Some(AdvancedTypeInfo {
+        category,
+        behavior: behavior.clone(),
+        state_info: TypeStateInfo {
+            is_borrowed: None,
+            borrow_count: Some(allocation.borrow_count),
+            is_locked: None,
+            lock_owner_thread: None,
+            wait_queue_length: None,
+            channel_info: None,
+        },
+        potential_issues: issues,
+        performance_info: PerformanceInfo {
+            overhead_factor: if behavior.has_runtime_overhead { 2.0 } else { 1.0 },
+            memory_overhead: calculate_overhead(type_name),
+            is_lock_free: !behavior.can_block,
+            latency_category: if behavior.can_block { LatencyCategory::Moderate } else { LatencyCategory::Fast },
+        },
+    })
+}
+
+/// Calculate overhead for a type
+fn calculate_overhead(type_name: &str) -> usize {
+    if type_name.contains("RefCell<") {
+        std::mem::size_of::<isize>() // BorrowFlag is private, use isize
+    } else if type_name.contains("Mutex<") {
+        64 // Approximate mutex overhead
+    } else if type_name.contains("RwLock<") {
+        96 // Approximate RwLock overhead
+    } else if type_name.contains("Arc<") || type_name.contains("Rc<") {
+        std::mem::size_of::<usize>() * 2 // Strong + weak counts
+    } else {
+        0
+    }
+}
+
+/// Calculate alignment requirements
+fn calculate_alignment(type_name: &str) -> usize {
+    if type_name.contains("Atomic") {
+        8 // Most atomics require 8-byte alignment
+    } else if type_name.contains("Mutex<") || type_name.contains("RwLock<") {
+        std::mem::align_of::<std::sync::Mutex<()>>()
+    } else {
+        std::mem::align_of::<usize>()
+    }
+}
+
+/// Analyze cache behavior
+fn analyze_cache_behavior(type_name: &str) -> String {
+    if type_name.contains("HashMap<") || type_name.contains("BTreeMap<") {
+        "Poor - scattered allocations".to_string()
+    } else if type_name.contains("Vec<") || type_name.contains("String") {
+        "Good - contiguous memory".to_string()
+    } else if type_name.contains("Atomic") {
+        "Excellent - cache-line optimized".to_string()
+    } else {
+        "Unknown".to_string()
+    }
+}
+
+/// Analyze cache impact
+fn analyze_cache_impact(type_name: &str) -> String {
+    if type_name.contains("Mutex<") || type_name.contains("RwLock<") {
+        "High - false sharing potential".to_string()
+    } else if type_name.contains("Atomic") {
+        "Medium - cache line contention".to_string()
+    } else {
+        "Low".to_string()
+    }
+}
+
+/// Calculate memory overhead percentage
+fn calculate_memory_overhead_percentage(type_name: &str) -> u32 {
+    if type_name.contains("RefCell<") {
+        10 // ~10% overhead for borrow checking
+    } else if type_name.contains("Mutex<") {
+        25 // ~25% overhead for synchronization
+    } else if type_name.contains("Arc<") || type_name.contains("Rc<") {
+        15 // ~15% overhead for reference counting
+    } else {
+        5 // Default small overhead
+    }
+}
+
+/// Analyze scalability concerns
+fn analyze_scalability(type_name: &str) -> Vec<String> {
+    let mut concerns = Vec::new();
+    
+    if type_name.contains("Mutex<") {
+        concerns.push("Lock contention under high concurrency".to_string());
+    }
+    
+    if type_name.contains("HashMap<") {
+        concerns.push("Hash collision performance degradation".to_string());
+    }
+    
+    if type_name.contains("RefCell<") {
+        concerns.push("Runtime borrow check overhead".to_string());
+    }
+    
+    if type_name.contains("mpsc::") {
+        concerns.push("Channel capacity and blocking behavior".to_string());
+    }
+    
+    concerns
 }
 
 /// Generate statistics for the analysis
@@ -579,4 +828,259 @@ fn generate_advanced_type_statistics(
         by_latency_category,
         total_advanced_types: total_count,
     }
+}
+
+// ===== Enhanced Interior Mutability Detection =====
+
+/// Enhanced interior mutability detection for Cell/RefCell types
+pub fn detect_interior_mutability_patterns(allocations: &[AllocationInfo]) -> InteriorMutabilityReport {
+    let mut cell_instances = Vec::new();
+    let mut refcell_instances = Vec::new();
+    let mut unsafe_cell_instances = Vec::new();
+    let mut runtime_borrow_violations = Vec::new();
+
+    for allocation in allocations {
+        if let Some(type_name) = &allocation.type_name {
+            if type_name.contains("Cell<") {
+                cell_instances.push(CellInstance {
+                    ptr: allocation.ptr,
+                    type_name: type_name.clone(),
+                    size: allocation.size,
+                    thread_safe: true, // Cell is always thread-safe
+                    zero_cost: true,   // Cell has no runtime overhead
+                });
+            } else if type_name.contains("RefCell<") {
+                let instance = RefCellInstance {
+                    ptr: allocation.ptr,
+                    type_name: type_name.clone(),
+                    size: allocation.size,
+                    current_borrow_count: allocation.borrow_count,
+                    has_active_mut_borrow: allocation.borrow_count > 0,
+                    runtime_check_overhead: true,
+                };
+                
+                // Check for potential runtime borrow violations
+                if allocation.borrow_count > 1 {
+                    runtime_borrow_violations.push(BorrowViolation {
+                        ptr: allocation.ptr,
+                        violation_type: BorrowViolationType::MultipleBorrows,
+                        borrow_count: allocation.borrow_count,
+                        timestamp: allocation.timestamp_alloc,
+                    });
+                }
+                
+                refcell_instances.push(instance);
+            } else if type_name.contains("UnsafeCell<") {
+                unsafe_cell_instances.push(UnsafeCellInstance {
+                    ptr: allocation.ptr,
+                    type_name: type_name.clone(),
+                    size: allocation.size,
+                    requires_unsafe_access: true,
+                });
+            }
+        }
+    }
+
+    let total_types = cell_instances.len() + refcell_instances.len() + unsafe_cell_instances.len();
+    
+    InteriorMutabilityReport {
+        cell_instances,
+        refcell_instances,
+        unsafe_cell_instances,
+        runtime_borrow_violations,
+        total_interior_mutability_types: total_types,
+        analysis_timestamp: current_timestamp(),
+    }
+}
+
+/// Enhanced concurrency primitive monitoring for Mutex/RwLock types
+pub fn monitor_concurrency_primitives(allocations: &[AllocationInfo]) -> ConcurrencyPrimitiveReport {
+    let mut mutex_instances = Vec::new();
+    let mut rwlock_instances = Vec::new();
+    let mut condvar_instances = Vec::new();
+    let lock_contentions = Vec::new();
+
+    for allocation in allocations {
+        if let Some(type_name) = &allocation.type_name {
+            if type_name.contains("Mutex<") {
+                mutex_instances.push(MutexInstance {
+                    ptr: allocation.ptr,
+                    type_name: type_name.clone(),
+                    size: allocation.size,
+                    is_locked: false, // Would need runtime tracking
+                    lock_owner_thread: None,
+                    waiting_threads: 0,
+                    total_lock_acquisitions: 0,
+                    total_wait_time_ns: 0,
+                });
+            } else if type_name.contains("RwLock<") {
+                rwlock_instances.push(RwLockInstance {
+                    ptr: allocation.ptr,
+                    type_name: type_name.clone(),
+                    size: allocation.size,
+                    read_count: 0,
+                    has_write_lock: false,
+                    waiting_readers: 0,
+                    waiting_writers: 0,
+                    total_read_acquisitions: 0,
+                    total_write_acquisitions: 0,
+                });
+            } else if type_name.contains("Condvar") {
+                condvar_instances.push(CondvarInstance {
+                    ptr: allocation.ptr,
+                    type_name: type_name.clone(),
+                    size: allocation.size,
+                    waiting_threads: 0,
+                    total_notifications: 0,
+                });
+            }
+        }
+    }
+
+    let deadlock_score = calculate_deadlock_potential_by_count(mutex_instances.len(), rwlock_instances.len());
+    
+    ConcurrencyPrimitiveReport {
+        mutex_instances,
+        rwlock_instances,
+        condvar_instances,
+        lock_contentions,
+        deadlock_potential_score: deadlock_score,
+        analysis_timestamp: current_timestamp(),
+    }
+}
+
+// ===== Supporting Types and Functions =====
+
+/// Get current timestamp
+fn current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64
+}
+
+/// Calculate deadlock potential based on lock count
+fn calculate_deadlock_potential_by_count(mutex_count: usize, rwlock_count: usize) -> f64 {
+    let total_locks = mutex_count + rwlock_count;
+    if total_locks <= 1 {
+        return 0.0;
+    }
+    
+    // Simple heuristic: more locks = higher deadlock potential
+    // In reality, this would analyze lock ordering and dependency graphs
+    (total_locks as f64).log2() / 10.0
+}
+
+// ===== Type Definitions =====
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InteriorMutabilityReport {
+    pub cell_instances: Vec<CellInstance>,
+    pub refcell_instances: Vec<RefCellInstance>,
+    pub unsafe_cell_instances: Vec<UnsafeCellInstance>,
+    pub runtime_borrow_violations: Vec<BorrowViolation>,
+    pub total_interior_mutability_types: usize,
+    pub analysis_timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CellInstance {
+    pub ptr: usize,
+    pub type_name: String,
+    pub size: usize,
+    pub thread_safe: bool,
+    pub zero_cost: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefCellInstance {
+    pub ptr: usize,
+    pub type_name: String,
+    pub size: usize,
+    pub current_borrow_count: usize,
+    pub has_active_mut_borrow: bool,
+    pub runtime_check_overhead: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnsafeCellInstance {
+    pub ptr: usize,
+    pub type_name: String,
+    pub size: usize,
+    pub requires_unsafe_access: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BorrowViolation {
+    pub ptr: usize,
+    pub violation_type: BorrowViolationType,
+    pub borrow_count: usize,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BorrowViolationType {
+    MultipleBorrows,
+    MutableBorrowConflict,
+    BorrowAfterMove,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConcurrencyPrimitiveReport {
+    pub mutex_instances: Vec<MutexInstance>,
+    pub rwlock_instances: Vec<RwLockInstance>,
+    pub condvar_instances: Vec<CondvarInstance>,
+    pub lock_contentions: Vec<LockContention>,
+    pub deadlock_potential_score: f64,
+    pub analysis_timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MutexInstance {
+    pub ptr: usize,
+    pub type_name: String,
+    pub size: usize,
+    pub is_locked: bool,
+    pub lock_owner_thread: Option<String>,
+    pub waiting_threads: usize,
+    pub total_lock_acquisitions: u64,
+    pub total_wait_time_ns: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RwLockInstance {
+    pub ptr: usize,
+    pub type_name: String,
+    pub size: usize,
+    pub read_count: usize,
+    pub has_write_lock: bool,
+    pub waiting_readers: usize,
+    pub waiting_writers: usize,
+    pub total_read_acquisitions: u64,
+    pub total_write_acquisitions: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CondvarInstance {
+    pub ptr: usize,
+    pub type_name: String,
+    pub size: usize,
+    pub waiting_threads: usize,
+    pub total_notifications: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LockContention {
+    pub lock_ptr: usize,
+    pub contention_type: ContentionType,
+    pub waiting_time_ns: u64,
+    pub thread_id: String,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ContentionType {
+    MutexContention,
+    RwLockReadContention,
+    RwLockWriteContention,
 }
