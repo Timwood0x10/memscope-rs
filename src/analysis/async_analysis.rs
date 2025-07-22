@@ -66,7 +66,7 @@ impl AsyncAnalyzer {
             ptr,
             event_type: TaskEventType::Created,
             timestamp: current_timestamp(),
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
             details: format!("Future {} created", future_type),
         };
 
@@ -82,7 +82,7 @@ impl AsyncAnalyzer {
             from_state: from_state.clone(),
             to_state: to_state.clone(),
             timestamp: current_timestamp(),
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
         };
 
         if let Ok(mut transitions) = self.state_transitions.lock() {
@@ -109,7 +109,7 @@ impl AsyncAnalyzer {
             location: location.to_string(),
             await_type,
             timestamp: current_timestamp(),
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
             duration: None, // Will be filled when await completes
         };
 
@@ -160,7 +160,7 @@ impl AsyncAnalyzer {
             ptr,
             event_type: TaskEventType::Completed,
             timestamp: completion_time,
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
             details: format!("Future completed with result: {:?}", result),
         };
 
@@ -405,7 +405,7 @@ pub struct TaskEvent {
     /// Event timestamp
     pub timestamp: u64,
     /// Thread where event occurred
-    pub thread_id: std::thread::ThreadId,
+    pub thread_id: String,
     /// Additional details
     pub details: String,
 }

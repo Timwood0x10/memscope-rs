@@ -304,7 +304,7 @@ pub struct AllocationInfo {
     /// Thread ID where the allocation occurred
     #[serde(skip)]
     /// Thread Id
-    pub thread_id: thread::ThreadId,
+    pub thread_id: String,
     /// Number of active borrows for this allocation
     pub borrow_count: usize,
     /// Optional stack trace at the time of allocation
@@ -372,7 +372,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             scope_name: helper.scope_name,
             timestamp_alloc: helper.timestamp_alloc,
             timestamp_dealloc: helper.timestamp_dealloc,
-            thread_id: thread::current().id(), // Default to current thread
+            thread_id: format!("{:?}", thread::current().id()), // Default to current thread
             borrow_count: helper.borrow_count,
             stack_trace: helper.stack_trace,
             is_leaked: helper.is_leaked,
@@ -409,7 +409,7 @@ impl AllocationInfo {
                 .unwrap_or_default()
                 .as_nanos() as u64,
             timestamp_dealloc: None,
-            thread_id: thread::current().id(),
+            thread_id: format!("{:?}", thread::current().id()),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

@@ -52,7 +52,7 @@ impl LifecycleAnalyzer {
             type_name: type_name.to_string(),
             timestamp: current_timestamp(),
             custom_drop,
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
             call_stack: capture_call_stack(),
         };
 
@@ -203,7 +203,7 @@ impl LifecycleAnalyzer {
             closure_ptr,
             captured_vars,
             capture_timestamp: current_timestamp(),
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
         };
 
         if let Ok(mut captures) = self.closure_captures.lock() {
@@ -240,7 +240,7 @@ pub struct DropEvent {
     /// Whether this is a custom Drop implementation
     pub custom_drop: bool,
     /// Thread where drop occurred
-    pub thread_id: std::thread::ThreadId,
+    pub thread_id: String,
     /// Call stack at drop time
     pub call_stack: Vec<String>,
 }
@@ -347,7 +347,7 @@ impl BorrowTracker {
             borrow_type: borrow_type.clone(),
             start_timestamp: current_timestamp(),
             location: location.to_string(),
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
         };
 
         self.active_borrows
@@ -486,7 +486,7 @@ pub struct BorrowInfo {
     pub borrow_type: BorrowType,
     pub start_timestamp: u64,
     pub location: String,
-    pub thread_id: std::thread::ThreadId,
+    pub thread_id: String,
 }
 
 /// Borrow event
@@ -571,7 +571,7 @@ pub struct ClosureCapture {
     pub closure_ptr: usize,
     pub captured_vars: Vec<CapturedVariable>,
     pub capture_timestamp: u64,
-    pub thread_id: std::thread::ThreadId,
+    pub thread_id: String,
 }
 
 /// Information about a captured variable

@@ -35,7 +35,7 @@ macro_rules! impl_advanced_trackable {
                         .unwrap_or_default()
                         .as_nanos() as u64,
                     timestamp_dealloc: None,
-                    thread_id: std::thread::current().id(),
+                    thread_id: format!("{:?}", std::thread::current().id()),
                     borrow_count: 0,
                     stack_trace: None,
                     is_leaked: false,
@@ -95,7 +95,7 @@ macro_rules! impl_advanced_trackable {
                         .unwrap_or_default()
                         .as_nanos() as u64,
                     timestamp_dealloc: None,
-                    thread_id: std::thread::current().id(),
+                    thread_id: format!("{:?}", std::thread::current().id()),
                     borrow_count: 0,
                     stack_trace: None,
                     is_leaked: false,

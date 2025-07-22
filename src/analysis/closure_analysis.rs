@@ -47,7 +47,7 @@ impl ClosureAnalyzer {
             ptr: closure_ptr,
             captures: captures.clone(),
             creation_timestamp: current_timestamp(),
-            thread_id: std::thread::current().id(),
+            thread_id: format!("{:?}", std::thread::current().id()),
             call_site: capture_call_site(),
             memory_footprint: self.calculate_closure_footprint(&captures),
             optimization_potential: self.analyze_optimization_potential(&captures),
@@ -162,7 +162,7 @@ impl ClosureAnalyzer {
             closure_type: self.classify_closure_type(type_name),
             creation_context: CreationContext {
                 scope_name: allocation.scope_name.clone(),
-                thread_id: allocation.thread_id,
+                thread_id: allocation.thread_id.clone(),
                 timestamp: allocation.timestamp_alloc,
             },
             memory_impact: self.assess_memory_impact(allocation.size),
@@ -176,12 +176,12 @@ impl ClosureAnalyzer {
         if size <= 8 {
             0 // Empty closure or single small capture
         } else if size <= 32 {
-            1..=2 // Small number of captures
+            2 // Small number of captures
         } else if size <= 128 {
-            3..=8 // Medium number of captures
+            8 // Medium number of captures
         } else {
             size / 16 // Large number of captures (rough estimate)
-        }.end
+        }
     }
 
     /// Classify the type of closure
@@ -372,7 +372,7 @@ pub struct ClosureInfo {
     pub ptr: usize,
     pub captures: Vec<CaptureInfo>,
     pub creation_timestamp: u64,
-    pub thread_id: std::thread::ThreadId,
+    pub thread_id: String,
     pub call_site: String,
     pub memory_footprint: ClosureFootprint,
     pub optimization_potential: OptimizationPotential,
@@ -466,7 +466,7 @@ pub enum ClosureType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreationContext {
     pub scope_name: Option<String>,
-    pub thread_id: std::thread::ThreadId,
+    pub thread_id: String,
     pub timestamp: u64,
 }
 
