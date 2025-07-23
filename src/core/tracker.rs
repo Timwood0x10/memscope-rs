@@ -106,6 +106,11 @@ use crate::core::types::{GenericInstantiationInfo, TypeRelationshipInfo, TypeUsa
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
+/// Helper function to convert std::io::Error to TrackingError::IoError
+fn io_error_to_tracking_error(e: std::io::Error) -> crate::core::types::TrackingError {
+    crate::core::types::TrackingError::IoError(e.to_string())
+}
+
 /// Global memory tracker instance
 static GLOBAL_TRACKER: OnceLock<Arc<MemoryTracker>> = OnceLock::new();
 
@@ -2093,49 +2098,49 @@ impl MemoryTracker {
         use std::io::{BufWriter, Write};
         use std::fs::File;
 
-        let file = File::create(path).map_err(crate::core::types::TrackingError::IoError)?;
+        let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
         
         // Stream active allocations with mode-specific enrichment
-        writer.write_all(b"  \"active_allocations\": [\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"active_allocations\": [\n").map_err(io_error_to_tracking_error)?;
         for (i, alloc) in active_allocations.iter().enumerate() {
             if i > 0 {
-                writer.write_all(b",\n").map_err(crate::core::types::TrackingError::IoError)?;
+                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
             }
             
             // Apply enrichment based on mode and allocation type
             let enriched_alloc = self.enrich_allocation_with_mode(alloc, mode)?;
             let alloc_json = serde_json::to_string(&enriched_alloc)?;
-            writer.write_all(b"    ").map_err(crate::core::types::TrackingError::IoError)?;
-            writer.write_all(alloc_json.as_bytes()).map_err(crate::core::types::TrackingError::IoError)?;
+            writer.write_all(b"    ").map_err(io_error_to_tracking_error)?;
+            writer.write_all(alloc_json.as_bytes()).map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  ],\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n  ],\n").map_err(io_error_to_tracking_error)?;
 
         // Stream allocation history with mode-specific enrichment
-        writer.write_all(b"  \"allocation_history\": [\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"allocation_history\": [\n").map_err(io_error_to_tracking_error)?;
         for (i, alloc) in allocation_history.iter().enumerate() {
             if i > 0 {
-                writer.write_all(b",\n").map_err(crate::core::types::TrackingError::IoError)?;
+                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
             }
             
             // Apply enrichment based on mode and allocation type
             let enriched_alloc = self.enrich_allocation_with_mode(alloc, mode)?;
             let alloc_json = serde_json::to_string(&enriched_alloc)?;
-            writer.write_all(b"    ").map_err(crate::core::types::TrackingError::IoError)?;
-            writer.write_all(alloc_json.as_bytes()).map_err(crate::core::types::TrackingError::IoError)?;
+            writer.write_all(b"    ").map_err(io_error_to_tracking_error)?;
+            writer.write_all(alloc_json.as_bytes()).map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  ],\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n  ],\n").map_err(io_error_to_tracking_error)?;
 
         // Add memory statistics directly from tracker
-        writer.write_all(b"  \"memory_stats\": ").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"memory_stats\": ").map_err(io_error_to_tracking_error)?;
         let stats_guard = self.stats.lock().unwrap();
         let stats_json = serde_json::to_string(&*stats_guard)?;
-        writer.write_all(stats_json.as_bytes()).map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(stats_json.as_bytes()).map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(crate::core::types::TrackingError::IoError)?;
-        writer.flush().map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
 
@@ -2148,40 +2153,40 @@ impl MemoryTracker {
         use std::io::{BufWriter, Write};
         use std::fs::File;
 
-        let file = File::create(path).map_err(crate::core::types::TrackingError::IoError)?;
+        let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
 
         // Stream variable registry directly
-        writer.write_all(b"  \"variable_registry\": {\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"variable_registry\": {\n").map_err(io_error_to_tracking_error)?;
         let mut first = true;
         for (id, var_info) in variable_registry.iter() {
             if !first {
-                writer.write_all(b",\n").map_err(crate::core::types::TrackingError::IoError)?;
+                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
             }
             first = false;
             
             let var_json = serde_json::to_string(var_info)?;
             writer.write_all(format!("    \"{}\": {}", id, var_json).as_bytes())
-                .map_err(crate::core::types::TrackingError::IoError)?;
+                .map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  },\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n  },\n").map_err(io_error_to_tracking_error)?;
 
         // Add scope information directly from tracker
-        writer.write_all(b"  \"scope_analysis\": {\n").map_err(crate::core::types::TrackingError::IoError)?;
-        writer.write_all(b"    \"current_scope_depth\": 1,\n").map_err(crate::core::types::TrackingError::IoError)?;
-        writer.write_all(b"    \"total_scopes_created\": 1\n").map_err(crate::core::types::TrackingError::IoError)?;
-        writer.write_all(b"  },\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"scope_analysis\": {\n").map_err(io_error_to_tracking_error)?;
+        writer.write_all(b"    \"current_scope_depth\": 1,\n").map_err(io_error_to_tracking_error)?;
+        writer.write_all(b"    \"total_scopes_created\": 1\n").map_err(io_error_to_tracking_error)?;
+        writer.write_all(b"  },\n").map_err(io_error_to_tracking_error)?;
 
         // Add basic lifetime analysis
-        writer.write_all(b"  \"lifetime_analysis\": {\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"lifetime_analysis\": {\n").map_err(io_error_to_tracking_error)?;
         writer.write_all(format!("    \"total_variables\": {}\n", variable_registry.len()).as_bytes())
-            .map_err(crate::core::types::TrackingError::IoError)?;
-        writer.write_all(b"  }").map_err(crate::core::types::TrackingError::IoError)?;
+            .map_err(io_error_to_tracking_error)?;
+        writer.write_all(b"  }").map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(crate::core::types::TrackingError::IoError)?;
-        writer.flush().map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
 
@@ -2194,22 +2199,22 @@ impl MemoryTracker {
         use std::io::{BufWriter, Write};
         use std::fs::File;
 
-        let file = File::create(path).map_err(crate::core::types::TrackingError::IoError)?;
+        let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
 
         // Add empty operations array for now (no get_all_operations method available)
-        writer.write_all(b"  \"unsafe_ffi_operations\": [],\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"unsafe_ffi_operations\": [],\n").map_err(io_error_to_tracking_error)?;
 
         // Include statistics directly
-        writer.write_all(b"  \"unsafe_ffi_stats\": ").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"unsafe_ffi_stats\": ").map_err(io_error_to_tracking_error)?;
         let stats = unsafe_ffi_tracker.get_stats();
         let stats_json = serde_json::to_string(&stats)?;
-        writer.write_all(stats_json.as_bytes()).map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(stats_json.as_bytes()).map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(crate::core::types::TrackingError::IoError)?;
-        writer.flush().map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
 
@@ -2223,57 +2228,57 @@ impl MemoryTracker {
         use std::io::{BufWriter, Write};
         use std::fs::File;
 
-        let file = File::create(path).map_err(crate::core::types::TrackingError::IoError)?;
+        let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
 
         // Create basic variable relationships from allocations and registry
-        writer.write_all(b"  \"variable_relationships\": [\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"variable_relationships\": [\n").map_err(io_error_to_tracking_error)?;
         let mut first = true;
         for alloc in active_allocations.iter() {
             if let Some(var_name) = &alloc.var_name {
                 if !first {
-                    writer.write_all(b",\n").map_err(crate::core::types::TrackingError::IoError)?;
+                    writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
                 }
                 first = false;
                 
                 // Create relationship entry
-                writer.write_all(b"    {\n").map_err(crate::core::types::TrackingError::IoError)?;
+                writer.write_all(b"    {\n").map_err(io_error_to_tracking_error)?;
                 writer.write_all(format!("      \"variable_name\": \"{}\",\n", var_name).as_bytes())
-                    .map_err(crate::core::types::TrackingError::IoError)?;
+                    .map_err(io_error_to_tracking_error)?;
                 writer.write_all(format!("      \"allocation_ptr\": {},\n", alloc.ptr as usize).as_bytes())
-                    .map_err(crate::core::types::TrackingError::IoError)?;
+                    .map_err(io_error_to_tracking_error)?;
                 writer.write_all(format!("      \"size\": {},\n", alloc.size).as_bytes())
-                    .map_err(crate::core::types::TrackingError::IoError)?;
+                    .map_err(io_error_to_tracking_error)?;
                 if let Some(type_name) = &alloc.type_name {
                     writer.write_all(format!("      \"type_name\": \"{}\"\n", type_name).as_bytes())
-                        .map_err(crate::core::types::TrackingError::IoError)?;
+                        .map_err(io_error_to_tracking_error)?;
                 } else {
-                    writer.write_all(b"      \"type_name\": null\n").map_err(crate::core::types::TrackingError::IoError)?;
+                    writer.write_all(b"      \"type_name\": null\n").map_err(io_error_to_tracking_error)?;
                 }
-                writer.write_all(b"    }").map_err(crate::core::types::TrackingError::IoError)?;
+                writer.write_all(b"    }").map_err(io_error_to_tracking_error)?;
             }
         }
-        writer.write_all(b"\n  ],\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n  ],\n").map_err(io_error_to_tracking_error)?;
 
         // Include variable registry directly
-        writer.write_all(b"  \"variable_registry\": {\n").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"  \"variable_registry\": {\n").map_err(io_error_to_tracking_error)?;
         let mut first = true;
         for (id, var_info) in variable_registry.iter() {
             if !first {
-                writer.write_all(b",\n").map_err(crate::core::types::TrackingError::IoError)?;
+                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
             }
             first = false;
             
             let var_json = serde_json::to_string(var_info)?;
             writer.write_all(format!("    \"{}\": {}", id, var_json).as_bytes())
-                .map_err(crate::core::types::TrackingError::IoError)?;
+                .map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  }").map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n  }").map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(crate::core::types::TrackingError::IoError)?;
-        writer.flush().map_err(crate::core::types::TrackingError::IoError)?;
+        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
 

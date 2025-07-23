@@ -56,9 +56,21 @@ pub enum TrackingError {
     /// Internal system error
     InternalError(String),
     /// Input/output operation failed
-    IoError(std::io::Error),
+    IoError(String),
     /// Lock acquisition failed
     LockError(String),
+    /// Channel communication error
+    ChannelError(String),
+    /// Thread operation error
+    ThreadError(String),
+    /// Initialization error
+    InitializationError(String),
+    /// Feature not implemented
+    NotImplemented(String),
+    /// Invalid operation
+    InvalidOperation(String),
+    /// Validation error
+    ValidationError(String),
 }
 
 impl Clone for TrackingError {
@@ -86,10 +98,14 @@ impl Clone for TrackingError {
             TrackingError::PerformanceError(s) => TrackingError::PerformanceError(s.clone()),
             TrackingError::ResourceExhausted(s) => TrackingError::ResourceExhausted(s.clone()),
             TrackingError::InternalError(s) => TrackingError::InternalError(s.clone()),
-            TrackingError::IoError(e) => {
-                TrackingError::IoError(std::io::Error::new(e.kind(), e.to_string()))
-            }
+            TrackingError::IoError(s) => TrackingError::IoError(s.clone()),
             TrackingError::LockError(s) => TrackingError::LockError(s.clone()),
+            TrackingError::ChannelError(s) => TrackingError::ChannelError(s.clone()),
+            TrackingError::ThreadError(s) => TrackingError::ThreadError(s.clone()),
+            TrackingError::InitializationError(s) => TrackingError::InitializationError(s.clone()),
+            TrackingError::NotImplemented(s) => TrackingError::NotImplemented(s.clone()),
+            TrackingError::ValidationError(s) => TrackingError::ValidationError(s.clone()),
+            TrackingError::InvalidOperation(s) => TrackingError::InvalidOperation(s.clone()),
         }
     }
 }
@@ -119,8 +135,14 @@ impl std::fmt::Display for TrackingError {
             TrackingError::PerformanceError(msg) => write!(f, "Performance error: {msg}"),
             TrackingError::ResourceExhausted(msg) => write!(f, "Resource exhausted: {msg}"),
             TrackingError::InternalError(msg) => write!(f, "Internal error: {msg}"),
-            TrackingError::IoError(err) => write!(f, "IO error: {err}"),
+            TrackingError::IoError(msg) => write!(f, "IO error: {msg}"),
             TrackingError::LockError(msg) => write!(f, "Lock error: {msg}"),
+            TrackingError::ChannelError(msg) => write!(f, "Channel error: {msg}"),
+            TrackingError::ThreadError(msg) => write!(f, "Thread error: {msg}"),
+            TrackingError::InitializationError(msg) => write!(f, "Initialization error: {msg}"),
+            TrackingError::NotImplemented(msg) => write!(f, "Not implemented: {msg}"),
+            TrackingError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
+            TrackingError::InvalidOperation(msg) => write!(f, "Invalid operation: {msg}"),
         }
     }
 }
@@ -129,7 +151,7 @@ impl std::error::Error for TrackingError {}
 
 impl From<std::io::Error> for TrackingError {
     fn from(error: std::io::Error) -> Self {
-        TrackingError::IoError(error)
+        TrackingError::IoError(error.to_string())
     }
 }
 

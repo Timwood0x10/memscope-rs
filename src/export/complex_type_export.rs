@@ -283,7 +283,7 @@ fn export_json_data<T: Serialize>(
     }.map_err(|e| crate::core::types::TrackingError::SerializationError(e.to_string()))?;
 
     std::fs::write(path, json_string)
-        .map_err(|e| crate::core::types::TrackingError::IoError(e))?;
+        .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
 
     Ok(())
 }

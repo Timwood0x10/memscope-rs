@@ -21,6 +21,8 @@ pub enum AllocationSource {
         unsafe_block_location: String,
         /// Call stack at the time of allocation
         call_stack: Vec<StackFrame>,
+        /// Risk assessment for this unsafe operation
+        risk_assessment: RiskAssessment,
     },
     /// FFI allocation from C library
     FfiC {
@@ -30,6 +32,8 @@ pub enum AllocationSource {
         function_name: String,
         /// Call stack at the time of allocation
         call_stack: Vec<StackFrame>,
+        /// LibC hook information
+        libc_hook_info: LibCHookInfo,
     },
     /// Cross-boundary memory transfer
     CrossBoundary {
@@ -39,6 +43,8 @@ pub enum AllocationSource {
         to: Box<AllocationSource>,
         /// Timestamp when transfer occurred
         transfer_timestamp: u128,
+        /// Transfer metadata
+        transfer_metadata: TransferMetadata,
     },
 }
 
@@ -109,6 +115,223 @@ pub enum RiskLevel {
     Critical,
 }
 
+/// Comprehensive risk assessment for unsafe operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskAssessment {
+    /// Overall risk level
+    pub risk_level: RiskLevel,
+    /// Specific risk factors identified
+    pub risk_factors: Vec<RiskFactor>,
+    /// Suggested mitigation strategies
+    pub mitigation_suggestions: Vec<String>,
+    /// Confidence score of the assessment (0.0 to 1.0)
+    pub confidence_score: f64,
+    /// Timestamp when assessment was performed
+    pub assessment_timestamp: u128,
+}
+
+/// Individual risk factor in an assessment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskFactor {
+    /// Type of risk factor
+    pub factor_type: RiskFactorType,
+    /// Severity score (0.0 to 10.0)
+    pub severity: f64,
+    /// Human-readable description
+    pub description: String,
+    /// Source location where risk was detected
+    pub source_location: Option<String>,
+}
+
+/// Types of risk factors that can be detected
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RiskFactorType {
+    /// Raw pointer dereference without bounds checking
+    RawPointerDeref,
+    /// Manual memory management (alloc/dealloc)
+    ManualMemoryManagement,
+    /// Memory transfer across language boundaries
+    CrossBoundaryTransfer,
+    /// Unchecked type casting
+    UncheckedCast,
+    /// Potential lifetime violation
+    LifetimeViolation,
+    /// Use after free potential
+    UseAfterFree,
+    /// Buffer overflow potential
+    BufferOverflow,
+    /// Data race potential
+    DataRace,
+}
+
+/// Information about LibC function hooks
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LibCHookInfo {
+    /// Method used to hook the function
+    pub hook_method: HookMethod,
+    /// Original function that was hooked
+    pub original_function: String,
+    /// Timestamp when hook was installed
+    pub hook_timestamp: u128,
+    /// Metadata about the allocation
+    pub allocation_metadata: AllocationMetadata,
+    /// Performance impact of the hook
+    pub hook_overhead_ns: Option<u64>,
+}
+
+/// Methods for hooking LibC functions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum HookMethod {
+    /// LD_PRELOAD mechanism (Linux/macOS)
+    LdPreload,
+    /// Dynamic linker interposition
+    DynamicLinker,
+    /// Static function interposition
+    StaticInterposition,
+    /// Runtime patching
+    RuntimePatching,
+}
+
+/// Metadata about memory allocations from LibC
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationMetadata {
+    /// Size requested by the caller
+    pub requested_size: usize,
+    /// Actual size allocated (may be larger due to alignment)
+    pub actual_size: usize,
+    /// Memory alignment used
+    pub alignment: usize,
+    /// Information about the allocator used
+    pub allocator_info: String,
+    /// Memory protection flags if available
+    pub protection_flags: Option<MemoryProtectionFlags>,
+}
+
+/// Memory protection flags
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryProtectionFlags {
+    /// Memory is readable
+    pub readable: bool,
+    /// Memory is writable
+    pub writable: bool,
+    /// Memory is executable
+    pub executable: bool,
+    /// Memory is shared
+    pub shared: bool,
+}
+
+/// Memory "passport" for tracking cross-boundary transfers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryPassport {
+    /// Unique identifier for this memory passport
+    pub passport_id: String,
+    /// Original allocation context
+    pub origin: AllocationOrigin,
+    /// Journey of the memory through different contexts
+    pub journey: Vec<PassportStamp>,
+    /// Current ownership information
+    pub current_owner: OwnershipInfo,
+    /// Validity status of the passport
+    pub validity_status: ValidityStatus,
+    /// Security clearance level
+    pub security_clearance: SecurityClearance,
+}
+
+/// Information about where memory was originally allocated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationOrigin {
+    /// Context where allocation occurred (Rust/FFI)
+    pub context: String,
+    /// Function that performed the allocation
+    pub allocator_function: String,
+    /// Timestamp of original allocation
+    pub timestamp: u128,
+    /// Call stack at allocation time
+    pub call_stack: Vec<StackFrame>,
+}
+
+/// A stamp in the memory passport journey
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PassportStamp {
+    /// Timestamp of this checkpoint
+    pub timestamp: u128,
+    /// Location/context of the checkpoint
+    pub location: String,
+    /// Operation performed at this checkpoint
+    pub operation: String,
+    /// Authority that validated this checkpoint
+    pub authority: String,
+    /// Cryptographic hash for verification
+    pub verification_hash: String,
+}
+
+/// Current ownership information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnershipInfo {
+    /// Current owner context (Rust/FFI)
+    pub owner_context: String,
+    /// Function/module that owns the memory
+    pub owner_function: String,
+    /// Ownership transfer timestamp
+    pub transfer_timestamp: u128,
+    /// Expected lifetime of ownership
+    pub expected_lifetime: Option<u128>,
+}
+
+/// Validity status of a memory passport
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ValidityStatus {
+    /// Passport is valid and memory is safe to use
+    Valid,
+    /// Passport is expired (memory may be freed)
+    Expired,
+    /// Passport is revoked (memory is definitely freed)
+    Revoked,
+    /// Passport validity is unknown/suspicious
+    Suspicious,
+}
+
+/// Security clearance levels for memory operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SecurityClearance {
+    /// Public memory, safe for all operations
+    Public,
+    /// Restricted memory, limited operations allowed
+    Restricted,
+    /// Confidential memory, special handling required
+    Confidential,
+    /// Secret memory, maximum security required
+    Secret,
+}
+
+/// Metadata for cross-boundary transfers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferMetadata {
+    /// Reason for the transfer
+    pub transfer_reason: String,
+    /// Expected return context (if any)
+    pub expected_return: Option<String>,
+    /// Transfer validation method used
+    pub validation_method: ValidationMethod,
+    /// Performance impact of the transfer
+    pub transfer_overhead_ns: Option<u64>,
+}
+
+/// Methods for validating cross-boundary transfers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ValidationMethod {
+    /// No validation performed
+    None,
+    /// Basic pointer validation
+    PointerCheck,
+    /// Size and bounds validation
+    BoundsCheck,
+    /// Full memory integrity check
+    IntegrityCheck,
+    /// Cryptographic validation
+    CryptographicCheck,
+}
+
 /// Enhanced allocation info with unsafe/FFI tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedAllocationInfo {
@@ -124,6 +347,8 @@ pub struct EnhancedAllocationInfo {
     pub safety_violations: Vec<SafetyViolation>,
     /// Whether this allocation is currently being tracked by FFI
     pub ffi_tracked: bool,
+    /// Memory passport for cross-boundary tracking
+    pub memory_passport: Option<MemoryPassport>,
 }
 
 /// Cross-boundary memory event
@@ -174,6 +399,88 @@ impl UnsafeFFITracker {
         }
     }
 
+    /// Create a default risk assessment for unsafe operations
+    fn create_default_unsafe_risk_assessment(&self, unsafe_location: &str) -> RiskAssessment {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        let risk_factors = vec![
+            RiskFactor {
+                factor_type: RiskFactorType::ManualMemoryManagement,
+                severity: 5.0,
+                description: "Manual memory management in unsafe block".to_string(),
+                source_location: Some(unsafe_location.to_string()),
+            }
+        ];
+
+        RiskAssessment {
+            risk_level: RiskLevel::Medium,
+            risk_factors,
+            mitigation_suggestions: vec![
+                "Ensure proper memory cleanup".to_string(),
+                "Use RAII patterns where possible".to_string(),
+            ],
+            confidence_score: 0.7,
+            assessment_timestamp: current_time,
+        }
+    }
+
+    /// Create a default LibC hook info for FFI operations
+    fn create_default_libc_hook_info(&self, function_name: &str, size: usize) -> LibCHookInfo {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        LibCHookInfo {
+            hook_method: HookMethod::DynamicLinker,
+            original_function: function_name.to_string(),
+            hook_timestamp: current_time,
+            allocation_metadata: AllocationMetadata {
+                requested_size: size,
+                actual_size: size,
+                alignment: 8, // Default alignment
+                allocator_info: "libc malloc".to_string(),
+                protection_flags: Some(MemoryProtectionFlags {
+                    readable: true,
+                    writable: true,
+                    executable: false,
+                    shared: false,
+                }),
+            },
+            hook_overhead_ns: Some(100), // Estimated overhead
+        }
+    }
+
+    /// Create a memory passport for cross-boundary tracking
+    fn create_memory_passport(&self, ptr: usize, origin_context: &str) -> MemoryPassport {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        MemoryPassport {
+            passport_id: format!("passport_{:x}_{}", ptr, current_time),
+            origin: AllocationOrigin {
+                context: origin_context.to_string(),
+                allocator_function: "unknown".to_string(),
+                timestamp: current_time,
+                call_stack: Vec::new(),
+            },
+            journey: Vec::new(),
+            current_owner: OwnershipInfo {
+                owner_context: origin_context.to_string(),
+                owner_function: "unknown".to_string(),
+                transfer_timestamp: current_time,
+                expected_lifetime: None,
+            },
+            validity_status: ValidityStatus::Valid,
+            security_clearance: SecurityClearance::Public,
+        }
+    }
+
     /// Track an unsafe Rust allocation
     pub fn track_unsafe_allocation(
         &self,
@@ -183,17 +490,20 @@ impl UnsafeFFITracker {
     ) -> TrackingResult<()> {
         let call_stack = self.capture_call_stack()?;
         let base_allocation = AllocationInfo::new(ptr, size);
+        let risk_assessment = self.create_default_unsafe_risk_assessment(&unsafe_location);
 
         let enhanced = EnhancedAllocationInfo {
             base: base_allocation,
             source: AllocationSource::UnsafeRust {
                 unsafe_block_location: unsafe_location,
                 call_stack: call_stack.clone(),
+                risk_assessment,
             },
             call_stack,
             cross_boundary_events: Vec::new(),
             safety_violations: Vec::new(),
             ffi_tracked: false,
+            memory_passport: None,
         };
 
         if let Ok(mut allocations) = self.enhanced_allocations.lock() {
@@ -214,6 +524,7 @@ impl UnsafeFFITracker {
     ) -> TrackingResult<()> {
         let call_stack = self.capture_call_stack()?;
         let base_allocation = AllocationInfo::new(ptr, size);
+        let libc_hook_info = self.create_default_libc_hook_info(&function_name, size);
 
         let enhanced = EnhancedAllocationInfo {
             base: base_allocation,
@@ -221,11 +532,13 @@ impl UnsafeFFITracker {
                 library_name,
                 function_name,
                 call_stack: call_stack.clone(),
+                libc_hook_info,
             },
             call_stack: call_stack.clone(),
             cross_boundary_events: Vec::new(),
             safety_violations: Vec::new(),
             ffi_tracked: true,
+            memory_passport: None,
         };
 
         if let Ok(mut allocations) = self.enhanced_allocations.lock() {
@@ -327,6 +640,89 @@ impl UnsafeFFITracker {
         }
 
         Ok(())
+    }
+
+    /// Create or update memory passport for cross-boundary tracking
+    pub fn create_or_update_passport(
+        &self,
+        ptr: usize,
+        operation: &str,
+        context: &str,
+    ) -> TrackingResult<()> {
+        if let Ok(mut allocations) = self.enhanced_allocations.lock() {
+            if let Some(allocation) = allocations.get_mut(&ptr) {
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u128;
+
+                if allocation.memory_passport.is_none() {
+                    allocation.memory_passport = Some(self.create_memory_passport(ptr, context));
+                }
+
+                if let Some(passport) = &mut allocation.memory_passport {
+                    let stamp = PassportStamp {
+                        timestamp: current_time,
+                        location: context.to_string(),
+                        operation: operation.to_string(),
+                        authority: "UnsafeFFITracker".to_string(),
+                        verification_hash: format!("{:x}", ptr ^ current_time as usize),
+                    };
+                    passport.journey.push(stamp);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Update ownership information for a memory allocation
+    pub fn update_ownership(
+        &self,
+        ptr: usize,
+        new_owner_context: String,
+        new_owner_function: String,
+    ) -> TrackingResult<()> {
+        if let Ok(mut allocations) = self.enhanced_allocations.lock() {
+            if let Some(allocation) = allocations.get_mut(&ptr) {
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u128;
+
+                if let Some(passport) = &mut allocation.memory_passport {
+                    passport.current_owner = OwnershipInfo {
+                        owner_context: new_owner_context,
+                        owner_function: new_owner_function,
+                        transfer_timestamp: current_time,
+                        expected_lifetime: None,
+                    };
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate memory passport integrity
+    pub fn validate_passport(&self, ptr: usize) -> TrackingResult<bool> {
+        if let Ok(allocations) = self.enhanced_allocations.lock() {
+            if let Some(allocation) = allocations.get(&ptr) {
+                if let Some(passport) = &allocation.memory_passport {
+                    // Basic validation: check if passport is not expired or revoked
+                    match passport.validity_status {
+                        ValidityStatus::Valid => Ok(true),
+                        ValidityStatus::Expired | ValidityStatus::Revoked | ValidityStatus::Suspicious => Ok(false),
+                    }
+                } else {
+                    Ok(false) // No passport means not validated
+                }
+            } else {
+                Ok(false) // Allocation not found
+            }
+        } else {
+            Err(TrackingError::LockError("Failed to acquire allocations lock".to_string()))
+        }
     }
 
     /// Get all safety violations

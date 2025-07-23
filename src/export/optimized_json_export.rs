@@ -12,7 +12,7 @@ use std::path::Path;
 use rayon::prelude::*;
 use std::sync::LazyLock;
 
-/// JSON文件类型枚举，支持扩展
+/// Json file types 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JsonFileType {
     /// memory_analysis.json
