@@ -369,152 +369,224 @@ impl ClosureAnalyzer {
 /// Information about a closure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClosureInfo {
+    /// Closure pointer
     pub ptr: usize,
+    /// Captured variables
     pub captures: Vec<CaptureInfo>,
+    /// Creation timestamp
     pub creation_timestamp: u64,
+    /// Thread ID
     pub thread_id: String,
+    /// Call site
     pub call_site: String,
+    /// Closure memory footprint
     pub memory_footprint: ClosureFootprint,
+    /// Optimization potential
     pub optimization_potential: OptimizationPotential,
 }
 
 /// Information about a captured variable
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureInfo {
+    /// Variable name
     pub var_name: String,
+    /// Variable pointer
     pub var_ptr: usize,
+    /// Capture mode
     pub mode: CaptureMode,
+    /// Variable type
     pub var_type: String,
+    /// Variable size
     pub size: usize,
+    /// Lifetime bound
     pub lifetime_bound: Option<String>,
 }
 
 /// Modes of variable capture
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CaptureMode {
+    /// Capture by value    
     ByValue,
+    /// Capture by reference
     ByReference,
+    /// Capture by mutable reference
     ByMutableReference,
 }
 
 /// Closure memory footprint analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClosureFootprint {
+    /// Total memory footprint
     pub total_size: usize,
+    /// Number of captured variables
     pub capture_count: usize,
+    /// Number of captured variables by value
     pub by_value_count: usize,
+    /// Number of captured variables by reference
     pub by_ref_count: usize,
+    /// Number of captured variables by mutable reference
     pub by_mut_ref_count: usize,
+    /// Estimated heap usage
     pub estimated_heap_usage: usize,
 }
 
 /// Optimization potential analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationPotential {
+    /// Optimization level
     pub level: OptimizationLevel,
+    /// Potential savings in bytes
     pub potential_savings: usize,
+    /// Optimization suggestions
     pub suggestions: Vec<String>,
 }
 
 /// Levels of optimization potential
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OptimizationLevel {
+    /// No optimization potential
     None,
+    /// Low optimization potential
     Low,
+    /// Medium optimization potential
     Medium,
+    /// High optimization potential
     High,
 }
 
 /// Capture event tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureEvent {
+    /// Closure pointer
     pub closure_ptr: usize,
+    /// Captured variable
     pub captured_var: CaptureInfo,
+    /// Capture event type
     pub event_type: CaptureEventType,
+    /// Timestamp
     pub timestamp: u64,
 }
 
-/// Types of capture events
+/// Types of capture    events
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CaptureEventType {
+    /// Capture event
     Captured,
+    /// Release event
     Released,
 }
 
 /// Detected closure in allocation analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetectedClosure {
+    /// Closure pointer
     pub ptr: usize,
+    /// Closure type name
     pub type_name: String,
+    /// Closure size
     pub size: usize,
+    /// Estimated number of captures
     pub estimated_captures: usize,
+    /// Closure type
     pub closure_type: ClosureType,
+    /// Closure creation context
     pub creation_context: CreationContext,
+    /// Closure memory impact
     pub memory_impact: MemoryImpact,
 }
 
 /// Types of closures
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ClosureType {
+    /// Fn closure
     Fn,
+    /// FnMut closure
     FnMut,
+    /// FnOnce closure
     FnOnce,
+    /// Unknown closure type
     Unknown,
 }
 
 /// Creation context for closures
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreationContext {
+    /// Scope name
     pub scope_name: Option<String>,
+    /// Thread ID
     pub thread_id: String,
+    /// Timestamp
     pub timestamp: u64,
 }
 
 /// Memory impact assessment
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MemoryImpact {
+    /// Minimal memory impact
     Minimal,
+    /// Low memory impact
     Low,
+    /// Medium memory impact
     Medium,
+    /// High memory impact
     High,
+    /// Very high memory impact
     VeryHigh,
 }
 
 /// Capture statistics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CaptureStatistics {
+    /// Total number of closures
     pub total_closures: usize,
+    /// Total number of captures
     pub total_captures: usize,
+    /// Average number of captures per closure
     pub avg_captures_per_closure: f64,
+    /// Total memory usage
     pub total_memory_usage: usize,
+    /// Captures by mode
     pub captures_by_mode: HashMap<CaptureMode, usize>,
+    /// Captures by type
     pub captures_by_type: HashMap<String, usize>,
 }
 
 /// Optimization suggestions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationSuggestion {
+    /// Optimization category
     pub category: OptimizationCategory,
+    /// Suggestion priority
     pub priority: SuggestionPriority,
+    /// Suggestion description
     pub description: String,
+    /// Suggestion recommendation
     pub recommendation: String,
+    /// Estimated impact
     pub estimated_impact: String,
 }
 
 /// Categories of optimizations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OptimizationCategory {
+    /// Memory optimization category
     Memory,
+    /// Performance optimization category
     Performance,
+    /// Lifetime optimization category
     Lifetime,
 }
 
 /// Priority levels for suggestions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SuggestionPriority {
+    /// Low priority suggestion
     Low,
+    /// Medium priority suggestion
     Medium,
+    /// High priority suggestion
     High,
+    /// Critical priority suggestion
     Critical,
 }
 
@@ -679,7 +751,7 @@ pub struct ClosureAnalysisReport {
     pub analysis_timestamp: u64,
 }
 
-/// Utility functions
+// Utility functions
 
 /// Get current timestamp in nanoseconds
 fn current_timestamp() -> u64 {

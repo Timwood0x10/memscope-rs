@@ -2013,11 +2013,11 @@ impl MemoryTracker {
 
         match mode {
             ExportMode::UserFocused => {
-                println!("🚀 Starting FAST user-focused 4-file JSON export...");
+                println!("🚀 Starting FAST user-focused 5-file JSON export...");
                 println!("💡 Only enriching user-tracked variables for optimal performance");
             }
             ExportMode::Complete => {
-                println!("🐌 Starting COMPLETE 4-file JSON export (slow mode)...");
+                println!("🐌 Starting COMPLETE 5-file JSON export (slow mode)...");
                 println!("⚠️  This will enrich ALL allocations including system data");
             }
         }
