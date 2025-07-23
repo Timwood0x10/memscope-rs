@@ -5,12 +5,18 @@
 
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
+use crate::export::streaming_json_writer::StreamingJsonWriter;
+use crate::export::schema_validator::SchemaValidator;
+use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};
 use rayon::prelude::*;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::path::Path;
-use std::sync::LazyLock;
+
+use std::{
+   collections::HashMap,
+   fs::File,
+   io::{BufWriter,Write},
+   sync::LazyLock,
+   path::Path,
+};
 
 /// Json file types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,10 +31,10 @@ pub enum JsonFileType {
     Performance,
     /// complex_types.json
     ComplexTypes,
-    // AsyncAnalysis,    // 异步分析
-    // ThreadSafety,     // 线程安全分析
-    // MemoryLeaks,      // 内存泄漏分析
-    // TypeInference,    // 类型推断分析
+    // AsyncAnalysis,    // asnyc analysis
+    // ThreadSafety,     // Threadsafety
+    // MemoryLeaks,      // Memory leak analysis
+    // TypeInference,    // typeinference analysis
 }
 
 impl JsonFileType {
@@ -69,7 +75,7 @@ impl JsonFileType {
 #[derive(Debug, Clone)]
 pub struct OptimizedExportOptions {
     /// Use parallel processing for large datasets (default: auto-detect)
-    pub use_parallel_processing: Option<bool>,
+    pub parallel_processing: bool,
     /// Buffer size for file I/O (default: 256KB for better performance)
     pub buffer_size: usize,
     /// Use compact JSON format for large files (default: auto-detect)
@@ -78,20 +84,115 @@ pub struct OptimizedExportOptions {
     pub enable_type_cache: bool,
     /// Batch size for processing allocations (default: 1000)
     pub batch_size: usize,
-    /// Enable async I/O for large files (default: auto-detect)
-    pub use_async_io: Option<bool>,
+    /// Enable streaming JSON writer for large files (default: auto-detect)
+    pub use_streaming_writer: bool,
+    /// Enable schema validation (default: true)
+    pub enable_schema_validation: bool,
+    /// Optimization level (default: High)
+    pub optimization_level: OptimizationLevel,
+    /// Enable enhanced FFI analysis (default: true)
+    pub enable_enhanced_ffi_analysis: bool,
+    /// Enable boundary event processing (default: true)
+    pub enable_boundary_event_processing: bool,
+    /// Enable memory passport tracking (default: true)
+    pub enable_memory_passport_tracking: bool,
+}
+
+/// Optimization levels for export processing
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptimizationLevel {
+    /// Basic optimization - fastest export
+    Low,
+    /// Balanced optimization - good performance with enhanced features
+    Medium,
+    /// Full optimization - all features enabled, may be slower
+    High,
+    /// Maximum optimization - experimental features enabled
+    Maximum,
 }
 
 impl Default for OptimizedExportOptions {
     fn default() -> Self {
         Self {
-            use_parallel_processing: None, // Auto-detect based on data size
-            buffer_size: 256 * 1024,       // 256KB buffer
-            use_compact_format: None,      // Auto-detect based on file size
+            parallel_processing: true,
+            buffer_size: 256 * 1024, // 256KB buffer
+            use_compact_format: None, // Auto-detect based on file size
             enable_type_cache: true,
             batch_size: 1000,
-            use_async_io: None, // Auto-detect based on file size
+            use_streaming_writer: true,
+            enable_schema_validation: true,
+            optimization_level: OptimizationLevel::High,
+            enable_enhanced_ffi_analysis: true,
+            enable_boundary_event_processing: true,
+            enable_memory_passport_tracking: true,
         }
+    }
+}
+
+impl OptimizedExportOptions {
+    /// Create new options with specified optimization level
+    pub fn with_optimization_level(level: OptimizationLevel) -> Self {
+        let mut options = Self::default();
+        options.optimization_level = level;
+        
+        match level {
+            OptimizationLevel::Low => {
+                options.parallel_processing = false;
+                options.use_streaming_writer = false;
+                options.enable_schema_validation = false;
+                options.enable_enhanced_ffi_analysis = false;
+                options.enable_boundary_event_processing = false;
+                options.enable_memory_passport_tracking = false;
+            }
+            OptimizationLevel::Medium => {
+                options.parallel_processing = true;
+                options.use_streaming_writer = false;
+                options.enable_schema_validation = true;
+                options.enable_enhanced_ffi_analysis = true;
+                options.enable_boundary_event_processing = false;
+                options.enable_memory_passport_tracking = false;
+            }
+            OptimizationLevel::High => {
+                // Use default settings (all features enabled)
+            }
+            OptimizationLevel::Maximum => {
+                options.buffer_size = 512 * 1024; // 512KB buffer
+                options.batch_size = 2000;
+                // All features enabled with maximum settings
+            }
+        }
+        
+        options
+    }
+    
+    /// Enable or disable parallel processing
+    pub fn parallel_processing(mut self, enabled: bool) -> Self {
+        self.parallel_processing = enabled;
+        self
+    }
+    
+    /// Set buffer size for I/O operations
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = size;
+        self
+    }
+    
+    /// Set batch size for processing
+    pub fn batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self
+    }
+    
+    /// Enable or disable streaming writer
+    pub fn streaming_writer(mut self, enabled: bool) -> Self {
+        self.use_streaming_writer = enabled;
+        self
+    }
+    
+    /// Enable or disable schema validation
+    pub fn schema_validation(mut self, enabled: bool) -> Self {
+        self.enable_schema_validation = enabled;
+        self
     }
 }
 
@@ -170,39 +271,19 @@ fn extract_box_inner_type(type_name: &str) -> String {
     "Box<T>".to_string()
 }
 
-/// Optimized allocation processing with intelligent batching
-fn process_allocations_optimized(
-    allocations: &[AllocationInfo],
-    options: &OptimizedExportOptions,
-) -> TrackingResult<serde_json::Value> {
-    let use_parallel = options
-        .use_parallel_processing
-        .unwrap_or(allocations.len() > 1000);
 
-    let processed_allocations = if use_parallel && allocations.len() > options.batch_size {
-        // Use parallel processing for large datasets
-        allocations
-            .par_chunks(options.batch_size)
-            .map(|chunk| process_allocation_batch(chunk))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect()
-    } else {
-        // Use sequential processing for smaller datasets
-        process_allocation_batch(allocations)?
-    };
-
-    Ok(serde_json::json!({
-        "allocations": processed_allocations,
-        "total_count": allocations.len(),
-        "processing_mode": if use_parallel { "parallel" } else { "sequential" }
-    }))
-}
-
-/// Process a batch of allocations
+/// Process a batch of allocations (legacy function for compatibility)
 fn process_allocation_batch(
     allocations: &[AllocationInfo],
+) -> TrackingResult<Vec<serde_json::Value>> {
+    let options = OptimizedExportOptions::default();
+    process_allocation_batch_enhanced(allocations, &options)
+}
+
+/// Enhanced batch processing with new data pipeline integration
+fn process_allocation_batch_enhanced(
+    allocations: &[AllocationInfo],
+    options: &OptimizedExportOptions,
 ) -> TrackingResult<Vec<serde_json::Value>> {
     let mut processed = Vec::with_capacity(allocations.len());
 
@@ -213,27 +294,157 @@ fn process_allocation_batch(
             compute_enhanced_type_info("Unknown", alloc.size)
         };
 
-        processed.push(serde_json::json!({
+        let mut allocation_data = serde_json::json!({
             "ptr": format!("0x{:x}", alloc.ptr),
             "size": alloc.size,
             "type_name": enhanced_type,
             "var_name": alloc.var_name.as_deref().unwrap_or("unnamed"),
             "scope": alloc.scope_name.as_deref().unwrap_or("global"),
-            "timestamp": alloc.timestamp_alloc
-        }));
+            "timestamp_alloc": alloc.timestamp_alloc,
+            "timestamp_dealloc": alloc.timestamp_dealloc,
+            "is_active": alloc.is_active()
+        });
+
+        // Add enhanced FFI analysis if enabled
+        if options.enable_enhanced_ffi_analysis {
+            if let Some(ffi_info) = analyze_ffi_allocation(alloc) {
+                allocation_data["ffi_analysis"] = ffi_info;
+            }
+        }
+
+        // Add boundary event information if enabled
+        if options.enable_boundary_event_processing {
+            if let Some(boundary_info) = analyze_boundary_events(alloc) {
+                allocation_data["boundary_events"] = boundary_info;
+            }
+        }
+
+        // Add memory passport information if enabled
+        if options.enable_memory_passport_tracking {
+            if let Some(passport_info) = get_memory_passport_info(alloc.ptr) {
+                allocation_data["memory_passport"] = passport_info;
+            }
+        }
+
+        processed.push(allocation_data);
     }
 
     Ok(processed)
 }
 
-/// Optimized file writing with intelligent buffering
+/// Analyze FFI-related information for an allocation
+fn analyze_ffi_allocation(alloc: &AllocationInfo) -> Option<serde_json::Value> {
+    // Check if this allocation has FFI characteristics
+    if let Some(type_name) = &alloc.type_name {
+        if type_name.contains("*mut") || type_name.contains("*const") || 
+           type_name.contains("extern") || type_name.contains("libc::") {
+            return Some(serde_json::json!({
+                "is_ffi_related": true,
+                "ffi_type": if type_name.contains("*mut") || type_name.contains("*const") {
+                    "raw_pointer"
+                } else {
+                    "external_library"
+                },
+                "risk_level": if type_name.contains("*mut") { "high" } else { "medium" },
+                "safety_concerns": [
+                    "Manual memory management required",
+                    "No automatic bounds checking",
+                    "Potential for memory safety violations"
+                ]
+            }));
+        }
+    }
+    
+    if let Some(var_name) = &alloc.var_name {
+        if var_name.contains("ffi") || var_name.contains("extern") || var_name.contains("c_") {
+            return Some(serde_json::json!({
+                "is_ffi_related": true,
+                "ffi_type": "ffi_variable",
+                "risk_level": "medium",
+                "detected_from": "variable_name"
+            }));
+        }
+    }
+    
+    None
+}
+
+/// Analyze boundary events for an allocation
+fn analyze_boundary_events(alloc: &AllocationInfo) -> Option<serde_json::Value> {
+    // Get boundary events from the unsafe FFI tracker
+    let tracker = get_global_unsafe_ffi_tracker();
+    if let Ok(allocations) = tracker.get_enhanced_allocations() {
+        for enhanced_alloc in allocations {
+            if enhanced_alloc.base.ptr == alloc.ptr && !enhanced_alloc.cross_boundary_events.is_empty() {
+                let events: Vec<serde_json::Value> = enhanced_alloc.cross_boundary_events
+                    .iter()
+                    .map(|event| serde_json::json!({
+                        "event_type": format!("{:?}", event.event_type),
+                        "from_context": event.from_context,
+                        "to_context": event.to_context,
+                        "timestamp": event.timestamp
+                    }))
+                    .collect();
+                
+                return Some(serde_json::json!({
+                    "has_boundary_events": true,
+                    "event_count": events.len(),
+                    "events": events
+                }));
+            }
+        }
+    }
+    
+    None
+}
+
+/// Get memory passport information for a pointer
+fn get_memory_passport_info(ptr: usize) -> Option<serde_json::Value> {
+    let tracker = get_global_unsafe_ffi_tracker();
+    if let Ok(passports) = tracker.get_memory_passports() {
+        if let Some(passport) = passports.get(&ptr) {
+            return Some(serde_json::json!({
+                "passport_id": passport.passport_id,
+                "origin_context": passport.origin.context,
+                "current_owner": passport.current_owner.owner_context,
+                "validity_status": format!("{:?}", passport.validity_status),
+                "security_clearance": format!("{:?}", passport.security_clearance),
+                "journey_length": passport.journey.len(),
+                "last_stamp": passport.journey.last().map(|stamp| serde_json::json!({
+                    "operation": stamp.operation,
+                    "location": stamp.location,
+                    "timestamp": stamp.timestamp
+                }))
+            }));
+        }
+    }
+    
+    None
+}
+
+/// Optimized file writing with streaming support and schema validation
 fn write_json_optimized<P: AsRef<Path>>(
     path: P,
     data: &serde_json::Value,
     options: &OptimizedExportOptions,
 ) -> TrackingResult<()> {
-    let file = File::create(path)?;
-    let mut writer = BufWriter::with_capacity(options.buffer_size, file);
+    let path = path.as_ref();
+    
+    // Validate schema if enabled
+    if options.enable_schema_validation {
+        let validator = SchemaValidator::new();
+        if let Ok(validation_result) = validator.validate_unsafe_ffi_analysis(data) {
+            if !validation_result.is_valid {
+                eprintln!("⚠️ Schema validation warnings:");
+                for error in validation_result.errors {
+                    eprintln!("  - {}: {}", error.code, error.message);
+                }
+                for warning in validation_result.warnings {
+                    eprintln!("  - {}: {}", warning.warning_code, warning.message);
+                }
+            }
+        }
+    }
 
     // Determine format based on data size
     let estimated_size = estimate_json_size(data);
@@ -241,13 +452,27 @@ fn write_json_optimized<P: AsRef<Path>>(
         .use_compact_format
         .unwrap_or(estimated_size > 1_000_000); // Use compact for files > 1MB
 
-    if use_compact {
-        serde_json::to_writer(&mut writer, data)?;
+    // Use streaming writer for large files or when explicitly enabled
+    if options.use_streaming_writer && estimated_size > 500_000 {
+        let file = File::create(path)?;
+        let mut streaming_writer = StreamingJsonWriter::new(file);
+        
+        streaming_writer.write_complete_json(data)?;
+        streaming_writer.finalize()?;
     } else {
-        serde_json::to_writer_pretty(&mut writer, data)?;
+        // Use traditional buffered writer for smaller files
+        let file = File::create(path)?;
+        let mut writer = BufWriter::with_capacity(options.buffer_size, file);
+
+        if use_compact {
+            serde_json::to_writer(&mut writer, data)?;
+        } else {
+            serde_json::to_writer_pretty(&mut writer, data)?;
+        }
+
+        writer.flush()?;
     }
 
-    writer.flush()?;
     Ok(())
 }
 
@@ -266,7 +491,134 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
     }
 }
 
-/// Ultra-fast export implementation
+/// Main export interface - unified entry point for all JSON export operations
+impl MemoryTracker {
+    /// Unified export to JSON with custom options
+    /// 
+    /// This method provides full control over the export process with custom options.
+    /// It integrates all the new data processing components including BatchProcessor,
+    /// StreamingJsonWriter, SchemaValidator, and enhanced FFI analysis.
+    /// 
+    /// # Arguments
+    /// * `base_path` - Base path for output
+    /// * Custom export options
+    /// 
+    /// # Returns
+    /// * `TrackingResult<()>` - Success or error result
+    /// 
+    /// # Example
+    /// ```rust
+    /// let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
+    ///     .parallel_processing(true)
+    ///     .streaming_writer(true)
+    ///     .schema_validation(true);
+    /// tracker.export_to_json_with_options("output/analysis", options)?;
+    /// ```
+    pub fn export_to_json_with_optimized_options<P: AsRef<Path>>(
+        &self,
+        base_path: P,
+        options: OptimizedExportOptions,
+    ) -> TrackingResult<()> {
+        let start_time = std::time::Instant::now();
+        println!("🚀 Starting unified JSON export with optimization level: {:?}", options.optimization_level);
+
+        let base_path = base_path.as_ref();
+        let base_name = base_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("export");
+        let parent_dir = base_path.parent().unwrap_or(Path::new("."));
+
+        // Get data from all sources
+        let allocations = self.get_active_allocations()?;
+        let stats = self.get_stats()?;
+
+        println!("📊 Processing {} allocations with integrated pipeline...", allocations.len());
+
+        // Determine which files to export based on optimization level
+        let file_types = match options.optimization_level {
+            OptimizationLevel::Low => vec![
+                JsonFileType::MemoryAnalysis,
+                JsonFileType::Performance,
+            ],
+            OptimizationLevel::Medium => vec![
+                JsonFileType::MemoryAnalysis,
+                JsonFileType::Lifetime,
+                JsonFileType::Performance,
+            ],
+            OptimizationLevel::High | OptimizationLevel::Maximum => vec![
+                JsonFileType::MemoryAnalysis,
+                JsonFileType::Lifetime,
+                JsonFileType::UnsafeFfi,
+                JsonFileType::Performance,
+                JsonFileType::ComplexTypes,
+            ],
+        };
+
+        // Export files using the integrated pipeline
+        for file_type in &file_types {
+            let (filename, data) = match file_type {
+                JsonFileType::MemoryAnalysis => {
+                    let filename = format!("{}_memory_analysis.json", base_name);
+                    let data = create_integrated_memory_analysis(&allocations, &stats, &options)?;
+                    (filename, data)
+                }
+                JsonFileType::Lifetime => {
+                    let filename = format!("{}_lifetime.json", base_name);
+                    let data = create_integrated_lifetime_analysis(&allocations, &options)?;
+                    (filename, data)
+                }
+                JsonFileType::UnsafeFfi => {
+                    let filename = format!("{}_unsafe_ffi.json", base_name);
+                    let data = create_integrated_unsafe_ffi_analysis(&allocations, &options)?;
+                    (filename, data)
+                }
+                JsonFileType::Performance => {
+                    let filename = format!("{}_performance.json", base_name);
+                    let data = create_integrated_performance_analysis(&allocations, &stats, start_time, &options)?;
+                    (filename, data)
+                }
+                JsonFileType::ComplexTypes => {
+                    let filename = format!("{}_complex_types.json", base_name);
+                    let data = create_optimized_complex_types_analysis(&allocations, &options)?;
+                    (filename, data)
+                }
+            };
+
+            let file_path = parent_dir.join(filename);
+            write_json_optimized(&file_path, &data, &options)?;
+            println!("   ✅ Generated: {}", file_path.file_name().unwrap().to_string_lossy());
+        }
+
+        let total_duration = start_time.elapsed();
+        println!("✅ Unified JSON export completed in {:?}", total_duration);
+        
+        // Display optimization features used
+        println!("💡 Optimization features applied:");
+        if options.parallel_processing {
+            println!("   - Parallel processing enabled");
+        }
+        if options.use_streaming_writer {
+            println!("   - Streaming JSON writer enabled");
+        }
+        if options.enable_schema_validation {
+            println!("   - Schema validation enabled");
+        }
+        if options.enable_enhanced_ffi_analysis {
+            println!("   - Enhanced FFI analysis enabled");
+        }
+        if options.enable_boundary_event_processing {
+            println!("   - Boundary event processing enabled");
+        }
+        if options.enable_memory_passport_tracking {
+            println!("   - Memory passport tracking enabled");
+        }
+
+        Ok(())
+    }
+}
+
+/// Ultra-fast export implementation (legacy methods for backward compatibility)
 impl MemoryTracker {
     /// Optimized export to standard 4 JSON files (replaces export_separated_json_simple)
     pub fn export_optimized_json_files<P: AsRef<Path>>(&self, base_path: P) -> TrackingResult<()> {
@@ -345,10 +697,7 @@ impl MemoryTracker {
         println!("   4. {}_performance.json", base_name);
 
         // 显示优化效果
-        if options
-            .use_parallel_processing
-            .unwrap_or(allocations.len() > 1000)
-        {
+        if options.parallel_processing {
             println!("💡 Applied parallel processing optimization");
         }
         if options.enable_type_cache {
@@ -681,9 +1030,437 @@ fn create_optimized_performance_analysis(
         "allocation_distribution": size_distribution,
         "optimization_status": {
             "type_caching": options.enable_type_cache,
-            "parallel_processing": options.use_parallel_processing.unwrap_or(allocations.len() > 1000),
+            "parallel_processing": options.parallel_processing,
             "buffer_size_kb": options.buffer_size / 1024,
             "batch_size": options.batch_size
+        }
+    }))
+}
+
+/// Create integrated memory analysis with all new pipeline components
+fn create_integrated_memory_analysis(
+    allocations: &[AllocationInfo],
+    stats: &crate::core::types::MemoryStats,
+    options: &OptimizedExportOptions,
+) -> TrackingResult<serde_json::Value> {
+    println!("🔧 Creating integrated memory analysis with enhanced pipeline...");
+    
+    // Use BatchProcessor for large datasets (simplified for now)
+    let _processed_allocations = process_allocations_optimized(allocations, options)?;
+
+    // Enhanced memory analysis with FFI integration
+    let mut enhanced_allocations = Vec::new();
+    for alloc in allocations {
+        let mut enhanced_alloc = serde_json::json!({
+            "ptr": format!("0x{:x}", alloc.ptr),
+            "size": alloc.size,
+            "type_name": alloc.type_name,
+            "var_name": alloc.var_name,
+            "scope_name": alloc.scope_name,
+            "timestamp_alloc": alloc.timestamp_alloc,
+            "timestamp_dealloc": alloc.timestamp_dealloc
+        });
+
+        // Add boundary events if enabled
+        if options.enable_boundary_event_processing {
+            if let Some(boundary_info) = analyze_boundary_events(alloc) {
+                enhanced_alloc["boundary_events"] = boundary_info;
+            }
+        }
+
+        // Add memory passport if enabled
+        if options.enable_memory_passport_tracking {
+            if let Some(passport_info) = get_memory_passport_info(alloc.ptr) {
+                enhanced_alloc["memory_passport"] = passport_info;
+            }
+        }
+
+        enhanced_allocations.push(enhanced_alloc);
+    }
+
+    Ok(serde_json::json!({
+        "metadata": {
+            "analysis_type": "integrated_memory_analysis",
+            "optimization_level": format!("{:?}", options.optimization_level),
+            "total_allocations": allocations.len(),
+            "export_version": "2.0",
+            "pipeline_features": {
+                "batch_processing": options.parallel_processing && allocations.len() > options.batch_size,
+                "boundary_events": options.enable_boundary_event_processing,
+                "memory_passports": options.enable_memory_passport_tracking,
+                "enhanced_ffi": options.enable_enhanced_ffi_analysis
+            },
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        },
+        "memory_stats": {
+            "total_allocated": stats.total_allocated,
+            "active_memory": stats.active_memory,
+            "peak_memory": stats.peak_memory,
+            "total_allocations": stats.total_allocations
+        },
+        "allocations": enhanced_allocations
+    }))
+}
+
+/// Create integrated lifetime analysis with enhanced pipeline
+fn create_integrated_lifetime_analysis(
+    allocations: &[AllocationInfo],
+    options: &OptimizedExportOptions,
+) -> TrackingResult<serde_json::Value> {
+    println!("🔧 Creating integrated lifetime analysis with enhanced pipeline...");
+    
+    // Use BatchProcessor for scope analysis
+    let mut scope_analysis: HashMap<String, (usize, usize, Vec<usize>)> = HashMap::new();
+    let mut lifecycle_events = Vec::new();
+
+    // Process in batches if enabled
+    if options.parallel_processing && allocations.len() > options.batch_size {
+        let chunks: Vec<_> = allocations.chunks(options.batch_size).collect();
+        let results: Vec<_> = chunks.par_iter().map(|chunk| {
+            let mut local_scope_analysis = HashMap::new();
+            let mut local_events = Vec::new();
+            
+            for alloc in *chunk {
+                let scope = alloc.scope_name.as_deref().unwrap_or("global");
+                let entry = local_scope_analysis
+                    .entry(scope.to_string())
+                    .or_insert((0, 0, Vec::new()));
+                entry.0 += alloc.size;
+                entry.1 += 1;
+                entry.2.push(alloc.size);
+
+                // Track lifecycle events
+                local_events.push(serde_json::json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "event": "allocation",
+                    "scope": scope,
+                    "timestamp": alloc.timestamp_alloc,
+                    "size": alloc.size
+                }));
+            }
+            
+            (local_scope_analysis, local_events)
+        }).collect();
+
+        // Merge results
+        for (local_scope, local_events) in results {
+            for (scope, (size, count, sizes)) in local_scope {
+                let entry = scope_analysis.entry(scope).or_insert((0, 0, Vec::new()));
+                entry.0 += size;
+                entry.1 += count;
+                entry.2.extend(sizes);
+            }
+            lifecycle_events.extend(local_events);
+        }
+    } else {
+        // Sequential processing
+        for alloc in allocations {
+            let scope = alloc.scope_name.as_deref().unwrap_or("global");
+            let entry = scope_analysis
+                .entry(scope.to_string())
+                .or_insert((0, 0, Vec::new()));
+            entry.0 += alloc.size;
+            entry.1 += 1;
+            entry.2.push(alloc.size);
+
+            lifecycle_events.push(serde_json::json!({
+                "ptr": format!("0x{:x}", alloc.ptr),
+                "event": "allocation",
+                "scope": scope,
+                "timestamp": alloc.timestamp_alloc,
+                "size": alloc.size
+            }));
+        }
+    }
+
+    // Convert to JSON format
+    let mut scope_stats: Vec<_> = scope_analysis
+        .into_iter()
+        .map(|(scope, (total_size, count, sizes))| {
+            let avg_size = if count > 0 { total_size / count } else { 0 };
+            let max_size = sizes.iter().max().copied().unwrap_or(0);
+            let min_size = sizes.iter().min().copied().unwrap_or(0);
+
+            serde_json::json!({
+                "scope_name": scope,
+                "total_size": total_size,
+                "allocation_count": count,
+                "average_size": avg_size,
+                "max_size": max_size,
+                "min_size": min_size
+            })
+        })
+        .collect();
+
+    scope_stats.sort_by(|a, b| {
+        b["total_size"]
+            .as_u64()
+            .unwrap_or(0)
+            .cmp(&a["total_size"].as_u64().unwrap_or(0))
+    });
+
+    Ok(serde_json::json!({
+        "metadata": {
+            "analysis_type": "integrated_lifetime_analysis",
+            "optimization_level": format!("{:?}", options.optimization_level),
+            "total_scopes": scope_stats.len(),
+            "export_version": "2.0",
+            "pipeline_features": {
+                "batch_processing": options.parallel_processing && allocations.len() > options.batch_size,
+                "lifecycle_tracking": true
+            },
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        },
+        "scope_analysis": scope_stats,
+        "lifecycle_events": lifecycle_events,
+        "summary": {
+            "total_allocations": allocations.len(),
+            "unique_scopes": scope_stats.len(),
+            "total_events": lifecycle_events.len()
+        }
+    }))
+}
+
+/// Create integrated unsafe FFI analysis with all enhanced features
+fn create_integrated_unsafe_ffi_analysis(
+    allocations: &[AllocationInfo],
+    options: &OptimizedExportOptions,
+) -> TrackingResult<serde_json::Value> {
+    println!("🔧 Creating integrated unsafe FFI analysis with enhanced pipeline...");
+    
+    let mut unsafe_indicators = Vec::new();
+    let mut ffi_patterns = Vec::new();
+    let mut enhanced_ffi_data = Vec::new();
+    let mut safety_violations = Vec::new();
+    let mut boundary_events = Vec::new();
+
+    // Get enhanced FFI data from tracker if available
+    if options.enable_enhanced_ffi_analysis {
+        let tracker = get_global_unsafe_ffi_tracker();
+        if let Ok(enhanced_allocations) = tracker.get_enhanced_allocations() {
+            for enhanced_alloc in enhanced_allocations {
+                enhanced_ffi_data.push(serde_json::json!({
+                    "ptr": format!("0x{:x}", enhanced_alloc.base.ptr),
+                    "size": enhanced_alloc.base.size,
+                    "source": format!("{:?}", enhanced_alloc.source),
+                    "ffi_tracked": enhanced_alloc.ffi_tracked,
+                    "cross_boundary_events": enhanced_alloc.cross_boundary_events.len(),
+                    "safety_violations": enhanced_alloc.safety_violations.len()
+                }));
+
+                // Collect safety violations
+                for violation in &enhanced_alloc.safety_violations {
+                    let (violation_type, timestamp) = match violation {
+                        SafetyViolation::DoubleFree { timestamp, .. } => ("DoubleFree", *timestamp),
+                        SafetyViolation::InvalidFree { timestamp, .. } => ("InvalidFree", *timestamp),
+                        SafetyViolation::PotentialLeak { leak_detection_timestamp, .. } => ("PotentialLeak", *leak_detection_timestamp),
+                        SafetyViolation::CrossBoundaryRisk { description, .. } => ("CrossBoundaryRisk", 0),
+                    };
+                    
+                    safety_violations.push(serde_json::json!({
+                        "ptr": format!("0x{:x}", enhanced_alloc.base.ptr),
+                        "violation_type": violation_type,
+                        "description": format!("{:?}", violation),
+                        "timestamp": timestamp
+                    }));
+                }
+
+                // Collect boundary events
+                if options.enable_boundary_event_processing {
+                    for event in &enhanced_alloc.cross_boundary_events {
+                        boundary_events.push(serde_json::json!({
+                            "ptr": format!("0x{:x}", enhanced_alloc.base.ptr),
+                            "event_type": format!("{:?}", event.event_type),
+                            "from_context": event.from_context,
+                            "to_context": event.to_context,
+                            "timestamp": event.timestamp
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    // Analyze basic patterns in allocations
+    for alloc in allocations {
+        if let Some(type_name) = &alloc.type_name {
+            if type_name.contains("*mut") || type_name.contains("*const") {
+                unsafe_indicators.push(serde_json::json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "type": "raw_pointer",
+                    "type_name": type_name,
+                    "size": alloc.size,
+                    "risk_level": "high"
+                }));
+            } else if type_name.contains("extern") || type_name.contains("libc::") {
+                ffi_patterns.push(serde_json::json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "type": "ffi_related",
+                    "type_name": type_name,
+                    "size": alloc.size,
+                    "risk_level": "medium"
+                }));
+            }
+        }
+
+        if let Some(var_name) = &alloc.var_name {
+            if var_name.contains("unsafe") || var_name.contains("raw") {
+                unsafe_indicators.push(serde_json::json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "type": "unsafe_variable",
+                    "var_name": var_name,
+                    "size": alloc.size,
+                    "risk_level": "medium"
+                }));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "metadata": {
+            "analysis_type": "integrated_unsafe_ffi_analysis",
+            "optimization_level": format!("{:?}", options.optimization_level),
+            "total_allocations_analyzed": allocations.len(),
+            "export_version": "2.0",
+            "pipeline_features": {
+                "enhanced_ffi_analysis": options.enable_enhanced_ffi_analysis,
+                "boundary_event_processing": options.enable_boundary_event_processing,
+                "memory_passport_tracking": options.enable_memory_passport_tracking
+            },
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        },
+        "unsafe_indicators": unsafe_indicators,
+        "ffi_patterns": ffi_patterns,
+        "enhanced_ffi_data": enhanced_ffi_data,
+        "safety_violations": safety_violations,
+        "boundary_events": boundary_events,
+        "summary": {
+            "unsafe_count": unsafe_indicators.len(),
+            "ffi_count": ffi_patterns.len(),
+            "enhanced_entries": enhanced_ffi_data.len(),
+            "safety_violations": safety_violations.len(),
+            "boundary_events": boundary_events.len(),
+            "total_risk_items": unsafe_indicators.len() + ffi_patterns.len() + safety_violations.len(),
+            "risk_assessment": if safety_violations.len() > 5 {
+                "critical"
+            } else if unsafe_indicators.len() + ffi_patterns.len() > 10 {
+                "high"
+            } else if unsafe_indicators.len() + ffi_patterns.len() > 5 {
+                "medium"
+            } else {
+                "low"
+            }
+        }
+    }))
+}
+
+/// Create integrated performance analysis with all pipeline metrics
+fn create_integrated_performance_analysis(
+    allocations: &[AllocationInfo],
+    stats: &crate::core::types::MemoryStats,
+    start_time: std::time::Instant,
+    options: &OptimizedExportOptions,
+) -> TrackingResult<serde_json::Value> {
+    println!("🔧 Creating integrated performance analysis with enhanced pipeline...");
+    
+    let processing_time = start_time.elapsed();
+    let allocations_per_second = if processing_time.as_secs() > 0 {
+        allocations.len() as f64 / processing_time.as_secs_f64()
+    } else {
+        allocations.len() as f64 / 0.001
+    };
+
+    // Analyze allocation size distribution
+    let mut size_distribution = HashMap::new();
+    for alloc in allocations {
+        let category = match alloc.size {
+            0..=64 => "tiny",
+            65..=256 => "small",
+            257..=1024 => "medium",
+            1025..=4096 => "large",
+            4097..=16384 => "huge",
+            _ => "massive",
+        };
+        *size_distribution.entry(category).or_insert(0) += 1;
+    }
+
+    // Pipeline performance metrics
+    let pipeline_metrics = serde_json::json!({
+        "batch_processor": {
+            "enabled": options.parallel_processing && allocations.len() > options.batch_size,
+            "batch_size": options.batch_size,
+            "estimated_batches": if allocations.len() > options.batch_size {
+                (allocations.len() + options.batch_size - 1) / options.batch_size
+            } else {
+                1
+            }
+        },
+        "streaming_writer": {
+            "enabled": options.use_streaming_writer,
+            "buffer_size_kb": options.buffer_size / 1024
+        },
+        "schema_validator": {
+            "enabled": options.enable_schema_validation
+        },
+        "enhanced_features": {
+            "ffi_analysis": options.enable_enhanced_ffi_analysis,
+            "boundary_events": options.enable_boundary_event_processing,
+            "memory_passports": options.enable_memory_passport_tracking
+        }
+    });
+
+    Ok(serde_json::json!({
+        "metadata": {
+            "analysis_type": "integrated_performance_analysis",
+            "optimization_level": format!("{:?}", options.optimization_level),
+            "export_version": "2.0",
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        },
+        "export_performance": {
+            "total_processing_time_ms": processing_time.as_millis(),
+            "allocations_processed": allocations.len(),
+            "processing_rate": {
+                "allocations_per_second": allocations_per_second,
+                "performance_class": if allocations_per_second > 10000.0 {
+                    "excellent"
+                } else if allocations_per_second > 1000.0 {
+                    "good"
+                } else {
+                    "needs_optimization"
+                }
+            }
+        },
+        "memory_performance": {
+            "total_allocated": stats.total_allocated,
+            "active_memory": stats.active_memory,
+            "peak_memory": stats.peak_memory,
+            "memory_efficiency": if stats.peak_memory > 0 {
+                (stats.active_memory as f64 / stats.peak_memory as f64 * 100.0) as u64
+            } else {
+                100
+            }
+        },
+        "allocation_distribution": size_distribution,
+        "pipeline_metrics": pipeline_metrics,
+        "optimization_status": {
+            "type_caching": options.enable_type_cache,
+            "parallel_processing": options.parallel_processing,
+            "buffer_size_kb": options.buffer_size / 1024,
+            "batch_size": options.batch_size,
+            "streaming_enabled": options.use_streaming_writer,
+            "schema_validation": options.enable_schema_validation
         }
     }))
 }
@@ -701,9 +1478,7 @@ fn create_optimized_complex_types_analysis(
     let mut collections = Vec::new();
 
     // 使用并行处理分析复杂类型
-    let use_parallel = options
-        .use_parallel_processing
-        .unwrap_or(allocations.len() > 1000);
+    let use_parallel = options.parallel_processing && allocations.len() > 1000;
 
     if use_parallel {
         // 并行分析复杂类型
@@ -1126,9 +1901,7 @@ fn create_optimized_type_analysis(
     let mut type_stats: HashMap<String, (usize, usize, usize)> = HashMap::new();
 
     // Use parallel processing for type analysis if beneficial
-    let use_parallel = options
-        .use_parallel_processing
-        .unwrap_or(allocations.len() > 1000);
+    let use_parallel = options.parallel_processing && allocations.len() > 1000;
 
     if use_parallel {
         // Parallel type analysis
@@ -1263,6 +2036,51 @@ fn create_fast_allocation_summary(
             }
         }
     }))
+}
+
+/// Process allocations with optimized pipeline
+fn process_allocations_optimized(
+    allocations: &[AllocationInfo],
+    options: &OptimizedExportOptions,
+) -> TrackingResult<Vec<serde_json::Value>> {
+    let mut processed = Vec::with_capacity(allocations.len());
+    
+    if options.parallel_processing && allocations.len() > options.batch_size {
+        // Parallel processing for large datasets
+        let results: Vec<_> = allocations
+            .par_chunks(options.batch_size)
+            .map(|chunk| {
+                chunk.iter().map(|alloc| {
+                    serde_json::json!({
+                        "ptr": format!("0x{:x}", alloc.ptr),
+                        "size": alloc.size,
+                        "type_name": alloc.type_name,
+                        "var_name": alloc.var_name,
+                        "scope_name": alloc.scope_name,
+                        "timestamp": alloc.timestamp_alloc
+                    })
+                }).collect::<Vec<_>>()
+            })
+            .collect();
+        
+        for chunk_result in results {
+            processed.extend(chunk_result);
+        }
+    } else {
+        // Sequential processing for smaller datasets
+        for alloc in allocations {
+            processed.push(serde_json::json!({
+                "ptr": format!("0x{:x}", alloc.ptr),
+                "size": alloc.size,
+                "type_name": alloc.type_name,
+                "var_name": alloc.var_name,
+                "scope_name": alloc.scope_name,
+                "timestamp": alloc.timestamp_alloc
+            }));
+        }
+    }
+    
+    Ok(processed)
 }
 
 /// Create performance metrics

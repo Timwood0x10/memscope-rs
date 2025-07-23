@@ -1965,7 +1965,21 @@ impl MemoryTracker {
     /// - **Use case**: Deep debugging, memory leak investigation, system analysis
     /// - **⚠️ Warning**: Very slow, generates large files, may impact application performance
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        self.export_to_json_with_options(path, ExportOptions::default())
+        // Use the new integrated export pipeline from optimized_json_export
+        use crate::export::optimized_json_export::OptimizedExportOptions;
+        
+        let options = OptimizedExportOptions::default();
+        self.export_to_json_with_options_optimized(path, options)
+    }
+    
+    /// Export using the new optimized pipeline with custom options
+    pub fn export_to_json_with_options_optimized<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        options: crate::export::optimized_json_export::OptimizedExportOptions,
+    ) -> TrackingResult<()> {
+        // Delegate to the optimized export implementation
+        self.export_to_json_with_optimized_options(path, options)
     }
 
     /// Export memory tracking data with custom options.
