@@ -1875,8 +1875,8 @@ impl UnsafeFFITracker {
         &self,
         ptr: usize,
         event_type: &BoundaryEventType,
-        from_context: &str,
-        to_context: &str,
+        _from_context: &str,
+        _to_context: &str,
         transfer_size: usize,
     ) -> TrackingResult<BoundaryRiskAssessment> {
         let mut risk_factors = Vec::new();
@@ -2061,7 +2061,7 @@ impl UnsafeFFITracker {
     /// Analyze security implications of boundary crossing
     fn analyze_security_implications(
         &self,
-        ptr: usize,
+        _ptr: usize,
         from_context: &str,
         to_context: &str,
     ) -> TrackingResult<Vec<SecurityImplication>> {

@@ -552,7 +552,6 @@ pub fn create_buffer_streaming_writer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
 
     #[test]
     fn test_streaming_writer_creation() {

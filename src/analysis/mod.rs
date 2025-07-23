@@ -18,6 +18,7 @@ pub mod borrow_analysis;
 pub mod closure_analysis;
 pub mod generic_analysis;
 pub mod lifecycle_analysis;
+pub mod security_violation_analyzer;
 
 // Re-export key analysis functions
 pub use circular_reference::*;

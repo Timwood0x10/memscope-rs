@@ -464,7 +464,7 @@ impl AdaptivePerformanceOptimizer {
             allocations_processed as f64 / 0.001
         };
 
-        let (cache_hits, cache_misses, cache_hit_ratio) = self.type_cache.get_stats();
+        let (_cache_hits, _cache_misses, cache_hit_ratio) = self.type_cache.get_stats();
         
         let batch_efficiency = allocations_processed as f64 / batch_size as f64;
 

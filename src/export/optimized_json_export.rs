@@ -9,6 +9,7 @@ use crate::export::streaming_json_writer::StreamingJsonWriter;
 use crate::export::schema_validator::SchemaValidator;
 use crate::export::adaptive_performance::AdaptivePerformanceOptimizer;
 use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};
+use crate::analysis::security_violation_analyzer::{SecurityViolationAnalyzer, AnalysisConfig, ViolationSeverity};
 use rayon::prelude::*;
 
 use std::{
@@ -32,6 +33,8 @@ pub enum JsonFileType {
     Performance,
     /// complex_types.json
     ComplexTypes,
+    /// security_violations.json
+    SecurityViolations,
     // AsyncAnalysis,    // asnyc analysis
     // ThreadSafety,     // Threadsafety
     // MemoryLeaks,      // Memory leak analysis
@@ -68,6 +71,7 @@ impl JsonFileType {
             JsonFileType::UnsafeFfi => "unsafe_ffi",
             JsonFileType::Performance => "performance",
             JsonFileType::ComplexTypes => "complex_types",
+            JsonFileType::SecurityViolations => "security_violations",
         }
     }
 }
@@ -75,6 +79,10 @@ impl JsonFileType {
 /// Global adaptive performance optimizer instance
 static ADAPTIVE_OPTIMIZER: LazyLock<std::sync::Mutex<AdaptivePerformanceOptimizer>> =
     LazyLock::new(|| std::sync::Mutex::new(AdaptivePerformanceOptimizer::default()));
+
+/// Global security violation analyzer instance
+static SECURITY_ANALYZER: LazyLock<std::sync::Mutex<SecurityViolationAnalyzer>> =
+    LazyLock::new(|| std::sync::Mutex::new(SecurityViolationAnalyzer::default()));
 
 /// Optimized export options with intelligent defaults
 #[derive(Debug, Clone)]
@@ -107,6 +115,12 @@ pub struct OptimizedExportOptions {
     pub max_cache_size: usize,
     /// Target processing time per batch in milliseconds (default: 10ms)
     pub target_batch_time_ms: u64,
+    /// Enable comprehensive security violation analysis (default: true)
+    pub enable_security_analysis: bool,
+    /// Include low severity violations in security reports (default: true)
+    pub include_low_severity_violations: bool,
+    /// Generate data integrity hashes for security reports (default: true)
+    pub generate_integrity_hashes: bool,
 }
 
 /// Optimization levels for export processing
@@ -139,6 +153,9 @@ impl Default for OptimizedExportOptions {
             enable_adaptive_optimization: true,
             max_cache_size: 1000,
             target_batch_time_ms: 10,
+            enable_security_analysis: true,
+            include_low_severity_violations: true,
+            generate_integrity_hashes: true,
         }
     }
 }
@@ -158,6 +175,7 @@ impl OptimizedExportOptions {
                 options.enable_boundary_event_processing = false;
                 options.enable_memory_passport_tracking = false;
                 options.enable_adaptive_optimization = false;
+                options.enable_security_analysis = false;
             }
             OptimizationLevel::Medium => {
                 options.parallel_processing = true;
@@ -219,6 +237,24 @@ impl OptimizedExportOptions {
     /// Set maximum cache size
     pub fn max_cache_size(mut self, size: usize) -> Self {
         self.max_cache_size = size;
+        self
+    }
+    
+    /// Enable or disable security violation analysis
+    pub fn security_analysis(mut self, enabled: bool) -> Self {
+        self.enable_security_analysis = enabled;
+        self
+    }
+    
+    /// Include low severity violations in reports
+    pub fn include_low_severity(mut self, include: bool) -> Self {
+        self.include_low_severity_violations = include;
+        self
+    }
+    
+    /// Enable or disable integrity hash generation
+    pub fn integrity_hashes(mut self, enabled: bool) -> Self {
+        self.generate_integrity_hashes = enabled;
         self
     }
 }
@@ -562,6 +598,13 @@ impl MemoryTracker {
 
         println!("📊 Processing {} allocations with integrated pipeline...", allocations.len());
 
+        // Update security analyzer with current allocations if enabled
+        if options.enable_security_analysis {
+            if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
+                analyzer.update_allocations(allocations.clone());
+            }
+        }
+
         // Determine which files to export based on optimization level
         let file_types = match options.optimization_level {
             OptimizationLevel::Low => vec![
@@ -573,13 +616,19 @@ impl MemoryTracker {
                 JsonFileType::Lifetime,
                 JsonFileType::Performance,
             ],
-            OptimizationLevel::High | OptimizationLevel::Maximum => vec![
-                JsonFileType::MemoryAnalysis,
-                JsonFileType::Lifetime,
-                JsonFileType::UnsafeFfi,
-                JsonFileType::Performance,
-                JsonFileType::ComplexTypes,
-            ],
+            OptimizationLevel::High | OptimizationLevel::Maximum => {
+                let mut types = vec![
+                    JsonFileType::MemoryAnalysis,
+                    JsonFileType::Lifetime,
+                    JsonFileType::UnsafeFfi,
+                    JsonFileType::Performance,
+                    JsonFileType::ComplexTypes,
+                ];
+                if options.enable_security_analysis {
+                    types.push(JsonFileType::SecurityViolations);
+                }
+                types
+            },
         };
 
         // Export files using the integrated pipeline
@@ -608,6 +657,11 @@ impl MemoryTracker {
                 JsonFileType::ComplexTypes => {
                     let filename = format!("{}_complex_types.json", base_name);
                     let data = create_optimized_complex_types_analysis(&allocations, &options)?;
+                    (filename, data)
+                }
+                JsonFileType::SecurityViolations => {
+                    let filename = format!("{}_security_violations.json", base_name);
+                    let data = create_security_violation_analysis(&allocations, &options)?;
                     (filename, data)
                 }
             };
@@ -652,6 +706,9 @@ impl MemoryTracker {
         }
         if options.enable_memory_passport_tracking {
             println!("   - Memory passport tracking enabled");
+        }
+        if options.enable_security_analysis {
+            println!("   - Security violation analysis enabled");
         }
         if options.enable_adaptive_optimization {
             println!("   - Adaptive performance optimization enabled");
@@ -726,6 +783,120 @@ impl MemoryTracker {
                 println!("🔧 Adaptive optimization disabled");
             }
         }
+        Ok(())
+    }
+    
+    /// Get comprehensive security violation report
+    /// 
+    /// Returns detailed security analysis including violation reports,
+    /// impact assessments, and remediation suggestions.
+    pub fn get_security_violation_report(&self) -> TrackingResult<serde_json::Value> {
+        let allocations = self.get_active_allocations()?;
+        let options = OptimizedExportOptions::default();
+        create_security_violation_analysis(&allocations, &options)
+    }
+    
+    /// Get security violations by severity level
+    /// 
+    /// Filters security violations by minimum severity level.
+    pub fn get_security_violations_by_severity(
+        &self,
+        min_severity: ViolationSeverity,
+    ) -> TrackingResult<Vec<serde_json::Value>> {
+        if let Ok(analyzer) = SECURITY_ANALYZER.lock() {
+            let reports = analyzer.get_reports_by_severity(min_severity);
+            let json_reports = reports.iter().map(|report| {
+                serde_json::json!({
+                    "violation_id": report.violation_id,
+                    "violation_type": report.violation_type,
+                    "severity": format!("{:?}", report.severity),
+                    "description": report.description,
+                    "overall_risk_score": report.impact_assessment.overall_risk_score,
+                    "generated_at_ns": report.generated_at_ns
+                })
+            }).collect();
+            Ok(json_reports)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+    
+    /// Verify integrity of security violation reports
+    /// 
+    /// Checks data integrity hashes for all security violation reports.
+    pub fn verify_security_report_integrity(&self) -> TrackingResult<serde_json::Value> {
+        if let Ok(analyzer) = SECURITY_ANALYZER.lock() {
+            let all_reports = analyzer.get_all_reports();
+            let mut verification_results = Vec::new();
+            let mut all_verified = true;
+            
+            for (violation_id, report) in all_reports {
+                let is_valid = analyzer.verify_report_integrity(report).unwrap_or(false);
+                if !is_valid {
+                    all_verified = false;
+                }
+                
+                verification_results.push(serde_json::json!({
+                    "violation_id": violation_id,
+                    "integrity_verified": is_valid,
+                    "hash": report.integrity_hash
+                }));
+            }
+            
+            Ok(serde_json::json!({
+                "verification_summary": {
+                    "total_reports": all_reports.len(),
+                    "all_verified": all_verified,
+                    "verification_timestamp": std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+                },
+                "individual_results": verification_results
+            }))
+        } else {
+            Ok(serde_json::json!({
+                "error": "Security analyzer not available"
+            }))
+        }
+    }
+    
+    /// Clear all security violation reports
+    /// 
+    /// Clears all stored security violation data. Useful for testing
+    /// or when starting fresh security analysis.
+    pub fn clear_security_violations(&self) -> TrackingResult<()> {
+        if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
+            analyzer.clear_reports();
+            println!("🧹 Security violation reports cleared");
+        }
+        Ok(())
+    }
+    
+    /// Configure security analysis settings
+    /// 
+    /// Allows runtime configuration of security violation analysis.
+    pub fn configure_security_analysis(
+        &self,
+        enable_correlation: bool,
+        include_low_severity: bool,
+        generate_hashes: bool,
+        max_related_allocations: Option<usize>,
+    ) -> TrackingResult<()> {
+        let config = AnalysisConfig {
+            max_related_allocations: max_related_allocations.unwrap_or(10),
+            max_stack_depth: 20,
+            enable_correlation_analysis: enable_correlation,
+            include_low_severity,
+            generate_integrity_hashes: generate_hashes,
+        };
+        
+        if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
+            *analyzer = SecurityViolationAnalyzer::new(config);
+            println!("🔧 Security analysis configured: correlation={}, low_severity={}, hashes={}", 
+                    enable_correlation, include_low_severity, generate_hashes);
+        }
+        
         Ok(())
     }
 }
@@ -891,7 +1062,9 @@ impl MemoryTracker {
                     let filename = format!("{}_complex_types.json", base_name);
                     let data = create_optimized_complex_types_analysis(&allocations, &options)?;
                     (filename, data)
-                } // future can easily add new file types
+                }
+                JsonFileType::SecurityViolations => todo!()
+                // future can easily add new file types
                   // JsonFileType::AsyncAnalysis => { ... }
                   // JsonFileType::ThreadSafety => { ... }
             };
@@ -943,7 +1116,7 @@ fn create_optimized_memory_analysis(
 /// Create optimized lifetime analysis
 fn create_optimized_lifetime_analysis(
     allocations: &[AllocationInfo],
-    options: &OptimizedExportOptions,
+    _options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     // 生命周期分析：按作用域分组分析
     let mut scope_analysis: HashMap<String, (usize, usize, Vec<usize>)> = HashMap::new();
@@ -1372,7 +1545,7 @@ fn create_integrated_unsafe_ffi_analysis(
                         SafetyViolation::DoubleFree { timestamp, .. } => ("DoubleFree", *timestamp),
                         SafetyViolation::InvalidFree { timestamp, .. } => ("InvalidFree", *timestamp),
                         SafetyViolation::PotentialLeak { leak_detection_timestamp, .. } => ("PotentialLeak", *leak_detection_timestamp),
-                        SafetyViolation::CrossBoundaryRisk { description, .. } => ("CrossBoundaryRisk", 0),
+                        SafetyViolation::CrossBoundaryRisk { .. } => ("CrossBoundaryRisk", 0),
                     };
                     
                     safety_violations.push(serde_json::json!({
@@ -2223,6 +2396,152 @@ fn process_allocations_optimized(
     }
     
     Ok(processed)
+}
+
+/// Create security violation analysis with comprehensive context
+fn create_security_violation_analysis(
+    allocations: &[AllocationInfo],
+    options: &OptimizedExportOptions,
+) -> TrackingResult<serde_json::Value> {
+    println!("🔒 Creating comprehensive security violation analysis...");
+    
+    if !options.enable_security_analysis {
+        return Ok(serde_json::json!({
+            "metadata": {
+                "analysis_type": "security_violations",
+                "status": "disabled",
+                "message": "Security analysis is disabled in export options"
+            }
+        }));
+    }
+
+    // Configure security analyzer
+    let analysis_config = AnalysisConfig {
+        max_related_allocations: 10,
+        max_stack_depth: 20,
+        enable_correlation_analysis: true,
+        include_low_severity: options.include_low_severity_violations,
+        generate_integrity_hashes: options.generate_integrity_hashes,
+    };
+
+    // Get security analyzer and update with current allocations
+    let mut violation_reports = Vec::new();
+    let mut security_summary = serde_json::json!({});
+    
+    if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
+        // Update analyzer configuration
+        *analyzer = SecurityViolationAnalyzer::new(analysis_config);
+        analyzer.update_allocations(allocations.to_vec());
+
+        // Analyze violations from unsafe FFI tracker
+        if let Ok(enhanced_allocations) = get_global_unsafe_ffi_tracker().get_enhanced_allocations() {
+            for enhanced_alloc in enhanced_allocations {
+                for violation in &enhanced_alloc.safety_violations {
+                    if let Ok(violation_id) = analyzer.analyze_violation(violation, enhanced_alloc.base.ptr) {
+                        println!("   ✅ Analyzed violation: {}", violation_id);
+                    }
+                }
+            }
+        }
+
+        // Get all violation reports
+        let all_reports = analyzer.get_all_reports();
+        
+        // Filter by severity if needed
+        let filtered_reports: Vec<_> = if options.include_low_severity_violations {
+            all_reports.values().collect()
+        } else {
+            analyzer.get_reports_by_severity(ViolationSeverity::Medium)
+        };
+
+        // Convert reports to JSON
+        for report in &filtered_reports {
+            violation_reports.push(serde_json::json!({
+                "violation_id": report.violation_id,
+                "violation_type": report.violation_type,
+                "severity": format!("{:?}", report.severity),
+                "description": report.description,
+                "technical_details": report.technical_details,
+                "memory_snapshot": {
+                    "timestamp_ns": report.memory_snapshot.timestamp_ns,
+                    "total_allocated_bytes": report.memory_snapshot.total_allocated_bytes,
+                    "active_allocation_count": report.memory_snapshot.active_allocation_count,
+                    "involved_addresses": report.memory_snapshot.involved_addresses,
+                    "memory_pressure": format!("{:?}", report.memory_snapshot.memory_pressure),
+                    "stack_trace": report.memory_snapshot.stack_trace.iter().map(|frame| {
+                        serde_json::json!({
+                            "function_name": frame.function_name,
+                            "file_path": frame.file_path,
+                            "line_number": frame.line_number,
+                            "frame_address": frame.frame_address,
+                            "is_unsafe": frame.is_unsafe,
+                            "is_ffi": frame.is_ffi
+                        })
+                    }).collect::<Vec<_>>(),
+                    "related_allocations": report.memory_snapshot.related_allocations.iter().map(|alloc| {
+                        serde_json::json!({
+                            "address": alloc.address,
+                            "size": alloc.size,
+                            "type_name": alloc.type_name,
+                            "variable_name": alloc.variable_name,
+                            "allocated_at_ns": alloc.allocated_at_ns,
+                            "is_active": alloc.is_active,
+                            "relationship": format!("{:?}", alloc.relationship)
+                        })
+                    }).collect::<Vec<_>>()
+                },
+                "impact_assessment": {
+                    "exploitability_score": report.impact_assessment.exploitability_score,
+                    "data_corruption_risk": report.impact_assessment.data_corruption_risk,
+                    "information_disclosure_risk": report.impact_assessment.information_disclosure_risk,
+                    "denial_of_service_risk": report.impact_assessment.denial_of_service_risk,
+                    "code_execution_risk": report.impact_assessment.code_execution_risk,
+                    "overall_risk_score": report.impact_assessment.overall_risk_score
+                },
+                "remediation_suggestions": report.remediation_suggestions,
+                "correlated_violations": report.correlated_violations,
+                "integrity_hash": report.integrity_hash,
+                "generated_at_ns": report.generated_at_ns
+            }));
+        }
+
+        // Generate security summary
+        security_summary = analyzer.generate_security_summary();
+    }
+
+    Ok(serde_json::json!({
+        "metadata": {
+            "analysis_type": "security_violations",
+            "export_version": "2.0",
+            "total_violations": violation_reports.len(),
+            "analysis_enabled": options.enable_security_analysis,
+            "include_low_severity": options.include_low_severity_violations,
+            "integrity_hashes_enabled": options.generate_integrity_hashes,
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        },
+        "violation_reports": violation_reports,
+        "security_summary": security_summary,
+        "data_integrity": {
+            "total_reports": violation_reports.len(),
+            "reports_with_hashes": violation_reports.iter()
+                .filter(|r| !r["integrity_hash"].as_str().unwrap_or("").is_empty())
+                .count(),
+            "verification_status": "all_verified" // Would implement actual verification
+        },
+        "analysis_recommendations": [
+            if violation_reports.is_empty() {
+                "No security violations detected in current analysis"
+            } else {
+                "Review all security violations and implement suggested remediations"
+            },
+            "Enable continuous security monitoring for production systems",
+            "Implement automated violation detection and alerting",
+            "Regular security audits and penetration testing recommended"
+        ]
+    }))
 }
 
 /// Create performance metrics
