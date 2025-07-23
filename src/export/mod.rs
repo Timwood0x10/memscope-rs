@@ -1,3 +1,4 @@
+pub mod adaptive_performance;
 pub mod batch_processor;
 pub mod complex_type_export;
 pub mod export_enhanced;

@@ -7,6 +7,7 @@ use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::export::streaming_json_writer::StreamingJsonWriter;
 use crate::export::schema_validator::SchemaValidator;
+use crate::export::adaptive_performance::AdaptivePerformanceOptimizer;
 use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};
 use rayon::prelude::*;
 
@@ -71,6 +72,10 @@ impl JsonFileType {
     }
 }
 
+/// Global adaptive performance optimizer instance
+static ADAPTIVE_OPTIMIZER: LazyLock<std::sync::Mutex<AdaptivePerformanceOptimizer>> =
+    LazyLock::new(|| std::sync::Mutex::new(AdaptivePerformanceOptimizer::default()));
+
 /// Optimized export options with intelligent defaults
 #[derive(Debug, Clone)]
 pub struct OptimizedExportOptions {
@@ -96,6 +101,12 @@ pub struct OptimizedExportOptions {
     pub enable_boundary_event_processing: bool,
     /// Enable memory passport tracking (default: true)
     pub enable_memory_passport_tracking: bool,
+    /// Enable adaptive performance optimization (default: true)
+    pub enable_adaptive_optimization: bool,
+    /// Maximum cache size for type information (default: 1000)
+    pub max_cache_size: usize,
+    /// Target processing time per batch in milliseconds (default: 10ms)
+    pub target_batch_time_ms: u64,
 }
 
 /// Optimization levels for export processing
@@ -125,6 +136,9 @@ impl Default for OptimizedExportOptions {
             enable_enhanced_ffi_analysis: true,
             enable_boundary_event_processing: true,
             enable_memory_passport_tracking: true,
+            enable_adaptive_optimization: true,
+            max_cache_size: 1000,
+            target_batch_time_ms: 10,
         }
     }
 }
@@ -143,6 +157,7 @@ impl OptimizedExportOptions {
                 options.enable_enhanced_ffi_analysis = false;
                 options.enable_boundary_event_processing = false;
                 options.enable_memory_passport_tracking = false;
+                options.enable_adaptive_optimization = false;
             }
             OptimizationLevel::Medium => {
                 options.parallel_processing = true;
@@ -192,6 +207,18 @@ impl OptimizedExportOptions {
     /// Enable or disable schema validation
     pub fn schema_validation(mut self, enabled: bool) -> Self {
         self.enable_schema_validation = enabled;
+        self
+    }
+    
+    /// Enable or disable adaptive optimization
+    pub fn adaptive_optimization(mut self, enabled: bool) -> Self {
+        self.enable_adaptive_optimization = enabled;
+        self
+    }
+    
+    /// Set maximum cache size
+    pub fn max_cache_size(mut self, size: usize) -> Self {
+        self.max_cache_size = size;
         self
     }
 }
@@ -593,6 +620,19 @@ impl MemoryTracker {
         let total_duration = start_time.elapsed();
         println!("✅ Unified JSON export completed in {:?}", total_duration);
         
+        // Record overall performance if adaptive optimization is enabled
+        if options.enable_adaptive_optimization {
+            let memory_usage_mb = (allocations.len() * 64) / (1024 * 1024); // Estimate
+            if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
+                optimizer.record_batch_performance(
+                    allocations.len(),
+                    total_duration,
+                    memory_usage_mb as u64,
+                    allocations.len(),
+                );
+            }
+        }
+        
         // Display optimization features used
         println!("💡 Optimization features applied:");
         if options.parallel_processing {
@@ -613,7 +653,79 @@ impl MemoryTracker {
         if options.enable_memory_passport_tracking {
             println!("   - Memory passport tracking enabled");
         }
+        if options.enable_adaptive_optimization {
+            println!("   - Adaptive performance optimization enabled");
+            
+            // Display performance report
+            if let Ok(optimizer) = ADAPTIVE_OPTIMIZER.lock() {
+                let report = optimizer.get_performance_report();
+                if let Some(batch_size) = report["adaptive_optimization"]["current_batch_size"].as_u64() {
+                    println!("   - Current optimal batch size: {}", batch_size);
+                }
+                if let Some(hit_ratio) = report["adaptive_optimization"]["cache_statistics"]["hit_ratio"].as_f64() {
+                    println!("   - Cache hit ratio: {:.1}%", hit_ratio * 100.0);
+                }
+            }
+        }
 
+        Ok(())
+    }
+    
+    /// Get adaptive performance report
+    /// 
+    /// Returns detailed performance metrics and optimization recommendations
+    /// from the adaptive performance optimizer.
+    pub fn get_adaptive_performance_report(&self) -> TrackingResult<serde_json::Value> {
+        if let Ok(optimizer) = ADAPTIVE_OPTIMIZER.lock() {
+            Ok(optimizer.get_performance_report())
+        } else {
+            Ok(serde_json::json!({
+                "error": "Unable to access adaptive performance optimizer",
+                "adaptive_optimization": {
+                    "enabled": false
+                }
+            }))
+        }
+    }
+    
+    /// Reset adaptive performance optimizer
+    /// 
+    /// Clears all cached data and performance metrics. Useful for testing
+    /// or when starting fresh performance measurements.
+    pub fn reset_adaptive_optimizer(&self) -> TrackingResult<()> {
+        if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
+            optimizer.reset();
+            println!("🔄 Adaptive performance optimizer reset");
+        }
+        Ok(())
+    }
+    
+    /// Configure adaptive optimization settings
+    /// 
+    /// Allows runtime configuration of the adaptive performance optimizer.
+    pub fn configure_adaptive_optimization(
+        &self,
+        enabled: bool,
+        cache_size: Option<usize>,
+        initial_batch_size: Option<usize>,
+    ) -> TrackingResult<()> {
+        if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
+            optimizer.set_optimization_enabled(enabled);
+            
+            if enabled {
+                if let Some(cache_size) = cache_size {
+                    // Reset with new cache size
+                    *optimizer = AdaptivePerformanceOptimizer::new(
+                        initial_batch_size.unwrap_or(1000),
+                        cache_size,
+                    );
+                }
+                println!("🔧 Adaptive optimization configured: enabled={}, cache_size={:?}, batch_size={:?}", 
+                        enabled, cache_size, initial_batch_size);
+            } else {
+                println!("🔧 Adaptive optimization disabled");
+            }
+        }
         Ok(())
     }
 }
@@ -2038,17 +2150,32 @@ fn create_fast_allocation_summary(
     }))
 }
 
-/// Process allocations with optimized pipeline
+/// Process allocations with adaptive optimized pipeline
 fn process_allocations_optimized(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
 ) -> TrackingResult<Vec<serde_json::Value>> {
+    let start_time = std::time::Instant::now();
     let mut processed = Vec::with_capacity(allocations.len());
     
-    if options.parallel_processing && allocations.len() > options.batch_size {
+    // Get adaptive batch size if optimization is enabled
+    let effective_batch_size = if options.enable_adaptive_optimization {
+        if let Ok(optimizer) = ADAPTIVE_OPTIMIZER.lock() {
+            optimizer.get_optimal_batch_size()
+        } else {
+            options.batch_size
+        }
+    } else {
+        options.batch_size
+    };
+    
+    println!("🔧 Processing {} allocations with adaptive batch size: {}", 
+             allocations.len(), effective_batch_size);
+    
+    if options.parallel_processing && allocations.len() > effective_batch_size {
         // Parallel processing for large datasets
         let results: Vec<_> = allocations
-            .par_chunks(options.batch_size)
+            .par_chunks(effective_batch_size)
             .map(|chunk| {
                 chunk.iter().map(|alloc| {
                     serde_json::json!({
@@ -2077,6 +2204,21 @@ fn process_allocations_optimized(
                 "scope_name": alloc.scope_name,
                 "timestamp": alloc.timestamp_alloc
             }));
+        }
+    }
+    
+    // Record performance metrics if adaptive optimization is enabled
+    if options.enable_adaptive_optimization {
+        let processing_time = start_time.elapsed();
+        let memory_usage_mb = (processed.len() * std::mem::size_of::<serde_json::Value>()) / (1024 * 1024);
+        
+        if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
+            optimizer.record_batch_performance(
+                effective_batch_size,
+                processing_time,
+                memory_usage_mb as u64,
+                allocations.len(),
+            );
         }
     }
     
