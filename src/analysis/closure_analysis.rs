@@ -633,12 +633,14 @@ pub struct LifetimeGraph {
 }
 
 impl LifetimeGraph {
+    /// Create a new lifetime graph
     pub fn new() -> Self {
         Self {
             relationships: HashMap::new(),
         }
     }
 
+    /// Add relationships for a closure
     pub fn add_closure_relationships(&mut self, closure_ptr: usize, captures: &[CaptureInfo]) {
         let relationships: Vec<LifetimeRelationship> = captures
             .iter()
@@ -652,6 +654,7 @@ impl LifetimeGraph {
         self.relationships.insert(closure_ptr, relationships);
     }
 
+    /// Remove a closure and its relationships
     pub fn remove_closure(&mut self, closure_ptr: usize) {
         self.relationships.remove(&closure_ptr);
     }
@@ -664,6 +667,7 @@ impl LifetimeGraph {
         }
     }
 
+    /// Analyze lifetime relationships
     pub fn analyze_lifetimes(&self) -> LifetimeAnalysis {
         let mut potential_issues = Vec::new();
         let mut lifetime_patterns = Vec::new();

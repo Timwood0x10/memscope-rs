@@ -760,6 +760,7 @@ fn calculate_overhead(type_name: &str) -> usize {
 }
 
 /// Calculate alignment requirements
+#[allow(dead_code)]
 fn calculate_alignment(type_name: &str) -> usize {
     if type_name.contains("Atomic") {
         8 // Most atomics require 8-byte alignment
@@ -770,65 +771,6 @@ fn calculate_alignment(type_name: &str) -> usize {
     }
 }
 
-/// Analyze cache behavior
-fn analyze_cache_behavior(type_name: &str) -> String {
-    if type_name.contains("HashMap<") || type_name.contains("BTreeMap<") {
-        "Poor - scattered allocations".to_string()
-    } else if type_name.contains("Vec<") || type_name.contains("String") {
-        "Good - contiguous memory".to_string()
-    } else if type_name.contains("Atomic") {
-        "Excellent - cache-line optimized".to_string()
-    } else {
-        "Unknown".to_string()
-    }
-}
-
-/// Analyze cache impact
-fn analyze_cache_impact(type_name: &str) -> String {
-    if type_name.contains("Mutex<") || type_name.contains("RwLock<") {
-        "High - false sharing potential".to_string()
-    } else if type_name.contains("Atomic") {
-        "Medium - cache line contention".to_string()
-    } else {
-        "Low".to_string()
-    }
-}
-
-/// Calculate memory overhead percentage
-fn calculate_memory_overhead_percentage(type_name: &str) -> u32 {
-    if type_name.contains("RefCell<") {
-        10 // ~10% overhead for borrow checking
-    } else if type_name.contains("Mutex<") {
-        25 // ~25% overhead for synchronization
-    } else if type_name.contains("Arc<") || type_name.contains("Rc<") {
-        15 // ~15% overhead for reference counting
-    } else {
-        5 // Default small overhead
-    }
-}
-
-/// Analyze scalability concerns
-fn analyze_scalability(type_name: &str) -> Vec<String> {
-    let mut concerns = Vec::new();
-
-    if type_name.contains("Mutex<") {
-        concerns.push("Lock contention under high concurrency".to_string());
-    }
-
-    if type_name.contains("HashMap<") {
-        concerns.push("Hash collision performance degradation".to_string());
-    }
-
-    if type_name.contains("RefCell<") {
-        concerns.push("Runtime borrow check overhead".to_string());
-    }
-
-    if type_name.contains("mpsc::") {
-        concerns.push("Channel capacity and blocking behavior".to_string());
-    }
-
-    concerns
-}
 
 /// Generate statistics for the analysis
 fn generate_advanced_type_statistics(

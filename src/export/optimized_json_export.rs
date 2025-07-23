@@ -263,45 +263,30 @@ impl OptimizedExportOptions {
 static TYPE_CACHE: LazyLock<std::sync::Mutex<HashMap<String, String>>> =
     LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
 
-/// Clear the type cache (useful for testing)
-pub fn clear_type_cache() {
-    if let Ok(mut cache) = TYPE_CACHE.lock() {
-        cache.clear();
-    }
-}
-
 /// Get cached type information or compute and cache it
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
     if let Ok(mut cache) = TYPE_CACHE.lock() {
         let key = format!("{}:{}", type_name, size);
-
         if let Some(cached) = cache.get(&key) {
             return cached.clone();
         }
-
-        // Compute type info
         let type_info = compute_enhanced_type_info(type_name, size);
         cache.insert(key, type_info.clone());
         type_info
     } else {
-        // Fallback if cache is unavailable
         compute_enhanced_type_info(type_name, size)
     }
 }
 
 /// Compute enhanced type information
 fn compute_enhanced_type_info(type_name: &str, size: usize) -> String {
-    // Enhanced type analysis with better categorization
     if type_name.contains("Vec<") {
-        extract_vec_inner_type(type_name)
+        "Vec<T>".to_string()
     } else if type_name.contains("HashMap") {
         "HashMap<K,V>".to_string()
     } else if type_name.contains("String") {
         "String".to_string()
-    } else if type_name.contains("Box<") {
-        extract_box_inner_type(type_name)
     } else {
-        // Size-based inference for unknown types
         match size {
             1..=8 => "Primitive".to_string(),
             9..=32 => "SmallStruct".to_string(),
@@ -312,30 +297,18 @@ fn compute_enhanced_type_info(type_name: &str, size: usize) -> String {
     }
 }
 
-/// Extract Vec inner type efficiently
-fn extract_vec_inner_type(type_name: &str) -> String {
-    if let Some(start) = type_name.find("Vec<") {
-        if let Some(end) = type_name[start..].find('>') {
-            let inner = &type_name[start + 4..start + end];
-            return format!("Vec<{}>", inner.trim());
-        }
+/// Clear the type cache (useful for testing)
+pub fn clear_type_cache() {
+    if let Ok(mut cache) = TYPE_CACHE.lock() {
+        cache.clear();
     }
-    "Vec<T>".to_string()
 }
 
-/// Extract Box inner type efficiently
-fn extract_box_inner_type(type_name: &str) -> String {
-    if let Some(start) = type_name.find("Box<") {
-        if let Some(end) = type_name[start..].find('>') {
-            let inner = &type_name[start + 4..start + end];
-            return format!("Box<{}>", inner.trim());
-        }
-    }
-    "Box<T>".to_string()
-}
+
 
 
 /// Process a batch of allocations (legacy function for compatibility)
+#[allow(dead_code)]
 fn process_allocation_batch(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Vec<serde_json::Value>> {
@@ -396,6 +369,7 @@ fn process_allocation_batch_enhanced(
 }
 
 /// Analyze FFI-related information for an allocation
+#[allow(dead_code)]
 fn analyze_ffi_allocation(alloc: &AllocationInfo) -> Option<serde_json::Value> {
     // Check if this allocation has FFI characteristics
     if let Some(type_name) = &alloc.type_name {
@@ -555,6 +529,7 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
 }
 
 /// Convert legacy ExportOptions to OptimizedExportOptions for backward compatibility
+#[allow(dead_code)]
 fn convert_legacy_options_to_optimized(
     legacy: crate::core::tracker::ExportOptions,
 ) -> OptimizedExportOptions {
@@ -2368,6 +2343,7 @@ fn generate_global_optimization_recommendations(
 }
 
 /// Create optimized type analysis with caching
+#[allow(dead_code)]
 fn create_optimized_type_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
@@ -2458,6 +2434,7 @@ fn create_optimized_type_analysis(
 }
 
 /// Create fast allocation summary
+#[allow(dead_code)]
 fn create_fast_allocation_summary(
     allocations: &[AllocationInfo],
     stats: &crate::core::types::MemoryStats,
@@ -2734,6 +2711,7 @@ fn create_security_violation_analysis(
 }
 
 /// Create performance metrics
+#[allow(dead_code)]
 fn create_performance_metrics(
     allocations: &[AllocationInfo],
     start_time: std::time::Instant,

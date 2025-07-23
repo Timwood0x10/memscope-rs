@@ -91,6 +91,7 @@ enum WriteOperation {
     /// Write JSON data
     WriteJson(String),
     /// Write raw bytes
+    #[allow(dead_code)]
     WriteBytes(Vec<u8>),
     /// Flush buffer
     Flush,

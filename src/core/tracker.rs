@@ -75,6 +75,7 @@ impl ExportOptions {
 
 /// Internal export mode derived from options
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 enum ExportMode {
     /// Fast mode: Only enrich user-tracked variables
     UserFocused,
@@ -107,9 +108,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 /// Helper function to convert std::io::Error to TrackingError::IoError
+#[allow(dead_code)]
 fn io_error_to_tracking_error(e: std::io::Error) -> crate::core::types::TrackingError {
     crate::core::types::TrackingError::IoError(e.to_string())
 }
+
 
 /// Global memory tracker instance
 static GLOBAL_TRACKER: OnceLock<Arc<MemoryTracker>> = OnceLock::new();

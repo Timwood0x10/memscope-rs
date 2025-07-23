@@ -1,9 +1,9 @@
-///Adaptive Performance Optimization
-/// 
-/// This module implements adaptive performance optimizations for JSON export:
-/// - Adaptive batch size adjustment based on system performance
-/// - Memory usage optimization and intelligent caching
-/// - Dynamic performance tuning based on workload characteristics
+//! Adaptive Performance Optimization
+//! 
+//! This module implements adaptive performance optimizations for JSON export:
+//! - Adaptive batch size adjustment based on system performance
+//! - Memory usage optimization and intelligent caching
+//! - Dynamic performance tuning based on workload characteristics
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -173,6 +173,7 @@ pub struct TypeInfoCache {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CachedTypeInfo {
     /// Type name
     type_name: String,
@@ -406,6 +407,7 @@ impl MemoryUsageMonitor {
     }
 }
 
+/// Memory pressure level
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MemoryPressureLevel {
     /// Low memory pressure
@@ -418,6 +420,7 @@ pub enum MemoryPressureLevel {
     Critical,
 }
 
+/// Memory usage trend
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MemoryTrend {
     /// Increasing memory usage

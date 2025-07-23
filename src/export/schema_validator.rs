@@ -480,7 +480,7 @@ impl SchemaValidator {
         &self,
         unsafe_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut Vec<ValidationWarning>,
     ) -> TrackingResult<()> {
         if !unsafe_analysis.is_object() {
             errors.push(ValidationError {
@@ -515,7 +515,7 @@ impl SchemaValidator {
         &self,
         ffi_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut Vec<ValidationWarning>,
     ) -> TrackingResult<()> {
         if !ffi_analysis.is_object() {
             errors.push(ValidationError {
@@ -550,7 +550,7 @@ impl SchemaValidator {
         &self,
         boundary_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut Vec<ValidationWarning>,
     ) -> TrackingResult<()> {
         if !boundary_analysis.is_object() {
             errors.push(ValidationError {
@@ -584,7 +584,7 @@ impl SchemaValidator {
         &self,
         safety_violations: &Value,
         errors: &mut Vec<ValidationError>,
-        warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut Vec<ValidationWarning>,
     ) -> TrackingResult<()> {
         if !safety_violations.is_object() {
             errors.push(ValidationError {

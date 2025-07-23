@@ -1,9 +1,9 @@
-// Task 10: Security Violation Analysis and Context Export
-//
-// This module implements comprehensive security violation analysis:
-// - Complete context information export for security violations
-// - Severity grading and correlation analysis
-// - Verifiable data integrity checking
+//! Security Violation Analysis and Context Export
+//!
+//! This module implements comprehensive security violation analysis:
+//! - Complete context information export for security violations
+//! - Severity grading and correlation analysis
+//! - Verifiable data integrity checking
 
 use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};

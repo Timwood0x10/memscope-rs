@@ -378,6 +378,7 @@ pub struct BorrowTracker {
 }
 
 impl BorrowTracker {
+    /// Create a new borrow tracker
     pub fn new() -> Self {
         Self {
             active_borrows: HashMap::new(),
@@ -386,6 +387,7 @@ impl BorrowTracker {
         }
     }
 
+    /// Track a borrow
     pub fn track_borrow(&mut self, ptr: usize, borrow_type: BorrowType, location: &str) -> u64 {
         let borrow_id = self.next_borrow_id;
         self.next_borrow_id += 1;
@@ -413,6 +415,7 @@ impl BorrowTracker {
         borrow_id
     }
 
+    /// Release a borrow
     pub fn release_borrow(&mut self, ptr: usize, borrow_id: u64) {
         if let Some(borrows) = self.active_borrows.get_mut(&ptr) {
             if let Some(pos) = borrows.iter().position(|b| b.borrow_id == borrow_id) {
@@ -432,6 +435,7 @@ impl BorrowTracker {
         }
     }
 
+    /// Get comprehensive borrow analysis report
     pub fn get_analysis(&self) -> BorrowAnalysis {
         let mut conflicts = Vec::new();
         let mut long_lived_borrows = Vec::new();
