@@ -1969,16 +1969,6 @@ impl MemoryTracker {
         use crate::export::optimized_json_export::OptimizedExportOptions;
         
         let options = OptimizedExportOptions::default();
-        self.export_to_json_with_options_optimized(path, options)
-    }
-    
-    /// Export using the new optimized pipeline with custom options
-    pub fn export_to_json_with_options_optimized<P: AsRef<std::path::Path>>(
-        &self,
-        path: P,
-        options: crate::export::optimized_json_export::OptimizedExportOptions,
-    ) -> TrackingResult<()> {
-        // Delegate to the optimized export implementation
         self.export_to_json_with_optimized_options(path, options)
     }
 
@@ -2003,20 +1993,48 @@ impl MemoryTracker {
         path: P,
         options: ExportOptions,
     ) -> TrackingResult<()> {
-        let mode = if options.include_system_allocations {
-            ExportMode::Complete
-        } else {
-            ExportMode::UserFocused
-        };
-
+        // Convert legacy ExportOptions to OptimizedExportOptions for backward compatibility
+        use crate::export::optimized_json_export::{OptimizedExportOptions, OptimizationLevel};
+        
+        let mut optimized_options = OptimizedExportOptions::default();
+        
+        // Map legacy options to optimized options
+        optimized_options.buffer_size = options.buffer_size;
+        optimized_options.use_compact_format = Some(!options.verbose_logging); // Verbose = pretty format
+        
+        // Determine optimization level based on legacy settings
         if options.include_system_allocations {
-            println!(
-                "⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!"
-            );
+            // System allocations = comprehensive analysis = Maximum optimization
+            optimized_options.optimization_level = OptimizationLevel::Maximum;
+            optimized_options.enable_enhanced_ffi_analysis = true;
+            optimized_options.enable_boundary_event_processing = true;
+            optimized_options.enable_memory_passport_tracking = true;
+            optimized_options.enable_security_analysis = true;
+            
+            println!("⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!");
             println!("💡 To speed up export, use default options: tracker.export_to_json(path)");
+        } else {
+            // User-focused mode = High optimization (default)
+            optimized_options.optimization_level = OptimizationLevel::High;
         }
-
-        self.export_to_json_with_mode(path, mode, &options)
+        
+        // Enable compression if requested in legacy options
+        if options.compress_output {
+            optimized_options.use_compact_format = Some(true);
+            optimized_options.buffer_size = optimized_options.buffer_size.max(512 * 1024); // Larger buffer for compression
+        }
+        
+        // Adjust parallel processing based on expected load
+        optimized_options.parallel_processing = options.include_system_allocations || options.buffer_size > 128 * 1024;
+        
+        println!("🔄 Converted legacy ExportOptions to OptimizedExportOptions:");
+        println!("   - Optimization level: {:?}", optimized_options.optimization_level);
+        println!("   - Buffer size: {} KB", optimized_options.buffer_size / 1024);
+        println!("   - Parallel processing: {}", optimized_options.parallel_processing);
+        println!("   - Enhanced features: {}", optimized_options.enable_enhanced_ffi_analysis);
+        
+        // Use the new optimized export method
+        self.export_to_json_with_optimized_options(path, optimized_options)
     }
 
     /// Internal method to handle export with mode and options
