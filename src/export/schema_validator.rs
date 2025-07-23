@@ -1,3 +1,8 @@
+//! Schema validator for unsafe/FFI analysis data
+//!
+//! This module provides a schema validator for unsafe/FFI analysis data.
+//! It validates JSON data against the unsafe/FFI analysis schema.
+
 use crate::core::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};

@@ -74,7 +74,9 @@ pub struct ExportStatistics {
 pub struct LightweightExportData {
     /// Basic memory statistics (simplified for performance)
     pub total_memory: usize,
+    /// peak memory
     pub peak_memory: usize,
+    /// active allocations
     pub active_allocations: usize,
     /// Basic allocation summary (without complex type details)
     pub allocation_summary: AllocationSummary,
@@ -89,39 +91,58 @@ pub struct LightweightExportData {
 /// Simplified allocation summary for main export
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationSummary {
+    /// total allocations
     pub total_allocations: usize,
+    /// active allocations
     pub active_allocations: usize,
+    /// total memory
     pub total_memory: usize,
+    /// peak memory
     pub peak_memory: usize,
+    /// allocation count by size
     pub allocation_count_by_size: HashMap<String, usize>,
 }
 
 /// Simplified type usage information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimpleTypeUsage {
+    /// type name
     pub type_name: String,
+    /// total size
     pub total_size: usize,
+    /// allocation count
     pub allocation_count: usize,
+    /// category
     pub category: String,
 }
 
 /// References to complex type analysis files
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplexTypeFileReferences {
+    /// complex types file path
     pub complex_types_file: Option<String>,
+    /// borrow analysis file path
     pub borrow_analysis_file: Option<String>,
+    /// generic analysis file path
     pub generic_analysis_file: Option<String>,
+    /// async analysis file path
     pub async_analysis_file: Option<String>,
+    /// closure analysis file path
     pub closure_analysis_file: Option<String>,
+    /// lifecycle analysis file path
     pub lifecycle_analysis_file: Option<String>,
 }
 
 /// Export metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportMetadata {
+    /// export timestamp
     pub export_timestamp: u64,
+    /// export version
     pub export_version: String,
+    /// data format version
     pub data_format_version: String,
+    /// performance optimized
     pub performance_optimized: bool,
 }
 

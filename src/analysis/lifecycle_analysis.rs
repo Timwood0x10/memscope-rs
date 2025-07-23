@@ -294,50 +294,75 @@ pub struct RAIIPattern {
 /// Types of resources managed by RAII
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ResourceType {
+    /// Memory
     Memory,
+    /// File handle
     FileHandle,
+    /// Network socket
     NetworkSocket,
+    /// Synchronization primitive
     SynchronizationPrimitive,
+    /// Thread handle
     ThreadHandle,
+    /// Lock guard  
     LockGuard,
+    /// Other resource type
     Other(String),
 }
 
 /// Methods of resource acquisition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AcquisitionMethod {
+    /// Constructor
     Constructor,
+    /// System call
     SystemCall,
+    /// Lock
     Lock,
+    /// Allocation
     Allocation,
+    /// Unknown
     Unknown,
 }
 
 /// Methods of resource release
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReleaseMethod {
+    /// Automatic drop (RAII)
     AutomaticDrop,
+    /// Custom drop implementation
     CustomDrop,
+    /// Deallocation
     Deallocation,
+    /// System call
     SystemCall,
 }
 
 /// Scope information for RAII patterns
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScopeInfo {
+    /// Scope name
     pub scope_name: String,
+    /// Scope type
     pub scope_type: ScopeType,
+    /// Nesting level
     pub nesting_level: usize,
 }
 
 /// Types of scopes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ScopeType {
+    /// Function scope
     Function,
+    /// Method scope
     Method,
+    /// Block scope
     Block,
+    /// Loop scope
     Loop,
+    /// Conditional scope
     Conditional,
+    /// Unknown scope
     Unknown,
 }
 
@@ -508,134 +533,188 @@ impl BorrowTracker {
 /// Types of borrows
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BorrowType {
+    /// Immutable borrow
     Immutable,
+    /// Mutable borrow
     Mutable,
 }
 
 /// Borrow information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BorrowInfo {
+    /// Borrow ID
     pub borrow_id: u64,
+    /// Borrow type
     pub borrow_type: BorrowType,
+    /// Start timestamp
     pub start_timestamp: u64,
+    /// Location
     pub location: String,
+    /// Thread ID
     pub thread_id: String,
 }
 
 /// Borrow event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BorrowEvent {
+    /// Pointer to the memory location
     pub ptr: usize,
+    /// Borrow information
     pub borrow_info: BorrowInfo,
+    /// Event type
     pub event_type: BorrowEventType,
+    /// Timestamp
     pub timestamp: u64,
 }
 
 /// Types of borrow events
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BorrowEventType {
+    /// Borrow acquired
     Acquired,
+    /// Borrow released
     Released,
 }
 
 /// Borrow analysis results
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BorrowAnalysis {
+    /// Total number of borrows
     pub total_borrows: usize,
+    /// Number of active borrows
     pub active_borrows: usize,
+    /// List of borrow conflicts
     pub conflicts: Vec<BorrowConflict>,
+    /// List of long-lived borrows
     pub long_lived_borrows: Vec<LongLivedBorrow>,
+    /// List of borrow patterns
     pub borrow_patterns: Vec<BorrowPattern>,
 }
 
 /// Borrow conflict information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BorrowConflict {
+    /// Pointer to the memory location
     pub ptr: usize,
+    /// First borrow information
     pub first_borrow: BorrowInfo,
+    /// Second borrow information
     pub second_borrow: BorrowInfo,
+    /// Conflict type
     pub conflict_type: ConflictType,
 }
 
 /// Types of borrow conflicts
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ConflictType {
+    /// Mutable borrow conflict
     MutableMutable,
+    /// Mutable and immutable borrow conflict
     MutableImmutable,
+    /// No conflict
     None,
 }
 
 /// Long-lived borrow information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LongLivedBorrow {
+    /// Pointer to the memory location
     pub ptr: usize,
+    /// Borrow information
     pub borrow_info: BorrowInfo,
+    /// Duration in nanoseconds
     pub duration_ns: u64,
 }
 
 /// Borrow pattern analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BorrowPattern {
+    /// Pattern type
     pub pattern_type: BorrowPatternType,
+    /// Pattern description
     pub description: String,
+    /// Pattern impact
     pub impact: PatternImpact,
+    /// Pattern suggestion
     pub suggestion: String,
 }
 
 /// Types of borrow patterns
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BorrowPatternType {
+    /// Frequent short borrows
     FrequentShortBorrows,
+    /// Long-lived borrows
     LongLivedBorrows,
+    /// Conflict-prone borrows
     ConflictProne,
 }
 
 /// Impact level of patterns
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatternImpact {
+    /// Low impact
     Low,
+    /// Medium impact
     Medium,
+    /// High impact
     High,
 }
 
 /// Closure capture analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClosureCapture {
+    /// Closure pointer
     pub closure_ptr: usize,
+    /// List of captured variables
     pub captured_vars: Vec<CapturedVariable>,
+    /// Capture timestamp
     pub capture_timestamp: u64,
+    /// Thread ID
     pub thread_id: String,
 }
 
 /// Information about a captured variable
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapturedVariable {
+    /// Variable name
     pub var_name: String,
+    /// Variable memory address
     pub var_ptr: usize,
+    /// Capture mode
     pub capture_mode: CaptureMode,
+    /// Variable type
     pub var_type: String,
+    /// Variable size in bytes
     pub size: usize,
 }
 
 /// Modes of variable capture in closures
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CaptureMode {
+    /// Capture by value
     ByValue,
+    /// Capture by reference
     ByReference,
+    /// Capture by mutable reference
     ByMutableReference,
 }
 
 /// Comprehensive lifecycle analysis report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifecycleAnalysisReport {
+    /// Drop events
     pub drop_events: Vec<DropEvent>,
+    /// RAII patterns
     pub raii_patterns: Vec<RAIIPattern>,
+    /// Borrow analysis
     pub borrow_analysis: BorrowAnalysis,
+    /// Closure captures
     pub closure_captures: Vec<ClosureCapture>,
+    /// Analysis timestamp
     pub analysis_timestamp: u64,
 }
 
-/// Utility functions
 
 /// Get current timestamp in nanoseconds
 fn current_timestamp() -> u64 {

@@ -1,9 +1,9 @@
-// Task 9: Adaptive Performance Optimization
-// 
-// This module implements adaptive performance optimizations for JSON export:
-// - Adaptive batch size adjustment based on system performance
-// - Memory usage optimization and intelligent caching
-// - Dynamic performance tuning based on workload characteristics
+///Adaptive Performance Optimization
+/// 
+/// This module implements adaptive performance optimizations for JSON export:
+/// - Adaptive batch size adjustment based on system performance
+/// - Memory usage optimization and intelligent caching
+/// - Dynamic performance tuning based on workload characteristics
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -12,11 +12,17 @@ use std::time::{Duration, Instant};
 /// Performance metrics collector for adaptive optimization
 #[derive(Debug, Clone)]
 pub struct PerformanceMetrics {
+    /// Processing time in milliseconds
     pub processing_time_ms: u64,
+    /// Memory usage in megabytes
     pub memory_usage_mb: u64,
+    /// Allocations per second
     pub allocations_per_second: f64,
+    /// Cache hit ratio
     pub cache_hit_ratio: f64,
+    /// Batch efficiency
     pub batch_efficiency: f64,
+    /// Timestamp
     pub timestamp: Instant,
 }
 
@@ -42,11 +48,17 @@ impl Default for PerformanceMetrics {
 /// - Overall throughput
 #[derive(Debug)]
 pub struct AdaptiveBatchController {
+    /// Current batch size
     current_batch_size: usize,
+    /// Minimum batch size
     min_batch_size: usize,
+    /// Maximum batch size
     max_batch_size: usize,
+    /// Target processing time in milliseconds
     target_processing_time_ms: u64,
+    /// Performance history
     performance_history: Vec<PerformanceMetrics>,
+    /// Adjustment factor
     adjustment_factor: f64,
 }
 
@@ -152,25 +164,37 @@ impl AdaptiveBatchController {
 /// Caches frequently accessed type information to reduce computation overhead
 #[derive(Debug)]
 pub struct TypeInfoCache {
+    /// Cache of type information
     cache: Arc<RwLock<HashMap<String, CachedTypeInfo>>>,
+    /// Cache statistics
     cache_stats: Arc<Mutex<CacheStats>>,
+    /// Maximum cache size
     max_cache_size: usize,
 }
 
 #[derive(Debug, Clone)]
 struct CachedTypeInfo {
+    /// Type name
     type_name: String,
+    /// Size hint
     size_hint: Option<usize>,
+    /// Complexity score
     complexity_score: u32,
+    /// Access count
     access_count: u64,
+    /// Last accessed time
     last_accessed: Instant,
+    /// Computed type information
     computed_info: serde_json::Value,
 }
 
 #[derive(Debug, Default)]
 struct CacheStats {
+    /// Cache hits
     hits: u64,
+    /// Cache misses
     misses: u64,
+    /// Cache evictions
     evictions: u64,
 }
 
@@ -384,16 +408,23 @@ impl MemoryUsageMonitor {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MemoryPressureLevel {
+    /// Low memory pressure
     Low,
+    /// Medium memory pressure
     Medium,
+    /// High memory pressure
     High,
+    /// Critical memory pressure
     Critical,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MemoryTrend {
+    /// Increasing memory usage
     Increasing,
+    /// Decreasing memory usage
     Decreasing,
+    /// Stable memory usage
     Stable,
 }
 

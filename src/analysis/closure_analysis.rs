@@ -716,85 +716,120 @@ impl LifetimeGraph {
 /// Lifetime relationship between closure and captured variable
 #[derive(Debug, Clone)]
 pub struct LifetimeRelationship {
+    /// Captured variable pointer
     pub captured_var_ptr: usize,
+    /// Capture mode
     pub capture_mode: CaptureMode,
+    /// Relationship type
     pub relationship_type: RelationshipType,
 }
 
 /// Types of lifetime relationships
 #[derive(Debug, Clone, PartialEq)]
 pub enum RelationshipType {
+    /// Ownership relationship
     Ownership,
+    /// Shared borrow relationship
     SharedBorrow,
+    /// Exclusive borrow relationship
     ExclusiveBorrow,
 }
 
 /// Lifetime analysis results
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LifetimeAnalysis {
+    /// Total number of relationships
     pub total_relationships: usize,
+    /// Potential issues
     pub potential_issues: Vec<LifetimeIssue>,
+    /// Lifetime patterns
     pub lifetime_patterns: Vec<LifetimePattern>,
 }
 
 /// Lifetime-related issues
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifetimeIssue {
+    /// Closure pointer
     pub closure_ptr: usize,
+    /// Issue type
     pub issue_type: LifetimeIssueType,
+    /// Issue description
     pub description: String,
+    /// Issue severity
     pub severity: IssueSeverity,
+    /// Suggestion for resolution
     pub suggestion: String,
 }
 
 /// Types of lifetime issues
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LifetimeIssueType {
+    /// Mixed capture mode
     MixedCaptureMode,
+    /// Potential dangling reference
     PotentialDanglingReference,
+    /// Unnecessary capture
     UnnecessaryCapture,
 }
 
 /// Issue severity levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum IssueSeverity {
+    /// Low severity
     Low,
+    /// Medium severity
     Medium,
+    /// High severity
     High,
+    /// Critical severity
     Critical,
 }
 
 /// Lifetime patterns
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifetimePattern {
+    /// Pattern type
     pub pattern_type: LifetimePatternType,
+    /// Pattern description
     pub description: String,
+    /// Pattern impact
     pub impact: PatternImpact,
 }
 
 /// Types of lifetime patterns
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LifetimePatternType {
+    /// Many captures
     ManyCaptures,
+    /// Long-lived closure
     LongLivedClosure,
+    /// Frequent creation
     FrequentCreation,
 }
 
 /// Impact of patterns
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatternImpact {
+    /// Low impact
     Low,
+    /// Medium impact
     Medium,
+    /// High impact
     High,
 }
 
 /// Comprehensive closure analysis report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClosureAnalysisReport {
+    /// Detected closures
     pub detected_closures: Vec<DetectedClosure>,
+    /// Capture statistics
     pub capture_statistics: CaptureStatistics,
+    /// Optimization suggestions
     pub optimization_suggestions: Vec<OptimizationSuggestion>,
+    /// Lifetime analysis
     pub lifetime_analysis: LifetimeAnalysis,
+    /// Analysis timestamp
     pub analysis_timestamp: u64,
 }
 

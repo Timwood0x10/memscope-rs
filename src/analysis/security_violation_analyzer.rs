@@ -119,9 +119,13 @@ pub enum AllocationRelationship {
 /// Memory pressure levels
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MemoryPressureLevel {
+    /// Low memory pressure
     Low,
+    /// Medium memory pressure
     Medium,
+    /// High memory pressure
     High,
+    /// Critical memory pressure
     Critical,
 }
 

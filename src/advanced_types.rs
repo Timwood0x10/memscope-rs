@@ -1009,114 +1009,190 @@ fn calculate_deadlock_potential_by_count(mutex_count: usize, rwlock_count: usize
 
 // ===== Type Definitions =====
 
+/// Interior mutability report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InteriorMutabilityReport {
+    /// Cell instances
     pub cell_instances: Vec<CellInstance>,
+    /// RefCell instances
     pub refcell_instances: Vec<RefCellInstance>,
+    /// UnsafeCell instances
     pub unsafe_cell_instances: Vec<UnsafeCellInstance>,
+    /// Runtime borrow violations
     pub runtime_borrow_violations: Vec<BorrowViolation>,
+    /// Total number of interior mutability types
     pub total_interior_mutability_types: usize,
+    /// Analysis timestamp
     pub analysis_timestamp: u64,
 }
 
+/// Cell instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellInstance {
+    /// Pointer to the instance
     pub ptr: usize,
+    /// Type name of the instance
     pub type_name: String,
+    /// Size of the instance
     pub size: usize,
+    /// Whether the instance is thread-safe
     pub thread_safe: bool,
+    /// Whether the instance is zero-cost
     pub zero_cost: bool,
 }
 
+/// RefCell instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefCellInstance {
+    /// Pointer to the instance
     pub ptr: usize,
+    /// Type name of the instance
     pub type_name: String,
+    /// Size of the instance
     pub size: usize,
+    /// Current borrow count
     pub current_borrow_count: usize,
+    /// Whether there is an active mutable borrow
     pub has_active_mut_borrow: bool,
+    /// Whether runtime borrow checks are enabled
     pub runtime_check_overhead: bool,
 }
 
+/// UnsafeCell instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnsafeCellInstance {
+    /// Pointer to the instance
     pub ptr: usize,
+    /// Type name of the instance
     pub type_name: String,
+    /// Size of the instance
     pub size: usize,
+    /// Whether unsafe access is required
     pub requires_unsafe_access: bool,
 }
 
+/// Borrow violation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BorrowViolation {
+    /// Pointer to the instance
     pub ptr: usize,
+    /// Type of violation
     pub violation_type: BorrowViolationType,
+    /// Number of borrows
     pub borrow_count: usize,
+    /// Timestamp of the violation
     pub timestamp: u64,
 }
 
+/// Borrow violation type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BorrowViolationType {
+    /// Multiple borrows    
     MultipleBorrows,
+    /// Mutable borrow conflict
     MutableBorrowConflict,
+    /// Borrow after move
     BorrowAfterMove,
 }
 
+/// Concurrency primitive report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConcurrencyPrimitiveReport {
+    /// Mutex instances
     pub mutex_instances: Vec<MutexInstance>,
+    /// RwLock instances
     pub rwlock_instances: Vec<RwLockInstance>,
+    /// Condvar instances
     pub condvar_instances: Vec<CondvarInstance>,
+    /// Lock contentions
     pub lock_contentions: Vec<LockContention>,
+    /// Deadlock potential score
     pub deadlock_potential_score: f64,
+    /// Analysis timestamp
     pub analysis_timestamp: u64,
 }
 
+/// Mutex instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MutexInstance {
+    /// Pointer to the instance
     pub ptr: usize,
+    /// Type name of the instance
     pub type_name: String,
+    /// Size of the instance
     pub size: usize,
+    /// Whether the mutex is locked
     pub is_locked: bool,
+    /// Lock owner thread
     pub lock_owner_thread: Option<String>,
+    /// Number of waiting threads
     pub waiting_threads: usize,
+    /// Total number of lock acquisitions
     pub total_lock_acquisitions: u64,
+    /// Total wait time in nanoseconds
     pub total_wait_time_ns: u64,
 }
 
+/// RwLock instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RwLockInstance {
+    /// Pointer to the instance
     pub ptr: usize,
+    /// Type name of the instance
     pub type_name: String,
+    /// Size of the instance
     pub size: usize,
+    /// Number of read locks
     pub read_count: usize,
+    /// Whether the rwlock has a write lock
     pub has_write_lock: bool,
+    /// Number of waiting readers
     pub waiting_readers: usize,
+    /// Number of waiting writers
     pub waiting_writers: usize,
+    /// Total number of read acquisitions
     pub total_read_acquisitions: u64,
+    /// Total number of write acquisitions
     pub total_write_acquisitions: u64,
 }
 
+/// Condvar instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CondvarInstance {
+    /// Pointer to the instance
     pub ptr: usize,
+    /// Type name of the instance
     pub type_name: String,
+    /// Size of the instance
     pub size: usize,
+    /// Number of waiting threads
     pub waiting_threads: usize,
+    /// Total number of notifications
     pub total_notifications: u64,
 }
 
+/// Lock contention
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockContention {
+    /// Pointer to the lock
     pub lock_ptr: usize,
+    /// Type of contention
     pub contention_type: ContentionType,
+    /// Waiting time in nanoseconds
     pub waiting_time_ns: u64,
+    /// Thread ID
     pub thread_id: String,
+    /// Timestamp
     pub timestamp: u64,
 }
 
+/// Contention type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ContentionType {
+    /// Mutex contention
     MutexContention,
+    /// RwLock read contention
     RwLockReadContention,
+    /// RwLock write contention
     RwLockWriteContention,
 }
