@@ -349,6 +349,8 @@ pub struct EnhancedAllocationInfo {
     pub ffi_tracked: bool,
     /// Memory passport for cross-boundary tracking
     pub memory_passport: Option<MemoryPassport>,
+    /// Ownership transfer history
+    pub ownership_history: Option<Vec<OwnershipTransferEvent>>,
 }
 
 /// Cross-boundary memory event
@@ -377,6 +379,216 @@ pub enum BoundaryEventType {
     OwnershipTransfer,
     /// Memory shared between contexts
     SharedAccess,
+}
+
+/// Comprehensive analysis of a boundary event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundaryEventAnalysis {
+    /// Unique identifier for this event analysis
+    pub event_id: String,
+    /// Memory pointer involved in the event
+    pub ptr: usize,
+    /// Type of boundary event
+    pub event_type: BoundaryEventType,
+    /// Source context
+    pub from_context: String,
+    /// Destination context
+    pub to_context: String,
+    /// Size of memory being transferred
+    pub transfer_size: usize,
+    /// Timestamp of the event
+    pub timestamp: u128,
+    /// Risk assessment for this event
+    pub risk_assessment: BoundaryRiskAssessment,
+    /// Ownership chain history
+    pub ownership_chain: Vec<OwnershipRecord>,
+    /// Security implications
+    pub security_implications: Vec<SecurityImplication>,
+    /// Performance impact analysis
+    pub performance_impact: PerformanceImpact,
+    /// Recommended mitigation strategies
+    pub mitigation_recommendations: Vec<String>,
+}
+
+/// Risk assessment for boundary transfers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundaryRiskAssessment {
+    /// Overall risk level
+    pub overall_risk_level: RiskLevel,
+    /// Numerical risk score (0.0 to 100.0)
+    pub risk_score: f64,
+    /// Individual risk factors
+    pub risk_factors: Vec<BoundaryRiskFactor>,
+    /// Confidence in the assessment (0.0 to 1.0)
+    pub confidence_score: f64,
+    /// When the assessment was performed
+    pub assessment_timestamp: u128,
+}
+
+/// Individual risk factor for boundary transfers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundaryRiskFactor {
+    /// Type of risk factor
+    pub factor_type: BoundaryRiskFactorType,
+    /// Severity score (0.0 to 10.0)
+    pub severity: f64,
+    /// Human-readable description
+    pub description: String,
+    /// Suggested mitigation
+    pub mitigation: String,
+}
+
+/// Types of boundary risk factors
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BoundaryRiskFactorType {
+    /// Transfer from Rust to foreign code
+    RustToForeignTransfer,
+    /// Transfer from foreign code to Rust
+    ForeignToRustTransfer,
+    /// Ownership transfer across boundaries
+    OwnershipTransfer,
+    /// Shared access across boundaries
+    SharedAccess,
+    /// Large memory transfer
+    LargeTransfer,
+    /// Frequent boundary crossings
+    FrequentTransfers,
+    /// Unvalidated data transfer
+    UnvalidatedTransfer,
+    /// Privilege boundary crossing
+    PrivilegeBoundary,
+}
+
+/// Ownership transfer event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnershipTransferEvent {
+    /// Unique identifier for this transfer
+    pub transfer_id: String,
+    /// Memory pointer being transferred
+    pub ptr: usize,
+    /// Source context
+    pub from_context: String,
+    /// Destination context
+    pub to_context: String,
+    /// When the transfer occurred
+    pub transfer_timestamp: u128,
+    /// Reason for the transfer
+    pub transfer_reason: String,
+    /// Validation status of the transfer
+    pub validation_status: OwnershipValidationStatus,
+}
+
+/// Status of ownership validation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OwnershipValidationStatus {
+    /// Transfer is valid and safe
+    Valid,
+    /// Transfer is pending validation
+    Pending,
+    /// Transfer has validation warnings
+    Warning,
+    /// Transfer is invalid or unsafe
+    Invalid,
+    /// Transfer validation failed
+    Failed,
+}
+
+/// Record in the ownership chain
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnershipRecord {
+    /// Context that owns the memory
+    pub context: String,
+    /// When ownership was acquired
+    pub timestamp: u128,
+    /// Reason for ownership transfer
+    pub transfer_reason: String,
+    /// Validation status
+    pub validation_status: OwnershipValidationStatus,
+}
+
+/// Security implication of boundary crossing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityImplication {
+    /// Type of security implication
+    pub implication_type: SecurityImplicationType,
+    /// Severity level
+    pub severity: RiskLevel,
+    /// Description of the implication
+    pub description: String,
+    /// Potential impact
+    pub potential_impact: String,
+    /// Recommended action
+    pub recommended_action: String,
+}
+
+/// Types of security implications
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SecurityImplicationType {
+    /// Potential privilege escalation
+    PrivilegeEscalation,
+    /// Data exposure risk
+    DataExposure,
+    /// Code injection risk
+    InjectionRisk,
+    /// Buffer overflow risk
+    BufferOverflow,
+    /// Use after free risk
+    UseAfterFree,
+    /// Race condition risk
+    RaceCondition,
+    /// Information disclosure
+    InformationDisclosure,
+}
+
+/// Performance impact analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceImpact {
+    /// Overall impact level
+    pub impact_level: PerformanceImpactLevel,
+    /// Estimated overhead in nanoseconds
+    pub estimated_overhead_ns: u64,
+    /// Memory overhead in bytes
+    pub memory_overhead_bytes: usize,
+    /// CPU overhead percentage
+    pub cpu_overhead_percent: f64,
+    /// Performance optimization recommendations
+    pub recommendations: Vec<String>,
+}
+
+/// Levels of performance impact
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PerformanceImpactLevel {
+    /// Minimal performance impact
+    Low,
+    /// Moderate performance impact
+    Medium,
+    /// Significant performance impact
+    High,
+    /// Critical performance impact
+    Critical,
+}
+
+/// Statistics for boundary events
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundaryEventStatistics {
+    /// Total number of boundary events
+    pub total_events: usize,
+    /// Events grouped by type
+    pub events_by_type: std::collections::HashMap<String, usize>,
+    /// Risk level distribution
+    pub risk_distribution: std::collections::HashMap<String, usize>,
+    /// Average transfer size
+    pub average_transfer_size: f64,
+    /// Total volume of data transferred
+    pub total_transfer_volume: usize,
+    /// Most active contexts (context name, event count)
+    pub most_active_contexts: Vec<(String, usize)>,
+    /// Number of security incidents detected
+    pub security_incidents: usize,
+    /// Number of performance issues detected
+    pub performance_issues: usize,
+    /// When the statistics were generated
+    pub analysis_timestamp: u128,
 }
 
 /// Enhanced memory tracker for unsafe/FFI operations
@@ -511,6 +723,7 @@ impl UnsafeFFITracker {
             safety_violations: Vec::new(),
             ffi_tracked: false,
             memory_passport: None,
+            ownership_history: None,
         };
 
         if let Ok(mut allocations) = self.enhanced_allocations.lock() {
@@ -546,6 +759,7 @@ impl UnsafeFFITracker {
             safety_violations: Vec::new(),
             ffi_tracked: true,
             memory_passport: None,
+            ownership_history: None,
         };
 
         if let Ok(mut allocations) = self.enhanced_allocations.lock() {
@@ -1570,7 +1784,7 @@ impl UnsafeFFITracker {
             .map_err(|e| TrackingError::LockError(e.to_string()))
     }
 
-    /// Analyze cross-boundary risks
+    /// Analyze cross-boundary risks with detailed assessment
     pub fn analyze_cross_boundary_risks(&self) -> TrackingResult<Vec<SafetyViolation>> {
         let mut risks = Vec::new();
 
@@ -1601,6 +1815,422 @@ impl UnsafeFFITracker {
         }
 
         Ok(risks)
+    }
+
+    /// Process boundary events with comprehensive analysis
+    pub fn process_boundary_event(
+        &self,
+        ptr: usize,
+        event_type: BoundaryEventType,
+        from_context: &str,
+        to_context: &str,
+        transfer_size: usize,
+    ) -> TrackingResult<BoundaryEventAnalysis> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        // Record the boundary event
+        self.record_boundary_event(
+            ptr,
+            event_type.clone(),
+            from_context.to_string(),
+            to_context.to_string(),
+        )?;
+
+        // Analyze the risk level for this specific transfer
+        let risk_analysis = self.assess_boundary_transfer_risk(
+            ptr,
+            &event_type,
+            from_context,
+            to_context,
+            transfer_size,
+        )?;
+
+        // Update ownership tracking
+        self.track_ownership_transfer(ptr, from_context, to_context)?;
+
+        // Create comprehensive analysis
+        let analysis = BoundaryEventAnalysis {
+            event_id: format!("boundary_{}_{}", ptr, current_time),
+            ptr,
+            event_type: event_type.clone(),
+            from_context: from_context.to_string(),
+            to_context: to_context.to_string(),
+            transfer_size,
+            timestamp: current_time,
+            risk_assessment: risk_analysis.clone(),
+            ownership_chain: self.get_ownership_chain(ptr)?,
+            security_implications: self.analyze_security_implications(ptr, from_context, to_context)?,
+            performance_impact: self.estimate_performance_impact(&event_type, transfer_size),
+            mitigation_recommendations: self.generate_mitigation_recommendations(&risk_analysis),
+        };
+
+        Ok(analysis)
+    }
+
+    /// Assess risk level for boundary transfers
+    fn assess_boundary_transfer_risk(
+        &self,
+        ptr: usize,
+        event_type: &BoundaryEventType,
+        from_context: &str,
+        to_context: &str,
+        transfer_size: usize,
+    ) -> TrackingResult<BoundaryRiskAssessment> {
+        let mut risk_factors = Vec::new();
+        let mut risk_score = 0.0;
+
+        // Analyze transfer direction risk
+        match event_type {
+            BoundaryEventType::RustToFfi => {
+                risk_factors.push(BoundaryRiskFactor {
+                    factor_type: BoundaryRiskFactorType::RustToForeignTransfer,
+                    severity: 6.0,
+                    description: "Memory allocated in Rust being passed to foreign code".to_string(),
+                    mitigation: "Ensure foreign code doesn't free Rust-allocated memory".to_string(),
+                });
+                risk_score += 6.0;
+            }
+            BoundaryEventType::FfiToRust => {
+                risk_factors.push(BoundaryRiskFactor {
+                    factor_type: BoundaryRiskFactorType::ForeignToRustTransfer,
+                    severity: 7.0,
+                    description: "Foreign-allocated memory being passed to Rust".to_string(),
+                    mitigation: "Validate memory layout and lifetime guarantees".to_string(),
+                });
+                risk_score += 7.0;
+            }
+            BoundaryEventType::OwnershipTransfer => {
+                risk_factors.push(BoundaryRiskFactor {
+                    factor_type: BoundaryRiskFactorType::OwnershipTransfer,
+                    severity: 8.0,
+                    description: "Memory ownership being transferred across language boundary".to_string(),
+                    mitigation: "Clearly document ownership transfer and cleanup responsibilities".to_string(),
+                });
+                risk_score += 8.0;
+            }
+            BoundaryEventType::SharedAccess => {
+                risk_factors.push(BoundaryRiskFactor {
+                    factor_type: BoundaryRiskFactorType::SharedAccess,
+                    severity: 5.0,
+                    description: "Memory being shared between Rust and foreign code".to_string(),
+                    mitigation: "Implement proper synchronization mechanisms".to_string(),
+                });
+                risk_score += 5.0;
+            }
+        }
+
+        // Analyze transfer size risk
+        if transfer_size > 1024 * 1024 {
+            risk_factors.push(BoundaryRiskFactor {
+                factor_type: BoundaryRiskFactorType::LargeTransfer,
+                severity: 4.0,
+                description: format!("Large memory transfer: {} bytes", transfer_size),
+                mitigation: "Consider streaming or chunked transfer for large data".to_string(),
+            });
+            risk_score += 4.0;
+        }
+
+        // Check for frequent transfers (potential performance issue)
+        if let Ok(allocations) = self.enhanced_allocations.lock() {
+            if let Some(allocation) = allocations.get(&ptr) {
+                if allocation.cross_boundary_events.len() > 5 {
+                    risk_factors.push(BoundaryRiskFactor {
+                        factor_type: BoundaryRiskFactorType::FrequentTransfers,
+                        severity: 3.0,
+                        description: format!(
+                            "Memory has crossed boundaries {} times",
+                            allocation.cross_boundary_events.len()
+                        ),
+                        mitigation: "Consider reducing boundary crossings or caching".to_string(),
+                    });
+                    risk_score += 3.0;
+                }
+            }
+        }
+
+        // Determine overall risk level
+        let risk_level = if risk_score >= 15.0 {
+            RiskLevel::Critical
+        } else if risk_score >= 10.0 {
+            RiskLevel::High
+        } else if risk_score >= 5.0 {
+            RiskLevel::Medium
+        } else {
+            RiskLevel::Low
+        };
+
+        Ok(BoundaryRiskAssessment {
+            overall_risk_level: risk_level,
+            risk_score,
+            risk_factors,
+            confidence_score: 0.8, // High confidence in boundary risk assessment
+            assessment_timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos() as u128,
+        })
+    }
+
+    /// Track ownership transfer across boundaries
+    fn track_ownership_transfer(
+        &self,
+        ptr: usize,
+        from_context: &str,
+        to_context: &str,
+    ) -> TrackingResult<()> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        // Update memory passport ownership
+        if let Ok(mut passports) = self.memory_passports.lock() {
+            if let Some(passport) = passports.get_mut(&ptr) {
+                // Record the ownership transfer in the journey
+                let stamp = PassportStamp {
+                    timestamp: current_time,
+                    location: to_context.to_string(),
+                    operation: format!("ownership_transfer_from_{}", from_context),
+                    authority: "BoundaryEventProcessor".to_string(),
+                    verification_hash: format!("{:x}", ptr ^ current_time as usize),
+                };
+                passport.journey.push(stamp);
+
+                // Update current owner
+                passport.current_owner = OwnershipInfo {
+                    owner_context: to_context.to_string(),
+                    owner_function: "unknown".to_string(),
+                    transfer_timestamp: current_time,
+                    expected_lifetime: None,
+                };
+            }
+        }
+
+        // Update allocation tracking
+        if let Ok(mut allocations) = self.enhanced_allocations.lock() {
+            if let Some(allocation) = allocations.get_mut(&ptr) {
+                // Add ownership transfer event
+                let ownership_event = OwnershipTransferEvent {
+                    transfer_id: format!("transfer_{}_{}", ptr, current_time),
+                    ptr,
+                    from_context: from_context.to_string(),
+                    to_context: to_context.to_string(),
+                    transfer_timestamp: current_time,
+                    transfer_reason: "boundary_crossing".to_string(),
+                    validation_status: OwnershipValidationStatus::Pending,
+                };
+
+                // Store in allocation's ownership history
+                if allocation.ownership_history.is_none() {
+                    allocation.ownership_history = Some(Vec::new());
+                }
+                if let Some(ref mut history) = allocation.ownership_history {
+                    history.push(ownership_event);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get ownership chain for a memory allocation
+    fn get_ownership_chain(&self, ptr: usize) -> TrackingResult<Vec<OwnershipRecord>> {
+        let mut chain = Vec::new();
+
+        if let Ok(allocations) = self.enhanced_allocations.lock() {
+            if let Some(allocation) = allocations.get(&ptr) {
+                if let Some(ref history) = allocation.ownership_history {
+                    for transfer in history {
+                        chain.push(OwnershipRecord {
+                            context: transfer.to_context.clone(),
+                            timestamp: transfer.transfer_timestamp,
+                            transfer_reason: transfer.transfer_reason.clone(),
+                            validation_status: transfer.validation_status.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(chain)
+    }
+
+    /// Analyze security implications of boundary crossing
+    fn analyze_security_implications(
+        &self,
+        ptr: usize,
+        from_context: &str,
+        to_context: &str,
+    ) -> TrackingResult<Vec<SecurityImplication>> {
+        let mut implications = Vec::new();
+
+        // Check for privilege escalation
+        if from_context.contains("user") && to_context.contains("system") {
+            implications.push(SecurityImplication {
+                implication_type: SecurityImplicationType::PrivilegeEscalation,
+                severity: RiskLevel::High,
+                description: "Memory transfer from user context to system context".to_string(),
+                potential_impact: "Potential privilege escalation vulnerability".to_string(),
+                recommended_action: "Validate and sanitize all data before system context access".to_string(),
+            });
+        }
+
+        // Check for data exposure
+        if from_context.contains("secure") || to_context.contains("secure") {
+            implications.push(SecurityImplication {
+                implication_type: SecurityImplicationType::DataExposure,
+                severity: RiskLevel::Medium,
+                description: "Memory transfer involving secure context".to_string(),
+                potential_impact: "Potential sensitive data exposure".to_string(),
+                recommended_action: "Ensure proper data sanitization and access controls".to_string(),
+            });
+        }
+
+        // Check for injection attacks
+        if to_context.contains("interpreter") || to_context.contains("eval") {
+            implications.push(SecurityImplication {
+                implication_type: SecurityImplicationType::InjectionRisk,
+                severity: RiskLevel::Critical,
+                description: "Memory transfer to code interpretation context".to_string(),
+                potential_impact: "Potential code injection vulnerability".to_string(),
+                recommended_action: "Validate and sanitize all input data before interpretation".to_string(),
+            });
+        }
+
+        Ok(implications)
+    }
+
+    /// Estimate performance impact of boundary crossing
+    fn estimate_performance_impact(
+        &self,
+        event_type: &BoundaryEventType,
+        transfer_size: usize,
+    ) -> PerformanceImpact {
+        let base_overhead_ns = match event_type {
+            BoundaryEventType::RustToFfi => 100,
+            BoundaryEventType::FfiToRust => 150,
+            BoundaryEventType::OwnershipTransfer => 200,
+            BoundaryEventType::SharedAccess => 50,
+        };
+
+        let size_overhead_ns = (transfer_size / 1024) as u64 * 10; // 10ns per KB
+        let total_overhead_ns = base_overhead_ns + size_overhead_ns;
+
+        let impact_level = if total_overhead_ns > 10000 {
+            PerformanceImpactLevel::High
+        } else if total_overhead_ns > 1000 {
+            PerformanceImpactLevel::Medium
+        } else {
+            PerformanceImpactLevel::Low
+        };
+
+        PerformanceImpact {
+            impact_level,
+            estimated_overhead_ns: total_overhead_ns,
+            memory_overhead_bytes: transfer_size / 10, // Assume 10% memory overhead
+            cpu_overhead_percent: if total_overhead_ns > 5000 { 5.0 } else { 1.0 },
+            recommendations: vec![
+                "Consider batching small transfers".to_string(),
+                "Use memory mapping for large transfers".to_string(),
+                "Implement caching for frequently accessed data".to_string(),
+            ],
+        }
+    }
+
+    /// Generate mitigation recommendations based on risk assessment
+    fn generate_mitigation_recommendations(
+        &self,
+        risk_assessment: &BoundaryRiskAssessment,
+    ) -> Vec<String> {
+        let mut recommendations = Vec::new();
+
+        match risk_assessment.overall_risk_level {
+            RiskLevel::Critical => {
+                recommendations.push("URGENT: Review and redesign boundary crossing strategy".to_string());
+                recommendations.push("Implement comprehensive input validation".to_string());
+                recommendations.push("Add runtime safety checks".to_string());
+                recommendations.push("Consider using safer alternatives to raw pointers".to_string());
+            }
+            RiskLevel::High => {
+                recommendations.push("Implement additional safety checks".to_string());
+                recommendations.push("Add comprehensive logging and monitoring".to_string());
+                recommendations.push("Review memory ownership patterns".to_string());
+            }
+            RiskLevel::Medium => {
+                recommendations.push("Monitor boundary crossing frequency".to_string());
+                recommendations.push("Consider performance optimizations".to_string());
+                recommendations.push("Document ownership transfer clearly".to_string());
+            }
+            RiskLevel::Low => {
+                recommendations.push("Continue current practices".to_string());
+                recommendations.push("Periodic review recommended".to_string());
+            }
+        }
+
+        // Add specific recommendations based on risk factors
+        for factor in &risk_assessment.risk_factors {
+            recommendations.push(factor.mitigation.clone());
+        }
+
+        recommendations.dedup();
+        recommendations
+    }
+
+    /// Get comprehensive boundary event statistics
+    pub fn get_boundary_event_statistics(&self) -> TrackingResult<BoundaryEventStatistics> {
+        let mut stats = BoundaryEventStatistics {
+            total_events: 0,
+            events_by_type: std::collections::HashMap::new(),
+            risk_distribution: std::collections::HashMap::new(),
+            average_transfer_size: 0.0,
+            total_transfer_volume: 0,
+            most_active_contexts: Vec::new(),
+            security_incidents: 0,
+            performance_issues: 0,
+            analysis_timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos() as u128,
+        };
+
+        if let Ok(allocations) = self.enhanced_allocations.lock() {
+            let mut context_activity: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+            let mut total_size = 0usize;
+            let mut event_count = 0usize;
+
+            for allocation in allocations.values() {
+                for event in &allocation.cross_boundary_events {
+                    stats.total_events += 1;
+                    event_count += 1;
+
+                    // Count by event type
+                    *stats.events_by_type.entry(format!("{:?}", event.event_type)).or_insert(0) += 1;
+
+                    // Track context activity
+                    *context_activity.entry(event.from_context.clone()).or_insert(0) += 1;
+                    *context_activity.entry(event.to_context.clone()).or_insert(0) += 1;
+
+                    // Estimate transfer size (would need actual size tracking)
+                    let estimated_size = allocation.base.size;
+                    total_size += estimated_size;
+                }
+            }
+
+            if event_count > 0 {
+                stats.average_transfer_size = total_size as f64 / event_count as f64;
+            }
+            stats.total_transfer_volume = total_size;
+
+            // Get most active contexts
+            let mut context_vec: Vec<_> = context_activity.into_iter().collect();
+            context_vec.sort_by(|a, b| b.1.cmp(&a.1));
+            stats.most_active_contexts = context_vec.into_iter().take(10).collect();
+        }
+
+        Ok(stats)
     }
 
     /// Get statistics for unsafe and FFI operations
