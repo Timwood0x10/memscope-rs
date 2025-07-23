@@ -66,6 +66,34 @@ fn main() {
                 ),
         )
         .subcommand(
+            Command::new("html-from-json")
+                .about("Generate interactive HTML report from exported JSON files")
+                .arg(
+                    Arg::new("input-dir")
+                        .short('i')
+                        .long("input-dir")
+                        .value_name("DIR")
+                        .help("Directory containing JSON export files")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("output")
+                        .short('o')
+                        .long("output")
+                        .value_name("FILE")
+                        .help("Output HTML file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("base-name")
+                        .short('b')
+                        .long("base-name")
+                        .value_name("NAME")
+                        .help("Base name for JSON files (e.g., 'snapshot' for snapshot_memory_analysis.json)")
+                        .default_value("snapshot"),
+                ),
+        )
+        .subcommand(
             Command::new("test").about("Run enhanced memory tests").arg(
                 Arg::new("output")
                     .short('o')
@@ -90,6 +118,12 @@ fn main() {
                 process::exit(1);
             }
         }
+        Some(("html-from-json", sub_matches)) => {
+            if let Err(e) = run_html_from_json_command(sub_matches) {
+                eprintln!("Error running html-from-json command: {}", e);
+                process::exit(1);
+            }
+        }
         Some(("test", sub_matches)) => {
             if let Err(e) = run_test_command(sub_matches) {
                 eprintln!("Error running test command: {}", e);
@@ -111,6 +145,11 @@ fn run_analyze_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::er
 fn run_report_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::generate_report::run_generate_report;
     run_generate_report(matches)
+}
+
+fn run_html_from_json_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::html_from_json::run_html_from_json;
+    run_html_from_json(matches)
 }
 
 fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
