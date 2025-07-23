@@ -403,6 +403,9 @@ fn build_html_template(
             // 初始化Variable Relationships
             initializeVariableRelationships(data);
             
+            // 初始化Lifecycle Analysis
+            initializeLifecycleAnalysis(data);
+            
             console.log('✅ Basic view initialized with all data');
         }}
         
@@ -410,8 +413,11 @@ fn build_html_template(
         function initializePerformanceAnalysis(data) {{
             const perfContent = document.getElementById('performanceContent');
             if (perfContent && data.performance) {{
-                const allocationDist = data.allocation_distribution || {{}};
                 const perfData = data.performance;
+                const allocationDist = perfData.allocation_distribution || {{}};
+                const memoryPerf = perfData.memory_performance || {{}};
+                const exportPerf = perfData.export_performance || {{}};
+                const optimizationStatus = perfData.optimization_status || {{}};
                 
                 perfContent.innerHTML = `
                     <div class="performance-overview">
@@ -419,15 +425,35 @@ fn build_html_template(
                         <div class="stats-grid">
                             <div class="stat-item">
                                 <span class="stat-label">Processing Time:</span>
-                                <span class="stat-value">${{perfData.processing_time_ms}}ms</span>
+                                <span class="stat-value">${{exportPerf.total_processing_time_ms || 0}}ms</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">Allocations/Second:</span>
-                                <span class="stat-value">${{perfData.allocations_per_second.toFixed(1)}}</span>
+                                <span class="stat-value">${{exportPerf.processing_rate?.allocations_per_second?.toFixed(1) || 'N/A'}}</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">Memory Efficiency:</span>
-                                <span class="stat-value">${{perfData.memory_efficiency}}%</span>
+                                <span class="stat-value">${{memoryPerf.memory_efficiency || 0}}%</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Allocations Processed:</span>
+                                <span class="stat-value">${{exportPerf.allocations_processed || 0}}</span>
+                            </div>
+                        </div>
+                        
+                        <h3>💾 Memory Performance</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">Active Memory:</span>
+                                <span class="stat-value">${{formatBytes(memoryPerf.active_memory || 0)}}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Peak Memory:</span>
+                                <span class="stat-value">${{formatBytes(memoryPerf.peak_memory || 0)}}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total Allocated:</span>
+                                <span class="stat-value">${{formatBytes(memoryPerf.total_allocated || 0)}}</span>
                             </div>
                         </div>
                         
@@ -442,14 +468,25 @@ fn build_html_template(
                         
                         <h3>⚙️ Optimization Status</h3>
                         <div class="optimization-status">
-                            <div>Parallel Processing: ${{perfData.optimization_status.parallel_processing ? '✅' : '❌'}}</div>
-                            <div>Schema Validation: ${{perfData.optimization_status.schema_validation ? '✅' : '❌'}}</div>
-                            <div>Streaming Enabled: ${{perfData.optimization_status.streaming_enabled ? '✅' : '❌'}}</div>
-                            <div>Batch Size: ${{perfData.optimization_status.batch_size || 'N/A'}}</div>
+                            <div>Parallel Processing: ${{optimizationStatus.parallel_processing ? '✅' : '❌'}}</div>
+                            <div>Schema Validation: ${{optimizationStatus.schema_validation ? '✅' : '❌'}}</div>
+                            <div>Streaming Enabled: ${{optimizationStatus.streaming_enabled ? '✅' : '❌'}}</div>
+                            <div>Batch Size: ${{optimizationStatus.batch_size || 'N/A'}}</div>
+                            <div>Buffer Size: ${{optimizationStatus.buffer_size_kb || 'N/A'}} KB</div>
                         </div>
                     </div>
                 `;
                 console.log('✅ Performance analysis initialized');
+            }} else {{
+                const perfContent = document.getElementById('performanceContent');
+                if (perfContent) {{
+                    perfContent.innerHTML = `
+                        <div class="no-data">
+                            <h3>⚡ Performance Analysis</h3>
+                            <p>No performance data available in the current analysis.</p>
+                        </div>
+                    `;
+                }}
             }}
         }}
         
@@ -621,13 +658,130 @@ fn build_html_template(
                 const varContent = document.getElementById('variableContent');
                 if (varContent) {{
                     varContent.innerHTML = `
-                        <div class="no-data">
+                        <div class="no-data-section">
                             <h3>🔗 Variable Relationships</h3>
                             <p>No variable relationship data available in the current analysis.</p>
                             <p>Make sure the variable_relationships.json file is included in your export.</p>
                         </div>
                     `;
                 }}
+            }}
+        }}
+        
+        // 初始化Lifecycle Analysis
+        function initializeLifecycleAnalysis(data) {{
+            const lifecycleContent = document.getElementById('lifecycleContent');
+            if (lifecycleContent && data.lifecycle) {{
+                const lifecycleData = data.lifecycle;
+                const events = lifecycleData.lifecycle_events || [];
+                const summary = lifecycleData.summary || {{}};
+                const scopeAnalysis = lifecycleData.scope_analysis || {{}};
+                
+                lifecycleContent.innerHTML = `
+                    <div class="lifecycle-analysis">
+                        <h3>⏱️ Lifecycle Analysis Overview</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Events:</span>
+                                <span class="stat-value">${{events.length}}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Allocation Events:</span>
+                                <span class="stat-value">${{events.filter(e => e.event === 'allocation').length}}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Deallocation Events:</span>
+                                <span class="stat-value">${{events.filter(e => e.event === 'deallocation').length}}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Active Scopes:</span>
+                                <span class="stat-value">${{Object.keys(scopeAnalysis).length}}</span>
+                            </div>
+                        </div>
+                        
+                        <h3>📊 Scope Analysis</h3>
+                        <div class="scope-analysis">
+                            ${{Object.entries(scopeAnalysis).map(([scope, info]) => `
+                                <div class="scope-item">
+                                    <strong>${{scope}}</strong>: ${{info.allocation_count || 0}} allocations, 
+                                    ${{formatBytes(info.total_memory || 0)}} total memory
+                                </div>
+                            `).join('')}}
+                        </div>
+                        
+                        <h3>📈 Recent Lifecycle Events (Last 20)</h3>
+                        <div class="timeline-events">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Event</th>
+                                        <th>Pointer</th>
+                                        <th>Size</th>
+                                        <th>Scope</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${{events.slice(0, 20).map(event => `
+                                        <tr>
+                                            <td>${{new Date(event.timestamp / 1000000).toLocaleTimeString()}}</td>
+                                            <td><span class="event-${{event.event}}">${{event.event}}</span></td>
+                                            <td><code>${{event.ptr}}</code></td>
+                                            <td>${{formatBytes(event.size || 0)}}</td>
+                                            <td>${{event.scope || 'unknown'}}</td>
+                                        </tr>
+                                    `).join('')}}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="variable-relationships-integration">
+                            <h3>🔗 Variable Relationships (Integrated View)</h3>
+                            <p>This section shows variable relationship data integrated within the lifecycle context.</p>
+                            ${{data.variable_relationships && data.variable_relationships.relationships ? `
+                                <div class="integrated-relationships">
+                                    ${{data.variable_relationships.relationships.slice(0, 5).map(rel => `
+                                        <div class="relationship-item">
+                                            <strong>${{rel.variable_name}}</strong> 
+                                            (<code>${{rel.type_name}}</code>) 
+                                            - ${{formatBytes(rel.size)}}
+                                        </div>
+                                    `).join('')}}
+                                    ${{data.variable_relationships.relationships.length > 5 ? `
+                                        <div class="more-relationships">
+                                            ... and ${{data.variable_relationships.relationships.length - 5}} more variables. 
+                                            <span style="color: blue; cursor: pointer;">
+                                                View all in Variable Relationships tab
+                                            </span>
+                                        </div>
+                                    ` : ''}}
+                                </div>
+                            ` : `
+                                <p>No variable relationship data available. Variable relationships are tracked separately.</p>
+                            `}}
+                        </div>
+                    </div>
+                `;
+                console.log('✅ Lifecycle analysis initialized');
+            }} else {{
+                const lifecycleContent = document.getElementById('lifecycleContent');
+                if (lifecycleContent) {{
+                    lifecycleContent.innerHTML = `
+                        <div class="no-data">
+                            <h3>⏱️ Lifecycle Analysis</h3>
+                            <p>No lifecycle data available in the current analysis.</p>
+                            <p>Make sure the lifetime.json file is included in your export.</p>
+                        </div>
+                    `;
+                }}
+            }}
+        }}
+        
+        // Helper function to switch to variables tab
+        function switchToVariablesTab() {{
+            const variablesTab = document.querySelector('[data-tab="variables"]');
+            if (variablesTab) {{
+                variablesTab.click();
             }}
         }}
         
