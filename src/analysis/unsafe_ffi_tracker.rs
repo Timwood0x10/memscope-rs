@@ -387,6 +387,12 @@ pub struct UnsafeFFITracker {
     freed_pointers: Mutex<HashMap<usize, (Vec<StackFrame>, u128)>>,
     /// Safety violations log
     violations: Mutex<Vec<SafetyViolation>>,
+    /// C library tracking registry
+    c_libraries: Mutex<HashMap<String, CLibraryInfo>>,
+    /// Enhanced LibC hook registry
+    libc_hooks: Mutex<HashMap<String, EnhancedLibCHookInfo>>,
+    /// Memory passport registry
+    memory_passports: Mutex<HashMap<usize, MemoryPassport>>,
 }
 
 impl UnsafeFFITracker {
@@ -396,6 +402,9 @@ impl UnsafeFFITracker {
             enhanced_allocations: Mutex::new(HashMap::new()),
             freed_pointers: Mutex::new(HashMap::new()),
             violations: Mutex::new(Vec::new()),
+            c_libraries: Mutex::new(HashMap::new()),
+            libc_hooks: Mutex::new(HashMap::new()),
+            memory_passports: Mutex::new(HashMap::new()),
         }
     }
 
@@ -868,7 +877,732 @@ pub enum UnsafeOperationType {
     CrossBoundaryTransfer,
 }
 
+/// C Library information for detailed tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CLibraryInfo {
+    /// Name of the C library
+    pub library_name: String,
+    /// Version of the library if available
+    pub library_version: Option<String>,
+    /// Path to the library file
+    pub library_path: Option<String>,
+    /// Functions from this library that have been called
+    pub functions_called: HashMap<String, CFunctionInfo>,
+    /// Total number of allocations from this library
+    pub total_allocations: usize,
+    /// Total bytes allocated from this library
+    pub total_bytes_allocated: usize,
+    /// Library load timestamp
+    pub load_timestamp: u128,
+    /// Library metadata
+    pub metadata: LibraryMetadata,
+}
+
+/// Information about a specific C function
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CFunctionInfo {
+    /// Function name
+    pub function_name: String,
+    /// Function signature if available
+    pub function_signature: Option<String>,
+    /// Number of times this function has been called
+    pub call_count: usize,
+    /// Total bytes allocated by this function
+    pub bytes_allocated: usize,
+    /// Average allocation size
+    pub average_allocation_size: f64,
+    /// Risk assessment for this function
+    pub risk_assessment: RiskAssessment,
+    /// Performance metrics
+    pub performance_metrics: FunctionPerformanceMetrics,
+    /// First call timestamp
+    pub first_call_timestamp: u128,
+    /// Last call timestamp
+    pub last_call_timestamp: u128,
+}
+
+/// Performance metrics for C functions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionPerformanceMetrics {
+    /// Average execution time in nanoseconds
+    pub avg_execution_time_ns: u64,
+    /// Minimum execution time in nanoseconds
+    pub min_execution_time_ns: u64,
+    /// Maximum execution time in nanoseconds
+    pub max_execution_time_ns: u64,
+    /// Total execution time in nanoseconds
+    pub total_execution_time_ns: u64,
+    /// Memory overhead introduced by tracking
+    pub tracking_overhead_ns: u64,
+}
+
+/// Library metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LibraryMetadata {
+    /// Architecture (x86_64, arm64, etc.)
+    pub architecture: String,
+    /// Operating system
+    pub operating_system: String,
+    /// Compiler used to build the library
+    pub compiler_info: Option<String>,
+    /// Debug symbols available
+    pub has_debug_symbols: bool,
+    /// Security features enabled
+    pub security_features: Vec<String>,
+}
+
+/// Enhanced LibC hook information with detailed tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedLibCHookInfo {
+    /// Base hook information
+    pub base_info: LibCHookInfo,
+    /// Detailed function tracking
+    pub function_tracking: CFunctionInfo,
+    /// Hook installation details
+    pub installation_details: HookInstallationDetails,
+    /// Runtime behavior analysis
+    pub runtime_analysis: RuntimeBehaviorAnalysis,
+    /// Security analysis
+    pub security_analysis: SecurityAnalysis,
+}
+
+/// Details about hook installation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HookInstallationDetails {
+    /// Method used to install the hook
+    pub installation_method: HookInstallationMethod,
+    /// Success status of installation
+    pub installation_success: bool,
+    /// Error message if installation failed
+    pub installation_error: Option<String>,
+    /// Timestamp of installation attempt
+    pub installation_timestamp: u128,
+    /// Process ID where hook was installed
+    pub process_id: u32,
+    /// Thread ID where hook was installed
+    pub thread_id: u64,
+}
+
+/// Methods for installing hooks
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum HookInstallationMethod {
+    /// Preload library method
+    Preload,
+    /// Runtime symbol interposition
+    SymbolInterposition,
+    /// Binary patching
+    BinaryPatching,
+    /// Debugger-based hooking
+    DebuggerHook,
+    /// Kernel-level hooking
+    KernelHook,
+}
+
+/// Runtime behavior analysis for hooked functions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeBehaviorAnalysis {
+    /// Memory access patterns
+    pub memory_patterns: Vec<MemoryAccessPattern>,
+    /// Allocation size distribution
+    pub size_distribution: SizeDistribution,
+    /// Temporal patterns
+    pub temporal_patterns: TemporalPatterns,
+    /// Error patterns
+    pub error_patterns: Vec<ErrorPattern>,
+}
+
+/// Memory access pattern analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryAccessPattern {
+    /// Pattern type
+    pub pattern_type: MemoryPatternType,
+    /// Frequency of this pattern
+    pub frequency: usize,
+    /// Average size involved in this pattern
+    pub average_size: usize,
+    /// Risk level associated with this pattern
+    pub risk_level: RiskLevel,
+}
+
+/// Types of memory access patterns
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MemoryPatternType {
+    /// Sequential allocation pattern
+    Sequential,
+    /// Random allocation pattern
+    Random,
+    /// Bulk allocation pattern
+    Bulk,
+    /// Fragmented allocation pattern
+    Fragmented,
+    /// Reallocation pattern
+    Reallocation,
+}
+
+/// Size distribution analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SizeDistribution {
+    /// Small allocations (< 1KB)
+    pub small_allocations: usize,
+    /// Medium allocations (1KB - 1MB)
+    pub medium_allocations: usize,
+    /// Large allocations (> 1MB)
+    pub large_allocations: usize,
+    /// Average allocation size
+    pub average_size: f64,
+    /// Standard deviation of sizes
+    pub size_std_dev: f64,
+}
+
+/// Temporal patterns in allocations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemporalPatterns {
+    /// Allocation rate (allocations per second)
+    pub allocation_rate: f64,
+    /// Peak allocation periods
+    pub peak_periods: Vec<PeakPeriod>,
+    /// Allocation bursts detected
+    pub burst_count: usize,
+    /// Average time between allocations
+    pub avg_time_between_allocs_ms: f64,
+}
+
+/// Peak allocation period
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeakPeriod {
+    /// Start timestamp of peak
+    pub start_timestamp: u128,
+    /// End timestamp of peak
+    pub end_timestamp: u128,
+    /// Number of allocations during peak
+    pub allocation_count: usize,
+    /// Total bytes allocated during peak
+    pub bytes_allocated: usize,
+}
+
+/// Error pattern analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorPattern {
+    /// Type of error
+    pub error_type: ErrorType,
+    /// Frequency of this error
+    pub frequency: usize,
+    /// Context where error occurs
+    pub context: String,
+    /// Suggested mitigation
+    pub mitigation: String,
+}
+
+/// Types of errors that can be detected
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ErrorType {
+    /// Allocation failure
+    AllocationFailure,
+    /// Invalid free
+    InvalidFree,
+    /// Double free
+    DoubleFree,
+    /// Memory leak
+    MemoryLeak,
+    /// Buffer overflow
+    BufferOverflow,
+    /// Use after free
+    UseAfterFree,
+}
+
+/// Security analysis for hooked functions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityAnalysis {
+    /// Security vulnerabilities detected
+    pub vulnerabilities: Vec<SecurityVulnerability>,
+    /// Security score (0.0 to 10.0)
+    pub security_score: f64,
+    /// Recommended security measures
+    pub recommendations: Vec<String>,
+    /// Compliance status
+    pub compliance_status: ComplianceStatus,
+}
+
+/// Security vulnerability information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityVulnerability {
+    /// Type of vulnerability
+    pub vulnerability_type: VulnerabilityType,
+    /// Severity level
+    pub severity: RiskLevel,
+    /// Description of the vulnerability
+    pub description: String,
+    /// Location where vulnerability was detected
+    pub location: String,
+    /// Potential impact
+    pub potential_impact: String,
+    /// Remediation steps
+    pub remediation: Vec<String>,
+}
+
+/// Types of security vulnerabilities
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum VulnerabilityType {
+    /// Buffer overflow vulnerability
+    BufferOverflow,
+    /// Use after free vulnerability
+    UseAfterFree,
+    /// Double free vulnerability
+    DoubleFree,
+    /// Memory leak vulnerability
+    MemoryLeak,
+    /// Integer overflow vulnerability
+    IntegerOverflow,
+    /// Format string vulnerability
+    FormatString,
+    /// Race condition vulnerability
+    RaceCondition,
+}
+
+/// Compliance status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplianceStatus {
+    /// Memory safety compliance
+    pub memory_safety: bool,
+    /// Thread safety compliance
+    pub thread_safety: bool,
+    /// API usage compliance
+    pub api_usage: bool,
+    /// Security best practices compliance
+    pub security_practices: bool,
+    /// Overall compliance score
+    pub overall_score: f64,
+}
+
 impl UnsafeFFITracker {
+    /// Register a C library for tracking
+    pub fn register_c_library(
+        &self,
+        library_name: String,
+        library_path: Option<String>,
+        library_version: Option<String>,
+    ) -> TrackingResult<()> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        let library_info = CLibraryInfo {
+            library_name: library_name.clone(),
+            library_version,
+            library_path,
+            functions_called: HashMap::new(),
+            total_allocations: 0,
+            total_bytes_allocated: 0,
+            load_timestamp: current_time,
+            metadata: LibraryMetadata {
+                architecture: std::env::consts::ARCH.to_string(),
+                operating_system: std::env::consts::OS.to_string(),
+                compiler_info: None,
+                has_debug_symbols: false,
+                security_features: Vec::new(),
+            },
+        };
+
+        if let Ok(mut libraries) = self.c_libraries.lock() {
+            libraries.insert(library_name.clone(), library_info);
+            tracing::info!("Registered C library: {}", library_name);
+        }
+
+        Ok(())
+    }
+
+    /// Track a C function call with detailed information
+    pub fn track_c_function_call(
+        &self,
+        library_name: &str,
+        function_name: &str,
+        allocation_size: usize,
+        execution_time_ns: u64,
+    ) -> TrackingResult<()> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        if let Ok(mut libraries) = self.c_libraries.lock() {
+            let library = libraries
+                .entry(library_name.to_string())
+                .or_insert_with(|| CLibraryInfo {
+                    library_name: library_name.to_string(),
+                    library_version: None,
+                    library_path: None,
+                    functions_called: HashMap::new(),
+                    total_allocations: 0,
+                    total_bytes_allocated: 0,
+                    load_timestamp: current_time,
+                    metadata: LibraryMetadata {
+                        architecture: std::env::consts::ARCH.to_string(),
+                        operating_system: std::env::consts::OS.to_string(),
+                        compiler_info: None,
+                        has_debug_symbols: false,
+                        security_features: Vec::new(),
+                    },
+                });
+
+            // Update library statistics
+            library.total_allocations += 1;
+            library.total_bytes_allocated += allocation_size;
+
+            // Update or create function information
+            let function_info = library
+                .functions_called
+                .entry(function_name.to_string())
+                .or_insert_with(|| CFunctionInfo {
+                    function_name: function_name.to_string(),
+                    function_signature: None,
+                    call_count: 0,
+                    bytes_allocated: 0,
+                    average_allocation_size: 0.0,
+                    risk_assessment: RiskAssessment {
+                        risk_level: RiskLevel::Low,
+                        risk_factors: Vec::new(),
+                        mitigation_suggestions: Vec::new(),
+                        confidence_score: 0.5,
+                        assessment_timestamp: current_time,
+                    },
+                    performance_metrics: FunctionPerformanceMetrics {
+                        avg_execution_time_ns: 0,
+                        min_execution_time_ns: u64::MAX,
+                        max_execution_time_ns: 0,
+                        total_execution_time_ns: 0,
+                        tracking_overhead_ns: 0,
+                    },
+                    first_call_timestamp: current_time,
+                    last_call_timestamp: current_time,
+                });
+
+            // Update function statistics
+            function_info.call_count += 1;
+            function_info.bytes_allocated += allocation_size;
+            function_info.average_allocation_size =
+                function_info.bytes_allocated as f64 / function_info.call_count as f64;
+            function_info.last_call_timestamp = current_time;
+
+            // Update performance metrics
+            let metrics = &mut function_info.performance_metrics;
+            metrics.total_execution_time_ns += execution_time_ns;
+            metrics.avg_execution_time_ns =
+                metrics.total_execution_time_ns / function_info.call_count as u64;
+            metrics.min_execution_time_ns = metrics.min_execution_time_ns.min(execution_time_ns);
+            metrics.max_execution_time_ns = metrics.max_execution_time_ns.max(execution_time_ns);
+
+            tracing::debug!(
+                "Tracked C function call: {}::{} (size: {}, time: {}ns)",
+                library_name,
+                function_name,
+                allocation_size,
+                execution_time_ns
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Install an enhanced LibC hook
+    pub fn install_enhanced_libc_hook(
+        &self,
+        function_name: String,
+        hook_method: HookInstallationMethod,
+    ) -> TrackingResult<()> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        let installation_details = HookInstallationDetails {
+            installation_method: hook_method,
+            installation_success: true, // Assume success for now
+            installation_error: None,
+            installation_timestamp: current_time,
+            process_id: std::process::id(),
+            thread_id: 0, // Would need platform-specific code to get thread ID
+        };
+
+        let enhanced_hook = EnhancedLibCHookInfo {
+            base_info: LibCHookInfo {
+                hook_method: HookMethod::DynamicLinker,
+                original_function: function_name.clone(),
+                hook_timestamp: current_time,
+                allocation_metadata: AllocationMetadata {
+                    requested_size: 0,
+                    actual_size: 0,
+                    alignment: 8,
+                    allocator_info: format!("hooked_{}", function_name),
+                    protection_flags: Some(MemoryProtectionFlags {
+                        readable: true,
+                        writable: true,
+                        executable: false,
+                        shared: false,
+                    }),
+                },
+                hook_overhead_ns: Some(50),
+            },
+            function_tracking: CFunctionInfo {
+                function_name: function_name.clone(),
+                function_signature: None,
+                call_count: 0,
+                bytes_allocated: 0,
+                average_allocation_size: 0.0,
+                risk_assessment: RiskAssessment {
+                    risk_level: RiskLevel::Medium,
+                    risk_factors: Vec::new(),
+                    mitigation_suggestions: vec![
+                        "Monitor for memory leaks".to_string(),
+                        "Validate all pointer operations".to_string(),
+                    ],
+                    confidence_score: 0.7,
+                    assessment_timestamp: current_time,
+                },
+                performance_metrics: FunctionPerformanceMetrics {
+                    avg_execution_time_ns: 0,
+                    min_execution_time_ns: u64::MAX,
+                    max_execution_time_ns: 0,
+                    total_execution_time_ns: 0,
+                    tracking_overhead_ns: 50,
+                },
+                first_call_timestamp: current_time,
+                last_call_timestamp: current_time,
+            },
+            installation_details,
+            runtime_analysis: RuntimeBehaviorAnalysis {
+                memory_patterns: Vec::new(),
+                size_distribution: SizeDistribution {
+                    small_allocations: 0,
+                    medium_allocations: 0,
+                    large_allocations: 0,
+                    average_size: 0.0,
+                    size_std_dev: 0.0,
+                },
+                temporal_patterns: TemporalPatterns {
+                    allocation_rate: 0.0,
+                    peak_periods: Vec::new(),
+                    burst_count: 0,
+                    avg_time_between_allocs_ms: 0.0,
+                },
+                error_patterns: Vec::new(),
+            },
+            security_analysis: SecurityAnalysis {
+                vulnerabilities: Vec::new(),
+                security_score: 5.0,
+                recommendations: vec![
+                    "Enable memory protection".to_string(),
+                    "Use safe allocation patterns".to_string(),
+                ],
+                compliance_status: ComplianceStatus {
+                    memory_safety: false,
+                    thread_safety: false,
+                    api_usage: true,
+                    security_practices: false,
+                    overall_score: 0.25,
+                },
+            },
+        };
+
+        if let Ok(mut hooks) = self.libc_hooks.lock() {
+            hooks.insert(function_name.clone(), enhanced_hook);
+            tracing::info!("Installed enhanced LibC hook for: {}", function_name);
+        }
+
+        Ok(())
+    }
+
+    /// Create and register a memory passport for cross-boundary tracking
+    pub fn create_and_register_passport(
+        &self,
+        ptr: usize,
+        origin_context: &str,
+        security_clearance: SecurityClearance,
+    ) -> TrackingResult<String> {
+        let passport = self.create_memory_passport(ptr, origin_context);
+        let passport_id = passport.passport_id.clone();
+
+        // Set the security clearance
+        let mut passport = passport;
+        passport.security_clearance = security_clearance;
+
+        if let Ok(mut passports) = self.memory_passports.lock() {
+            passports.insert(ptr, passport);
+            tracing::info!("Created memory passport {} for ptr {:x}", passport_id, ptr);
+        }
+
+        Ok(passport_id)
+    }
+
+    /// Update memory passport with new stamp
+    pub fn stamp_passport(
+        &self,
+        ptr: usize,
+        operation: &str,
+        location: &str,
+        authority: &str,
+    ) -> TrackingResult<()> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        if let Ok(mut passports) = self.memory_passports.lock() {
+            if let Some(passport) = passports.get_mut(&ptr) {
+                let stamp = PassportStamp {
+                    timestamp: current_time,
+                    location: location.to_string(),
+                    operation: operation.to_string(),
+                    authority: authority.to_string(),
+                    verification_hash: format!("{:x}", ptr ^ current_time as usize),
+                };
+
+                passport.journey.push(stamp);
+                tracing::debug!("Stamped passport for ptr {:x}: {}", ptr, operation);
+            } else {
+                return Err(TrackingError::InvalidPointer(format!(
+                    "No passport found for pointer: 0x{:x}",
+                    ptr
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Transfer memory passport ownership
+    pub fn transfer_passport_ownership(
+        &self,
+        ptr: usize,
+        new_owner_context: &str,
+        new_owner_function: &str,
+    ) -> TrackingResult<()> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u128;
+
+        if let Ok(mut passports) = self.memory_passports.lock() {
+            if let Some(passport) = passports.get_mut(&ptr) {
+                passport.current_owner = OwnershipInfo {
+                    owner_context: new_owner_context.to_string(),
+                    owner_function: new_owner_function.to_string(),
+                    transfer_timestamp: current_time,
+                    expected_lifetime: None,
+                };
+
+                // Add a stamp for the ownership transfer
+                let stamp = PassportStamp {
+                    timestamp: current_time,
+                    location: new_owner_context.to_string(),
+                    operation: "ownership_transfer".to_string(),
+                    authority: "UnsafeFFITracker".to_string(),
+                    verification_hash: format!("{:x}", ptr ^ current_time as usize),
+                };
+
+                passport.journey.push(stamp);
+                tracing::info!(
+                    "Transferred passport ownership for ptr {:x} to {}::{}",
+                    ptr,
+                    new_owner_context,
+                    new_owner_function
+                );
+            } else {
+                return Err(TrackingError::InvalidPointer(format!(
+                    "No passport found for pointer: 0x{:x}",
+                    ptr
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Revoke a memory passport (when memory is freed)
+    pub fn revoke_passport(&self, ptr: usize, reason: &str) -> TrackingResult<()> {
+        if let Ok(mut passports) = self.memory_passports.lock() {
+            if let Some(passport) = passports.get_mut(&ptr) {
+                passport.validity_status = ValidityStatus::Revoked;
+
+                // Add a final stamp
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u128;
+
+                let stamp = PassportStamp {
+                    timestamp: current_time,
+                    location: "memory_freed".to_string(),
+                    operation: format!("revoked: {}", reason),
+                    authority: "UnsafeFFITracker".to_string(),
+                    verification_hash: format!("{:x}", ptr ^ current_time as usize),
+                };
+
+                passport.journey.push(stamp);
+                tracing::info!("Revoked passport for ptr {:x}: {}", ptr, reason);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get C library statistics
+    pub fn get_c_library_stats(&self) -> TrackingResult<HashMap<String, CLibraryInfo>> {
+        self.c_libraries
+            .lock()
+            .map(|libs| libs.clone())
+            .map_err(|e| TrackingError::LockError(e.to_string()))
+    }
+
+    /// Get LibC hook information
+    pub fn get_libc_hook_info(&self) -> TrackingResult<HashMap<String, EnhancedLibCHookInfo>> {
+        self.libc_hooks
+            .lock()
+            .map(|hooks| hooks.clone())
+            .map_err(|e| TrackingError::LockError(e.to_string()))
+    }
+
+    /// Get memory passport information
+    pub fn get_memory_passports(&self) -> TrackingResult<HashMap<usize, MemoryPassport>> {
+        self.memory_passports
+            .lock()
+            .map(|passports| passports.clone())
+            .map_err(|e| TrackingError::LockError(e.to_string()))
+    }
+
+    /// Analyze cross-boundary risks
+    pub fn analyze_cross_boundary_risks(&self) -> TrackingResult<Vec<SafetyViolation>> {
+        let mut risks = Vec::new();
+
+        if let Ok(passports) = self.memory_passports.lock() {
+            for (ptr, passport) in passports.iter() {
+                // Check for suspicious passport activity
+                if passport.journey.len() > 10 {
+                    risks.push(SafetyViolation::CrossBoundaryRisk {
+                        risk_level: RiskLevel::Medium,
+                        description: format!(
+                            "Memory at {:x} has crossed boundaries {} times",
+                            ptr,
+                            passport.journey.len()
+                        ),
+                        stack: Vec::new(), // Would need to capture actual stack
+                    });
+                }
+
+                // Check for expired passports
+                if matches!(passport.validity_status, ValidityStatus::Expired) {
+                    risks.push(SafetyViolation::CrossBoundaryRisk {
+                        risk_level: RiskLevel::High,
+                        description: format!("Expired passport detected for memory at {:x}", ptr),
+                        stack: Vec::new(),
+                    });
+                }
+            }
+        }
+
+        Ok(risks)
+    }
+
     /// Get statistics for unsafe and FFI operations
     pub fn get_stats(&self) -> UnsafeFFIStats {
         let allocations = self

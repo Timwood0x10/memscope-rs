@@ -1,18 +1,18 @@
 //! Optimized JSON export implementation with performance improvements
-//! 
+//!
 //! This module provides highly optimized JSON export functionality that addresses
 //! the main performance bottlenecks identified in the current implementation.
 
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use rayon::prelude::*;
 use std::sync::LazyLock;
 
-/// Json file types 
+/// Json file types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JsonFileType {
     /// memory_analysis.json
@@ -41,7 +41,7 @@ impl JsonFileType {
             JsonFileType::Performance,
         ]
     }
-    
+
     /// get standard five files
     pub fn standard_five() -> Vec<JsonFileType> {
         vec![
@@ -52,7 +52,7 @@ impl JsonFileType {
             JsonFileType::ComplexTypes,
         ]
     }
-    
+
     /// get file suffix
     pub fn file_suffix(&self) -> &'static str {
         match self {
@@ -86,19 +86,18 @@ impl Default for OptimizedExportOptions {
     fn default() -> Self {
         Self {
             use_parallel_processing: None, // Auto-detect based on data size
-            buffer_size: 256 * 1024,      // 256KB buffer
+            buffer_size: 256 * 1024,       // 256KB buffer
             use_compact_format: None,      // Auto-detect based on file size
             enable_type_cache: true,
             batch_size: 1000,
-            use_async_io: None,            // Auto-detect based on file size
+            use_async_io: None, // Auto-detect based on file size
         }
     }
 }
 
 /// Type inference cache for performance optimization
-static TYPE_CACHE: LazyLock<std::sync::Mutex<HashMap<String, String>>> = LazyLock::new(|| {
-    std::sync::Mutex::new(HashMap::new())
-});
+static TYPE_CACHE: LazyLock<std::sync::Mutex<HashMap<String, String>>> =
+    LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
 
 /// Clear the type cache (useful for testing)
 pub fn clear_type_cache() {
@@ -111,11 +110,11 @@ pub fn clear_type_cache() {
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
     if let Ok(mut cache) = TYPE_CACHE.lock() {
         let key = format!("{}:{}", type_name, size);
-        
+
         if let Some(cached) = cache.get(&key) {
             return cached.clone();
         }
-        
+
         // Compute type info
         let type_info = compute_enhanced_type_info(type_name, size);
         cache.insert(key, type_info.clone());
@@ -176,9 +175,10 @@ fn process_allocations_optimized(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
-    let use_parallel = options.use_parallel_processing
+    let use_parallel = options
+        .use_parallel_processing
         .unwrap_or(allocations.len() > 1000);
-    
+
     let processed_allocations = if use_parallel && allocations.len() > options.batch_size {
         // Use parallel processing for large datasets
         allocations
@@ -192,7 +192,7 @@ fn process_allocations_optimized(
         // Use sequential processing for smaller datasets
         process_allocation_batch(allocations)?
     };
-    
+
     Ok(serde_json::json!({
         "allocations": processed_allocations,
         "total_count": allocations.len(),
@@ -201,16 +201,18 @@ fn process_allocations_optimized(
 }
 
 /// Process a batch of allocations
-fn process_allocation_batch(allocations: &[AllocationInfo]) -> TrackingResult<Vec<serde_json::Value>> {
+fn process_allocation_batch(
+    allocations: &[AllocationInfo],
+) -> TrackingResult<Vec<serde_json::Value>> {
     let mut processed = Vec::with_capacity(allocations.len());
-    
+
     for alloc in allocations {
         let enhanced_type = if let Some(type_name) = &alloc.type_name {
             get_or_compute_type_info(type_name, alloc.size)
         } else {
             compute_enhanced_type_info("Unknown", alloc.size)
         };
-        
+
         processed.push(serde_json::json!({
             "ptr": format!("0x{:x}", alloc.ptr),
             "size": alloc.size,
@@ -220,7 +222,7 @@ fn process_allocation_batch(allocations: &[AllocationInfo]) -> TrackingResult<Ve
             "timestamp": alloc.timestamp_alloc
         }));
     }
-    
+
     Ok(processed)
 }
 
@@ -232,18 +234,19 @@ fn write_json_optimized<P: AsRef<Path>>(
 ) -> TrackingResult<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::with_capacity(options.buffer_size, file);
-    
+
     // Determine format based on data size
     let estimated_size = estimate_json_size(data);
-    let use_compact = options.use_compact_format
+    let use_compact = options
+        .use_compact_format
         .unwrap_or(estimated_size > 1_000_000); // Use compact for files > 1MB
-    
+
     if use_compact {
         serde_json::to_writer(&mut writer, data)?;
     } else {
         serde_json::to_writer_pretty(&mut writer, data)?;
     }
-    
+
     writer.flush()?;
     Ok(())
 }
@@ -266,23 +269,24 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
 /// Ultra-fast export implementation
 impl MemoryTracker {
     /// Optimized export to standard 4 JSON files (replaces export_separated_json_simple)
-    pub fn export_optimized_json_files<P: AsRef<Path>>(
-        &self,
-        base_path: P,
-    ) -> TrackingResult<()> {
+    pub fn export_optimized_json_files<P: AsRef<Path>>(&self, base_path: P) -> TrackingResult<()> {
         let options = OptimizedExportOptions::default();
         self.export_optimized_json_files_with_options(base_path, options)
     }
-    
+
     /// Export to 5 JSON files including complex types analysis
     pub fn export_optimized_json_files_with_complex_types<P: AsRef<Path>>(
         &self,
         base_path: P,
     ) -> TrackingResult<()> {
         let options = OptimizedExportOptions::default();
-        self.export_extensible_json_files_with_options(base_path, &JsonFileType::standard_five(), options)
+        self.export_extensible_json_files_with_options(
+            base_path,
+            &JsonFileType::standard_five(),
+            options,
+        )
     }
-    
+
     /// Optimized export to standard 4 JSON files with custom options
     pub fn export_optimized_json_files_with_options<P: AsRef<Path>>(
         &self,
@@ -291,59 +295,73 @@ impl MemoryTracker {
     ) -> TrackingResult<()> {
         let start_time = std::time::Instant::now();
         println!("🚀 Starting optimized 4-file JSON export...");
-        
+
         let base_path = base_path.as_ref();
-        let base_name = base_path.file_stem()
+        let base_name = base_path
+            .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("export");
         let parent_dir = base_path.parent().unwrap_or(Path::new("."));
-        
+
         // Get data once for all files
         let allocations = self.get_active_allocations()?;
         let stats = self.get_stats()?;
-        
-        println!("📊 Processing {} allocations across 4 standard files...", allocations.len());
-        
+
+        println!(
+            "📊 Processing {} allocations across 4 standard files...",
+            allocations.len()
+        );
+
         // 1. Memory Analysis JSON (标准文件1)
         let memory_path = parent_dir.join(format!("{}_memory_analysis.json", base_name));
         let memory_data = create_optimized_memory_analysis(&allocations, &stats, &options)?;
         write_json_optimized(&memory_path, &memory_data, &options)?;
-        
+
         // 2. Lifetime Analysis JSON (标准文件2)
         let lifetime_path = parent_dir.join(format!("{}_lifetime.json", base_name));
         let lifetime_data = create_optimized_lifetime_analysis(&allocations, &options)?;
         write_json_optimized(&lifetime_path, &lifetime_data, &options)?;
-        
+
         // 3. Unsafe FFI Analysis JSON (标准文件3)
         let unsafe_path = parent_dir.join(format!("{}_unsafe_ffi.json", base_name));
         let unsafe_data = create_optimized_unsafe_ffi_analysis(&allocations, &options)?;
         write_json_optimized(&unsafe_path, &unsafe_data, &options)?;
-        
+
         // 4. Performance Analysis JSON (标准文件4)
         let perf_path = parent_dir.join(format!("{}_performance.json", base_name));
-        let perf_data = create_optimized_performance_analysis(&allocations, &stats, start_time, &options)?;
+        let perf_data =
+            create_optimized_performance_analysis(&allocations, &stats, start_time, &options)?;
         write_json_optimized(&perf_path, &perf_data, &options)?;
-        
+
         let total_duration = start_time.elapsed();
-        println!("✅ Optimized 4-file export completed in {:?}", total_duration);
+        println!(
+            "✅ Optimized 4-file export completed in {:?}",
+            total_duration
+        );
         println!("📁 Generated standard files:");
         println!("   1. {}_memory_analysis.json", base_name);
         println!("   2. {}_lifetime.json", base_name);
         println!("   3. {}_unsafe_ffi.json", base_name);
         println!("   4. {}_performance.json", base_name);
-        
+
         // 显示优化效果
-        if options.use_parallel_processing.unwrap_or(allocations.len() > 1000) {
+        if options
+            .use_parallel_processing
+            .unwrap_or(allocations.len() > 1000)
+        {
             println!("💡 Applied parallel processing optimization");
         }
         if options.enable_type_cache {
             println!("💡 Applied type inference caching");
         }
-        println!("💡 Applied optimized buffering ({} KB)", options.buffer_size / 1024);
-        
+        println!(
+            "💡 Applied optimized buffering ({} KB)",
+            options.buffer_size / 1024
+        );
+
         Ok(())
     }
-    
+
     /// A generic export method reserved for future expansion. can easily add a 5th and 6th JSON file
     pub fn export_extensible_json_files<P: AsRef<Path>>(
         &self,
@@ -353,7 +371,7 @@ impl MemoryTracker {
         let options = OptimizedExportOptions::default();
         self.export_extensible_json_files_with_options(base_path, file_types, options)
     }
-    
+
     /// A generic export method reserved for future expansion. can easily add a 5th and 6th JSON file
     pub fn export_extensible_json_files_with_options<P: AsRef<Path>>(
         &self,
@@ -362,20 +380,24 @@ impl MemoryTracker {
         options: OptimizedExportOptions,
     ) -> TrackingResult<()> {
         let start_time = std::time::Instant::now();
-        println!("🚀 Starting extensible JSON export for {} files...", file_types.len());
-        
+        println!(
+            "🚀 Starting extensible JSON export for {} files...",
+            file_types.len()
+        );
+
         let base_path = base_path.as_ref();
-        let base_name = base_path.file_stem()
+        let base_name = base_path
+            .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("export");
         let parent_dir = base_path.parent().unwrap_or(Path::new("."));
-        
+
         // Get data once for all files
         let allocations = self.get_active_allocations()?;
         let stats = self.get_stats()?;
-        
+
         println!("📊 Processing {} allocations...", allocations.len());
-        
+
         // genearte files
         for file_type in file_types {
             let (filename, data) = match file_type {
@@ -396,27 +418,34 @@ impl MemoryTracker {
                 }
                 JsonFileType::Performance => {
                     let filename = format!("{}_performance.json", base_name);
-                    let data = create_optimized_performance_analysis(&allocations, &stats, start_time, &options)?;
+                    let data = create_optimized_performance_analysis(
+                        &allocations,
+                        &stats,
+                        start_time,
+                        &options,
+                    )?;
                     (filename, data)
                 }
                 JsonFileType::ComplexTypes => {
                     let filename = format!("{}_complex_types.json", base_name);
                     let data = create_optimized_complex_types_analysis(&allocations, &options)?;
                     (filename, data)
-                }
-                // future can easily add new file types
-                // JsonFileType::AsyncAnalysis => { ... }
-                // JsonFileType::ThreadSafety => { ... }
+                } // future can easily add new file types
+                  // JsonFileType::AsyncAnalysis => { ... }
+                  // JsonFileType::ThreadSafety => { ... }
             };
-            
+
             let file_path = parent_dir.join(filename);
             write_json_optimized(&file_path, &data, &options)?;
-            println!("   ✅ Generated: {}", file_path.file_name().unwrap().to_string_lossy());
+            println!(
+                "   ✅ Generated: {}",
+                file_path.file_name().unwrap().to_string_lossy()
+            );
         }
-        
+
         let total_duration = start_time.elapsed();
         println!("✅ Extensible export completed in {:?}", total_duration);
-        
+
         Ok(())
     }
 }
@@ -428,7 +457,7 @@ fn create_optimized_memory_analysis(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     let processed_allocations = process_allocations_optimized(allocations, options)?;
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "analysis_type": "memory_analysis_optimized",
@@ -457,22 +486,25 @@ fn create_optimized_lifetime_analysis(
 ) -> TrackingResult<serde_json::Value> {
     // 生命周期分析：按作用域分组分析
     let mut scope_analysis: HashMap<String, (usize, usize, Vec<usize>)> = HashMap::new();
-    
+
     for alloc in allocations {
         let scope = alloc.scope_name.as_deref().unwrap_or("global");
-        let entry = scope_analysis.entry(scope.to_string()).or_insert((0, 0, Vec::new()));
-        entry.0 += alloc.size;  // 总大小
-        entry.1 += 1;          // 分配数量
+        let entry = scope_analysis
+            .entry(scope.to_string())
+            .or_insert((0, 0, Vec::new()));
+        entry.0 += alloc.size; // 总大小
+        entry.1 += 1; // 分配数量
         entry.2.push(alloc.size); // 大小列表用于统计
     }
-    
+
     // 转换为JSON格式
-    let mut scope_stats: Vec<_> = scope_analysis.into_iter()
+    let mut scope_stats: Vec<_> = scope_analysis
+        .into_iter()
         .map(|(scope, (total_size, count, sizes))| {
             let avg_size = if count > 0 { total_size / count } else { 0 };
             let max_size = sizes.iter().max().copied().unwrap_or(0);
             let min_size = sizes.iter().min().copied().unwrap_or(0);
-            
+
             serde_json::json!({
                 "scope_name": scope,
                 "total_size": total_size,
@@ -483,13 +515,15 @@ fn create_optimized_lifetime_analysis(
             })
         })
         .collect();
-    
+
     // 按总大小排序
     scope_stats.sort_by(|a, b| {
-        b["total_size"].as_u64().unwrap_or(0)
+        b["total_size"]
+            .as_u64()
+            .unwrap_or(0)
             .cmp(&a["total_size"].as_u64().unwrap_or(0))
     });
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "analysis_type": "lifetime_analysis_optimized",
@@ -517,7 +551,7 @@ fn create_optimized_unsafe_ffi_analysis(
     // Analyze possible unsafe operations and FFI-related allocations
     let mut unsafe_indicators = Vec::new();
     let mut ffi_patterns = Vec::new();
-    
+
     for alloc in allocations {
         // Check for unsafe patterns in type names
         if let Some(type_name) = &alloc.type_name {
@@ -539,7 +573,7 @@ fn create_optimized_unsafe_ffi_analysis(
                 }));
             }
         }
-        
+
         // Check for unsafe patterns in variable names
         if let Some(var_name) = &alloc.var_name {
             if var_name.contains("unsafe") || var_name.contains("raw") {
@@ -553,7 +587,7 @@ fn create_optimized_unsafe_ffi_analysis(
             }
         }
     }
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "analysis_type": "unsafe_ffi_analysis_optimized",
@@ -595,13 +629,13 @@ fn create_optimized_performance_analysis(
     } else {
         allocations.len() as f64 / 0.001 // 假设最少1ms
     };
-    
+
     // 分析分配大小分布
     let mut size_distribution = HashMap::new();
     for alloc in allocations {
         let category = match alloc.size {
             0..=64 => "tiny",
-            65..=256 => "small", 
+            65..=256 => "small",
             257..=1024 => "medium",
             1025..=4096 => "large",
             4097..=16384 => "huge",
@@ -609,7 +643,7 @@ fn create_optimized_performance_analysis(
         };
         *size_distribution.entry(category).or_insert(0) += 1;
     }
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "analysis_type": "performance_analysis_optimized",
@@ -665,21 +699,25 @@ fn create_optimized_complex_types_analysis(
     let mut trait_objects = Vec::new();
     let mut smart_pointers = Vec::new();
     let mut collections = Vec::new();
-    
+
     // 使用并行处理分析复杂类型
-    let use_parallel = options.use_parallel_processing.unwrap_or(allocations.len() > 1000);
-    
+    let use_parallel = options
+        .use_parallel_processing
+        .unwrap_or(allocations.len() > 1000);
+
     if use_parallel {
         // 并行分析复杂类型
         let results: Vec<_> = allocations
             .par_chunks(options.batch_size)
             .map(|chunk| analyze_complex_types_batch(chunk))
             .collect();
-        
+
         // 合并结果
         for batch_result in results {
             for (type_name, info) in batch_result.type_stats {
-                let entry = complex_type_stats.entry(type_name).or_insert_with(|| ComplexTypeInfo::new());
+                let entry = complex_type_stats
+                    .entry(type_name)
+                    .or_insert_with(|| ComplexTypeInfo::new());
                 entry.merge(info);
             }
             generic_types.extend(batch_result.generic_types);
@@ -696,7 +734,7 @@ fn create_optimized_complex_types_analysis(
         smart_pointers = batch_result.smart_pointers;
         collections = batch_result.collections;
     }
-    
+
     // 转换为JSON格式并排序
     let mut type_analysis: Vec<_> = complex_type_stats.into_iter()
         .map(|(type_name, info)| {
@@ -706,9 +744,9 @@ fn create_optimized_complex_types_analysis(
                 "total_size": info.total_size,
                 "allocation_count": info.allocation_count,
                 "average_size": if info.allocation_count > 0 { 
-                    info.total_size / info.allocation_count 
-                } else { 
-                    0 
+                    info.total_size / info.allocation_count
+                } else {
+                    0
                 },
                 "max_size": info.max_size,
                 "complexity_score": info.complexity_score,
@@ -717,19 +755,23 @@ fn create_optimized_complex_types_analysis(
             })
         })
         .collect();
-    
+
     // 按复杂度分数和总大小排序
     type_analysis.sort_by(|a, b| {
-        let score_cmp = b["complexity_score"].as_u64().unwrap_or(0)
+        let score_cmp = b["complexity_score"]
+            .as_u64()
+            .unwrap_or(0)
             .cmp(&a["complexity_score"].as_u64().unwrap_or(0));
         if score_cmp == std::cmp::Ordering::Equal {
-            b["total_size"].as_u64().unwrap_or(0)
+            b["total_size"]
+                .as_u64()
+                .unwrap_or(0)
                 .cmp(&a["total_size"].as_u64().unwrap_or(0))
         } else {
             score_cmp
         }
     });
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "analysis_type": "complex_types_analysis_optimized",
@@ -782,7 +824,7 @@ impl ComplexTypeInfo {
             complexity_score: 0,
         }
     }
-    
+
     fn merge(&mut self, other: ComplexTypeInfo) {
         self.total_size += other.total_size;
         self.allocation_count += other.allocation_count;
@@ -810,24 +852,26 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
     let mut trait_objects = Vec::new();
     let mut smart_pointers = Vec::new();
     let mut collections = Vec::new();
-    
+
     for alloc in allocations {
         if let Some(type_name) = &alloc.type_name {
             let normalized_type = normalize_type_name(type_name);
             let category = categorize_complex_type(type_name);
             let complexity = calculate_type_complexity(type_name);
-            
+
             // 更新类型统计
-            let entry = type_stats.entry(normalized_type.clone()).or_insert_with(|| {
-                let mut info = ComplexTypeInfo::new();
-                info.category = category.clone();
-                info.complexity_score = complexity;
-                info
-            });
+            let entry = type_stats
+                .entry(normalized_type.clone())
+                .or_insert_with(|| {
+                    let mut info = ComplexTypeInfo::new();
+                    info.category = category.clone();
+                    info.complexity_score = complexity;
+                    info
+                });
             entry.total_size += alloc.size;
             entry.allocation_count += 1;
             entry.max_size = entry.max_size.max(alloc.size);
-            
+
             // 分类收集
             let type_info = serde_json::json!({
                 "ptr": format!("0x{:x}", alloc.ptr),
@@ -837,7 +881,7 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
                 "var_name": alloc.var_name.as_deref().unwrap_or("unnamed"),
                 "complexity_score": complexity
             });
-            
+
             match category.as_str() {
                 "Generic" => generic_types.push(type_info),
                 "TraitObject" => trait_objects.push(type_info),
@@ -847,7 +891,7 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
             }
         }
     }
-    
+
     ComplexTypeBatchResult {
         type_stats,
         generic_types,
@@ -875,11 +919,17 @@ fn normalize_type_name(type_name: &str) -> String {
 fn categorize_complex_type(type_name: &str) -> String {
     if type_name.contains("dyn ") {
         "TraitObject".to_string()
-    } else if type_name.starts_with("Box<") || type_name.starts_with("Rc<") || 
-              type_name.starts_with("Arc<") || type_name.starts_with("RefCell<") {
+    } else if type_name.starts_with("Box<")
+        || type_name.starts_with("Rc<")
+        || type_name.starts_with("Arc<")
+        || type_name.starts_with("RefCell<")
+    {
         "SmartPointer".to_string()
-    } else if type_name.starts_with("Vec<") || type_name.starts_with("HashMap<") || 
-              type_name.starts_with("BTreeMap<") || type_name.starts_with("HashSet<") {
+    } else if type_name.starts_with("Vec<")
+        || type_name.starts_with("HashMap<")
+        || type_name.starts_with("BTreeMap<")
+        || type_name.starts_with("HashSet<")
+    {
         "Collection".to_string()
     } else if type_name.contains('<') && type_name.contains('>') {
         "Generic".to_string()
@@ -893,45 +943,71 @@ fn categorize_complex_type(type_name: &str) -> String {
 /// 计算类型复杂度
 fn calculate_type_complexity(type_name: &str) -> u64 {
     let mut score = 0u64;
-    
+
     // 基础分数
     score += 1;
-    
+
     // 泛型参数增加复杂度
     score += type_name.matches('<').count() as u64 * 2;
-    
+
     // 嵌套层级增加复杂度
     let nesting_level = type_name.chars().filter(|&c| c == '<').count();
     score += nesting_level as u64 * 3;
-    
+
     // 特殊类型增加复杂度
-    if type_name.contains("dyn ") { score += 5; }
-    if type_name.contains("impl ") { score += 4; }
-    if type_name.contains("async") { score += 3; }
-    if type_name.contains("Future") { score += 3; }
-    
+    if type_name.contains("dyn ") {
+        score += 5;
+    }
+    if type_name.contains("impl ") {
+        score += 4;
+    }
+    if type_name.contains("async") {
+        score += 3;
+    }
+    if type_name.contains("Future") {
+        score += 3;
+    }
+
     // 智能指针增加复杂度
-    if type_name.contains("Box<") { score += 2; }
-    if type_name.contains("Rc<") { score += 3; }
-    if type_name.contains("Arc<") { score += 4; }
-    if type_name.contains("RefCell<") { score += 3; }
-    
+    if type_name.contains("Box<") {
+        score += 2;
+    }
+    if type_name.contains("Rc<") {
+        score += 3;
+    }
+    if type_name.contains("Arc<") {
+        score += 4;
+    }
+    if type_name.contains("RefCell<") {
+        score += 3;
+    }
+
     score
 }
 
 /// Calculate memory efficiency based on type and average size
 fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize) -> u64 {
-    if count == 0 { return 100; }
-    
+    if count == 0 {
+        return 100;
+    }
+
     let avg_size = total_size / count;
-    
+
     // Calculate efficiency based on type and average size
     let efficiency = if type_name.contains("Vec<") {
         // Vec efficiency depends on capacity utilization
-        if avg_size < 64 { 60 } else { 85 }
+        if avg_size < 64 {
+            60
+        } else {
+            85
+        }
     } else if type_name.contains("HashMap<") {
         // HashMap has additional overhead
-        if avg_size < 128 { 50 } else { 75 }
+        if avg_size < 128 {
+            50
+        } else {
+            75
+        }
     } else if type_name.contains("Box<") {
         // Box is usually very efficient
         90
@@ -942,34 +1018,38 @@ fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize)
         // Default efficiency
         85
     };
-    
+
     efficiency
 }
 
 /// Generate optimization suggestions based on type and allocation information
 fn generate_optimization_suggestions(type_name: &str, info: &ComplexTypeInfo) -> Vec<String> {
     let mut suggestions = Vec::new();
-    
+
     if info.allocation_count > 100 {
-        suggestions.push("Consider using object pooling for frequently allocated types".to_string());
+        suggestions
+            .push("Consider using object pooling for frequently allocated types".to_string());
     }
-    
+
     if type_name.contains("Vec<") && info.total_size > 1024 * 1024 {
-        suggestions.push("Consider pre-allocating Vec capacity to reduce reallocations".to_string());
+        suggestions
+            .push("Consider pre-allocating Vec capacity to reduce reallocations".to_string());
     }
-    
+
     if type_name.contains("HashMap<") && info.allocation_count > 50 {
         suggestions.push("Consider using FxHashMap for better performance".to_string());
     }
-    
+
     if type_name.contains("Box<") && info.allocation_count > 200 {
-        suggestions.push("Consider using arena allocation for many small Box allocations".to_string());
+        suggestions
+            .push("Consider using arena allocation for many small Box allocations".to_string());
     }
-    
+
     if info.complexity_score > 10 {
-        suggestions.push("High complexity type - consider simplifying or using type aliases".to_string());
+        suggestions
+            .push("High complexity type - consider simplifying or using type aliases".to_string());
     }
-    
+
     suggestions
 }
 
@@ -979,7 +1059,7 @@ fn calculate_complexity_distribution(type_analysis: &[serde_json::Value]) -> ser
     let mut medium = 0;
     let mut high = 0;
     let mut very_high = 0;
-    
+
     for analysis in type_analysis {
         if let Some(score) = analysis["complexity_score"].as_u64() {
             match score {
@@ -990,7 +1070,7 @@ fn calculate_complexity_distribution(type_analysis: &[serde_json::Value]) -> ser
             }
         }
     }
-    
+
     serde_json::json!({
         "low_complexity": low,
         "medium_complexity": medium,
@@ -1000,29 +1080,41 @@ fn calculate_complexity_distribution(type_analysis: &[serde_json::Value]) -> ser
 }
 
 /// Generate global optimization recommendations based on type analysis
-fn generate_global_optimization_recommendations(type_analysis: &[serde_json::Value]) -> Vec<String> {
+fn generate_global_optimization_recommendations(
+    type_analysis: &[serde_json::Value],
+) -> Vec<String> {
     let mut recommendations = Vec::new();
-    
+
     let total_types = type_analysis.len();
-    let high_complexity_count = type_analysis.iter()
+    let high_complexity_count = type_analysis
+        .iter()
         .filter(|t| t["complexity_score"].as_u64().unwrap_or(0) > 10)
         .count();
-    
+
     if high_complexity_count > total_types / 4 {
-        recommendations.push("Consider refactoring high-complexity types to improve maintainability".to_string());
+        recommendations.push(
+            "Consider refactoring high-complexity types to improve maintainability".to_string(),
+        );
     }
-    
-    let large_allocation_count = type_analysis.iter()
+
+    let large_allocation_count = type_analysis
+        .iter()
         .filter(|t| t["allocation_count"].as_u64().unwrap_or(0) > 100)
         .count();
-    
+
     if large_allocation_count > 5 {
-        recommendations.push("Multiple types with high allocation frequency - consider object pooling".to_string());
+        recommendations.push(
+            "Multiple types with high allocation frequency - consider object pooling".to_string(),
+        );
     }
-    
-    recommendations.push("Use 'cargo clippy' to identify additional optimization opportunities".to_string());
-    recommendations.push("Consider profiling with 'perf' or 'valgrind' for detailed performance analysis".to_string());
-    
+
+    recommendations
+        .push("Use 'cargo clippy' to identify additional optimization opportunities".to_string());
+    recommendations.push(
+        "Consider profiling with 'perf' or 'valgrind' for detailed performance analysis"
+            .to_string(),
+    );
+
     recommendations
 }
 
@@ -1032,11 +1124,12 @@ fn create_optimized_type_analysis(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     let mut type_stats: HashMap<String, (usize, usize, usize)> = HashMap::new();
-    
+
     // Use parallel processing for type analysis if beneficial
-    let use_parallel = options.use_parallel_processing
+    let use_parallel = options
+        .use_parallel_processing
         .unwrap_or(allocations.len() > 1000);
-    
+
     if use_parallel {
         // Parallel type analysis
         let type_results: Vec<_> = allocations
@@ -1049,16 +1142,16 @@ fn create_optimized_type_analysis(
                     } else {
                         compute_enhanced_type_info("Unknown", alloc.size)
                     };
-                    
+
                     let entry = local_stats.entry(type_name).or_insert((0, 0, 0));
-                    entry.0 += alloc.size;  // total size
-                    entry.1 += 1;          // count
+                    entry.0 += alloc.size; // total size
+                    entry.1 += 1; // count
                     entry.2 = entry.2.max(alloc.size); // max size
                 }
                 local_stats
             })
             .collect();
-        
+
         // Merge results
         for local_stats in type_results {
             for (type_name, (size, count, max_size)) in local_stats {
@@ -1076,16 +1169,17 @@ fn create_optimized_type_analysis(
             } else {
                 compute_enhanced_type_info("Unknown", alloc.size)
             };
-            
+
             let entry = type_stats.entry(type_name).or_insert((0, 0, 0));
             entry.0 += alloc.size;
             entry.1 += 1;
             entry.2 = entry.2.max(alloc.size);
         }
     }
-    
+
     // Convert to sorted JSON
-    let mut type_list: Vec<_> = type_stats.into_iter()
+    let mut type_list: Vec<_> = type_stats
+        .into_iter()
         .map(|(type_name, (total_size, count, max_size))| {
             serde_json::json!({
                 "type_name": type_name,
@@ -1096,13 +1190,15 @@ fn create_optimized_type_analysis(
             })
         })
         .collect();
-    
+
     // Sort by total size (descending)
     type_list.sort_by(|a, b| {
-        b["total_size"].as_u64().unwrap_or(0)
+        b["total_size"]
+            .as_u64()
+            .unwrap_or(0)
             .cmp(&a["total_size"].as_u64().unwrap_or(0))
     });
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "analysis_type": "type_analysis_optimized",
@@ -1121,17 +1217,17 @@ fn create_fast_allocation_summary(
 ) -> TrackingResult<serde_json::Value> {
     // Quick summary without heavy processing
     let total_size: usize = allocations.iter().map(|a| a.size).sum();
-    let avg_size = if !allocations.is_empty() { 
-        total_size / allocations.len() 
-    } else { 
-        0 
+    let avg_size = if !allocations.is_empty() {
+        total_size / allocations.len()
+    } else {
+        0
     };
-    
+
     // Size distribution (fast calculation)
     let mut small_count = 0;
     let mut medium_count = 0;
     let mut large_count = 0;
-    
+
     for alloc in allocations {
         match alloc.size {
             0..=256 => small_count += 1,
@@ -1139,7 +1235,7 @@ fn create_fast_allocation_summary(
             _ => large_count += 1,
         }
     }
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "summary_type": "fast_allocation_summary",
@@ -1180,7 +1276,7 @@ fn create_performance_metrics(
     } else {
         allocations.len() as f64 / 0.001 // Assume 1ms minimum
     };
-    
+
     Ok(serde_json::json!({
         "metadata": {
             "metrics_type": "performance_optimized",
