@@ -4,19 +4,19 @@
 #[derive(Debug, Clone)]
 pub struct ExportOptions {
     /// Include system allocations in full enrichment (default: false)
-    /// 
+    ///
     /// **⚠️ Performance Impact**: Setting this to `true` can make export 5-10x slower!
-    /// 
+    ///
     /// - `false` (default): Only user-tracked variables get full enrichment (~2-5 seconds)
     /// - `true`: ALL allocations including system internals get enrichment (~10-40 seconds)
     pub include_system_allocations: bool,
-    
+
     /// Enable verbose logging during export (default: false)
     pub verbose_logging: bool,
-    
+
     /// Buffer size for file I/O in bytes (default: 64KB)
     pub buffer_size: usize,
-    
+
     /// Enable data compression (default: false)
     pub compress_output: bool,
 }
@@ -24,9 +24,9 @@ pub struct ExportOptions {
 impl Default for ExportOptions {
     fn default() -> Self {
         Self {
-            include_system_allocations: false,  // Fast mode by default
+            include_system_allocations: false, // Fast mode by default
             verbose_logging: false,
-            buffer_size: 64 * 1024,  // 64KB
+            buffer_size: 64 * 1024, // 64KB
             compress_output: false,
         }
     }
@@ -37,13 +37,13 @@ impl ExportOptions {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Enable system allocation enrichment (⚠️ SLOW - 5-10x slower!)
-    /// 
+    ///
     /// # Warning
     /// This will significantly slow down the export process and generate much larger files.
     /// Only use for deep debugging or system analysis.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// let options = ExportOptions::new().include_system_allocations(true);
@@ -53,19 +53,19 @@ impl ExportOptions {
         self.include_system_allocations = include;
         self
     }
-    
+
     /// Enable verbose logging during export
     pub fn verbose_logging(mut self, verbose: bool) -> Self {
         self.verbose_logging = verbose;
         self
     }
-    
+
     /// Set custom buffer size for file I/O
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
-    
+
     /// Enable output compression (experimental)
     pub fn compress_output(mut self, compress: bool) -> Self {
         self.compress_output = compress;
@@ -1936,15 +1936,15 @@ impl MemoryTracker {
     }
 
     /// Export memory tracking data to 4 separate JSON files.
-    /// 
+    ///
     /// This method exports data to 4 specialized files:
     /// - {name}_memory_analysis.json: Memory allocation patterns and statistics
     /// - {name}_lifetime.json: Variable lifetime and scope analysis  
     /// - {name}_unsafe_ffi.json: Unsafe operations and FFI tracking
     /// - {name}_variable_relationships.json: Variable dependency graph and relationships
-    /// 
+    ///
     /// # Export Modes
-    /// 
+    ///
     /// ## Default Mode (Fast - Recommended)
     /// ```rust
     /// tracker.export_to_json("output")?;
@@ -1954,7 +1954,7 @@ impl MemoryTracker {
     /// - **Performance**: ~2-5 seconds for typical datasets
     /// - **Data**: Only user-tracked variables get full enrichment
     /// - **Use case**: Normal development, HTML rendering, production monitoring
-    /// 
+    ///
     /// ## Complete Mode (Slow - Debug Only)
     /// ```rust
     /// let options = ExportOptions::new().include_system_allocations(true);
@@ -1969,14 +1969,14 @@ impl MemoryTracker {
     }
 
     /// Export memory tracking data with custom options.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ## Fast mode (default - recommended for most users)
     /// ```rust
     /// tracker.export_to_json_with_options("output", ExportOptions::default())?;
     /// ```
-    /// 
+    ///
     /// ## Complete mode (slow - for debugging)
     /// ```rust
     /// let options = ExportOptions::new()
@@ -1985,34 +1985,35 @@ impl MemoryTracker {
     /// tracker.export_to_json_with_options("debug_output", options)?;
     /// ```
     pub fn export_to_json_with_options<P: AsRef<std::path::Path>>(
-        &self, 
-        path: P, 
-        options: ExportOptions
+        &self,
+        path: P,
+        options: ExportOptions,
     ) -> TrackingResult<()> {
-
         let mode = if options.include_system_allocations {
             ExportMode::Complete
         } else {
             ExportMode::UserFocused
         };
-        
+
         if options.include_system_allocations {
-            println!("⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!");
+            println!(
+                "⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!"
+            );
             println!("💡 To speed up export, use default options: tracker.export_to_json(path)");
         }
-        
+
         self.export_to_json_with_mode(path, mode, &options)
     }
 
     /// Internal method to handle export with mode and options
     fn export_to_json_with_mode<P: AsRef<std::path::Path>>(
-        &self, 
-        path: P, 
+        &self,
+        path: P,
         mode: ExportMode,
-        _options: &ExportOptions  // Prefix with underscore to avoid unused warning
+        _options: &ExportOptions, // Prefix with underscore to avoid unused warning
     ) -> TrackingResult<()> {
         use std::path::Path;
-        
+
         let base_path = path.as_ref();
         let start_time = std::time::Instant::now();
 
@@ -2028,14 +2029,15 @@ impl MemoryTracker {
         }
 
         // Get base filename without extension
-        let base_name = base_path.file_stem()
+        let base_name = base_path
+            .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("export");
         let parent_dir = base_path.parent().unwrap_or(Path::new("."));
 
         // Collect raw data directly
         println!("📊 Collecting raw data...");
-        
+
         let active_allocations = self.get_active_allocations()?;
         let allocation_history = self.get_allocation_history()?;
         let variable_registry = crate::variable_registry::VariableRegistry::get_all_variables();
@@ -2043,7 +2045,12 @@ impl MemoryTracker {
 
         // 1. Export Memory Analysis with selected mode
         let memory_path = parent_dir.join(format!("{}_memory_analysis.json", base_name));
-        self.export_memory_analysis_with_mode(&memory_path, &active_allocations, &allocation_history, &mode)?;
+        self.export_memory_analysis_with_mode(
+            &memory_path,
+            &active_allocations,
+            &allocation_history,
+            &mode,
+        )?;
 
         // 2. Export Lifetime Analysis - direct from raw data (FAST!)
         let lifetime_path = parent_dir.join(format!("{}_lifetime.json", base_name));
@@ -2054,31 +2061,69 @@ impl MemoryTracker {
         self.export_unsafe_ffi_direct(&unsafe_path, &unsafe_ffi_tracker)?;
 
         // 4. Export Variable Relationships - direct from raw data (FAST!)
-        let relationships_path = parent_dir.join(format!("{}_variable_relationships.json", base_name));
-        self.export_variable_relationships_direct(&relationships_path, &variable_registry, &active_allocations)?;
+        let relationships_path =
+            parent_dir.join(format!("{}_variable_relationships.json", base_name));
+        self.export_variable_relationships_direct(
+            &relationships_path,
+            &variable_registry,
+            &active_allocations,
+        )?;
 
         let export_time = start_time.elapsed();
 
         // Calculate total file sizes
-        let memory_size = std::fs::metadata(&memory_path).map(|m| m.len()).unwrap_or(0);
-        let lifetime_size = std::fs::metadata(&lifetime_path).map(|m| m.len()).unwrap_or(0);
-        let unsafe_size = std::fs::metadata(&unsafe_path).map(|m| m.len()).unwrap_or(0);
-        let relationships_size = std::fs::metadata(&relationships_path).map(|m| m.len()).unwrap_or(0);
+        let memory_size = std::fs::metadata(&memory_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let lifetime_size = std::fs::metadata(&lifetime_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let unsafe_size = std::fs::metadata(&unsafe_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let relationships_size = std::fs::metadata(&relationships_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
         let total_size = memory_size + lifetime_size + unsafe_size + relationships_size;
 
         println!("✅ Ultra-fast 4-file export completed in {:?}", export_time);
         println!("📁 Files created:");
-        println!("   - Memory Analysis: {} ({:.2} MB)", memory_path.display(), memory_size as f64 / 1024.0 / 1024.0);
-        println!("   - Lifetime Analysis: {} ({:.2} MB)", lifetime_path.display(), lifetime_size as f64 / 1024.0 / 1024.0);
-        println!("   - Unsafe/FFI Analysis: {} ({:.2} MB)", unsafe_path.display(), unsafe_size as f64 / 1024.0 / 1024.0);
-        println!("   - Variable Relationships: {} ({:.2} MB)", relationships_path.display(), relationships_size as f64 / 1024.0 / 1024.0);
-        println!("📊 Total size: {:.2} MB", total_size as f64 / 1024.0 / 1024.0);
+        println!(
+            "   - Memory Analysis: {} ({:.2} MB)",
+            memory_path.display(),
+            memory_size as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   - Lifetime Analysis: {} ({:.2} MB)",
+            lifetime_path.display(),
+            lifetime_size as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   - Unsafe/FFI Analysis: {} ({:.2} MB)",
+            unsafe_path.display(),
+            unsafe_size as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   - Variable Relationships: {} ({:.2} MB)",
+            relationships_path.display(),
+            relationships_size as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "📊 Total size: {:.2} MB",
+            total_size as f64 / 1024.0 / 1024.0
+        );
         println!("📈 Data exported:");
         println!("   - {} active allocations", active_allocations.len());
-        println!("   - {} allocation history entries", allocation_history.len());
+        println!(
+            "   - {} allocation history entries",
+            allocation_history.len()
+        );
         println!("   - {} variables in registry", variable_registry.len());
-        println!("   - {} unsafe/FFI operations", unsafe_ffi_tracker.get_stats().total_operations);
-        
+        println!(
+            "   - {} unsafe/FFI operations",
+            unsafe_ffi_tracker.get_stats().total_operations
+        );
+
         if export_time.as_secs_f64() > 0.0 {
             let throughput = (total_size as f64 / 1024.0 / 1024.0) / export_time.as_secs_f64();
             println!("🚀 Performance: {:.2} MB/s total throughput", throughput);
@@ -2095,51 +2140,79 @@ impl MemoryTracker {
         allocation_history: &Vec<crate::core::types::AllocationInfo>,
         mode: &ExportMode,
     ) -> TrackingResult<()> {
-        use std::io::{BufWriter, Write};
         use std::fs::File;
+        use std::io::{BufWriter, Write};
 
         let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
-        
+        writer
+            .write_all(b"{\n")
+            .map_err(io_error_to_tracking_error)?;
+
         // Stream active allocations with mode-specific enrichment
-        writer.write_all(b"  \"active_allocations\": [\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"active_allocations\": [\n")
+            .map_err(io_error_to_tracking_error)?;
         for (i, alloc) in active_allocations.iter().enumerate() {
             if i > 0 {
-                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
+                writer
+                    .write_all(b",\n")
+                    .map_err(io_error_to_tracking_error)?;
             }
-            
+
             // Apply enrichment based on mode and allocation type
             let enriched_alloc = self.enrich_allocation_with_mode(alloc, mode)?;
             let alloc_json = serde_json::to_string(&enriched_alloc)?;
-            writer.write_all(b"    ").map_err(io_error_to_tracking_error)?;
-            writer.write_all(alloc_json.as_bytes()).map_err(io_error_to_tracking_error)?;
+            writer
+                .write_all(b"    ")
+                .map_err(io_error_to_tracking_error)?;
+            writer
+                .write_all(alloc_json.as_bytes())
+                .map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  ],\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n  ],\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Stream allocation history with mode-specific enrichment
-        writer.write_all(b"  \"allocation_history\": [\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"allocation_history\": [\n")
+            .map_err(io_error_to_tracking_error)?;
         for (i, alloc) in allocation_history.iter().enumerate() {
             if i > 0 {
-                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
+                writer
+                    .write_all(b",\n")
+                    .map_err(io_error_to_tracking_error)?;
             }
-            
+
             // Apply enrichment based on mode and allocation type
             let enriched_alloc = self.enrich_allocation_with_mode(alloc, mode)?;
             let alloc_json = serde_json::to_string(&enriched_alloc)?;
-            writer.write_all(b"    ").map_err(io_error_to_tracking_error)?;
-            writer.write_all(alloc_json.as_bytes()).map_err(io_error_to_tracking_error)?;
+            writer
+                .write_all(b"    ")
+                .map_err(io_error_to_tracking_error)?;
+            writer
+                .write_all(alloc_json.as_bytes())
+                .map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  ],\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n  ],\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Add memory statistics directly from tracker
-        writer.write_all(b"  \"memory_stats\": ").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"memory_stats\": ")
+            .map_err(io_error_to_tracking_error)?;
         let stats_guard = self.stats.lock().unwrap();
         let stats_json = serde_json::to_string(&*stats_guard)?;
-        writer.write_all(stats_json.as_bytes()).map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(stats_json.as_bytes())
+            .map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n}")
+            .map_err(io_error_to_tracking_error)?;
         writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
@@ -2148,44 +2221,71 @@ impl MemoryTracker {
     fn export_lifetime_analysis_direct<P: AsRef<std::path::Path>>(
         &self,
         path: P,
-        variable_registry: &std::collections::HashMap<usize, crate::variable_registry::VariableInfo>,
+        variable_registry: &std::collections::HashMap<
+            usize,
+            crate::variable_registry::VariableInfo,
+        >,
     ) -> TrackingResult<()> {
-        use std::io::{BufWriter, Write};
         use std::fs::File;
+        use std::io::{BufWriter, Write};
 
         let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"{\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Stream variable registry directly
-        writer.write_all(b"  \"variable_registry\": {\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"variable_registry\": {\n")
+            .map_err(io_error_to_tracking_error)?;
         let mut first = true;
         for (id, var_info) in variable_registry.iter() {
             if !first {
-                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
+                writer
+                    .write_all(b",\n")
+                    .map_err(io_error_to_tracking_error)?;
             }
             first = false;
-            
+
             let var_json = serde_json::to_string(var_info)?;
-            writer.write_all(format!("    \"{}\": {}", id, var_json).as_bytes())
+            writer
+                .write_all(format!("    \"{}\": {}", id, var_json).as_bytes())
                 .map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  },\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n  },\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Add scope information directly from tracker
-        writer.write_all(b"  \"scope_analysis\": {\n").map_err(io_error_to_tracking_error)?;
-        writer.write_all(b"    \"current_scope_depth\": 1,\n").map_err(io_error_to_tracking_error)?;
-        writer.write_all(b"    \"total_scopes_created\": 1\n").map_err(io_error_to_tracking_error)?;
-        writer.write_all(b"  },\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"scope_analysis\": {\n")
+            .map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"    \"current_scope_depth\": 1,\n")
+            .map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"    \"total_scopes_created\": 1\n")
+            .map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  },\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Add basic lifetime analysis
-        writer.write_all(b"  \"lifetime_analysis\": {\n").map_err(io_error_to_tracking_error)?;
-        writer.write_all(format!("    \"total_variables\": {}\n", variable_registry.len()).as_bytes())
+        writer
+            .write_all(b"  \"lifetime_analysis\": {\n")
             .map_err(io_error_to_tracking_error)?;
-        writer.write_all(b"  }").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(format!("    \"total_variables\": {}\n", variable_registry.len()).as_bytes())
+            .map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  }")
+            .map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n}")
+            .map_err(io_error_to_tracking_error)?;
         writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
@@ -2196,24 +2296,34 @@ impl MemoryTracker {
         path: P,
         unsafe_ffi_tracker: &crate::unsafe_ffi_tracker::UnsafeFFITracker,
     ) -> TrackingResult<()> {
-        use std::io::{BufWriter, Write};
         use std::fs::File;
+        use std::io::{BufWriter, Write};
 
         let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"{\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Add empty operations array for now (no get_all_operations method available)
-        writer.write_all(b"  \"unsafe_ffi_operations\": [],\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"unsafe_ffi_operations\": [],\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Include statistics directly
-        writer.write_all(b"  \"unsafe_ffi_stats\": ").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"unsafe_ffi_stats\": ")
+            .map_err(io_error_to_tracking_error)?;
         let stats = unsafe_ffi_tracker.get_stats();
         let stats_json = serde_json::to_string(&stats)?;
-        writer.write_all(stats_json.as_bytes()).map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(stats_json.as_bytes())
+            .map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n}")
+            .map_err(io_error_to_tracking_error)?;
         writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
@@ -2222,71 +2332,107 @@ impl MemoryTracker {
     fn export_variable_relationships_direct<P: AsRef<std::path::Path>>(
         &self,
         path: P,
-        variable_registry: &std::collections::HashMap<usize, crate::variable_registry::VariableInfo>,
+        variable_registry: &std::collections::HashMap<
+            usize,
+            crate::variable_registry::VariableInfo,
+        >,
         active_allocations: &Vec<crate::core::types::AllocationInfo>,
     ) -> TrackingResult<()> {
-        use std::io::{BufWriter, Write};
         use std::fs::File;
+        use std::io::{BufWriter, Write};
 
         let file = File::create(path).map_err(io_error_to_tracking_error)?;
         let mut writer = BufWriter::with_capacity(65536, file);
 
-        writer.write_all(b"{\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"{\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Create basic variable relationships from allocations and registry
-        writer.write_all(b"  \"variable_relationships\": [\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"variable_relationships\": [\n")
+            .map_err(io_error_to_tracking_error)?;
         let mut first = true;
         for alloc in active_allocations.iter() {
             if let Some(var_name) = &alloc.var_name {
                 if !first {
-                    writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
+                    writer
+                        .write_all(b",\n")
+                        .map_err(io_error_to_tracking_error)?;
                 }
                 first = false;
-                
+
                 // Create relationship entry
-                writer.write_all(b"    {\n").map_err(io_error_to_tracking_error)?;
-                writer.write_all(format!("      \"variable_name\": \"{}\",\n", var_name).as_bytes())
+                writer
+                    .write_all(b"    {\n")
                     .map_err(io_error_to_tracking_error)?;
-                writer.write_all(format!("      \"allocation_ptr\": {},\n", alloc.ptr as usize).as_bytes())
+                writer
+                    .write_all(format!("      \"variable_name\": \"{}\",\n", var_name).as_bytes())
                     .map_err(io_error_to_tracking_error)?;
-                writer.write_all(format!("      \"size\": {},\n", alloc.size).as_bytes())
+                writer
+                    .write_all(
+                        format!("      \"allocation_ptr\": {},\n", alloc.ptr as usize).as_bytes(),
+                    )
+                    .map_err(io_error_to_tracking_error)?;
+                writer
+                    .write_all(format!("      \"size\": {},\n", alloc.size).as_bytes())
                     .map_err(io_error_to_tracking_error)?;
                 if let Some(type_name) = &alloc.type_name {
-                    writer.write_all(format!("      \"type_name\": \"{}\"\n", type_name).as_bytes())
+                    writer
+                        .write_all(format!("      \"type_name\": \"{}\"\n", type_name).as_bytes())
                         .map_err(io_error_to_tracking_error)?;
                 } else {
-                    writer.write_all(b"      \"type_name\": null\n").map_err(io_error_to_tracking_error)?;
+                    writer
+                        .write_all(b"      \"type_name\": null\n")
+                        .map_err(io_error_to_tracking_error)?;
                 }
-                writer.write_all(b"    }").map_err(io_error_to_tracking_error)?;
+                writer
+                    .write_all(b"    }")
+                    .map_err(io_error_to_tracking_error)?;
             }
         }
-        writer.write_all(b"\n  ],\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n  ],\n")
+            .map_err(io_error_to_tracking_error)?;
 
         // Include variable registry directly
-        writer.write_all(b"  \"variable_registry\": {\n").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"  \"variable_registry\": {\n")
+            .map_err(io_error_to_tracking_error)?;
         let mut first = true;
         for (id, var_info) in variable_registry.iter() {
             if !first {
-                writer.write_all(b",\n").map_err(io_error_to_tracking_error)?;
+                writer
+                    .write_all(b",\n")
+                    .map_err(io_error_to_tracking_error)?;
             }
             first = false;
-            
+
             let var_json = serde_json::to_string(var_info)?;
-            writer.write_all(format!("    \"{}\": {}", id, var_json).as_bytes())
+            writer
+                .write_all(format!("    \"{}\": {}", id, var_json).as_bytes())
                 .map_err(io_error_to_tracking_error)?;
         }
-        writer.write_all(b"\n  }").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n  }")
+            .map_err(io_error_to_tracking_error)?;
 
-        writer.write_all(b"\n}").map_err(io_error_to_tracking_error)?;
+        writer
+            .write_all(b"\n}")
+            .map_err(io_error_to_tracking_error)?;
         writer.flush().map_err(io_error_to_tracking_error)?;
         Ok(())
     }
 
     /// Enrich allocation info based on export mode and allocation type
-    fn enrich_allocation_with_mode(&self, alloc: &crate::core::types::AllocationInfo, mode: &ExportMode) -> TrackingResult<crate::core::types::AllocationInfo> {
+    fn enrich_allocation_with_mode(
+        &self,
+        alloc: &crate::core::types::AllocationInfo,
+        mode: &ExportMode,
+    ) -> TrackingResult<crate::core::types::AllocationInfo> {
         // Check if this is a user-tracked allocation
         let is_user_tracked = self.is_user_tracked_allocation(alloc);
-        
+
         match mode {
             ExportMode::UserFocused => {
                 if is_user_tracked {
@@ -2303,51 +2449,55 @@ impl MemoryTracker {
             }
         }
     }
-    
+
     /// Check if allocation is user-tracked (FAST version - no registry lookup)
     fn is_user_tracked_allocation(&self, alloc: &crate::core::types::AllocationInfo) -> bool {
         // Strategy 1: Check if variable name exists and looks user-generated
         if let Some(var_name) = &alloc.var_name {
             // User variables typically don't start with system prefixes
-            if !var_name.starts_with("alloc_") && 
-               !var_name.starts_with("__") && 
-               !var_name.starts_with("std::") &&
-               !var_name.starts_with("system") &&
-               var_name.len() > 3 {
+            if !var_name.starts_with("alloc_")
+                && !var_name.starts_with("__")
+                && !var_name.starts_with("std::")
+                && !var_name.starts_with("system")
+                && var_name.len() > 3
+            {
                 return true;
             }
         }
-        
+
         // Strategy 2: Fast size-based heuristic (no expensive registry lookup!)
         // User allocations tend to be in specific size ranges
         match alloc.size {
-            1..=8 => false,        // Likely system primitives
-            9..=64 => true,        // Likely user primitives/small structs
-            65..=1024 => true,     // Likely user data structures
-            1025..=65536 => true,  // Likely user buffers/collections
-            _ => false,            // Very large allocations might be system
+            1..=8 => false,       // Likely system primitives
+            9..=64 => true,       // Likely user primitives/small structs
+            65..=1024 => true,    // Likely user data structures
+            1025..=65536 => true, // Likely user buffers/collections
+            _ => false,           // Very large allocations might be system
         }
     }
-    
+
     /// Complete enrichment for important allocations
-    fn enrich_allocation_complete(&self, alloc: &crate::core::types::AllocationInfo) -> TrackingResult<crate::core::types::AllocationInfo> {
+    fn enrich_allocation_complete(
+        &self,
+        alloc: &crate::core::types::AllocationInfo,
+    ) -> TrackingResult<crate::core::types::AllocationInfo> {
         let mut enriched = alloc.clone();
-        
+
         // Get real variable name from registry
         if enriched.var_name.is_none() {
             enriched.var_name = self.get_variable_name_fast(enriched.ptr);
         }
-        
+
         // Get accurate type information
         if enriched.type_name.is_none() {
             enriched.type_name = Some(self.get_accurate_type_name_fast(enriched.size));
         }
-        
+
         // Get scope information
         if enriched.scope_name.is_none() {
             enriched.scope_name = Some("user_scope".to_string());
         }
-        
+
         // Generate meaningful stack trace
         if enriched.stack_trace.is_none() {
             enriched.stack_trace = Some(vec![
@@ -2356,83 +2506,92 @@ impl MemoryTracker {
                 "memscope_tracking".to_string(),
             ]);
         }
-        
+
         // Calculate lifetime
         if enriched.lifetime_ms.is_none() && enriched.timestamp_dealloc.is_some() {
             let lifetime_ns = enriched.timestamp_dealloc.unwrap() - enriched.timestamp_alloc;
             enriched.lifetime_ms = Some(lifetime_ns / 1_000_000);
         }
-        
+
         Ok(enriched)
     }
-    
+
     /// Minimal enrichment for system allocations (fast)
-    fn enrich_allocation_minimal(&self, alloc: &crate::core::types::AllocationInfo) -> TrackingResult<crate::core::types::AllocationInfo> {
+    fn enrich_allocation_minimal(
+        &self,
+        alloc: &crate::core::types::AllocationInfo,
+    ) -> TrackingResult<crate::core::types::AllocationInfo> {
         let mut enriched = alloc.clone();
-        
+
         // Only fill in completely missing fields with simple values
         if enriched.var_name.is_none() {
             enriched.var_name = Some("system_alloc".to_string());
         }
-        
+
         if enriched.type_name.is_none() {
             enriched.type_name = Some("system".to_string());
         }
-        
+
         if enriched.scope_name.is_none() {
             enriched.scope_name = Some("system".to_string());
         }
-        
+
         // No stack trace for system allocations to save time
         if enriched.stack_trace.is_none() {
             enriched.stack_trace = Some(vec!["system".to_string()]);
         }
-        
+
         Ok(enriched)
     }
-    
+
     /// Legacy method for backward compatibility
-    fn enrich_allocation_info(&self, alloc: &crate::core::types::AllocationInfo) -> TrackingResult<crate::core::types::AllocationInfo> {
+    fn enrich_allocation_info(
+        &self,
+        alloc: &crate::core::types::AllocationInfo,
+    ) -> TrackingResult<crate::core::types::AllocationInfo> {
         let mut enriched = alloc.clone();
-        
+
         // Fast path: if already has good data, minimal processing
-        if enriched.var_name.is_some() && enriched.type_name.is_some() && enriched.scope_name.is_some() {
+        if enriched.var_name.is_some()
+            && enriched.type_name.is_some()
+            && enriched.scope_name.is_some()
+        {
             return Ok(enriched);
         }
-        
+
         // 1. Quick variable name lookup (fast registry check only)
         if enriched.var_name.is_none() {
             enriched.var_name = self.get_variable_name_fast(enriched.ptr);
         }
-        
+
         // 2. Fast type inference (no registry lookup)
         if enriched.type_name.is_none() {
             enriched.type_name = Some(self.infer_type_fast(enriched.size));
         }
-        
+
         // 3. Simple scope assignment
         if enriched.scope_name.is_none() {
             enriched.scope_name = Some("main".to_string());
         }
-        
+
         // 4. Minimal stack trace (only if completely missing)
         if enriched.stack_trace.is_none() {
             enriched.stack_trace = Some(vec!["user_code".to_string()]);
         }
-        
+
         // 5. Quick lifetime calculation
         if enriched.lifetime_ms.is_none() && enriched.timestamp_dealloc.is_some() {
             let lifetime_ns = enriched.timestamp_dealloc.unwrap() - enriched.timestamp_alloc;
             enriched.lifetime_ms = Some(lifetime_ns / 1_000_000);
         }
-        
+
         Ok(enriched)
     }
-    
+
     /// Fast variable name lookup - registry only, no fallback processing
     fn get_variable_name_fast(&self, ptr: usize) -> Option<String> {
         let variable_registry = crate::variable_registry::VariableRegistry::get_all_variables();
-        
+
         // Direct lookup only - no complex matching
         if let Some(var_info) = variable_registry.get(&ptr) {
             Some(var_info.var_name.clone())
@@ -2441,12 +2600,12 @@ impl MemoryTracker {
             Some(format!("alloc_{:x}", ptr))
         }
     }
-    
+
     /// Fast type inference - simple size-based patterns only
     fn infer_type_fast(&self, size: usize) -> String {
         match size {
             1 => "u8",
-            2 => "u16", 
+            2 => "u16",
             4 => "u32",
             8 => "u64",
             16 => "u128",
@@ -2454,10 +2613,11 @@ impl MemoryTracker {
             32 => "HashMap",
             _ if size < 64 => "struct",
             _ if size < 1024 => "buffer",
-            _ => "large_alloc"
-        }.to_string()
+            _ => "large_alloc",
+        }
+        .to_string()
     }
-    
+
     /// Get accurate type name with better inference
     fn get_accurate_type_name_fast(&self, size: usize) -> String {
         match size {
@@ -2475,16 +2635,16 @@ impl MemoryTracker {
             _ => format!("huge_allocation[{}MB]", size / 1024 / 1024),
         }
     }
-    
+
     /// Get real variable name through comprehensive matching
     fn get_real_variable_name(&self, ptr: usize, size: usize, timestamp: u64) -> Option<String> {
         let variable_registry = crate::variable_registry::VariableRegistry::get_all_variables();
-        
+
         // Strategy 1: Direct address lookup (registry uses address as key)
         if let Some(var_info) = variable_registry.get(&ptr) {
             return Some(var_info.var_name.clone());
         }
-        
+
         // Strategy 2: Size + timestamp proximity match (within 1ms)
         let mut best_match: Option<(String, u64)> = None;
         for (_, var_info) in variable_registry.iter() {
@@ -2494,7 +2654,7 @@ impl MemoryTracker {
                 } else {
                     var_info.timestamp - timestamp
                 };
-                
+
                 // Within 1ms window
                 if time_diff < 1_000_000 {
                     match &best_match {
@@ -2508,30 +2668,30 @@ impl MemoryTracker {
                 }
             }
         }
-        
+
         if let Some((name, _)) = best_match {
             return Some(name);
         }
-        
+
         // Strategy 3: Generate descriptive name based on context
         Some(format!("allocation_{}_{}_bytes", ptr, size))
     }
-    
+
     /// Get accurate type name through multiple strategies
     fn get_accurate_type_name(&self, ptr: usize, size: usize) -> Option<String> {
         let variable_registry = crate::variable_registry::VariableRegistry::get_all_variables();
-        
+
         // Strategy 1: Get from variable registry by address
         if let Some(var_info) = variable_registry.get(&ptr) {
             if !var_info.type_name.is_empty() {
                 return Some(var_info.type_name.clone());
             }
         }
-        
+
         // Strategy 2: Pattern-based type inference with common Rust types
         let inferred_type = match size {
             1 => "u8",
-            2 => "u16", 
+            2 => "u16",
             4 => "u32/f32",
             8 => "u64/f64/usize/&T",
             16 => "u128/[u8; 16]",
@@ -2540,20 +2700,20 @@ impl MemoryTracker {
             48 => "Box<T>/Rc<T>/Arc<T>",
             _ if size % 8 == 0 && size <= 128 => "struct/tuple",
             _ if size > 128 && size < 1024 => "large_struct/array",
-            _ if size >= 1024 && size < 1024*1024 => "buffer/large_array",
-            _ => "large_allocation"
+            _ if size >= 1024 && size < 1024 * 1024 => "buffer/large_array",
+            _ => "large_allocation",
         };
-        
+
         Some(inferred_type.to_string())
     }
-    
+
     /// Get real scope name from scope tracker
     fn get_real_scope_name(&self, _timestamp: u64) -> Option<String> {
         // Try to get scope information from the scope tracker
         // This is a simplified version - in reality you'd track scope changes over time
         Some("main_function".to_string())
     }
-    
+
     /// Generate meaningful stack trace
     fn generate_meaningful_stack_trace(&self, ptr: usize) -> Option<Vec<String>> {
         // Generate a more meaningful stack trace
@@ -2564,7 +2724,7 @@ impl MemoryTracker {
             "rust_allocator::alloc".to_string(),
         ])
     }
-    
+
     /// Enrich lifecycle information
     fn enrich_lifecycle_info(&self, enriched: &mut crate::core::types::AllocationInfo) {
         // Calculate lifetime if possible
@@ -2572,7 +2732,7 @@ impl MemoryTracker {
             let lifetime_ns = enriched.timestamp_dealloc.unwrap() - enriched.timestamp_alloc;
             enriched.lifetime_ms = Some(lifetime_ns / 1_000_000);
         }
-        
+
         // Add lifecycle status
         if enriched.timestamp_dealloc.is_some() {
             // This allocation has been deallocated
@@ -2580,18 +2740,23 @@ impl MemoryTracker {
             // This allocation is still active
         }
     }
-    
+
     /// Add memory pattern analysis
     fn add_memory_pattern_info(&self, enriched: &mut crate::core::types::AllocationInfo) {
         // Analyze memory patterns
         let ptr_value = enriched.ptr;
-        
+
         // Check alignment
-        let alignment = if ptr_value % 8 == 0 { 8 }
-                       else if ptr_value % 4 == 0 { 4 }
-                       else if ptr_value % 2 == 0 { 2 }
-                       else { 1 };
-        
+        let alignment = if ptr_value % 8 == 0 {
+            8
+        } else if ptr_value % 4 == 0 {
+            4
+        } else if ptr_value % 2 == 0 {
+            2
+        } else {
+            1
+        };
+
         // This could be stored in additional fields if the struct supports it
         // For now, we can enhance the variable name with this info
         if let Some(ref mut var_name) = enriched.var_name {
@@ -2600,12 +2765,12 @@ impl MemoryTracker {
             }
         }
     }
-    
+
     /// Fast type name inference based on allocation size patterns
     fn fast_infer_type_name(&self, size: usize) -> String {
         match size {
             1 => "u8".to_string(),
-            2 => "u16".to_string(), 
+            2 => "u16".to_string(),
             4 => "u32".to_string(),
             8 => "u64".to_string(),
             16 => "u128".to_string(),

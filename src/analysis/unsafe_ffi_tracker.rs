@@ -406,14 +406,12 @@ impl UnsafeFFITracker {
             .unwrap_or_default()
             .as_nanos() as u128;
 
-        let risk_factors = vec![
-            RiskFactor {
-                factor_type: RiskFactorType::ManualMemoryManagement,
-                severity: 5.0,
-                description: "Manual memory management in unsafe block".to_string(),
-                source_location: Some(unsafe_location.to_string()),
-            }
-        ];
+        let risk_factors = vec![RiskFactor {
+            factor_type: RiskFactorType::ManualMemoryManagement,
+            severity: 5.0,
+            description: "Manual memory management in unsafe block".to_string(),
+            source_location: Some(unsafe_location.to_string()),
+        }];
 
         RiskAssessment {
             risk_level: RiskLevel::Medium,
@@ -712,7 +710,9 @@ impl UnsafeFFITracker {
                     // Basic validation: check if passport is not expired or revoked
                     match passport.validity_status {
                         ValidityStatus::Valid => Ok(true),
-                        ValidityStatus::Expired | ValidityStatus::Revoked | ValidityStatus::Suspicious => Ok(false),
+                        ValidityStatus::Expired
+                        | ValidityStatus::Revoked
+                        | ValidityStatus::Suspicious => Ok(false),
                     }
                 } else {
                     Ok(false) // No passport means not validated
@@ -721,7 +721,9 @@ impl UnsafeFFITracker {
                 Ok(false) // Allocation not found
             }
         } else {
-            Err(TrackingError::LockError("Failed to acquire allocations lock".to_string()))
+            Err(TrackingError::LockError(
+                "Failed to acquire allocations lock".to_string(),
+            ))
         }
     }
 

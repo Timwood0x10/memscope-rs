@@ -560,19 +560,35 @@ pub fn is_advanced_type(type_name: &str) -> bool {
 
 /// Analyze a type and return its category
 pub fn get_type_category(type_name: &str) -> Option<AdvancedTypeCategory> {
-    if type_name.contains("Cell<") || type_name.contains("RefCell<") || type_name.contains("UnsafeCell<") {
+    if type_name.contains("Cell<")
+        || type_name.contains("RefCell<")
+        || type_name.contains("UnsafeCell<")
+    {
         Some(AdvancedTypeCategory::InteriorMutability)
-    } else if type_name.contains("Mutex<") || type_name.contains("RwLock<") || type_name.contains("Condvar") {
+    } else if type_name.contains("Mutex<")
+        || type_name.contains("RwLock<")
+        || type_name.contains("Condvar")
+    {
         Some(AdvancedTypeCategory::Synchronization)
-    } else if type_name.contains("mpsc::") || type_name.contains("Sender<") || type_name.contains("Receiver<") {
+    } else if type_name.contains("mpsc::")
+        || type_name.contains("Sender<")
+        || type_name.contains("Receiver<")
+    {
         Some(AdvancedTypeCategory::Channel)
     } else if type_name.contains("Atomic") {
         Some(AdvancedTypeCategory::Atomic)
     } else if type_name.contains("ThreadLocal<") || type_name.contains("LocalKey<") {
         Some(AdvancedTypeCategory::ThreadLocal)
-    } else if type_name.contains("ManuallyDrop<") || type_name.contains("MaybeUninit<") || type_name.contains("Pin<") {
+    } else if type_name.contains("ManuallyDrop<")
+        || type_name.contains("MaybeUninit<")
+        || type_name.contains("Pin<")
+    {
         Some(AdvancedTypeCategory::MemoryManagement)
-    } else if type_name.contains("Future") || type_name.contains("Stream") || type_name.contains("Waker") || type_name.contains("Context") {
+    } else if type_name.contains("Future")
+        || type_name.contains("Stream")
+        || type_name.contains("Waker")
+        || type_name.contains("Context")
+    {
         Some(AdvancedTypeCategory::Async)
     } else {
         None
@@ -582,7 +598,7 @@ pub fn get_type_category(type_name: &str) -> Option<AdvancedTypeCategory> {
 /// Create behavior pattern for a type
 pub fn create_behavior_pattern(type_name: &str) -> TypeBehaviorPattern {
     let category = get_type_category(type_name);
-    
+
     match category {
         Some(AdvancedTypeCategory::InteriorMutability) => TypeBehaviorPattern {
             has_interior_mutability: true,
@@ -662,36 +678,43 @@ pub fn create_behavior_pattern(type_name: &str) -> TypeBehaviorPattern {
 /// Analyze a type and create AdvancedTypeInfo
 pub fn analyze_type(allocation: &AllocationInfo) -> Option<AdvancedTypeInfo> {
     let type_name = allocation.type_name.as_ref()?;
-    
+
     if !is_advanced_type(type_name) {
         return None;
     }
-    
+
     let category = get_type_category(type_name)?;
     let behavior = create_behavior_pattern(type_name);
-    
+
     let mut issues = Vec::new();
     let _recommendations: Vec<String> = Vec::new();
-    
+
     // Analyze potential issues based on type behavior
     if behavior.deadlock_potential {
         issues.push(TypeIssue {
             severity: IssueSeverity::Warning,
             description: "Type has deadlock potential - ensure proper lock ordering".to_string(),
             location: Some(format!("ptr: 0x{:x}", allocation.ptr)),
-            suggestion: Some("Consider using timeout-based locking or lock hierarchies".to_string()),
+            suggestion: Some(
+                "Consider using timeout-based locking or lock hierarchies".to_string(),
+            ),
         });
     }
-    
+
     if behavior.has_runtime_overhead && allocation.size > 1024 {
         issues.push(TypeIssue {
             severity: IssueSeverity::Warning,
             description: "Large allocation with runtime overhead".to_string(),
-            location: Some(format!("ptr: 0x{:x}, size: {}", allocation.ptr, allocation.size)),
-            suggestion: Some("Consider using more efficient alternatives for large data".to_string()),
+            location: Some(format!(
+                "ptr: 0x{:x}, size: {}",
+                allocation.ptr, allocation.size
+            )),
+            suggestion: Some(
+                "Consider using more efficient alternatives for large data".to_string(),
+            ),
         });
     }
-    
+
     Some(AdvancedTypeInfo {
         category,
         behavior: behavior.clone(),
@@ -705,10 +728,18 @@ pub fn analyze_type(allocation: &AllocationInfo) -> Option<AdvancedTypeInfo> {
         },
         potential_issues: issues,
         performance_info: PerformanceInfo {
-            overhead_factor: if behavior.has_runtime_overhead { 2.0 } else { 1.0 },
+            overhead_factor: if behavior.has_runtime_overhead {
+                2.0
+            } else {
+                1.0
+            },
             memory_overhead: calculate_overhead(type_name),
             is_lock_free: !behavior.can_block,
-            latency_category: if behavior.can_block { LatencyCategory::Moderate } else { LatencyCategory::Fast },
+            latency_category: if behavior.can_block {
+                LatencyCategory::Moderate
+            } else {
+                LatencyCategory::Fast
+            },
         },
     })
 }
@@ -779,23 +810,23 @@ fn calculate_memory_overhead_percentage(type_name: &str) -> u32 {
 /// Analyze scalability concerns
 fn analyze_scalability(type_name: &str) -> Vec<String> {
     let mut concerns = Vec::new();
-    
+
     if type_name.contains("Mutex<") {
         concerns.push("Lock contention under high concurrency".to_string());
     }
-    
+
     if type_name.contains("HashMap<") {
         concerns.push("Hash collision performance degradation".to_string());
     }
-    
+
     if type_name.contains("RefCell<") {
         concerns.push("Runtime borrow check overhead".to_string());
     }
-    
+
     if type_name.contains("mpsc::") {
         concerns.push("Channel capacity and blocking behavior".to_string());
     }
-    
+
     concerns
 }
 
@@ -833,7 +864,9 @@ fn generate_advanced_type_statistics(
 // ===== Enhanced Interior Mutability Detection =====
 
 /// Enhanced interior mutability detection for Cell/RefCell types
-pub fn detect_interior_mutability_patterns(allocations: &[AllocationInfo]) -> InteriorMutabilityReport {
+pub fn detect_interior_mutability_patterns(
+    allocations: &[AllocationInfo],
+) -> InteriorMutabilityReport {
     let mut cell_instances = Vec::new();
     let mut refcell_instances = Vec::new();
     let mut unsafe_cell_instances = Vec::new();
@@ -858,7 +891,7 @@ pub fn detect_interior_mutability_patterns(allocations: &[AllocationInfo]) -> In
                     has_active_mut_borrow: allocation.borrow_count > 0,
                     runtime_check_overhead: true,
                 };
-                
+
                 // Check for potential runtime borrow violations
                 if allocation.borrow_count > 1 {
                     runtime_borrow_violations.push(BorrowViolation {
@@ -868,7 +901,7 @@ pub fn detect_interior_mutability_patterns(allocations: &[AllocationInfo]) -> In
                         timestamp: allocation.timestamp_alloc,
                     });
                 }
-                
+
                 refcell_instances.push(instance);
             } else if type_name.contains("UnsafeCell<") {
                 unsafe_cell_instances.push(UnsafeCellInstance {
@@ -882,7 +915,7 @@ pub fn detect_interior_mutability_patterns(allocations: &[AllocationInfo]) -> In
     }
 
     let total_types = cell_instances.len() + refcell_instances.len() + unsafe_cell_instances.len();
-    
+
     InteriorMutabilityReport {
         cell_instances,
         refcell_instances,
@@ -894,7 +927,9 @@ pub fn detect_interior_mutability_patterns(allocations: &[AllocationInfo]) -> In
 }
 
 /// Enhanced concurrency primitive monitoring for Mutex/RwLock types
-pub fn monitor_concurrency_primitives(allocations: &[AllocationInfo]) -> ConcurrencyPrimitiveReport {
+pub fn monitor_concurrency_primitives(
+    allocations: &[AllocationInfo],
+) -> ConcurrencyPrimitiveReport {
     let mut mutex_instances = Vec::new();
     let mut rwlock_instances = Vec::new();
     let mut condvar_instances = Vec::new();
@@ -937,8 +972,9 @@ pub fn monitor_concurrency_primitives(allocations: &[AllocationInfo]) -> Concurr
         }
     }
 
-    let deadlock_score = calculate_deadlock_potential_by_count(mutex_instances.len(), rwlock_instances.len());
-    
+    let deadlock_score =
+        calculate_deadlock_potential_by_count(mutex_instances.len(), rwlock_instances.len());
+
     ConcurrencyPrimitiveReport {
         mutex_instances,
         rwlock_instances,
@@ -965,7 +1001,7 @@ fn calculate_deadlock_potential_by_count(mutex_count: usize, rwlock_count: usize
     if total_locks <= 1 {
         return 0.0;
     }
-    
+
     // Simple heuristic: more locks = higher deadlock potential
     // In reality, this would analyze lock ordering and dependency graphs
     (total_locks as f64).log2() / 10.0

@@ -82,7 +82,11 @@ impl LifecycleAnalyzer {
     }
 
     /// Analyze RAII pattern for a specific allocation
-    fn analyze_raii_pattern(&self, allocation: &AllocationInfo, type_name: &str) -> Option<RAIIPattern> {
+    fn analyze_raii_pattern(
+        &self,
+        allocation: &AllocationInfo,
+        type_name: &str,
+    ) -> Option<RAIIPattern> {
         let resource_type = self.identify_resource_type(type_name)?;
         let acquisition_method = self.identify_acquisition_method(type_name);
         let release_method = self.identify_release_method(type_name);
@@ -102,15 +106,27 @@ impl LifecycleAnalyzer {
 
     /// Identify the type of resource being managed
     fn identify_resource_type(&self, type_name: &str) -> Option<ResourceType> {
-        if type_name.contains("File") || type_name.contains("BufReader") || type_name.contains("BufWriter") {
+        if type_name.contains("File")
+            || type_name.contains("BufReader")
+            || type_name.contains("BufWriter")
+        {
             Some(ResourceType::FileHandle)
-        } else if type_name.contains("TcpStream") || type_name.contains("UdpSocket") || type_name.contains("Listener") {
+        } else if type_name.contains("TcpStream")
+            || type_name.contains("UdpSocket")
+            || type_name.contains("Listener")
+        {
             Some(ResourceType::NetworkSocket)
-        } else if type_name.contains("Mutex") || type_name.contains("RwLock") || type_name.contains("Semaphore") {
+        } else if type_name.contains("Mutex")
+            || type_name.contains("RwLock")
+            || type_name.contains("Semaphore")
+        {
             Some(ResourceType::SynchronizationPrimitive)
         } else if type_name.contains("Thread") || type_name.contains("JoinHandle") {
             Some(ResourceType::ThreadHandle)
-        } else if type_name.contains("Box") || type_name.contains("Vec") || type_name.contains("String") {
+        } else if type_name.contains("Box")
+            || type_name.contains("Vec")
+            || type_name.contains("String")
+        {
             Some(ResourceType::Memory)
         } else if type_name.contains("Guard") || type_name.contains("Lock") {
             Some(ResourceType::LockGuard)
@@ -150,7 +166,10 @@ impl LifecycleAnalyzer {
     /// Analyze scope information for RAII pattern
     fn analyze_scope_info(&self, allocation: &AllocationInfo) -> ScopeInfo {
         ScopeInfo {
-            scope_name: allocation.scope_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            scope_name: allocation
+                .scope_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
             scope_type: self.infer_scope_type(&allocation.scope_name),
             nesting_level: self.calculate_nesting_level(&allocation.scope_name),
         }
@@ -198,7 +217,11 @@ impl LifecycleAnalyzer {
     }
 
     /// Analyze closure captures
-    pub fn analyze_closure_capture(&self, closure_ptr: usize, captured_vars: Vec<CapturedVariable>) {
+    pub fn analyze_closure_capture(
+        &self,
+        closure_ptr: usize,
+        captured_vars: Vec<CapturedVariable>,
+    ) {
         let capture = ClosureCapture {
             closure_ptr,
             captured_vars,
@@ -369,7 +392,7 @@ impl BorrowTracker {
         if let Some(borrows) = self.active_borrows.get_mut(&ptr) {
             if let Some(pos) = borrows.iter().position(|b| b.borrow_id == borrow_id) {
                 let borrow_info = borrows.remove(pos);
-                
+
                 self.borrow_history.push(BorrowEvent {
                     ptr,
                     borrow_info,
@@ -391,12 +414,15 @@ impl BorrowTracker {
         // Analyze for conflicts and long-lived borrows
         for events in self.borrow_history.windows(2) {
             if let [event1, event2] = events {
-                if event1.ptr == event2.ptr && self.has_borrow_conflict(&event1.borrow_info, &event2.borrow_info) {
+                if event1.ptr == event2.ptr
+                    && self.has_borrow_conflict(&event1.borrow_info, &event2.borrow_info)
+                {
                     conflicts.push(BorrowConflict {
                         ptr: event1.ptr,
                         first_borrow: event1.borrow_info.clone(),
                         second_borrow: event2.borrow_info.clone(),
-                        conflict_type: self.classify_conflict(&event1.borrow_info, &event2.borrow_info),
+                        conflict_type: self
+                            .classify_conflict(&event1.borrow_info, &event2.borrow_info),
                     });
                 }
             }
@@ -406,7 +432,8 @@ impl BorrowTracker {
         let current_time = current_timestamp();
         for (ptr, borrows) in &self.active_borrows {
             for borrow in borrows {
-                if current_time - borrow.start_timestamp > 1_000_000_000 { // 1 second in nanoseconds
+                if current_time - borrow.start_timestamp > 1_000_000_000 {
+                    // 1 second in nanoseconds
                     long_lived_borrows.push(LongLivedBorrow {
                         ptr: *ptr,
                         borrow_info: borrow.clone(),
@@ -435,9 +462,8 @@ impl BorrowTracker {
     fn classify_conflict(&self, borrow1: &BorrowInfo, borrow2: &BorrowInfo) -> ConflictType {
         match (&borrow1.borrow_type, &borrow2.borrow_type) {
             (BorrowType::Mutable, BorrowType::Mutable) => ConflictType::MutableMutable,
-            (BorrowType::Mutable, BorrowType::Immutable) | (BorrowType::Immutable, BorrowType::Mutable) => {
-                ConflictType::MutableImmutable
-            }
+            (BorrowType::Mutable, BorrowType::Immutable)
+            | (BorrowType::Immutable, BorrowType::Mutable) => ConflictType::MutableImmutable,
             _ => ConflictType::None,
         }
     }
@@ -445,16 +471,19 @@ impl BorrowTracker {
     fn analyze_borrow_patterns(&self) -> Vec<BorrowPattern> {
         // Analyze common borrow patterns
         let mut patterns = Vec::new();
-        
+
         // Pattern: Frequent short borrows
-        let short_borrows = self.borrow_history.iter()
+        let short_borrows = self
+            .borrow_history
+            .iter()
             .filter(|event| matches!(event.event_type, BorrowEventType::Released))
             .filter(|event| {
                 // Find corresponding acquire event
                 self.borrow_history.iter().any(|acquire_event| {
-                    acquire_event.borrow_info.borrow_id == event.borrow_info.borrow_id &&
-                    matches!(acquire_event.event_type, BorrowEventType::Acquired) &&
-                    event.timestamp - acquire_event.timestamp < 1_000_000 // < 1ms
+                    acquire_event.borrow_info.borrow_id == event.borrow_info.borrow_id
+                        && matches!(acquire_event.event_type, BorrowEventType::Acquired)
+                        && event.timestamp - acquire_event.timestamp < 1_000_000
+                    // < 1ms
                 })
             })
             .count();
@@ -463,7 +492,11 @@ impl BorrowTracker {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::FrequentShortBorrows,
                 description: format!("Detected {} short-lived borrows (< 1ms)", short_borrows),
-                impact: if short_borrows > 100 { PatternImpact::High } else { PatternImpact::Medium },
+                impact: if short_borrows > 100 {
+                    PatternImpact::High
+                } else {
+                    PatternImpact::Medium
+                },
                 suggestion: "Consider batching operations to reduce borrow overhead".to_string(),
             });
         }

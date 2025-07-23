@@ -164,8 +164,9 @@ impl SchemaValidator {
 
         // Extract and validate metadata
         let metadata = self.extract_metadata(data, &mut errors)?;
-        
-        let schema_version = metadata.get("schema_version")
+
+        let schema_version = metadata
+            .get("schema_version")
             .and_then(|v| v.as_str())
             .unwrap_or("1.0");
 
@@ -222,7 +223,11 @@ impl SchemaValidator {
     }
 
     /// Extract metadata from JSON data
-    fn extract_metadata<'a>(&self, data: &'a Value, errors: &mut Vec<ValidationError>) -> TrackingResult<&'a Map<String, Value>> {
+    fn extract_metadata<'a>(
+        &self,
+        data: &'a Value,
+        errors: &mut Vec<ValidationError>,
+    ) -> TrackingResult<&'a Map<String, Value>> {
         match data.get("metadata") {
             Some(Value::Object(metadata)) => Ok(metadata),
             Some(_) => {
@@ -233,7 +238,9 @@ impl SchemaValidator {
                     severity: ErrorSeverity::Critical,
                     suggested_fix: Some("Ensure metadata is a JSON object".to_string()),
                 });
-                Err(TrackingError::ValidationError("Invalid metadata type".to_string()))
+                Err(TrackingError::ValidationError(
+                    "Invalid metadata type".to_string(),
+                ))
             }
             None => {
                 errors.push(ValidationError {
@@ -243,7 +250,9 @@ impl SchemaValidator {
                     severity: ErrorSeverity::Critical,
                     suggested_fix: Some("Add metadata section with required fields".to_string()),
                 });
-                Err(TrackingError::ValidationError("Missing metadata".to_string()))
+                Err(TrackingError::ValidationError(
+                    "Missing metadata".to_string(),
+                ))
             }
         }
     }
@@ -288,7 +297,7 @@ impl SchemaValidator {
         // Convert to canonical JSON string for consistent hashing
         let canonical_json = serde_json::to_string(data)
             .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
-        
+
         let hash = self.simple_hash(&canonical_json);
         Ok(format!("{:x}", hash))
     }
@@ -315,23 +324,29 @@ impl SchemaValidator {
     /// Initialize schema definitions and supported versions
     fn initialize_schemas(&mut self) {
         // Define supported schema versions
-        self.supported_versions.insert("1.0".to_string(), SchemaVersion {
-            version: "1.0".to_string(),
-            components: (1, 0, 0),
-            is_supported: true,
-            compatibility: CompatibilityLevel::BackwardCompatible,
-            backward_compatible_with: vec![],
-            forward_compatible_with: vec!["2.0".to_string()],
-        });
+        self.supported_versions.insert(
+            "1.0".to_string(),
+            SchemaVersion {
+                version: "1.0".to_string(),
+                components: (1, 0, 0),
+                is_supported: true,
+                compatibility: CompatibilityLevel::BackwardCompatible,
+                backward_compatible_with: vec![],
+                forward_compatible_with: vec!["2.0".to_string()],
+            },
+        );
 
-        self.supported_versions.insert("2.0".to_string(), SchemaVersion {
-            version: "2.0".to_string(),
-            components: (2, 0, 0),
-            is_supported: true,
-            compatibility: CompatibilityLevel::FullyCompatible,
-            backward_compatible_with: vec!["1.0".to_string()],
-            forward_compatible_with: vec![],
-        });
+        self.supported_versions.insert(
+            "2.0".to_string(),
+            SchemaVersion {
+                version: "2.0".to_string(),
+                components: (2, 0, 0),
+                is_supported: true,
+                compatibility: CompatibilityLevel::FullyCompatible,
+                backward_compatible_with: vec!["1.0".to_string()],
+                forward_compatible_with: vec![],
+            },
+        );
 
         // Initialize schema definitions
         self.initialize_v2_schema();
@@ -432,8 +447,11 @@ impl SchemaValidator {
 
         // Check for unknown sections
         let known_sections = vec![
-            "metadata", "unsafe_analysis", "ffi_analysis", 
-            "boundary_analysis", "safety_violations"
+            "metadata",
+            "unsafe_analysis",
+            "ffi_analysis",
+            "boundary_analysis",
+            "safety_violations",
         ];
 
         if let Some(obj) = data.as_object() {
@@ -813,10 +831,10 @@ mod tests {
     fn test_integrity_hash_calculation() {
         let validator = SchemaValidator::new();
         let data = json!({"test": "data"});
-        
+
         let hash1 = validator.calculate_integrity_hash(&data).unwrap();
         let hash2 = validator.calculate_integrity_hash(&data).unwrap();
-        
+
         assert_eq!(hash1, hash2);
         assert!(validator.verify_integrity(&data, &hash1).unwrap());
     }
@@ -851,11 +869,15 @@ mod tests {
         assert!(result.is_valid);
 
         let strict_validator = SchemaValidator::strict();
-        let result = strict_validator.validate_unsafe_ffi_analysis(&valid_data).unwrap();
+        let result = strict_validator
+            .validate_unsafe_ffi_analysis(&valid_data)
+            .unwrap();
         assert!(result.is_valid);
 
         let no_integrity_validator = SchemaValidator::without_integrity_check();
-        let result = no_integrity_validator.validate_unsafe_ffi_analysis(&valid_data).unwrap();
+        let result = no_integrity_validator
+            .validate_unsafe_ffi_analysis(&valid_data)
+            .unwrap();
         assert_eq!(result.integrity_hash, "disabled");
     }
 }

@@ -821,7 +821,8 @@ fn export_scope_analysis_json(
         TrackingError::SerializationError(format!("JSON serialization failed: {e}"))
     })?;
 
-    std::fs::write("scope_analysis.json", json_content).map_err(|e| TrackingError::IoError(e.to_string()))?;
+    std::fs::write("scope_analysis.json", json_content)
+        .map_err(|e| TrackingError::IoError(e.to_string()))?;
 
     tracing::info!("Exported complete scope analysis to scope_analysis.json");
     Ok(())

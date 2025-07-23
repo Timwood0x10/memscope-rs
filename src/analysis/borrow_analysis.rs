@@ -59,7 +59,10 @@ impl BorrowAnalyzer {
 
         // Add to active borrows
         if let Ok(mut active) = self.active_borrows.lock() {
-            active.entry(ptr).or_insert_with(Vec::new).push(borrow_info.clone());
+            active
+                .entry(ptr)
+                .or_insert_with(Vec::new)
+                .push(borrow_info.clone());
         }
 
         // Record the borrow event
@@ -104,7 +107,12 @@ impl BorrowAnalyzer {
     }
 
     /// Check for borrow conflicts
-    fn check_borrow_conflicts(&self, ptr: usize, new_borrow_type: &BorrowType, new_borrow: &BorrowInfo) {
+    fn check_borrow_conflicts(
+        &self,
+        ptr: usize,
+        new_borrow_type: &BorrowType,
+        new_borrow: &BorrowInfo,
+    ) {
         if let Ok(active) = self.active_borrows.lock() {
             if let Some(existing_borrows) = active.get(&ptr) {
                 for existing in existing_borrows {
@@ -113,7 +121,8 @@ impl BorrowAnalyzer {
                             ptr,
                             existing_borrow: existing.clone(),
                             conflicting_borrow: new_borrow.clone(),
-                            conflict_type: self.determine_conflict_type(&existing.borrow_type, new_borrow_type),
+                            conflict_type: self
+                                .determine_conflict_type(&existing.borrow_type, new_borrow_type),
                             timestamp: current_timestamp(),
                         };
 
@@ -134,7 +143,8 @@ impl BorrowAnalyzer {
             // Multiple immutable borrows are allowed
             (BorrowType::Immutable, BorrowType::Immutable) => false,
             // Shared borrows don't conflict with immutable
-            (BorrowType::Shared, BorrowType::Immutable) | (BorrowType::Immutable, BorrowType::Shared) => false,
+            (BorrowType::Shared, BorrowType::Immutable)
+            | (BorrowType::Immutable, BorrowType::Shared) => false,
             // Other combinations are safe
             _ => false,
         }
@@ -144,7 +154,8 @@ impl BorrowAnalyzer {
     fn determine_conflict_type(&self, existing: &BorrowType, new: &BorrowType) -> ConflictType {
         match (existing, new) {
             (BorrowType::Mutable, BorrowType::Mutable) => ConflictType::MultipleMutableBorrows,
-            (BorrowType::Mutable, BorrowType::Immutable) | (BorrowType::Immutable, BorrowType::Mutable) => {
+            (BorrowType::Mutable, BorrowType::Immutable)
+            | (BorrowType::Immutable, BorrowType::Mutable) => {
                 ConflictType::MutableImmutableConflict
             }
             _ => ConflictType::Other,
@@ -218,7 +229,8 @@ impl BorrowAnalyzer {
 
         // Pattern: Long-lived borrows
         let long_lived_threshold = 1_000_000; // 1ms in nanoseconds
-        let long_lived_count = history.iter()
+        let long_lived_count = history
+            .iter()
             .filter(|event| {
                 if let Some(end_time) = event.borrow_info.end_time {
                     end_time - event.borrow_info.start_time > long_lived_threshold
@@ -232,7 +244,11 @@ impl BorrowAnalyzer {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::LongLivedBorrows,
                 description: format!("{} borrows lasted longer than 1ms", long_lived_count),
-                severity: if long_lived_count > 10 { PatternSeverity::Warning } else { PatternSeverity::Info },
+                severity: if long_lived_count > 10 {
+                    PatternSeverity::Warning
+                } else {
+                    PatternSeverity::Info
+                },
                 suggestion: "Consider reducing borrow scope or using RAII patterns".to_string(),
             });
         }
@@ -243,7 +259,8 @@ impl BorrowAnalyzer {
                 pattern_type: BorrowPatternType::FrequentConflicts,
                 description: format!("{} borrow conflicts detected", conflicts.len()),
                 severity: PatternSeverity::Warning,
-                suggestion: "Review borrow patterns and consider refactoring to reduce conflicts".to_string(),
+                suggestion: "Review borrow patterns and consider refactoring to reduce conflicts"
+                    .to_string(),
             });
         }
 
@@ -451,18 +468,18 @@ mod tests {
     #[test]
     fn test_borrow_tracking() {
         let analyzer = BorrowAnalyzer::new();
-        
+
         // Track an immutable borrow
         let borrow_id = analyzer.track_borrow(0x1000, BorrowType::Immutable, "test_var");
-        
+
         // Check active borrows
         let active = analyzer.get_active_borrows(0x1000);
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].borrow_type, BorrowType::Immutable);
-        
+
         // End the borrow
         analyzer.end_borrow(borrow_id);
-        
+
         // Check that it's no longer active
         let active = analyzer.get_active_borrows(0x1000);
         assert_eq!(active.len(), 0);
@@ -471,16 +488,19 @@ mod tests {
     #[test]
     fn test_borrow_conflicts() {
         let analyzer = BorrowAnalyzer::new();
-        
+
         // Track a mutable borrow
         analyzer.track_borrow(0x1000, BorrowType::Mutable, "test_var1");
-        
+
         // Try to track another mutable borrow (should create conflict)
         analyzer.track_borrow(0x1000, BorrowType::Mutable, "test_var2");
-        
+
         // Check conflicts
         let conflicts = analyzer.get_conflicts();
         assert!(!conflicts.is_empty());
-        assert_eq!(conflicts[0].conflict_type, ConflictType::MultipleMutableBorrows);
+        assert_eq!(
+            conflicts[0].conflict_type,
+            ConflictType::MultipleMutableBorrows
+        );
     }
 }

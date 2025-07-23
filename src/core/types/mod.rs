@@ -1226,9 +1226,9 @@ pub enum OptimizationPotential {
     None,
     /// Minor optimization
     /// Minor optimization potential
-    Minor { 
+    Minor {
         /// Potential memory savings in bytes
-        potential_savings: usize 
+        potential_savings: usize,
     },
     /// Moderate optimization
     Moderate {
@@ -1494,9 +1494,9 @@ pub enum MemoryAccessPattern {
     /// Random access pattern
     Random,
     /// Strided access pattern
-    Strided { 
+    Strided {
         /// Stride size
-        stride: usize 
+        stride: usize,
     },
     /// Clustered access pattern
     Clustered,

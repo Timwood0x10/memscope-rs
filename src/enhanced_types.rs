@@ -79,8 +79,8 @@ pub struct HeapSegment {
 }
 
 impl HeapSegment {
-        /// Check if a pointer is within this heap segment
-        pub fn contains(&self, ptr: usize) -> bool {
+    /// Check if a pointer is within this heap segment
+    pub fn contains(&self, ptr: usize) -> bool {
         ptr >= self.start && ptr < self.end
     }
 }

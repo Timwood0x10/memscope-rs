@@ -76,7 +76,12 @@ impl AsyncAnalyzer {
     }
 
     /// Record a state transition
-    pub fn record_state_transition(&self, ptr: usize, from_state: FutureState, to_state: FutureState) {
+    pub fn record_state_transition(
+        &self,
+        ptr: usize,
+        from_state: FutureState,
+        to_state: FutureState,
+    ) {
         let transition = StateTransition {
             ptr,
             from_state: from_state.clone(),
@@ -94,7 +99,7 @@ impl AsyncAnalyzer {
             if let Some(future_info) = futures.get_mut(&ptr) {
                 future_info.current_state = to_state.clone();
                 future_info.state_history.push(to_state.clone());
-                
+
                 if matches!(to_state, FutureState::Pending) {
                     future_info.poll_count += 1;
                 }
@@ -128,11 +133,14 @@ impl AsyncAnalyzer {
     /// Complete an await point
     pub fn complete_await_point(&self, ptr: usize, location: &str) {
         let completion_time = current_timestamp();
-        
+
         if let Ok(mut awaits) = self.await_points.lock() {
             // Find the most recent await point for this location
             for await_point in awaits.iter_mut().rev() {
-                if await_point.ptr == ptr && await_point.location == location && await_point.duration.is_none() {
+                if await_point.ptr == ptr
+                    && await_point.location == location
+                    && await_point.duration.is_none()
+                {
                     await_point.duration = Some(completion_time - await_point.timestamp);
                     break;
                 }
@@ -177,11 +185,15 @@ impl AsyncAnalyzer {
         let _events = self.task_events.lock().unwrap();
 
         let total_futures = futures.len();
-        let completed_futures = futures.values().filter(|f| f.completion_time.is_some()).count();
+        let completed_futures = futures
+            .values()
+            .filter(|f| f.completion_time.is_some())
+            .count();
         let active_futures = total_futures - completed_futures;
 
         // Calculate average completion time
-        let completion_times: Vec<u64> = futures.values()
+        let completion_times: Vec<u64> = futures
+            .values()
             .filter_map(|f| {
                 if let (Some(completion), creation) = (f.completion_time, f.creation_time) {
                     Some(completion - creation)
@@ -200,10 +212,8 @@ impl AsyncAnalyzer {
         // Calculate await statistics
         let total_awaits = awaits.len();
         let completed_awaits = awaits.iter().filter(|a| a.duration.is_some()).count();
-        
-        let await_durations: Vec<u64> = awaits.iter()
-            .filter_map(|a| a.duration)
-            .collect();
+
+        let await_durations: Vec<u64> = awaits.iter().filter_map(|a| a.duration).collect();
 
         let avg_await_duration = if !await_durations.is_empty() {
             await_durations.iter().sum::<u64>() / await_durations.len() as u64
@@ -234,12 +244,13 @@ impl AsyncAnalyzer {
     pub fn analyze_async_patterns(&self) -> AsyncPatternAnalysis {
         let futures = self.active_futures.lock().unwrap();
         let awaits = self.await_points.lock().unwrap();
-        
+
         let mut patterns = Vec::new();
 
         // Pattern: Long-running futures
         let long_running_threshold = 1_000_000_000; // 1 second in nanoseconds
-        let long_running_count = futures.values()
+        let long_running_count = futures
+            .values()
             .filter(|f| {
                 if let Some(completion) = f.completion_time {
                     completion - f.creation_time > long_running_threshold
@@ -252,22 +263,30 @@ impl AsyncAnalyzer {
         if long_running_count > 0 {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::LongRunningFutures,
-                description: format!("{} futures running longer than 1 second", long_running_count),
+                description: format!(
+                    "{} futures running longer than 1 second",
+                    long_running_count
+                ),
                 severity: AsyncPatternSeverity::Warning,
-                suggestion: "Consider breaking down long-running operations or adding timeouts".to_string(),
+                suggestion: "Consider breaking down long-running operations or adding timeouts"
+                    .to_string(),
             });
         }
 
         // Pattern: Excessive polling
         let high_poll_threshold = 100;
-        let high_poll_count = futures.values()
+        let high_poll_count = futures
+            .values()
             .filter(|f| f.poll_count > high_poll_threshold)
             .count();
 
         if high_poll_count > 0 {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::ExcessivePolling,
-                description: format!("{} futures polled more than {} times", high_poll_count, high_poll_threshold),
+                description: format!(
+                    "{} futures polled more than {} times",
+                    high_poll_count, high_poll_threshold
+                ),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "High poll count may indicate inefficient async design".to_string(),
             });
@@ -280,13 +299,16 @@ impl AsyncAnalyzer {
                 pattern_type: AsyncPatternType::HighConcurrency,
                 description: format!("{} concurrent futures detected", futures.len()),
                 severity: AsyncPatternSeverity::Info,
-                suggestion: "High concurrency - ensure this is intentional and resources are managed".to_string(),
+                suggestion:
+                    "High concurrency - ensure this is intentional and resources are managed"
+                        .to_string(),
             });
         }
 
         // Pattern: Slow await points
         let slow_await_threshold = 100_000_000; // 100ms in nanoseconds
-        let slow_awaits = awaits.iter()
+        let slow_awaits = awaits
+            .iter()
             .filter(|a| a.duration.map_or(false, |d| d > slow_await_threshold))
             .count();
 
@@ -295,7 +317,8 @@ impl AsyncAnalyzer {
                 pattern_type: AsyncPatternType::SlowAwaitPoints,
                 description: format!("{} await points took longer than 100ms", slow_awaits),
                 severity: AsyncPatternSeverity::Warning,
-                suggestion: "Slow await points may indicate blocking operations in async code".to_string(),
+                suggestion: "Slow await points may indicate blocking operations in async code"
+                    .to_string(),
             });
         }
 
@@ -526,18 +549,18 @@ mod tests {
     #[test]
     fn test_future_tracking() {
         let analyzer = AsyncAnalyzer::new();
-        
+
         // Track a future
         analyzer.track_future(0x1000, "async_fn", FutureState::Created);
-        
+
         // Check it's tracked
         let info = analyzer.get_future_info(0x1000);
         assert!(info.is_some());
         assert_eq!(info.unwrap().future_type, "async_fn");
-        
+
         // Record state transition
         analyzer.record_state_transition(0x1000, FutureState::Created, FutureState::Pending);
-        
+
         // Check state updated
         let info = analyzer.get_future_info(0x1000);
         assert_eq!(info.unwrap().current_state, FutureState::Pending);
@@ -546,14 +569,14 @@ mod tests {
     #[test]
     fn test_await_tracking() {
         let analyzer = AsyncAnalyzer::new();
-        
+
         // Track future and await
         analyzer.track_future(0x1000, "async_fn", FutureState::Created);
         analyzer.record_await_point(0x1000, "line_42", AwaitType::Regular);
-        
+
         // Complete await
         analyzer.complete_await_point(0x1000, "line_42");
-        
+
         // Check statistics
         let stats = analyzer.get_async_statistics();
         assert_eq!(stats.total_awaits, 1);

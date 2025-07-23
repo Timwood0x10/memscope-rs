@@ -3,7 +3,7 @@
 //! This module provides high-performance streaming JSON writing capabilities
 //! with support for buffering, compression, and non-blocking I/O operations.
 
-use crate::core::types::{TrackingResult, TrackingError};
+use crate::core::types::{TrackingError, TrackingResult};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use serde::Serialize;
@@ -153,9 +153,8 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
         let config = self.config.clone();
         let metrics = Arc::clone(&self.metrics);
 
-        let thread_handle = thread::spawn(move || {
-            Self::async_write_loop(writer, receiver, config, metrics)
-        });
+        let thread_handle =
+            thread::spawn(move || Self::async_write_loop(writer, receiver, config, metrics));
 
         self.write_sender = Some(sender);
         self.write_thread = Some(thread_handle);
@@ -181,13 +180,14 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
 
         while let Ok(operation) = receiver.recv() {
             let write_start = Instant::now();
-            
+
             match operation {
                 WriteOperation::WriteJson(json_data) => {
                     let bytes = json_data.as_bytes();
-                    buffered_writer.write_all(bytes)
+                    buffered_writer
+                        .write_all(bytes)
                         .map_err(|e| TrackingError::IoError(e.to_string()))?;
-                    
+
                     if let Ok(mut metrics) = metrics.lock() {
                         metrics.bytes_written += bytes.len() as u64;
                         metrics.write_operations += 1;
@@ -195,9 +195,10 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
                     }
                 }
                 WriteOperation::WriteBytes(bytes) => {
-                    buffered_writer.write_all(&bytes)
+                    buffered_writer
+                        .write_all(&bytes)
                         .map_err(|e| TrackingError::IoError(e.to_string()))?;
-                    
+
                     if let Ok(mut metrics) = metrics.lock() {
                         metrics.bytes_written += bytes.len() as u64;
                         metrics.write_operations += 1;
@@ -205,16 +206,18 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
                     }
                 }
                 WriteOperation::Flush => {
-                    buffered_writer.flush()
+                    buffered_writer
+                        .flush()
                         .map_err(|e| TrackingError::IoError(e.to_string()))?;
-                    
+
                     if let Ok(mut metrics) = metrics.lock() {
                         metrics.flush_count += 1;
                     }
                     last_flush = Instant::now();
                 }
                 WriteOperation::Close => {
-                    buffered_writer.flush()
+                    buffered_writer
+                        .flush()
                         .map_err(|e| TrackingError::IoError(e.to_string()))?;
                     break;
                 }
@@ -222,9 +225,10 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
 
             // Auto-flush based on interval
             if last_flush.elapsed() >= flush_interval {
-                buffered_writer.flush()
+                buffered_writer
+                    .flush()
                     .map_err(|e| TrackingError::IoError(e.to_string()))?;
-                
+
                 if let Ok(mut metrics) = metrics.lock() {
                     metrics.flush_count += 1;
                 }
@@ -252,7 +256,8 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
             serde_json::to_string_pretty(&header)
         } else {
             serde_json::to_string(&header)
-        }.map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+        }
+        .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
         self.write_json_chunk(&json_str)
     }
@@ -263,7 +268,10 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
         allocations: &[T],
     ) -> TrackingResult<()> {
         self.write_json_chunk("\"unsafe_analysis\":{")?;
-        self.write_json_chunk(&format!("\"total_unsafe_allocations\":{},", allocations.len()))?;
+        self.write_json_chunk(&format!(
+            "\"total_unsafe_allocations\":{},",
+            allocations.len()
+        ))?;
         self.write_json_chunk("\"allocations\":[")?;
 
         for (i, allocation) in allocations.iter().enumerate() {
@@ -271,10 +279,11 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
                 serde_json::to_string_pretty(allocation)
             } else {
                 serde_json::to_string(allocation)
-            }.map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+            }
+            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
             self.write_json_chunk(&json_str)?;
-            
+
             if i < allocations.len() - 1 {
                 self.write_json_chunk(",")?;
             }
@@ -297,10 +306,11 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
                 serde_json::to_string_pretty(allocation)
             } else {
                 serde_json::to_string(allocation)
-            }.map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+            }
+            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
             self.write_json_chunk(&json_str)?;
-            
+
             if i < allocations.len() - 1 {
                 self.write_json_chunk(",")?;
             }
@@ -323,10 +333,11 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
                 serde_json::to_string_pretty(event)
             } else {
                 serde_json::to_string(event)
-            }.map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+            }
+            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
             self.write_json_chunk(&json_str)?;
-            
+
             if i < events.len() - 1 {
                 self.write_json_chunk(",")?;
             }
@@ -349,10 +360,11 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
                 serde_json::to_string_pretty(violation)
             } else {
                 serde_json::to_string(violation)
-            }.map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+            }
+            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
             self.write_json_chunk(&json_str)?;
-            
+
             if i < violations.len() - 1 {
                 self.write_json_chunk(",")?;
             }
@@ -367,7 +379,8 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
             serde_json::to_string_pretty(data)
         } else {
             serde_json::to_string(data)
-        }.map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+        }
+        .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
         self.write_json_chunk(&json_str)
     }
@@ -376,17 +389,18 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
     fn write_json_chunk(&mut self, chunk: &str) -> TrackingResult<()> {
         if !self.initialized && self.config.enable_async_writes {
             return Err(TrackingError::InitializationError(
-                "Async writer not initialized".to_string()
+                "Async writer not initialized".to_string(),
             ));
         }
 
         if let Some(sender) = &self.write_sender {
-            sender.send(WriteOperation::WriteJson(chunk.to_string()))
+            sender
+                .send(WriteOperation::WriteJson(chunk.to_string()))
                 .map_err(|e| TrackingError::ChannelError(e.to_string()))?;
         } else {
             // Synchronous write fallback
             return Err(TrackingError::NotImplemented(
-                "Synchronous write not implemented in this version".to_string()
+                "Synchronous write not implemented in this version".to_string(),
             ));
         }
 
@@ -396,7 +410,8 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
     /// Flush the writer buffer
     pub fn flush(&mut self) -> TrackingResult<()> {
         if let Some(sender) = &self.write_sender {
-            sender.send(WriteOperation::Flush)
+            sender
+                .send(WriteOperation::Flush)
                 .map_err(|e| TrackingError::ChannelError(e.to_string()))?;
         }
         Ok(())
@@ -405,20 +420,23 @@ impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
     /// Finalize the writer and close all resources
     pub fn finalize(&mut self) -> TrackingResult<()> {
         if let Some(sender) = self.write_sender.take() {
-            sender.send(WriteOperation::Close)
+            sender
+                .send(WriteOperation::Close)
                 .map_err(|e| TrackingError::ChannelError(e.to_string()))?;
         }
 
         if let Some(thread_handle) = self.write_thread.take() {
-            thread_handle.join()
-                .map_err(|e| TrackingError::ThreadError(format!("Thread join failed: {:?}", e)))??;
+            thread_handle.join().map_err(|e| {
+                TrackingError::ThreadError(format!("Thread join failed: {:?}", e))
+            })??;
         }
 
         // Update final metrics
         if let Ok(mut metrics) = self.metrics.lock() {
             let total_time = self.start_time.elapsed().as_millis() as u64;
             if total_time > 0 {
-                metrics.avg_write_speed_bps = (metrics.bytes_written as f64 * 1000.0) / total_time as f64;
+                metrics.avg_write_speed_bps =
+                    (metrics.bytes_written as f64 * 1000.0) / total_time as f64;
             }
         }
 
@@ -517,9 +535,9 @@ pub fn create_file_streaming_writer(
     file_path: &str,
     config: StreamingWriterConfig,
 ) -> TrackingResult<StreamingJsonWriter<std::fs::File>> {
-    let file = std::fs::File::create(file_path)
-        .map_err(|e| TrackingError::IoError(e.to_string()))?;
-    
+    let file =
+        std::fs::File::create(file_path).map_err(|e| TrackingError::IoError(e.to_string()))?;
+
     Ok(StreamingJsonWriter::with_config(file, config))
 }
 
@@ -556,7 +574,7 @@ mod tests {
         let metadata = ExportMetadata::new()
             .with_parallel_processing(true)
             .with_integrity_hash("test_hash".to_string());
-        
+
         assert!(metadata.parallel_processing);
         assert_eq!(metadata.integrity_hash, "test_hash");
     }

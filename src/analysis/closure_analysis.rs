@@ -106,7 +106,10 @@ impl ClosureAnalyzer {
     }
 
     /// Analyze closure capture patterns in allocations
-    pub fn analyze_closure_patterns(&self, allocations: &[AllocationInfo]) -> ClosureAnalysisReport {
+    pub fn analyze_closure_patterns(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> ClosureAnalysisReport {
         let mut detected_closures = Vec::new();
         let mut capture_statistics = CaptureStatistics::default();
 
@@ -143,17 +146,17 @@ impl ClosureAnalyzer {
         // - "closure" (in debug builds)
         // - Complex mangled names containing "closure"
         // - Function pointer types
-        type_name.contains("closure") || 
-        type_name.contains("{{closure}}") ||
-        type_name.starts_with("fn(") ||
-        type_name.contains("dyn Fn") ||
-        type_name.contains("impl Fn")
+        type_name.contains("closure")
+            || type_name.contains("{{closure}}")
+            || type_name.starts_with("fn(")
+            || type_name.contains("dyn Fn")
+            || type_name.contains("impl Fn")
     }
 
     /// Analyze a specific closure allocation
     fn analyze_closure_allocation(&self, allocation: &AllocationInfo) -> Option<DetectedClosure> {
         let type_name = allocation.type_name.as_ref()?;
-        
+
         Some(DetectedClosure {
             ptr: allocation.ptr,
             type_name: type_name.clone(),
@@ -211,9 +214,18 @@ impl ClosureAnalyzer {
     /// Calculate closure memory footprint
     fn calculate_closure_footprint(&self, captures: &[CaptureInfo]) -> ClosureFootprint {
         let total_size = captures.iter().map(|c| c.size).sum();
-        let by_value_count = captures.iter().filter(|c| c.mode == CaptureMode::ByValue).count();
-        let by_ref_count = captures.iter().filter(|c| c.mode == CaptureMode::ByReference).count();
-        let by_mut_ref_count = captures.iter().filter(|c| c.mode == CaptureMode::ByMutableReference).count();
+        let by_value_count = captures
+            .iter()
+            .filter(|c| c.mode == CaptureMode::ByValue)
+            .count();
+        let by_ref_count = captures
+            .iter()
+            .filter(|c| c.mode == CaptureMode::ByReference)
+            .count();
+        let by_mut_ref_count = captures
+            .iter()
+            .filter(|c| c.mode == CaptureMode::ByMutableReference)
+            .count();
 
         ClosureFootprint {
             total_size,
@@ -227,7 +239,8 @@ impl ClosureAnalyzer {
 
     /// Estimate heap usage from captures
     fn estimate_heap_usage(&self, captures: &[CaptureInfo]) -> usize {
-        captures.iter()
+        captures
+            .iter()
             .filter(|c| c.mode == CaptureMode::ByValue)
             .filter(|c| self.is_heap_allocated_type(&c.var_type))
             .map(|c| c.size)
@@ -236,12 +249,12 @@ impl ClosureAnalyzer {
 
     /// Check if a type is typically heap-allocated
     fn is_heap_allocated_type(&self, type_name: &str) -> bool {
-        type_name.contains("Vec") ||
-        type_name.contains("String") ||
-        type_name.contains("HashMap") ||
-        type_name.contains("Box") ||
-        type_name.contains("Arc") ||
-        type_name.contains("Rc")
+        type_name.contains("Vec")
+            || type_name.contains("String")
+            || type_name.contains("HashMap")
+            || type_name.contains("Box")
+            || type_name.contains("Arc")
+            || type_name.contains("Rc")
     }
 
     /// Analyze optimization potential for captures
@@ -261,42 +274,55 @@ impl ClosureAnalyzer {
         }
 
         // Check for unnecessary mutable captures
-        let mut_captures = captures.iter().filter(|c| c.mode == CaptureMode::ByMutableReference).count();
+        let mut_captures = captures
+            .iter()
+            .filter(|c| c.mode == CaptureMode::ByMutableReference)
+            .count();
         if mut_captures > captures.len() / 2 {
             suggestions.push("Consider if all mutable captures are necessary".to_string());
         }
 
         // Check for potential move optimizations
-        let heap_captures = captures.iter()
+        let heap_captures = captures
+            .iter()
             .filter(|c| c.mode == CaptureMode::ByValue && self.is_heap_allocated_type(&c.var_type))
             .count();
-        
+
         if heap_captures > 0 {
-            suggestions.push("Consider using move semantics for heap-allocated captures".to_string());
+            suggestions
+                .push("Consider using move semantics for heap-allocated captures".to_string());
         }
 
         OptimizationPotential {
-            level: if potential_savings > 256 { OptimizationLevel::High }
-                   else if potential_savings > 64 { OptimizationLevel::Medium }
-                   else if !suggestions.is_empty() { OptimizationLevel::Low }
-                   else { OptimizationLevel::None },
+            level: if potential_savings > 256 {
+                OptimizationLevel::High
+            } else if potential_savings > 64 {
+                OptimizationLevel::Medium
+            } else if !suggestions.is_empty() {
+                OptimizationLevel::Low
+            } else {
+                OptimizationLevel::None
+            },
             potential_savings,
             suggestions,
         }
     }
 
     /// Calculate capture statistics
-    fn calculate_capture_statistics(&self, closures: &HashMap<usize, ClosureInfo>) -> CaptureStatistics {
+    fn calculate_capture_statistics(
+        &self,
+        closures: &HashMap<usize, ClosureInfo>,
+    ) -> CaptureStatistics {
         let total_closures = closures.len();
         let total_captures = closures.values().map(|c| c.captures.len()).sum();
-        
+
         let mut by_mode = HashMap::new();
         let mut by_type = HashMap::new();
         let mut total_memory = 0;
 
         for closure in closures.values() {
             total_memory += closure.memory_footprint.total_size;
-            
+
             for capture in &closure.captures {
                 *by_mode.entry(capture.mode.clone()).or_insert(0) += 1;
                 *by_type.entry(capture.var_type.clone()).or_insert(0) += 1;
@@ -320,11 +346,15 @@ impl ClosureAnalyzer {
     }
 
     /// Generate optimization suggestions
-    fn generate_optimization_suggestions(&self, closures: &[DetectedClosure]) -> Vec<OptimizationSuggestion> {
+    fn generate_optimization_suggestions(
+        &self,
+        closures: &[DetectedClosure],
+    ) -> Vec<OptimizationSuggestion> {
         let mut suggestions = Vec::new();
 
         // Analyze memory usage patterns
-        let high_memory_closures = closures.iter()
+        let high_memory_closures = closures
+            .iter()
             .filter(|c| matches!(c.memory_impact, MemoryImpact::High | MemoryImpact::VeryHigh))
             .count();
 
@@ -332,14 +362,18 @@ impl ClosureAnalyzer {
             suggestions.push(OptimizationSuggestion {
                 category: OptimizationCategory::Memory,
                 priority: SuggestionPriority::High,
-                description: format!("Found {} closures with high memory usage", high_memory_closures),
+                description: format!(
+                    "Found {} closures with high memory usage",
+                    high_memory_closures
+                ),
                 recommendation: "Consider reducing capture size or using references".to_string(),
                 estimated_impact: "20-50% memory reduction".to_string(),
             });
         }
 
         // Analyze closure types
-        let fnonce_count = closures.iter()
+        let fnonce_count = closures
+            .iter()
             .filter(|c| c.closure_type == ClosureType::FnOnce)
             .count();
 
@@ -348,7 +382,8 @@ impl ClosureAnalyzer {
                 category: OptimizationCategory::Performance,
                 priority: SuggestionPriority::Medium,
                 description: "Many FnOnce closures detected".to_string(),
-                recommendation: "Consider if Fn or FnMut traits would be more appropriate".to_string(),
+                recommendation: "Consider if Fn or FnMut traits would be more appropriate"
+                    .to_string(),
                 estimated_impact: "Improved reusability".to_string(),
             });
         }
@@ -605,7 +640,8 @@ impl LifetimeGraph {
     }
 
     pub fn add_closure_relationships(&mut self, closure_ptr: usize, captures: &[CaptureInfo]) {
-        let relationships: Vec<LifetimeRelationship> = captures.iter()
+        let relationships: Vec<LifetimeRelationship> = captures
+            .iter()
             .map(|capture| LifetimeRelationship {
                 captured_var_ptr: capture.var_ptr,
                 capture_mode: capture.mode.clone(),
@@ -635,8 +671,15 @@ impl LifetimeGraph {
         // Analyze for potential lifetime issues
         for (closure_ptr, relationships) in &self.relationships {
             // Check for mixed capture modes
-            let has_value_captures = relationships.iter().any(|r| r.capture_mode == CaptureMode::ByValue);
-            let has_ref_captures = relationships.iter().any(|r| matches!(r.capture_mode, CaptureMode::ByReference | CaptureMode::ByMutableReference));
+            let has_value_captures = relationships
+                .iter()
+                .any(|r| r.capture_mode == CaptureMode::ByValue);
+            let has_ref_captures = relationships.iter().any(|r| {
+                matches!(
+                    r.capture_mode,
+                    CaptureMode::ByReference | CaptureMode::ByMutableReference
+                )
+            });
 
             if has_value_captures && has_ref_captures {
                 potential_issues.push(LifetimeIssue {
@@ -653,7 +696,11 @@ impl LifetimeGraph {
                 lifetime_patterns.push(LifetimePattern {
                     pattern_type: LifetimePatternType::ManyCaptures,
                     description: format!("Closure captures {} variables", relationships.len()),
-                    impact: if relationships.len() > 10 { PatternImpact::High } else { PatternImpact::Medium },
+                    impact: if relationships.len() > 10 {
+                        PatternImpact::High
+                    } else {
+                        PatternImpact::Medium
+                    },
                 });
             }
         }

@@ -13,10 +13,10 @@ pub mod unsafe_ffi_tracker;
 pub mod variable_relationships;
 
 // New analysis modules for ComplexTypeForRust.md features
-pub mod borrow_analysis;
-pub mod generic_analysis;
 pub mod async_analysis;
+pub mod borrow_analysis;
 pub mod closure_analysis;
+pub mod generic_analysis;
 pub mod lifecycle_analysis;
 
 // Re-export key analysis functions
@@ -30,11 +30,15 @@ pub use variable_relationships::{
 };
 
 // Re-export new analysis modules
+pub use async_analysis::{
+    get_global_async_analyzer, AsyncAnalyzer, AsyncPatternAnalysis, AsyncStatistics,
+};
 pub use borrow_analysis::{get_global_borrow_analyzer, BorrowAnalyzer, BorrowPatternAnalysis};
+pub use closure_analysis::{get_global_closure_analyzer, ClosureAnalysisReport, ClosureAnalyzer};
 pub use generic_analysis::{get_global_generic_analyzer, GenericAnalyzer, GenericStatistics};
-pub use async_analysis::{get_global_async_analyzer, AsyncAnalyzer, AsyncStatistics, AsyncPatternAnalysis};
-pub use closure_analysis::{get_global_closure_analyzer, ClosureAnalyzer, ClosureAnalysisReport};
-pub use lifecycle_analysis::{get_global_lifecycle_analyzer, LifecycleAnalyzer, LifecycleAnalysisReport};
+pub use lifecycle_analysis::{
+    get_global_lifecycle_analyzer, LifecycleAnalysisReport, LifecycleAnalyzer,
+};
 
 use crate::core::types::*;
 use std::sync::Arc;
@@ -100,7 +104,10 @@ impl AnalysisManager {
     }
 
     /// Analyze borrow checker integration and lifetime tracking
-    pub fn analyze_borrow_patterns(&self, _allocations: &[AllocationInfo]) -> BorrowPatternAnalysis {
+    pub fn analyze_borrow_patterns(
+        &self,
+        _allocations: &[AllocationInfo],
+    ) -> BorrowPatternAnalysis {
         let analyzer = get_global_borrow_analyzer();
         analyzer.analyze_borrow_patterns()
     }
@@ -118,13 +125,19 @@ impl AnalysisManager {
     }
 
     /// Analyze closure captures and lifetime relationships
-    pub fn analyze_closure_patterns(&self, allocations: &[AllocationInfo]) -> ClosureAnalysisReport {
+    pub fn analyze_closure_patterns(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> ClosureAnalysisReport {
         let analyzer = get_global_closure_analyzer();
         analyzer.analyze_closure_patterns(allocations)
     }
 
     /// Analyze lifecycle patterns including Drop trait and RAII
-    pub fn analyze_lifecycle_patterns(&self, _allocations: &[AllocationInfo]) -> LifecycleAnalysisReport {
+    pub fn analyze_lifecycle_patterns(
+        &self,
+        _allocations: &[AllocationInfo],
+    ) -> LifecycleAnalysisReport {
         let analyzer = get_global_lifecycle_analyzer();
         analyzer.get_lifecycle_report()
     }
@@ -141,7 +154,7 @@ impl AnalysisManager {
         let unsafe_stats = self.get_unsafe_ffi_stats();
         let circular_refs = self.analyze_circular_references(allocations);
         let advanced_types = self.analyze_advanced_types(allocations);
-        
+
         // New comprehensive analysis features
         let borrow_analysis = self.analyze_borrow_patterns(allocations);
         let generic_analysis = self.analyze_generic_types(allocations);

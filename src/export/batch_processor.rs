@@ -5,10 +5,10 @@
 //! parallel processing and performance monitoring.
 
 use crate::analysis::unsafe_ffi_tracker::{
-    EnhancedAllocationInfo, AllocationSource, RiskLevel, RiskAssessment, 
-    LibCHookInfo, MemoryPassport, BoundaryEvent
+    AllocationSource, BoundaryEvent, EnhancedAllocationInfo, LibCHookInfo, MemoryPassport,
+    RiskAssessment, RiskLevel,
 };
-use crate::core::types::{TrackingResult, TrackingError};
+use crate::core::types::{TrackingError, TrackingResult};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -382,7 +382,7 @@ impl BatchProcessor {
                 rayon::ThreadPoolBuilder::new()
                     .num_threads(max_threads)
                     .build()
-                    .expect("Failed to create thread pool")
+                    .expect("Failed to create thread pool"),
             )
         } else {
             None
@@ -419,7 +419,10 @@ impl BatchProcessor {
             metrics.total_items = allocations.len();
             metrics.parallel_processing_used = use_parallel;
             metrics.threads_used = if use_parallel {
-                self.thread_pool.as_ref().map(|p| p.current_num_threads()).unwrap_or_else(|| rayon::current_num_threads())
+                self.thread_pool
+                    .as_ref()
+                    .map(|p| p.current_num_threads())
+                    .unwrap_or_else(|| rayon::current_num_threads())
             } else {
                 1
             };
@@ -432,12 +435,12 @@ impl BatchProcessor {
         };
 
         let processing_time = start_time.elapsed();
-        
+
         // Calculate statistics
         let total_memory: usize = processed_allocations.iter().map(|a| a.size).sum();
         let risk_distribution = self.calculate_risk_distribution(&processed_allocations);
         let unsafe_blocks = self.analyze_unsafe_blocks(&processed_allocations);
-        
+
         let performance_metrics = UnsafePerformanceMetrics {
             processing_time_ms: processing_time.as_millis() as u64,
             memory_usage_bytes: self.estimate_memory_usage(allocations.len()),
@@ -452,8 +455,8 @@ impl BatchProcessor {
         // Update final metrics
         if let Ok(mut metrics) = self.metrics.lock() {
             metrics.total_processing_time_ms = processing_time.as_millis() as u64;
-            metrics.avg_batch_time_ms = processing_time.as_millis() as f64 / 
-                ((allocations.len() / self.config.batch_size).max(1)) as f64;
+            metrics.avg_batch_time_ms = processing_time.as_millis() as f64
+                / ((allocations.len() / self.config.batch_size).max(1)) as f64;
             metrics.throughput_items_per_sec = if processing_time.as_secs_f64() > 0.0 {
                 allocations.len() as f64 / processing_time.as_secs_f64()
             } else {
@@ -486,12 +489,12 @@ impl BatchProcessor {
         };
 
         let processing_time = start_time.elapsed();
-        
+
         // Calculate statistics
         let total_memory: usize = processed_allocations.iter().map(|a| a.size).sum();
         let libraries_involved = self.analyze_libraries(&processed_allocations);
         let hook_statistics = self.calculate_hook_statistics(&processed_allocations);
-        
+
         let performance_metrics = FFIPerformanceMetrics {
             processing_time_ms: processing_time.as_millis() as u64,
             memory_usage_bytes: self.estimate_memory_usage(allocations.len()),
@@ -519,7 +522,7 @@ impl BatchProcessor {
         allocations: &[EnhancedAllocationInfo],
     ) -> TrackingResult<ProcessedBoundaryData> {
         let start_time = Instant::now();
-        
+
         // Extract all boundary events from allocations
         let mut all_events = Vec::new();
         for allocation in allocations {
@@ -537,11 +540,11 @@ impl BatchProcessor {
         };
 
         let processing_time = start_time.elapsed();
-        
+
         // Calculate statistics
         let transfer_patterns = self.analyze_transfer_patterns(&processed_events);
         let risk_analysis = self.analyze_boundary_risks(&processed_events);
-        
+
         let performance_impact = BoundaryPerformanceImpact {
             total_processing_time_ms: processing_time.as_millis() as u64,
             avg_crossing_time_ns: if processed_events.is_empty() {
@@ -590,21 +593,21 @@ impl BatchProcessor {
         Ok(())
     }
 }
-impl
- BatchProcessor {
+impl BatchProcessor {
     /// Process unsafe allocations sequentially
     fn process_unsafe_sequential(
         &self,
         allocations: &[EnhancedAllocationInfo],
     ) -> TrackingResult<Vec<ProcessedUnsafeAllocation>> {
         let mut processed = Vec::with_capacity(allocations.len());
-        
+
         for allocation in allocations {
-            if let AllocationSource::UnsafeRust { 
-                unsafe_block_location, 
-                call_stack, 
-                risk_assessment 
-            } = &allocation.source {
+            if let AllocationSource::UnsafeRust {
+                unsafe_block_location,
+                call_stack,
+                risk_assessment,
+            } = &allocation.source
+            {
                 processed.push(ProcessedUnsafeAllocation {
                     ptr: format!("0x{:x}", allocation.base.ptr),
                     size: allocation.base.size,
@@ -615,21 +618,26 @@ impl
                     lifetime_info: LifetimeInfo {
                         allocated_at: allocation.base.timestamp_alloc as u128,
                         deallocated_at: allocation.base.timestamp_dealloc.map(|t| t as u128),
-                        lifetime_ns: allocation.base.timestamp_dealloc.map(|dealloc| 
-                            (dealloc - allocation.base.timestamp_alloc) * 1_000_000
-                        ),
-                        scope: allocation.base.scope_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                        lifetime_ns: allocation
+                            .base
+                            .timestamp_dealloc
+                            .map(|dealloc| (dealloc - allocation.base.timestamp_alloc) * 1_000_000),
+                        scope: allocation
+                            .base
+                            .scope_name
+                            .clone()
+                            .unwrap_or_else(|| "unknown".to_string()),
                     },
                     memory_layout: Some(MemoryLayoutInfo {
                         total_size: allocation.base.size,
-                        alignment: 8, // Default alignment
-                        padding_bytes: 0, // Simplified
+                        alignment: 8,          // Default alignment
+                        padding_bytes: 0,      // Simplified
                         efficiency_score: 0.9, // Estimated
                     }),
                 });
             }
         }
-        
+
         Ok(processed)
     }
 
@@ -663,14 +671,15 @@ impl
         allocations: &[EnhancedAllocationInfo],
     ) -> TrackingResult<Vec<ProcessedFFIAllocation>> {
         let mut processed = Vec::with_capacity(allocations.len());
-        
+
         for allocation in allocations {
-            if let AllocationSource::FfiC { 
-                library_name, 
-                function_name, 
-                call_stack, 
-                libc_hook_info 
-            } = &allocation.source {
+            if let AllocationSource::FfiC {
+                library_name,
+                function_name,
+                call_stack,
+                libc_hook_info,
+            } = &allocation.source
+            {
                 processed.push(ProcessedFFIAllocation {
                     ptr: format!("0x{:x}", allocation.base.ptr),
                     size: allocation.base.size,
@@ -696,7 +705,7 @@ impl
                 });
             }
         }
-        
+
         Ok(processed)
     }
 
@@ -730,7 +739,7 @@ impl
         events: &[(&EnhancedAllocationInfo, &BoundaryEvent)],
     ) -> TrackingResult<Vec<ProcessedBoundaryEvent>> {
         let mut processed = Vec::with_capacity(events.len());
-        
+
         for (allocation, event) in events {
             processed.push(ProcessedBoundaryEvent {
                 event_id: format!("boundary_{:x}_{}", allocation.base.ptr, event.timestamp),
@@ -750,7 +759,7 @@ impl
                 risk_factors: vec!["Cross-boundary transfer".to_string()],
             });
         }
-        
+
         Ok(processed)
     }
 
@@ -779,7 +788,10 @@ impl
     }
 
     /// Calculate risk distribution from processed allocations
-    fn calculate_risk_distribution(&self, allocations: &[ProcessedUnsafeAllocation]) -> RiskDistribution {
+    fn calculate_risk_distribution(
+        &self,
+        allocations: &[ProcessedUnsafeAllocation],
+    ) -> RiskDistribution {
         let mut low_risk = 0;
         let mut medium_risk = 0;
         let mut high_risk = 0;
@@ -793,7 +805,7 @@ impl
                 RiskLevel::High => high_risk += 1,
                 RiskLevel::Critical => critical_risk += 1,
             }
-            
+
             // Calculate risk score based on level
             let risk_score = match allocation.risk_assessment.risk_level {
                 RiskLevel::Low => 2.0,
@@ -820,29 +832,36 @@ impl
     }
 
     /// Analyze unsafe blocks from processed allocations
-    fn analyze_unsafe_blocks(&self, allocations: &[ProcessedUnsafeAllocation]) -> Vec<UnsafeBlockInfo> {
+    fn analyze_unsafe_blocks(
+        &self,
+        allocations: &[ProcessedUnsafeAllocation],
+    ) -> Vec<UnsafeBlockInfo> {
         let mut blocks: HashMap<String, UnsafeBlockInfo> = HashMap::new();
 
         for allocation in allocations {
-            let entry = blocks.entry(allocation.unsafe_block_location.clone()).or_insert_with(|| {
-                UnsafeBlockInfo {
+            let entry = blocks
+                .entry(allocation.unsafe_block_location.clone())
+                .or_insert_with(|| UnsafeBlockInfo {
                     location: allocation.unsafe_block_location.clone(),
                     allocation_count: 0,
                     total_memory: 0,
                     risk_level: RiskLevel::Low,
                     functions_called: Vec::new(),
-                }
-            });
+                });
 
             entry.allocation_count += 1;
             entry.total_memory += allocation.size;
-            
+
             // Update risk level to highest found
             if matches!(allocation.risk_assessment.risk_level, RiskLevel::Critical) {
                 entry.risk_level = RiskLevel::Critical;
-            } else if matches!(allocation.risk_assessment.risk_level, RiskLevel::High) && !matches!(entry.risk_level, RiskLevel::Critical) {
+            } else if matches!(allocation.risk_assessment.risk_level, RiskLevel::High)
+                && !matches!(entry.risk_level, RiskLevel::Critical)
+            {
                 entry.risk_level = RiskLevel::High;
-            } else if matches!(allocation.risk_assessment.risk_level, RiskLevel::Medium) && matches!(entry.risk_level, RiskLevel::Low) {
+            } else if matches!(allocation.risk_assessment.risk_level, RiskLevel::Medium)
+                && matches!(entry.risk_level, RiskLevel::Low)
+            {
                 entry.risk_level = RiskLevel::Medium;
             }
 
@@ -862,19 +881,19 @@ impl
         let mut libraries: HashMap<String, LibraryInfo> = HashMap::new();
 
         for allocation in allocations {
-            let entry = libraries.entry(allocation.library_name.clone()).or_insert_with(|| {
-                LibraryInfo {
+            let entry = libraries
+                .entry(allocation.library_name.clone())
+                .or_insert_with(|| LibraryInfo {
                     name: allocation.library_name.clone(),
                     allocation_count: 0,
                     total_memory: 0,
                     functions_used: Vec::new(),
                     avg_allocation_size: 0,
-                }
-            });
+                });
 
             entry.allocation_count += 1;
             entry.total_memory += allocation.size;
-            
+
             if !entry.functions_used.contains(&allocation.function_name) {
                 entry.functions_used.push(allocation.function_name.clone());
             }
@@ -901,7 +920,7 @@ impl
         for allocation in allocations {
             let method_name = format!("{:?}", allocation.hook_info.hook_method);
             *methods_used.entry(method_name).or_insert(0) += 1;
-            
+
             if let Some(overhead) = allocation.hook_info.hook_overhead_ns {
                 total_overhead += overhead as f64;
                 overhead_count += 1;
@@ -930,14 +949,18 @@ impl
         let mut ffi_to_rust = 0;
 
         for event in events {
-            *frequency_by_type.entry(event.event_type.clone()).or_insert(0) += 1;
-            
+            *frequency_by_type
+                .entry(event.event_type.clone())
+                .or_insert(0) += 1;
+
             if event.from_context.name.contains("Rust") && event.to_context.name.contains("FFI") {
                 rust_to_ffi += 1;
-            } else if event.from_context.name.contains("FFI") && event.to_context.name.contains("Rust") {
+            } else if event.from_context.name.contains("FFI")
+                && event.to_context.name.contains("Rust")
+            {
                 ffi_to_rust += 1;
             }
-            
+
             // Estimate transfer size (simplified)
             total_size += 64; // Average estimated size
         }
@@ -966,9 +989,7 @@ impl
 
     /// Analyze boundary risks from processed events
     fn analyze_boundary_risks(&self, events: &[ProcessedBoundaryEvent]) -> BoundaryRiskAnalysis {
-        let high_risk_transfers = events.iter()
-            .filter(|e| e.risk_factors.len() > 1)
-            .count();
+        let high_risk_transfers = events.iter().filter(|e| e.risk_factors.len() > 1).count();
 
         let overall_risk_score = if events.is_empty() {
             0.0

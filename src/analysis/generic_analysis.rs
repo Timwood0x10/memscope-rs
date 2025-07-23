@@ -5,7 +5,6 @@
 //! - Generic constraint analysis  
 //! - Generic instantiation tracking
 
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -42,7 +41,12 @@ impl GenericAnalyzer {
     }
 
     /// Track a generic type instantiation
-    pub fn track_generic_instantiation(&self, base_type: &str, type_params: Vec<String>, ptr: usize) {
+    pub fn track_generic_instantiation(
+        &self,
+        base_type: &str,
+        type_params: Vec<String>,
+        ptr: usize,
+    ) {
         let event = InstantiationEvent {
             base_type: base_type.to_string(),
             type_parameters: type_params.clone(),
@@ -65,7 +69,10 @@ impl GenericAnalyzer {
         };
 
         if let Ok(mut instances) = self.generic_instances.lock() {
-            instances.entry(base_type.to_string()).or_insert_with(Vec::new).push(instance);
+            instances
+                .entry(base_type.to_string())
+                .or_insert_with(Vec::new)
+                .push(instance);
         }
     }
 
@@ -75,7 +82,11 @@ impl GenericAnalyzer {
     }
 
     /// Check for constraint violations
-    pub fn check_constraint_violations(&self, type_name: &str, actual_params: &[String]) -> Vec<ConstraintViolation> {
+    pub fn check_constraint_violations(
+        &self,
+        type_name: &str,
+        actual_params: &[String],
+    ) -> Vec<ConstraintViolation> {
         let constraints = self.analyze_constraints(type_name);
         let mut violations = Vec::new();
 
@@ -126,7 +137,11 @@ impl GenericAnalyzer {
     }
 
     /// Validate a constraint against actual type parameters
-    fn validate_constraint(&self, constraint: &GenericConstraint, actual_params: &[String]) -> bool {
+    fn validate_constraint(
+        &self,
+        constraint: &GenericConstraint,
+        actual_params: &[String],
+    ) -> bool {
         match &constraint.constraint_type {
             ConstraintType::Trait(trait_name) => {
                 // In a real implementation, this would check if the type implements the trait
@@ -139,7 +154,9 @@ impl GenericAnalyzer {
             }
             ConstraintType::Sized => {
                 // Most types are Sized by default
-                !actual_params.iter().any(|t| t.contains("dyn ") || t.contains("?Sized"))
+                !actual_params
+                    .iter()
+                    .any(|t| t.contains("dyn ") || t.contains("?Sized"))
             }
             ConstraintType::Send => {
                 // Check if types are Send
@@ -166,12 +183,16 @@ impl GenericAnalyzer {
 
     /// Check if type is Send (simplified)
     fn type_is_send(&self, types: &[String]) -> bool {
-        !types.iter().any(|t| t.contains("Rc<") || t.contains("RefCell<"))
+        !types
+            .iter()
+            .any(|t| t.contains("Rc<") || t.contains("RefCell<"))
     }
 
     /// Check if type is Sync (simplified)
     fn type_is_sync(&self, types: &[String]) -> bool {
-        !types.iter().any(|t| t.contains("Cell<") || t.contains("RefCell<"))
+        !types
+            .iter()
+            .any(|t| t.contains("Cell<") || t.contains("RefCell<"))
     }
 
     /// Simplified trait implementation checks
@@ -333,18 +354,18 @@ pub fn parse_generic_parameters(type_name: &str) -> (String, Vec<String>) {
         if let Some(end) = type_name.rfind('>') {
             let base_type = type_name[..start].to_string();
             let params_str = &type_name[start + 1..end];
-            
+
             // Simple parameter parsing - in reality this would need proper parsing
             let params: Vec<String> = params_str
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-            
+
             return (base_type, params);
         }
     }
-    
+
     (type_name.to_string(), Vec::new())
 }
 
@@ -371,9 +392,13 @@ mod tests {
     fn test_constraint_extraction() {
         let constraints = extract_constraints("Vec<T>");
         assert!(!constraints.is_empty());
-        assert!(constraints.iter().any(|c| matches!(c.constraint_type, ConstraintType::Sized)));
+        assert!(constraints
+            .iter()
+            .any(|c| matches!(c.constraint_type, ConstraintType::Sized)));
 
         let constraints = extract_constraints("Mutex<T>");
-        assert!(constraints.iter().any(|c| matches!(c.constraint_type, ConstraintType::Send)));
+        assert!(constraints
+            .iter()
+            .any(|c| matches!(c.constraint_type, ConstraintType::Send)));
     }
 }

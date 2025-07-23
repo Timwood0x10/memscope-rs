@@ -36,7 +36,7 @@ pub use export::*;
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator;
-pub use core::tracker::{get_global_tracker, MemoryTracker, ExportOptions};
+pub use core::tracker::{get_global_tracker, ExportOptions, MemoryTracker};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use export::visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
@@ -961,10 +961,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
 
         // 2. Associate variable with current scope
         let scope_tracker = crate::core::scope_tracker::get_global_scope_tracker();
-        let _ = scope_tracker.associate_variable(
-            var_name.to_string(),
-            var.get_size_estimate(),
-        );
+        let _ = scope_tracker.associate_variable(var_name.to_string(), var.get_size_estimate());
 
         // 3. Original tracking logic remains unchanged
         tracing::debug!(
@@ -985,24 +982,27 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
 impl MemoryTracker {
     /// Export tracking data with complex type optimization (separate files for better performance)
     pub fn export_to_json_optimized<P: AsRef<std::path::Path>>(
-        &self, 
-        path: P
+        &self,
+        path: P,
     ) -> TrackingResult<crate::export::complex_type_export::ComplexTypeExportResult> {
-        use crate::export::complex_type_export::{export_comprehensive_analysis_optimized, ComplexTypeExportConfig};
-        
+        use crate::export::complex_type_export::{
+            export_comprehensive_analysis_optimized, ComplexTypeExportConfig,
+        };
+
         let path = path.as_ref();
         println!("🚀 Using optimized complex type export for maximum performance...");
-        
+
         let start_time = std::time::Instant::now();
-        
+
         // Get all necessary data
         let allocations = self.get_active_allocations()?;
         let stats = self.get_stats()?;
-        
+
         // Perform comprehensive analysis
         let analysis_manager = crate::analysis::AnalysisManager::new();
-        let comprehensive_report = analysis_manager.perform_comprehensive_analysis(&allocations, &stats);
-        
+        let comprehensive_report =
+            analysis_manager.perform_comprehensive_analysis(&allocations, &stats);
+
         // Use optimized export configuration
         let config = ComplexTypeExportConfig {
             separate_complex_types: true,
@@ -1010,7 +1010,7 @@ impl MemoryTracker {
             chunk_size: 1000,
             pretty_format: false, // Disable for performance
         };
-        
+
         // Export with complex type separation
         let export_result = export_comprehensive_analysis_optimized(
             &comprehensive_report,
@@ -1018,19 +1018,29 @@ impl MemoryTracker {
             path,
             &config,
         )?;
-        
+
         let export_time = start_time.elapsed();
-        
+
         // Performance reporting
-        println!("✅ Optimized export completed in {:.2}ms", export_time.as_millis());
-        println!("📊 Performance improvement: {:.1}%", export_result.export_stats.performance_improvement);
-        println!("📁 Main file: {} ({} bytes)", 
-                 export_result.main_file, 
-                 export_result.export_stats.main_file_size);
-        
+        println!(
+            "✅ Optimized export completed in {:.2}ms",
+            export_time.as_millis()
+        );
+        println!(
+            "📊 Performance improvement: {:.1}%",
+            export_result.export_stats.performance_improvement
+        );
+        println!(
+            "📁 Main file: {} ({} bytes)",
+            export_result.main_file, export_result.export_stats.main_file_size
+        );
+
         if export_result.export_stats.complex_files_size > 0 {
-            println!("📁 Complex type files: {} bytes total", export_result.export_stats.complex_files_size);
-            
+            println!(
+                "📁 Complex type files: {} bytes total",
+                export_result.export_stats.complex_files_size
+            );
+
             if let Some(ref file) = export_result.complex_types_file {
                 println!("   - Complex types: {}", file);
             }
@@ -1047,7 +1057,7 @@ impl MemoryTracker {
                 println!("   - Lifecycle analysis: {}", file);
             }
         }
-        
+
         Ok(export_result)
     }
 }

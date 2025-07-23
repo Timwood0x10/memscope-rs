@@ -264,9 +264,15 @@ impl VariableRegistry {
             "test_function".to_string()
         } else if var_name.starts_with("fn_") {
             "user_function".to_string()
-        } else if var_name.contains("_vec") || var_name.contains("_string") || var_name.contains("_data") {
+        } else if var_name.contains("_vec")
+            || var_name.contains("_string")
+            || var_name.contains("_data")
+        {
             "user_scope".to_string()
-        } else if var_name.starts_with("boxed_") || var_name.starts_with("rc_") || var_name.starts_with("arc_") {
+        } else if var_name.starts_with("boxed_")
+            || var_name.starts_with("rc_")
+            || var_name.starts_with("arc_")
+        {
             "user_scope".to_string()
         } else {
             // For user variables, default to user_scope instead of global
@@ -280,18 +286,18 @@ impl VariableRegistry {
         if let Some(scope_name) = Self::get_scope_from_tracker() {
             return Some(scope_name);
         }
-        
+
         // Fallback: Try to infer scope from call stack
         Self::infer_scope_from_call_stack()
     }
-    
+
     /// Get scope from the scope tracker
     fn get_scope_from_tracker() -> Option<String> {
         use crate::core::scope_tracker::get_global_scope_tracker;
-        
+
         let scope_tracker = get_global_scope_tracker();
         let thread_id = format!("{:?}", std::thread::current().id());
-        
+
         // Try to get the current scope from the scope stack
         if let Ok(scope_stack) = scope_tracker.scope_stack.try_lock() {
             if let Some(thread_stack) = scope_stack.get(&thread_id) {
@@ -305,16 +311,16 @@ impl VariableRegistry {
                 }
             }
         }
-        
+
         None
     }
-    
+
     /// Infer scope from call stack information
     fn infer_scope_from_call_stack() -> Option<String> {
         // Try to get function name from backtrace
         let backtrace = std::backtrace::Backtrace::capture();
         let backtrace_str = format!("{}", backtrace);
-        
+
         // Look for function names in the backtrace
         for line in backtrace_str.lines() {
             if line.contains("::main") {
@@ -328,11 +334,11 @@ impl VariableRegistry {
                 return Some(format!("function_{}", func_name));
             }
         }
-        
+
         // If we can't determine the scope, use a more descriptive default
         Some("user_code_scope".to_string())
     }
-    
+
     /// Extract function name from backtrace line
     fn extract_function_name_from_backtrace(line: &str) -> Option<String> {
         // Try to extract function names from common patterns
@@ -340,11 +346,12 @@ impl VariableRegistry {
             if let Some(end) = line[start + 2..].find("::") {
                 let func_name = &line[start + 2..start + 2 + end];
                 // Filter out common system functions
-                if !func_name.starts_with("_") 
-                    && !func_name.contains("alloc") 
-                    && !func_name.contains("std") 
+                if !func_name.starts_with("_")
+                    && !func_name.contains("alloc")
+                    && !func_name.contains("std")
                     && !func_name.contains("core")
-                    && func_name.len() > 2 {
+                    && func_name.len() > 2
+                {
                     return Some(func_name.to_string());
                 }
             }

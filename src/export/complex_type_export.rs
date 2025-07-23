@@ -134,7 +134,8 @@ pub fn export_comprehensive_analysis_optimized<P: AsRef<Path>>(
 ) -> TrackingResult<ComplexTypeExportResult> {
     let start_time = std::time::Instant::now();
     let base_path = base_path.as_ref();
-    let base_name = base_path.file_stem()
+    let base_name = base_path
+        .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("memory_analysis");
 
@@ -164,44 +165,51 @@ pub fn export_comprehensive_analysis_optimized<P: AsRef<Path>>(
     if config.separate_complex_types {
         // 2. Export complex type analysis
         if should_export_complex_types(&report.advanced_type_analysis) {
-            let complex_file_path = base_path.with_file_name(format!("{}_complex_types.json", base_name));
+            let complex_file_path =
+                base_path.with_file_name(format!("{}_complex_types.json", base_name));
             export_json_data(&report.advanced_type_analysis, &complex_file_path, config)?;
             result.complex_types_file = Some(complex_file_path.to_string_lossy().to_string());
         }
 
         // 3. Export borrow analysis
         if should_export_borrow_analysis(&report.borrow_analysis) {
-            let borrow_file_path = base_path.with_file_name(format!("{}_borrow_analysis.json", base_name));
+            let borrow_file_path =
+                base_path.with_file_name(format!("{}_borrow_analysis.json", base_name));
             export_json_data(&report.borrow_analysis, &borrow_file_path, config)?;
             result.borrow_analysis_file = Some(borrow_file_path.to_string_lossy().to_string());
         }
 
         // 4. Export generic analysis
         if should_export_generic_analysis(&report.generic_analysis) {
-            let generic_file_path = base_path.with_file_name(format!("{}_generic_analysis.json", base_name));
+            let generic_file_path =
+                base_path.with_file_name(format!("{}_generic_analysis.json", base_name));
             export_json_data(&report.generic_analysis, &generic_file_path, config)?;
             result.generic_analysis_file = Some(generic_file_path.to_string_lossy().to_string());
         }
 
         // 5. Export async analysis
         if should_export_async_analysis(&report.async_analysis) {
-            let async_file_path = base_path.with_file_name(format!("{}_async_analysis.json", base_name));
+            let async_file_path =
+                base_path.with_file_name(format!("{}_async_analysis.json", base_name));
             export_json_data(&report.async_analysis, &async_file_path, config)?;
             result.async_analysis_file = Some(async_file_path.to_string_lossy().to_string());
         }
 
         // 6. Export closure analysis
         if should_export_closure_analysis(&report.closure_analysis) {
-            let closure_file_path = base_path.with_file_name(format!("{}_closure_analysis.json", base_name));
+            let closure_file_path =
+                base_path.with_file_name(format!("{}_closure_analysis.json", base_name));
             export_json_data(&report.closure_analysis, &closure_file_path, config)?;
             result.closure_analysis_file = Some(closure_file_path.to_string_lossy().to_string());
         }
 
         // 7. Export lifecycle analysis
         if should_export_lifecycle_analysis(&report.lifecycle_analysis) {
-            let lifecycle_file_path = base_path.with_file_name(format!("{}_lifecycle_analysis.json", base_name));
+            let lifecycle_file_path =
+                base_path.with_file_name(format!("{}_lifecycle_analysis.json", base_name));
             export_json_data(&report.lifecycle_analysis, &lifecycle_file_path, config)?;
-            result.lifecycle_analysis_file = Some(lifecycle_file_path.to_string_lossy().to_string());
+            result.lifecycle_analysis_file =
+                Some(lifecycle_file_path.to_string_lossy().to_string());
         }
     }
 
@@ -212,10 +220,14 @@ pub fn export_comprehensive_analysis_optimized<P: AsRef<Path>>(
     result.export_stats.complex_files_size = calculate_complex_files_size(&result);
     result.export_stats.performance_improvement = calculate_performance_improvement(&result);
 
-    println!("✅ Complex type export completed in {}ms", result.export_stats.total_time_ms);
-    println!("📊 Main file: {} bytes, Complex files: {} bytes", 
-             result.export_stats.main_file_size, 
-             result.export_stats.complex_files_size);
+    println!(
+        "✅ Complex type export completed in {}ms",
+        result.export_stats.total_time_ms
+    );
+    println!(
+        "📊 Main file: {} bytes, Complex files: {} bytes",
+        result.export_stats.main_file_size, result.export_stats.complex_files_size
+    );
 
     Ok(result)
 }
@@ -229,7 +241,10 @@ fn create_lightweight_export_data(
     // Create simplified allocation summary
     let allocation_summary = AllocationSummary {
         total_allocations: allocations.len(),
-        active_allocations: allocations.iter().filter(|a| a.timestamp_dealloc.is_none()).count(),
+        active_allocations: allocations
+            .iter()
+            .filter(|a| a.timestamp_dealloc.is_none())
+            .count(),
         total_memory: allocations.iter().map(|a| a.size).sum(),
         peak_memory: report.memory_stats.peak_memory,
         allocation_count_by_size: create_size_distribution(allocations),
@@ -280,7 +295,8 @@ fn export_json_data<T: Serialize>(
         serde_json::to_string_pretty(data)
     } else {
         serde_json::to_string(data)
-    }.map_err(|e| crate::core::types::TrackingError::SerializationError(e.to_string()))?;
+    }
+    .map_err(|e| crate::core::types::TrackingError::SerializationError(e.to_string()))?;
 
     std::fs::write(path, json_string)
         .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
@@ -289,7 +305,9 @@ fn export_json_data<T: Serialize>(
 }
 
 // Helper functions for determining what to export
-fn should_export_complex_types(analysis: &crate::advanced_types::AdvancedTypeAnalysisReport) -> bool {
+fn should_export_complex_types(
+    analysis: &crate::advanced_types::AdvancedTypeAnalysisReport,
+) -> bool {
     analysis.statistics.total_advanced_types > 0
 }
 
@@ -319,7 +337,7 @@ fn create_size_distribution(allocations: &[AllocationInfo]) -> HashMap<String, u
     for alloc in allocations {
         let size_category = match alloc.size {
             0..=64 => "small",
-            65..=1024 => "medium", 
+            65..=1024 => "medium",
             1025..=65536 => "large",
             _ => "huge",
         };
@@ -330,7 +348,7 @@ fn create_size_distribution(allocations: &[AllocationInfo]) -> HashMap<String, u
 
 fn create_simple_type_usage(allocations: &[AllocationInfo]) -> Vec<SimpleTypeUsage> {
     let mut type_usage: HashMap<String, (usize, usize)> = HashMap::new();
-    
+
     for alloc in allocations {
         let type_name = alloc.type_name.as_deref().unwrap_or("Unknown").to_string();
         let entry = type_usage.entry(type_name.clone()).or_insert((0, 0));
@@ -338,14 +356,13 @@ fn create_simple_type_usage(allocations: &[AllocationInfo]) -> Vec<SimpleTypeUsa
         entry.1 += 1;
     }
 
-    type_usage.into_iter()
-        .map(|(type_name, (total_size, count))| {
-            SimpleTypeUsage {
-                type_name: type_name.clone(),
-                total_size,
-                allocation_count: count,
-                category: categorize_simple_type(&type_name),
-            }
+    type_usage
+        .into_iter()
+        .map(|(type_name, (total_size, count))| SimpleTypeUsage {
+            type_name: type_name.clone(),
+            total_size,
+            allocation_count: count,
+            category: categorize_simple_type(&type_name),
         })
         .collect()
 }
@@ -368,7 +385,7 @@ fn get_file_size(path: &Path) -> Option<u64> {
 
 fn calculate_complex_files_size(result: &ComplexTypeExportResult) -> u64 {
     let mut total = 0;
-    
+
     if let Some(ref path) = result.complex_types_file {
         total += get_file_size(Path::new(path)).unwrap_or(0);
     }
@@ -387,7 +404,7 @@ fn calculate_complex_files_size(result: &ComplexTypeExportResult) -> u64 {
     if let Some(ref path) = result.lifecycle_analysis_file {
         total += get_file_size(Path::new(path)).unwrap_or(0);
     }
-    
+
     total
 }
 
