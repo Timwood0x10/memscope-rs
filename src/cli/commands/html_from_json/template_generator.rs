@@ -536,6 +536,337 @@ impl TemplateGenerator {
     /// Add enhanced JavaScript features
     fn add_enhanced_js_features(&self, js: &str) -> Result<String, TemplateError> {
         let enhanced_js = r#"
+// 🎯 MemScope可视化器 - 清理后的统一实现
+class MemScopeVisualizer {
+    constructor(data) {
+        this.data = data;
+        console.log('📊 MemScope初始化，数据:', data);
+        this.init();
+    }
+
+    init() {
+        this.setupTabNavigation();
+        this.renderOverview();
+        this.updateHeaderStats();
+    }
+
+    setupTabNavigation() {
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const targetTab = button.getAttribute('data-tab');
+                
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.setAttribute('aria-selected', 'false');
+                });
+                button.classList.add('active');
+                button.setAttribute('aria-selected', 'true');
+                
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === targetTab) {
+                        content.classList.add('active');
+                        this.renderTabContent(targetTab);
+                    }
+                });
+            });
+        });
+    }
+
+    renderTabContent(tabName) {
+        switch (tabName) {
+            case 'overview': this.renderOverview(); break;
+            case 'memory-analysis': this.renderMemoryAnalysis(); break;
+            case 'lifecycle': this.renderLifecycleTimeline(); break;
+            case 'unsafe-ffi': this.renderUnsafeFFI(); break;
+            case 'performance': this.renderPerformance(); break;
+            case 'security': this.renderSecurity(); break;
+            case 'complex-types': this.renderComplexTypes(); break;
+            case 'variables': this.renderVariableRelationships(); break;
+            case 'interactive': this.renderInteractiveExplorer(); break;
+        }
+    }
+
+    updateHeaderStats() {
+        const stats = this.data.stats || {};
+        const totalMemoryEl = document.getElementById('totalMemory');
+        const activeAllocsEl = document.getElementById('activeAllocs');
+        const peakMemoryEl = document.getElementById('peakMemory');
+        
+        if (totalMemoryEl) totalMemoryEl.textContent = this.formatBytes(stats.active_memory || 0);
+        if (activeAllocsEl) activeAllocsEl.textContent = `${stats.active_allocations || 0} Active`;
+        if (peakMemoryEl) peakMemoryEl.textContent = this.formatBytes(stats.peak_memory || 0);
+    }
+
+    renderOverview() {
+        this.renderMemoryStats();
+        this.renderTypeDistribution();
+        this.renderRecentAllocations();
+        this.renderPerformanceInsights();
+    }
+
+    renderMemoryStats() {
+        const element = document.getElementById('memoryStats');
+        if (!element) return;
+        
+        const stats = this.data.stats || {};
+        element.innerHTML = `
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-label">活跃内存:</span>
+                    <span class="stat-value">${this.formatBytes(stats.active_memory || 0)}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">峰值内存:</span>
+                    <span class="stat-value">${this.formatBytes(stats.peak_memory || 0)}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">总分配:</span>
+                    <span class="stat-value">${(stats.total_allocations || 0).toLocaleString()}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">活跃分配:</span>
+                    <span class="stat-value">${(stats.active_allocations || 0).toLocaleString()}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    renderTypeDistribution() {
+        const element = document.getElementById('typeDistribution');
+        if (!element) return;
+        
+        // 兼容test_data中的字段名
+        const allocations = this.data.allocations || [];
+        const typeMap = {};
+        
+        allocations.forEach(alloc => {
+            const typeName = alloc.type_name || alloc.type || '未知类型';
+            if (!typeMap[typeName]) {
+                typeMap[typeName] = { count: 0, totalSize: 0 };
+            }
+            typeMap[typeName].count++;
+            typeMap[typeName].totalSize += alloc.size || 0;
+        });
+
+        const sortedTypes = Object.entries(typeMap)
+            .sort((a, b) => b[1].totalSize - a[1].totalSize)
+            .slice(0, 10);
+
+        if (sortedTypes.length === 0) {
+            element.innerHTML = '<p>暂无类型分布数据</p>';
+            return;
+        }
+
+        const html = sortedTypes.map(([typeName, data]) => `
+            <div class="type-item">
+                <span class="type-name">${typeName}</span>
+                <span class="type-size">${this.formatBytes(data.totalSize)}</span>
+                <span class="type-count">${data.count} 个</span>
+            </div>
+        `).join('');
+
+        element.innerHTML = `<div class="type-list">${html}</div>`;
+    }
+
+    renderRecentAllocations() {
+        const element = document.getElementById('recentAllocations');
+        if (!element) return;
+        
+        const allocations = this.data.allocations || [];
+        if (allocations.length === 0) {
+            element.innerHTML = '<p>暂无分配数据</p>';
+            return;
+        }
+
+        const recent = allocations
+            .sort((a, b) => (b.timestamp || b.timestamp_alloc || 0) - (a.timestamp || a.timestamp_alloc || 0))
+            .slice(0, 5);
+
+        const html = recent.map(alloc => `
+            <div class="allocation-item">
+                <span class="alloc-var">${alloc.var_name || alloc.variable || '未知变量'}</span>
+                <span class="alloc-type">${alloc.type_name || alloc.type || '未知类型'}</span>
+                <span class="alloc-size">${this.formatBytes(alloc.size || 0)}</span>
+            </div>
+        `).join('');
+
+        element.innerHTML = `<div class="allocation-list">${html}</div>`;
+    }
+
+    renderPerformanceInsights() {
+        const element = document.getElementById('performanceInsights');
+        if (!element) return;
+        
+        const stats = this.data.stats || {};
+        const allocations = this.data.allocations || [];
+        
+        element.innerHTML = `
+            <div class="insights-grid">
+                <div class="insight-item">
+                    <span class="insight-label">内存效率:</span>
+                    <span class="insight-value">${(stats.memory_efficiency || 85).toFixed(1)}%</span>
+                </div>
+                <div class="insight-item">
+                    <span class="insight-label">分配数量:</span>
+                    <span class="insight-value">${allocations.length} 项</span>
+                </div>
+                <div class="insight-item">
+                    <span class="insight-label">平均大小:</span>
+                    <span class="insight-value">${this.formatBytes(allocations.length > 0 ? (stats.total_allocated || stats.active_memory || 0) / allocations.length : 0)}</span>
+                </div>
+                <div class="insight-item">
+                    <span class="insight-label">数据状态:</span>
+                    <span class="insight-value">✅ 已加载</span>
+                </div>
+            </div>
+        `;
+    }
+
+    renderMemoryAnalysis() {
+        const element = document.getElementById('memoryAnalysisContent');
+        if (element) {
+            const allocations = this.data.allocations || [];
+            element.innerHTML = `
+                <h2>📊 内存分析</h2>
+                <p>已加载 ${allocations.length} 个内存分配记录</p>
+                <div class="analysis-summary">
+                    <p>• 总内存使用: ${this.formatBytes(this.data.stats?.active_memory || 0)}</p>
+                    <p>• 峰值内存: ${this.formatBytes(this.data.stats?.peak_memory || 0)}</p>
+                </div>
+            `;
+        }
+    }
+
+    renderLifecycleTimeline() {
+        const element = document.getElementById('lifecycleContent');
+        if (element) {
+            const lifecycle = this.data.lifecycle_events || [];
+            element.innerHTML = `
+                <h2>⏱️ 生命周期时间线</h2>
+                <p>检测到 ${lifecycle.length} 个生命周期事件</p>
+            `;
+        }
+    }
+
+    renderUnsafeFFI() {
+        const element = document.getElementById('unsafeFfiContent');
+        if (element) {
+            const unsafeData = this.data.unsafe_ffi || {};
+            element.innerHTML = `
+                <h2>⚠️ Unsafe/FFI 分析</h2>
+                <p>Unsafe分配: ${unsafeData.allocations?.length || 0} 个</p>
+                <p>安全违规: ${unsafeData.violations?.length || 0} 个</p>
+            `;
+        }
+    }
+
+    renderPerformance() {
+        const element = document.getElementById('performanceContent');
+        if (element) {
+            const performance = this.data.performance || {};
+            element.innerHTML = `
+                <h2>⚡ 性能分析</h2>
+                <p>性能指标: ${Object.keys(performance).length} 项</p>
+            `;
+        }
+    }
+
+    renderSecurity() {
+        const element = document.getElementById('securityContent');
+        if (element) {
+            const security = this.data.security || {};
+            element.innerHTML = `
+                <h2>🔒 安全分析</h2>
+                <p>安全检查: ${security.violations?.length || 0} 个问题</p>
+            `;
+        }
+    }
+
+    renderComplexTypes() {
+        const element = document.getElementById('complexTypesContent');
+        if (element) {
+            const complexTypes = this.data.categorized_types || this.data.complex_types || {};
+            const genericTypes = complexTypes.generic_types || [];
+            const collections = complexTypes.collections || [];
+            
+            element.innerHTML = `
+                <h2>🔧 复杂类型分析</h2>
+                <p>泛型类型: ${genericTypes.length} 个</p>
+                <p>集合类型: ${collections.length} 个</p>
+            `;
+        }
+    }
+
+    renderVariableRelationships() {
+        const element = document.getElementById('variableContent');
+        if (element) {
+            const relationships = this.data.variable_relationships || [];
+            element.innerHTML = `
+                <h2>🔗 变量关系</h2>
+                <p>变量关系: ${relationships.length} 个</p>
+            `;
+        }
+    }
+
+    renderInteractiveExplorer() {
+        const gridElement = document.getElementById('allocationGrid');
+        if (!gridElement) return;
+        
+        const allocations = this.data.allocations || [];
+        if (allocations.length === 0) {
+            gridElement.innerHTML = '<p>暂无分配数据可供探索</p>';
+            return;
+        }
+
+        this.setupExplorerFilters();
+        this.renderAllocationGrid(allocations.slice(0, 50));
+    }
+
+    setupExplorerFilters() {
+        const typeFilter = document.getElementById('filterType');
+        if (!typeFilter) return;
+        
+        const allocations = this.data.allocations || [];
+        const types = [...new Set(allocations.map(a => a.type_name || a.type).filter(Boolean))];
+        
+        typeFilter.innerHTML = '<option value="">All Types</option>' + 
+            types.map(type => `<option value="${type}">${type}</option>`).join('');
+    }
+
+    renderAllocationGrid(allocations) {
+        const gridElement = document.getElementById('allocationGrid');
+        if (!gridElement) return;
+        
+        const html = allocations.map(alloc => `
+            <div class="allocation-card">
+                <div class="card-header">
+                    <span class="var-name">${alloc.var_name || alloc.variable || '未知变量'}</span>
+                    <span class="alloc-size">${this.formatBytes(alloc.size || 0)}</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>类型:</strong> ${alloc.type_name || alloc.type || '未知'}</p>
+                    <p><strong>指针:</strong> ${alloc.ptr || 'N/A'}</p>
+                    <p><strong>作用域:</strong> ${alloc.scope_name || alloc.scope || '全局'}</p>
+                </div>
+            </div>
+        `).join('');
+
+        gridElement.innerHTML = html;
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+}
+
 // Enhanced Performance Monitoring
 class PerformanceMonitor {
     constructor() {
@@ -664,7 +995,7 @@ window.progressiveLoader = new ProgressiveLoader();
 function initializeEnhancedFeatures() {
     // Setup virtual scrolling for large datasets
     const allocationGrid = document.getElementById('allocationGrid');
-    if (allocationGrid && window.UNIFIED_DATA && window.UNIFIED_DATA.allocations.length > 100) {
+    if (allocationGrid && window.MEMORY_DATA && window.MEMORY_DATA.allocations.length > 100) {
         window.virtualScroller = new VirtualScroller(
             allocationGrid,
             60, // Item height
@@ -685,7 +1016,7 @@ function initializeEnhancedFeatures() {
             }
         );
         
-        window.virtualScroller.setItems(window.UNIFIED_DATA.allocations);
+        window.virtualScroller.setItems(window.MEMORY_DATA.allocations);
     }
     
     // Setup progressive loading for heavy computations
@@ -909,196 +1240,225 @@ if (typeof initializeBasicViewUnified === 'function') {
     </div>
 
     <script>
-        // 🎯 统一的数据结构
-        const UNIFIED_DATA = {json_data};
+        // 嵌入的内存数据
+        const EMBEDDED_DATA = {json_data};
         
-        // 🚀 增强的JavaScript功能
-        {js_content}
-        
-        // 🎨 初始化统一数据支持
-        document.addEventListener('DOMContentLoaded', function() {{
-            console.log('🎯 Initializing unified memory analysis...');
-            console.log('📊 Unified data structure loaded:', UNIFIED_DATA);
+        // 初始化应用程序
+        function initializeMemScopeApp() {{
+            console.log('🚀 Initializing MemScope-RS Interactive App...');
             
-            // Performance monitoring
-            if (window.performanceMonitor) {{
-                window.performanceMonitor.startTiming('initialization');
+            try {{
+                if (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA) {{
+                    console.log('✅ Using embedded data');
+                    processEmbeddedData(EMBEDDED_DATA);
+                }} else {{
+                    console.warn('⚠️ No embedded data found, showing error state');
+                    showErrorState(new Error('No data available'));
+                }}
+            }} catch (error) {{
+                console.error('❌ Initialization failed:', error);
+                showErrorState(error);
             }}
+        }}
+
+        // 处理嵌入的数据
+        function processEmbeddedData(data) {{
+            console.log('📊 Processing embedded data...');
             
-            // Initialize accessibility features
-            initializeAccessibility();
-            
-            // Initialize keyboard navigation
-            initializeKeyboardNavigation();
-            
-            // 初始化可视化器
-            if (typeof MemScopeVisualizer !== 'undefined') {{
-                window.memscope = new MemScopeVisualizer(UNIFIED_DATA);
-                console.log('✅ MemScope visualizer initialized with unified data');
-            }} else {{
-                console.warn('⚠️ MemScopeVisualizer not found, falling back to basic initialization');
-                initializeBasicViewUnified(UNIFIED_DATA);
+            try {{
+                // 更新统计信息
+                updateHeaderStats(data.stats || data.memory_analysis?.stats || {{}});
+                
+                // 初始化各个标签页
+                initializeTabs();
+                
+                // 渲染概览页面
+                renderOverviewTab(data);
+                
+                console.log('✅ Data processing completed successfully');
+            }} catch (error) {{
+                console.error('❌ Data processing failed:', error);
+                showErrorState(error);
             }}
-            
-            if (window.performanceMonitor) {{
-                window.performanceMonitor.endTiming('initialization');
-                console.log('📊 Initialization metrics:', window.performanceMonitor.getMetrics());
-            }}
-        }});
-        
-        // Initialize accessibility features
-        function initializeAccessibility() {{
-            // Setup ARIA labels and roles
-            const tabButtons = document.querySelectorAll('.tab-btn');
-            const tabPanels = document.querySelectorAll('.tab-content');
-            
-            tabButtons.forEach((button, index) => {{
-                button.setAttribute('aria-controls', tabPanels[index].id);
-                button.setAttribute('tabindex', index === 0 ? '0' : '-1');
-            }});
-            
-            // Setup focus management
-            tabButtons.forEach(button => {{
-                button.addEventListener('focus', () => {{
-                    tabButtons.forEach(btn => btn.setAttribute('tabindex', '-1'));
-                    button.setAttribute('tabindex', '0');
-                }});
-            }});
         }}
-        
-        // Initialize keyboard navigation
-        function initializeKeyboardNavigation() {{
-            const tabButtons = document.querySelectorAll('.tab-btn');
-            
-            tabButtons.forEach((button, index) => {{
-                button.addEventListener('keydown', (e) => {{
-                    let targetIndex = index;
-                    
-                    switch (e.key) {{
-                        case 'ArrowLeft':
-                            targetIndex = index > 0 ? index - 1 : tabButtons.length - 1;
-                            break;
-                        case 'ArrowRight':
-                            targetIndex = index < tabButtons.length - 1 ? index + 1 : 0;
-                            break;
-                        case 'Home':
-                            targetIndex = 0;
-                            break;
-                        case 'End':
-                            targetIndex = tabButtons.length - 1;
-                            break;
-                        default:
-                            return;
-                    }}
-                    
-                    e.preventDefault();
-                    tabButtons[targetIndex].focus();
-                    tabButtons[targetIndex].click();
-                }});
-            }});
-        }}
-        
-        // Enhanced basic view initialization
-        function initializeBasicViewUnified(data) {{
-            console.log('🎯 Initializing enhanced basic view with unified data:', data);
-            
-            // Update header statistics
-            updateHeaderStats(data.stats);
-            
-            // Initialize all tab content
-            initializeOverviewUnified(data);
-            initializePerformanceAnalysisUnified(data.performance);
-            initializeSecurityAnalysisUnified(data.security);
-            initializeMemoryAnalysisDetailsUnified(data.allocations);
-            initializeVariableRelationshipsUnified(data.variable_relationships);
-            initializeLifecycleAnalysisUnified(data.lifecycle);
-            initializeComplexTypesAnalysisUnified(data.complex_types);
-            
-            console.log('✅ Enhanced basic unified view initialized');
-        }}
-        
-        // Update header statistics
+
+        // 更新头部统计信息
         function updateHeaderStats(stats) {{
             const totalMemoryEl = document.getElementById('totalMemory');
             const activeAllocsEl = document.getElementById('activeAllocs');
             const peakMemoryEl = document.getElementById('peakMemory');
             
-            if (totalMemoryEl) totalMemoryEl.textContent = formatBytes(stats.active_memory);
-            if (activeAllocsEl) activeAllocsEl.textContent = stats.active_allocations + ' Active';
-            if (peakMemoryEl) peakMemoryEl.textContent = formatBytes(stats.peak_memory);
+            if (totalMemoryEl) totalMemoryEl.textContent = formatBytes(stats.active_memory || 0);
+            if (activeAllocsEl) activeAllocsEl.textContent = `${{stats.active_allocations || 0}} Active`;
+            if (peakMemoryEl) peakMemoryEl.textContent = formatBytes(stats.peak_memory || 0);
         }}
-        
-        // Initialize overview with enhanced features
-        function initializeOverviewUnified(data) {{
-            const memoryStatsEl = document.getElementById('memoryStats');
-            if (memoryStatsEl) {{
-                memoryStatsEl.innerHTML = `
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <span class="stat-label">Active Memory:</span>
-                            <span class="stat-value">${{formatBytes(data.stats.active_memory)}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Peak Memory:</span>
-                            <span class="stat-value">${{formatBytes(data.stats.peak_memory)}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Total Allocations:</span>
-                            <span class="stat-value">${{data.stats.total_allocations.toLocaleString()}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Active Allocations:</span>
-                            <span class="stat-value">${{data.stats.active_allocations.toLocaleString()}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Total Allocated:</span>
-                            <span class="stat-value">${{formatBytes(data.stats.total_allocated)}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Memory Efficiency:</span>
-                            <span class="stat-value">${{data.stats.memory_efficiency.toFixed(1)}}%</span>
-                        </div>
+
+        // 渲染概览标签页
+        function renderOverviewTab(data) {{
+            const stats = data.stats || data.memory_analysis?.stats || {{}};
+            const allocations = data.allocations || data.memory_analysis?.allocations || [];
+            const memoryByType = data.memoryByType || data.memory_analysis?.memory_by_type || {{}};
+            
+            renderMemoryStats(stats);
+            renderTypeDistribution(memoryByType);
+            renderRecentAllocations(allocations);
+            renderPerformanceInsights(stats);
+        }}
+
+        // 渲染内存统计
+        function renderMemoryStats(stats) {{
+            const element = document.getElementById('memoryStats');
+            if (!element) return;
+            
+            const html = `
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Active Memory:</span>
+                        <span class="stat-value">${{formatBytes(stats.active_memory || 0)}}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Peak Memory:</span>
+                        <span class="stat-value">${{formatBytes(stats.peak_memory || 0)}}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Allocations:</span>
+                        <span class="stat-value">${{stats.total_allocations || 0}}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Active Allocations:</span>
+                        <span class="stat-value">${{stats.active_allocations || 0}}</span>
+                    </div>
+                </div>
+            `;
+            element.innerHTML = html;
+        }}
+
+        // 渲染类型分布
+        function renderTypeDistribution(memoryByType) {{
+            const element = document.getElementById('typeDistribution');
+            if (!element) return;
+            
+            const types = Object.entries(memoryByType).slice(0, 5);
+            
+            if (types.length === 0) {{
+                element.innerHTML = '<p>No type information available</p>';
+                return;
+            }}
+            
+            const html = types.map(([typeName, data]) => {{
+                const size = Array.isArray(data) ? data[0] : data.total_size || 0;
+                const count = Array.isArray(data) ? data[1] : data.allocation_count || 0;
+                return `
+                    <div class="type-item">
+                        <span class="type-name">${{typeName}}</span>
+                        <span class="type-stats">${{formatBytes(size)}} (${{count}} allocs)</span>
                     </div>
                 `;
+            }}).join('');
+            
+            element.innerHTML = html;
+        }}
+
+        // 渲染最近分配
+        function renderRecentAllocations(allocations) {{
+            const element = document.getElementById('recentAllocations');
+            if (!element) return;
+            
+            const recent = allocations.slice(0, 5);
+            
+            if (recent.length === 0) {{
+                element.innerHTML = '<p>No recent allocations</p>';
+                return;
             }}
+            
+            const html = recent.map(alloc => `
+                <div class="allocation-item">
+                    <span class="alloc-size">${{formatBytes(alloc.size || 0)}}</span>
+                    <span class="alloc-type">${{alloc.type_name || 'Unknown'}}</span>
+                </div>
+            `).join('');
+            
+            element.innerHTML = html;
         }}
-        
-        // Placeholder functions for other initializers
-        function initializePerformanceAnalysisUnified(performance) {{
-            console.log('Initializing performance analysis:', performance);
+
+        // 渲染性能洞察
+        function renderPerformanceInsights(stats) {{
+            const element = document.getElementById('performanceInsights');
+            if (!element) return;
+            
+            const insights = [];
+            
+            if (stats.active_memory > 1024 * 1024) {{
+                insights.push('🔍 High memory usage detected');
+            }}
+            
+            if (stats.active_allocations > 1000) {{
+                insights.push('📊 Many active allocations');
+            }}
+            
+            if (insights.length === 0) {{
+                insights.push('✅ Memory usage looks healthy');
+            }}
+            
+            const html = insights.map(insight => `<div class="insight-item">${{insight}}</div>`).join('');
+            element.innerHTML = html;
         }}
-        
-        function initializeSecurityAnalysisUnified(security) {{
-            console.log('Initializing security analysis:', security);
+
+        // 初始化标签页导航
+        function initializeTabs() {{
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {{
+                button.addEventListener('click', () => {{
+                    const targetTab = button.getAttribute('data-tab');
+                    
+                    // 移除所有活动状态
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // 激活当前标签
+                    button.classList.add('active');
+                    const targetContent = document.getElementById(targetTab);
+                    if (targetContent) {{
+                        targetContent.classList.add('active');
+                    }}
+                }});
+            }});
         }}
-        
-        function initializeMemoryAnalysisDetailsUnified(allocations) {{
-            console.log('Initializing memory analysis details:', allocations.length, 'allocations');
+
+        // 显示错误状态
+        function showErrorState(error) {{
+            const container = document.querySelector('.container');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="error-state" style="text-align: center; padding: 60px 20px; color: #e74c3c;">
+                    <h2>❌ Error Loading Data</h2>
+                    <p>Failed to load memory analysis data: ${{error.message}}</p>
+                    <button onclick="location.reload()" style="
+                        padding: 10px 20px; background: #3498db; color: white;
+                        border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;
+                    ">Reload Page</button>
+                </div>
+            `;
         }}
-        
-        function initializeVariableRelationshipsUnified(relationships) {{
-            console.log('Initializing variable relationships:', relationships);
-        }}
-        
-        function initializeLifecycleAnalysisUnified(lifecycle) {{
-            console.log('Initializing lifecycle analysis:', lifecycle);
-        }}
-        
-        function initializeComplexTypesAnalysisUnified(complexTypes) {{
-            console.log('Initializing complex types analysis:', complexTypes);
-        }}
-        
-        // Enhanced formatting function
+
+        // 格式化字节数
         function formatBytes(bytes) {{
-            const units = ['B', 'KB', 'MB', 'GB'];
-            let size = bytes;
-            let unitIndex = 0;
-            while (size >= 1024 && unitIndex < units.length - 1) {{
-                size /= 1024;
-                unitIndex++;
-            }}
-            return unitIndex === 0 ? `${{bytes}} ${{units[unitIndex]}}` : `${{size.toFixed(1)}} ${{units[unitIndex]}}`;
+            if (bytes === 0) return '0 B';
+            
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }}
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {{
+            initializeMemScopeApp();
+        }});
     </script>
 </body>
 </html>"#);

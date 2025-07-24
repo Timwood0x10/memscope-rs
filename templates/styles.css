@@ -1277,6 +1277,106 @@ body {
     100% { transform: rotate(360deg); }
 }
 
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.stat-label {
+    font-weight: 600;
+    color: #374151;
+}
+
+.stat-value {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 1.1rem;
+}
+
+/* Type Distribution */
+.type-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    border-radius: 6px;
+    border-left: 4px solid #667eea;
+}
+
+.type-name {
+    font-weight: 600;
+    color: #374151;
+}
+
+.type-stats {
+    font-size: 0.9rem;
+    color: #64748b;
+}
+
+/* Allocation Items */
+.allocation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    border-radius: 6px;
+    border-left: 4px solid #10b981;
+}
+
+.alloc-size {
+    font-weight: 600;
+    color: #059669;
+}
+
+.alloc-type {
+    font-size: 0.9rem;
+    color: #64748b;
+}
+
+/* Insight Items */
+.insight-item {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-radius: 6px;
+    border-left: 4px solid #f59e0b;
+    color: #92400e;
+    font-weight: 500;
+}
+
+/* Error State */
+.error-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #e74c3c;
+}
+
+.error-state h2 {
+    margin-bottom: 16px;
+    font-size: 2rem;
+}
+
+.error-state p {
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+}
+
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
     width: 8px;
