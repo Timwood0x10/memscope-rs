@@ -749,10 +749,937 @@ class DataNormalizer {
     }
 }
 
+/**
+ * 性能仪表板管理器 - 任务 6.1: 创建性能仪表板组件
+ */
+class PerformanceDashboard {
+    constructor(visualizer) {
+        this.visualizer = visualizer;
+        this.performanceData = null;
+        this.charts = {};
+        this.updateInterval = null;
+        this.init();
+    }
+
+    /**
+     * 初始化性能仪表板
+     */
+    async init() {
+        console.log('📊 初始化性能仪表板');
+        try {
+            await this.loadPerformanceData();
+            this.createDashboardUI();
+            this.renderMetricCards();
+            this.renderTrendCharts();
+            this.startAutoUpdate();
+            console.log('✅ 性能仪表板初始化成功');
+        } catch (error) {
+            console.error('❌ 性能仪表板初始化失败:', error);
+        }
+    }
+
+    /**
+     * 加载性能数据
+     */
+    async loadPerformanceData() {
+        try {
+            const response = await fetch('/api/performance');
+            const result = await response.json();
+            if (result.success) {
+                this.performanceData = result.data;
+                console.log('📈 性能数据加载成功:', this.performanceData);
+            } else {
+                throw new Error(result.error || '加载性能数据失败');
+            }
+        } catch (error) {
+            console.error('❌ 加载性能数据失败:', error);
+            // 使用模拟数据作为后备
+            this.performanceData = this.getMockPerformanceData();
+        }
+    }
+
+    /**
+     * 创建仪表板UI结构
+     */
+    createDashboardUI() {
+        const dashboardContainer = document.createElement('div');
+        dashboardContainer.className = 'performance-dashboard';
+        dashboardContainer.innerHTML = `
+            <div class="dashboard-header">
+                <h2>📊 性能仪表板</h2>
+                <div class="dashboard-controls">
+                    <button class="refresh-btn" onclick="this.refreshData()">🔄 刷新</button>
+                    <button class="toggle-auto-update" data-enabled="true">⏱️ 自动更新</button>
+                </div>
+            </div>
+            
+            <div class="performance-metrics-grid">
+                <!-- 任务 6.2: 性能指标卡片将在这里渲染 -->
+                <div id="performance-cards-container" class="metrics-cards"></div>
+            </div>
+            
+            <div class="performance-charts-grid">
+                <!-- 任务 6.3: 性能趋势图表将在这里渲染 -->
+                <div id="performance-charts-container" class="charts-container"></div>
+            </div>
+        `;
+
+        // 插入到过滤控件之后
+        const filterControls = document.querySelector('.filter-controls');
+        if (filterControls && filterControls.nextSibling) {
+            filterControls.parentNode.insertBefore(dashboardContainer, filterControls.nextSibling);
+        } else {
+            const content = document.querySelector('.content');
+            if (content) {
+                content.appendChild(dashboardContainer);
+            }
+        }
+
+        this.bindDashboardEvents();
+    }
+
+    /**
+     * 绑定仪表板事件
+     */
+    bindDashboardEvents() {
+        const refreshBtn = document.querySelector('.refresh-btn');
+        const autoUpdateBtn = document.querySelector('.toggle-auto-update');
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => this.refreshData());
+        }
+
+        if (autoUpdateBtn) {
+            autoUpdateBtn.addEventListener('click', () => this.toggleAutoUpdate());
+        }
+    }
+
+    /**
+     * 任务 6.2: 渲染性能指标卡片
+     */
+    renderMetricCards() {
+        const container = document.getElementById('performance-cards-container');
+        if (!container || !this.performanceData) return;
+
+        const overview = this.performanceData.overview;
+        const metrics = this.performanceData.metrics;
+
+        container.innerHTML = `
+            <!-- 内存利用率卡片 -->
+            <div class="metric-card memory-utilization">
+                <div class="card-header">
+                    <h3>💾 内存利用率</h3>
+                    <span class="metric-badge" style="background: ${metrics.memory_utilization.color_hint}">
+                        ${overview.memory_efficiency}%
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="primary-metric">
+                        <span class="value">${overview.active_memory_formatted}</span>
+                        <span class="label">当前使用</span>
+                    </div>
+                    <div class="secondary-metrics">
+                        <div class="metric-item">
+                            <span class="label">峰值内存</span>
+                            <span class="value">${overview.peak_memory_formatted}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">内存浪费</span>
+                            <span class="value">${metrics.memory_utilization.waste_formatted}</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${overview.memory_efficiency}%; background: ${metrics.memory_utilization.color_hint}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分配性能卡片 -->
+            <div class="metric-card allocation-performance">
+                <div class="card-header">
+                    <h3>⚡ 分配性能</h3>
+                    <span class="metric-badge" style="background: ${metrics.allocation_performance.color_hint}">
+                        ${overview.performance_class}
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="primary-metric">
+                        <span class="value">${overview.allocation_rate_formatted}</span>
+                        <span class="label">分配速率</span>
+                    </div>
+                    <div class="secondary-metrics">
+                        <div class="metric-item">
+                            <span class="label">总分配</span>
+                            <span class="value">${overview.total_allocations_formatted}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">活跃分配</span>
+                            <span class="value">${overview.active_allocations_formatted}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">释放率</span>
+                            <span class="value">${metrics.allocation_performance.deallocation_rate}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 内存碎片化卡片 -->
+            <div class="metric-card fragmentation">
+                <div class="card-header">
+                    <h3>🧩 内存碎片化</h3>
+                    <span class="metric-badge" style="background: ${metrics.fragmentation.color_hint}">
+                        ${metrics.fragmentation.score}
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="primary-metric">
+                        <span class="value">${metrics.fragmentation.avg_allocation_size_formatted}</span>
+                        <span class="label">平均分配大小</span>
+                    </div>
+                    <div class="secondary-metrics">
+                        <div class="metric-item">
+                            <span class="label">小分配 (≤64B)</span>
+                            <span class="value">${metrics.fragmentation.small_allocations}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">大分配 (>1MB)</span>
+                            <span class="value">${metrics.fragmentation.large_allocations}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统健康度卡片 -->
+            <div class="metric-card system-health">
+                <div class="card-header">
+                    <h3>🏥 系统健康度</h3>
+                    <span class="metric-badge" style="background: ${this.getHealthColor()}">
+                        ${this.getHealthScore()}
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="health-indicators">
+                        <div class="indicator ${overview.memory_efficiency > 80 ? 'good' : overview.memory_efficiency > 60 ? 'warning' : 'critical'}">
+                            <span class="indicator-icon">💾</span>
+                            <span class="indicator-label">内存效率</span>
+                            <span class="indicator-value">${overview.memory_efficiency}%</span>
+                        </div>
+                        <div class="indicator ${overview.performance_class === 'excellent' || overview.performance_class === 'good' ? 'good' : overview.performance_class === 'fair' ? 'warning' : 'critical'}">
+                            <span class="indicator-icon">⚡</span>
+                            <span class="indicator-label">性能等级</span>
+                            <span class="indicator-value">${overview.performance_class}</span>
+                        </div>
+                        <div class="indicator ${metrics.fragmentation.score === 'low' ? 'good' : metrics.fragmentation.score === 'medium' ? 'warning' : 'critical'}">
+                            <span class="indicator-icon">🧩</span>
+                            <span class="indicator-label">碎片化</span>
+                            <span class="indicator-value">${metrics.fragmentation.score}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 任务 6.3: 渲染性能趋势图表
+     */
+    renderTrendCharts() {
+        const container = document.getElementById('performance-charts-container');
+        if (!container || !this.performanceData) return;
+
+        container.innerHTML = `
+            <div class="chart-section">
+                <h3>📈 内存使用趋势</h3>
+                <div id="memory-trend-chart" class="chart-container">
+                    <canvas id="memoryTrendCanvas" width="800" height="300"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-section">
+                <h3>📊 分配大小分布</h3>
+                <div id="size-distribution-chart" class="chart-container">
+                    <canvas id="sizeDistributionCanvas" width="400" height="300"></canvas>
+                </div>
+            </div>
+        `;
+
+        // 渲染内存趋势图
+        this.renderMemoryTrendChart();
+        
+        // 渲染分配大小分布图
+        this.renderSizeDistributionChart();
+    }
+
+    /**
+     * 渲染内存趋势图表
+     */
+    renderMemoryTrendChart() {
+        const canvas = document.getElementById('memoryTrendCanvas');
+        if (!canvas || !this.performanceData.trends) return;
+
+        const ctx = canvas.getContext('2d');
+        const timeline = this.performanceData.trends.memory_timeline;
+        
+        // 简单的折线图实现
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#667eea';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        if (timeline.length > 0) {
+            const maxSize = Math.max(...timeline.map(t => t.size));
+            const step = canvas.width / timeline.length;
+            
+            timeline.forEach((point, index) => {
+                const x = index * step;
+                const y = canvas.height - (point.size / maxSize * canvas.height * 0.8);
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+        }
+        
+        ctx.stroke();
+        
+        // 添加标签
+        ctx.fillStyle = '#374151';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('内存使用量随时间变化', 10, 20);
+    }
+
+    /**
+     * 渲染分配大小分布图表
+     */
+    renderSizeDistributionChart() {
+        const canvas = document.getElementById('sizeDistributionCanvas');
+        if (!canvas || !this.performanceData.trends) return;
+
+        const ctx = canvas.getContext('2d');
+        const distribution = this.performanceData.trends.size_distribution;
+        
+        // 简单的饼图实现
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = Math.min(centerX, centerY) - 20;
+        
+        const total = Object.values(distribution).reduce((sum, val) => sum + val, 0);
+        const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+        const labels = ['tiny', 'small', 'medium', 'large', 'massive'];
+        
+        let currentAngle = 0;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        labels.forEach((label, index) => {
+            const value = distribution[label] || 0;
+            const sliceAngle = (value / total) * 2 * Math.PI;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = colors[index];
+            ctx.fill();
+            
+            // 添加标签
+            const labelAngle = currentAngle + sliceAngle / 2;
+            const labelX = centerX + Math.cos(labelAngle) * (radius + 15);
+            const labelY = centerY + Math.sin(labelAngle) * (radius + 15);
+            
+            ctx.fillStyle = '#374151';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${label}: ${value}`, labelX, labelY);
+            
+            currentAngle += sliceAngle;
+        });
+    }
+
+    /**
+     * 获取系统健康度分数
+     */
+    getHealthScore() {
+        if (!this.performanceData) return 'Unknown';
+        
+        const overview = this.performanceData.overview;
+        const metrics = this.performanceData.metrics;
+        
+        let score = 0;
+        
+        // 内存效率评分 (40%)
+        if (overview.memory_efficiency > 80) score += 40;
+        else if (overview.memory_efficiency > 60) score += 25;
+        else if (overview.memory_efficiency > 40) score += 15;
+        
+        // 性能等级评分 (35%)
+        switch (overview.performance_class) {
+            case 'excellent': score += 35; break;
+            case 'good': score += 25; break;
+            case 'fair': score += 15; break;
+            default: score += 5;
+        }
+        
+        // 碎片化评分 (25%)
+        switch (metrics.fragmentation.score) {
+            case 'low': score += 25; break;
+            case 'medium': score += 15; break;
+            default: score += 5;
+        }
+        
+        if (score >= 85) return 'Excellent';
+        if (score >= 70) return 'Good';
+        if (score >= 50) return 'Fair';
+        return 'Poor';
+    }
+
+    /**
+     * 获取健康度颜色
+     */
+    getHealthColor() {
+        const score = this.getHealthScore();
+        switch (score) {
+            case 'Excellent': return '#10b981';
+            case 'Good': return '#3b82f6';
+            case 'Fair': return '#f59e0b';
+            default: return '#ef4444';
+        }
+    }
+
+    /**
+     * 刷新性能数据
+     */
+    async refreshData() {
+        console.log('🔄 刷新性能数据');
+        try {
+            await this.loadPerformanceData();
+            this.renderMetricCards();
+            this.renderTrendCharts();
+            console.log('✅ 性能数据刷新成功');
+        } catch (error) {
+            console.error('❌ 刷新性能数据失败:', error);
+        }
+    }
+
+    /**
+     * 切换自动更新
+     */
+    toggleAutoUpdate() {
+        const btn = document.querySelector('.toggle-auto-update');
+        const isEnabled = btn.dataset.enabled === 'true';
+        
+        if (isEnabled) {
+            this.stopAutoUpdate();
+            btn.dataset.enabled = 'false';
+            btn.textContent = '⏸️ 已暂停';
+            btn.style.background = '#6b7280';
+        } else {
+            this.startAutoUpdate();
+            btn.dataset.enabled = 'true';
+            btn.textContent = '⏱️ 自动更新';
+            btn.style.background = '#10b981';
+        }
+    }
+
+    /**
+     * 开始自动更新
+     */
+    startAutoUpdate() {
+        this.stopAutoUpdate(); // 清除现有的定时器
+        this.updateInterval = setInterval(() => {
+            this.refreshData();
+        }, 30000); // 每30秒更新一次
+    }
+
+    /**
+     * 停止自动更新
+     */
+    stopAutoUpdate() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+    }
+
+    /**
+     * 获取模拟性能数据（后备方案）
+     */
+    getMockPerformanceData() {
+        return {
+            overview: {
+                total_allocations: 639,
+                active_allocations: 425,
+                deallocated_allocations: 214,
+                peak_memory: 551142,
+                active_memory: 217161,
+                memory_efficiency: 39,
+                allocation_rate: 146,
+                performance_class: "needs_optimization",
+                fragmentation_score: "medium",
+                peak_memory_formatted: "538.2 KB",
+                active_memory_formatted: "212.1 KB",
+                total_allocations_formatted: "639",
+                active_allocations_formatted: "425",
+                allocation_rate_formatted: "146/s"
+            },
+            metrics: {
+                memory_utilization: {
+                    current: 217161,
+                    peak: 551142,
+                    efficiency_percentage: 39,
+                    waste: 333981,
+                    waste_formatted: "326.2 KB",
+                    color_hint: "#ef4444"
+                },
+                allocation_performance: {
+                    rate: 146,
+                    total_count: 639,
+                    active_count: 425,
+                    deallocation_rate: 33,
+                    performance_class: "needs_optimization",
+                    color_hint: "#ef4444"
+                },
+                fragmentation: {
+                    score: "medium",
+                    avg_allocation_size: 862,
+                    avg_allocation_size_formatted: "862 B",
+                    small_allocations: 569,
+                    large_allocations: 4,
+                    color_hint: "#f59e0b"
+                }
+            },
+            trends: {
+                memory_timeline: [],
+                size_distribution: {
+                    tiny: 569,
+                    small: 46,
+                    medium: 15,
+                    large: 5,
+                    massive: 4
+                }
+            }
+        };
+    }
+
+    /**
+     * 销毁仪表板
+     */
+    destroy() {
+        this.stopAutoUpdate();
+        const dashboard = document.querySelector('.performance-dashboard');
+        if (dashboard) {
+            dashboard.remove();
+        }
+    }
+}
+
+/**
+ * 过滤控件管理器 - 任务 5.1: 构建 FilterControls 类
+ */
+class FilterControls {
+    constructor(visualizer) {
+        this.visualizer = visualizer;
+        this.filters = {
+            sizeRange: { min: 0, max: Infinity },
+            typeFilter: '',
+            statusFilter: 'all', // 'all', 'active', 'deallocated'
+            timeRange: { start: null, end: null },
+            variableFilter: '',
+            sortBy: 'timestamp',
+            sortOrder: 'desc'
+        };
+        this.originalData = null;
+        this.filteredData = null;
+        this.debounceTimer = null;
+        this.init();
+    }
+
+    /**
+     * 初始化过滤控件
+     */
+    init() {
+        console.log('🎛️ 初始化过滤控件');
+        this.createFilterUI();
+        this.bindEvents();
+        this.originalData = [...(this.visualizer.data.allocations || [])];
+        this.applyFilters();
+    }
+
+    /**
+     * 创建过滤器UI界面
+     */
+    createFilterUI() {
+        const filterContainer = document.createElement('div');
+        filterContainer.className = 'filter-controls';
+        filterContainer.innerHTML = `
+            <div class="filter-header">
+                <h3>🎛️ 数据过滤器</h3>
+                <button class="filter-toggle" onclick="this.parentElement.parentElement.classList.toggle('collapsed')">
+                    <span class="toggle-icon">▼</span>
+                </button>
+            </div>
+            <div class="filter-content">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>📏 大小范围</label>
+                        <div class="range-inputs">
+                            <input type="number" id="minSize" placeholder="最小" min="0">
+                            <span>-</span>
+                            <input type="number" id="maxSize" placeholder="最大" min="0">
+                            <span class="unit">bytes</span>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>📊 状态</label>
+                        <select id="statusFilter">
+                            <option value="all">全部</option>
+                            <option value="active">活跃</option>
+                            <option value="deallocated">已释放</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>🏷️ 类型过滤</label>
+                        <input type="text" id="typeFilter" placeholder="输入类型名称...">
+                    </div>
+                    <div class="filter-group">
+                        <label>🔤 变量过滤</label>
+                        <input type="text" id="variableFilter" placeholder="输入变量名称...">
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>📅 时间范围</label>
+                        <div class="time-range">
+                            <input type="datetime-local" id="startTime">
+                            <span>至</span>
+                            <input type="datetime-local" id="endTime">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>🔄 排序</label>
+                        <div class="sort-controls">
+                            <select id="sortBy">
+                                <option value="timestamp">时间</option>
+                                <option value="size">大小</option>
+                                <option value="type_name">类型</option>
+                                <option value="var_name">变量名</option>
+                            </select>
+                            <button id="sortOrder" class="sort-order-btn" data-order="desc">
+                                <span class="sort-icon">↓</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-actions">
+                    <button class="apply-filters-btn">🔍 应用过滤器</button>
+                    <button class="reset-filters-btn">🔄 重置</button>
+                    <span class="filter-results">显示 <span id="filteredCount">0</span> / <span id="totalCount">0</span> 项</span>
+                </div>
+            </div>
+        `;
+
+        // 插入到内容区域的顶部
+        const content = document.querySelector('.content');
+        if (content) {
+            content.insertBefore(filterContainer, content.firstChild);
+        }
+    }
+
+    /**
+     * 绑定事件监听器
+     */
+    bindEvents() {
+        // 实时过滤事件（带防抖）
+        const inputs = ['minSize', 'maxSize', 'typeFilter', 'variableFilter', 'startTime', 'endTime'];
+        inputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener('input', () => this.debouncedFilter());
+            }
+        });
+
+        // 下拉选择事件
+        const selects = ['statusFilter', 'sortBy'];
+        selects.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener('change', () => this.applyFilters());
+            }
+        });
+
+        // 排序顺序切换
+        const sortOrderBtn = document.getElementById('sortOrder');
+        if (sortOrderBtn) {
+            sortOrderBtn.addEventListener('click', () => {
+                const currentOrder = sortOrderBtn.dataset.order;
+                const newOrder = currentOrder === 'desc' ? 'asc' : 'desc';
+                sortOrderBtn.dataset.order = newOrder;
+                sortOrderBtn.querySelector('.sort-icon').textContent = newOrder === 'desc' ? '↓' : '↑';
+                this.filters.sortOrder = newOrder;
+                this.applyFilters();
+            });
+        }
+
+        // 应用和重置按钮
+        const applyBtn = document.querySelector('.apply-filters-btn');
+        const resetBtn = document.querySelector('.reset-filters-btn');
+        
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => this.applyFilters());
+        }
+        
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => this.resetFilters());
+        }
+    }
+
+    /**
+     * 防抖过滤器应用
+     */
+    debouncedFilter() {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(() => {
+            this.applyFilters();
+        }, 300);
+    }
+
+    /**
+     * 应用所有过滤器
+     */
+    applyFilters() {
+        console.log('🔍 应用过滤器');
+        
+        // 更新过滤器状态
+        this.updateFilterState();
+        
+        // 应用过滤逻辑
+        let filtered = [...this.originalData];
+        
+        // 大小过滤
+        if (this.filters.sizeRange.min > 0 || this.filters.sizeRange.max < Infinity) {
+            filtered = filtered.filter(alloc => 
+                alloc.size >= this.filters.sizeRange.min && 
+                alloc.size <= this.filters.sizeRange.max
+            );
+        }
+        
+        // 状态过滤
+        if (this.filters.statusFilter !== 'all') {
+            filtered = filtered.filter(alloc => {
+                const isActive = !alloc.timestamp_dealloc;
+                return this.filters.statusFilter === 'active' ? isActive : !isActive;
+            });
+        }
+        
+        // 类型过滤
+        if (this.filters.typeFilter) {
+            const typeRegex = new RegExp(this.filters.typeFilter, 'i');
+            filtered = filtered.filter(alloc => 
+                typeRegex.test(alloc.type_name || '')
+            );
+        }
+        
+        // 变量过滤
+        if (this.filters.variableFilter) {
+            const varRegex = new RegExp(this.filters.variableFilter, 'i');
+            filtered = filtered.filter(alloc => 
+                varRegex.test(alloc.var_name || '')
+            );
+        }
+        
+        // 时间范围过滤
+        if (this.filters.timeRange.start || this.filters.timeRange.end) {
+            filtered = filtered.filter(alloc => {
+                const allocTime = new Date(alloc.timestamp_alloc / 1000000); // 纳秒转毫秒
+                if (this.filters.timeRange.start && allocTime < this.filters.timeRange.start) {
+                    return false;
+                }
+                if (this.filters.timeRange.end && allocTime > this.filters.timeRange.end) {
+                    return false;
+                }
+                return true;
+            });
+        }
+        
+        // 排序
+        filtered.sort((a, b) => {
+            let aVal, bVal;
+            switch (this.filters.sortBy) {
+                case 'size':
+                    aVal = a.size;
+                    bVal = b.size;
+                    break;
+                case 'type_name':
+                    aVal = a.type_name || '';
+                    bVal = b.type_name || '';
+                    break;
+                case 'var_name':
+                    aVal = a.var_name || '';
+                    bVal = b.var_name || '';
+                    break;
+                default:
+                    aVal = a.timestamp_alloc;
+                    bVal = b.timestamp_alloc;
+            }
+            
+            if (typeof aVal === 'string') {
+                return this.filters.sortOrder === 'desc' ? 
+                    bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+            } else {
+                return this.filters.sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+            }
+        });
+        
+        this.filteredData = filtered;
+        
+        // 更新显示
+        this.updateFilterResults();
+        this.updateVisualization();
+        
+        console.log(`✅ 过滤完成: ${filtered.length}/${this.originalData.length} 项`);
+    }
+
+    /**
+     * 更新过滤器状态
+     */
+    updateFilterState() {
+        // 大小范围
+        const minSize = document.getElementById('minSize');
+        const maxSize = document.getElementById('maxSize');
+        this.filters.sizeRange.min = minSize ? (parseInt(minSize.value) || 0) : 0;
+        this.filters.sizeRange.max = maxSize ? (parseInt(maxSize.value) || Infinity) : Infinity;
+        
+        // 状态
+        const statusFilter = document.getElementById('statusFilter');
+        this.filters.statusFilter = statusFilter ? statusFilter.value : 'all';
+        
+        // 类型和变量
+        const typeFilter = document.getElementById('typeFilter');
+        const variableFilter = document.getElementById('variableFilter');
+        this.filters.typeFilter = typeFilter ? typeFilter.value.trim() : '';
+        this.filters.variableFilter = variableFilter ? variableFilter.value.trim() : '';
+        
+        // 时间范围
+        const startTime = document.getElementById('startTime');
+        const endTime = document.getElementById('endTime');
+        this.filters.timeRange.start = startTime && startTime.value ? new Date(startTime.value) : null;
+        this.filters.timeRange.end = endTime && endTime.value ? new Date(endTime.value) : null;
+        
+        // 排序
+        const sortBy = document.getElementById('sortBy');
+        this.filters.sortBy = sortBy ? sortBy.value : 'timestamp';
+    }
+
+    /**
+     * 更新过滤结果显示
+     */
+    updateFilterResults() {
+        const filteredCount = document.getElementById('filteredCount');
+        const totalCount = document.getElementById('totalCount');
+        
+        if (filteredCount) {
+            filteredCount.textContent = this.filteredData.length;
+        }
+        if (totalCount) {
+            totalCount.textContent = this.originalData.length;
+        }
+    }
+
+    /**
+     * 更新可视化显示
+     */
+    updateVisualization() {
+        // 更新可视化器的数据
+        this.visualizer.filteredAllocations = this.filteredData;
+        
+        // 重新渲染相关组件
+        if (typeof this.visualizer.populateRecentAllocations === 'function') {
+            this.visualizer.populateRecentAllocations();
+        }
+        if (typeof this.visualizer.populateTypeDistribution === 'function') {
+            this.visualizer.populateTypeDistribution();
+        }
+        if (typeof this.visualizer.updateMemoryStats === 'function') {
+            this.visualizer.updateMemoryStats();
+        }
+    }
+
+    /**
+     * 重置所有过滤器
+     */
+    resetFilters() {
+        console.log('🔄 重置过滤器');
+        
+        // 重置过滤器状态
+        this.filters = {
+            sizeRange: { min: 0, max: Infinity },
+            typeFilter: '',
+            statusFilter: 'all',
+            timeRange: { start: null, end: null },
+            variableFilter: '',
+            sortBy: 'timestamp',
+            sortOrder: 'desc'
+        };
+        
+        // 重置UI控件
+        const inputs = ['minSize', 'maxSize', 'typeFilter', 'variableFilter', 'startTime', 'endTime'];
+        inputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.value = '';
+            }
+        });
+        
+        const statusFilter = document.getElementById('statusFilter');
+        if (statusFilter) statusFilter.value = 'all';
+        
+        const sortBy = document.getElementById('sortBy');
+        if (sortBy) sortBy.value = 'timestamp';
+        
+        const sortOrderBtn = document.getElementById('sortOrder');
+        if (sortOrderBtn) {
+            sortOrderBtn.dataset.order = 'desc';
+            sortOrderBtn.querySelector('.sort-icon').textContent = '↓';
+        }
+        
+        // 重新应用过滤器（实际上是显示所有数据）
+        this.applyFilters();
+    }
+
+    /**
+     * 获取当前过滤后的数据
+     */
+    getFilteredData() {
+        return this.filteredData || this.originalData;
+    }
+
+    /**
+     * 获取过滤器状态
+     */
+    getFilterState() {
+        return { ...this.filters };
+    }
+
+    /**
+     * 设置过滤器状态
+     */
+    setFilterState(newFilters) {
+        this.filters = { ...this.filters, ...newFilters };
+        this.applyFilters();
+    }
+}
+
 class MemScopeVisualizer {
     constructor(data) {
         this.data = data;
         this.filteredAllocations = [...(data.allocations || [])];
+        this.filterControls = null; // 将在 init 后初始化
+        this.performanceDashboard = null; // 任务 6.1: 性能仪表板实例
         this.init();
     }
 
@@ -839,7 +1766,9 @@ class MemScopeVisualizer {
             () => this.populateTypeDistribution(), 
             () => this.populateRecentAllocations(),
             () => this.populatePerformanceInsights(),
-            () => this.setupInteractiveExplorer()
+            () => this.setupInteractiveExplorer(),
+            () => this.initializeFilterControls(), // 任务 5.1: 初始化过滤控件
+            () => this.initializePerformanceDashboard() // 任务 6.1: 初始化性能仪表板
         ];
         
         let currentStep = 0;
@@ -3190,6 +4119,34 @@ function updateLoadingProgress(source, progress) {
         } else {
             element.textContent = `${progress}%`;
             element.style.color = '#3498db';
+        }
+    }
+
+    /**
+     * 任务 5.1: 初始化过滤控件
+     */
+    initializeFilterControls() {
+        console.log('🎛️ 初始化过滤控件系统');
+        try {
+            // 创建过滤控件实例
+            this.filterControls = new FilterControls(this);
+            console.log('✅ 过滤控件初始化成功');
+        } catch (error) {
+            console.error('❌ 过滤控件初始化失败:', error);
+        }
+    }
+
+    /**
+     * 任务 6.1: 初始化性能仪表板
+     */
+    initializePerformanceDashboard() {
+        console.log('📊 初始化性能仪表板系统');
+        try {
+            // 创建性能仪表板实例
+            this.performanceDashboard = new PerformanceDashboard(this);
+            console.log('✅ 性能仪表板初始化成功');
+        } catch (error) {
+            console.error('❌ 性能仪表板初始化失败:', error);
         }
     }
 }

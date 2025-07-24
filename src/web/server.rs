@@ -103,14 +103,16 @@ impl MemScopeServer {
         println!("⏱️  Timeline index: {} entries", self.state.indexes.timeline_index.len());
         println!();
         println!("🎯 Available endpoints:");
-        println!("   GET  /                     - Main dashboard");
-        println!("   GET  /api/overview         - Memory overview");
-        println!("   GET  /api/variables        - Variables list");
-        println!("   GET  /api/variables/:name  - Variable details");
-        println!("   GET  /api/timeline         - Timeline events");
-        println!("   GET  /api/relationships    - Variable relationships");
-        println!("   GET  /api/unsafe-ffi       - Unsafe/FFI analysis");
-        println!("   GET  /api/performance      - Performance metrics");
+        println!("   GET  /                              - Main dashboard");
+        println!("   GET  /api/overview                  - Memory overview");
+        println!("   GET  /api/variables                 - Variables list");
+        println!("   GET  /api/variables/:name           - Variable details");
+        println!("   GET  /api/variables/:name/timeline  - Variable timeline");
+        println!("   GET  /api/timeline                  - Timeline events");
+        println!("   GET  /api/allocation-distribution   - Allocation size distribution");
+        println!("   GET  /api/unsafe-ffi                - Unsafe/FFI analysis");
+        println!("   GET  /api/performance               - Performance metrics");
+        println!("   GET  /api/search                    - Search variables/types");
         println!();
         println!("Press Ctrl+C to stop the server");
         
@@ -133,6 +135,7 @@ impl MemScopeServer {
             .route("/api/timeline", get(api::timeline_events))
             .route("/api/unsafe-ffi", get(api::unsafe_ffi_analysis))
             .route("/api/performance", get(api::performance_metrics))
+            .route("/api/allocation-distribution", get(api::allocation_distribution))
             .route("/api/search", get(api::search))
             
             // Health check

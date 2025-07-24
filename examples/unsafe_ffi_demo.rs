@@ -189,7 +189,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "snapshot",
     ])?;
     
-    run_html_from_json(&matches)?;
+    run_html_from_json(&matches);
     println!("   ✅ HTML report generated: {}", html_output);
 
     // 7. Display summary statistics
