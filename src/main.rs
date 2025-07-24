@@ -5,7 +5,8 @@
 use clap::{Arg, Command};
 use std::process;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = Command::new("memscope")
         .version("0.1.2")
         .author("TimWood")
@@ -91,6 +92,21 @@ fn main() {
                         .value_name("NAME")
                         .help("Base name for JSON files (e.g., 'snapshot' for snapshot_memory_analysis.json)")
                         .default_value("snapshot"),
+                )
+                .arg(
+                    Arg::new("serve")
+                        .long("serve")
+                        .help("Start web server instead of generating static HTML")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("port")
+                        .short('p')
+                        .long("port")
+                        .value_name("PORT")
+                        .help("Port for web server (default: 8080)")
+                        .value_parser(clap::value_parser!(u16))
+                        .default_value("8080"),
                 ),
         )
         .subcommand(
@@ -119,7 +135,7 @@ fn main() {
             }
         }
         Some(("html-from-json", sub_matches)) => {
-            if let Err(e) = run_html_from_json_command(sub_matches) {
+            if let Err(e) = run_html_from_json_command(sub_matches).await {
                 eprintln!("Error running html-from-json command: {}", e);
                 process::exit(1);
             }
@@ -147,9 +163,9 @@ fn run_report_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
     run_generate_report(matches)
 }
 
-fn run_html_from_json_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_html_from_json_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::html_from_json::run_html_from_json;
-    run_html_from_json(matches)
+    run_html_from_json(matches).await
 }
 
 fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {

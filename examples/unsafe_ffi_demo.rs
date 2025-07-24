@@ -6,7 +6,6 @@
 //! - Safety violation detection
 
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
-use memscope_rs::visualization::export_unsafe_ffi_dashboard;
 use memscope_rs::{get_global_tracker, init, track_var};
 use std::alloc::{alloc, dealloc, Layout};
 
@@ -129,26 +128,69 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6. Generate reports
     println!("\n📊 6. Generating Analysis Reports");
 
-    // Export standard memory analysis
-    tracker.export_memory_analysis("unsafe_ffi_memory_analysis.svg")?;
-    println!("   ✅ Standard memory analysis exported");
-
-    // Export lifecycle timeline
-    tracker.export_lifecycle_timeline("unsafe_ffi_lifecycle_timeline.svg")?;
-    println!("   ✅ Lifecycle timeline exported");
-
-    // Export JSON data
-    tracker.export_to_json("unsafe_ffi_memory_snapshot.json")?;
-    println!("   ✅ JSON snapshot exported");
-
-    // Export dedicated unsafe/FFI dashboard
-    // Note: export_unsafe_ffi_dashboard function not available in current visualization module
-    export_unsafe_ffi_dashboard(&unsafe_ffi_tracker, "unsafe_ffi_dashboard.svg")?;
-    println!("   ✅ Unsafe/FFI dashboard exported");
-
-    // Then generate HTML dashboard based on JSON
-    println!("📊 Generating interactive HTML dashboard from JSON...");
-    tracker.export_interactive_dashboard("ffi_unsafe.html")?;
+    // 6.1 Export JSON files to MemoryAnalysis folder
+    println!("📊 Exporting JSON files to MemoryAnalysis folder...");
+    let analysis_dir = "MemoryAnalysis";
+    std::fs::create_dir_all(analysis_dir)?;
+    
+    // Export main memory analysis (correct naming for html_from_json)
+    let memory_json = format!("{}/snapshot_memory_analysis.json", analysis_dir);
+    tracker.export_to_json(&memory_json)?;
+    println!("   ✅ Memory analysis: {}", memory_json);
+    
+    // Export unsafe/FFI analysis
+    let ffi_json = format!("{}/snapshot_unsafe_ffi.json", analysis_dir);
+    let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
+    let ffi_data = serde_json::to_string_pretty(&enhanced_allocations)?;
+    std::fs::write(&ffi_json, ffi_data)?;
+    println!("   ✅ Unsafe/FFI analysis: {}", ffi_json);
+    
+    // Export performance metrics
+    let perf_json = format!("{}/snapshot_performance.json", analysis_dir);
+    let stats = tracker.get_stats()?;
+    let perf_data = serde_json::json!({
+        "performance_metrics": stats,
+        "timestamp": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    });
+    std::fs::write(&perf_json, serde_json::to_string_pretty(&perf_data)?)?;
+    println!("   ✅ Performance metrics: {}", perf_json);
+    
+    // Export security violations
+    let security_json = format!("{}/snapshot_security_violations.json", analysis_dir);
+    let violations = unsafe_ffi_tracker.get_safety_violations().unwrap_or_default();
+    let security_data = serde_json::json!({
+        "security_violations": violations,
+        "timestamp": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    });
+    std::fs::write(&security_json, serde_json::to_string_pretty(&security_data)?)?;
+    println!("   ✅ Security violations: {}", security_json);
+    
+    // 6.2 Generate HTML from JSON files using existing CLI functionality
+    println!("🌐 Generating HTML report from JSON files...");
+    use memscope_rs::cli::commands::html_from_json::run_html_from_json;
+    use clap::{Arg, Command};
+    
+    let html_output = format!("{}/snapshot_report.html", analysis_dir);
+    let app = Command::new("html_from_json")
+        .arg(Arg::new("input-dir").required(true))
+        .arg(Arg::new("output").required(true))
+        .arg(Arg::new("base-name").required(false));
+    
+    let matches = app.try_get_matches_from(vec![
+        "html_from_json",
+        analysis_dir,
+        &html_output,
+        "snapshot",
+    ])?;
+    
+    run_html_from_json(&matches)?;
+    println!("   ✅ HTML report generated: {}", html_output);
 
     // 7. Display summary statistics
     println!("\n📈 7. Summary Statistics");
@@ -197,11 +239,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   📊 Cross-boundary events: {cross_boundary_events}");
 
     println!("\n🎉 Unsafe Rust & FFI Memory Analysis Complete!");
-    println!("📁 Check the generated files:");
-    println!("   • unsafe_ffi_memory_analysis.svg - Standard memory analysis");
-    println!("   • unsafe_ffi_lifecycle_timeline.svg - Variable lifecycle timeline");
-    println!("   • unsafe_ffi_dashboard.svg - 🎯 DEDICATED UNSAFE/FFI ANALYSIS");
-    println!("   • unsafe_ffi_memory_snapshot.json - Raw data export");
+    println!("📁 All analysis files are organized in: {}/", analysis_dir);
+    println!("🌐 Open the HTML report for interactive analysis:");
+    println!("   {}", html_output);
+    println!("\n📊 Generated files:");
+    println!("   • snapshot_memory_analysis.json - Memory allocation analysis");
+    println!("   • snapshot_unsafe_ffi.json - Unsafe/FFI analysis");
+    println!("   • snapshot_performance.json - Performance metrics");
+    println!("   • snapshot_report.html - 🎯 INTERACTIVE HTML REPORT");
 
     Ok(())
 }

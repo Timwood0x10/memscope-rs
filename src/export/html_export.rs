@@ -201,25 +201,36 @@ fn prepare_comprehensive_json_data(
     let type_distribution = precompute_type_distribution(&processed_allocations);
     let performance_metrics = precompute_performance_metrics(stats, &processed_allocations);
 
-    // 转换分配数据为正确的格式
+    // 转换分配数据为与JSON导出一致的格式
     let formatted_allocations: Vec<serde_json::Value> = processed_allocations
         .iter()
         .map(|alloc| {
             json!({
-                "ptr": alloc.ptr,
+                "ptr": format!("0x{:x}", alloc.ptr),  // 格式化为十六进制字符串，与JSON一致
                 "size": alloc.size,
-                "timestamp": alloc.timestamp_alloc,
-                "var_name": alloc.var_name.as_ref().unwrap_or(&format!("ptr_{:x}", alloc.ptr)),
-                "type_name": alloc.type_name.as_ref().unwrap_or(&"Unknown".to_string()),
-                "call_stack": alloc.stack_trace.as_ref().map(|stack| {
-                    stack.iter().map(|frame| {
-                        json!({
-                            "function_name": frame,
-                            "file_name": "unknown",
-                            "line_number": 0
-                        })
-                    }).collect::<Vec<_>>()
-                }).unwrap_or_default()
+                "timestamp_alloc": alloc.timestamp_alloc,  // 使用正确的字段名
+                "timestamp_dealloc": alloc.timestamp_dealloc,  // 添加释放时间戳
+                "var_name": alloc.var_name,  // 保持原始值，包括null
+                "type_name": alloc.type_name,  // 保持原始值，包括null
+                "scope_name": alloc.scope_name,  // 添加作用域名称
+                "stack_trace": alloc.stack_trace,  // 使用正确的字段名
+                "borrow_count": alloc.borrow_count,  // 添加借用计数
+                "is_leaked": alloc.is_leaked,  // 添加泄漏标记
+                "lifetime_ms": alloc.lifetime_ms,  // 添加生命周期
+                "smart_pointer_info": alloc.smart_pointer_info,  // 添加智能指针信息
+                "memory_layout": alloc.memory_layout,  // 添加内存布局
+                "generic_info": alloc.generic_info,  // 添加泛型信息
+                "dynamic_type_info": alloc.dynamic_type_info,  // 添加动态类型信息
+                "runtime_state": alloc.runtime_state,  // 添加运行时状态
+                "stack_allocation": alloc.stack_allocation,  // 添加栈分配信息
+                "temporary_object": alloc.temporary_object,  // 添加临时对象信息
+                "fragmentation_analysis": alloc.fragmentation_analysis,  // 添加碎片分析
+                "generic_instantiation": alloc.generic_instantiation,  // 添加泛型实例化
+                "type_relationships": alloc.type_relationships,  // 添加类型关系
+                "type_usage": alloc.type_usage,  // 添加类型使用
+                "function_call_tracking": alloc.function_call_tracking,  // 添加函数调用跟踪
+                "lifecycle_tracking": alloc.lifecycle_tracking,  // 添加生命周期跟踪
+                "access_tracking": alloc.access_tracking  // 添加访问跟踪
             })
         })
         .collect();
@@ -253,6 +264,37 @@ fn prepare_comprehensive_json_data(
                 },
                 "load_time_estimate": if allocations.len() > 1000 { "Fast" } else { "Instant" }
             }
+        },
+        // 新增：复杂类型分析数据（模拟结构，实际应从tracker获取）
+        "complex_types": {
+            "categorized_types": {
+                "collections": [],
+                "generic_types": [],
+                "smart_pointers": [],
+                "trait_objects": []
+            },
+            "complex_type_analysis": [],
+            "summary": {
+                "total_complex_types": 0,
+                "complexity_distribution": {
+                    "low_complexity": 0,
+                    "medium_complexity": 0,
+                    "high_complexity": 0,
+                    "very_high_complexity": 0
+                }
+            }
+        },
+        // 新增：生命周期事件数据（模拟结构，实际应从tracker获取）
+        "lifecycle": {
+            "lifecycle_events": [],
+            "scope_analysis": {},
+            "variable_lifetimes": {}
+        },
+        // 新增：变量关系数据（模拟结构，实际应从tracker获取）
+        "variable_relationships": {
+            "relationships": [],
+            "dependency_graph": {},
+            "scope_hierarchy": {}
         }
     });
 
@@ -308,6 +350,8 @@ fn generate_html_template(
             <button class="tab-btn active" data-tab="overview">📊 Overview</button>
             <button class="tab-btn" data-tab="memory-analysis">🧠 Memory Analysis</button>
             <button class="tab-btn" data-tab="lifecycle">⏱️ Lifecycle Timeline</button>
+            <button class="tab-btn" data-tab="complex-types">🔧 Complex Types</button>
+            <button class="tab-btn" data-tab="variable-relationships">🔗 Variable Relations</button>
             <button class="tab-btn" data-tab="unsafe-ffi">⚠️ Unsafe/FFI</button>
             <button class="tab-btn" data-tab="interactive">🎮 Interactive Explorer</button>
         </nav>
@@ -343,6 +387,16 @@ fn generate_html_template(
             <!-- Lifecycle Timeline Tab -->
             <div class="tab-content" id="lifecycle">
                 <!-- Dynamic visualization will be rendered here by JavaScript -->
+            </div>
+
+            <!-- Complex Types Tab -->
+            <div class="tab-content" id="complex-types">
+                <!-- Complex types analysis will be rendered here by JavaScript -->
+            </div>
+
+            <!-- Variable Relationships Tab -->
+            <div class="tab-content" id="variable-relationships">
+                <!-- Variable relationships will be rendered here by JavaScript -->
             </div>
 
             <!-- Unsafe/FFI Tab -->
@@ -383,10 +437,21 @@ fn generate_html_template(
     </div>
 
     <script>
-        // Embedded data
-        const MEMORY_DATA = {json_data};
+        // 嵌入的数据作为回退
+        const EMBEDDED_DATA = {json_data};
+        
+        // 全局变量
+        let globalDataLoader;
+        let globalVisualizer;
+        
+        // 初始化函数将在JS文件中定义
         
         {JS_CONTENT}
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {{
+            initializeMemScopeApp();
+        }});
     </script>
 </body>
 </html>"#

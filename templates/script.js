@@ -1,20 +1,835 @@
 // MemScope-RS Dynamic Interactive Visualizations
-// Replaces static SVGs with dynamic, interactive JavaScript visualizations
+// Enhanced JSON data loading and processing system
+
+/**
+ * 统一JSON数据读取器 - 支持5个数据源的并行加载
+ */
+class JSONDataLoader {
+    constructor(basePath = './examples/MemoryAnalysis/') {
+        this.basePath = basePath;
+        this.dataSources = {
+            memory_analysis: 'snapshot_memory_analysis.json',
+            performance: 'snapshot_performance.json', 
+            security_violations: 'snapshot_security_violations.json',
+            unsafe_ffi: 'snapshot_unsafe_ffi.json',
+            complex_types: 'snapshot_memory_analysis_complex_types.json'
+        };
+        this.loadedData = {};
+        this.loadProgress = {};
+        this.errorHandlers = [];
+        this.progressHandlers = [];
+        this.cacheManager = new BrowserCacheManager();
+    }
+
+    /**
+     * 并行加载所有JSON数据文件
+     */
+    async loadAllData() {
+        console.log('🔄 开始加载JSON数据文件...');
+        const startTime = performance.now();
+        
+        try {
+            // 并行加载所有数据源
+            const loadPromises = Object.entries(this.dataSources).map(([key, fileName]) => 
+                this.loadSingleDataSource(key, fileName)
+            );
+            
+            const results = await Promise.allSettled(loadPromises);
+            
+            // 处理加载结果
+            results.forEach((result, index) => {
+                const [key] = Object.entries(this.dataSources)[index];
+                if (result.status === 'fulfilled') {
+                    this.loadedData[key] = result.value;
+                    console.log(`✅ ${key} 数据加载成功`);
+                } else {
+                    console.warn(`⚠️ ${key} 数据加载失败:`, result.reason);
+                    this.loadedData[key] = this.getDefaultData(key);
+                }
+            });
+            
+            const loadTime = performance.now() - startTime;
+            console.log(`🎉 数据加载完成，耗时: ${loadTime.toFixed(2)}ms`);
+            
+            // 标准化和合并数据
+            return this.normalizeAndMergeData();
+            
+        } catch (error) {
+            console.error('❌ 数据加载失败:', error);
+            throw new Error(`数据加载失败: ${error.message}`);
+        }
+    }
+
+    /**
+     * 加载单个数据源（带缓存支持）
+     */
+    async loadSingleDataSource(key, fileName) {
+        const cacheKey = `${key}_${fileName}`;
+        this.updateProgress(key, 0);
+        
+        try {
+            // 1. 尝试从缓存获取
+            const cachedData = this.cacheManager.get(cacheKey);
+            if (cachedData) {
+                console.log(`📦 使用缓存数据: ${key}`);
+                this.updateProgress(key, 100);
+                return cachedData;
+            }
+            
+            // 2. 从网络加载
+            console.log(`🌐 从网络加载: ${fileName}`);
+            const url = `${this.basePath}${fileName}`;
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            this.updateProgress(key, 50);
+            
+            const data = await response.json();
+            this.updateProgress(key, 75);
+            
+            // 3. 数据验证
+            this.validateDataSource(key, data);
+            
+            // 4. 缓存数据
+            this.cacheManager.set(cacheKey, data, true); // 持久化缓存
+            
+            this.updateProgress(key, 100);
+            return data;
+            
+        } catch (error) {
+            this.updateProgress(key, -1); // 错误状态
+            console.error(`❌ 加载 ${fileName} 失败:`, error);
+            
+            // 尝试使用过期的缓存数据作为回退
+            const expiredCache = this.tryGetExpiredCache(cacheKey);
+            if (expiredCache) {
+                console.warn(`⚠️ 使用过期缓存数据: ${key}`);
+                this.updateProgress(key, 50); // 部分成功状态
+                return expiredCache;
+            }
+            
+            throw new Error(`加载 ${fileName} 失败: ${error.message}`);
+        }
+    }
+
+    /**
+     * 尝试获取过期的缓存数据
+     */
+    tryGetExpiredCache(cacheKey) {
+        try {
+            const localKey = `memscope_persistent_${this.cacheManager.cacheVersion}_${cacheKey}`;
+            const cached = this.cacheManager.localStorage.getItem(localKey);
+            if (cached) {
+                const { data } = JSON.parse(cached);
+                return data;
+            }
+        } catch (e) {
+            console.warn('无法获取过期缓存:', e);
+        }
+        return null;
+    }
+
+    /**
+     * 数据验证
+     */
+    validateDataSource(key, data) {
+        if (!data || typeof data !== 'object') {
+            throw new Error(`${key} 数据格式无效`);
+        }
+        
+        // 根据数据源类型进行特定验证
+        switch (key) {
+            case 'memory_analysis':
+                if (!Array.isArray(data.allocations)) {
+                    throw new Error('memory_analysis 缺少 allocations 数组');
+                }
+                break;
+            case 'performance':
+                if (!data.performance_metrics) {
+                    throw new Error('performance 缺少 performance_metrics');
+                }
+                break;
+            case 'security_violations':
+                if (!Array.isArray(data.security_violations)) {
+                    throw new Error('security_violations 缺少 security_violations 数组');
+                }
+                break;
+            case 'unsafe_ffi':
+                if (!Array.isArray(data)) {
+                    throw new Error('unsafe_ffi 应该是数组格式');
+                }
+                break;
+            case 'complex_types':
+                if (!data.categorized_types) {
+                    throw new Error('complex_types 缺少 categorized_types');
+                }
+                break;
+        }
+    }
+
+    /**
+     * 获取默认数据（当文件加载失败时）
+     */
+    getDefaultData(key) {
+        const defaults = {
+            memory_analysis: { allocations: [] },
+            performance: { performance_metrics: { active_allocations: 0, active_memory: 0, allocations: [] } },
+            security_violations: { security_violations: [], timestamp: Date.now() },
+            unsafe_ffi: [],
+            complex_types: { 
+                categorized_types: { collections: [], generic_types: [], smart_pointers: [], trait_objects: [] },
+                summary: { total_complex_types: 0 }
+            }
+        };
+        return defaults[key] || {};
+    }
+
+    /**
+     * 标准化和合并数据
+     */
+    normalizeAndMergeData() {
+        console.log('🔄 开始数据标准化和合并...');
+        
+        const normalizer = new DataNormalizer();
+        
+        // 标准化各个数据源
+        const normalizedData = {
+            allocations: normalizer.normalizeAllocations(this.loadedData),
+            performance: normalizer.normalizePerformance(this.loadedData.performance),
+            security: normalizer.normalizeSecurity(this.loadedData.security_violations),
+            unsafeFFI: normalizer.normalizeUnsafeFFI(this.loadedData.unsafe_ffi),
+            complexTypes: normalizer.normalizeComplexTypes(this.loadedData.complex_types),
+            metadata: this.generateMetadata()
+        };
+        
+        // 建立数据关联
+        normalizedData.relationships = normalizer.buildDataRelationships(normalizedData);
+        
+        console.log('✅ 数据标准化完成');
+        return normalizedData;
+    }
+
+    /**
+     * 生成元数据
+     */
+    generateMetadata() {
+        return {
+            timestamp: Date.now(),
+            version: '2.0',
+            sources: Object.keys(this.dataSources),
+            loadStatus: this.loadProgress,
+            totalAllocations: this.getTotalAllocations()
+        };
+    }
+
+    /**
+     * 获取总分配数量
+     */
+    getTotalAllocations() {
+        let total = 0;
+        if (this.loadedData.memory_analysis?.allocations) {
+            total += this.loadedData.memory_analysis.allocations.length;
+        }
+        if (this.loadedData.performance?.performance_metrics?.allocations) {
+            total += this.loadedData.performance.performance_metrics.allocations.length;
+        }
+        return total;
+    }
+
+    /**
+     * 更新加载进度
+     */
+    updateProgress(key, progress) {
+        this.loadProgress[key] = progress;
+        this.progressHandlers.forEach(handler => handler(key, progress));
+    }
+
+    /**
+     * 注册进度回调
+     */
+    onProgress(callback) {
+        this.progressHandlers.push(callback);
+    }
+
+    /**
+     * 注册错误回调
+     */
+    onError(callback) {
+        this.errorHandlers.push(callback);
+    }
+}
+
+/**
+ * 浏览器缓存管理器 - 优化数据加载性能
+ */
+class BrowserCacheManager {
+    constructor() {
+        this.memoryCache = new Map();
+        this.maxMemorySize = 50; // 内存缓存最大条目数
+        this.cacheVersion = '2.0';
+        this.sessionStorage = window.sessionStorage;
+        this.localStorage = window.localStorage;
+    }
+
+    /**
+     * 获取缓存数据
+     */
+    get(key) {
+        // 1. 优先从内存缓存获取
+        if (this.memoryCache.has(key)) {
+            console.log(`🎯 内存缓存命中: ${key}`);
+            return this.memoryCache.get(key);
+        }
+
+        // 2. 从sessionStorage获取
+        try {
+            const sessionKey = `memscope_${this.cacheVersion}_${key}`;
+            const cached = this.sessionStorage.getItem(sessionKey);
+            if (cached) {
+                const data = JSON.parse(cached);
+                // 回填内存缓存
+                this.setMemoryCache(key, data);
+                console.log(`💾 会话缓存命中: ${key}`);
+                return data;
+            }
+        } catch (e) {
+            console.warn(`会话缓存读取失败 ${key}:`, e);
+        }
+
+        // 3. 从localStorage获取（持久化缓存）
+        try {
+            const localKey = `memscope_persistent_${this.cacheVersion}_${key}`;
+            const cached = this.localStorage.getItem(localKey);
+            if (cached) {
+                const { data, timestamp } = JSON.parse(cached);
+                // 检查是否过期（24小时）
+                if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+                    this.setMemoryCache(key, data);
+                    console.log(`💿 本地缓存命中: ${key}`);
+                    return data;
+                } else {
+                    this.localStorage.removeItem(localKey);
+                    console.log(`🗑️ 本地缓存已过期: ${key}`);
+                }
+            }
+        } catch (e) {
+            console.warn(`本地缓存读取失败 ${key}:`, e);
+        }
+
+        return null;
+    }
+
+    /**
+     * 设置缓存数据
+     */
+    set(key, data, persistent = false) {
+        // 1. 设置内存缓存
+        this.setMemoryCache(key, data);
+
+        // 2. 设置会话缓存
+        try {
+            const sessionKey = `memscope_${this.cacheVersion}_${key}`;
+            this.sessionStorage.setItem(sessionKey, JSON.stringify(data));
+        } catch (e) {
+            console.warn(`会话缓存设置失败 ${key}:`, e);
+        }
+
+        // 3. 设置持久化缓存（可选）
+        if (persistent) {
+            try {
+                const localKey = `memscope_persistent_${this.cacheVersion}_${key}`;
+                const cacheData = {
+                    data,
+                    timestamp: Date.now()
+                };
+                this.localStorage.setItem(localKey, JSON.stringify(cacheData));
+            } catch (e) {
+                console.warn(`本地缓存设置失败 ${key}:`, e);
+            }
+        }
+    }
+
+    /**
+     * 设置内存缓存
+     */
+    setMemoryCache(key, data) {
+        // LRU淘汰策略
+        if (this.memoryCache.size >= this.maxMemorySize) {
+            const firstKey = this.memoryCache.keys().next().value;
+            this.memoryCache.delete(firstKey);
+        }
+        this.memoryCache.set(key, data);
+    }
+
+    /**
+     * 清除所有缓存
+     */
+    clear() {
+        this.memoryCache.clear();
+        
+        // 清除会话缓存
+        Object.keys(this.sessionStorage).forEach(key => {
+            if (key.startsWith(`memscope_${this.cacheVersion}_`)) {
+                this.sessionStorage.removeItem(key);
+            }
+        });
+
+        // 清除本地缓存
+        Object.keys(this.localStorage).forEach(key => {
+            if (key.startsWith(`memscope_persistent_${this.cacheVersion}_`)) {
+                this.localStorage.removeItem(key);
+            }
+        });
+
+        console.log('🧹 所有缓存已清除');
+    }
+
+    /**
+     * 获取缓存统计信息
+     */
+    getStats() {
+        return {
+            memoryCache: this.memoryCache.size,
+            sessionStorage: Object.keys(this.sessionStorage).filter(k => 
+                k.startsWith(`memscope_${this.cacheVersion}_`)).length,
+            localStorage: Object.keys(this.localStorage).filter(k => 
+                k.startsWith(`memscope_persistent_${this.cacheVersion}_`)).length
+        };
+    }
+}
+
+/**
+ * 数据标准化器 - 统一不同JSON文件的数据格式
+ */
+class DataNormalizer {
+    constructor() {
+        this.typeInferenceCache = new Map();
+    }
+
+    /**
+     * 标准化分配数据
+     */
+    normalizeAllocations(loadedData) {
+        const allAllocations = [];
+        
+        // 从memory_analysis获取主要分配数据
+        if (loadedData.memory_analysis?.allocations) {
+            const memoryAllocs = loadedData.memory_analysis.allocations.map(alloc => 
+                this.normalizeAllocation(alloc, 'memory_analysis')
+            );
+            allAllocations.push(...memoryAllocs);
+        }
+        
+        // 从performance获取性能相关分配数据
+        if (loadedData.performance?.performance_metrics?.allocations) {
+            const perfAllocs = loadedData.performance.performance_metrics.allocations.map(alloc => 
+                this.normalizeAllocation(alloc, 'performance')
+            );
+            allAllocations.push(...perfAllocs);
+        }
+        
+        // 去重和排序
+        return this.deduplicateAndSort(allAllocations);
+    }
+
+    /**
+     * 标准化单个分配记录
+     */
+    normalizeAllocation(alloc, source) {
+        // 统一指针格式
+        const ptr = typeof alloc.ptr === 'string' ? 
+            parseInt(alloc.ptr.replace('0x', ''), 16) : alloc.ptr;
+        
+        // 智能类型推断
+        const inferredType = this.inferType(alloc);
+        
+        return {
+            id: `${source}_${ptr}`,
+            ptr: ptr,
+            size: alloc.size || 0,
+            type_name: alloc.type_name || inferredType,
+            var_name: alloc.var_name || null,
+            timestamp: alloc.timestamp_alloc || alloc.timestamp || Date.now(),
+            timestamp_dealloc: alloc.timestamp_dealloc || null,
+            scope_name: alloc.scope_name || null,
+            call_stack: alloc.stack_trace || alloc.call_stack || [],
+            borrow_count: alloc.borrow_count || 0,
+            is_leaked: alloc.is_leaked || false,
+            lifetime_ms: alloc.lifetime_ms || null,
+            source: source,
+            metadata: {
+                inferred_type: !alloc.type_name,
+                has_var_name: !!alloc.var_name,
+                has_call_stack: !!(alloc.stack_trace || alloc.call_stack),
+                risk_level: this.assessRiskLevel(alloc)
+            }
+        };
+    }
+
+    /**
+     * 智能类型推断
+     */
+    inferType(alloc) {
+        // 缓存推断结果
+        const cacheKey = `${alloc.size}_${alloc.var_name || 'unknown'}`;
+        if (this.typeInferenceCache.has(cacheKey)) {
+            return this.typeInferenceCache.get(cacheKey);
+        }
+        
+        let inferredType = 'Unknown';
+        
+        // 基于变量名推断
+        if (alloc.var_name) {
+            const varName = alloc.var_name.toLowerCase();
+            if (varName.includes('vec') || varName.includes('vector')) {
+                inferredType = 'Vec<T>';
+            } else if (varName.includes('string') || varName.includes('str')) {
+                inferredType = 'String';
+            } else if (varName.includes('map') || varName.includes('hash')) {
+                inferredType = 'HashMap<K,V>';
+            } else if (varName.includes('box')) {
+                inferredType = 'Box<T>';
+            } else if (varName.includes('rc')) {
+                inferredType = 'Rc<T>';
+            } else if (varName.includes('arc')) {
+                inferredType = 'Arc<T>';
+            }
+        }
+        
+        // 基于大小推断（如果变量名推断失败）
+        if (inferredType === 'Unknown') {
+            const size = alloc.size || 0;
+            if (size <= 8) {
+                inferredType = 'Primitive';
+            } else if (size <= 32) {
+                inferredType = 'Small Struct';
+            } else if (size <= 1024) {
+                inferredType = 'Medium Struct';
+            } else if (size <= 1048576) {
+                inferredType = 'Large Buffer';
+            } else {
+                inferredType = 'Huge Object';
+            }
+        }
+        
+        this.typeInferenceCache.set(cacheKey, inferredType);
+        return inferredType;
+    }
+
+    /**
+     * 评估风险级别
+     */
+    assessRiskLevel(alloc) {
+        let riskScore = 0;
+        
+        // 大分配增加风险
+        if (alloc.size > 1024 * 1024) riskScore += 3;
+        else if (alloc.size > 1024) riskScore += 1;
+        
+        // 无变量名增加风险
+        if (!alloc.var_name) riskScore += 1;
+        
+        // 无调用栈增加风险
+        if (!alloc.stack_trace && !alloc.call_stack) riskScore += 1;
+        
+        if (riskScore >= 4) return 'HIGH';
+        if (riskScore >= 2) return 'MEDIUM';
+        return 'LOW';
+    }
+
+    /**
+     * 去重和排序
+     */
+    deduplicateAndSort(allocations) {
+        // 基于指针去重
+        const uniqueAllocs = new Map();
+        allocations.forEach(alloc => {
+            const key = alloc.ptr;
+            if (!uniqueAllocs.has(key) || uniqueAllocs.get(key).source === 'performance') {
+                uniqueAllocs.set(key, alloc);
+            }
+        });
+        
+        // 按时间戳排序
+        return Array.from(uniqueAllocs.values()).sort((a, b) => b.timestamp - a.timestamp);
+    }
+
+    /**
+     * 标准化性能数据
+     */
+    normalizePerformance(performanceData) {
+        if (!performanceData?.performance_metrics) {
+            return {
+                active_allocations: 0,
+                active_memory: 0,
+                peak_memory: 0,
+                metrics: {}
+            };
+        }
+        
+        const metrics = performanceData.performance_metrics;
+        return {
+            active_allocations: metrics.active_allocations || 0,
+            active_memory: metrics.active_memory || 0,
+            peak_memory: metrics.peak_memory || metrics.active_memory || 0,
+            metrics: {
+                allocation_rate: this.calculateAllocationRate(metrics),
+                memory_efficiency: this.calculateMemoryEfficiency(metrics),
+                fragmentation_score: this.calculateFragmentation(metrics)
+            }
+        };
+    }
+
+    /**
+     * 标准化安全数据
+     */
+    normalizeSecurity(securityData) {
+        if (!securityData?.security_violations) {
+            return {
+                violations: [],
+                risk_level: 'LOW',
+                summary: { total_violations: 0 }
+            };
+        }
+        
+        const violations = securityData.security_violations.map(violation => ({
+            type: Object.keys(violation)[0],
+            details: violation[Object.keys(violation)[0]],
+            severity: this.assessViolationSeverity(violation),
+            timestamp: violation.timestamp || securityData.timestamp
+        }));
+        
+        return {
+            violations,
+            risk_level: this.calculateOverallRiskLevel(violations),
+            summary: {
+                total_violations: violations.length,
+                by_severity: this.groupViolationsBySeverity(violations)
+            }
+        };
+    }
+
+    /**
+     * 标准化不安全FFI数据
+     */
+    normalizeUnsafeFFI(unsafeFFIData) {
+        if (!Array.isArray(unsafeFFIData)) {
+            return {
+                allocations: [],
+                boundary_events: [],
+                safety_score: 100
+            };
+        }
+        
+        const allocations = unsafeFFIData.map(item => ({
+            ...item.base,
+            source_info: item.source,
+            call_stack: item.call_stack || [],
+            cross_boundary_events: item.cross_boundary_events || [],
+            safety_violations: item.safety_violations || [],
+            ffi_tracked: item.ffi_tracked || false
+        }));
+        
+        return {
+            allocations,
+            boundary_events: this.extractBoundaryEvents(unsafeFFIData),
+            safety_score: this.calculateSafetyScore(allocations)
+        };
+    }
+
+    /**
+     * 标准化复杂类型数据
+     */
+    normalizeComplexTypes(complexTypesData) {
+        if (!complexTypesData?.categorized_types) {
+            return {
+                categories: {},
+                analysis: [],
+                summary: { total_types: 0 }
+            };
+        }
+        
+        return {
+            categories: complexTypesData.categorized_types,
+            analysis: complexTypesData.complex_type_analysis || [],
+            summary: complexTypesData.summary || { total_types: 0 },
+            optimization_recommendations: complexTypesData.optimization_recommendations || []
+        };
+    }
+
+    /**
+     * 建立数据关联
+     */
+    buildDataRelationships(normalizedData) {
+        const relationships = {
+            pointer_cross_references: new Map(),
+            type_groupings: new Map(),
+            temporal_clusters: [],
+            call_stack_patterns: []
+        };
+        
+        // 建立指针交叉引用
+        normalizedData.allocations.forEach(alloc => {
+            const ptr = alloc.ptr;
+            if (!relationships.pointer_cross_references.has(ptr)) {
+                relationships.pointer_cross_references.set(ptr, []);
+            }
+            relationships.pointer_cross_references.get(ptr).push({
+                source: alloc.source,
+                allocation: alloc
+            });
+        });
+        
+        // 建立类型分组
+        normalizedData.allocations.forEach(alloc => {
+            const type = alloc.type_name;
+            if (!relationships.type_groupings.has(type)) {
+                relationships.type_groupings.set(type, []);
+            }
+            relationships.type_groupings.get(type).push(alloc);
+        });
+        
+        return relationships;
+    }
+
+    // 辅助方法
+    calculateAllocationRate(metrics) {
+        return metrics.allocations ? metrics.allocations.length / 1000 : 0;
+    }
+
+    calculateMemoryEfficiency(metrics) {
+        const active = metrics.active_memory || 0;
+        const peak = metrics.peak_memory || active;
+        return peak > 0 ? Math.round((active / peak) * 100) : 100;
+    }
+
+    calculateFragmentation(metrics) {
+        return metrics.allocations ? Math.min(100, metrics.allocations.length / 10) : 0;
+    }
+
+    assessViolationSeverity(violation) {
+        const type = Object.keys(violation)[0];
+        const severityMap = {
+            'DoubleFree': 'CRITICAL',
+            'UseAfterFree': 'CRITICAL',
+            'BufferOverflow': 'HIGH',
+            'MemoryLeak': 'MEDIUM',
+            'InvalidPointer': 'HIGH'
+        };
+        return severityMap[type] || 'LOW';
+    }
+
+    calculateOverallRiskLevel(violations) {
+        if (violations.some(v => v.severity === 'CRITICAL')) return 'CRITICAL';
+        if (violations.some(v => v.severity === 'HIGH')) return 'HIGH';
+        if (violations.some(v => v.severity === 'MEDIUM')) return 'MEDIUM';
+        return 'LOW';
+    }
+
+    groupViolationsBySeverity(violations) {
+        return violations.reduce((acc, v) => {
+            acc[v.severity] = (acc[v.severity] || 0) + 1;
+            return acc;
+        }, {});
+    }
+
+    extractBoundaryEvents(unsafeFFIData) {
+        return unsafeFFIData.flatMap(item => item.cross_boundary_events || []);
+    }
+
+    calculateSafetyScore(allocations) {
+        if (allocations.length === 0) return 100;
+        const violationCount = allocations.reduce((sum, alloc) => 
+            sum + (alloc.safety_violations?.length || 0), 0);
+        return Math.max(0, 100 - (violationCount * 10));
+    }
+}
 
 class MemScopeVisualizer {
     constructor(data) {
         this.data = data;
-        this.filteredAllocations = [...data.allocations];
+        this.filteredAllocations = [...(data.allocations || [])];
         this.init();
     }
 
     init() {
+        console.log('🎯 初始化MemScopeVisualizer');
+        
+        // 验证数据完整性
+        if (!this.validateData()) {
+            console.warn('⚠️ 数据验证失败，使用默认值');
+            this.data = this.getDefaultData();
+        }
+        
         // 立即显示基础信息，避免长时间Loading
         this.updateHeaderStats();
         this.setupTabNavigation();
         
         // 使用渐进式加载，避免阻塞UI
         this.progressiveLoad();
+    }
+
+    /**
+     * 验证数据完整性
+     */
+    validateData() {
+        if (!this.data || typeof this.data !== 'object') {
+            return false;
+        }
+        
+        // 检查必要的数据结构
+        if (!Array.isArray(this.data.allocations)) {
+            console.warn('缺少allocations数组');
+            this.data.allocations = [];
+        }
+        
+        if (!this.data.performance) {
+            console.warn('缺少performance数据');
+            this.data.performance = { active_allocations: 0, active_memory: 0 };
+        }
+        
+        if (!this.data.metadata) {
+            console.warn('缺少metadata');
+            this.data.metadata = { timestamp: Date.now(), sources: [] };
+        }
+        
+        return true;
+    }
+
+    /**
+     * 获取默认数据
+     */
+    getDefaultData() {
+        return {
+            allocations: [],
+            performance: {
+                active_allocations: 0,
+                active_memory: 0,
+                peak_memory: 0,
+                metrics: {}
+            },
+            security: {
+                violations: [],
+                risk_level: 'LOW'
+            },
+            unsafeFFI: {
+                allocations: [],
+                safety_score: 100
+            },
+            complexTypes: {
+                categories: {},
+                summary: { total_types: 0 }
+            },
+            metadata: {
+                timestamp: Date.now(),
+                sources: [],
+                loadStatus: {}
+            }
+        };
     }
 
     progressiveLoad() {
@@ -81,6 +896,12 @@ class MemScopeVisualizer {
             case 'lifecycle':
                 this.renderLifecycleTimeline();
                 break;
+            case 'complex-types':
+                this.renderComplexTypesAnalysis();
+                break;
+            case 'variable-relationships':
+                this.renderVariableRelationships();
+                break;
             case 'unsafe-ffi':
                 this.renderUnsafeFFIDashboard();
                 break;
@@ -92,14 +913,30 @@ class MemScopeVisualizer {
 
     // Header Statistics
     updateHeaderStats() {
-        const stats = this.data.stats;
+        const performance = this.data.performance || {};
         
-        document.getElementById('totalMemory').textContent = 
-            `📊 ${this.formatBytes(stats.active_memory)}`;
-        document.getElementById('activeAllocs').textContent = 
-            `🔢 ${stats.active_allocations.toLocaleString()} allocs`;
-        document.getElementById('peakMemory').textContent = 
-            `📈 Peak: ${this.formatBytes(stats.peak_memory)}`;
+        const activeMemory = performance.active_memory || 0;
+        const activeAllocs = performance.active_allocations || this.data.allocations?.length || 0;
+        const peakMemory = performance.peak_memory || activeMemory;
+        
+        // 安全地更新DOM元素
+        const totalMemoryEl = document.getElementById('totalMemory');
+        const activeAllocsEl = document.getElementById('activeAllocs');
+        const peakMemoryEl = document.getElementById('peakMemory');
+        
+        if (totalMemoryEl) {
+            totalMemoryEl.textContent = `📊 ${this.formatBytes(activeMemory)}`;
+        }
+        
+        if (activeAllocsEl) {
+            activeAllocsEl.textContent = `🔢 ${activeAllocs.toLocaleString()} allocs`;
+        }
+        
+        if (peakMemoryEl) {
+            peakMemoryEl.textContent = `📈 Peak: ${this.formatBytes(peakMemory)}`;
+        }
+        
+        console.log(`📊 统计信息更新: 内存=${this.formatBytes(activeMemory)}, 分配=${activeAllocs}, 峰值=${this.formatBytes(peakMemory)}`);
     }
 
     // Overview Tab Population
@@ -494,12 +1331,11 @@ class MemScopeVisualizer {
     // DYNAMIC VISUALIZATION RENDERERS
     // ===========================================
 
-    // Memory Analysis Dashboard (替换静态SVG)
+    // Memory Analysis Dashboard 
     renderMemoryAnalysisDashboard() {
         const container = document.getElementById('memory-analysis');
-        container.innerHTML = ''; // 清空现有内容
+        container.innerHTML = '';
         
-        // 创建动态仪表板容器
         const dashboard = document.createElement('div');
         dashboard.className = 'memory-dashboard';
         dashboard.innerHTML = `
@@ -522,39 +1358,33 @@ class MemScopeVisualizer {
         `;
         container.appendChild(dashboard);
         
-        // 渲染各个组件
-        // 渲染完整的12个模块 (对应原始SVG的所有部分)
-        this.renderPerformanceMetrics();           // 模块2: 性能仪表板 (3个圆形进度条)
-        this.renderMemoryHeatmap();               // 模块3: 内存分配热力图
-        this.renderDynamicTypeDistribution();     // 模块4: 内存使用类型图表
-        this.renderFragmentationAnalysis();       // 模块5: 内存碎片化分析
-        this.renderCategorizedAllocations();      // 模块6: 分类分配
-        this.renderCallStackAnalysis();           // 模块7: 调用栈分析
-        this.renderMemoryGrowthTrends();          // 模块8: 内存增长趋势
-        this.renderVariableTimeline();            // 模块9: 变量分配时间轴
-        this.renderInteractiveLegend();           // 模块10: 交互式图例
-        this.renderComprehensiveSummary();        // 模块11: 综合摘要
+        this.renderPerformanceMetrics();           
+        this.renderMemoryHeatmap();               
+        this.renderDynamicTypeDistribution();     
+        this.renderFragmentationAnalysis();       
+        this.renderCategorizedAllocations();      
+        this.renderCallStackAnalysis();           
+        this.renderMemoryGrowthTrends();          
+        this.renderVariableTimeline();            
+        this.renderInteractiveLegend();           
+        this.renderComprehensiveSummary();        
     }
 
-    // 性能指标圆形进度条 (原SVG中的71% Active Memory等)
     renderPerformanceMetrics() {
         const container = document.getElementById('metricCards');
         const stats = this.data.stats;
         
-        // 安全的数值计算，避免NaN
         const currentMemory = stats.active_memory || 0;
         const peakMemory = stats.peak_memory || 0;
         const activeAllocations = stats.active_allocations || 0;
         
         const utilizationPercent = peakMemory > 0 ? Math.round((currentMemory / peakMemory) * 100) : 0;
         
-        // 计算更多指标
         const totalAllocations = this.data.allocations.length;
         const memoryEfficiency = peakMemory > 0 ? Math.round((currentMemory / peakMemory) * 100) : 0;
         const avgAllocationSize = totalAllocations > 0 ? currentMemory / totalAllocations : 0;
         const fragmentation = peakMemory > 0 ? Math.round((1 - (currentMemory / peakMemory)) * 100) : 0;
         
-        // 统一的6个指标，都使用相同的卡片样式
         const allMetrics = [
             {
                 label: 'Active Memory',
@@ -2118,3 +2948,302 @@ document.addEventListener('DOMContentLoaded', function() {
         timestamp: MEMORY_DATA.timestamp
     });
 });
+    // 🔧 Render Complex Types Analysis
+    renderComplexTypesAnalysis() {
+        const container = document.getElementById("complex-types");
+        const complexTypesData = this.data.complex_types || {};
+        
+        container.innerHTML = `
+            <div class="complex-types-dashboard">
+                <h2>🔧 Complex Types Analysis</h2>
+                <div class="complex-types-grid">
+                    <div class="complex-type-card">
+                        <h3>📊 Type Categories</h3>
+                        <div id="typeCategoriesChart"></div>
+                    </div>
+                    <div class="complex-type-card">
+                        <h3>🎯 Complexity Distribution</h3>
+                        <div id="complexityDistribution"></div>
+                    </div>
+                    <div class="complex-type-card">
+                        <h3>📈 Type Analysis Summary</h3>
+                        <div id="typeAnalysisSummary"></div>
+                    </div>
+                    <div class="complex-type-card">
+                        <h3>🔍 Detailed Type Breakdown</h3>
+                        <div id="detailedTypeBreakdown"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        this.populateComplexTypesData(complexTypesData);
+    }
+
+    populateComplexTypesData(data) {
+        const categorized = data.categorized_types || {};
+        const analysis = data.complex_type_analysis || [];
+        const summary = data.summary || {};
+        
+        const categoriesEl = document.getElementById("typeCategoriesChart");
+        if (categoriesEl) {
+            categoriesEl.innerHTML = `
+                <div class="type-category">
+                    <span class="category-label">Collections:</span>
+                    <span class="category-count">${categorized.collections?.length || 0}</span>
+                </div>
+                <div class="type-category">
+                    <span class="category-label">Generic Types:</span>
+                    <span class="category-count">${categorized.generic_types?.length || 0}</span>
+                </div>
+                <div class="type-category">
+                    <span class="category-label">Smart Pointers:</span>
+                    <span class="category-count">${categorized.smart_pointers?.length || 0}</span>
+                </div>
+                <div class="type-category">
+                    <span class="category-label">Trait Objects:</span>
+                    <span class="category-count">${categorized.trait_objects?.length || 0}</span>
+                </div>
+            `;
+        }
+    }
+
+    // 🔗 Render Variable Relationships
+    renderVariableRelationships() {
+        const container = document.getElementById("variable-relationships");
+        const relationshipsData = this.data.variable_relationships || {};
+        
+        container.innerHTML = `
+            <div class="relationships-dashboard">
+                <h2>🔗 Variable Relationships Analysis</h2>
+                <div class="relationships-grid">
+                    <div class="relationship-card">
+                        <h3>🌐 Dependency Graph</h3>
+                        <div id="dependencyGraph">
+                            <div class="no-data">No dependency graph data available</div>
+                        </div>
+                    </div>
+                    <div class="relationship-card">
+                        <h3>🏗️ Scope Hierarchy</h3>
+                        <div id="scopeHierarchy">
+                            <div class="no-data">No scope hierarchy data available</div>
+                        </div>
+                    </div>
+                    <div class="relationship-card">
+                        <h3>🔄 Variable Interactions</h3>
+                        <div id="variableInteractions">
+                            <div class="no-data">No variable interactions data available</div>
+                        </div>
+                    </div>
+                    <div class="relationship-card">
+                        <h3>📊 Relationship Statistics</h3>
+                        <div id="relationshipStats">
+                            <div class="relationship-summary">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Relationships:</span>
+                                    <span class="stat-value">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// ===========================================
+// 应用初始化和数据加载管理
+// ===========================================
+
+/**
+ * 初始化MemScope应用
+ */
+async function initializeMemScopeApp() {
+    try {
+        console.log('🚀 开始初始化MemScope应用');
+        
+        // 显示加载状态
+        showLoadingState();
+        
+        // 创建数据加载器
+        globalDataLoader = new JSONDataLoader();
+        
+        // 设置进度回调
+        globalDataLoader.onProgress((source, progress) => {
+            updateLoadingProgress(source, progress);
+        });
+        
+        // 尝试加载JSON数据
+        let data;
+        try {
+            data = await globalDataLoader.loadAllData();
+            console.log('✅ JSON数据加载成功');
+        } catch (error) {
+            console.warn('⚠️ JSON数据加载失败，使用嵌入数据:', error);
+            data = processEmbeddedData();
+        }
+        
+        // 创建可视化器
+        globalVisualizer = new MemScopeVisualizer(data);
+        
+        // 隐藏加载状态
+        hideLoadingState();
+        
+        console.log('🎉 MemScope应用初始化完成');
+        
+    } catch (error) {
+        console.error('❌ 应用初始化失败:', error);
+        showErrorState(error);
+    }
+}
+
+/**
+ * 处理嵌入数据
+ */
+function processEmbeddedData() {
+    console.log('🔄 处理嵌入数据');
+    
+    if (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA) {
+        // 如果有嵌入数据，直接使用
+        return EMBEDDED_DATA;
+    } else {
+        // 创建默认数据结构
+        return {
+            allocations: [],
+            performance: {
+                active_allocations: 0,
+                active_memory: 0,
+                peak_memory: 0
+            },
+            security: {
+                violations: [],
+                risk_level: 'LOW'
+            },
+            unsafeFFI: {
+                allocations: [],
+                safety_score: 100
+            },
+            complexTypes: {
+                categories: {},
+                summary: { total_types: 0 }
+            },
+            metadata: {
+                timestamp: Date.now(),
+                sources: ['embedded'],
+                note: '使用默认数据结构'
+            }
+        };
+    }
+}
+
+/**
+ * 显示加载状态
+ */
+function showLoadingState() {
+    const overlay = document.createElement('div');
+    overlay.id = 'loadingOverlay';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(255,255,255,0.95); z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="text-align: center;">
+            <h2>🔄 加载内存分析数据</h2>
+            <div id="loadingProgress" style="margin: 20px 0;">
+                <div style="margin: 10px 0;">
+                    <span>内存分析数据:</span> <span id="progress-memory_analysis">⏳</span>
+                </div>
+                <div style="margin: 10px 0;">
+                    <span>性能数据:</span> <span id="progress-performance">⏳</span>
+                </div>
+                <div style="margin: 10px 0;">
+                    <span>安全违规数据:</span> <span id="progress-security_violations">⏳</span>
+                </div>
+                <div style="margin: 10px 0;">
+                    <span>不安全FFI数据:</span> <span id="progress-unsafe_ffi">⏳</span>
+                </div>
+                <div style="margin: 10px 0;">
+                    <span>复杂类型数据:</span> <span id="progress-complex_types">⏳</span>
+                </div>
+            </div>
+            <p style="color: #666;">正在从JSON文件加载数据，请稍候...</p>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+/**
+ * 更新加载进度
+ */
+function updateLoadingProgress(source, progress) {
+    const element = document.getElementById(`progress-${source}`);
+    if (element) {
+        if (progress === -1) {
+            element.textContent = '❌ 失败';
+            element.style.color = '#e74c3c';
+        } else if (progress === 100) {
+            element.textContent = '✅ 完成';
+            element.style.color = '#2ecc71';
+        } else {
+            element.textContent = `${progress}%`;
+            element.style.color = '#3498db';
+        }
+    }
+}
+
+/**
+ * 隐藏加载状态
+ */
+function hideLoadingState() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.remove(), 300);
+    }
+}
+
+/**
+ * 显示错误状态
+ */
+function showErrorState(error) {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.innerHTML = `
+            <div style="text-align: center; color: #e74c3c;">
+                <h2>❌ 数据加载失败</h2>
+                <p style="margin: 20px 0; max-width: 500px;">${error.message}</p>
+                <button onclick="location.reload()" style="
+                    padding: 10px 20px; background: #3498db; color: white;
+                    border: none; border-radius: 5px; cursor: pointer;
+                ">重新加载</button>
+                <button onclick="loadFallbackData()" style="
+                    padding: 10px 20px; background: #95a5a6; color: white;
+                    border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;
+                ">使用示例数据</button>
+            </div>
+        `;
+    }
+}
+
+/**
+ * 加载回退数据
+ */
+function loadFallbackData() {
+    try {
+        console.log('🔄 使用回退数据');
+        const data = processEmbeddedData();
+        globalVisualizer = new MemScopeVisualizer(data);
+        hideLoadingState();
+        console.log('✅ 回退数据加载成功');
+    } catch (error) {
+        console.error('❌ 回退数据加载失败:', error);
+        showErrorState(new Error('所有数据源都不可用'));
+    }
+}
+
+// 导出全局函数供HTML使用
+window.initializeMemScopeApp = initializeMemScopeApp;
+window.loadFallbackData = loadFallbackData;
