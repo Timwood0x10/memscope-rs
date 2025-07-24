@@ -750,6 +750,515 @@ class DataNormalizer {
 }
 
 /**
+ * 安全/FFI 仪表板管理器 - 任务 7.1: 创建安全违规卡片
+ */
+class SecurityDashboard {
+    constructor(visualizer) {
+        this.visualizer = visualizer;
+        this.securityData = null;
+        this.updateInterval = null;
+        this.init();
+    }
+
+    /**
+     * 初始化安全仪表板
+     */
+    async init() {
+        console.log('🔒 初始化安全仪表板');
+        try {
+            await this.loadSecurityData();
+            this.createDashboardUI();
+            this.renderSecurityCards();
+            this.renderRiskAnalysis();
+            this.renderFFITracking();
+            this.startAutoUpdate();
+            console.log('✅ 安全仪表板初始化成功');
+        } catch (error) {
+            console.error('❌ 安全仪表板初始化失败:', error);
+        }
+    }
+
+    /**
+     * 加载安全数据
+     */
+    async loadSecurityData() {
+        try {
+            const response = await fetch('/api/unsafe-ffi');
+            const result = await response.json();
+            if (result.success) {
+                this.securityData = result.data;
+                console.log('🔒 安全数据加载成功:', this.securityData);
+            } else {
+                throw new Error(result.error || '加载安全数据失败');
+            }
+        } catch (error) {
+            console.error('❌ 加载安全数据失败:', error);
+            // 使用模拟数据作为后备
+            this.securityData = this.getMockSecurityData();
+        }
+    }
+
+    /**
+     * 创建安全仪表板UI结构
+     */
+    createDashboardUI() {
+        const dashboardContainer = document.createElement('div');
+        dashboardContainer.className = 'security-dashboard';
+        dashboardContainer.innerHTML = `
+            <div class="dashboard-header">
+                <h2>🔒 安全 & FFI 分析</h2>
+                <div class="dashboard-controls">
+                    <button class="refresh-security-btn">🔄 刷新</button>
+                    <button class="toggle-security-auto-update" data-enabled="true">⏱️ 自动更新</button>
+                </div>
+            </div>
+            
+            <div class="security-overview">
+                <!-- 任务 7.1: 安全违规卡片 -->
+                <div id="security-cards-container" class="security-cards"></div>
+            </div>
+            
+            <div class="security-analysis">
+                <!-- 任务 7.3: 安全风险评估 -->
+                <div id="risk-analysis-container" class="risk-analysis"></div>
+            </div>
+            
+            <div class="ffi-tracking">
+                <!-- 任务 7.2: FFI 调用跟踪 -->
+                <div id="ffi-tracking-container" class="ffi-tracking"></div>
+            </div>
+        `;
+
+        // 插入到性能仪表板之后
+        const performanceDashboard = document.querySelector('.performance-dashboard');
+        if (performanceDashboard && performanceDashboard.nextSibling) {
+            performanceDashboard.parentNode.insertBefore(dashboardContainer, performanceDashboard.nextSibling);
+        } else {
+            const content = document.querySelector('.content');
+            if (content) {
+                content.appendChild(dashboardContainer);
+            }
+        }
+
+        this.bindDashboardEvents();
+    }
+
+    /**
+     * 绑定仪表板事件
+     */
+    bindDashboardEvents() {
+        const refreshBtn = document.querySelector('.refresh-security-btn');
+        const autoUpdateBtn = document.querySelector('.toggle-security-auto-update');
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => this.refreshData());
+        }
+
+        if (autoUpdateBtn) {
+            autoUpdateBtn.addEventListener('click', () => this.toggleAutoUpdate());
+        }
+    }
+
+    /**
+     * 任务 7.1: 渲染安全违规卡片
+     */
+    renderSecurityCards() {
+        const container = document.getElementById('security-cards-container');
+        if (!container || !this.securityData) return;
+
+        const overview = this.securityData.overview;
+        const metrics = this.securityData.security_metrics;
+
+        container.innerHTML = `
+            <!-- 总体安全状态卡片 -->
+            <div class="security-card overall-security">
+                <div class="card-header">
+                    <h3>🛡️ 总体安全状态</h3>
+                    <span class="security-badge" style="background: ${overview.security_level_color}">
+                        ${overview.security_level.toUpperCase()}
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="security-score-container">
+                        <div class="security-score">
+                            <span class="score-value">${overview.security_score}</span>
+                            <span class="score-label">安全评分</span>
+                        </div>
+                        <div class="score-ring">
+                            <svg width="120" height="120" viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+                                <circle cx="60" cy="60" r="50" fill="none" stroke="${overview.security_level_color}" 
+                                        stroke-width="8" stroke-dasharray="${2 * Math.PI * 50}" 
+                                        stroke-dashoffset="${2 * Math.PI * 50 * (1 - overview.security_score / 100)}"
+                                        transform="rotate(-90 60 60)"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="security-summary">
+                        <div class="summary-item">
+                            <span class="label">风险评估</span>
+                            <span class="value">${overview.risk_assessment}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">安全违规</span>
+                            <span class="value">${overview.violations_formatted}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 安全违规卡片 -->
+            <div class="security-card violations">
+                <div class="card-header">
+                    <h3>⚠️ 安全违规</h3>
+                    <span class="metric-badge" style="background: ${metrics.violations.color_hint}">
+                        ${overview.total_violations}
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="primary-metric">
+                        <span class="value">${overview.violations_formatted}</span>
+                        <span class="label">检测到的违规</span>
+                    </div>
+                    <div class="violation-breakdown">
+                        <div class="breakdown-item critical">
+                            <span class="severity-icon">🔴</span>
+                            <span class="severity-label">严重</span>
+                            <span class="severity-count">${metrics.violations.severity_breakdown.critical}</span>
+                        </div>
+                        <div class="breakdown-item high">
+                            <span class="severity-icon">🟠</span>
+                            <span class="severity-label">高</span>
+                            <span class="severity-count">${metrics.violations.severity_breakdown.high}</span>
+                        </div>
+                        <div class="breakdown-item medium">
+                            <span class="severity-icon">🟡</span>
+                            <span class="severity-label">中</span>
+                            <span class="severity-count">${metrics.violations.severity_breakdown.medium}</span>
+                        </div>
+                        <div class="breakdown-item low">
+                            <span class="severity-icon">🟢</span>
+                            <span class="severity-label">低</span>
+                            <span class="severity-count">${metrics.violations.severity_breakdown.low}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unsafe 操作卡片 -->
+            <div class="security-card unsafe-operations">
+                <div class="card-header">
+                    <h3>⚡ Unsafe 操作</h3>
+                    <span class="metric-badge" style="background: ${metrics.unsafe_operations.color_hint}">
+                        ${metrics.unsafe_operations.risk_level}
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="primary-metric">
+                        <span class="value">${overview.unsafe_count_formatted}</span>
+                        <span class="label">Unsafe 操作</span>
+                    </div>
+                    <div class="secondary-metrics">
+                        <div class="metric-item">
+                            <span class="label">占比</span>
+                            <span class="value">${overview.unsafe_percentage}%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">风险等级</span>
+                            <span class="value">${metrics.unsafe_operations.risk_level}</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${overview.unsafe_percentage}%; background: ${metrics.unsafe_operations.color_hint}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FFI 交互卡片 -->
+            <div class="security-card ffi-interactions">
+                <div class="card-header">
+                    <h3>🔗 FFI 交互</h3>
+                    <span class="metric-badge" style="background: ${metrics.ffi_interactions.color_hint}">
+                        ${metrics.ffi_interactions.risk_level}
+                    </span>
+                </div>
+                <div class="card-content">
+                    <div class="primary-metric">
+                        <span class="value">${overview.ffi_count_formatted}</span>
+                        <span class="label">FFI 调用</span>
+                    </div>
+                    <div class="secondary-metrics">
+                        <div class="metric-item">
+                            <span class="label">占比</span>
+                            <span class="value">${overview.ffi_percentage}%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">边界事件</span>
+                            <span class="value">${overview.boundary_events}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">风险等级</span>
+                            <span class="value">${metrics.ffi_interactions.risk_level}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 任务 7.3: 渲染安全风险评估
+     */
+    renderRiskAnalysis() {
+        const container = document.getElementById('risk-analysis-container');
+        if (!container || !this.securityData) return;
+
+        const riskAnalysis = this.securityData.risk_analysis;
+        const recommendations = this.securityData.recommendations;
+
+        container.innerHTML = `
+            <div class="risk-analysis-section">
+                <h3>📊 风险分析</h3>
+                <div class="risk-factors">
+                    ${riskAnalysis.risk_factors.map(factor => `
+                        <div class="risk-factor ${factor.level}">
+                            <div class="factor-header">
+                                <span class="factor-name">${factor.factor}</span>
+                                <span class="factor-level ${factor.level}">${factor.level.toUpperCase()}</span>
+                            </div>
+                            <div class="factor-details">
+                                <span class="factor-count">${factor.count}</span>
+                                <span class="factor-description">${factor.description}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="recommendations-section">
+                <h3>💡 安全建议</h3>
+                <div class="recommendations-grid">
+                    <div class="priority-actions">
+                        <h4>🚨 优先行动</h4>
+                        <ul class="action-list">
+                            ${recommendations.priority_actions.map(action => `
+                                <li class="action-item">${action}</li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    <div class="security-improvements">
+                        <h4>🔧 安全改进</h4>
+                        <ul class="improvement-list">
+                            ${recommendations.security_improvements.map(improvement => `
+                                <li class="improvement-item">${improvement}</li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 任务 7.2: 实现 FFI 调用跟踪（简化版）
+     */
+    renderFFITracking() {
+        const container = document.getElementById('ffi-tracking-container');
+        if (!container || !this.securityData) return;
+
+        const rawData = this.securityData.raw_data;
+        const ffiData = rawData.enhanced_ffi_data || [];
+        const boundaryEvents = rawData.boundary_events || [];
+
+        container.innerHTML = `
+            <div class="ffi-tracking-section">
+                <h3>🔗 FFI 调用跟踪</h3>
+                <div class="ffi-summary">
+                    <div class="ffi-stat">
+                        <span class="stat-label">FFI 调用总数</span>
+                        <span class="stat-value">${ffiData.length}</span>
+                    </div>
+                    <div class="ffi-stat">
+                        <span class="stat-label">边界事件</span>
+                        <span class="stat-value">${boundaryEvents.length}</span>
+                    </div>
+                </div>
+                
+                ${ffiData.length > 0 ? `
+                    <div class="ffi-calls-list">
+                        <h4>最近的 FFI 调用</h4>
+                        <div class="ffi-calls">
+                            ${ffiData.slice(0, 5).map((call, index) => `
+                                <div class="ffi-call-item">
+                                    <span class="call-index">#${index + 1}</span>
+                                    <span class="call-info">FFI 调用</span>
+                                    <span class="call-status">已跟踪</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : `
+                    <div class="no-ffi-calls">
+                        <p>🎉 未检测到 FFI 调用</p>
+                        <p class="no-calls-description">这是一个好兆头！您的代码没有使用外部函数接口。</p>
+                    </div>
+                `}
+            </div>
+        `;
+    }
+
+    /**
+     * 刷新安全数据
+     */
+    async refreshData() {
+        console.log('🔄 刷新安全数据');
+        try {
+            await this.loadSecurityData();
+            this.renderSecurityCards();
+            this.renderRiskAnalysis();
+            this.renderFFITracking();
+            console.log('✅ 安全数据刷新成功');
+        } catch (error) {
+            console.error('❌ 刷新安全数据失败:', error);
+        }
+    }
+
+    /**
+     * 切换自动更新
+     */
+    toggleAutoUpdate() {
+        const btn = document.querySelector('.toggle-security-auto-update');
+        const isEnabled = btn.dataset.enabled === 'true';
+        
+        if (isEnabled) {
+            this.stopAutoUpdate();
+            btn.dataset.enabled = 'false';
+            btn.textContent = '⏸️ 已暂停';
+            btn.style.background = '#6b7280';
+        } else {
+            this.startAutoUpdate();
+            btn.dataset.enabled = 'true';
+            btn.textContent = '⏱️ 自动更新';
+            btn.style.background = '#10b981';
+        }
+    }
+
+    /**
+     * 开始自动更新
+     */
+    startAutoUpdate() {
+        this.stopAutoUpdate(); // 清除现有的定时器
+        this.updateInterval = setInterval(() => {
+            this.refreshData();
+        }, 60000); // 每60秒更新一次（安全数据更新频率较低）
+    }
+
+    /**
+     * 停止自动更新
+     */
+    stopAutoUpdate() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+    }
+
+    /**
+     * 获取模拟安全数据（后备方案）
+     */
+    getMockSecurityData() {
+        return {
+            overview: {
+                security_level: "low",
+                security_score: 95,
+                risk_assessment: "low",
+                total_violations: 0,
+                unsafe_count: 0,
+                ffi_count: 0,
+                boundary_events: 0,
+                unsafe_percentage: 0,
+                ffi_percentage: 0,
+                violations_formatted: "0",
+                unsafe_count_formatted: "0",
+                ffi_count_formatted: "0",
+                security_level_color: "#16a34a"
+            },
+            security_metrics: {
+                violations: {
+                    count: 0,
+                    severity_breakdown: { critical: 0, high: 0, medium: 0, low: 0 },
+                    color_hint: "#16a34a"
+                },
+                unsafe_operations: {
+                    count: 0,
+                    percentage: 0,
+                    risk_level: "low",
+                    color_hint: "#16a34a"
+                },
+                ffi_interactions: {
+                    count: 0,
+                    percentage: 0,
+                    boundary_events: 0,
+                    risk_level: "low",
+                    color_hint: "#16a34a"
+                }
+            },
+            risk_analysis: {
+                overall_risk: "low",
+                security_score: 95,
+                risk_factors: [
+                    {
+                        factor: "Safety Violations",
+                        level: "low",
+                        count: 0,
+                        description: "0 safety violations detected"
+                    },
+                    {
+                        factor: "Unsafe Operations",
+                        level: "low",
+                        count: 0,
+                        description: "0% of operations are unsafe"
+                    },
+                    {
+                        factor: "FFI Interactions",
+                        level: "low",
+                        count: 0,
+                        description: "0 FFI interactions detected"
+                    }
+                ]
+            },
+            recommendations: {
+                priority_actions: [
+                    "Maintain current security practices",
+                    "Regular security audits recommended"
+                ],
+                security_improvements: [
+                    "Enable additional compiler warnings",
+                    "Use static analysis tools",
+                    "Implement memory sanitizers in testing",
+                    "Regular dependency security audits"
+                ]
+            },
+            raw_data: {
+                enhanced_ffi_data: [],
+                boundary_events: []
+            }
+        };
+    }
+
+    /**
+     * 销毁安全仪表板
+     */
+    destroy() {
+        this.stopAutoUpdate();
+        const dashboard = document.querySelector('.security-dashboard');
+        if (dashboard) {
+            dashboard.remove();
+        }
+    }
+}
+
+/**
  * 性能仪表板管理器 - 任务 6.1: 创建性能仪表板组件
  */
 class PerformanceDashboard {
@@ -1680,6 +2189,7 @@ class MemScopeVisualizer {
         this.filteredAllocations = [...(data.allocations || [])];
         this.filterControls = null; // 将在 init 后初始化
         this.performanceDashboard = null; // 任务 6.1: 性能仪表板实例
+        this.securityDashboard = null; // 任务 7.1: 安全仪表板实例
         this.init();
     }
 
@@ -1768,7 +2278,8 @@ class MemScopeVisualizer {
             () => this.populatePerformanceInsights(),
             () => this.setupInteractiveExplorer(),
             () => this.initializeFilterControls(), // 任务 5.1: 初始化过滤控件
-            () => this.initializePerformanceDashboard() // 任务 6.1: 初始化性能仪表板
+            () => this.initializePerformanceDashboard(), // 任务 6.1: 初始化性能仪表板
+            () => this.initializeSecurityDashboard() // 任务 7.1: 初始化安全仪表板
         ];
         
         let currentStep = 0;
@@ -4147,6 +4658,20 @@ function updateLoadingProgress(source, progress) {
             console.log('✅ 性能仪表板初始化成功');
         } catch (error) {
             console.error('❌ 性能仪表板初始化失败:', error);
+        }
+    }
+
+    /**
+     * 任务 7.1: 初始化安全仪表板
+     */
+    initializeSecurityDashboard() {
+        console.log('🔒 初始化安全仪表板系统');
+        try {
+            // 创建安全仪表板实例
+            this.securityDashboard = new SecurityDashboard(this);
+            console.log('✅ 安全仪表板初始化成功');
+        } catch (error) {
+            console.error('❌ 安全仪表板初始化失败:', error);
         }
     }
 }

@@ -1890,3 +1890,542 @@ body {
     }
 }
 
+/* 任务 7: 安全/FFI 仪表板样式 */
+.security-dashboard {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.security-dashboard .dashboard-header h2 {
+    color: #1e293b;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(135deg, #dc2626, #ea580c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.refresh-security-btn,
+.toggle-security-auto-update {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+}
+
+.refresh-security-btn {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: white;
+}
+
+.refresh-security-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.toggle-security-auto-update {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.toggle-security-auto-update:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* 任务 7.1: 安全违规卡片样式 */
+.security-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.security-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.security-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.security-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(135deg, #dc2626, #ea580c);
+}
+
+.security-card.overall-security::before {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+.security-card.violations::before {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.security-card.unsafe-operations::before {
+    background: linear-gradient(135deg, #ea580c, #c2410c);
+}
+
+.security-card.ffi-interactions::before {
+    background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+.security-badge {
+    background: #dc2626;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* 安全评分环形图 */
+.security-score-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 16px;
+}
+
+.security-score {
+    text-align: center;
+}
+
+.score-value {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 4px;
+}
+
+.score-label {
+    color: #6b7280;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.score-ring {
+    position: relative;
+}
+
+.score-ring svg {
+    transform: rotate(-90deg);
+}
+
+.security-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.summary-item {
+    text-align: center;
+    padding: 8px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.summary-item .label {
+    display: block;
+    color: #6b7280;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+
+.summary-item .value {
+    color: #1f2937;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* 违规严重程度分解 */
+.violation-breakdown {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.breakdown-item:hover {
+    background: #f3f4f6;
+}
+
+.severity-icon {
+    font-size: 1rem;
+}
+
+.severity-label {
+    flex: 1;
+    color: #374151;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.severity-count {
+    color: #1f2937;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* 任务 7.3: 风险分析样式 */
+.risk-analysis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.risk-analysis-section,
+.recommendations-section {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.risk-analysis-section h3,
+.recommendations-section h3 {
+    color: #1f2937;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.risk-factors {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.risk-factor {
+    padding: 16px;
+    border-radius: 8px;
+    border-left: 4px solid;
+    transition: all 0.2s ease;
+}
+
+.risk-factor.low {
+    background: rgba(16, 185, 129, 0.1);
+    border-left-color: #10b981;
+}
+
+.risk-factor.medium {
+    background: rgba(245, 158, 11, 0.1);
+    border-left-color: #f59e0b;
+}
+
+.risk-factor.high {
+    background: rgba(234, 88, 12, 0.1);
+    border-left-color: #ea580c;
+}
+
+.risk-factor.critical {
+    background: rgba(220, 38, 38, 0.1);
+    border-left-color: #dc2626;
+}
+
+.factor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.factor-name {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.factor-level {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.factor-level.low {
+    background: #10b981;
+    color: white;
+}
+
+.factor-level.medium {
+    background: #f59e0b;
+    color: white;
+}
+
+.factor-level.high {
+    background: #ea580c;
+    color: white;
+}
+
+.factor-level.critical {
+    background: #dc2626;
+    color: white;
+}
+
+.factor-details {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.factor-count {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.factor-description {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+/* 安全建议样式 */
+.recommendations-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+.priority-actions h4,
+.security-improvements h4 {
+    color: #1f2937;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.action-list,
+.improvement-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.action-item,
+.improvement-item {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border-left: 3px solid #dc2626;
+    color: #374151;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.improvement-item {
+    border-left-color: #3b82f6;
+}
+
+.action-item:hover,
+.improvement-item:hover {
+    background: #f3f4f6;
+    transform: translateX(2px);
+}
+
+/* 任务 7.2: FFI 跟踪样式 */
+.ffi-tracking {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.ffi-tracking-section h3 {
+    color: #1f2937;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ffi-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.ffi-stat {
+    text-align: center;
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.stat-label {
+    display: block;
+    color: #6b7280;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    color: #1f2937;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.ffi-calls-list h4 {
+    color: #1f2937;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+}
+
+.ffi-calls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ffi-call-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border-left: 3px solid #d97706;
+}
+
+.call-index {
+    font-weight: 600;
+    color: #d97706;
+    font-size: 0.9rem;
+}
+
+.call-info {
+    flex: 1;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.call-status {
+    color: #10b981;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.no-ffi-calls {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7280;
+}
+
+.no-ffi-calls p:first-child {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #10b981;
+    margin-bottom: 8px;
+}
+
+.no-calls-description {
+    font-size: 0.9rem;
+    color: #9ca3af;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .security-dashboard {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    
+    .security-cards {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .risk-analysis {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .security-score-container {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .violation-breakdown {
+        grid-template-columns: 1fr;
+    }
+    
+    .recommendations-grid {
+        gap: 16px;
+    }
+    
+    .ffi-summary {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .security-card {
+        padding: 16px;
+    }
+    
+    .score-value {
+        font-size: 2rem;
+    }
+    
+    .factor-details {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .factor-count {
+        font-size: 1.2rem;
+    }
+}
+
