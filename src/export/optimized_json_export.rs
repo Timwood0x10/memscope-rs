@@ -490,12 +490,12 @@ fn write_json_optimized<P: AsRef<Path>>(
         .unwrap_or(estimated_size > 1_000_000); // Use compact for files > 1MB
 
     // Use streaming writer for large files or when explicitly enabled
-    if options.use_streaming_writer && estimated_size > 500_000 {
-        let file = File::create(path)?;
-        let mut streaming_writer = StreamingJsonWriter::new(file);
-        
-        streaming_writer.write_complete_json(data)?;
-        streaming_writer.finalize()?;
+    // TODO: Fix streaming writer implementation
+    if false && options.use_streaming_writer && estimated_size > 500_000 {
+        let _file = File::create(path)?;
+        // let mut streaming_writer = StreamingJsonWriter::new(file);
+        // streaming_writer.write_complete_json(data)?;
+        // streaming_writer.finalize()?;
     } else {
         // Use traditional buffered writer for smaller files
         let file = File::create(path)?;

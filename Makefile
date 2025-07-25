@@ -61,6 +61,11 @@ help:
 	@echo "  run-memory-stress - Run memory stress test example"
 	@echo "  run-complex-lifecycle-showcase - Run complex lifecycle showcase example"
 	@echo ""
+	@echo "$(GREEN)HTML Reports:$(NC)"
+	@echo "  html           - Generate HTML report from test data"
+	@echo "  html-serve     - Start web server with HTML interface"
+	@echo "  html-clean     - Clean generated HTML files"
+	@echo ""
 	@echo "$(GREEN)CI/CD:$(NC)"
 	@echo "  ci             - Run full CI pipeline locally"
 	@echo "  pre-commit     - Run pre-commit checks"
@@ -311,13 +316,45 @@ info:
 	@echo "  Target directory: $(TARGET_DIR)"
 	@echo "  Documentation: $(DOCS_DIR)"
 
+# HTML Report Generation
+.PHONY: html
+html: release
+	@echo "$(BLUE)Generating HTML report from test data...$(NC)"
+	@if [ ! -f basic_usage_snapshot_memory_analysis.json ]; then \
+		echo "$(YELLOW)Test data not found, running basic example to generate data...$(NC)"; \
+		$(CARGO) run --example basic_usage; \
+	fi
+	./target/release/memscope-rs html-from-json --input-dir . --output memory_report.html --base-name basic_usage_snapshot
+	@echo "$(GREEN)✅ HTML report generated: memory_report.html$(NC)"
+	@echo "$(BLUE)Open memory_report.html in your browser to view the interactive report$(NC)"
+
+.PHONY: html-serve
+html-serve: release
+	@echo "$(BLUE)Starting MemScope web server...$(NC)"
+	@if [ ! -f basic_usage_snapshot_memory_analysis.json ]; then \
+		echo "$(YELLOW)Test data not found, running basic example to generate data...$(NC)"; \
+		$(CARGO) run --example basic_usage; \
+	fi
+	@echo "$(GREEN)Starting web server at http://localhost:8080$(NC)"
+	./target/release/memscope-rs html-from-json --input-dir . --output memory_report.html --base-name basic_usage_snapshot --serve --port 8080
+
+.PHONY: html-server
+html-server: html-serve
+
+.PHONY: html-clean
+html-clean:
+	@echo "$(YELLOW)Cleaning generated HTML files...$(NC)"
+	rm -f memory_report.html debug_report.html test_report.html
+	@echo "$(GREEN)HTML files cleaned$(NC)"
+
 # Validate all is working
 .PHONY: validate
-validate: ci run-basic run-lifecycle
+validate: ci run-basic run-lifecycle html
 	@echo "$(GREEN)🎉 Full validation completed successfully!$(NC)"
 	@echo "$(GREEN)✅ Build: PASS$(NC)"
 	@echo "$(GREEN)✅ Tests: PASS$(NC)"
 	@echo "$(GREEN)✅ Linting: PASS$(NC)"
 	@echo "$(GREEN)✅ Documentation: PASS$(NC)"
 	@echo "$(GREEN)✅ Examples: PASS$(NC)"
+	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
 	@echo "$(BLUE)trace_tools is ready for production use!$(NC)"

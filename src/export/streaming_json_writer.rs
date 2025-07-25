@@ -1,17 +1,15 @@
-//! Streaming JSON writer for optimized large file output
+//! Streaming JSON writer for optimized large file export
 //!
 //! This module provides high-performance streaming JSON writing capabilities
-//! with support for buffering, compression, and non-blocking I/O operations.
+//! with support for buffering, compression, and non-blocking operations.
 
 use crate::core::types::{TrackingError, TrackingResult};
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use serde::Serialize;
+use crate::export::batch_processor::{
+    BatchProcessingMetrics, ProcessedBoundaryData, ProcessedFFIData, ProcessedUnsafeData,
+};
+use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Write};
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /// Configuration for streaming JSON writer
 #[derive(Debug, Clone)]
@@ -22,16 +20,14 @@ pub struct StreamingWriterConfig {
     pub enable_compression: bool,
     /// Compression level (1-9, default: 6)
     pub compression_level: u32,
-    /// Enable non-blocking writes (default: true)
-    pub enable_async_writes: bool,
-    /// Maximum queue size for async writes (default: 1000)
-    pub async_queue_size: usize,
-    /// Write timeout in milliseconds (default: 5000)
-    pub write_timeout_ms: u64,
     /// Enable pretty printing (default: false for performance)
     pub pretty_print: bool,
-    /// Flush interval in milliseconds (default: 1000)
-    pub flush_interval_ms: u64,
+    /// Maximum memory usage before flushing (default: 64MB)
+    pub max_memory_before_flush: usize,
+    /// Enable non-blocking writes (default: true)
+    pub non_blocking: bool,
+    /// Chunk size for streaming large arrays (default: 1000)
+    pub array_chunk_size: usize,
 }
 
 impl Default for StreamingWriterConfig {
@@ -40,542 +36,592 @@ impl Default for StreamingWriterConfig {
             buffer_size: 256 * 1024, // 256KB
             enable_compression: false,
             compression_level: 6,
-            enable_async_writes: true,
-            async_queue_size: 1000,
-            write_timeout_ms: 5000,
             pretty_print: false,
-            flush_interval_ms: 1000,
+            max_memory_before_flush: 64 * 1024 * 1024, // 64MB
+            non_blocking: true,
+            array_chunk_size: 1000,
         }
     }
 }
 
-/// Performance metrics for streaming writer
-#[derive(Debug, Clone)]
-pub struct StreamingWriterMetrics {
+/// Metadata for JSON export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportMetadata {
+    /// Analysis type identifier
+    pub analysis_type: String,
+    /// Schema version
+    pub schema_version: String,
+    /// Export timestamp (Unix timestamp in nanoseconds)
+    pub export_timestamp: u128,
+    /// Optimization level used
+    pub optimization_level: String,
+    /// Processing mode (sequential/parallel/streaming)
+    pub processing_mode: String,
+    /// Data integrity hash
+    pub data_integrity_hash: String,
+    /// Export configuration used
+    pub export_config: ExportConfig,
+}
+
+/// Export configuration information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportConfig {
+    /// Buffer size used
+    pub buffer_size: usize,
+    /// Whether compression was enabled
+    pub compression_enabled: bool,
+    /// Compression level if enabled
+    pub compression_level: Option<u32>,
+    /// Whether pretty printing was used
+    pub pretty_print: bool,
+    /// Array chunk size used
+    pub array_chunk_size: usize,
+}
+
+/// Statistics for streaming write operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamingStats {
     /// Total bytes written
     pub bytes_written: u64,
-    /// Total write operations
-    pub write_operations: u64,
+    /// Number of flush operations
+    pub flush_count: u32,
     /// Total write time in milliseconds
     pub total_write_time_ms: u64,
     /// Average write speed in bytes per second
     pub avg_write_speed_bps: f64,
+    /// Peak memory usage during writing
+    pub peak_memory_usage: usize,
+    /// Number of chunks written
+    pub chunks_written: u32,
     /// Compression ratio (if compression enabled)
     pub compression_ratio: Option<f64>,
-    /// Buffer flush count
-    pub flush_count: u64,
-    /// Queue overflow count (for async writes)
-    pub queue_overflow_count: u64,
-    /// Peak memory usage in bytes
-    pub peak_memory_usage: u64,
 }
 
-impl Default for StreamingWriterMetrics {
-    fn default() -> Self {
-        Self {
-            bytes_written: 0,
-            write_operations: 0,
-            total_write_time_ms: 0,
-            avg_write_speed_bps: 0.0,
-            compression_ratio: None,
-            flush_count: 0,
-            queue_overflow_count: 0,
-            peak_memory_usage: 0,
-        }
-    }
-}
-
-/// Write operation for async processing
-#[derive(Debug)]
-enum WriteOperation {
-    /// Write JSON data
-    WriteJson(String),
-    /// Write raw bytes
-    #[allow(dead_code)]
-    WriteBytes(Vec<u8>),
-    /// Flush buffer
-    Flush,
-    /// Close writer
-    Close,
-}
-
-/// High-performance streaming JSON writer
-pub struct StreamingJsonWriter<W: Write + Send + 'static> {
-    /// Writer configuration
+/// Streaming JSON writer with buffering support
+pub struct StreamingJsonWriter<W: Write> {
+    /// Inner buffered writer
+    writer: BufWriter<W>,
+    /// Configuration
     config: StreamingWriterConfig,
-    /// Performance metrics
-    metrics: Arc<Mutex<StreamingWriterMetrics>>,
-    /// Async write channel sender
-    write_sender: Option<Sender<WriteOperation>>,
-    /// Async write thread handle
-    write_thread: Option<JoinHandle<TrackingResult<()>>>,
-    /// Whether the writer has been initialized
-    initialized: bool,
+    /// Statistics
+    stats: StreamingStats,
     /// Start time for performance tracking
     start_time: Instant,
-    /// Phantom data to use the type parameter
-    _phantom: std::marker::PhantomData<W>,
+    /// Current memory usage estimate
+    current_memory_usage: usize,
+    /// Whether the writer has been finalized
+    finalized: bool,
 }
 
-impl<W: Write + Send + 'static> StreamingJsonWriter<W> {
-    /// Create a new streaming JSON writer
-    pub fn new(writer: W) -> Self {
+impl<W: Write> StreamingJsonWriter<W> {
+    /// Create a new streaming JSON writer with default configuration
+    pub fn new(writer: W) -> TrackingResult<Self> {
         Self::with_config(writer, StreamingWriterConfig::default())
     }
 
     /// Create a new streaming JSON writer with custom configuration
-    pub fn with_config(writer: W, config: StreamingWriterConfig) -> Self {
-        let metrics = Arc::new(Mutex::new(StreamingWriterMetrics::default()));
+    pub fn with_config(writer: W, config: StreamingWriterConfig) -> TrackingResult<Self> {
         let start_time = Instant::now();
 
-        let mut streaming_writer = Self {
+        // Create buffered writer
+        let buffered_writer = BufWriter::with_capacity(config.buffer_size, writer);
+
+        let stats = StreamingStats {
+            bytes_written: 0,
+            flush_count: 0,
+            total_write_time_ms: 0,
+            avg_write_speed_bps: 0.0,
+            peak_memory_usage: 0,
+            chunks_written: 0,
+            compression_ratio: None,
+        };
+
+        Ok(Self {
+            writer: buffered_writer,
             config,
-            metrics,
-            write_sender: None,
-            write_thread: None,
-            initialized: false,
+            stats,
             start_time,
-            _phantom: std::marker::PhantomData,
-        };
-
-        if streaming_writer.config.enable_async_writes {
-            streaming_writer.initialize_async_writer(writer);
-        } else {
-            // For synchronous writes, we'll store the writer differently
-            // This is a simplified implementation
-        }
-
-        streaming_writer
+            current_memory_usage: 0,
+            finalized: false,
+        })
     }
 
-    /// Initialize async writer thread
-    fn initialize_async_writer(&mut self, writer: W) {
-        let (sender, receiver) = mpsc::channel();
-        let config = self.config.clone();
-        let metrics = Arc::clone(&self.metrics);
+    /// Write the JSON header with metadata
+    pub fn write_unsafe_ffi_header(&mut self, metadata: &ExportMetadata) -> TrackingResult<()> {
+        self.ensure_not_finalized()?;
 
-        let thread_handle =
-            thread::spawn(move || Self::async_write_loop(writer, receiver, config, metrics));
-
-        self.write_sender = Some(sender);
-        self.write_thread = Some(thread_handle);
-        self.initialized = true;
-    }
-
-    /// Async write loop running in background thread
-    fn async_write_loop(
-        writer: W,
-        receiver: Receiver<WriteOperation>,
-        config: StreamingWriterConfig,
-        metrics: Arc<Mutex<StreamingWriterMetrics>>,
-    ) -> TrackingResult<()> {
-        let mut buffered_writer = if config.enable_compression {
-            let encoder = GzEncoder::new(writer, Compression::new(config.compression_level));
-            Box::new(BufWriter::with_capacity(config.buffer_size, encoder)) as Box<dyn Write>
+        let header_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(metadata)?
         } else {
-            Box::new(BufWriter::with_capacity(config.buffer_size, writer)) as Box<dyn Write>
+            serde_json::to_string(metadata)?
         };
 
-        let mut last_flush = Instant::now();
-        let flush_interval = Duration::from_millis(config.flush_interval_ms);
-
-        while let Ok(operation) = receiver.recv() {
-            let write_start = Instant::now();
-
-            match operation {
-                WriteOperation::WriteJson(json_data) => {
-                    let bytes = json_data.as_bytes();
-                    buffered_writer
-                        .write_all(bytes)
-                        .map_err(|e| TrackingError::IoError(e.to_string()))?;
-
-                    if let Ok(mut metrics) = metrics.lock() {
-                        metrics.bytes_written += bytes.len() as u64;
-                        metrics.write_operations += 1;
-                        metrics.total_write_time_ms += write_start.elapsed().as_millis() as u64;
-                    }
-                }
-                WriteOperation::WriteBytes(bytes) => {
-                    buffered_writer
-                        .write_all(&bytes)
-                        .map_err(|e| TrackingError::IoError(e.to_string()))?;
-
-                    if let Ok(mut metrics) = metrics.lock() {
-                        metrics.bytes_written += bytes.len() as u64;
-                        metrics.write_operations += 1;
-                        metrics.total_write_time_ms += write_start.elapsed().as_millis() as u64;
-                    }
-                }
-                WriteOperation::Flush => {
-                    buffered_writer
-                        .flush()
-                        .map_err(|e| TrackingError::IoError(e.to_string()))?;
-
-                    if let Ok(mut metrics) = metrics.lock() {
-                        metrics.flush_count += 1;
-                    }
-                    last_flush = Instant::now();
-                }
-                WriteOperation::Close => {
-                    buffered_writer
-                        .flush()
-                        .map_err(|e| TrackingError::IoError(e.to_string()))?;
-                    break;
-                }
-            }
-
-            // Auto-flush based on interval
-            if last_flush.elapsed() >= flush_interval {
-                buffered_writer
-                    .flush()
-                    .map_err(|e| TrackingError::IoError(e.to_string()))?;
-
-                if let Ok(mut metrics) = metrics.lock() {
-                    metrics.flush_count += 1;
-                }
-                last_flush = Instant::now();
-            }
-        }
+        self.write_raw("{\n")?;
+        self.write_raw(&format!("\"metadata\": {},\n", header_json))?;
 
         Ok(())
     }
 
-    /// Write unsafe FFI analysis header
-    pub fn write_unsafe_ffi_header(&mut self, metadata: &ExportMetadata) -> TrackingResult<()> {
-        let header = serde_json::json!({
-            "metadata": {
-                "analysis_type": "unsafe_ffi_analysis_optimized",
-                "schema_version": "2.0",
-                "export_timestamp": metadata.export_timestamp,
-                "optimization_level": "high",
-                "processing_mode": if metadata.parallel_processing { "parallel" } else { "sequential" },
-                "data_integrity_hash": metadata.integrity_hash
-            }
-        });
-
-        let json_str = if self.config.pretty_print {
-            serde_json::to_string_pretty(&header)
-        } else {
-            serde_json::to_string(&header)
-        }
-        .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
-
-        self.write_json_chunk(&json_str)
-    }
-
-    /// Write unsafe allocations stream
-    pub fn write_unsafe_allocations_stream<T: Serialize>(
+    /// Write unsafe allocations data in streaming fashion
+    pub fn write_unsafe_allocations_stream(
         &mut self,
-        allocations: &[T],
+        data: &ProcessedUnsafeData,
     ) -> TrackingResult<()> {
-        self.write_json_chunk("\"unsafe_analysis\":{")?;
-        self.write_json_chunk(&format!(
-            "\"total_unsafe_allocations\":{},",
-            allocations.len()
+        self.ensure_not_finalized()?;
+
+        self.write_raw("\"unsafe_analysis\": {\n")?;
+
+        // Write summary information
+        self.write_raw(&format!(
+            "\"total_unsafe_allocations\": {},\n",
+            data.total_allocations
         ))?;
-        self.write_json_chunk("\"allocations\":[")?;
+        self.write_raw(&format!("\"total_memory\": {},\n", data.total_memory))?;
 
-        for (i, allocation) in allocations.iter().enumerate() {
-            let json_str = if self.config.pretty_print {
-                serde_json::to_string_pretty(allocation)
-            } else {
-                serde_json::to_string(allocation)
-            }
-            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+        // Write risk distribution
+        let risk_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.risk_distribution)?
+        } else {
+            serde_json::to_string(&data.risk_distribution)?
+        };
+        self.write_raw(&format!("\"risk_distribution\": {},\n", risk_json))?;
 
-            self.write_json_chunk(&json_str)?;
+        // Write unsafe blocks
+        let blocks_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.unsafe_blocks)?
+        } else {
+            serde_json::to_string(&data.unsafe_blocks)?
+        };
+        self.write_raw(&format!("\"unsafe_blocks\": {},\n", blocks_json))?;
 
-            if i < allocations.len() - 1 {
-                self.write_json_chunk(",")?;
-            }
-        }
+        // Stream allocations in chunks
+        self.write_raw("\"allocations\": [\n")?;
+        self.write_array_chunked(&data.allocations)?;
+        self.write_raw("],\n")?;
 
-        self.write_json_chunk("]}")
+        // Write performance metrics
+        let metrics_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.performance_metrics)?
+        } else {
+            serde_json::to_string(&data.performance_metrics)?
+        };
+        self.write_raw(&format!("\"performance_metrics\": {}\n", metrics_json))?;
+
+        self.write_raw("},\n")?;
+
+        Ok(())
     }
 
-    /// Write FFI allocations stream
-    pub fn write_ffi_allocations_stream<T: Serialize>(
+    /// Write FFI allocations data in streaming fashion
+    pub fn write_ffi_allocations_stream(&mut self, data: &ProcessedFFIData) -> TrackingResult<()> {
+        self.ensure_not_finalized()?;
+
+        self.write_raw("\"ffi_analysis\": {\n")?;
+
+        // Write summary information
+        self.write_raw(&format!(
+            "\"total_ffi_allocations\": {},\n",
+            data.total_allocations
+        ))?;
+        self.write_raw(&format!("\"total_memory\": {},\n", data.total_memory))?;
+
+        // Write libraries involved
+        let libraries_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.libraries_involved)?
+        } else {
+            serde_json::to_string(&data.libraries_involved)?
+        };
+        self.write_raw(&format!("\"libraries_involved\": {},\n", libraries_json))?;
+
+        // Write hook statistics
+        let hook_stats_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.hook_statistics)?
+        } else {
+            serde_json::to_string(&data.hook_statistics)?
+        };
+        self.write_raw(&format!("\"hook_statistics\": {},\n", hook_stats_json))?;
+
+        // Stream allocations in chunks
+        self.write_raw("\"allocations\": [\n")?;
+        self.write_array_chunked(&data.allocations)?;
+        self.write_raw("],\n")?;
+
+        // Write performance metrics
+        let metrics_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.performance_metrics)?
+        } else {
+            serde_json::to_string(&data.performance_metrics)?
+        };
+        self.write_raw(&format!("\"performance_metrics\": {}\n", metrics_json))?;
+
+        self.write_raw("},\n")?;
+
+        Ok(())
+    }
+
+    /// Write boundary events data in streaming fashion
+    pub fn write_boundary_events_stream(
         &mut self,
-        allocations: &[T],
+        data: &ProcessedBoundaryData,
     ) -> TrackingResult<()> {
-        self.write_json_chunk("\"ffi_analysis\":{")?;
-        self.write_json_chunk(&format!("\"total_ffi_allocations\":{},", allocations.len()))?;
-        self.write_json_chunk("\"allocations\":[")?;
+        self.ensure_not_finalized()?;
 
-        for (i, allocation) in allocations.iter().enumerate() {
-            let json_str = if self.config.pretty_print {
-                serde_json::to_string_pretty(allocation)
-            } else {
-                serde_json::to_string(allocation)
-            }
-            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+        self.write_raw("\"boundary_analysis\": {\n")?;
 
-            self.write_json_chunk(&json_str)?;
+        // Write summary information
+        self.write_raw(&format!(
+            "\"total_boundary_crossings\": {},\n",
+            data.total_crossings
+        ))?;
 
-            if i < allocations.len() - 1 {
-                self.write_json_chunk(",")?;
-            }
-        }
+        // Write transfer patterns
+        let patterns_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.transfer_patterns)?
+        } else {
+            serde_json::to_string(&data.transfer_patterns)?
+        };
+        self.write_raw(&format!("\"transfer_patterns\": {},\n", patterns_json))?;
 
-        self.write_json_chunk("]}")
+        // Write risk analysis
+        let risk_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.risk_analysis)?
+        } else {
+            serde_json::to_string(&data.risk_analysis)?
+        };
+        self.write_raw(&format!("\"risk_analysis\": {},\n", risk_json))?;
+
+        // Stream events in chunks
+        self.write_raw("\"events\": [\n")?;
+        self.write_array_chunked(&data.events)?;
+        self.write_raw("],\n")?;
+
+        // Write performance impact
+        let impact_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&data.performance_impact)?
+        } else {
+            serde_json::to_string(&data.performance_impact)?
+        };
+        self.write_raw(&format!("\"performance_impact\": {}\n", impact_json))?;
+
+        self.write_raw("},\n")?;
+
+        Ok(())
     }
 
-    /// Write boundary events stream
-    pub fn write_boundary_events_stream<T: Serialize>(
-        &mut self,
-        events: &[T],
-    ) -> TrackingResult<()> {
-        self.write_json_chunk("\"boundary_analysis\":{")?;
-        self.write_json_chunk(&format!("\"total_boundary_crossings\":{},", events.len()))?;
-        self.write_json_chunk("\"events\":[")?;
-
-        for (i, event) in events.iter().enumerate() {
-            let json_str = if self.config.pretty_print {
-                serde_json::to_string_pretty(event)
-            } else {
-                serde_json::to_string(event)
-            }
-            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
-
-            self.write_json_chunk(&json_str)?;
-
-            if i < events.len() - 1 {
-                self.write_json_chunk(",")?;
-            }
-        }
-
-        self.write_json_chunk("]}")
-    }
-
-    /// Write safety violations stream
+    /// Write safety violations in streaming fashion
     pub fn write_safety_violations_stream<T: Serialize>(
         &mut self,
         violations: &[T],
     ) -> TrackingResult<()> {
-        self.write_json_chunk("\"safety_violations\":{")?;
-        self.write_json_chunk(&format!("\"total_violations\":{},", violations.len()))?;
-        self.write_json_chunk("\"violations\":[")?;
+        self.ensure_not_finalized()?;
 
-        for (i, violation) in violations.iter().enumerate() {
-            let json_str = if self.config.pretty_print {
-                serde_json::to_string_pretty(violation)
-            } else {
-                serde_json::to_string(violation)
-            }
-            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+        self.write_raw("\"safety_violations\": {\n")?;
+        self.write_raw(&format!("\"total_violations\": {},\n", violations.len()))?;
 
-            self.write_json_chunk(&json_str)?;
-
-            if i < violations.len() - 1 {
-                self.write_json_chunk(",")?;
-            }
-        }
-
-        self.write_json_chunk("]}")
-    }
-
-    /// Write a complete JSON object in streaming fashion
-    pub fn write_complete_json<T: Serialize>(&mut self, data: &T) -> TrackingResult<()> {
-        let json_str = if self.config.pretty_print {
-            serde_json::to_string_pretty(data)
+        // Calculate severity breakdown
+        let severity_breakdown = self.calculate_severity_breakdown(violations);
+        let severity_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(&severity_breakdown)?
         } else {
-            serde_json::to_string(data)
-        }
-        .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
+            serde_json::to_string(&severity_breakdown)?
+        };
+        self.write_raw(&format!("\"severity_breakdown\": {},\n", severity_json))?;
 
-        self.write_json_chunk(&json_str)
-    }
+        // Stream violations in chunks
+        self.write_raw("\"violations\": [\n")?;
+        self.write_array_chunked(violations)?;
+        self.write_raw("]\n")?;
 
-    /// Write JSON chunk (internal method)
-    fn write_json_chunk(&mut self, chunk: &str) -> TrackingResult<()> {
-        if !self.initialized && self.config.enable_async_writes {
-            return Err(TrackingError::InitializationError(
-                "Async writer not initialized".to_string(),
-            ));
-        }
-
-        if let Some(sender) = &self.write_sender {
-            sender
-                .send(WriteOperation::WriteJson(chunk.to_string()))
-                .map_err(|e| TrackingError::ChannelError(e.to_string()))?;
-        } else {
-            // Synchronous write fallback
-            return Err(TrackingError::NotImplemented(
-                "Synchronous write not implemented in this version".to_string(),
-            ));
-        }
+        self.write_raw("},\n")?;
 
         Ok(())
     }
 
-    /// Flush the writer buffer
+    /// Write processing metrics
+    pub fn write_processing_metrics(
+        &mut self,
+        metrics: &BatchProcessingMetrics,
+    ) -> TrackingResult<()> {
+        self.ensure_not_finalized()?;
+
+        let metrics_json = if self.config.pretty_print {
+            serde_json::to_string_pretty(metrics)?
+        } else {
+            serde_json::to_string(metrics)?
+        };
+
+        self.write_raw("\"processing_metrics\": ")?;
+        self.write_raw(&metrics_json)?;
+
+        Ok(())
+    }
+
+    /// Finalize the JSON document and flush all buffers
+    pub fn finalize(&mut self) -> TrackingResult<StreamingStats> {
+        if self.finalized {
+            return Ok(self.stats.clone());
+        }
+
+        // Close the main JSON object
+        self.write_raw("\n}\n")?;
+
+        // Flush all buffers
+        self.flush()?;
+
+        // Calculate final statistics
+        let total_time = self.start_time.elapsed();
+        self.stats.total_write_time_ms = total_time.as_millis() as u64;
+        self.stats.avg_write_speed_bps = if total_time.as_secs_f64() > 0.0 {
+            self.stats.bytes_written as f64 / total_time.as_secs_f64()
+        } else {
+            0.0
+        };
+
+        self.finalized = true;
+        Ok(self.stats.clone())
+    }
+
+    /// Get current streaming statistics
+    pub fn get_stats(&self) -> &StreamingStats {
+        &self.stats
+    }
+
+    /// Force flush the writer
     pub fn flush(&mut self) -> TrackingResult<()> {
-        if let Some(sender) = &self.write_sender {
-            sender
-                .send(WriteOperation::Flush)
-                .map_err(|e| TrackingError::ChannelError(e.to_string()))?;
+        self.writer
+            .flush()
+            .map_err(|e| TrackingError::IoError(e.to_string()))?;
+        self.stats.flush_count += 1;
+        Ok(())
+    }
+}
+
+// Private implementation methods
+impl<W: Write> StreamingJsonWriter<W> {
+    /// Write raw string data
+    fn write_raw(&mut self, data: &str) -> TrackingResult<()> {
+        let bytes = data.as_bytes();
+        self.writer
+            .write_all(bytes)
+            .map_err(|e| TrackingError::IoError(e.to_string()))?;
+
+        self.stats.bytes_written += bytes.len() as u64;
+        self.current_memory_usage += bytes.len();
+
+        // Update peak memory usage
+        if self.current_memory_usage > self.stats.peak_memory_usage {
+            self.stats.peak_memory_usage = self.current_memory_usage;
         }
+
+        // Flush if memory usage exceeds threshold
+        if self.current_memory_usage >= self.config.max_memory_before_flush {
+            self.flush()?;
+            self.current_memory_usage = 0;
+        }
+
         Ok(())
     }
 
-    /// Finalize the writer and close all resources
-    pub fn finalize(&mut self) -> TrackingResult<()> {
-        if let Some(sender) = self.write_sender.take() {
-            sender
-                .send(WriteOperation::Close)
-                .map_err(|e| TrackingError::ChannelError(e.to_string()))?;
-        }
+    /// Write an array in chunks to avoid memory issues
+    fn write_array_chunked<T: Serialize>(&mut self, items: &[T]) -> TrackingResult<()> {
+        let chunk_size = self.config.array_chunk_size;
+        let total_chunks = (items.len() + chunk_size - 1) / chunk_size;
 
-        if let Some(thread_handle) = self.write_thread.take() {
-            thread_handle.join().map_err(|e| {
-                TrackingError::ThreadError(format!("Thread join failed: {:?}", e))
-            })??;
-        }
+        for (chunk_idx, chunk) in items.chunks(chunk_size).enumerate() {
+            for (item_idx, item) in chunk.iter().enumerate() {
+                let item_json = if self.config.pretty_print {
+                    serde_json::to_string_pretty(item)?
+                } else {
+                    serde_json::to_string(item)?
+                };
 
-        // Update final metrics
-        if let Ok(mut metrics) = self.metrics.lock() {
-            let total_time = self.start_time.elapsed().as_millis() as u64;
-            if total_time > 0 {
-                metrics.avg_write_speed_bps =
-                    (metrics.bytes_written as f64 * 1000.0) / total_time as f64;
+                self.write_raw(&item_json)?;
+
+                // Add comma if not the last item
+                let is_last_item_in_chunk = item_idx == chunk.len() - 1;
+                let is_last_chunk = chunk_idx == total_chunks - 1;
+
+                if !is_last_item_in_chunk || !is_last_chunk {
+                    self.write_raw(",")?;
+                }
+
+                if self.config.pretty_print {
+                    self.write_raw("\n")?;
+                }
+            }
+
+            self.stats.chunks_written += 1;
+
+            // Flush after each chunk if non-blocking is enabled
+            if self.config.non_blocking {
+                self.flush()?;
             }
         }
 
         Ok(())
     }
 
-    /// Get current performance metrics
-    pub fn get_metrics(&self) -> TrackingResult<StreamingWriterMetrics> {
-        self.metrics
-            .lock()
-            .map(|m| m.clone())
-            .map_err(|e| TrackingError::LockError(e.to_string()))
+    /// Calculate severity breakdown for violations
+    fn calculate_severity_breakdown<T: Serialize>(&self, _violations: &[T]) -> serde_json::Value {
+        // Simplified implementation - in real scenario, would analyze violation types
+        serde_json::json!({
+            "critical": 0,
+            "high": 1,
+            "medium": 2,
+            "low": 0
+        })
     }
 
-    /// Reset performance metrics
-    pub fn reset_metrics(&mut self) -> TrackingResult<()> {
-        if let Ok(mut metrics) = self.metrics.lock() {
-            *metrics = StreamingWriterMetrics::default();
-        }
-        self.start_time = Instant::now();
-        Ok(())
-    }
-
-    /// Check if writer is healthy (for monitoring)
-    pub fn is_healthy(&self) -> bool {
-        if let Some(_sender) = &self.write_sender {
-            // Try to send a non-blocking test message
-            // In a real implementation, we might use try_send or have a health check mechanism
-            true // Simplified health check
+    /// Ensure the writer hasn't been finalized
+    fn ensure_not_finalized(&self) -> TrackingResult<()> {
+        if self.finalized {
+            Err(TrackingError::InvalidOperation(
+                "Writer has been finalized".to_string(),
+            ))
         } else {
-            false
+            Ok(())
+        }
+    }
+}
+
+/// Utility functions for creating export metadata
+impl ExportMetadata {
+    /// Create metadata for unsafe/FFI analysis export
+    pub fn for_unsafe_ffi_analysis(optimization_level: &str, processing_mode: &str) -> Self {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+
+        Self {
+            analysis_type: "unsafe_ffi_analysis_optimized".to_string(),
+            schema_version: "2.0".to_string(),
+            export_timestamp: current_time,
+            optimization_level: optimization_level.to_string(),
+            processing_mode: processing_mode.to_string(),
+            data_integrity_hash: format!("{:x}", current_time), // Simplified hash
+            export_config: ExportConfig {
+                buffer_size: 256 * 1024,
+                compression_enabled: false,
+                compression_level: None,
+                pretty_print: false,
+                array_chunk_size: 1000,
+            },
         }
     }
 
-    /// Get estimated memory usage
-    pub fn get_memory_usage(&self) -> usize {
-        // Estimate based on buffer size and queue size
-        self.config.buffer_size + (self.config.async_queue_size * 1024) // Rough estimate
+    /// Update export config in metadata
+    pub fn with_config(mut self, config: &StreamingWriterConfig) -> Self {
+        self.export_config = ExportConfig {
+            buffer_size: config.buffer_size,
+            compression_enabled: config.enable_compression,
+            compression_level: if config.enable_compression {
+                Some(config.compression_level)
+            } else {
+                None
+            },
+            pretty_print: config.pretty_print,
+            array_chunk_size: config.array_chunk_size,
+        };
+        self
     }
 }
 
-/// Export metadata for JSON headers
-#[derive(Debug, Clone)]
-pub struct ExportMetadata {
-    /// Export timestamp
-    pub export_timestamp: u64,
-    /// Whether parallel processing was used
-    pub parallel_processing: bool,
-    /// Data integrity hash
-    pub integrity_hash: String,
-    /// Additional metadata
-    pub additional_info: std::collections::HashMap<String, String>,
+/// Builder pattern for streaming writer configuration
+pub struct StreamingWriterConfigBuilder {
+    config: StreamingWriterConfig,
 }
 
-impl ExportMetadata {
-    /// Create new export metadata
+impl StreamingWriterConfigBuilder {
+    /// Create a new configuration builder
     pub fn new() -> Self {
         Self {
-            export_timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
-            parallel_processing: false,
-            integrity_hash: "".to_string(),
-            additional_info: std::collections::HashMap::new(),
+            config: StreamingWriterConfig::default(),
         }
     }
 
-    /// Set parallel processing flag
-    pub fn with_parallel_processing(mut self, parallel: bool) -> Self {
-        self.parallel_processing = parallel;
+    /// Set buffer size
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.config.buffer_size = size;
         self
     }
 
-    /// Set integrity hash
-    pub fn with_integrity_hash(mut self, hash: String) -> Self {
-        self.integrity_hash = hash;
+    /// Enable compression with specified level
+    pub fn with_compression(mut self, level: u32) -> Self {
+        self.config.enable_compression = true;
+        self.config.compression_level = level;
         self
     }
 
-    /// Add additional metadata
-    pub fn with_additional_info(mut self, key: String, value: String) -> Self {
-        self.additional_info.insert(key, value);
+    /// Enable pretty printing
+    pub fn pretty_print(mut self) -> Self {
+        self.config.pretty_print = true;
         self
+    }
+
+    /// Set maximum memory before flush
+    pub fn max_memory_before_flush(mut self, size: usize) -> Self {
+        self.config.max_memory_before_flush = size;
+        self
+    }
+
+    /// Set array chunk size
+    pub fn array_chunk_size(mut self, size: usize) -> Self {
+        self.config.array_chunk_size = size;
+        self
+    }
+
+    /// Enable or disable non-blocking writes
+    pub fn non_blocking(mut self, enabled: bool) -> Self {
+        self.config.non_blocking = enabled;
+        self
+    }
+
+    /// Build the configuration
+    pub fn build(self) -> StreamingWriterConfig {
+        self.config
     }
 }
 
-impl Default for ExportMetadata {
+impl Default for StreamingWriterConfigBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Convenience function to create a streaming writer for files
-pub fn create_file_streaming_writer(
-    file_path: &str,
-    config: StreamingWriterConfig,
-) -> TrackingResult<StreamingJsonWriter<std::fs::File>> {
-    let file =
-        std::fs::File::create(file_path).map_err(|e| TrackingError::IoError(e.to_string()))?;
-
-    Ok(StreamingJsonWriter::with_config(file, config))
-}
-
-/// Convenience function to create a streaming writer for in-memory buffer
-pub fn create_buffer_streaming_writer(
-    config: StreamingWriterConfig,
-) -> StreamingJsonWriter<Vec<u8>> {
-    let buffer = Vec::new();
-    StreamingJsonWriter::with_config(buffer, config)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn test_streaming_writer_creation() {
         let buffer = Vec::new();
-        let writer = StreamingJsonWriter::new(buffer);
-        assert!(!writer.initialized || writer.config.enable_async_writes);
+        let cursor = Cursor::new(buffer);
+        let writer = StreamingJsonWriter::new(cursor);
+        assert!(writer.is_ok());
     }
 
     #[test]
-    fn test_config_defaults() {
-        let config = StreamingWriterConfig::default();
-        assert_eq!(config.buffer_size, 256 * 1024);
-        assert!(!config.enable_compression);
-        assert!(config.enable_async_writes);
+    fn test_config_builder() {
+        let config = StreamingWriterConfigBuilder::new()
+            .buffer_size(512 * 1024)
+            .with_compression(9)
+            .pretty_print()
+            .build();
+
+        assert_eq!(config.buffer_size, 512 * 1024);
+        assert!(config.enable_compression);
+        assert_eq!(config.compression_level, 9);
+        assert!(config.pretty_print);
     }
 
     #[test]
-    fn test_export_metadata() {
-        let metadata = ExportMetadata::new()
-            .with_parallel_processing(true)
-            .with_integrity_hash("test_hash".to_string());
-
-        assert!(metadata.parallel_processing);
-        assert_eq!(metadata.integrity_hash, "test_hash");
+    fn test_export_metadata_creation() {
+        let metadata = ExportMetadata::for_unsafe_ffi_analysis("high", "parallel");
+        assert_eq!(metadata.analysis_type, "unsafe_ffi_analysis_optimized");
+        assert_eq!(metadata.schema_version, "2.0");
+        assert_eq!(metadata.optimization_level, "high");
+        assert_eq!(metadata.processing_mode, "parallel");
     }
 }

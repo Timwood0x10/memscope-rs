@@ -429,35 +429,36 @@ fn create_enhanced_dashboard_html(stats: &crate::cli::commands::html_from_json::
             }}
         }}
 
-        // Load overview data
-        function loadOverviewData() {{
-            // Load type distribution
-            fetch('/api/overview')
-                .then(response => response.json())
-                .then(apiResponse => {{
-                    console.log('Overview API response:', apiResponse);
-                    const data = apiResponse.data || apiResponse;
-                    updateTypeDistribution(data.type_distribution || {{}});
-                    updatePerformanceInsights(data.performance_insights || []);
-                }})
-                .catch(error => {{
-                    console.error('Failed to load overview data:', error);
-                    document.getElementById('typeDistribution').innerHTML = '<div class="error">Failed to load type distribution</div>';
-                    document.getElementById('performanceInsights').innerHTML = '<div class="error">Failed to load performance insights</div>';
-                }});
-
-            // Load variables
-            fetch('/api/variables?limit=5')
-                .then(response => response.json())
-                .then(apiResponse => {{
-                    console.log('Variables API response:', apiResponse);
-                    const data = apiResponse.data || apiResponse;
-                    updateRecentVariables(data.variables || data.top_variables || []);
-                }})
-                .catch(error => {{
-                    console.error('Failed to load variables:', error);
-                    document.getElementById('recentVariables').innerHTML = '<div class="error">Failed to load variables</div>';
-                }});
+        // Load overview data with performance optimization
+        async function loadOverviewData() {{
+            try {{
+                // Parallel loading for better performance
+                const [overviewResponse, variablesResponse] = await Promise.all([
+                    fetch('/api/overview'),
+                    fetch('/api/variables?limit=5')
+                ]);
+                
+                const [overviewData, variablesData] = await Promise.all([
+                    overviewResponse.json(),
+                    variablesResponse.json()
+                ]);
+                
+                console.log('Overview API response:', overviewData);
+                console.log('Variables API response:', variablesData);
+                
+                const overview = overviewData.data || overviewData;
+                const variables = variablesData.data || variablesData;
+                
+                updateTypeDistribution(overview.type_distribution || {{}});
+                updatePerformanceInsights(overview.performance_insights || []);
+                updateRecentVariables(variables.variables || variables.top_variables || []);
+                
+            }} catch (error) {{
+                console.error('Failed to load overview data:', error);
+                document.getElementById('typeDistribution').innerHTML = '<div class="error">❌ Failed to load type distribution</div>';
+                document.getElementById('performanceInsights').innerHTML = '<div class="error">❌ Failed to load performance insights</div>';
+                document.getElementById('recentVariables').innerHTML = '<div class="error">❌ Failed to load variables</div>';
+            }}
         }}
 
         // Update type distribution
@@ -522,142 +523,145 @@ fn create_enhanced_dashboard_html(stats: &crate::cli::commands::html_from_json::
             element.innerHTML = html;
         }}
 
-        // Load memory analysis
-        function loadMemoryAnalysis() {{
+        // Load memory analysis with faster loading
+        async function loadMemoryAnalysis() {{
             const element = document.getElementById('memoryAnalysisContent');
-            element.innerHTML = '<div class="loading">Loading memory analysis...</div>';
+            element.innerHTML = '<div class="loading">⚡ Loading memory analysis...</div>';
             
-            fetch('/api/overview')
-                .then(response => response.json())
-                .then(apiResponse => {{
-                    const data = apiResponse.data || apiResponse;
-                    element.innerHTML = `
-                        <h3>📊 Memory Analysis Dashboard</h3>
-                        <div class="overview-grid">
-                            <div class="overview-card">
-                                <h4>Memory Usage</h4>
-                                <div class="stats-grid">
-                                    <div class="stat-item">
-                                        <span class="stat-label">Active:</span>
-                                        <span class="stat-value">${{formatBytes(data.stats?.active_memory || 0)}}</span>
-                                    </div>
-                                    <div class="stat-item">
-                                        <span class="stat-label">Peak:</span>
-                                        <span class="stat-value">${{formatBytes(data.stats?.peak_memory || 0)}}</span>
-                                    </div>
+            try {{
+                const response = await fetch('/api/overview');
+                const apiResponse = await response.json();
+                const data = apiResponse.data || apiResponse;
+                
+                element.innerHTML = `
+                    <h3>📊 Memory Analysis Dashboard</h3>
+                    <div class="overview-grid">
+                        <div class="overview-card">
+                            <h4>💾 Memory Usage</h4>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-label">Active:</span>
+                                    <span class="stat-value">${{formatBytes(data.stats?.active_memory || 0)}}</span>
                                 </div>
-                            </div>
-                            <div class="overview-card">
-                                <h4>Allocations</h4>
-                                <div class="stats-grid">
-                                    <div class="stat-item">
-                                        <span class="stat-label">Total:</span>
-                                        <span class="stat-value">${{data.stats?.total_allocations || 0}}</span>
-                                    </div>
-                                    <div class="stat-item">
-                                        <span class="stat-label">Active:</span>
-                                        <span class="stat-value">${{data.stats?.active_allocations || 0}}</span>
-                                    </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Peak:</span>
+                                    <span class="stat-value">${{formatBytes(data.stats?.peak_memory || 0)}}</span>
                                 </div>
                             </div>
                         </div>
-                    `;
-                }})
-                .catch(error => {{
-                    element.innerHTML = '<div class="error">Failed to load memory analysis</div>';
-                }});
+                        <div class="overview-card">
+                            <h4>📈 Allocations</h4>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total:</span>
+                                    <span class="stat-value">${{data.stats?.total_allocations || 0}}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Active:</span>
+                                    <span class="stat-value">${{data.stats?.active_allocations || 0}}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }} catch (error) {{
+                console.error('Memory analysis load error:', error);
+                element.innerHTML = '<div class="error">❌ Failed to load memory analysis</div>';
+            }}
         }}
 
-        // Load variables
-        function loadVariables() {{
+        // Load variables with optimized loading
+        async function loadVariables() {{
             const element = document.getElementById('variablesContent');
-            element.innerHTML = '<div class="loading">Loading variables...</div>';
+            element.innerHTML = '<div class="loading">🔍 Loading variables...</div>';
             
-            fetch('/api/variables')
-                .then(response => response.json())
-                .then(apiResponse => {{
-                    const data = apiResponse.data || apiResponse;
-                    const variables = data.variables || data.top_variables || [];
-                    if (variables.length === 0) {{
-                        element.innerHTML = '<p>No variables found</p>';
-                        return;
-                    }}
-                    
-                    const html = `
-                        <h3>📋 Variables List</h3>
-                        <div class="overview-grid">
-                            ${{variables.slice(0, 10).map(variable => `
-                                <div class="overview-card">
-                                    <h4>${{variable.name || 'Unknown'}}</h4>
-                                    <div class="stats-grid">
-                                        <div class="stat-item">
-                                            <span class="stat-label">Type:</span>
-                                            <span class="stat-value">${{variable.type_name || 'Unknown'}}</span>
-                                        </div>
-                                        <div class="stat-item">
-                                            <span class="stat-label">Size:</span>
-                                            <span class="stat-value">${{formatBytes(variable.total_size || 0)}}</span>
-                                        </div>
-                                        <div class="stat-item">
-                                            <span class="stat-label">Allocations:</span>
-                                            <span class="stat-value">${{variable.allocation_count || 0}}</span>
-                                        </div>
+            try {{
+                const response = await fetch('/api/variables?limit=20');
+                const apiResponse = await response.json();
+                const data = apiResponse.data || apiResponse;
+                const variables = data.variables || data.top_variables || [];
+                
+                if (variables.length === 0) {{
+                    element.innerHTML = '<p>📭 No variables found</p>';
+                    return;
+                }}
+                
+                const html = `
+                    <h3>📋 Variables List (Top ${{variables.length}})</h3>
+                    <div class="overview-grid">
+                        ${{variables.slice(0, 15).map(variable => `
+                            <div class="overview-card">
+                                <h4>🔧 ${{variable.name || 'Unknown'}}</h4>
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <span class="stat-label">Type:</span>
+                                        <span class="stat-value">${{variable.type_name || 'Unknown'}}</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Size:</span>
+                                        <span class="stat-value">${{formatBytes(variable.total_size || 0)}}</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Allocations:</span>
+                                        <span class="stat-value">${{variable.allocation_count || 0}}</span>
                                     </div>
                                 </div>
-                            `).join('')}}
-                        </div>
-                    `;
-                    element.innerHTML = html;
-                }})
-                .catch(error => {{
-                    element.innerHTML = '<div class="error">Failed to load variables</div>';
-                }});
+                            </div>
+                        `).join('')}}
+                    </div>
+                `;
+                element.innerHTML = html;
+            }} catch (error) {{
+                console.error('Variables load error:', error);
+                element.innerHTML = '<div class="error">❌ Failed to load variables</div>';
+            }}
         }}
 
         // Load timeline
-        function loadTimeline() {{
+        async function loadTimeline() {{
             const element = document.getElementById('timelineContent');
-            element.innerHTML = '<div class="loading">Loading timeline...</div>';
+            element.innerHTML = '<div class="loading">⏱️ Loading timeline...</div>';
             
-            fetch('/api/timeline')
-                .then(response => response.json())
-                .then(apiResponse => {{
-                    const data = apiResponse.data || apiResponse;
-                    const events = data.events || [];
-                    if (events.length === 0) {{
-                        element.innerHTML = '<p>No timeline events found</p>';
-                        return;
-                    }}
-                    
-                    const html = `
-                        <h3>⏱️ Timeline Events</h3>
-                        <div class="overview-grid">
-                            ${{events.slice(0, 10).map(event => `
-                                <div class="overview-card">
-                                    <h4>${{event.event_type || 'Unknown'}} Event</h4>
-                                    <div class="stats-grid">
-                                        <div class="stat-item">
-                                            <span class="stat-label">Variable:</span>
-                                            <span class="stat-value">${{event.variable_name || 'Unknown'}}</span>
-                                        </div>
-                                        <div class="stat-item">
-                                            <span class="stat-label">Size:</span>
-                                            <span class="stat-value">${{formatBytes(event.size || 0)}}</span>
-                                        </div>
-                                        <div class="stat-item">
-                                            <span class="stat-label">Timestamp:</span>
-                                            <span class="stat-value">${{new Date(event.timestamp * 1000).toLocaleTimeString()}}</span>
-                                        </div>
+            try {{
+                const response = await fetch('/api/timeline?limit=25');
+                const apiResponse = await response.json();
+                const data = apiResponse.data || apiResponse;
+                const events = data.events || [];
+                
+                if (events.length === 0) {{
+                    element.innerHTML = '<p>📅 No timeline events found</p>';
+                    return;
+                }}
+                
+                const html = `
+                    <h3>⏱️ Timeline Events (Latest ${{events.length}})</h3>
+                    <div class="overview-grid">
+                        ${{events.slice(0, 20).map(event => `
+                            <div class="overview-card">
+                                <h4>📌 ${{event.event_type || 'Unknown'}} Event</h4>
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <span class="stat-label">Variable:</span>
+                                        <span class="stat-value">${{event.variable_name || 'Unknown'}}</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Size:</span>
+                                        <span class="stat-value">${{formatBytes(event.size || 0)}}</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Time:</span>
+                                        <span class="stat-value">🕐 ${{new Date(event.timestamp * 1000).toLocaleTimeString()}}</span>
                                     </div>
                                 </div>
-                            `).join('')}}
-                        </div>
-                    `;
-                    element.innerHTML = html;
-                }})
-                .catch(error => {{
-                    element.innerHTML = '<div class="error">Failed to load timeline</div>';
-                }});
+                            </div>
+                        `).join('')}}
+                    </div>
+                `;
+                element.innerHTML = html;
+            }} catch (error) {{
+                console.error('Timeline load error:', error);
+                element.innerHTML = '<div class="error">❌ Failed to load timeline</div>';
+            }}
         }}
 
         // Load performance

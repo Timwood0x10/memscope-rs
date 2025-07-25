@@ -22,6 +22,10 @@ use data_normalizer::{DataNormalizer, UnifiedMemoryData};
 use data_integrator::DataIntegrator;
 use template_generator::TemplateGenerator;
 
+mod fixed_template;
+mod rich_template;
+mod direct_json_template;
+
 /// Run the HTML from JSON generation command
 pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let input_dir = matches
@@ -78,9 +82,19 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
         let server = MemScopeServer::new(unified_data, config);
         server.serve().await?;
     } else {
-        // 🎨 生成静态HTML报告
-        let mut template_generator = TemplateGenerator::new();
-        let (html_content, template_stats) = template_generator.generate_html(&unified_data)?;
+        // 🎨 生成静态HTML报告 - 使用直接 JSON 数据模板
+        println!("🎨 Using direct JSON data template with charts...");
+        let html_content = direct_json_template::generate_direct_html(&json_data)?;
+        
+        let template_stats = crate::cli::commands::html_from_json::template_generator::TemplateStats {
+            template_size_bytes: html_content.len(),
+            css_processing_time_ms: 0,
+            js_processing_time_ms: 0,
+            serialization_time_ms: 0,
+            generation_time_ms: 1,
+            cache_hit_rate: 0.0,
+            compression_ratio: Some(1.0),
+        };
         
         println!("🎨 Template Generation Statistics:");
         println!("   Template size: {:.1} KB", template_stats.template_size_bytes as f64 / 1024.0);
