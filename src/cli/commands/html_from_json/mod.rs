@@ -20,10 +20,7 @@ pub mod template_generator;
 
 use data_normalizer::{DataNormalizer, UnifiedMemoryData};
 use data_integrator::DataIntegrator;
-use template_generator::TemplateGenerator;
 
-mod fixed_template;
-mod rich_template;
 mod direct_json_template;
 
 /// Run the HTML from JSON generation command
@@ -44,14 +41,14 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
     println!("📄 Output file: {}", output_file);
     println!("🏷️  Base name: {}", base_name);
 
-    // 🎯 快速加载所有JSON文件
+    // 🎯 Load JSON files
     let json_data = load_json_files(input_dir, base_name)?;
     
-    // 🔄 标准化数据
+    // 🔄 Normalize data
     let normalizer = DataNormalizer::new();
     let mut unified_data = normalizer.normalize(&json_data)?;
     
-    // 🔗 整合多数据源
+    // 🔗 Integrate multiple data sources
     let integrator = DataIntegrator::new();
     let integration_stats = integrator.integrate(&mut unified_data)?;
     
@@ -62,7 +59,7 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
     println!("   Index build time: {}ms", integration_stats.index_build_time_ms);
     println!("   Total integration time: {}ms", integration_stats.integration_time_ms);
     
-    // 检查是否启动Web服务器
+    // Check if web server should be started
     if matches.get_flag("serve") {
         let port = matches.get_one::<u16>("port").copied().unwrap_or(8080);
         
@@ -71,9 +68,10 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
             unified_data.allocations.len(),
             integration_stats.cross_references_found);
         
-        // 启动Web服务器
+        // Start web server
         let config = ServerConfig {
             port,
+            bind_address: "127.0.0.1".to_string(),
             enable_cors: true,
             static_dir: None,
             enable_logging: true,
@@ -82,7 +80,7 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
         let server = MemScopeServer::new(unified_data, config);
         server.serve().await?;
     } else {
-        // 🎨 生成静态HTML报告 - 使用直接 JSON 数据模板
+        // 🎨 Generate static HTML report - using direct JSON data template
         println!("🎨 Using direct JSON data template with charts...");
         let html_content = direct_json_template::generate_direct_html(&json_data)?;
         
@@ -104,7 +102,7 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
         println!("   Total generation time: {}ms", template_stats.generation_time_ms);
         println!("   Cache hit rate: {:.1}%", template_stats.cache_hit_rate);
         
-        // 💾 写入HTML文件
+        // Write HTML file
         fs::write(output_file, html_content)?;
     }
     
@@ -209,20 +207,49 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
     println!("📁 Directory: {}", input_dir);
     println!("🏷️  Base name: {}", base_name);
     
-    // 检查文件存在性和大小
+    // check file exist and size
     let mut valid_files = Vec::new();
     let mut total_size = 0usize;
     
     for config in &file_configs {
-        let file_path = format!("{}/{}_{}.json", input_dir, base_name, config.suffix);
-        let path = Path::new(&file_path);
+        // try multiple file name formats
+        let possible_paths = vec![
+            format!("{}/{}_{}.json", input_dir, base_name, config.suffix),
+            format!("{}/*{}*.json", input_dir, config.suffix),
+        ];
         
-        if path.exists() {
+        let mut found_path = None;
+        
+        // try exact match first
+        let exact_path = format!("{}/{}_{}.json", input_dir, base_name, config.suffix);
+        if Path::new(&exact_path).exists() {
+            found_path = Some(exact_path);
+        } else {
+            // if exact match fails, search for files containing keywords
+            if let Ok(entries) = fs::read_dir(input_dir) {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                            if file_name.contains(&config.suffix) && file_name.ends_with(".json") {
+                                found_path = Some(path.to_string_lossy().to_string());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if let Some(file_path) = found_path {
+            let path = Path::new(&file_path);
+        
+            if path.exists() {
             match fs::metadata(&file_path) {
                 Ok(metadata) => {
                     let file_size = metadata.len() as usize;
                     
-                    // 检查文件大小限制
+                    // check file size limit
                     if let Some(max_size) = config.max_size_mb {
                         let max_bytes = max_size * 1024 * 1024;
                         if file_size > max_bytes {
@@ -241,10 +268,11 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
                     println!("⚠️  Cannot read metadata for {}: {}", file_path, e);
                 }
             }
-        } else if config.required {
-            return Err(format!("Required file not found: {}", file_path).into());
-        } else {
-            println!("⚠️  Optional file not found: {} (skipping)", file_path);
+            } else if config.required {
+                return Err(format!("Required file not found: {}_{}*.json", base_name, config.suffix).into());
+            } else {
+                println!("⚠️  Optional file not found: {}_{}*.json (skipping)", base_name, config.suffix);
+            }
         }
     }
     
@@ -255,7 +283,7 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
     println!("📊 Found {} valid files, total size: {:.1} MB", 
         valid_files.len(), total_size as f64 / 1024.0 / 1024.0);
     
-    // 决定是否使用并行加载（文件数量 >= 3 或总大小 >= 10MB）
+    // decide whether to use parallel loading (>= 3 files or >= 10MB)
     let use_parallel = valid_files.len() >= 3 || total_size >= 10 * 1024 * 1024;
     
     if use_parallel {
@@ -264,14 +292,14 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
         println!("📝 Using sequential loading for {} files", valid_files.len());
     }
     
-    // 加载文件
+    // load files
     let results = if use_parallel {
         load_files_parallel(&valid_files)?
     } else {
         load_files_sequential(&valid_files)?
     };
     
-    // 处理结果
+    // process results
     let mut data = JsonDataCollection::new();
     let mut stats = JsonLoadStats {
         total_files_attempted: valid_files.len(),
@@ -299,7 +327,7 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
         }
     }
     
-    // 打印统计信息
+    // print statistics
     print_load_statistics(&stats);
     
     if data.is_empty() {
@@ -340,7 +368,7 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
         Ok(content) => {
             match serde_json::from_str::<Value>(&content) {
                 Ok(json_value) => {
-                    // 验证JSON结构
+                    // validate JSON structure
                     if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
                         JsonLoadResult {
                             suffix: config.suffix.to_string(),
@@ -391,7 +419,7 @@ fn validate_json_structure(json: &Value, file_type: &str) -> Result<(), String> 
             if !json.is_object() {
                 return Err("Memory analysis JSON must be an object".to_string());
             }
-            // 可以添加更多特定验证
+            // can add more specific validation
         }
         "performance" => {
             if !json.is_object() {
@@ -399,7 +427,7 @@ fn validate_json_structure(json: &Value, file_type: &str) -> Result<(), String> 
             }
         }
         _ => {
-            // 基本验证：确保是有效的JSON对象或数组
+            // basic validation: ensure it's a valid JSON object or array
             if !json.is_object() && !json.is_array() {
                 return Err("JSON must be an object or array".to_string());
             }
@@ -437,14 +465,14 @@ fn generate_html_from_unified_data(
     output_file: &str
 ) -> Result<(), Box<dyn Error>> {
     
-    // 🎯 读取模板文件
+    // read template files
     let css_content = include_str!("../../../../templates/styles.css");
     let js_content = include_str!("../../../../templates/script.js");
     
-    // 🎨 构建HTML内容
+    // build HTML content
     let html_content = build_html_template_unified(css_content, js_content, unified_data)?;
     
-    // 💾 写入文件
+    // write to file
     fs::write(output_file, html_content)?;
     
     Ok(())
@@ -457,18 +485,18 @@ fn build_html_template_unified(
     unified_data: &UnifiedMemoryData
 ) -> Result<String, Box<dyn Error>> {
     
-    // 🎯 准备数据摘要用于header统计
+    // prepare data summary for header statistics
     let stats = &unified_data.stats;
     
-    // 格式化统计信息
+    // format statistics information
     let total_memory = format_bytes(stats.active_memory);
     let active_allocs = format!("{} Active", stats.active_allocations);
     let peak_memory = format_bytes(stats.peak_memory);
     
-    // 序列化统一数据为JSON
+    // serialize unified data to JSON
     let json_data_str = serde_json::to_string(unified_data)?;
     
-    // 🎨 构建完整的HTML
+    // build complete HTML
     let html = format!(r#"<!DOCTYPE html>
 <html lang="en">
 <head>

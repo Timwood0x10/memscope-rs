@@ -1200,12 +1200,6 @@ fn install_exit_hook() {
     });
 }
 
-/// Guard struct that exports data when dropped (on program exit)
-// Removed unused ExitGuard struct
-
-// Removed unused ExitGuard implementation
-
-// Removed unused ExitGuard Drop implementation
 
 /// Export final memory snapshot with complete lifecycle data
 fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {

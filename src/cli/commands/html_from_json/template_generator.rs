@@ -3,12 +3,13 @@
 //! This module provides advanced HTML template generation capabilities with
 //! template caching, responsive design support, and performance optimizations.
 
-use serde_json::Value;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Instant;
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt,
+    sync::{Arc, Mutex, OnceLock},
+    time::Instant,
+};
 
 use super::data_normalizer::UnifiedMemoryData;
 

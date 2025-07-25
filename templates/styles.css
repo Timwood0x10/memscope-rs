@@ -1,4 +1,4 @@
-/* MemScope-RS Interactive Styles */
+/* MemScope-RS Interactive Styles - Modular Version */
 * {
     margin: 0;
     padding: 0;
@@ -173,6 +173,46 @@ body {
 .empty-state p {
     margin-bottom: 12px;
     font-size: 1.1rem;
+}
+
+/* Loading Message */
+.loading-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #64748b;
+    font-size: 1.1rem;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border-radius: 12px;
+    margin: 20px 0;
+}
+
+/* Data Source Info */
+.data-source-info {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.data-source-info details {
+    margin-top: 5px;
+}
+
+.data-source-info summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #667eea;
+}
+
+.data-source-info ul {
+    margin: 5px 0;
+    padding-left: 20px;
+    font-size: 0.85rem;
+}
+
+.data-source-info li {
+    margin: 2px 0;
+    color: #555;
 }
 
 /* Interactive Explorer */

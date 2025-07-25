@@ -5,15 +5,15 @@
 use axum::{
     extract::State,
     http::StatusCode,
-    response::{Html, IntoResponse},
-    routing::{get, post},
+    response::IntoResponse,
+    routing::get,
     Router,
 };
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 use tower_http::cors::CorsLayer;
 
 use crate::cli::commands::html_from_json::data_normalizer::UnifiedMemoryData;
@@ -49,6 +49,8 @@ pub struct DataIndexes {
 pub struct ServerConfig {
     /// Server port
     pub port: u16,
+    /// Server bind address (default: 127.0.0.1 for localhost only, use 0.0.0.0 for all interfaces)
+    pub bind_address: String,
     /// Enable CORS for development
     pub enable_cors: bool,
     /// Static files directory
@@ -61,6 +63,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             port: 8080,
+            bind_address: "127.0.0.1".to_string(),
             enable_cors: true,
             static_dir: None,
             enable_logging: true,

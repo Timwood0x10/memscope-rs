@@ -1106,10 +1106,15 @@ fn render_real_data_treemap(
 /// Treemap data structure for hierarchical visualization
 #[derive(Debug, Clone)]
 struct TreemapNode {
+    /// Node name
     name: String,
+    /// Node size
     size: usize,
+    /// Node percentage
     percentage: f64,
+    /// Node color
     color: String,
+    /// Node children
     children: Vec<TreemapNode>,
 }
 

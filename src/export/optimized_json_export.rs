@@ -5,7 +5,6 @@
 
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
-use crate::export::streaming_json_writer::StreamingJsonWriter;
 use crate::export::schema_validator::SchemaValidator;
 use crate::export::adaptive_performance::AdaptivePerformanceOptimizer;
 use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};

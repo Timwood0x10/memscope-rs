@@ -146,9 +146,13 @@ impl DataFormatter {
 /// API response wrapper
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
+    /// Whether the request was successful
     pub success: bool,
+    /// Response data
     pub data: Option<T>,
+    /// Error message
     pub error: Option<String>,
+    /// Timestamp of the response
     pub timestamp: u64,
 }
 
@@ -165,6 +169,7 @@ impl<T> ApiResponse<T> {
         }
     }
     
+    /// Create an error response
     pub fn error(message: String) -> Self {
         Self {
             success: false,
@@ -181,133 +186,205 @@ impl<T> ApiResponse<T> {
 /// Overview data structure
 #[derive(Serialize)]
 pub struct OverviewData {
+    /// Memory statistics
     pub stats: MemoryStatistics,
+    /// Top variables
     pub top_variables: Vec<VariableSummary>,
+    /// Top types
     pub top_types: Vec<TypeSummary>,
+    /// Recent allocations
     pub recent_allocations: Vec<AllocationSummary>,
+    /// Memory timeline
     pub memory_timeline: Vec<TimelinePoint>,
 }
 
 /// Variable summary for overview
 #[derive(Serialize, Clone)]
 pub struct VariableSummary {
+    /// Variable name
     pub name: String,
+    /// Total size of the variable
     pub total_size: usize,
+    /// Number of allocations for the variable
     pub allocation_count: usize,
+    /// Type name of the variable
     pub type_name: Option<String>,
+    /// Scope of the variable
     pub scope: Option<String>,
     // Visualization hints
     pub size_formatted: String,
+    /// Formatted allocation count
     pub count_formatted: String,
+    /// Size category
     pub size_category: String,
+    /// Color hint
     pub color_hint: String,
+    /// Percentage of total memory
     pub percentage_of_total: f64,
 }
 
 /// Type summary for overview
 #[derive(Serialize)]
 pub struct TypeSummary {
+    /// Type name
     pub type_name: String,
+    /// Total size of the type
     pub total_size: usize,
+    /// Number of allocations for the type
     pub allocation_count: usize,
+    /// Average size of the type
     pub average_size: usize,
     // Visualization hints
     pub size_formatted: String,
+    /// Formatted allocation count
     pub count_formatted: String,
+    /// Formatted average size
     pub average_size_formatted: String,
+    /// Size category
     pub size_category: String,
+    /// Color hint
     pub color_hint: String,
+    /// Percentage of total memory
     pub percentage_of_total: f64,
 }
 
 /// Allocation summary
 #[derive(Serialize)]
 pub struct AllocationSummary {
+    /// Pointer to the allocation
     pub ptr: String,
+    /// Size of the allocation
     pub size: usize,
+    /// Variable name associated with the allocation
     pub var_name: Option<String>,
+    /// Type name associated with the allocation
     pub type_name: Option<String>,
+    /// Timestamp of the allocation
     pub timestamp: u64,
+    /// Whether the allocation is active
     pub is_active: bool,
     // Visualization hints
+    /// Formatted size
     pub size_formatted: String,
+    /// Formatted timestamp
     pub timestamp_formatted: String,
+    /// Size category
     pub size_category: String,
+    /// Color hint
     pub color_hint: String,
+    /// Status icon
     pub status_icon: String,
+    /// Age category
     pub age_category: String, // "recent", "old", etc.
 }
 
 /// Timeline point for memory usage over time
 #[derive(Serialize)]
 pub struct TimelinePoint {
+    /// Timestamp of the event
     pub timestamp: u64,
+    /// Active memory at the timestamp
     pub active_memory: usize,
+    /// Number of allocations at the timestamp
     pub allocation_count: usize,
-    pub event_type: String, // "alloc" or "dealloc"
+    /// Event type ("alloc" or "dealloc")
+    pub event_type: String,
     // Visualization hints
-    pub timestamp_formatted: String,
+        pub timestamp_formatted: String,
+    /// Formatted active memory
     pub active_memory_formatted: String,
+    /// Formatted allocation count
     pub count_formatted: String,
+    /// Event icon
     pub event_icon: String,
+    /// Color hint for visualization
     pub color_hint: String,
-    pub chart_position: f64, // 0.0 to 1.0 for timeline positioning
+    /// Chart position (0.0 to 1.0 for timeline positioning)
+    pub chart_position: f64,
 }
 
 /// Variable details response
 #[derive(Serialize)]
 pub struct VariableDetails {
+    /// Variable name
     pub name: String,
+    /// Allocations associated with the variable
     pub allocations: Vec<AllocationInfo>,
+    /// Total size of the variable
     pub total_size: usize,
+    /// Number of allocations
     pub allocation_count: usize,
+    /// Timeline of variable events
     pub timeline: Vec<VariableTimelineEvent>,
+    /// Related variables
     pub related_variables: Vec<String>,
 }
 
 /// Variable timeline event
 #[derive(Serialize)]
 pub struct VariableTimelineEvent {
+    /// Timestamp of the event
     pub timestamp: u64,
-    pub event_type: String, // "allocated", "deallocated", "resized"
+    /// Event type ("allocated", "deallocated", "resized")
+    pub event_type: String,
+    /// Size of the allocation
     pub size: usize,
+    /// Pointer to the allocation
     pub ptr: String,
 }
 
 /// Query parameters for variables list
 #[derive(Deserialize)]
 pub struct VariablesQuery {
+    /// Page number
     pub page: Option<usize>,
+    /// Number of items per page
     pub limit: Option<usize>,
+    /// Filter type
+    /// Filter type
     pub filter_type: Option<String>,
+    /// Filter scope
     pub filter_scope: Option<String>,
+    /// Sort by
     pub sort_by: Option<String>, // "name", "size", "count"
+    /// Sort order
     pub sort_order: Option<String>, // "asc", "desc"
 }
 
 /// Query parameters for timeline
 #[derive(Deserialize)]
 pub struct TimelineQuery {
+    /// Start time
     pub start_time: Option<u64>,
+    /// End time
     pub end_time: Option<u64>,
+    /// Number of items per page
     pub limit: Option<usize>,
 }
 
 /// Search query parameters
 #[derive(Deserialize)]
 pub struct SearchQuery {
+    /// Search query
     pub q: String,
+    /// Category to search in
     pub category: Option<String>, // "variables", "types", "all"
+    /// Number of items per page
     pub limit: Option<usize>,
 }
 
 /// Search result
 #[derive(Serialize)]
 pub struct SearchResult {
+    /// Category of the search result
     pub category: String,
+    /// Name of the search result
     pub name: String,
+    /// Description of the search result
     pub description: String,
+    /// URL of the search result
     pub url: String,
+    /// Relevance of the search result
     pub relevance: f64,
 }
 
@@ -726,7 +803,7 @@ pub async fn timeline_events(
     let max_timestamp = indexes.timeline_index.keys().max().copied().unwrap_or(0);
     let time_range = max_timestamp.saturating_sub(min_timestamp).max(1);
     
-    let current_time = std::time::SystemTime::now()
+    let _current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u64;

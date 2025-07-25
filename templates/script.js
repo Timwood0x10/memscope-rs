@@ -1,4 +1,4 @@
-// MemScope-RS Interactive Visualizations - Fixed Version
+// MemScope-RS Interactive Visualizations - Dynamic JSON Loading Version
 // This version properly handles embedded data
 
 /**
@@ -8,17 +8,159 @@ function initializeMemScopeApp() {
     console.log('🚀 Initializing MemScope-RS Interactive App...');
     
     try {
-        // 使用嵌入的数据而不是尝试从外部加载
+        // 首先尝试使用嵌入的数据
         if (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA) {
             console.log('✅ Using embedded data');
             processEmbeddedData(EMBEDDED_DATA);
         } else {
-            console.warn('⚠️ No embedded data found, showing error state');
-            showErrorState(new Error('No data available'));
+            console.log('🔍 No embedded data found, trying to load from MemoryAnalysis directory...');
+            loadMemoryAnalysisData();
         }
     } catch (error) {
         console.error('❌ Initialization failed:', error);
         showErrorState(error);
+    }
+}
+
+/**
+ * 从 MemoryAnalysis 目录加载 JSON 数据
+ */
+async function loadMemoryAnalysisData() {
+    const dataFiles = [
+        'MemoryAnalysis/snapshot_memory_analysis_memory_analysis.json',
+        'MemoryAnalysis/snapshot_memory_analysis_lifetime.json',
+        'MemoryAnalysis/snapshot_memory_analysis_security_violations.json',
+        'MemoryAnalysis/snapshot_unsafe_ffi.json',
+        'MemoryAnalysis/snapshot_memory_analysis_complex_types.json'
+    ];
+    
+    let loadedData = {};
+    let hasData = false;
+    let availableFiles = [];
+    
+    for (const file of dataFiles) {
+        try {
+            const response = await fetch(file);
+            if (response.ok) {
+                const data = await response.json();
+                const dataType = extractDataType(file);
+                loadedData[dataType] = data;
+                availableFiles.push(file);
+                hasData = true;
+                console.log(`✅ Loaded ${file}`);
+            } else {
+                console.log(`⚠️ Could not load ${file}: ${response.status}`);
+            }
+        } catch (error) {
+            console.log(`⚠️ Error loading ${file}:`, error.message);
+        }
+    }
+    
+    if (hasData) {
+        const consolidatedData = consolidateLoadedData(loadedData);
+        updateDataSourceInfo(availableFiles);
+        processEmbeddedData(consolidatedData);
+    } else {
+        console.warn('⚠️ No data files found, showing error state');
+        showErrorState(new Error('No memory analysis data available'));
+    }
+}
+
+/**
+ * 从文件名提取数据类型
+ */
+function extractDataType(filename) {
+    if (filename.includes('memory_analysis.json')) return 'memory_analysis';
+    if (filename.includes('lifetime')) return 'lifetime';
+    if (filename.includes('security_violations')) return 'security_violations';
+    if (filename.includes('unsafe_ffi')) return 'unsafe_ffi';
+    if (filename.includes('complex_types')) return 'complex_types';
+    return 'unknown';
+}
+
+/**
+ * 整合加载的数据为期望格式
+ */
+function consolidateLoadedData(loadedData) {
+    const consolidated = {
+        allocations: [],
+        stats: {
+            total_allocated: 0,
+            total_deallocated: 0,
+            peak_memory: 0,
+            active_allocations: 0,
+            allocation_count: 0,
+            deallocation_count: 0
+        },
+        memory_by_type: {},
+        lifecycle_data: null,
+        security_violations: [],
+        unsafe_ffi_data: null,
+        complex_types: []
+    };
+    
+    // 处理内存分析数据
+    if (loadedData.memory_analysis) {
+        const data = loadedData.memory_analysis;
+        if (data.allocations) {
+            consolidated.allocations = data.allocations;
+            consolidated.stats.allocation_count = data.allocations.length;
+            consolidated.stats.active_allocations = data.allocations.filter(a => !a.timestamp_dealloc).length;
+            consolidated.stats.total_allocated = data.allocations.reduce((sum, a) => sum + (a.size || 0), 0);
+            consolidated.stats.peak_memory = Math.max(...data.allocations.map(a => a.size || 0));
+        }
+        if (data.stats) {
+            Object.assign(consolidated.stats, data.stats);
+        }
+        if (data.memory_by_type) {
+            consolidated.memory_by_type = data.memory_by_type;
+        }
+    }
+    
+    // 处理其他数据类型
+    if (loadedData.lifetime) {
+        consolidated.lifecycle_data = loadedData.lifetime;
+    }
+    
+    if (loadedData.security_violations) {
+        consolidated.security_violations = Array.isArray(loadedData.security_violations) 
+            ? loadedData.security_violations 
+            : [loadedData.security_violations];
+    }
+    
+    if (loadedData.unsafe_ffi) {
+        consolidated.unsafe_ffi_data = loadedData.unsafe_ffi;
+    }
+    
+    if (loadedData.complex_types) {
+        consolidated.complex_types = Array.isArray(loadedData.complex_types) 
+            ? loadedData.complex_types 
+            : [loadedData.complex_types];
+    }
+    
+    return consolidated;
+}
+
+/**
+ * 更新数据源信息显示
+ */
+function updateDataSourceInfo(availableFiles) {
+    const header = document.querySelector('.header');
+    if (header && availableFiles.length > 0) {
+        const dataInfo = document.createElement('div');
+        dataInfo.className = 'data-source-info';
+        dataInfo.innerHTML = `
+            <div style="margin-top: 10px; font-size: 0.9rem; color: #666;">
+                📁 Data loaded from: ${availableFiles.length} files
+                <details style="margin-top: 5px;">
+                    <summary style="cursor: pointer;">View loaded files</summary>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+                        ${availableFiles.map(file => `<li>${file}</li>`).join('')}
+                    </ul>
+                </details>
+            </div>
+        `;
+        header.appendChild(dataInfo);
     }
 }
 

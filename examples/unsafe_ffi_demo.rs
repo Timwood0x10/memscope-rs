@@ -171,27 +171,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(&security_json, serde_json::to_string_pretty(&security_data)?)?;
     println!("   ✅ Security violations: {}", security_json);
     
-    // 6.2 Generate HTML from JSON files using existing CLI functionality
-    println!("🌐 Generating HTML report from JSON files...");
-    use memscope_rs::cli::commands::html_from_json::run_html_from_json;
-    use clap::{Arg, Command};
-    
-    let html_output = format!("{}/snapshot_report.html", analysis_dir);
-    let app = Command::new("html_from_json")
-        .arg(Arg::new("input-dir").required(true))
-        .arg(Arg::new("output").required(true))
-        .arg(Arg::new("base-name").required(false));
-    
-    let matches = app.try_get_matches_from(vec![
-        "html_from_json",
-        analysis_dir,
-        &html_output,
-        "snapshot",
-    ])?;
-    
-    run_html_from_json(&matches);
-    println!("   ✅ HTML report generated: {}", html_output);
-
     // 7. Display summary statistics
     println!("\n📈 7. Summary Statistics");
     let stats = tracker.get_stats()?;
@@ -240,13 +219,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n🎉 Unsafe Rust & FFI Memory Analysis Complete!");
     println!("📁 All analysis files are organized in: {}/", analysis_dir);
-    println!("🌐 Open the HTML report for interactive analysis:");
-    println!("   {}", html_output);
     println!("\n📊 Generated files:");
     println!("   • snapshot_memory_analysis.json - Memory allocation analysis");
     println!("   • snapshot_unsafe_ffi.json - Unsafe/FFI analysis");
     println!("   • snapshot_performance.json - Performance metrics");
-    println!("   • snapshot_report.html - 🎯 INTERACTIVE HTML REPORT");
 
     Ok(())
 }

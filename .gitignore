@@ -29,6 +29,9 @@ Thumbs.db
 # Ignore all SVG files
 *.svg
 
+
+*.txt
+
 # But keep these specific SVG files
 !images/*.svg
 !images/*.json
@@ -46,6 +49,8 @@ memory_*.svg
 
 *.html
 *.json
+
+! templates/*.html
 # Coverage reports
 /target/coverage/
 cobertura.xml
