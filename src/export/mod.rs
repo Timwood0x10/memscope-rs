@@ -1,6 +1,7 @@
 pub mod adaptive_performance;
 pub mod batch_processor;
 pub mod complex_type_export;
+pub mod config_optimizer;
 pub mod data_localizer;
 pub mod export_enhanced;
 pub mod fast_export_coordinator;
@@ -8,6 +9,10 @@ pub mod high_speed_buffered_writer;
 pub mod html_export;
 pub mod optimized_json_export;
 pub mod parallel_shard_processor;
+pub mod performance_comparison;
+pub mod performance_testing;
+pub mod progress_monitor;
 pub mod schema_validator;
 pub mod streaming_json_writer;
+pub mod system_optimizer;
 pub mod visualization;

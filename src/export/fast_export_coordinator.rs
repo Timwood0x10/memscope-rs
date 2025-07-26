@@ -3,13 +3,16 @@
 //! 这个模块实现了快速导出协调器，整合数据本地化器、并行分片处理器
 //! 和高速缓冲写入器，提供完整的高性能导出解决方案。
 
-use crate::core::types::{TrackingError, TrackingResult};
+use crate::core::types::{TrackingResult};
 use crate::export::data_localizer::{DataLocalizer, DataGatheringStats, LocalizedExportData};
 use crate::export::high_speed_buffered_writer::{
     HighSpeedBufferedWriter, HighSpeedWriterConfig, WritePerformanceStats,
 };
 use crate::export::parallel_shard_processor::{
     ParallelShardConfig, ParallelShardProcessor, ParallelProcessingStats,
+};
+use crate::export::progress_monitor::{
+    ProgressMonitor, ProgressCallback, ExportStage, ProgressConfig,
 };
 use std::path::Path;
 use std::time::Instant;
@@ -33,6 +36,9 @@ pub struct FastExportConfig {
     /// 详细日志输出
     pub verbose_logging: bool,
     
+    /// 进度监控配置
+    pub progress_config: ProgressConfig,
+    
     /// 自动优化配置
     pub enable_auto_optimization: bool,
     /// 根据系统资源自动调整参数
@@ -50,6 +56,8 @@ impl Default for FastExportConfig {
             
             enable_performance_monitoring: true,
             verbose_logging: false,
+            
+            progress_config: ProgressConfig::default(),
             
             enable_auto_optimization: true,
             auto_adjust_for_system: true,
@@ -119,6 +127,15 @@ impl FastExportCoordinator {
         &mut self,
         output_path: P,
     ) -> TrackingResult<CompleteExportStats> {
+        self.export_fast_with_progress(output_path, None)
+    }
+    
+    /// 执行快速导出（带进度监控）
+    pub fn export_fast_with_progress<P: AsRef<Path>>(
+        &mut self,
+        output_path: P,
+        progress_callback: Option<ProgressCallback>,
+    ) -> TrackingResult<CompleteExportStats> {
         let total_start = Instant::now();
 
         if self.config.verbose_logging {
@@ -127,16 +144,67 @@ impl FastExportCoordinator {
             println!("   配置: {:?}", self.config);
         }
 
+        // 创建进度监控器
+        let mut progress_monitor = if self.config.progress_config.enabled {
+            Some(ProgressMonitor::new(1000)) // 预估分配数量，后续会更新
+        } else {
+            None
+        };
+
+        // 初始化阶段
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.set_stage(ExportStage::Initializing);
+        }
+
         // 第一阶段：数据本地化
-        let (localized_data, data_stats) = self.gather_data()?;
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.set_stage(ExportStage::DataLocalization);
+            if monitor.should_cancel() {
+                monitor.cancel();
+                return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Export cancelled during data localization").into());
+            }
+        }
+        
+        let (localized_data, data_stats) = self.gather_data_with_progress(progress_monitor.as_mut())?;
+
+        // 更新总分配数量并设置回调
+        if let Some(ref mut monitor) = progress_monitor {
+            // 重新创建监控器以更新总分配数量
+            let mut new_monitor = ProgressMonitor::new(localized_data.allocations.len());
+            if let Some(callback) = progress_callback {
+                new_monitor.set_callback(callback);
+            }
+            *monitor = new_monitor;
+        }
 
         // 第二阶段：并行分片处理
-        let (processed_shards, processing_stats) = self.process_data_parallel(&localized_data)?;
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.set_stage(ExportStage::ParallelProcessing);
+            if monitor.should_cancel() {
+                monitor.cancel();
+                return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Export cancelled during parallel processing").into());
+            }
+        }
+        
+        let (processed_shards, processing_stats) = self.process_data_parallel_with_progress(&localized_data, progress_monitor.as_mut())?;
 
         // 第三阶段：高速写入
-        let write_stats = self.write_data_fast(output_path, &processed_shards)?;
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.set_stage(ExportStage::Writing);
+            if monitor.should_cancel() {
+                monitor.cancel();
+                return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Export cancelled during writing").into());
+            }
+        }
+        
+        let write_stats = self.write_data_fast_with_progress(output_path, &processed_shards, progress_monitor.as_mut())?;
 
         let total_time = total_start.elapsed();
+
+        // 完成阶段
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.complete();
+        }
 
         // 计算完整统计信息
         let complete_stats = self.calculate_complete_stats(
@@ -155,13 +223,29 @@ impl FastExportCoordinator {
 
     /// 数据获取阶段
     fn gather_data(&mut self) -> TrackingResult<(LocalizedExportData, DataGatheringStats)> {
+        self.gather_data_with_progress(None)
+    }
+
+    /// 数据获取阶段（带进度监控）
+    fn gather_data_with_progress(
+        &mut self,
+        mut progress_monitor: Option<&mut ProgressMonitor>,
+    ) -> TrackingResult<(LocalizedExportData, DataGatheringStats)> {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
             println!("📊 阶段 1: 数据本地化");
         }
 
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.update_progress(0.1, Some("开始数据本地化".to_string()));
+        }
+
         let result = self.data_localizer.gather_all_export_data()?;
+
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.update_progress(1.0, Some("数据本地化完成".to_string()));
+        }
 
         if self.config.verbose_logging {
             println!("   ✅ 数据本地化完成，耗时: {:?}", stage_start.elapsed());
@@ -175,13 +259,30 @@ impl FastExportCoordinator {
         &self,
         data: &LocalizedExportData,
     ) -> TrackingResult<(Vec<crate::export::parallel_shard_processor::ProcessedShard>, ParallelProcessingStats)> {
+        self.process_data_parallel_with_progress(data, None)
+    }
+
+    /// 并行处理阶段（带进度监控）
+    fn process_data_parallel_with_progress(
+        &self,
+        data: &LocalizedExportData,
+        mut progress_monitor: Option<&mut ProgressMonitor>,
+    ) -> TrackingResult<(Vec<crate::export::parallel_shard_processor::ProcessedShard>, ParallelProcessingStats)> {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
             println!("⚡ 阶段 2: 并行分片处理");
         }
 
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.update_progress(0.1, Some("开始并行分片处理".to_string()));
+        }
+
         let result = self.shard_processor.process_allocations_parallel(data)?;
+
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.update_progress(1.0, Some("并行处理完成".to_string()));
+        }
 
         if self.config.verbose_logging {
             println!("   ✅ 并行处理完成，耗时: {:?}", stage_start.elapsed());
@@ -196,10 +297,24 @@ impl FastExportCoordinator {
         output_path: P,
         shards: &[crate::export::parallel_shard_processor::ProcessedShard],
     ) -> TrackingResult<WritePerformanceStats> {
+        self.write_data_fast_with_progress(output_path, shards, None)
+    }
+
+    /// 高速写入阶段（带进度监控）
+    fn write_data_fast_with_progress<P: AsRef<Path>>(
+        &self,
+        output_path: P,
+        shards: &[crate::export::parallel_shard_processor::ProcessedShard],
+        mut progress_monitor: Option<&mut ProgressMonitor>,
+    ) -> TrackingResult<WritePerformanceStats> {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
             println!("💾 阶段 3: 高速缓冲写入");
+        }
+
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.update_progress(0.1, Some("开始高速缓冲写入".to_string()));
         }
 
         // 预估总大小用于优化写入器配置
@@ -209,6 +324,10 @@ impl FastExportCoordinator {
 
         let mut writer = HighSpeedBufferedWriter::new(output_path, writer_config)?;
         let result = writer.write_processed_shards(shards)?;
+
+        if let Some(ref mut monitor) = progress_monitor {
+            monitor.update_progress(1.0, Some("高速写入完成".to_string()));
+        }
 
         if self.config.verbose_logging {
             println!("   ✅ 高速写入完成，耗时: {:?}", stage_start.elapsed());
@@ -441,6 +560,18 @@ impl FastExportConfigBuilder {
     /// 启用或禁用详细日志
     pub fn verbose_logging(mut self, enabled: bool) -> Self {
         self.config.verbose_logging = enabled;
+        self
+    }
+    
+    /// 设置进度监控配置
+    pub fn progress_config(mut self, config: ProgressConfig) -> Self {
+        self.config.progress_config = config;
+        self
+    }
+    
+    /// 启用或禁用进度监控
+    pub fn progress_monitoring(mut self, enabled: bool) -> Self {
+        self.config.progress_config.enabled = enabled;
         self
     }
 

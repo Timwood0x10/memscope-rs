@@ -23,6 +23,7 @@ thiserror = "2.0.12"
 backtrace = { version = "0.3", features = ["serde"], optional = true }
 rayon = "1.8"
 clap = { version = "4.0", features = ["derive"] }
+num_cpus = "1.16"
 libc = "0.2"
 flate2 = "1.0"
 memscope-derive = { path = "./memscope-derive", optional = true }
