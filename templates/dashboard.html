@@ -710,8 +710,30 @@
     </footer>
 
     <script>
-        // Complex types data with lifetime information added
-        const complexTypesData = {
+        // Embedded JSON data from Rust (will be replaced by build process)
+        const embeddedJsonData = {{json_data}};
+
+        // Function to use embedded data if available, otherwise fall back to fake data
+        function getComplexTypesData() {
+            if (embeddedJsonData && embeddedJsonData.complex_types) {
+                console.log('Using embedded complex types data');
+                return embeddedJsonData.complex_types;
+            }
+            console.log('Using fallback fake complex types data');
+            return complexTypesDataFallback;
+        }
+
+        function getFfiSnapshotData() {
+            if (embeddedJsonData && embeddedJsonData.unsafe_ffi && embeddedJsonData.unsafe_ffi.enhanced_ffi_data) {
+                console.log('Using embedded FFI data');
+                return embeddedJsonData.unsafe_ffi.enhanced_ffi_data;
+            }
+            console.log('Using fallback fake FFI data');
+            return ffiSnapshotDataFallback;
+        }
+
+        // Fallback fake data (renamed to avoid conflicts)
+        const complexTypesDataFallback = {
             "categorized_types": {
                 "collections": [],
                 "generic_types": [
@@ -862,8 +884,8 @@
             }
         };
 
-        // Unsafe FFI snapshot data
-        const ffiSnapshotData = [
+        // Fallback fake FFI data
+        const ffiSnapshotDataFallback = [
             {
                 "base": {
                     "ptr": 5408595456,
@@ -1041,6 +1063,10 @@
                 "ownership_history": null
             }
         ];
+
+        // Use embedded data if available, otherwise use fallback
+        const complexTypesData = getComplexTypesData();
+        const ffiSnapshotData = getFfiSnapshotData();
 
         // Populate summary data
         document.getElementById('total-complex-types').textContent = 

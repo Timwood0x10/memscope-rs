@@ -27,8 +27,14 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     let template_content = std::fs::read_to_string("templates/dashboard.html")
         .map_err(|e| format!("Failed to read dashboard template: {}", e))?;
     
-    // Embed the JSON data into the template
-    let html = template_content.replace("{{json_data}}", &json_data_str);
+    // Load CSS content
+    let css_content = std::fs::read_to_string("templates/styles.css")
+        .map_err(|e| format!("Failed to read CSS template: {}", e))?;
+    
+    // Replace placeholders in the template
+    let html = template_content
+        .replace("{{json_data}}", &json_data_str)
+        .replace("{{CSS_CONTENT}}", &css_content);
     
     println!("✅ Generated HTML with {} bytes of embedded JSON data", json_data_str.len());
     
