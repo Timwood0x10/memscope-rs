@@ -21,15 +21,22 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     
     // Serialize the raw JSON data for embedding with proper escaping
     let json_data_str = serde_json::to_string(json_data)
-        .map_err(|e| format!("Failed to serialize JSON data: {}", e))?;
+        .map_err(|e| format!("Failed to serialize JSON data: {e}"))?;
+    
+    // Log data structure for debugging
+    if let Some(unsafe_ffi_data) = json_data.get("basic_usage_snapshot_unsafe_ffi") {
+        if let Some(summary) = unsafe_ffi_data.get("summary") {
+            println!("📊 Unsafe/FFI Summary: {summary}");
+        }
+    }
     
 
     let template_content = std::fs::read_to_string("templates/dashboard.html")
-        .map_err(|e| format!("Failed to read dashboard template: {}", e))?;
+        .map_err(|e| format!("Failed to read dashboard template: {e}"))?;
     
     // Load CSS content
     let css_content = std::fs::read_to_string("templates/styles.css")
-        .map_err(|e| format!("Failed to read CSS template: {}", e))?;
+        .map_err(|e| format!("Failed to read CSS template: {e}"))?;
     
     // Replace placeholders in the template
     let html = template_content

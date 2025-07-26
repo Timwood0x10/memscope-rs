@@ -32,6 +32,107 @@
                 }
             }
         }
+        
+        // Global data store
+        window.analysisData = {{json_data}};
+        
+        // Data validation and interaction utilities
+        window.dataUtils = {
+            hasUnsafeFFIData: function() {
+                const unsafeData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+                if (!unsafeData) return false;
+                
+                const summary = unsafeData.summary || {};
+                return (summary.unsafe_count > 0 || 
+                       summary.ffi_count > 0 || 
+                       summary.enhanced_entries > 0 ||
+                       summary.boundary_events > 0 ||
+                       summary.safety_violations > 0);
+            },
+            
+            hasFFICallFlowData: function() {
+                const unsafeData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+                if (!unsafeData) return false;
+                
+                const enhancedData = unsafeData.enhanced_ffi_data || [];
+                const boundaryEvents = unsafeData.boundary_events || [];
+                return enhancedData.length > 0 || boundaryEvents.length > 0;
+            },
+            
+            getEmptyStateMessage: function(type) {
+                const messages = {
+                    'unsafe_ffi': 'No unsafe/FFI code detected in your codebase',
+                    'ffi_flow': 'No FFI call flow patterns found in the analysis'
+                };
+                return messages[type] || 'No data available';
+            },
+            
+            createEmptyStateElement: function(message, icon = 'fa-info-circle') {
+                return `
+                    <div class="data-empty-state text-center py-12">
+                        <div class="mb-4">
+                            <i class="fa ${icon} text-6xl text-gray-300"></i>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-600 mb-2">${message}</h3>
+                        <p class="text-sm text-gray-500">This indicates good memory safety practices in your Rust code.</p>
+                    </div>
+                `;
+            },
+            
+            // Interactive data filtering and highlighting
+            filterDataByRisk: function(riskLevel) {
+                const unsafeData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+                if (!unsafeData) return [];
+                
+                const filtered = [];
+                
+                // Filter enhanced FFI data by risk level
+                if (unsafeData.enhanced_ffi_data) {
+                    unsafeData.enhanced_ffi_data.forEach(item => {
+                        if (item.source && typeof item.source === 'string') {
+                            const riskMatch = item.source.match(/risk_level:\s*(\w+)/i);
+                            if (riskMatch && riskMatch[1].toLowerCase() === riskLevel.toLowerCase()) {
+                                filtered.push(item);
+                            }
+                        }
+                    });
+                }
+                
+                return filtered;
+            },
+            
+            // Get interactive statistics
+            getInteractiveStats: function() {
+                const unsafeData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+                if (!unsafeData) return null;
+                
+                const stats = {
+                    totalRiskItems: 0,
+                    riskLevels: { low: 0, medium: 0, high: 0 },
+                    boundaryEvents: (unsafeData.boundary_events || []).length,
+                    safetyViolations: (unsafeData.safety_violations || []).length,
+                    ffiPatterns: (unsafeData.ffi_patterns || []).length
+                };
+                
+                // Analyze risk levels from enhanced data
+                if (unsafeData.enhanced_ffi_data) {
+                    unsafeData.enhanced_ffi_data.forEach(item => {
+                        if (item.source && typeof item.source === 'string') {
+                            const riskMatch = item.source.match(/risk_level:\s*(\w+)/i);
+                            if (riskMatch) {
+                                const level = riskMatch[1].toLowerCase();
+                                if (stats.riskLevels[level] !== undefined) {
+                                    stats.riskLevels[level]++;
+                                    stats.totalRiskItems++;
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                return stats;
+            }
+        };
     </script>
     
     <style type="text/tailwindcss">
@@ -139,6 +240,70 @@
                 border-radius: 3px;
                 pointer-events: none;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            /* Interactive elements */
+            .interactive-card {
+                transition: all 0.3s ease;
+                cursor: pointer;
+            }
+            
+            .interactive-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            }
+            
+            .risk-indicator {
+                display: inline-block;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                font-weight: bold;
+                color: white;
+                text-transform: uppercase;
+            }
+            
+            .data-empty-state {
+                opacity: 0;
+                animation: fadeIn 0.5s ease-in-out forwards;
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            
+            .pulse-animation {
+                animation: pulse 2s infinite;
+            }
+            
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+            
+            /* Enhanced empty state styling */
+            .data-empty-state {
+                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+                border: 2px dashed #cbd5e0;
+                border-radius: 12px;
+                margin: 20px 0;
+            }
+            
+            .data-empty-state i {
+                margin-bottom: 16px;
+                opacity: 0.6;
+            }
+            
+            .data-empty-state h3 {
+                font-weight: 600;
+                margin-bottom: 8px;
+            }
+            
+            .data-empty-state p {
+                max-width: 400px;
+                margin: 0 auto;
+                line-height: 1.5;
             }
         }
     </style>
@@ -597,263 +762,30 @@
             </div>
         </section>
 
-        <!-- Unsafe FFI Analysis Section -->
-        <section class="mb-12">
+        <!-- Unsafe/FFI Analysis Section -->
+        <section class="mb-12" id="unsafe-ffi-section">
             <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-6 card-shadow text-white">
                 <h2 class="text-xl font-semibold mb-6 flex items-center text-white">
-                    <i class="fa fa-exclamation-triangle text-red-400 mr-2"></i>Unsafe Rust & FFI Memory Analysis Dashboard
+                    <i class="fa fa-exclamation-triangle text-red-400 mr-2"></i>Unsafe/FFI Analysis
                 </h2>
                 
-                <!-- Key Metrics -->
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-                    <div class="bg-red-500/20 rounded-lg p-4 border border-red-500/30">
-                        <div class="text-red-400 text-2xl font-bold" id="unsafe-allocations-count">4</div>
-                        <div class="text-gray-300 text-sm">Unsafe Allocations</div>
-                    </div>
-                    <div class="bg-blue-500/20 rounded-lg p-4 border border-blue-500/30">
-                        <div class="text-blue-400 text-2xl font-bold" id="ffi-allocations-count">20</div>
-                        <div class="text-gray-300 text-sm">FFI Allocations</div>
-                    </div>
-                    <div class="bg-orange-500/20 rounded-lg p-4 border border-orange-500/30">
-                        <div class="text-orange-400 text-2xl font-bold" id="boundary-crossings-count">19</div>
-                        <div class="text-gray-300 text-sm">Boundary Crossings</div>
-                    </div>
-                    <div class="bg-yellow-500/20 rounded-lg p-4 border border-yellow-500/30">
-                        <div class="text-yellow-400 text-2xl font-bold" id="safety-violations-count">2</div>
-                        <div class="text-gray-300 text-sm">Safety Violations</div>
-                    </div>
-                    <div class="bg-purple-500/20 rounded-lg p-4 border border-purple-500/30">
-                        <div class="text-purple-400 text-2xl font-bold" id="unsafe-memory-size">8.2MB</div>
-                        <div class="text-gray-300 text-sm">Unsafe Memory</div>
-                    </div>
+                <!-- Dynamic Content Container -->
+                <div id="unsafe-ffi-content">
+                    <!-- Content will be populated by JavaScript based on data availability -->
                 </div>
+            </div>
+        </section>
 
-                <!-- Main Dashboard Content -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <!-- Memory Allocation Sources -->
-                    <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
-                        <h3 class="text-lg font-semibold mb-4 text-white">Memory Allocation Sources</h3>
-                        <div class="h-48 flex items-end justify-center space-x-8">
-                            <div class="flex flex-col items-center">
-                                <div class="bg-red-500 rounded-t" style="width: 40px; height: 16px;" id="unsafe-rust-bar"></div>
-                                <div class="text-red-400 text-sm font-bold mt-2" id="unsafe-rust-count">4</div>
-                                <div class="text-gray-300 text-xs mt-1">Unsafe Rust</div>
-                            </div>
-                            <div class="flex flex-col items-center">
-                                <div class="bg-blue-500 rounded-t" style="width: 40px; height: 83px;" id="ffi-bar"></div>
-                                <div class="text-blue-400 text-sm font-bold mt-2" id="ffi-count">20</div>
-                                <div class="text-gray-300 text-xs mt-1">FFI</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Memory Safety Status -->
-                    <div class="bg-red-500/10 rounded-lg p-6 border border-red-500/30">
-                        <h3 class="text-lg font-semibold mb-4 text-white">Memory Safety Status</h3>
-                        <div class="text-center">
-                            <div class="text-red-400 text-xl font-bold mb-4" id="violations-detected">2 Safety Violations Detected</div>
-                            <div class="space-y-2 text-left">
-                                <div class="text-red-400 text-sm">• Double Free</div>
-                                <div class="text-red-400 text-sm">• Invalid Free</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Cross-Language Memory Flow & Unsafe Memory Hotspots -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- Cross-Language Memory Flow -->
-                    <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
-                        <h3 class="text-lg font-semibold mb-4 text-white">Cross-Language Memory Flow</h3>
-                        <div class="flex items-center justify-between h-24">
-                            <div class="bg-green-500/20 rounded-lg p-4 border border-green-500/30 flex-1 mr-4">
-                                <div class="text-green-400 font-bold text-center">RUST</div>
-                            </div>
-                            <div class="flex flex-col items-center">
-                                <div class="flex items-center">
-                                    <div class="w-8 h-0.5 bg-red-500"></div>
-                                    <div class="w-0 h-0 border-l-4 border-l-red-500 border-t-2 border-t-transparent border-b-2 border-b-transparent"></div>
-                                </div>
-                                <div class="text-red-400 text-xs font-bold">11</div>
-                                <div class="text-orange-400 text-xs font-bold mt-1">8</div>
-                            </div>
-                            <div class="bg-blue-500/20 rounded-lg p-4 border border-blue-500/30 flex-1 ml-4">
-                                <div class="text-blue-400 font-bold text-center">FFI / C</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Unsafe Memory Hotspots -->
-                    <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
-                        <h3 class="text-lg font-semibold mb-4 text-white">Unsafe Memory Hotspots</h3>
-                        <div class="grid grid-cols-3 gap-4 h-24">
-                            <!-- Row 1 -->
-                            <div class="flex flex-col items-center justify-center">
-                                <div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-blue-400"></div>
-                                <div class="text-white text-xs font-bold">288B</div>
-                                <div class="text-blue-400 text-xs">FFI</div>
-                            </div>
-                            <div class="flex flex-col items-center justify-center">
-                                <div class="w-8 h-8 bg-blue-500 rounded-full border-2 border-blue-400 flex items-center justify-center">
-                                    <span class="text-white text-xs font-bold">2.7MB</span>
-                                </div>
-                                <div class="text-blue-400 text-xs">FFI</div>
-                            </div>
-                            <div class="flex flex-col items-center justify-center">
-                                <div class="w-3 h-3 bg-blue-500 rounded-full border-2 border-blue-400"></div>
-                                <div class="text-white text-xs font-bold">160B</div>
-                                <div class="text-blue-400 text-xs">FFI</div>
-                            </div>
-                            <!-- Row 2 -->
-                            <div class="flex flex-col items-center justify-center">
-                                <div class="w-8 h-8 bg-blue-500 rounded-full border-2 border-blue-400 flex items-center justify-center">
-                                    <span class="text-white text-xs font-bold">1.0KB</span>
-                                </div>
-                                <div class="text-blue-400 text-xs">FFI</div>
-                            </div>
-                            <div class="flex flex-col items-center justify-center">
-                                <div class="w-4 h-4 bg-red-500 rounded-full border-2 border-red-400"></div>
-                                <div class="text-white text-xs font-bold">256B</div>
-                                <div class="text-red-400 text-xs">UNSAFE</div>
-                            </div>
-                            <div class="flex flex-col items-center justify-center">
-                                <div class="w-6 h-6 bg-blue-500 rounded-full border-2 border-blue-400 flex items-center justify-center">
-                                    <span class="text-white text-xs font-bold">512B</span>
-                                </div>
-                                <div class="text-blue-400 text-xs">FFI</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <!-- FFI Call Flow Visualization Section -->
+        <section class="mb-12" id="ffi-flow-section">
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-6 flex items-center">
+                    <i class="fa fa-sitemap text-primary mr-2"></i>FFI Call Flow Visualization
+                </h2>
                 
-                <!-- FFI Call Flow Visualization -->
-                <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-4">FFI Call Flow Visualization</h3>
-                    <div class="border rounded-lg p-4 bg-neutral-light h-[350px] graph-container">
-                        <!-- FFI Call Flow SVG -->
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" width="100%" height="100%">
-                            <!-- Definitions -->
-                            <defs>
-                                <marker id="ffi-arrowhead" markerWidth="10" markerHeight="7" 
-                                        refX="9" refY="3.5" orient="auto">
-                                    <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
-                                </marker>
-                                <linearGradient id="rustGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#E57373;stop-opacity:0.8" />
-                                    <stop offset="100%" style="stop-color:#E57373;stop-opacity:0.4" />
-                                </linearGradient>
-                                <linearGradient id="cGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#64B5F6;stop-opacity:0.8" />
-                                    <stop offset="100%" style="stop-color:#64B5F6;stop-opacity:0.4" />
-                                </linearGradient>
-                                <linearGradient id="unsafeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#F57C00;stop-opacity:0.8" />
-                                    <stop offset="100%" style="stop-color:#F57C00;stop-opacity:0.4" />
-                                </linearGradient>
-                            </defs>
-                            
-                            <!-- Background -->
-                            <rect width="100%" height="100%" fill="#fafafa" />
-                            
-                            <!-- Timeline -->
-                            <line x1="50" y1="150" x2="950" y2="150" stroke="#ccc" stroke-width="2" />
-                            
-                            <!-- Nodes -->
-                            <g class="node-ffi" id="rust-main" data-info="Rust main thread">
-                                <rect x="100" y="100" width="120" height="80" rx="4" fill="url(#rustGradient)" stroke="#E57373" />
-                                <text x="160" y="130" text-anchor="middle" font-weight="bold">Rust</text>
-                                <text x="160" y="150" text-anchor="middle">main thread</text>
-                                <text x="160" y="170" text-anchor="middle" font-size="11">safe context</text>
-                            </g>
-                            
-                            <g class="node-ffi" id="unsafe-block" data-info="Unsafe Rust block">
-                                <rect x="300" y="100" width="140" height="80" rx="4" fill="url(#unsafeGradient)" stroke="#F57C00" />
-                                <text x="370" y="130" text-anchor="middle" font-weight="bold">Unsafe Block</text>
-                                <text x="370" y="150" text-anchor="middle">Rust code</text>
-                                <text x="370" y="170" text-anchor="middle" font-size="11">unsafe context</text>
-                            </g>
-                            
-                            <g class="node-ffi" id="libc" data-info="libc library">
-                                <rect x="520" y="100" width="100" height="80" rx="4" fill="url(#cGradient)" stroke="#64B5F6" />
-                                <text x="570" y="130" text-anchor="middle" font-weight="bold">libc</text>
-                                <text x="570" y="150" text-anchor="middle">C library</text>
-                                <text x="570" y="170" text-anchor="middle" font-size="11">malloc</text>
-                            </g>
-                            
-                            <g class="node-ffi" id="ffi-return" data-info="Return to Rust">
-                                <rect x="720" y="100" width="140" height="80" rx="4" fill="url(#rustGradient)" stroke="#E57373" />
-                                <text x="790" y="130" text-anchor="middle" font-weight="bold">Rust</text>
-                                <text x="790" y="150" text-anchor="middle">FFI boundary</text>
-                                <text x="790" y="170" text-anchor="middle" font-size="11">data processing</text>
-                            </g>
-                            
-                            <!-- Connections -->
-                            <path class="edge-ffi" d="M220,140 L300,140" stroke="#F57C00" marker-end="url(#ffi-arrowhead)" />
-                            <text x="260" y="130" text-anchor="middle" font-size="12">unsafe block entry</text>
-                            
-                            <path class="edge-ffi" d="M440,140 L520,140" stroke="#64B5F6" marker-end="url(#ffi-arrowhead)" />
-                            <text x="480" y="130" text-anchor="middle" font-size="12">RustToFfi call</text>
-                            
-                            <path class="edge-ffi" d="M620,160 L720,160" stroke="#E57373" marker-end="url(#ffi-arrowhead)" />
-                            <text x="670" y="170" text-anchor="middle" font-size="12">FfiToRust return</text>
-                            
-                            <!-- Memory allocation marker -->
-                            <circle cx="570" cy="220" r="10" fill="#EF4444" stroke="#D32F2F" stroke-width="2" />
-                            <text x="570" y="245" text-anchor="middle" font-size="12">256B allocation</text>
-                            <line x1="570" y1="180" x2="570" y2="210" stroke="#EF4444" stroke-width="2" stroke-dasharray="4,2" />
-                        </svg>
-                    </div>
-                </div>
-                
-                <!-- FFI Timeline -->
-                <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-4">Timeline of Events</h3>
-                    <div class="border rounded-lg p-6 bg-neutral-light relative pl-10">
-                        <div class="timeline-line bg-gray-300"></div>
-                        
-                        <div class="timeline-item mb-6 pl-4" style="margin-left: 20px;">
-                            <div class="before:bg-ffi-yellow timeline-item">
-                                <h4 class="font-semibold text-ffi-yellow">Unsafe Rust Allocation</h4>
-                                <p class="text-sm text-gray-600 mb-1">Timestamp: 1753414296355789000</p>
-                                <p class="text-sm">Location: examples/unsafe_ffi_demo.rs:37:13</p>
-                                <div class="mt-2 inline-block bg-ffi-yellow/10 text-ffi-yellow text-xs px-2 py-1 rounded">
-                                    Manual Memory Management
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="timeline-item mb-6 pl-4" style="margin-left: 20px;">
-                            <div class="before:bg-ffi-red timeline-item">
-                                <h4 class="font-semibold text-ffi-red">Rust to FFI Boundary Crossed</h4>
-                                <p class="text-sm text-gray-600 mb-1">Timestamp: 1753414296355</p>
-                                <p class="text-sm">From: unsafe_rust_block → To: potential_ffi_target</p>
-                            </div>
-                        </div>
-                        
-                        <div class="timeline-item mb-6 pl-4" style="margin-left: 20px;">
-                            <div class="before:bg-blue-500 timeline-item">
-                                <h4 class="font-semibold text-blue-500">libc malloc Called</h4>
-                                <p class="text-sm text-gray-600 mb-1">Timestamp: 1753414296355925000</p>
-                                <p class="text-sm">Allocated 256 bytes via libc</p>
-                            </div>
-                        </div>
-                        
-                        <div class="timeline-item pl-4" style="margin-left: 20px;">
-                            <div class="before:bg-green-500 timeline-item">
-                                <h4 class="font-semibold text-green-500">FFI to Rust Return</h4>
-                                <p class="text-sm text-gray-600 mb-1">Timestamp: 1753414296356</p>
-                                <p class="text-sm">From: libc → To: rust_main</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Detailed FFI Data with collapsible sections -->
-                <div>
-                    <h3 class="text-lg font-medium mb-4">Detailed FFI Snapshot Data</h3>
-                    <div id="ffi-data-render" class="space-y-6">
-                        <!-- Will be populated by JavaScript with collapsible sections -->
-                    </div>
+                <!-- Dynamic Content Container -->
+                <div id="ffi-flow-content">
+                    <!-- Content will be populated by JavaScript based on data availability -->
                 </div>
             </div>
         </section>
@@ -1749,12 +1681,112 @@
             detailsPanel.classList.remove("hidden");
         }
 
-        // Close details panel
+        // Initialize dashboard when DOM is loaded
         document.addEventListener("DOMContentLoaded", () => {
+            // Initialize unsafe/FFI sections with data checking
+            initUnsafeFFISections();
+            
+            // Initialize FFI dashboard
+            initFFIDashboard();
+            
+            // Close details panel event handler
             document.getElementById("close-details")?.addEventListener("click", () => {
                 document.getElementById("node-details").classList.add("hidden");
             });
+            
+            // Update summary statistics based on actual data
+            updateSummaryStatistics();
         });
+
+        // Create interactive charts for unsafe/FFI data
+        function createUnsafeFFIInteractiveCharts(unsafeFFIData) {
+            if (!unsafeFFIData || !unsafeFFIData.summary) return;
+            
+            const summary = unsafeFFIData.summary;
+            const enhancedData = unsafeFFIData.enhanced_ffi_data || [];
+            const boundaryEvents = unsafeFFIData.boundary_events || [];
+            
+            // Create risk assessment visualization
+            createRiskAssessmentChart(summary);
+            
+            // Create timeline visualization if we have events
+            if (enhancedData.length > 0 || boundaryEvents.length > 0) {
+                createFFITimelineVisualization(enhancedData, boundaryEvents);
+            }
+            
+            // Add interactive tooltips to existing elements
+            addInteractiveTooltips();
+        }
+        
+        // Create risk assessment chart
+        function createRiskAssessmentChart(summary) {
+            const riskLevel = summary.risk_assessment || 'low';
+            const riskColors = {
+                'low': '#10B981',
+                'medium': '#F59E0B', 
+                'high': '#EF4444'
+            };
+            
+            // Add risk indicator to the dashboard
+            const dashboardContent = document.getElementById('ffi-dashboard-content');
+            if (dashboardContent && summary.total_risk_items > 0) {
+                const riskIndicator = document.createElement('div');
+                riskIndicator.className = 'mb-4 p-3 rounded-lg border-l-4';
+                riskIndicator.style.borderColor = riskColors[riskLevel];
+                riskIndicator.style.backgroundColor = riskColors[riskLevel] + '10';
+                
+                riskIndicator.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="risk-indicator" style="background-color: ${riskColors[riskLevel]}">
+                                ${riskLevel.toUpperCase()} RISK
+                            </span>
+                            <span class="ml-2 text-sm text-gray-600">
+                                ${summary.total_risk_items} risk items detected
+                            </span>
+                        </div>
+                        <i class="fa fa-exclamation-triangle" style="color: ${riskColors[riskLevel]}"></i>
+                    </div>
+                `;
+                
+                dashboardContent.prepend(riskIndicator);
+            }
+        }
+        
+        // Create FFI timeline visualization
+        function createFFITimelineVisualization(enhancedData, boundaryEvents) {
+            // This would create an interactive timeline
+            // For now, we'll enhance the existing timeline with real data
+            console.log('Creating FFI timeline with', enhancedData.length, 'enhanced events and', boundaryEvents.length, 'boundary events');
+        }
+        
+        // Add interactive tooltips
+        function addInteractiveTooltips() {
+            // Add hover effects to FFI nodes
+            document.querySelectorAll('.node-ffi').forEach(node => {
+                node.addEventListener('mouseenter', function(e) {
+                    const info = this.getAttribute('data-info');
+                    if (info) {
+                        // Create tooltip (simplified implementation)
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'tooltip-ffi';
+                        tooltip.textContent = info;
+                        tooltip.style.position = 'absolute';
+                        tooltip.style.zIndex = '1000';
+                        document.body.appendChild(tooltip);
+                        
+                        // Position tooltip
+                        const rect = this.getBoundingClientRect();
+                        tooltip.style.left = rect.left + 'px';
+                        tooltip.style.top = (rect.top - 30) + 'px';
+                    }
+                });
+                
+                node.addEventListener('mouseleave', function() {
+                    document.querySelectorAll('.tooltip-ffi').forEach(t => t.remove());
+                });
+            });
+        }
 
         // Update category counts
         function updateCategoryCounts() {
@@ -1773,6 +1805,229 @@
                 document.getElementById("collections-count").textContent = collections;
                 document.getElementById("primitives-count").textContent = primitives;
             }
+        }
+
+        // Dynamic FFI Dashboard Generation
+        function initFFIDashboard() {
+            const container = document.getElementById("ffi-dashboard-content");
+            if (!container) return;
+
+            // Get FFI data from embedded JSON
+            const ffiData = embeddedJsonData?.unsafe_ffi;
+            const hasFFIData = ffiData && (
+                (ffiData.enhanced_ffi_data && ffiData.enhanced_ffi_data.length > 0) ||
+                (ffiData.boundary_events && ffiData.boundary_events.length > 0) ||
+                (ffiData.summary && (ffiData.summary.ffi_count > 0 || ffiData.summary.unsafe_count > 0))
+            );
+
+            if (!hasFFIData) {
+                // Show "No unsafe/FFI code detected" message
+                container.innerHTML = `
+                    <div class="text-center py-16">
+                        <div class="mb-6">
+                            <i class="fa fa-shield text-green-400 text-6xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-semibold text-white mb-4">No Unsafe/FFI Code Detected</h3>
+                        <p class="text-gray-300 text-lg mb-6">Your codebase appears to be using safe Rust patterns exclusively.</p>
+                        <div class="bg-green-500/10 rounded-lg p-6 border border-green-500/30 max-w-2xl mx-auto">
+                            <div class="flex items-center justify-center mb-4">
+                                <i class="fa fa-check-circle text-green-400 text-2xl mr-3"></i>
+                                <span class="text-green-400 font-semibold text-lg">Memory Safety Status: SAFE</span>
+                            </div>
+                            <div class="text-gray-300 text-sm space-y-2">
+                                <p>• No unsafe blocks detected</p>
+                                <p>• No FFI (Foreign Function Interface) calls found</p>
+                                <p>• No memory safety violations identified</p>
+                                <p>• All memory operations are managed by Rust's ownership system</p>
+                            </div>
+                        </div>
+                        <div class="mt-8 text-gray-400 text-sm">
+                            <p>This analysis scanned ${ffiData?.metadata?.total_allocations_analyzed || 0} allocations</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Generate dashboard with actual data
+            const summary = ffiData.summary || {};
+            const unsafeCount = summary.unsafe_count || 0;
+            const ffiCount = summary.ffi_count || 0;
+            const boundaryEvents = summary.boundary_events || 0;
+            const safetyViolations = summary.safety_violations || 0;
+            const riskLevel = summary.risk_assessment || 'low';
+
+            container.innerHTML = `
+                <!-- Key Metrics -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                    <div class="bg-red-500/20 rounded-lg p-4 border border-red-500/30">
+                        <div class="text-red-400 text-2xl font-bold">${unsafeCount}</div>
+                        <div class="text-gray-300 text-sm">Unsafe Allocations</div>
+                    </div>
+                    <div class="bg-blue-500/20 rounded-lg p-4 border border-blue-500/30">
+                        <div class="text-blue-400 text-2xl font-bold">${ffiCount}</div>
+                        <div class="text-gray-300 text-sm">FFI Allocations</div>
+                    </div>
+                    <div class="bg-orange-500/20 rounded-lg p-4 border border-orange-500/30">
+                        <div class="text-orange-400 text-2xl font-bold">${boundaryEvents}</div>
+                        <div class="text-gray-300 text-sm">Boundary Crossings</div>
+                    </div>
+                    <div class="bg-yellow-500/20 rounded-lg p-4 border border-yellow-500/30">
+                        <div class="text-yellow-400 text-2xl font-bold">${safetyViolations}</div>
+                        <div class="text-gray-300 text-sm">Safety Violations</div>
+                    </div>
+                    <div class="bg-purple-500/20 rounded-lg p-4 border border-purple-500/30">
+                        <div class="text-purple-400 text-2xl font-bold">N/A</div>
+                        <div class="text-gray-300 text-sm">Unsafe Memory</div>
+                    </div>
+                </div>
+
+                <!-- Main Dashboard Content -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    ${generateMemoryAllocationSources(unsafeCount, ffiCount)}
+                    ${generateMemorySafetyStatus(safetyViolations, riskLevel)}
+                </div>
+
+                <!-- Cross-Language Memory Flow & Unsafe Memory Hotspots -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    ${generateCrossLanguageFlow(ffiData)}
+                    ${generateUnsafeMemoryHotspots(ffiData)}
+                </div>
+            `;
+        }
+
+        function generateMemoryAllocationSources(unsafeCount, ffiCount) {
+            if (unsafeCount === 0 && ffiCount === 0) {
+                return `
+                    <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-lg font-semibold mb-4 text-white">Memory Allocation Sources</h3>
+                        <div class="text-center py-8">
+                            <i class="fa fa-shield text-green-400 text-3xl mb-4"></i>
+                            <p class="text-gray-300">All memory allocations are safe</p>
+                            <p class="text-gray-400 text-sm mt-2">No unsafe or FFI allocations detected</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const maxCount = Math.max(unsafeCount, ffiCount, 1);
+            const unsafeHeight = Math.max((unsafeCount / maxCount) * 100, 4);
+            const ffiHeight = Math.max((ffiCount / maxCount) * 100, 4);
+
+            return `
+                <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
+                    <h3 class="text-lg font-semibold mb-4 text-white">Memory Allocation Sources</h3>
+                    <div class="h-48 flex items-end justify-center space-x-8">
+                        <div class="flex flex-col items-center">
+                            <div class="bg-red-500 rounded-t" style="width: 40px; height: ${unsafeHeight}px;"></div>
+                            <div class="text-red-400 text-sm font-bold mt-2">${unsafeCount}</div>
+                            <div class="text-gray-300 text-xs mt-1">Unsafe Rust</div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="bg-blue-500 rounded-t" style="width: 40px; height: ${ffiHeight}px;"></div>
+                            <div class="text-blue-400 text-sm font-bold mt-2">${ffiCount}</div>
+                            <div class="text-gray-300 text-xs mt-1">FFI</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateMemorySafetyStatus(safetyViolations, riskLevel) {
+            if (safetyViolations === 0) {
+                return `
+                    <div class="bg-green-500/10 rounded-lg p-6 border border-green-500/30">
+                        <h3 class="text-lg font-semibold mb-4 text-white">Memory Safety Status</h3>
+                        <div class="text-center">
+                            <i class="fa fa-check-circle text-green-400 text-3xl mb-4"></i>
+                            <div class="text-green-400 text-xl font-bold mb-2">No Safety Violations</div>
+                            <p class="text-gray-300 text-sm">All memory operations appear to be safe</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const riskColor = riskLevel === 'high' ? 'red' : riskLevel === 'medium' ? 'yellow' : 'orange';
+            return `
+                <div class="bg-${riskColor}-500/10 rounded-lg p-6 border border-${riskColor}-500/30">
+                    <h3 class="text-lg font-semibold mb-4 text-white">Memory Safety Status</h3>
+                    <div class="text-center">
+                        <div class="text-${riskColor}-400 text-xl font-bold mb-4">${safetyViolations} Safety Violations Detected</div>
+                        <div class="space-y-2 text-left">
+                            <div class="text-${riskColor}-400 text-sm">• Risk Level: ${riskLevel.toUpperCase()}</div>
+                            <div class="text-gray-300 text-sm">• Review unsafe code blocks</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateCrossLanguageFlow(ffiData) {
+            const boundaryEvents = ffiData?.boundary_events || [];
+            if (boundaryEvents.length === 0) {
+                return `
+                    <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-lg font-semibold mb-4 text-white">Cross-Language Memory Flow</h3>
+                        <div class="text-center py-8">
+                            <i class="fa fa-exchange text-gray-400 text-3xl mb-4"></i>
+                            <p class="text-gray-300">No cross-language interactions detected</p>
+                            <p class="text-gray-400 text-sm mt-2">All code appears to be pure Rust</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
+                    <h3 class="text-lg font-semibold mb-4 text-white">Cross-Language Memory Flow</h3>
+                    <div class="flex items-center justify-between h-24">
+                        <div class="bg-green-500/20 rounded-lg p-4 border border-green-500/30 flex-1 mr-4">
+                            <div class="text-green-400 font-bold text-center">RUST</div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="flex items-center">
+                                <div class="w-8 h-0.5 bg-red-500"></div>
+                                <div class="w-0 h-0 border-l-4 border-l-red-500 border-t-2 border-t-transparent border-b-2 border-b-transparent"></div>
+                            </div>
+                            <div class="text-red-400 text-xs font-bold">${boundaryEvents.length}</div>
+                        </div>
+                        <div class="bg-blue-500/20 rounded-lg p-4 border border-blue-500/30 flex-1 ml-4">
+                            <div class="text-blue-400 font-bold text-center">FFI / C</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateUnsafeMemoryHotspots(ffiData) {
+            const enhancedData = ffiData?.enhanced_ffi_data || [];
+            if (enhancedData.length === 0) {
+                return `
+                    <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-lg font-semibold mb-4 text-white">Unsafe Memory Hotspots</h3>
+                        <div class="text-center py-8">
+                            <i class="fa fa-map-marker text-gray-400 text-3xl mb-4"></i>
+                            <p class="text-gray-300">No unsafe memory hotspots identified</p>
+                            <p class="text-gray-400 text-sm mt-2">Memory usage patterns appear safe</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
+                    <h3 class="text-lg font-semibold mb-4 text-white">Unsafe Memory Hotspots</h3>
+                    <div class="grid grid-cols-3 gap-4 h-24">
+                        ${enhancedData.slice(0, 6).map((item, index) => `
+                            <div class="flex flex-col items-center justify-center">
+                                <div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-blue-400"></div>
+                                <div class="text-white text-xs font-bold">${item.size || 'N/A'}</div>
+                                <div class="text-blue-400 text-xs">FFI</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
         }
 
         // Initialize SVG interactions for variable graph
@@ -1883,6 +2138,443 @@
             }
         }
 
+        // Check if unsafe/ffi data exists and has content
+        function hasUnsafeFFIData() {
+            return window.dataUtils.hasUnsafeFFIData();
+        }
+
+        // Initialize unsafe/ffi sections based on data availability
+        function initUnsafeFFISections() {
+            const hasData = window.dataUtils.hasUnsafeFFIData();
+            const hasFlowData = window.dataUtils.hasFFICallFlowData();
+            
+            // Handle main unsafe/ffi section
+            const unsafeFFIContent = document.getElementById('unsafe-ffi-content');
+            if (unsafeFFIContent) {
+                if (!hasData) {
+                    unsafeFFIContent.innerHTML = window.dataUtils.createEmptyStateElement(
+                        window.dataUtils.getEmptyStateMessage('unsafe_ffi'),
+                        'fa-shield'
+                    );
+                } else {
+                    // Create interactive unsafe/ffi dashboard
+                    createUnsafeFFIDashboard(unsafeFFIContent);
+                }
+            }
+            
+            // Handle FFI call flow section
+            const ffiFlowContent = document.getElementById('ffi-flow-content');
+            if (ffiFlowContent) {
+                if (!hasFlowData) {
+                    ffiFlowContent.innerHTML = window.dataUtils.createEmptyStateElement(
+                        window.dataUtils.getEmptyStateMessage('ffi_flow'),
+                        'fa-code-fork'
+                    );
+                } else {
+                    // Create interactive FFI call flow visualization
+                    createFFICallFlowVisualization(ffiFlowContent);
+                }
+            }
+        }
+
+        // Create interactive unsafe/ffi dashboard
+        function createUnsafeFFIDashboard(container) {
+            const unsafeFFIData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+            if (!unsafeFFIData) return;
+            
+            const summary = unsafeFFIData.summary || {};
+            const stats = window.dataUtils.getInteractiveStats();
+            
+            container.innerHTML = `
+                <!-- Risk Assessment Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-slate-700 rounded-lg p-4 interactive-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-300 text-sm">Unsafe Blocks</p>
+                                <p class="text-2xl font-bold text-yellow-400">${summary.unsafe_count || 0}</p>
+                            </div>
+                            <i class="fa fa-exclamation-triangle text-yellow-400 text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="bg-slate-700 rounded-lg p-4 interactive-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-300 text-sm">FFI Calls</p>
+                                <p class="text-2xl font-bold text-blue-400">${summary.ffi_count || 0}</p>
+                            </div>
+                            <i class="fa fa-exchange text-blue-400 text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="bg-slate-700 rounded-lg p-4 interactive-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-300 text-sm">Safety Violations</p>
+                                <p class="text-2xl font-bold text-red-400">${summary.safety_violations || 0}</p>
+                            </div>
+                            <i class="fa fa-warning text-red-400 text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="bg-slate-700 rounded-lg p-4 interactive-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-300 text-sm">Risk Level</p>
+                                <p class="text-lg font-bold risk-indicator ${getRiskColorClass(summary.risk_assessment)}">${(summary.risk_assessment || 'low').toUpperCase()}</p>
+                            </div>
+                            <i class="fa fa-shield text-gray-400 text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Interactive Risk Chart -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium mb-4 text-white">Risk Distribution</h3>
+                    <div class="bg-slate-700 rounded-lg p-4">
+                        <canvas id="risk-distribution-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Detailed Analysis -->
+                <div class="space-y-4">
+                    <h3 class="text-lg font-medium text-white">Detailed Analysis</h3>
+                    <div id="unsafe-ffi-details" class="space-y-3">
+                        <!-- Will be populated with detailed data -->
+                    </div>
+                </div>
+            `;
+            
+            // Initialize risk chart
+            setTimeout(() => createRiskDistributionChart(stats), 100);
+            
+            // Populate detailed analysis
+            populateUnsafeFFIDetails(unsafeFFIData);
+        }
+        
+        // Create FFI call flow visualization
+        function createFFICallFlowVisualization(container) {
+            const unsafeFFIData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+            if (!unsafeFFIData) return;
+            
+            const boundaryEvents = unsafeFFIData.boundary_events || [];
+            const enhancedData = unsafeFFIData.enhanced_ffi_data || [];
+            
+            container.innerHTML = `
+                <!-- Flow Diagram -->
+                <div class="mb-6">
+                    <div class="border rounded-lg p-4 bg-gray-50 h-[400px] graph-container">
+                        <svg id="ffi-flow-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 350" width="100%" height="100%">
+                            <!-- SVG content will be generated dynamically -->
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Timeline of Events -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium mb-4">Timeline of Events</h3>
+                    <div id="ffi-timeline" class="border rounded-lg p-6 bg-gray-50 relative pl-10">
+                        <!-- Timeline content will be populated -->
+                    </div>
+                </div>
+                
+                <!-- Interactive Controls -->
+                <div class="flex justify-between items-center">
+                    <div class="flex space-x-2">
+                        <button class="px-3 py-1 bg-blue-100 hover:bg-blue-200 rounded text-sm" onclick="highlightRustToFFI()">
+                            Highlight Rust→FFI
+                        </button>
+                        <button class="px-3 py-1 bg-green-100 hover:bg-green-200 rounded text-sm" onclick="highlightFFIToRust()">
+                            Highlight FFI→Rust
+                        </button>
+                        <button class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm" onclick="resetHighlight()">
+                            Reset
+                        </button>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        ${boundaryEvents.length} boundary events • ${enhancedData.length} enhanced entries
+                    </div>
+                </div>
+            `;
+            
+            // Generate SVG flow diagram
+            setTimeout(() => generateFFIFlowSVG(boundaryEvents, enhancedData), 100);
+            
+            // Populate timeline
+            populateFFITimeline(boundaryEvents, enhancedData);
+        }
+        
+        // Helper function to get risk color class
+        function getRiskColorClass(riskLevel) {
+            const colors = {
+                'low': 'text-green-400',
+                'medium': 'text-yellow-400',
+                'high': 'text-red-400',
+                'critical': 'text-red-600'
+            };
+            return colors[riskLevel] || 'text-gray-400';
+        }
+        
+        // Create risk distribution chart
+        function createRiskDistributionChart(stats) {
+            const canvas = document.getElementById('risk-distribution-chart');
+            if (!canvas || !stats) return;
+            
+            const ctx = canvas.getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Low Risk', 'Medium Risk', 'High Risk'],
+                    datasets: [{
+                        data: [stats.riskLevels.low, stats.riskLevels.medium, stats.riskLevels.high],
+                        backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#fff' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Populate unsafe/ffi details
+        function populateUnsafeFFIDetails(data) {
+            const container = document.getElementById('unsafe-ffi-details');
+            if (!container) return;
+            
+            let html = '';
+            
+            // Safety violations
+            if (data.safety_violations && data.safety_violations.length > 0) {
+                html += '<div class="bg-red-900/20 border border-red-500 rounded-lg p-4">';
+                html += '<h4 class="font-semibold text-red-400 mb-2">Safety Violations</h4>';
+                data.safety_violations.forEach(violation => {
+                    html += `<div class="text-sm text-gray-300 mb-1">• ${violation.description} (${violation.location})</div>`;
+                });
+                html += '</div>';
+            }
+            
+            // Unsafe indicators
+            if (data.unsafe_indicators && data.unsafe_indicators.length > 0) {
+                html += '<div class="bg-yellow-900/20 border border-yellow-500 rounded-lg p-4">';
+                html += '<h4 class="font-semibold text-yellow-400 mb-2">Unsafe Indicators</h4>';
+                data.unsafe_indicators.forEach(indicator => {
+                    html += `<div class="text-sm text-gray-300 mb-1">• ${indicator.description} (${indicator.location})</div>`;
+                });
+                html += '</div>';
+            }
+            
+            container.innerHTML = html || '<div class="text-gray-400 text-sm italic">No detailed analysis available</div>';
+        }
+        
+        // Generate FFI flow SVG
+        function generateFFIFlowSVG(boundaryEvents, enhancedData) {
+            const svg = document.getElementById('ffi-flow-svg');
+            if (!svg) return;
+            
+            // Create a simple flow diagram based on actual data
+            let svgContent = `
+                <defs>
+                    <marker id="ffi-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+                    </marker>
+                </defs>
+                <rect width="100%" height="100%" fill="#fafafa" />
+            `;
+            
+            if (boundaryEvents.length > 0) {
+                // Draw nodes and connections based on actual boundary events
+                let x = 100;
+                boundaryEvents.forEach((event, index) => {
+                    const y = 150;
+                    const nodeWidth = 120;
+                    
+                    // Draw node
+                    svgContent += `
+                        <g class="node-ffi interactive-card" data-event-index="${index}">
+                            <rect x="${x}" y="${y-40}" width="${nodeWidth}" height="80" rx="4" 
+                                  fill="${event.event_type === 'RustToFfi' ? '#3B82F6' : '#10B981'}" 
+                                  stroke="#666" opacity="0.8" />
+                            <text x="${x + nodeWidth/2}" y="${y-10}" text-anchor="middle" fill="white" font-size="12">
+                                ${event.event_type}
+                            </text>
+                            <text x="${x + nodeWidth/2}" y="${y+10}" text-anchor="middle" fill="white" font-size="10">
+                                ${event.from_context || 'Unknown'}
+                            </text>
+                        </g>
+                    `;
+                    
+                    // Draw connection to next node
+                    if (index < boundaryEvents.length - 1) {
+                        svgContent += `
+                            <path d="M${x + nodeWidth},${y} L${x + nodeWidth + 80},${y}" 
+                                  stroke="#666" marker-end="url(#ffi-arrow)" stroke-width="2" />
+                        `;
+                    }
+                    
+                    x += nodeWidth + 100;
+                });
+            } else {
+                // Show placeholder when no data
+                svgContent += `
+                    <text x="500" y="175" text-anchor="middle" fill="#666" font-size="16">
+                        No FFI boundary events detected
+                    </text>
+                `;
+            }
+            
+            svg.innerHTML = svgContent;
+        }
+        
+        // Populate FFI timeline
+        function populateFFITimeline(boundaryEvents, enhancedData) {
+            const container = document.getElementById('ffi-timeline');
+            if (!container) return;
+            
+            let html = '<div class="timeline-line bg-gray-300"></div>';
+            
+            if (boundaryEvents.length > 0) {
+                boundaryEvents.forEach((event, index) => {
+                    const color = event.event_type === 'RustToFfi' ? 'blue' : 'green';
+                    html += `
+                        <div class="timeline-item mb-6 pl-4" style="margin-left: 20px;">
+                            <div class="before:bg-${color}-500 timeline-item">
+                                <h4 class="font-semibold text-${color}-600">${event.event_type}</h4>
+                                <p class="text-sm text-gray-600 mb-1">Timestamp: ${event.timestamp}</p>
+                                <p class="text-sm">From: ${event.from_context} → To: ${event.to_context}</p>
+                                ${event.ptr ? `<p class="text-xs text-gray-500">Pointer: ${event.ptr}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<div class="text-gray-500 text-center py-8">No timeline events available</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        // Interactive highlight functions
+        window.highlightRustToFFI = function() {
+            const nodes = document.querySelectorAll('[data-event-index]');
+            nodes.forEach(node => {
+                const rect = node.querySelector('rect');
+                if (rect && rect.getAttribute('fill') === '#3B82F6') {
+                    rect.style.filter = 'brightness(1.3)';
+                } else {
+                    rect.style.opacity = '0.3';
+                }
+            });
+        };
+        
+        window.highlightFFIToRust = function() {
+            const nodes = document.querySelectorAll('[data-event-index]');
+            nodes.forEach(node => {
+                const rect = node.querySelector('rect');
+                if (rect && rect.getAttribute('fill') === '#10B981') {
+                    rect.style.filter = 'brightness(1.3)';
+                } else {
+                    rect.style.opacity = '0.3';
+                }
+            });
+        };
+        
+        window.resetHighlight = function() {
+            const rects = document.querySelectorAll('#ffi-flow-svg rect');
+            rects.forEach(rect => {
+                rect.style.filter = '';
+                rect.style.opacity = '0.8';
+            });
+        };
+
+        // Update summary statistics based on actual data
+        function updateSummaryStatistics() {
+            const unsafeFFIData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+            if (unsafeFFIData && unsafeFFIData.summary) {
+                const summary = unsafeFFIData.summary;
+                const unsafeCountEl = document.getElementById('unsafe-ffi-count');
+                if (unsafeCountEl) {
+                    const totalUnsafeFFI = (summary.unsafe_count || 0) + (summary.ffi_count || 0);
+                    unsafeCountEl.textContent = totalUnsafeFFI;
+                    
+                    // Add interactive click handler
+                    const parentCard = unsafeCountEl.closest('.hover-lift');
+                    if (parentCard) {
+                        parentCard.classList.add('interactive-card');
+                        parentCard.addEventListener('click', () => {
+                            document.getElementById('unsafe-ffi-section')?.scrollIntoView({ 
+                                behavior: 'smooth' 
+                            });
+                        });
+                    }
+                }
+            }
+        }
+
+        // Initialize unsafe/ffi charts when data exists
+        function initUnsafeFFICharts() {
+            const unsafeFFIData = window.analysisData.basic_usage_snapshot_unsafe_ffi;
+            if (!unsafeFFIData) return;
+            
+            // Create interactive charts for unsafe/ffi data
+            createUnsafeFFIInteractiveCharts(unsafeFFIData);
+            
+            // Initialize interactive elements
+            initFFIDashboard();
+        }
+
+        // Create interactive charts for unsafe/ffi data
+        function createUnsafeFFIInteractiveCharts(data) {
+            const summary = data.summary || {};
+            
+            // Create risk assessment chart
+            createRiskAssessmentChart(summary);
+            
+            // Create safety violations timeline if data exists
+            if (data.safety_violations && data.safety_violations.length > 0) {
+                createSafetyViolationsTimeline(data.safety_violations);
+            }
+            
+            // Create boundary events visualization if data exists
+            if (data.boundary_events && data.boundary_events.length > 0) {
+                createBoundaryEventsVisualization(data.boundary_events);
+            }
+        }
+
+        // Create risk assessment chart
+        function createRiskAssessmentChart(summary) {
+            const riskLevel = summary.risk_assessment || 'low';
+            const riskColors = {
+                'low': '#10B981',
+                'medium': '#F59E0B', 
+                'high': '#EF4444',
+                'critical': '#DC2626'
+            };
+            
+            // Update risk indicators in the UI
+            const riskIndicators = document.querySelectorAll('.risk-indicator');
+            riskIndicators.forEach(indicator => {
+                indicator.style.backgroundColor = riskColors[riskLevel];
+                indicator.textContent = riskLevel.toUpperCase();
+            });
+        }
+
+        // Create safety violations timeline
+        function createSafetyViolationsTimeline(violations) {
+            // Implementation for safety violations timeline
+            console.log('Creating safety violations timeline with', violations.length, 'violations');
+        }
+
+        // Create boundary events visualization  
+        function createBoundaryEventsVisualization(events) {
+            // Implementation for boundary events visualization
+            console.log('Creating boundary events visualization with', events.length, 'events');
+        }
+
         // Initialize all interactions when page loads
         window.addEventListener('load', async function() {
             try {
@@ -1890,16 +2582,15 @@
                 initModernVariableGraph();
                 updateCategoryCounts();
                 
+                // Update summary statistics with actual data
+                updateSummaryStatistics();
+                
+                // Initialize unsafe/ffi sections based on data availability
+                initUnsafeFFISections();
+                
                 // Initialize SVG interactions
                 initVariableSvgInteractions();
                 
-                // Expand first FFI entry by default
-                const firstFfiEntry = document.querySelector('#ffi-data-render .collapsible-content');
-                if (firstFfiEntry) {
-                    firstFfiEntry.classList.add('active');
-                    const icon = firstFfiEntry.previousElementSibling.querySelector('.rotate-icon');
-                    if (icon) icon.classList.add('active');
-                }
             } catch (error) {
                 console.error('Failed to initialize dashboard:', error);
             }
