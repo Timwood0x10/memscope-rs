@@ -61,20 +61,20 @@ fn main() {
         println!("  Peak memory: {} bytes", stats.peak_memory);
     }
 
-    // Export memory snapshot to JSON
-    println!("\nExporting memory snapshot to basic_usage_snapshot.json...");
-    if let Err(e) = tracker.export_to_json("basic_usage_snapshot.json") {
+    // Export memory snapshot to JSON (will be saved to MemoryAnalysis/basic_usage/ directory)
+    println!("\nExporting memory snapshot to MemoryAnalysis/basic_usage/...");
+    if let Err(e) = tracker.export_to_json("basic_usage_snapshot") {
         eprintln!("Failed to export JSON: {e}");
     } else {
-        println!("Successfully exported JSON.");
+        println!("Successfully exported JSON to MemoryAnalysis/basic_usage/");
     }
 
-    // Export memory usage visualization to SVG
-    println!("\nExporting memory usage visualization to basic_usage_graph.svg...");
+    // Export memory usage visualization to SVG (will be saved to MemoryAnalysis/basic_usage/ directory)
+    println!("\nExporting memory usage visualization to MemoryAnalysis/basic_usage/...");
     if let Err(e) = tracker.export_memory_analysis("basic_usage_graph.svg") {
         eprintln!("Failed to export SVG: {e}");
     } else {
-        println!("Successfully exported SVG.");
+        println!("Successfully exported SVG to MemoryAnalysis/basic_usage/");
     }
 
     println!("\nExample finished. Check 'basic_usage_snapshot.json' and 'basic_usage_graph.svg'.");

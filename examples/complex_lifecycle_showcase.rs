@@ -662,31 +662,24 @@ fn generate_final_analysis() {
     // Export enhanced visualizations and data
     println!("\n🎨 Exporting Visualizations and Data:");
 
-    if let Err(e) = tracker.export_memory_analysis("./complex_memory_analysis.svg") {
+    if let Err(e) = tracker.export_memory_analysis("complex_memory_analysis.svg") {
         println!("❌ Memory analysis export failed: {e}");
     } else {
-        println!("✅ Memory analysis exported to: ./complex_memory_analysis.svg");
+        println!("✅ Memory analysis exported to: MemoryAnalysis/complex_memory_analysis/");
     }
 
-    if let Err(e) = tracker.export_lifecycle_timeline("./complex_lifecycle_timeline.svg") {
+    if let Err(e) = tracker.export_lifecycle_timeline("complex_lifecycle_timeline.svg") {
         println!("❌ Lifecycle timeline export failed: {e}");
     } else {
-        println!("✅ Enhanced lifecycle timeline exported to: ./complex_lifecycle_timeline.svg");
+        println!("✅ Enhanced lifecycle timeline exported to: MemoryAnalysis/complex_lifecycle_timeline/");
     }
 
-    if let Err(e) = tracker.export_to_json("./complex_lifecycle_snapshot.json") {
+    if let Err(e) = tracker.export_to_json("complex_lifecycle_snapshot") {
         println!("❌ JSON snapshot export failed: {e}");
     } else {
-        println!("✅ Memory snapshot exported to: ./complex_lifecycle_snapshot.json");
+        println!("✅ Memory snapshot exported to: MemoryAnalysis/complex_lifecycle/");
     }
 
-    // Then generate HTML dashboard based on JSON
-    println!("📊 Generating interactive HTML dashboard from JSON...");
-    if let Err(e) = tracker.export_interactive_dashboard("complex_lifecycle_showcase.html") {
-        println!("❌ html snapshot export failed: {e}");
-    } else {
-        println!("✅ HTML exported to: ./complex_lifecycle_showcase.html");
-    }
 
     println!("\n🎯 Showcase Complete!");
     println!("=====================");

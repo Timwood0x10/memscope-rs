@@ -71,10 +71,8 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
         // Start web server
         let config = ServerConfig {
             port,
-            bind_address: "127.0.0.1".to_string(),
-            enable_cors: true,
+            host: "127.0.0.1".to_string(),
             static_dir: None,
-            enable_logging: true,
         };
         
         let server = MemScopeServer::new(unified_data, config);
@@ -213,7 +211,7 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
     
     for config in &file_configs {
         // try multiple file name formats
-        let possible_paths = vec![
+        let _possible_paths = vec![
             format!("{}/{}_{}.json", input_dir, base_name, config.suffix),
             format!("{}/*{}*.json", input_dir, config.suffix),
         ];

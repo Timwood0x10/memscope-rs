@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 memscope-rs = "0.1.2"
 ```
 
-Basic usage:
+### Basic Memory Tracking
 ```rust
 use memscope_rs::{init, track_var, get_global_tracker};
 
@@ -39,13 +39,48 @@ fn main() {
     let my_string = String::from("Hello, memscope!");
     track_var!(my_string);
     
-    // Export visualizations
+    // Export visualizations and data
     let tracker = get_global_tracker();
     tracker.export_memory_analysis("memory_analysis.svg").unwrap();
     tracker.export_lifecycle_timeline("lifecycle_timeline.svg").unwrap();
     tracker.export_to_json("memory_snapshot.json").unwrap();
 }
 ```
+
+### Interactive HTML Dashboard (New!)
+Generate and view an interactive HTML dashboard with advanced dynamic data loading:
+
+```bash
+# Basic usage - uses MemoryAnalysis/ directory
+make html
+
+# Generate HTML only (no server)
+make html-only
+
+# Use custom directory
+make html DIR=my_data/
+
+# Custom output file and port
+make html DIR=results/ OUTPUT=analysis.html PORT=3000
+
+# Show detailed usage help
+make html-help
+```
+
+**Flexible Directory Support**: The `make html` command now supports any directory containing JSON files:
+- Automatically scans the specified directory for `.json` files
+- Validates that JSON files exist before processing
+- Supports both relative and absolute paths
+- Customizable output filename and server port
+
+The HTML dashboard provides:
+- **Dynamic Data Loading**: Advanced real-time data loading from multiple JSON sources
+- **Intelligent Caching**: Multi-level caching with TTL and LRU eviction policies
+- **Interactive Visualizations**: Charts, timelines, and memory distribution graphs
+- **Performance Monitoring**: Real-time cache hit rates, loading times, and memory usage
+- **Error Handling**: Comprehensive error recovery with exponential backoff retry
+- **Data Recovery**: Automatic detection and reloading of recovered data files
+- **Unified Architecture**: Seamless support for both static HTML and web server modes
 
 ## 🌟 Key Features
 
@@ -57,20 +92,123 @@ fn main() {
 
 ### 📊 **Rich Visualizations**
 - **Enhanced SVG Reports**: Beautiful, professional memory usage charts with performance dashboards
+- **Interactive HTML Dashboard**: Real-time web interface with dynamic data loading
 - **Lifecycle Timeline**: Visual timeline showing variable lifecycles and scope relationships
 - **Type Categorization**: Groups allocations by Collections, Text, Smart Pointers, etc.
-- **Dual SVG Output**: Memory analysis + lifecycle timeline for comprehensive insights
+- **Dual Output Formats**: Both static SVG and interactive HTML visualizations
 - **Human-Readable Formats**: Displays "1.2 KB", "5.4 MB" instead of raw bytes
 
 ### 📈 **Export & Analysis**
 - **JSON Export**: Detailed memory snapshots for programmatic analysis
-- **Dual SVG Output**: Memory analysis + lifecycle timeline visualizations
+- **Multi-format Output**: SVG, HTML, and JSON export options
 - **Statistics**: Peak memory, allocation counts, type breakdowns, lifecycle metrics
 - **Lifecycle Tracking**: Variable creation, destruction, and scope relationship patterns
 
+### 🌐 **Advanced Dynamic Data Loading System**
+- **Multi-Source Data Loading**: Automatically discovers and loads JSON data from any directory
+- **Intelligent Caching**: Advanced multi-level caching with TTL (Time-To-Live) and LRU (Least Recently Used) eviction
+- **Error Recovery & Resilience**: Comprehensive error handling with exponential backoff retry mechanisms
+- **Performance Monitoring**: Real-time cache performance metrics, hit rates, and loading time analytics
+- **Data Integrity Validation**: Automatic validation, integrity checking, and format verification
+- **Parallel Processing**: Concurrent loading of multiple data files with optimized resource management
+- **Unified Architecture**: Seamless support for both static HTML generation and dynamic web server modes
+- **Flexible Directory Support**: Works with any directory structure containing JSON files
+- **Memory Optimization**: Intelligent memory management to prevent excessive usage during large data processing
+
 ## 📊 Output Files Overview
 
-memscope-rs generates three types of output files that provide comprehensive memory analysis:
+memscope-rs generates multiple types of output files that provide comprehensive memory analysis:
+
+## 🌐 Interactive HTML Dashboard
+
+The HTML dashboard provides a modern, interactive web interface for memory analysis with real-time data loading capabilities.
+
+### Features
+- **📊 Real-time Visualizations**: Interactive charts and graphs that update with live data
+- **⚡ Dynamic Data Loading**: Automatically loads JSON data from `MemoryAnalysis/` directory
+- **💾 Intelligent Caching**: Advanced caching system with performance monitoring
+- **🔄 Error Recovery**: Graceful handling of missing or corrupted data files
+- **📈 Performance Metrics**: Real-time monitoring of cache hit rates and loading times
+- **🎛️ Interactive Controls**: Performance monitoring panel with cache management
+
+### Usage
+```bash
+# Generate HTML dashboard and start web server at http://localhost:8080
+make html
+
+# Generate HTML file only (no server)
+make html-only
+
+# Clean generated HTML files
+make html-clean
+```
+
+### Data Sources
+The HTML dashboard automatically loads data from these JSON files in the `MemoryAnalysis/` directory:
+- `snapshot_memory_analysis_memory_analysis.json` - Core memory allocation data
+- `snapshot_memory_analysis_lifetime.json` - Variable lifecycle events
+- `snapshot_memory_analysis_security_violations.json` - Security analysis results
+- `snapshot_memory_analysis_complex_types.json` - Complex type analysis
+- `snapshot_memory_analysis_performance.json` - Performance metrics
+- `snapshot_unsafe_ffi.json` - Unsafe FFI operation tracking
+
+### Advanced Dynamic Loading Features
+The new data loading system provides comprehensive capabilities:
+
+**🔍 Data Discovery & Processing**
+- **Automatic Discovery**: Intelligent scanning of directories for all `.json` files
+- **Parallel Processing**: Concurrent loading of multiple files with optimized resource allocation
+- **Data Standardization**: Automatic normalization of different JSON file formats into unified structures
+- **Type Recognition**: Intelligent identification and categorization of different data types
+
+**💾 Intelligent Caching System**
+- **Multi-Level Caching**: Implements both TTL (Time-To-Live) and LRU (Least Recently Used) caching strategies
+- **Cache Performance Monitoring**: Real-time metrics for hit rates, miss rates, and loading times
+- **Memory-Aware Caching**: Automatic cache size management to prevent excessive memory usage
+- **Cache Invalidation**: Smart detection of data changes with automatic cache refresh
+
+**🔄 Error Recovery & Resilience**
+- **Exponential Backoff Retry**: Automatic retry mechanism with intelligent backoff for failed requests
+- **Graceful Degradation**: Continues operation with partial data when some sources fail
+- **Data Recovery Detection**: Automatic detection and reloading of recovered data files
+- **Comprehensive Error Reporting**: Detailed error information with user-friendly messages
+
+**📊 Performance Optimization**
+- **Resource Management**: Intelligent memory and CPU usage optimization during data processing
+- **Load Balancing**: Distributes processing load across available system resources
+- **Progress Tracking**: Real-time progress indicators for long-running data operations
+- **Performance Analytics**: Detailed performance metrics and bottleneck identification
+
+### Unified Architecture
+The HTML dashboard uses a unified architecture that ensures consistency between static HTML and web server modes:
+
+**🔄 Consistent Data Processing**
+- **Shared Data Structures**: Both modes use identical `UnifiedMemoryData` structures
+- **Same Processing Logic**: Static HTML and web server use the same data normalization and processing functions
+- **Unified Templates**: Single template system supports both static embedding and dynamic API loading
+- **Consistent JavaScript**: Same client-side code handles both embedded JSON and API-loaded data
+
+**🌐 Dual Mode Support**
+- **Static HTML Mode**: Embeds JSON data directly in HTML for offline viewing and sharing
+- **Web Server Mode**: Serves data via REST API endpoints for real-time updates and interactivity
+- **Automatic Detection**: Client-side code automatically detects mode and adapts data loading strategy
+- **Seamless Switching**: Easy transition between modes without code changes
+
+### Error Handling
+The dashboard includes comprehensive error handling:
+- **File Not Found**: Shows helpful guidance for generating missing data
+- **JSON Parse Errors**: Displays specific parsing error information
+- **Network Issues**: Automatic retry mechanism with exponential backoff
+- **Partial Data**: Graceful handling of incomplete data sets
+- **Data Recovery**: Automatic detection and reloading of recovered files
+- **Mode Fallback**: Automatic fallback between API and embedded data sources
+
+### Performance Features
+- **Caching**: Intelligent caching with TTL and LRU eviction policies
+- **Parallel Loading**: Concurrent loading of multiple JSON files
+- **Memory Optimization**: Automatic memory usage monitoring and optimization
+- **Data Validation**: Real-time validation of data integrity and completeness
+- **Unified Processing**: Single data processing pipeline eliminates duplication and improves performance
 
 ### 1. 🎯 Memory Analysis SVG 
 

@@ -301,23 +301,23 @@ fn print_final_analysis(tracker: &memscope_rs::MemoryTracker, duration: Duration
         }
     }
 
-    // Export stress test results
-    println!("\n📄 Exporting stress test analysis...");
-    if let Err(e) = tracker.export_to_json("stress_test_snapshot.json") {
+    // Export stress test results (will be saved to MemoryAnalysis/stress_test/ directory)
+    println!("\n📄 Exporting stress test analysis to MemoryAnalysis/stress_test/...");
+    if let Err(e) = tracker.export_to_json("stress_test_snapshot") {
         eprintln!("❌ Failed to export JSON: {e}");
     } else {
-        println!("✅ Exported detailed snapshot to stress_test_snapshot.json");
+        println!("✅ Exported detailed snapshot to MemoryAnalysis/stress_test/");
     }
 
     if let Err(e) = tracker.export_memory_analysis("stress_test_visualization.svg") {
         eprintln!("❌ Failed to export SVG: {e}");
     } else {
-        println!("✅ Exported visualization to stress_test_visualization.svg");
+        println!("✅ Exported visualization to MemoryAnalysis/stress_test/");
     }
 
     println!("\n🎉 Stress test analysis complete!");
-    println!("📁 Generated files:");
-    println!("  • stress_test_snapshot.json - Complete memory allocation data");
+    println!("📁 Generated files in MemoryAnalysis/stress_test/:");
+    println!("  • stress_test_snapshot_*.json - Complete memory allocation data");
     println!("  • stress_test_visualization.svg - Visual memory usage analysis");
     println!("\n💪 memscope-rs successfully handled extreme memory stress!");
     println!("This test pushed the limits with:");

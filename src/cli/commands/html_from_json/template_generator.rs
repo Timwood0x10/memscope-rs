@@ -1087,7 +1087,7 @@ if (typeof initializeBasicViewUnified === 'function') {
     fn build_template(
         &self,
         css_content: &str,
-        js_content: &str,
+        _js_content: &str,
         json_data: &str,
         unified_data: &UnifiedMemoryData,
     ) -> Result<String, TemplateError> {
@@ -1241,10 +1241,10 @@ if (typeof initializeBasicViewUnified === 'function') {
     </div>
 
     <script>
-        // 嵌入的内存数据
+        // EMBEDDED_DATA
         const EMBEDDED_DATA = {json_data};
         
-        // 初始化应用程序
+        // initializeMemScopeApp
         function initializeMemScopeApp() {{
             console.log('🚀 Initializing MemScope-RS Interactive App...');
             
@@ -1262,18 +1262,18 @@ if (typeof initializeBasicViewUnified === 'function') {
             }}
         }}
 
-        // 处理嵌入的数据
+        // processEmbeddedData
         function processEmbeddedData(data) {{
             console.log('📊 Processing embedded data...');
             
             try {{
-                // 更新统计信息
+                // updateHeaderStats
                 updateHeaderStats(data.stats || data.memory_analysis?.stats || {{}});
                 
-                // 初始化各个标签页
+                // initializeTabs
                 initializeTabs();
                 
-                // 渲染概览页面
+                // renderOverviewTab
                 renderOverviewTab(data);
                 
                 console.log('✅ Data processing completed successfully');
@@ -1283,7 +1283,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             }}
         }}
 
-        // 更新头部统计信息
+        // updateHeaderStats
         function updateHeaderStats(stats) {{
             const totalMemoryEl = document.getElementById('totalMemory');
             const activeAllocsEl = document.getElementById('activeAllocs');
@@ -1294,11 +1294,31 @@ if (typeof initializeBasicViewUnified === 'function') {
             if (peakMemoryEl) peakMemoryEl.textContent = formatBytes(stats.peak_memory || 0);
         }}
 
-        // 渲染概览标签页
+        // renderOverviewTab
         function renderOverviewTab(data) {{
-            const stats = data.stats || data.memory_analysis?.stats || {{}};
-            const allocations = data.allocations || data.memory_analysis?.allocations || [];
-            const memoryByType = data.memoryByType || data.memory_analysis?.memory_by_type || {{}};
+            console.log('📊 Rendering overview with data:', data);
+            
+            // try multiple data paths to get stats
+            const stats = data.stats || 
+                         data.memory_analysis?.stats || 
+                         data.memory_analysis?.statistics?.overall ||
+                         {{}};
+            
+            // try multiple data paths to get allocations
+            const allocations = data.allocations || 
+                               data.memory_analysis?.allocations ||
+                               data.memory_analysis?.user_allocations?.active ||
+                               [];
+            
+            // try multiple data paths to get memoryByType
+            const memoryByType = data.memoryByType || 
+                                data.memory_analysis?.memory_by_type ||
+                                data.memory_by_type ||
+                                {{}};
+            
+            console.log('📈 Stats:', stats);
+            console.log('📋 Allocations:', allocations.length, 'items');
+            console.log('🏷️ Memory by type:', memoryByType);
             
             renderMemoryStats(stats);
             renderTypeDistribution(memoryByType);
@@ -1306,7 +1326,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             renderPerformanceInsights(stats);
         }}
 
-        // 渲染内存统计
+        // renderMemoryStats
         function renderMemoryStats(stats) {{
             const element = document.getElementById('memoryStats');
             if (!element) return;
@@ -1334,21 +1354,45 @@ if (typeof initializeBasicViewUnified === 'function') {
             element.innerHTML = html;
         }}
 
-        // 渲染类型分布
+        // renderTypeDistribution
         function renderTypeDistribution(memoryByType) {{
             const element = document.getElementById('typeDistribution');
             if (!element) return;
             
-            const types = Object.entries(memoryByType).slice(0, 5);
+            // handle different data formats
+            let types = [];
+            if (Array.isArray(memoryByType)) {{
+                // if array format, use directly
+                types = memoryByType.slice(0, 5);
+            }} else if (typeof memoryByType === 'object' && memoryByType !== null) {{
+                // if object format, convert to array
+                types = Object.entries(memoryByType).slice(0, 5);
+            }}
             
             if (types.length === 0) {{
                 element.innerHTML = '<p>No type information available</p>';
                 return;
             }}
             
-            const html = types.map(([typeName, data]) => {{
-                const size = Array.isArray(data) ? data[0] : data.total_size || 0;
-                const count = Array.isArray(data) ? data[1] : data.allocation_count || 0;
+            const html = types.map(item => {{
+                let typeName, size, count;
+                
+                if (Array.isArray(item)) {{
+                    // [typeName, [size, count]] array format
+                    [typeName, [size, count]] = item;
+                }} else if (item.type_name) {{
+                    // object format {{type_name, total_size, allocation_count}}
+                    typeName = item.type_name;
+                    size = item.total_size || 0;
+                    count = item.allocation_count || 0;
+                }} else {{
+                    // other format, try to parse
+                    typeName = item[0] || 'Unknown';
+                    const data = item[1];
+                    size = Array.isArray(data) ? data[0] : data?.total_size || 0;
+                    count = Array.isArray(data) ? data[1] : data?.allocation_count || 0;
+                }}
+                
                 return `
                     <div class="type-item">
                         <span class="type-name">${{typeName}}</span>
@@ -1360,7 +1404,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             element.innerHTML = html;
         }}
 
-        // 渲染最近分配
+        // renderRecentAllocations
         function renderRecentAllocations(allocations) {{
             const element = document.getElementById('recentAllocations');
             if (!element) return;
@@ -1382,7 +1426,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             element.innerHTML = html;
         }}
 
-        // 渲染性能洞察
+        // renderPerformanceInsights
         function renderPerformanceInsights(stats) {{
             const element = document.getElementById('performanceInsights');
             if (!element) return;
@@ -1405,7 +1449,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             element.innerHTML = html;
         }}
 
-        // 初始化标签页导航
+        // initializeTabs
         function initializeTabs() {{
             const tabButtons = document.querySelectorAll('.tab-btn');
             const tabContents = document.querySelectorAll('.tab-content');
@@ -1414,11 +1458,11 @@ if (typeof initializeBasicViewUnified === 'function') {
                 button.addEventListener('click', () => {{
                     const targetTab = button.getAttribute('data-tab');
                     
-                    // 移除所有活动状态
+                    // remove all active states
                     tabButtons.forEach(btn => btn.classList.remove('active'));
                     tabContents.forEach(content => content.classList.remove('active'));
                     
-                    // 激活当前标签
+                    // activate current tab
                     button.classList.add('active');
                     const targetContent = document.getElementById(targetTab);
                     if (targetContent) {{
@@ -1428,7 +1472,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             }});
         }}
 
-        // 显示错误状态
+        // showErrorState
         function showErrorState(error) {{
             const container = document.querySelector('.container');
             if (!container) return;
@@ -1445,7 +1489,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             `;
         }}
 
-        // 格式化字节数
+        // formatBytes
         function formatBytes(bytes) {{
             if (bytes === 0) return '0 B';
             
@@ -1456,7 +1500,7 @@ if (typeof initializeBasicViewUnified === 'function') {
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }}
         
-        // 页面加载完成后初始化
+        // initializeMemScopeApp
         document.addEventListener('DOMContentLoaded', function() {{
             initializeMemScopeApp();
         }});

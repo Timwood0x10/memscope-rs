@@ -1914,28 +1914,78 @@ impl MemoryTracker {
         &self,
         path: P,
     ) -> TrackingResult<()> {
-        crate::export::html_export::export_interactive_html(self, None, path)
+        let output_path = self.ensure_memory_analysis_path(path);
+        crate::export::html_export::export_interactive_html(self, None, output_path)
+    }
+
+    /// Ensure path is within MemoryAnalysis/project_name directory
+    fn ensure_memory_analysis_path<P: AsRef<std::path::Path>>(&self, path: P) -> std::path::PathBuf {
+        use std::path::Path;
+        
+        let path = path.as_ref();
+        let base_memory_analysis_dir = Path::new("MemoryAnalysis");
+        
+        // Extract project name from the filename
+        let project_name = if let Some(file_stem) = path.file_stem() {
+            let stem_str = file_stem.to_string_lossy();
+            // Remove common suffixes to get clean project name
+            if stem_str.ends_with("_snapshot") {
+                stem_str.trim_end_matches("_snapshot").to_string()
+            } else if stem_str.ends_with("_graph") {
+                stem_str.trim_end_matches("_graph").to_string()
+            } else if stem_str.ends_with("_memory_analysis") {
+                stem_str.trim_end_matches("_memory_analysis").to_string()
+            } else if stem_str.ends_with("_lifecycle_timeline") {
+                stem_str.trim_end_matches("_lifecycle_timeline").to_string()
+            } else {
+                stem_str.to_string()
+            }
+        } else {
+            "default".to_string()
+        };
+        
+        // Create project-specific directory: MemoryAnalysis/project_name/
+        let project_dir = base_memory_analysis_dir.join(&project_name);
+        
+        // Create the project directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(&project_dir) {
+            eprintln!("Warning: Failed to create project directory {}: {}", project_dir.display(), e);
+        }
+        
+        // Get the filename
+        let filename = if let Some(filename) = path.file_name() {
+            filename
+        } else {
+            path.as_os_str()
+        };
+        
+        // Return the full path: MemoryAnalysis/project_name/filename
+        project_dir.join(filename)
     }
 
     /// Export memory analysis visualization showing variable names, types, and usage patterns.
     /// This creates a comprehensive memory analysis with call stack analysis, timeline, and categorization.
+    /// All output files are automatically placed in the MemoryAnalysis/ directory.
     ///
     /// # Arguments
-    /// * `path` - Output path for the memory analysis SVG file (recommended: "program_name_memory_analysis.svg")
+    /// * `path` - Output filename for the memory analysis SVG file (recommended: "program_name_memory_analysis.svg")
     pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        crate::export::visualization::export_memory_analysis(self, path)
+        let output_path = self.ensure_memory_analysis_path(path);
+        crate::export::visualization::export_memory_analysis(self, output_path)
     }
 
     /// Export interactive lifecycle timeline showing variable lifecycles and relationships.
     /// This creates an advanced timeline with variable birth, life, death, and cross-section interactivity.
+    /// All output files are automatically placed in the MemoryAnalysis/ directory.
     ///
     /// # Arguments
-    /// * `path` - Output path for the lifecycle timeline SVG file (recommended: "program_name_lifecycle.svg")
+    /// * `path` - Output filename for the lifecycle timeline SVG file (recommended: "program_name_lifecycle.svg")
     pub fn export_lifecycle_timeline<P: AsRef<std::path::Path>>(
         &self,
         path: P,
     ) -> TrackingResult<()> {
-        crate::export::visualization::export_lifecycle_timeline(self, path)
+        let output_path = self.ensure_memory_analysis_path(path);
+        crate::export::visualization::export_lifecycle_timeline(self, output_path)
     }
 
     /// Export memory tracking data to 4 separate JSON files.
@@ -1968,11 +2018,14 @@ impl MemoryTracker {
     /// - **Use case**: Deep debugging, memory leak investigation, system analysis
     /// - **⚠️ Warning**: Very slow, generates large files, may impact application performance
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        // Ensure output goes to MemoryAnalysis directory
+        let output_path = self.ensure_memory_analysis_path(path);
+        
         // Use the new integrated export pipeline from optimized_json_export
         use crate::export::optimized_json_export::OptimizedExportOptions;
         
         let options = OptimizedExportOptions::default();
-        self.export_to_json_with_optimized_options(path, options)
+        self.export_to_json_with_optimized_options(output_path, options)
     }
 
     /// Export memory tracking data with custom options.

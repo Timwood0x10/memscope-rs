@@ -18,16 +18,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get the global tracker
     let tracker = get_global_tracker();
 
-    println!("\n📊 Exporting with standard method...");
+    println!("\n📊 Exporting with standard method to MemoryAnalysis/demo_standard/...");
     let start_standard = std::time::Instant::now();
-    tracker.export_to_json("demo_standard.json")?;
+    tracker.export_to_json("demo_standard")?;
     let standard_time = start_standard.elapsed();
     println!(
         "⏱️  Standard export took: {:.2}ms",
         standard_time.as_millis()
     );
 
-    println!("\n🚀 Exporting with optimized method...");
+    println!("\n🚀 Exporting with optimized method to MemoryAnalysis/demo_optimized/...");
     let start_optimized = std::time::Instant::now();
     let export_result = tracker.export_to_json_optimized("demo_optimized")?;
     let optimized_time = start_optimized.elapsed();

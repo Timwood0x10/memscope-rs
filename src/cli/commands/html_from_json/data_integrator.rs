@@ -246,12 +246,12 @@ impl DataIntegrator {
     fn cross_ref_allocations_performance(
         &self,
         unified_data: &UnifiedMemoryData,
-        data_index: &DataIndex,
+        _data_index: &DataIndex,
     ) -> Result<Vec<CrossReference>, IntegrationError> {
         let mut cross_refs = Vec::new();
         
         // Find allocations that match performance distribution patterns
-        let perf_dist = &unified_data.performance.allocation_distribution;
+        let _perf_dist = &unified_data.performance.allocation_distribution;
         
         for (i, alloc) in unified_data.allocations.iter().enumerate() {
             let size_category = match alloc.size {
@@ -444,7 +444,7 @@ impl DataIntegrator {
     fn enrich_data(
         &self,
         unified_data: &mut UnifiedMemoryData,
-        data_index: &DataIndex,
+        _data_index: &DataIndex,
     ) -> Result<usize, IntegrationError> {
         let mut enrichments = 0;
         

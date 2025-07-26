@@ -1,47 +1,68 @@
-//! Web page handlers for MemScope server
-//!
-//! Provides HTML page handlers for the web interface
-
 use axum::{
-    extract::State,
-    response::Html,
+    extract::Query,
+    response::{Html, Json},
+    http::StatusCode,
 };
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
-use super::server::ServerState;
-
-/// Main dashboard page
-pub async fn index(State(_state): State<Arc<ServerState>>) -> Html<String> {
-    // Load the dashboard template from file
-    let template_content = std::fs::read_to_string("templates/dashboard.html")
-        .unwrap_or_else(|_| create_fallback_dashboard_html());
-    
-    Html(template_content)
+#[derive(Debug, Deserialize)]
+pub struct PageQuery {
+    pub theme: Option<String>,
+    pub debug: Option<bool>,
 }
 
-/// Create fallback dashboard HTML if template file is not found
-fn create_fallback_dashboard_html() -> String {
-    r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MemScope Dashboard - Fallback</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
-        .error { color: #e74c3c; background: #fdf2f2; padding: 15px; border-radius: 4px; margin: 20px 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>MemScope Dashboard</h1>
-        <div class="error">
-            <strong>Template Error:</strong> Could not load dashboard template file.
-            <br>Please ensure templates/dashboard.html exists.
-        </div>
-        <p>This is a fallback page. The main dashboard template could not be loaded.</p>
-    </div>
-</body>
-</html>"#.to_string()
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub code: u16,
+}
+
+pub async fn serve_dashboard(Query(params): Query<PageQuery>) -> Result<Html<String>, StatusCode> {
+    let theme = params.theme.unwrap_or_else(|| "default".to_string());
+    let debug_mode = params.debug.unwrap_or(false);
+    
+    // This would be replaced with actual HTML template loading
+    let html_content = format!(
+        r#"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>MemScope Dashboard</title>
+            <meta name="theme" content="{}">
+            <meta name="debug" content="{}">
+        </head>
+        <body>
+            <h1>MemScope Memory Analysis Dashboard</h1>
+            <p>Theme: {}</p>
+            <p>Debug Mode: {}</p>
+            <div id="dashboard-content">
+                <!-- Dashboard content would be loaded here -->
+            </div>
+        </body>
+        </html>
+        "#,
+        theme, debug_mode, theme, debug_mode
+    );
+    
+    Ok(Html(html_content))
+}
+
+pub async fn handle_not_found() -> (StatusCode, Json<ErrorResponse>) {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ErrorResponse {
+            error: "Resource not found".to_string(),
+            code: 404,
+        }),
+    )
+}
+
+pub async fn handle_error(error: String) -> (StatusCode, Json<ErrorResponse>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse {
+            error,
+            code: 500,
+        }),
+    )
 }

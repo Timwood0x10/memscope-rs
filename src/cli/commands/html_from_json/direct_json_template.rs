@@ -24,9 +24,13 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         .map_err(|e| format!("Failed to serialize JSON data: {}", e))?;
     
 
-    let template_content = std::fs::read_to_string("templates/dashboard.html").unwrap();
+    let template_content = std::fs::read_to_string("templates/dashboard.html")
+        .map_err(|e| format!("Failed to read dashboard template: {}", e))?;
     
+    // Embed the JSON data into the template
     let html = template_content.replace("{{json_data}}", &json_data_str);
+    
+    println!("✅ Generated HTML with {} bytes of embedded JSON data", json_data_str.len());
     
     Ok(html)
 }

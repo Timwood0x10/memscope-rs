@@ -753,7 +753,21 @@ impl MemoryTracker {
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("export");
-        let parent_dir = base_path.parent().unwrap_or(Path::new("."));
+        
+        // Extract project name from base_name for directory organization
+        let project_name = if base_name.ends_with("_snapshot") {
+            base_name.trim_end_matches("_snapshot")
+        } else {
+            base_name
+        };
+        
+        // Ensure all output goes to MemoryAnalysis/project_name directory
+        let base_memory_analysis_dir = Path::new("MemoryAnalysis");
+        let project_dir = base_memory_analysis_dir.join(project_name);
+        if let Err(e) = std::fs::create_dir_all(&project_dir) {
+            eprintln!("Warning: Failed to create project directory {}: {}", project_dir.display(), e);
+        }
+        let parent_dir = &project_dir;
 
         // Get data from all sources
         let allocations = self.get_active_allocations()?;
