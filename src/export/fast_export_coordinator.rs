@@ -5,6 +5,8 @@
 
 use crate::core::types::{TrackingResult};
 use crate::export::data_localizer::{DataLocalizer, DataGatheringStats, LocalizedExportData};
+use crate::export::error_handling::{PerformanceLogger, LogLevel, ResourceMonitor};
+use crate::export::error_recovery::{ErrorRecoveryManager, RecoveryConfig, ErrorContext};
 use crate::export::high_speed_buffered_writer::{
     HighSpeedBufferedWriter, HighSpeedWriterConfig, WritePerformanceStats,
 };
@@ -14,6 +16,7 @@ use crate::export::parallel_shard_processor::{
 use crate::export::progress_monitor::{
     ProgressMonitor, ProgressCallback, ExportStage, ProgressConfig,
 };
+use crate::export::quality_validator::{QualityValidator, ValidationConfig};
 use std::path::Path;
 use std::time::Instant;
 
@@ -43,6 +46,19 @@ pub struct FastExportConfig {
     pub enable_auto_optimization: bool,
     /// 根据系统资源自动调整参数
     pub auto_adjust_for_system: bool,
+    
+    /// 错误处理和恢复配置
+    pub error_recovery_config: RecoveryConfig,
+    /// 数据质量验证配置
+    pub validation_config: ValidationConfig,
+    /// 资源监控配置
+    pub enable_resource_monitoring: bool,
+    /// 内存限制（MB）
+    pub memory_limit_mb: usize,
+    /// 磁盘限制（MB）
+    pub disk_limit_mb: usize,
+    /// CPU 限制（百分比）
+    pub cpu_limit_percent: f64,
 }
 
 impl Default for FastExportConfig {
@@ -61,6 +77,13 @@ impl Default for FastExportConfig {
             
             enable_auto_optimization: true,
             auto_adjust_for_system: true,
+            
+            error_recovery_config: RecoveryConfig::default(),
+            validation_config: ValidationConfig::default(),
+            enable_resource_monitoring: true,
+            memory_limit_mb: 1024, // 1GB 默认内存限制
+            disk_limit_mb: 2048,   // 2GB 默认磁盘限制
+            cpu_limit_percent: 80.0, // 80% CPU 限制
         }
     }
 }
@@ -100,6 +123,14 @@ pub struct FastExportCoordinator {
     data_localizer: DataLocalizer,
     /// 并行分片处理器
     shard_processor: ParallelShardProcessor,
+    /// 性能日志记录器
+    performance_logger: PerformanceLogger,
+    /// 错误恢复管理器
+    error_recovery_manager: ErrorRecoveryManager,
+    /// 数据质量验证器
+    quality_validator: QualityValidator,
+    /// 资源监控器
+    resource_monitor: Option<ResourceMonitor>,
 }
 
 impl FastExportCoordinator {
@@ -115,10 +146,39 @@ impl FastExportCoordinator {
         // 创建并行分片处理器
         let shard_processor = ParallelShardProcessor::new(config.shard_config.clone());
 
+        // 创建性能日志记录器
+        let log_level = if config.verbose_logging {
+            LogLevel::Debug
+        } else {
+            LogLevel::Info
+        };
+        let performance_logger = PerformanceLogger::new(log_level);
+
+        // 创建错误恢复管理器
+        let error_recovery_manager = ErrorRecoveryManager::new(config.error_recovery_config.clone());
+
+        // 创建数据质量验证器
+        let quality_validator = QualityValidator::new(config.validation_config.clone());
+
+        // 创建资源监控器
+        let resource_monitor = if config.enable_resource_monitoring {
+            Some(ResourceMonitor::new(
+                config.memory_limit_mb,
+                config.disk_limit_mb,
+                config.cpu_limit_percent,
+            ))
+        } else {
+            None
+        };
+
         Self {
             config,
             data_localizer,
             shard_processor,
+            performance_logger,
+            error_recovery_manager,
+            quality_validator,
+            resource_monitor,
         }
     }
 
@@ -137,12 +197,32 @@ impl FastExportCoordinator {
         progress_callback: Option<ProgressCallback>,
     ) -> TrackingResult<CompleteExportStats> {
         let total_start = Instant::now();
+        let operation_id = format!("export_{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs());
+
+        // 记录操作开始
+        self.performance_logger.log_operation_start(
+            "fast_export",
+            &format!("输出路径: {}", output_path.as_ref().display()),
+        );
 
         if self.config.verbose_logging {
             println!("🚀 快速导出协调器开始执行");
             println!("   输出路径: {}", output_path.as_ref().display());
-            println!("   配置: {:?}", self.config);
+            println!("   操作 ID: {}", operation_id);
         }
+
+        // 创建错误上下文
+        let mut error_context = ErrorContext {
+            operation_id: operation_id.clone(),
+            current_config: self.config.clone(),
+            progress_percentage: 0.0,
+            processed_data_size: 0,
+            operation_start_time: total_start,
+            current_stats: None,
+        };
 
         // 创建进度监控器
         let mut progress_monitor = if self.config.progress_config.enabled {
@@ -156,7 +236,22 @@ impl FastExportCoordinator {
             monitor.set_stage(ExportStage::Initializing);
         }
 
+        // 资源监控检查
+        if let Some(ref monitor) = self.resource_monitor {
+            if let Err(e) = monitor.check_resource_usage() {
+                let export_error = crate::export::error_handling::ExportError::InsufficientResources {
+                    required_memory: 0,
+                    available_memory: 0,
+                    required_disk: 0,
+                    available_disk: 0,
+                };
+                self.performance_logger.log_error(&export_error);
+                return Err(e);
+            }
+        }
+
         // 第一阶段：数据本地化
+        error_context.progress_percentage = 10.0;
         if let Some(ref mut monitor) = progress_monitor {
             monitor.set_stage(ExportStage::DataLocalization);
             if monitor.should_cancel() {
@@ -165,11 +260,39 @@ impl FastExportCoordinator {
             }
         }
         
-        let (localized_data, data_stats) = self.gather_data_with_progress(progress_monitor.as_mut())?;
+        let (localized_data, data_stats) = match self.gather_data_with_progress(progress_monitor.as_mut()) {
+            Ok(result) => result,
+            Err(e) => {
+                let export_error = crate::export::error_handling::ExportError::DataQualityError {
+                    validation_type: crate::export::error_handling::ValidationType::DataIntegrity,
+                    expected: "valid data".to_string(),
+                    actual: "error occurred".to_string(),
+                    affected_records: 0,
+                };
+                self.performance_logger.log_operation_failure("fast_export", &export_error, total_start.elapsed());
+                
+                // 尝试错误恢复
+                if let Ok(recovery_result) = self.error_recovery_manager.handle_export_error(&export_error, "data_localization", &error_context) {
+                    if recovery_result.success {
+                        self.performance_logger.log_debug("数据本地化错误恢复成功，但仍返回原始错误");
+                    }
+                }
+                
+                return Err(e);
+            }
+        };
+
+        // 验证原始数据质量
+        if let Err(validation_error) = self.quality_validator.validate_source_data(&localized_data) {
+            self.performance_logger.log_warning(&format!("数据质量验证失败: {validation_error}"));
+        }
+
+        // 更新错误上下文
+        error_context.processed_data_size = localized_data.allocations.len();
+        error_context.progress_percentage = 30.0;
 
         // 更新总分配数量并设置回调
         if let Some(ref mut monitor) = progress_monitor {
-            // 重新创建监控器以更新总分配数量
             let mut new_monitor = ProgressMonitor::new(localized_data.allocations.len());
             if let Some(callback) = progress_callback {
                 new_monitor.set_callback(callback);
@@ -178,6 +301,7 @@ impl FastExportCoordinator {
         }
 
         // 第二阶段：并行分片处理
+        error_context.progress_percentage = 50.0;
         if let Some(ref mut monitor) = progress_monitor {
             monitor.set_stage(ExportStage::ParallelProcessing);
             if monitor.should_cancel() {
@@ -186,9 +310,35 @@ impl FastExportCoordinator {
             }
         }
         
-        let (processed_shards, processing_stats) = self.process_data_parallel_with_progress(&localized_data, progress_monitor.as_mut())?;
+        let (processed_shards, processing_stats) = match self.process_data_parallel_with_progress(&localized_data, progress_monitor.as_mut()) {
+            Ok(result) => result,
+            Err(e) => {
+                let export_error = crate::export::error_handling::ExportError::ParallelProcessingError {
+                    shard_index: 0,
+                    thread_id: "unknown".to_string(),
+                    error_message: e.to_string(),
+                    partial_results: None,
+                };
+                self.performance_logger.log_operation_failure("fast_export", &export_error, total_start.elapsed());
+                
+                // 尝试错误恢复
+                if let Ok(recovery_result) = self.error_recovery_manager.handle_export_error(&export_error, "parallel_processing", &error_context) {
+                    if recovery_result.success {
+                        self.performance_logger.log_debug("并行处理错误恢复成功，但仍返回原始错误");
+                    }
+                }
+                
+                return Err(e);
+            }
+        };
+
+        // 验证处理后的分片数据
+        if let Err(validation_error) = self.quality_validator.validate_processed_shards(&processed_shards, localized_data.allocations.len()) {
+            self.performance_logger.log_warning(&format!("分片数据验证失败: {validation_error}"));
+        }
 
         // 第三阶段：高速写入
+        error_context.progress_percentage = 80.0;
         if let Some(ref mut monitor) = progress_monitor {
             monitor.set_stage(ExportStage::Writing);
             if monitor.should_cancel() {
@@ -197,9 +347,37 @@ impl FastExportCoordinator {
             }
         }
         
-        let write_stats = self.write_data_fast_with_progress(output_path, &processed_shards, progress_monitor.as_mut())?;
+        let write_stats = match self.write_data_fast_with_progress(&output_path, &processed_shards, progress_monitor.as_mut()) {
+            Ok(result) => result,
+            Err(e) => {
+                let export_error = crate::export::error_handling::ExportError::DataQualityError {
+                    validation_type: crate::export::error_handling::ValidationType::FileSize,
+                    expected: "successful write".to_string(),
+                    actual: "write failed".to_string(),
+                    affected_records: 0,
+                };
+                self.performance_logger.log_operation_failure("fast_export", &export_error, total_start.elapsed());
+                
+                // 尝试错误恢复
+                if let Ok(recovery_result) = self.error_recovery_manager.handle_export_error(&export_error, "high_speed_writing", &error_context) {
+                    if recovery_result.success {
+                        self.performance_logger.log_debug("高速写入错误恢复成功，但仍返回原始错误");
+                    }
+                }
+                
+                return Err(e);
+            }
+        };
 
         let total_time = total_start.elapsed();
+
+        // 验证最终输出文件
+        if let Err(validation_error) = self.quality_validator.validate_output_file(
+            output_path.as_ref().to_str().unwrap_or("unknown"),
+            localized_data.allocations.len(),
+        ) {
+            self.performance_logger.log_warning(&format!("输出文件验证失败: {validation_error}"));
+        }
 
         // 完成阶段
         if let Some(ref mut monitor) = progress_monitor {
@@ -214,8 +392,40 @@ impl FastExportCoordinator {
             total_time.as_millis() as u64,
         );
 
+        // 记录操作成功
+        self.performance_logger.log_operation_success(
+            "fast_export",
+            total_time,
+            &format!("成功导出 {} 个分配", complete_stats.total_allocations_processed),
+        );
+
+        // 记录性能指标
+        self.performance_logger.log_performance_metric(
+            crate::export::error_handling::PerformanceMetric::ExportTime,
+            total_time.as_millis() as f64,
+            Some(5000.0), // 5秒阈值
+        );
+
+        self.performance_logger.log_performance_metric(
+            crate::export::error_handling::PerformanceMetric::ThroughputRate,
+            complete_stats.overall_throughput_allocations_per_sec,
+            Some(1000.0), // 1000 分配/秒阈值
+        );
+
         if self.config.enable_performance_monitoring {
             self.print_complete_stats(&complete_stats);
+            
+            // 打印性能和恢复报告
+            let performance_report = self.performance_logger.generate_performance_report();
+            performance_report.print_detailed_report();
+            
+            let recovery_report = self.error_recovery_manager.generate_recovery_report();
+            if recovery_report.total_errors > 0 {
+                recovery_report.print_detailed_report();
+            }
+            
+            let validation_report = self.quality_validator.generate_validation_report();
+            validation_report.print_detailed_report();
         }
 
         Ok(complete_stats)
@@ -456,6 +666,8 @@ impl FastExportCoordinator {
         &self.config
     }
 
+
+
     /// 更新配置
     pub fn update_config(&mut self, config: FastExportConfig) {
         self.config = config.clone();
@@ -467,7 +679,32 @@ impl FastExportCoordinator {
             DataLocalizer::new()
         };
         
-        self.shard_processor = ParallelShardProcessor::new(config.shard_config);
+        self.shard_processor = ParallelShardProcessor::new(config.shard_config.clone());
+        
+        // 重新创建性能日志记录器
+        let log_level = if config.verbose_logging {
+            LogLevel::Debug
+        } else {
+            LogLevel::Info
+        };
+        self.performance_logger = PerformanceLogger::new(log_level);
+        
+        // 重新创建错误恢复管理器
+        self.error_recovery_manager = ErrorRecoveryManager::new(config.error_recovery_config.clone());
+        
+        // 重新创建数据质量验证器
+        self.quality_validator = QualityValidator::new(config.validation_config.clone());
+        
+        // 重新创建资源监控器
+        self.resource_monitor = if config.enable_resource_monitoring {
+            Some(ResourceMonitor::new(
+                config.memory_limit_mb,
+                config.disk_limit_mb,
+                config.cpu_limit_percent,
+            ))
+        } else {
+            None
+        };
     }
 
     /// 获取缓存统计信息
@@ -572,6 +809,42 @@ impl FastExportConfigBuilder {
     /// 启用或禁用进度监控
     pub fn progress_monitoring(mut self, enabled: bool) -> Self {
         self.config.progress_config.enabled = enabled;
+        self
+    }
+    
+    /// 设置错误恢复配置
+    pub fn error_recovery_config(mut self, config: RecoveryConfig) -> Self {
+        self.config.error_recovery_config = config;
+        self
+    }
+    
+    /// 设置数据质量验证配置
+    pub fn validation_config(mut self, config: ValidationConfig) -> Self {
+        self.config.validation_config = config;
+        self
+    }
+    
+    /// 启用或禁用资源监控
+    pub fn resource_monitoring(mut self, enabled: bool) -> Self {
+        self.config.enable_resource_monitoring = enabled;
+        self
+    }
+    
+    /// 设置内存限制
+    pub fn memory_limit_mb(mut self, limit: usize) -> Self {
+        self.config.memory_limit_mb = limit;
+        self
+    }
+    
+    /// 设置磁盘限制
+    pub fn disk_limit_mb(mut self, limit: usize) -> Self {
+        self.config.disk_limit_mb = limit;
+        self
+    }
+    
+    /// 设置 CPU 限制
+    pub fn cpu_limit_percent(mut self, limit: f64) -> Self {
+        self.config.cpu_limit_percent = limit;
         self
     }
 
