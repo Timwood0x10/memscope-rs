@@ -1,6 +1,6 @@
-//! 配置优化工具模块
+//! configuration optimization tool module
 //!
-//! 这个模块提供自动化的配置优化和验证工具。
+//! This module provides automated configuration optimization and validation tools.
 
 use crate::core::types::TrackingResult;
 use crate::export::fast_export_coordinator::FastExportConfigBuilder;
@@ -8,44 +8,44 @@ use crate::export::system_optimizer::SystemOptimizer;
 use crate::export::performance_testing::OptimizationTarget;
 use serde::{Serialize, Deserialize};
 
-/// 配置优化器
+/// configuration optimizer
 pub struct ConfigOptimizer {
     system_optimizer: SystemOptimizer,
     optimization_history: Vec<OptimizationRecord>,
 }
 
-/// 优化记录
+/// optimization record
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationRecord {
-    /// 优化时间戳
+    /// optimization timestamp
     pub timestamp: u64,
-    /// 优化目标
+    /// optimization target
     pub target: OptimizationTarget,
-    /// 原始配置
+    /// original configuration
     pub original_config: ConfigSnapshot,
-    /// 优化后配置
+    /// optimized configuration
     pub optimized_config: ConfigSnapshot,
-    /// 性能改善
+    /// performance improvement
     pub performance_improvement: f64,
-    /// 优化成功率
+    /// optimization success rate
     pub success_rate: f64,
 }
 
-/// 配置快照
+/// configuration snapshot
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigSnapshot {
-    /// 分片大小
+    /// shard size
     pub shard_size: usize,
-    /// 线程数
+    /// thread count
     pub thread_count: usize,
-    /// 缓冲区大小
+    /// buffer size
     pub buffer_size: usize,
-    /// 配置哈希
+    /// configuration hash
     pub config_hash: String,
 }
 
 impl ConfigOptimizer {
-    /// 创建新的配置优化器
+    /// create new configuration optimizer
     pub fn new() -> TrackingResult<Self> {
         Ok(Self {
             system_optimizer: SystemOptimizer::new()?,
@@ -53,30 +53,30 @@ impl ConfigOptimizer {
         })
     }
 
-    /// 自动优化配置
+    /// auto optimize configuration
     pub fn auto_optimize(&mut self, target: OptimizationTarget, dataset_size: Option<usize>) -> TrackingResult<FastExportConfigBuilder> {
-        // 生成配置建议
+        // generate configuration recommendation
         let recommendation = self.system_optimizer.generate_configuration_recommendation(target, dataset_size);
         
-        // 创建配置
+        // create configuration
         let config_builder = FastExportConfigBuilder::new()
             .shard_size(recommendation.recommended_shard_size)
             .max_threads(Some(recommendation.recommended_thread_count))
             .buffer_size(recommendation.recommended_buffer_size)
             .performance_monitoring(true);
 
-        // 验证配置
+        // validate configuration
         let validation_result = self.system_optimizer.validate_configuration(&config_builder);
         
         if !validation_result.is_valid {
-            println!("⚠️ 配置验证失败，使用默认配置");
+            println!("⚠️ configuration validation failed, using default configuration");
             for error in &validation_result.errors {
-                println!("  错误: {}", error);
+                println!(" Error : {}", error);
             }
             return Ok(FastExportConfigBuilder::new());
         }
 
-        // 记录优化历史
+        // record optimization history
         let record = OptimizationRecord {
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -107,12 +107,12 @@ impl ConfigOptimizer {
         Ok(config_builder)
     }
 
-    /// 获取优化历史
+    /// get optimization history
     pub fn get_optimization_history(&self) -> &[OptimizationRecord] {
         &self.optimization_history
     }
 
-    /// 清除优化历史
+    /// clear optimization history
     pub fn clear_history(&mut self) {
         self.optimization_history.clear();
     }

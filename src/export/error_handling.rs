@@ -1,7 +1,7 @@
-//! 增强的错误处理和日志记录系统
+//! enhanced error handling and logging system
 //!
-//! 这个模块提供了专门针对导出系统的错误处理、日志记录和恢复机制，
-//! 确保在各种异常情况下都能提供详细的错误信息和适当的恢复策略。
+//! this module provides specialized error handling, logging, and recovery mechanisms for export systems,
+//! ensuring detailed error information and appropriate recovery strategies in various。
 
 use crate::core::types::{TrackingError, TrackingResult};
 use std::fmt;
@@ -9,120 +9,178 @@ use std::time::{Duration, Instant};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-/// 导出系统专用错误类型
+/// export system error type
 #[derive(Debug, Clone)]
 pub enum ExportError {
-    /// 并行处理错误
+    /// parallel processing error
     ParallelProcessingError {
+        /// shard index
         shard_index: usize,
+        /// thread id
         thread_id: String,
+        /// error message
         error_message: String,
+        /// partial results
         partial_results: Option<Vec<u8>>,
     },
-    /// 资源限制超出错误
+    /// resource limit exceeded error
     ResourceLimitExceeded {
+        /// resource type
         resource_type: ResourceType,
+        /// limit
         limit: u64,
+        /// actual
         actual: u64,
+        /// suggested action
         suggested_action: String,
     },
-    /// 数据质量验证错误
+    /// data quality error
     DataQualityError {
+        /// validation type
         validation_type: ValidationType,
+        /// expected value
         expected: String,
+        /// actual value
         actual: String,
+        /// affected records
         affected_records: usize,
     },
-    /// 性能阈值超出错误
+    /// performance threshold exceeded error
     PerformanceThresholdExceeded {
+        /// metric
         metric: PerformanceMetric,
+        /// threshold
         threshold: f64,
+        /// actual
         actual: f64,
+        /// stage
         stage: ExportStage,
     },
-    /// 并发访问冲突错误
+    /// concurrency conflict error
     ConcurrencyConflict {
+        /// operation
         operation: String,
+        /// conflict type
         conflict_type: ConflictType,
+        /// retry count
         retry_count: usize,
     },
-    /// 数据损坏错误
+    /// data corruption error
     DataCorruption {
+        /// corruption type
         corruption_type: CorruptionType,
+        /// affected data
         affected_data: String,
+        /// recovery possible
         recovery_possible: bool,
     },
-    /// 系统资源不足错误
+    /// insufficient resources error
     InsufficientResources {
+        /// required memory
         required_memory: usize,
+        /// available memory
         available_memory: usize,
+        /// required disk
         required_disk: usize,
+        /// available disk
         available_disk: usize,
     },
-    /// 导出中断错误
+    /// export interrupted error
     ExportInterrupted {
+        /// export stage
         stage: ExportStage,
+        /// progress percentage
         progress_percentage: f64,
+        /// partial output path
         partial_output_path: Option<String>,
     },
 }
 
-/// 资源类型枚举
+/// resource type enum
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResourceType {
+    /// memory
     Memory,
+    /// disk
     Disk,
+    /// cpu
     CPU,
+    /// file handles
     FileHandles,
+    /// thread pool
     ThreadPool,
 }
 
-/// 验证类型枚举
+/// validation type enum
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ValidationType {
+    /// json structure
     JsonStructure,
+    /// data integrity
     DataIntegrity,
+    /// allocation count
     AllocationCount,
+    /// file size
     FileSize,
+    /// encoding
     Encoding,
 }
 
-/// 性能指标枚举
+/// performance metric enum
 #[derive(Debug, Clone, PartialEq)]
 pub enum PerformanceMetric {
+    /// export time
     ExportTime,
+    /// memory usage
     MemoryUsage,
+    /// throughput rate
     ThroughputRate,
+    /// error rate
     ErrorRate,
+    /// response time
     ResponseTime,
 }
 
-/// 导出阶段枚举
+/// export stage enum
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExportStage {
+    /// initialization
     Initialization,
+    /// data localization
     DataLocalization,
+    /// parallel processing
     ParallelProcessing,
+    /// writing
     Writing,
+    /// validation
     Validation,
+    /// finalization
     Finalization,
 }
 
-/// 并发冲突类型
+/// concurrency conflict type
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConflictType {
+    /// lock contention
     LockContention,
+    /// data race
     DataRace,
+    /// resource contention
     ResourceContention,
+    /// thread pool exhaustion
     ThreadPoolExhaustion,
 }
 
-/// 数据损坏类型
+/// corruption type enum
 #[derive(Debug, Clone, PartialEq)]
 pub enum CorruptionType {
+    /// incomplete data
     IncompleteData,
+    /// invalid format
     InvalidFormat,
+    /// checksum mismatch
     ChecksumMismatch,
+    /// structural damage
     StructuralDamage,
 }
 
@@ -130,28 +188,28 @@ impl fmt::Display for ExportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExportError::ParallelProcessingError { shard_index, thread_id, error_message, .. } => {
-                write!(f, "并行处理错误 - 分片 {shard_index} (线程 {thread_id}): {error_message}")
+                write!(f, "parallel processing error - shard {shard_index} (thread {thread_id}): {error_message}")
             }
             ExportError::ResourceLimitExceeded { resource_type, limit, actual, suggested_action } => {
-                write!(f, "资源限制超出 - {resource_type:?}: 限制 {limit}, 实际 {actual}. 建议: {suggested_action}")
+                write!(f, "resource limit exceeded - {resource_type:?}: limit {limit}, actual {actual}. suggested action: {suggested_action}")
             }
             ExportError::DataQualityError { validation_type, expected, actual, affected_records } => {
-                write!(f, "数据质量错误 - {validation_type:?}: 期望 {expected}, 实际 {actual}, 影响记录 {affected_records}")
+                write!(f, "data quality error - {validation_type:?}: expected {expected}, actual {actual}, affected records {affected_records}")
             }
             ExportError::PerformanceThresholdExceeded { metric, threshold, actual, stage } => {
-                write!(f, "性能阈值超出 - {metric:?} 在 {stage:?}: 阈值 {threshold}, 实际 {actual}")
+                write!(f, "performance threshold exceeded - {metric:?} in {stage:?}: threshold {threshold}, actual {actual}")
             }
             ExportError::ConcurrencyConflict { operation, conflict_type, retry_count } => {
-                write!(f, "并发冲突 - 操作 {operation}, 类型 {conflict_type:?}, 重试次数 {retry_count}")
+                write!(f, "concurrency conflict - operation {operation}, type {conflict_type:?}, retry count {retry_count}")
             }
             ExportError::DataCorruption { corruption_type, affected_data, recovery_possible } => {
-                write!(f, "数据损坏 - 类型 {corruption_type:?}, 受影响数据 {affected_data}, 可恢复: {recovery_possible}")
+                write!(f, "data corruption - type {corruption_type:?}, affected data {affected_data}, recovery possible: {recovery_possible}")
             }
             ExportError::InsufficientResources { required_memory, available_memory, required_disk, available_disk } => {
-                write!(f, "资源不足 - 需要内存 {required_memory}MB, 可用 {available_memory}MB, 需要磁盘 {required_disk}MB, 可用 {available_disk}MB")
+                write!(f, "insufficient resources - required memory {required_memory}MB, available {available_memory}MB, required disk {required_disk}MB, available {available_disk}MB")
             }
             ExportError::ExportInterrupted { stage, progress_percentage, partial_output_path } => {
-                write!(f, "导出中断 - 阶段 {stage:?}, 进度 {progress_percentage:.1}%, 部分输出: {partial_output_path:?}")
+                write!(f, "export interrupted - stage {stage:?}, progress {progress_percentage:.1}%, partial output: {partial_output_path:?}")
             }
         }
     }
@@ -165,64 +223,69 @@ impl From<ExportError> for TrackingError {
     }
 }
 
-/// 性能日志记录器
+/// performance logger
 #[derive(Debug)]
 pub struct PerformanceLogger {
-    /// 日志级别
+    /// log level
     log_level: LogLevel,
-    /// 性能指标收集器
+    /// performance metrics collector
     metrics_collector: Arc<MetricsCollector>,
-    /// 错误统计
+    /// error statistics
     error_stats: Arc<ErrorStatistics>,
-    /// 开始时间
+    /// start time
     start_time: Instant,
 }
 
-/// 日志级别
+/// log level
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogLevel {
+    /// error
     Error,
+    /// warn
     Warn,
+    /// info
     Info,
+    /// debug
     Debug,
+    /// trace
     Trace,
 }
 
-/// 指标收集器
+/// metrics collector
 #[derive(Debug)]
 pub struct MetricsCollector {
-    /// 总操作数
+    /// total operations
     total_operations: AtomicUsize,
-    /// 成功操作数
+    /// successful operations
     successful_operations: AtomicUsize,
-    /// 失败操作数
+    /// failed operations
     failed_operations: AtomicUsize,
-    /// 总处理时间（毫秒）
+    /// total processing time (milliseconds)
     total_processing_time_ms: AtomicUsize,
-    /// 峰值内存使用（字节）
+    /// peak memory usage (bytes)
     peak_memory_usage: AtomicUsize,
-    /// 当前内存使用（字节）
+    /// current memory usage (bytes)
     current_memory_usage: AtomicUsize,
 }
 
-/// 错误统计
+/// error statistics
 #[derive(Debug)]
 pub struct ErrorStatistics {
-    /// 并行处理错误数
+    /// parallel processing errors
     parallel_processing_errors: AtomicUsize,
-    /// 资源限制错误数
+    /// resource limit errors
     resource_limit_errors: AtomicUsize,
-    /// 数据质量错误数
+    /// data quality errors
     data_quality_errors: AtomicUsize,
-    /// 性能阈值错误数
+    /// performance threshold errors
     performance_threshold_errors: AtomicUsize,
-    /// 并发冲突错误数
+    /// concurrency conflict errors
     concurrency_conflict_errors: AtomicUsize,
-    /// 数据损坏错误数
+    /// data corruption errors
     data_corruption_errors: AtomicUsize,
-    /// 资源不足错误数
+    /// insufficient resources errors
     insufficient_resources_errors: AtomicUsize,
-    /// 导出中断错误数
+    /// export interrupted errors
     export_interrupted_errors: AtomicUsize,
 }
 
@@ -237,19 +300,19 @@ impl PerformanceLogger {
         }
     }
 
-    /// 记录操作开始
+    /// record operation start
     pub fn log_operation_start(&self, operation: &str, details: &str) {
         if self.should_log(LogLevel::Info) {
-            println!("🚀 [{}] 开始操作: {} - {}", 
+            println!("🚀 [{}] start operation: {} - {}", 
                     self.format_timestamp(), operation, details);
         }
         self.metrics_collector.total_operations.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// 记录操作成功
+    /// record operation success
     pub fn log_operation_success(&self, operation: &str, duration: Duration, details: &str) {
         if self.should_log(LogLevel::Info) {
-            println!("✅ [{}] 操作成功: {} ({:?}) - {}", 
+            println!("✅ [{}] operation success: {} ({:?}) - {}", 
                     self.format_timestamp(), operation, duration, details);
         }
         self.metrics_collector.successful_operations.fetch_add(1, Ordering::Relaxed);
@@ -257,46 +320,46 @@ impl PerformanceLogger {
             duration.as_millis() as usize, Ordering::Relaxed);
     }
 
-    /// 记录操作失败
+    /// record operation failure
     pub fn log_operation_failure(&self, operation: &str, error: &ExportError, duration: Duration) {
         if self.should_log(LogLevel::Error) {
-            println!("❌ [{}] 操作失败: {} ({:?}) - {}", 
+            println!("❌ [{}] operation failure: {} ({:?}) - {}", 
                     self.format_timestamp(), operation, duration, error);
         }
         self.metrics_collector.failed_operations.fetch_add(1, Ordering::Relaxed);
         self.update_error_statistics(error);
     }
 
-    /// 记录性能指标
+    /// record performance metric
     pub fn log_performance_metric(&self, metric: PerformanceMetric, value: f64, threshold: Option<f64>) {
         if self.should_log(LogLevel::Debug) {
             let threshold_info = if let Some(t) = threshold {
-                format!(" (阈值: {t})")
+                format!(" (threshold: {t})")
             } else {
                 String::new()
             };
-            println!("📊 [{}] 性能指标 - {metric:?}: {value}{threshold_info}", 
+            println!("📊 [{}] performance metric - {metric:?}: {value}{threshold_info}", 
                     self.format_timestamp());
         }
 
-        // 检查是否超出阈值
+        // check if exceeded threshold
         if let Some(threshold) = threshold {
             if value > threshold {
                 let error = ExportError::PerformanceThresholdExceeded {
                     metric,
                     threshold,
                     actual: value,
-                    stage: ExportStage::ParallelProcessing, // 默认阶段
+                    stage: ExportStage::ParallelProcessing, // default stage
                 };
-                self.log_warning(&format!("性能阈值超出: {error}"));
+                self.log_warning(&format!("performance threshold exceeded: {error}"));
             }
         }
     }
 
-    /// 记录内存使用情况
+    /// record memory usage
     pub fn log_memory_usage(&self, current_usage: usize, peak_usage: usize) {
         if self.should_log(LogLevel::Debug) {
-            println!("💾 [{}] 内存使用 - 当前: {:.2}MB, 峰值: {:.2}MB", 
+            println!("💾 [{}] memory usage - current: {:.2}MB, peak: {:.2}MB", 
                     self.format_timestamp(),
                     current_usage as f64 / 1024.0 / 1024.0,
                     peak_usage as f64 / 1024.0 / 1024.0);
@@ -304,36 +367,36 @@ impl PerformanceLogger {
         
         self.metrics_collector.current_memory_usage.store(current_usage, Ordering::Relaxed);
         
-        // 更新峰值内存使用
+        // update peak memory usage
         let current_peak = self.metrics_collector.peak_memory_usage.load(Ordering::Relaxed);
         if peak_usage > current_peak {
             self.metrics_collector.peak_memory_usage.store(peak_usage, Ordering::Relaxed);
         }
     }
 
-    /// 记录警告信息
+    /// record warning
     pub fn log_warning(&self, message: &str) {
         if self.should_log(LogLevel::Warn) {
-            println!("⚠️ [{}] 警告: {}", self.format_timestamp(), message);
+            println!("⚠️ [{}] warning: {}", self.format_timestamp(), message);
         }
     }
 
-    /// 记录调试信息
+    /// record debug
     pub fn log_debug(&self, message: &str) {
         if self.should_log(LogLevel::Debug) {
-            println!("🔍 [{}] 调试: {}", self.format_timestamp(), message);
+            println!("🔍 [{}] debug: {}", self.format_timestamp(), message);
         }
     }
 
-    /// 记录错误信息
+    /// record error
     pub fn log_error(&self, error: &ExportError) {
         if self.should_log(LogLevel::Error) {
-            println!("💥 [{}] 错误: {}", self.format_timestamp(), error);
+            println!("💥 [{}] error: {}", self.format_timestamp(), error);
         }
         self.update_error_statistics(error);
     }
 
-    /// 生成性能报告
+    /// generate performance report
     pub fn generate_performance_report(&self) -> PerformanceReport {
         let total_time = self.start_time.elapsed();
         let total_ops = self.metrics_collector.total_operations.load(Ordering::Relaxed);
@@ -368,7 +431,7 @@ impl PerformanceLogger {
         }
     }
 
-    /// 检查是否应该记录日志
+    /// check if should log
     fn should_log(&self, level: LogLevel) -> bool {
         match (&self.log_level, &level) {
             (LogLevel::Error, LogLevel::Error) => true,
@@ -380,13 +443,13 @@ impl PerformanceLogger {
         }
     }
 
-    /// 格式化时间戳
+    /// format timestamp
     fn format_timestamp(&self) -> String {
         let elapsed = self.start_time.elapsed();
         format!("{:>8.3}s", elapsed.as_secs_f64())
     }
 
-    /// 更新错误统计
+    /// update error statistics
     fn update_error_statistics(&self, error: &ExportError) {
         match error {
             ExportError::ParallelProcessingError { .. } => {
@@ -416,7 +479,7 @@ impl PerformanceLogger {
         }
     }
 
-    /// 获取错误分类统计
+    /// get error breakdown
     fn get_error_breakdown(&self) -> ErrorBreakdown {
         ErrorBreakdown {
             parallel_processing_errors: self.error_stats.parallel_processing_errors.load(Ordering::Relaxed),
@@ -459,83 +522,91 @@ impl ErrorStatistics {
     }
 }
 
-/// 性能报告
+/// performance report
 #[derive(Debug, Clone)]
 pub struct PerformanceReport {
-    /// 总运行时间
+    /// total runtime
     pub total_runtime: Duration,
-    /// 总操作数
+    /// total operations
     pub total_operations: usize,
-    /// 成功操作数
+    /// successful operations
     pub successful_operations: usize,
-    /// 失败操作数
+    /// failed operations
     pub failed_operations: usize,
-    /// 成功率（百分比）
+    /// success rate
     pub success_rate: f64,
-    /// 平均处理时间（毫秒）
+    /// average processing time (ms)
     pub average_processing_time_ms: f64,
-    /// 峰值内存使用（MB）
+    /// peak memory usage (MB)
     pub peak_memory_usage_mb: f64,
-    /// 当前内存使用（MB）
+    /// current memory usage (MB)
     pub current_memory_usage_mb: f64,
-    /// 错误分类统计
+    /// error breakdown
     pub error_breakdown: ErrorBreakdown,
 }
 
-/// 错误分类统计
+/// error breakdown
 #[derive(Debug, Clone)]
 pub struct ErrorBreakdown {
+    /// parallel processing errors
     pub parallel_processing_errors: usize,
+    /// resource limit errors
     pub resource_limit_errors: usize,
+    /// data quality errors
     pub data_quality_errors: usize,
+    /// performance threshold errors
     pub performance_threshold_errors: usize,
+    /// concurrency conflict errors
     pub concurrency_conflict_errors: usize,
+    /// data corruption errors
     pub data_corruption_errors: usize,
+    /// insufficient resources errors
     pub insufficient_resources_errors: usize,
+    /// export interrupted errors
     pub export_interrupted_errors: usize,
 }
 
 impl PerformanceReport {
-    /// 打印详细的性能报告
+    /// print detailed report
     pub fn print_detailed_report(&self) {
-        println!("\n📈 详细性能报告");
+        println!("\n📈 detailed performance report");
         println!("================");
         
-        println!("⏱️ 运行时间: {:?}", self.total_runtime);
-        println!("🔢 总操作数: {}", self.total_operations);
-        println!("✅ 成功操作: {} ({:.1}%)", self.successful_operations, self.success_rate);
-        println!("❌ 失败操作: {}", self.failed_operations);
-        println!("⚡ 平均处理时间: {:.2}ms", self.average_processing_time_ms);
-        println!("💾 峰值内存使用: {:.2}MB", self.peak_memory_usage_mb);
-        println!("💾 当前内存使用: {:.2}MB", self.current_memory_usage_mb);
+        println!("⏱️ runtime: {:?}", self.total_runtime);
+        println!("🔢 total operations: {}", self.total_operations);
+        println!("✅ successful operations: {} ({:.1}%)", self.successful_operations, self.success_rate);
+        println!("❌ failed operations: {}", self.failed_operations);
+        println!("⚡ average processing time: {:.2}ms", self.average_processing_time_ms);
+        println!("💾 peak memory usage: {:.2}MB", self.peak_memory_usage_mb);
+        println!("💾 current memory usage: {:.2}MB", self.current_memory_usage_mb);
         
-        println!("\n🚨 错误分类统计:");
-        println!("   并行处理错误: {}", self.error_breakdown.parallel_processing_errors);
-        println!("   资源限制错误: {}", self.error_breakdown.resource_limit_errors);
-        println!("   数据质量错误: {}", self.error_breakdown.data_quality_errors);
-        println!("   性能阈值错误: {}", self.error_breakdown.performance_threshold_errors);
-        println!("   并发冲突错误: {}", self.error_breakdown.concurrency_conflict_errors);
-        println!("   数据损坏错误: {}", self.error_breakdown.data_corruption_errors);
-        println!("   资源不足错误: {}", self.error_breakdown.insufficient_resources_errors);
-        println!("   导出中断错误: {}", self.error_breakdown.export_interrupted_errors);
+        println!("\n🚨 error breakdown:");
+        println!("   parallel processing errors: {}", self.error_breakdown.parallel_processing_errors);
+        println!("   resource limit errors: {}", self.error_breakdown.resource_limit_errors);
+        println!("   data quality errors: {}", self.error_breakdown.data_quality_errors);
+        println!("   performance threshold errors: {}", self.error_breakdown.performance_threshold_errors);
+        println!("   concurrency conflict errors: {}", self.error_breakdown.concurrency_conflict_errors);
+        println!("   data corruption errors: {}", self.error_breakdown.data_corruption_errors);
+        println!("   insufficient resources errors: {}", self.error_breakdown.insufficient_resources_errors);
+        println!("   export interrupted errors: {}", self.error_breakdown.export_interrupted_errors);
     }
 }
 
-/// 资源监控器
+/// resource monitor
 #[derive(Debug)]
 pub struct ResourceMonitor {
-    /// 内存限制（字节）
+    /// memory limit (bytes)
     memory_limit: usize,
-    /// 磁盘空间限制（字节）
+    /// disk space limit (bytes)
     disk_limit: usize,
-    /// CPU 使用率限制（百分比）
+    /// CPU usage limit (percentage)
     cpu_limit: f64,
-    /// 监控间隔
+    /// monitoring interval
     monitoring_interval: Duration,
 }
 
 impl ResourceMonitor {
-    /// 创建新的资源监控器
+    /// create new resource monitor
     pub fn new(memory_limit_mb: usize, disk_limit_mb: usize, cpu_limit_percent: f64) -> Self {
         Self {
             memory_limit: memory_limit_mb * 1024 * 1024,
@@ -545,19 +616,19 @@ impl ResourceMonitor {
         }
     }
 
-    /// 检查资源使用情况
+    /// check resource usage
     pub fn check_resource_usage(&self) -> TrackingResult<ResourceUsage> {
         let memory_usage = self.get_memory_usage()?;
         let disk_usage = self.get_disk_usage()?;
         let cpu_usage = self.get_cpu_usage()?;
 
-        // 检查是否超出限制
+        // check if exceeded limits
         if memory_usage > self.memory_limit {
             return Err(ExportError::ResourceLimitExceeded {
                 resource_type: ResourceType::Memory,
                 limit: self.memory_limit as u64,
                 actual: memory_usage as u64,
-                suggested_action: "减少并行度或启用流式处理".to_string(),
+                suggested_action: "reduce parallelism or enable streaming processing".to_string(),
             }.into());
         }
 
@@ -566,7 +637,7 @@ impl ResourceMonitor {
                 resource_type: ResourceType::Disk,
                 limit: self.disk_limit as u64,
                 actual: disk_usage as u64,
-                suggested_action: "清理临时文件或选择其他输出位置".to_string(),
+                suggested_action: "clean up temporary files or select other output location".to_string(),
             }.into());
         }
 
@@ -575,7 +646,7 @@ impl ResourceMonitor {
                 resource_type: ResourceType::CPU,
                 limit: (self.cpu_limit * 100.0) as u64,
                 actual: (cpu_usage * 100.0) as u64,
-                suggested_action: "减少线程数或降低处理优先级".to_string(),
+                suggested_action: "reduce thread count or lower processing priority".to_string(),
             }.into());
         }
 
@@ -589,27 +660,27 @@ impl ResourceMonitor {
         })
     }
 
-    /// 获取内存使用情况（简化实现）
+    /// get memory usage (simplified implementation)
     fn get_memory_usage(&self) -> TrackingResult<usize> {
-        // 在实际实现中，这里应该调用系统 API 获取真实的内存使用情况
-        // 这里使用简化的实现
-        Ok(0) // 占位符实现
+        // in actual implementation, this should call system API to get real memory usage
+        // here use simplified implementation
+        Ok(0) // placeholder implementation
     }
 
-    /// 获取磁盘使用情况（简化实现）
+    /// get disk usage (simplified implementation)
     fn get_disk_usage(&self) -> TrackingResult<usize> {
-        // 在实际实现中，这里应该调用系统 API 获取真实的磁盘使用情况
-        Ok(0) // 占位符实现
+        // in actual implementation, this should call system API to get real disk usage
+        Ok(0) // placeholder implementation
     }
 
-    /// 获取 CPU 使用情况（简化实现）
+    /// get CPU usage (simplified implementation)
     fn get_cpu_usage(&self) -> TrackingResult<f64> {
-        // 在实际实现中，这里应该调用系统 API 获取真实的 CPU 使用情况
-        Ok(0.0) // 占位符实现
+        // in actual implementation, this should call system API to get real CPU usage
+        Ok(0.0) // placeholder implementation
     }
 }
 
-/// 资源使用情况
+/// resource usage
 #[derive(Debug, Clone)]
 pub struct ResourceUsage {
     pub memory_usage: usize,
@@ -621,7 +692,7 @@ pub struct ResourceUsage {
 }
 
 impl ResourceUsage {
-    /// 获取内存使用率（百分比）
+    /// get memory usage percentage
     pub fn memory_usage_percentage(&self) -> f64 {
         if self.memory_limit > 0 {
             (self.memory_usage as f64 / self.memory_limit as f64) * 100.0
@@ -630,7 +701,7 @@ impl ResourceUsage {
         }
     }
 
-    /// 获取磁盘使用率（百分比）
+    /// get disk usage percentage
     pub fn disk_usage_percentage(&self) -> f64 {
         if self.disk_limit > 0 {
             (self.disk_usage as f64 / self.disk_limit as f64) * 100.0
@@ -639,7 +710,7 @@ impl ResourceUsage {
         }
     }
 
-    /// 获取 CPU 使用率（百分比）
+    /// get CPU usage percentage
     pub fn cpu_usage_percentage(&self) -> f64 {
         self.cpu_usage * 100.0
     }
@@ -654,13 +725,13 @@ mod tests {
         let error = ExportError::ParallelProcessingError {
             shard_index: 5,
             thread_id: "thread-1".to_string(),
-            error_message: "序列化失败".to_string(),
+            error_message: "serialization failed".to_string(),
             partial_results: None,
         };
         
         let display = format!("{error}");
-        assert!(display.contains("并行处理错误"));
-        assert!(display.contains("分片 5"));
+        assert!(display.contains("parallel processing error"));
+        assert!(display.contains("shard 5"));
         assert!(display.contains("thread-1"));
     }
 
@@ -668,8 +739,8 @@ mod tests {
     fn test_performance_logger() {
         let logger = PerformanceLogger::new(LogLevel::Info);
         
-        logger.log_operation_start("测试操作", "测试详情");
-        logger.log_operation_success("测试操作", Duration::from_millis(100), "成功完成");
+        logger.log_operation_start("test operation", "test details");
+        logger.log_operation_success("test operation", Duration::from_millis(100), "success");
         
         let report = logger.generate_performance_report();
         assert_eq!(report.total_operations, 1);
@@ -682,7 +753,7 @@ mod tests {
     fn test_resource_monitor() {
         let monitor = ResourceMonitor::new(1024, 2048, 80.0);
         
-        // 测试资源检查（使用简化实现，应该总是成功）
+        // test resource check (using simplified implementation, should always succeed)
         let result = monitor.check_resource_usage();
         assert!(result.is_ok());
         

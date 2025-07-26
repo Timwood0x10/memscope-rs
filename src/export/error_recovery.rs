@@ -1,9 +1,9 @@
-//! 错误恢复机制
+//! error recovery mechanism
 //!
-//! 这个模块提供了全面的错误恢复策略，包括自动重试、优雅降级、
-//! 部分结果保存和错误状态恢复，确保导出系统在各种异常情况下
-//! 都能提供最佳的用户体验。
-
+//! this module provides comprehensive error recovery strategies,
+//! including automatic retries, graceful degradation,
+//! partial result saving, and error state recovery,
+//! ensuring optimal user experience in various 
 use crate::core::types::{TrackingError, TrackingResult};
 use crate::export::error_handling::{ExportError, ExportStage, ResourceType, ConflictType};
 use crate::export::fast_export_coordinator::{FastExportConfig, CompleteExportStats};
@@ -12,48 +12,48 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 // Removed unused atomic imports
 
-/// 错误恢复管理器
+/// error recovery manager
 #[derive(Debug)]
 pub struct ErrorRecoveryManager {
-    /// 恢复配置
+    /// recovery config
     config: RecoveryConfig,
-    /// 恢复统计
+    /// recovery stats
     stats: RecoveryStats,
-    /// 重试历史
+    /// retry history
     retry_history: HashMap<String, RetryHistory>,
-    /// 降级状态
+    /// degradation state
     degradation_state: DegradationState,
 }
 
-/// 恢复配置
+/// recovery config
 #[derive(Debug, Clone)]
 pub struct RecoveryConfig {
-    /// 是否启用自动重试
+    /// whether to enable auto retry
     pub enable_auto_retry: bool,
-    /// 最大重试次数
+    /// max retry attempts
     pub max_retry_attempts: usize,
-    /// 重试间隔（毫秒）
+    /// retry interval (milliseconds)
     pub retry_interval_ms: u64,
-    /// 重试间隔递增因子
+    /// retry interval backoff factor
     pub retry_backoff_factor: f64,
-    /// 最大重试间隔（毫秒）
+    /// max retry interval (milliseconds)
     pub max_retry_interval_ms: u64,
     
-    /// 是否启用优雅降级
+    /// whether to enable graceful degradation
     pub enable_graceful_degradation: bool,
-    /// 降级阈值（错误率百分比）
+    /// degradation threshold (error rate percentage)
     pub degradation_threshold: f64,
-    /// 降级恢复阈值（错误率百分比）
+    /// recovery threshold (error rate percentage)
     pub recovery_threshold: f64,
     
-    /// 是否启用部分结果保存
+    /// whether to enable partial result saving
     pub enable_partial_save: bool,
-    /// 部分结果保存目录
+    /// partial result save directory
     pub partial_save_directory: PathBuf,
-    /// 部分结果保存间隔（操作数）
+    /// partial result save interval (operations count)
     pub partial_save_interval: usize,
     
-    /// 是否启用详细日志
+    /// whether to enable verbose logging
     pub verbose_logging: bool,
 }
 
@@ -67,8 +67,8 @@ impl Default for RecoveryConfig {
             max_retry_interval_ms: 10000,
             
             enable_graceful_degradation: true,
-            degradation_threshold: 10.0, // 10% 错误率触发降级
-            recovery_threshold: 2.0,     // 2% 错误率恢复正常
+            degradation_threshold: 10.0, // 10% error rate triggers degradation
+            recovery_threshold: 2.0,     // 2% error rate恢复正常
             
             enable_partial_save: true,
             partial_save_directory: PathBuf::from("./partial_exports"),
@@ -79,125 +79,125 @@ impl Default for RecoveryConfig {
     }
 }
 
-/// 恢复统计
+/// recovery stats
 #[derive(Debug, Clone, Default)]
 pub struct RecoveryStats {
-    /// 总错误数
+    /// total errors
     pub total_errors: usize,
-    /// 成功恢复数
+    /// successful recoveries
     pub successful_recoveries: usize,
-    /// 失败恢复数
+    /// failed recoveries
     pub failed_recoveries: usize,
-    /// 总重试次数
+    /// total retries
     pub total_retries: usize,
-    /// 降级次数
+    /// degradation count
     pub degradation_count: usize,
-    /// 部分保存次数
+    /// partial saves count
     pub partial_saves: usize,
-    /// 恢复时间统计（毫秒）
+    /// total recovery time (milliseconds)
     pub total_recovery_time_ms: u64,
 }
 
-/// 重试历史
+/// retry history
 #[derive(Debug, Clone)]
 pub struct RetryHistory {
-    /// 操作名称
+    /// operation name
     pub operation: String,
-    /// 重试次数
+    /// retry count
     pub attempt_count: usize,
-    /// 最后重试时间
+    /// last retry time
     pub last_attempt: Instant,
-    /// 下次重试间隔
+    /// next retry interval (milliseconds)
     pub next_interval_ms: u64,
-    /// 错误历史
+    /// error history
     pub error_history: Vec<String>,
 }
 
-/// 降级状态
+/// degradation state
 #[derive(Debug, Clone)]
 pub struct DegradationState {
-    /// 是否处于降级状态
+    /// whether in degradation state
     pub is_degraded: bool,
-    /// 降级开始时间
+    /// degradation start time
     pub degradation_start: Option<Instant>,
-    /// 当前错误率
+    /// current error rate
     pub current_error_rate: f64,
-    /// 降级级别
+    /// degradation level
     pub degradation_level: DegradationLevel,
-    /// 降级原因
+    /// degradation reason
     pub degradation_reason: Option<String>,
 }
 
-/// 降级级别
+/// degradation level
 #[derive(Debug, Clone, PartialEq)]
 pub enum DegradationLevel {
-    /// 正常运行
+    /// normal operation
     Normal,
-    /// 轻微降级（减少并行度）
+    /// light degradation (reduce parallelism)
     Light,
-    /// 中等降级（禁用复杂功能）
+    /// moderate degradation (disable complex features)
     Moderate,
-    /// 严重降级（仅基本功能）
+    /// severe degradation (only basic features)
     Severe,
-    /// 紧急模式（最小功能）
+    /// emergency mode (minimum features)
     Emergency,
 }
 
-/// 恢复策略
+/// recovery strategy
 #[derive(Debug, Clone)]
 pub enum RecoveryStrategy {
-    /// 自动重试
+    /// auto retry
     AutoRetry {
         max_attempts: usize,
         interval_ms: u64,
         backoff_factor: f64,
     },
-    /// 优雅降级
+    /// graceful degradation
     GracefulDegradation {
         target_level: DegradationLevel,
         reason: String,
     },
-    /// 部分结果保存
+    /// partial result saving
     PartialSave {
         save_path: PathBuf,
         progress_percentage: f64,
     },
-    /// 配置调整
+    /// config adjustment
     ConfigAdjustment {
         new_config: FastExportConfig,
         reason: String,
     },
-    /// 资源释放
+    /// resource release
     ResourceRelease {
         resource_type: ResourceType,
         amount: usize,
     },
-    /// 操作跳过
+    /// skip operation
     SkipOperation {
         operation: String,
         reason: String,
     },
 }
 
-/// 恢复结果
+/// recovery result
 #[derive(Debug, Clone)]
 pub struct RecoveryResult {
-    /// 恢复是否成功
+    /// whether recovery is successful
     pub success: bool,
-    /// 使用的恢复策略
+    /// recovery strategy
     pub strategy: RecoveryStrategy,
-    /// 恢复消息
+    /// recovery message
     pub message: String,
-    /// 恢复耗时
+    /// recovery time (milliseconds)
     pub recovery_time_ms: u64,
-    /// 部分结果路径（如果有）
+    /// partial result path (if any)
     pub partial_result_path: Option<PathBuf>,
-    /// 建议的后续操作
+    /// suggested actions
     pub suggested_actions: Vec<String>,
 }
 
 impl ErrorRecoveryManager {
-    /// 创建新的错误恢复管理器
+    /// create new error recovery manager
     pub fn new(config: RecoveryConfig) -> Self {
         // 确保部分保存目录存在
         if config.enable_partial_save {
@@ -220,7 +220,7 @@ impl ErrorRecoveryManager {
         }
     }
 
-    /// 处理导出错误并尝试恢复
+    /// handle export error and attempt recovery
     pub fn handle_export_error(
         &mut self,
         error: &ExportError,
@@ -231,16 +231,16 @@ impl ErrorRecoveryManager {
         self.stats.total_errors += 1;
 
         if self.config.verbose_logging {
-            println!("🔧 开始错误恢复: {} - {}", operation, error);
+            println!("🔧 Error recovery: {} - {}", operation, error);
         }
 
-        // 选择恢复策略
+        // select recovery strategy
         let strategy = self.select_recovery_strategy(error, operation, context)?;
 
-        // 执行恢复策略
+        // execute recovery strategy
         let result = self.execute_recovery_strategy(strategy, error, operation, context)?;
 
-        // 更新统计信息
+        // update statistics
         let recovery_time = recovery_start.elapsed().as_millis() as u64;
         self.stats.total_recovery_time_ms += recovery_time;
 
@@ -250,17 +250,17 @@ impl ErrorRecoveryManager {
             self.stats.failed_recoveries += 1;
         }
 
-        // 更新降级状态
+        // update degradation state
         self.update_degradation_state(error, &result);
 
         if self.config.verbose_logging {
-            println!("🔧 恢复完成: {} ({}ms)", result.message, recovery_time);
+            println!("🔧 Recovery completed: {} ({}ms)", result.message, recovery_time);
         }
 
         Ok(result)
     }
 
-    /// 选择恢复策略
+    /// select recovery strategy
     fn select_recovery_strategy(
         &self,
         error: &ExportError,
@@ -269,7 +269,7 @@ impl ErrorRecoveryManager {
     ) -> TrackingResult<RecoveryStrategy> {
         match error {
             ExportError::ParallelProcessingError { shard_index, .. } => {
-                // 并行处理错误：尝试重试或降级并行度
+                // parallel processing error: try retry or degrade parallelism
                 if self.should_retry(operation) {
                     Ok(RecoveryStrategy::AutoRetry {
                         max_attempts: self.config.max_retry_attempts,
@@ -279,24 +279,24 @@ impl ErrorRecoveryManager {
                 } else {
                     Ok(RecoveryStrategy::GracefulDegradation {
                         target_level: DegradationLevel::Light,
-                        reason: format!("分片 {shard_index} 处理失败，降低并行度"),
+                        reason: format!("shard {shard_index} processing failed, degrade parallelism"),
                     })
                 }
             }
 
             ExportError::ResourceLimitExceeded { resource_type, suggested_action, .. } => {
-                // 资源限制错误：释放资源或调整配置
+                // resource limit exceeded: release resources or adjust configuration
                 match resource_type {
                     ResourceType::Memory => {
                         Ok(RecoveryStrategy::ConfigAdjustment {
                             new_config: self.create_memory_optimized_config(context),
-                            reason: "内存不足，调整为内存优化配置".to_string(),
+                            reason: "memory limit exceeded, adjust to memory optimized configuration".to_string(),
                         })
                     }
                     ResourceType::CPU => {
                         Ok(RecoveryStrategy::GracefulDegradation {
                             target_level: DegradationLevel::Moderate,
-                            reason: "CPU 使用率过高，降低处理强度".to_string(),
+                            reason: "CPU usage exceeded, degrade processing intensity".to_string(),
                         })
                     }
                     _ => {
@@ -309,7 +309,7 @@ impl ErrorRecoveryManager {
             }
 
             ExportError::DataQualityError { affected_records, .. } => {
-                // 数据质量错误：保存部分结果
+                // data quality error: save partial results
                 if self.config.enable_partial_save && context.progress_percentage > 10.0 {
                     Ok(RecoveryStrategy::PartialSave {
                         save_path: self.generate_partial_save_path(operation),
@@ -318,31 +318,31 @@ impl ErrorRecoveryManager {
                 } else {
                     Ok(RecoveryStrategy::SkipOperation {
                         operation: operation.to_string(),
-                        reason: format!("数据质量问题影响 {affected_records} 条记录，跳过处理"),
+                        reason: format!("data quality issue affects {affected_records} records, skip processing"),
                     })
                 }
             }
 
             ExportError::PerformanceThresholdExceeded { stage, .. } => {
-                // 性能阈值错误：调整配置或降级
+                // performance threshold exceeded: adjust configuration or degrade
                 match stage {
                     ExportStage::ParallelProcessing => {
                         Ok(RecoveryStrategy::ConfigAdjustment {
                             new_config: self.create_performance_optimized_config(context),
-                            reason: "并行处理性能不佳，调整配置".to_string(),
+                            reason: "performance threshold exceeded, adjust configuration".to_string(),
                         })
                     }
                     _ => {
                         Ok(RecoveryStrategy::GracefulDegradation {
                             target_level: DegradationLevel::Light,
-                            reason: format!("阶段 {stage:?} 性能不佳，轻微降级"),
+                            reason: format!("performance threshold exceeded in stage {stage:?}, degrade processing"),
                         })
                     }
                 }
             }
 
             ExportError::ConcurrencyConflict { conflict_type, retry_count, .. } => {
-                // 并发冲突错误：重试或调整并发策略
+                // concurrency conflict: retry or adjust concurrency strategy
                 if *retry_count < self.config.max_retry_attempts {
                     let interval = match conflict_type {
                         ConflictType::LockContention => self.config.retry_interval_ms * 2,
@@ -358,21 +358,21 @@ impl ErrorRecoveryManager {
                 } else {
                     Ok(RecoveryStrategy::GracefulDegradation {
                         target_level: DegradationLevel::Moderate,
-                        reason: "并发冲突频繁，降低并发度".to_string(),
+                        reason: "concurrency conflict, degrade processing".to_string(),
                     })
                 }
             }
 
             ExportError::InsufficientResources { .. } => {
-                // 资源不足错误：紧急降级
+                // insufficient resources: emergency degradation
                 Ok(RecoveryStrategy::GracefulDegradation {
                     target_level: DegradationLevel::Emergency,
-                    reason: "系统资源严重不足，启用紧急模式".to_string(),
+                    reason: "system resources severely insufficient, enable emergency mode".to_string(),
                 })
             }
 
             ExportError::ExportInterrupted { progress_percentage, .. } => {
-                // 导出中断错误：保存部分结果
+                // export interrupted: save partial results
                 Ok(RecoveryStrategy::PartialSave {
                     save_path: self.generate_partial_save_path(operation),
                     progress_percentage: *progress_percentage,
@@ -380,24 +380,24 @@ impl ErrorRecoveryManager {
             }
 
             ExportError::DataCorruption { recovery_possible, .. } => {
-                // 数据损坏错误：根据是否可恢复决定策略
+                // data corruption: determine strategy based on whether recovery is possible
                 if *recovery_possible {
                     Ok(RecoveryStrategy::AutoRetry {
-                        max_attempts: 1, // 只重试一次
+                        max_attempts: 1, // only retry once
                         interval_ms: self.config.retry_interval_ms,
                         backoff_factor: 1.0,
                     })
                 } else {
                     Ok(RecoveryStrategy::SkipOperation {
                         operation: operation.to_string(),
-                        reason: "数据损坏且无法恢复，跳过操作".to_string(),
+                        reason: "data corruption and cannot be recovered, skip operation".to_string(),
                     })
                 }
             }
         }
     }
 
-    /// 执行恢复策略
+    /// execute recovery strategy
     fn execute_recovery_strategy(
         &mut self,
         strategy: RecoveryStrategy,
@@ -434,7 +434,7 @@ impl ErrorRecoveryManager {
         }
     }
 
-    /// 执行自动重试
+    /// execute auto retry
     fn execute_auto_retry(
         &mut self,
         operation: &str,
@@ -455,10 +455,10 @@ impl ErrorRecoveryManager {
             return Ok(RecoveryResult {
                 success: false,
                 strategy: RecoveryStrategy::AutoRetry { max_attempts, interval_ms, backoff_factor },
-                message: format!("重试次数已达上限 ({max_attempts})"),
+                message: format!("reached maximum retry limit ({max_attempts})"),
                 recovery_time_ms: 0,
                 partial_result_path: None,
-                suggested_actions: vec!["考虑手动干预或调整配置".to_string()],
+                suggested_actions: vec!["consider manual intervention or configuration adjustment".to_string()],
             });
         }
 
@@ -477,17 +477,17 @@ impl ErrorRecoveryManager {
         Ok(RecoveryResult {
             success: true,
             strategy: RecoveryStrategy::AutoRetry { max_attempts, interval_ms, backoff_factor },
-            message: format!("准备第 {} 次重试 (最多 {} 次)", history.attempt_count, max_attempts),
+            message: format!("prepare for retry {} (max {})", history.attempt_count, max_attempts),
             recovery_time_ms: history.next_interval_ms,
             partial_result_path: None,
             suggested_actions: vec![
-                "监控重试结果".to_string(),
-                "如果持续失败，考虑调整策略".to_string(),
+                "monitor retry results".to_string(),
+                "if keep failed, consider adjustment strategy".to_string(),
             ],
         })
     }
 
-    /// 执行优雅降级
+    /// execute graceful degradation
     fn execute_graceful_degradation(
         &mut self,
         target_level: DegradationLevel,
@@ -514,26 +514,26 @@ impl ErrorRecoveryManager {
             recovery_time_ms: 0,
             partial_result_path: None,
             suggested_actions: vec![
-                "监控系统状态".to_string(),
-                "在条件改善后考虑恢复正常模式".to_string(),
+                "monitor system status".to_string(),
+                "in conditions improve, consider normal mode".to_string(),
             ],
         })
     }
 
-    /// 执行部分保存
+    /// execute partial save
     fn execute_partial_save(
         &mut self,
         save_path: PathBuf,
         progress_percentage: f64,
         context: &ErrorContext,
     ) -> TrackingResult<RecoveryResult> {
-        // 创建部分保存目录
+        // create partial save directory
         if let Some(parent) = save_path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| TrackingError::IoError(format!("创建部分保存目录失败: {e}")))?;
+                .map_err(|e| TrackingError::IoError(format!("create partial save directory failed: {e}")))?;
         }
 
-        // 保存部分结果（这里是简化实现）
+        // save partial results (here is a simplified implementation)
         let partial_data = format!(
             "{{\"partial_export\":true,\"progress\":{progress_percentage},\"timestamp\":\"{}\",\"context\":\"{}\"}}",
             std::time::SystemTime::now()
@@ -544,24 +544,24 @@ impl ErrorRecoveryManager {
         );
 
         std::fs::write(&save_path, partial_data)
-            .map_err(|e| TrackingError::IoError(format!("保存部分结果失败: {e}")))?;
+            .map_err(|e| TrackingError::IoError(format!("save partial results failed: {e}")))?;
 
         self.stats.partial_saves += 1;
 
         Ok(RecoveryResult {
             success: true,
             strategy: RecoveryStrategy::PartialSave { save_path: save_path.clone(), progress_percentage },
-            message: format!("部分结果已保存 ({progress_percentage:.1}% 完成)"),
+            message: format!("partial results saved ({progress_percentage:.1}% completed)"),
             recovery_time_ms: 0,
             partial_result_path: Some(save_path),
             suggested_actions: vec![
-                "检查部分结果文件".to_string(),
-                "修复问题后可从此处继续".to_string(),
+                "check partial result file".to_string(),
+                "resume from here after fixing the issue".to_string(),
             ],
         })
     }
 
-    /// 执行配置调整
+    /// execute config adjustment
     fn execute_config_adjustment(
         &self,
         new_config: FastExportConfig,
@@ -570,29 +570,29 @@ impl ErrorRecoveryManager {
         Ok(RecoveryResult {
             success: true,
             strategy: RecoveryStrategy::ConfigAdjustment { new_config, reason: reason.clone() },
-            message: format!("配置已调整: {reason}"),
+            message: format!("config adjusted: {reason}"),
             recovery_time_ms: 0,
             partial_result_path: None,
             suggested_actions: vec![
-                "使用新配置重新尝试导出".to_string(),
-                "监控新配置的效果".to_string(),
+                "use new config to retry export".to_string(),
+                "monitor new config effects".to_string(),
             ],
         })
     }
 
-    /// 执行资源释放
+    /// execute resource release
     fn execute_resource_release(
         &self,
         resource_type: ResourceType,
         amount: usize,
     ) -> TrackingResult<RecoveryResult> {
-        // 这里是简化实现，实际应该调用系统 API 释放资源
+        // here is a simplified implementation, should call system API to release resources in actual use
         let message = match resource_type {
-            ResourceType::Memory => format!("尝试释放 {amount} 字节内存"),
-            ResourceType::CPU => format!("降低 CPU 使用率 {amount}%"),
-            ResourceType::Disk => format!("清理 {amount} 字节磁盘空间"),
-            ResourceType::FileHandles => format!("关闭 {amount} 个文件句柄"),
-            ResourceType::ThreadPool => format!("减少 {amount} 个线程"),
+            ResourceType::Memory => format!("try to release {amount} bytes of memory"),
+            ResourceType::CPU => format!("reduce CPU usage by {amount}%"),
+            ResourceType::Disk => format!("clean up {amount} bytes of disk space"),
+            ResourceType::FileHandles => format!("close {amount} file handles"),
+            ResourceType::ThreadPool => format!("reduce {amount} threads"),
         };
 
         Ok(RecoveryResult {
@@ -602,13 +602,13 @@ impl ErrorRecoveryManager {
             recovery_time_ms: 0,
             partial_result_path: None,
             suggested_actions: vec![
-                "监控资源使用情况".to_string(),
-                "重新尝试失败的操作".to_string(),
+                "monitor resource usage".to_string(),
+                "retry failed operation".to_string(),
             ],
         })
     }
 
-    /// 执行跳过操作
+    /// execute skip operation
     fn execute_skip_operation(
         &self,
         operation: String,
@@ -617,17 +617,17 @@ impl ErrorRecoveryManager {
         Ok(RecoveryResult {
             success: true,
             strategy: RecoveryStrategy::SkipOperation { operation: operation.clone(), reason: reason.clone() },
-            message: format!("跳过操作 '{operation}': {reason}"),
+            message: format!("skip operation '{operation}': {reason}"),
             recovery_time_ms: 0,
             partial_result_path: None,
             suggested_actions: vec![
-                "检查跳过操作的影响".to_string(),
-                "考虑手动处理跳过的部分".to_string(),
+                "check the impact of skipping the operation".to_string(),
+                "consider manually handling the skipped part".to_string(),
             ],
         })
     }
 
-    /// 检查是否应该重试
+    /// check if should retry
     fn should_retry(&self, operation: &str) -> bool {
         if !self.config.enable_auto_retry {
             return false;
@@ -640,9 +640,9 @@ impl ErrorRecoveryManager {
         }
     }
 
-    /// 更新降级状态
+    /// update degradation state
     fn update_degradation_state(&mut self, error: &ExportError, _result: &RecoveryResult) {
-        // 简化的错误率计算
+        // simplified error rate calculation
         let error_weight = match error {
             ExportError::ParallelProcessingError { .. } => 1.0,
             ExportError::ResourceLimitExceeded { .. } => 2.0,
@@ -654,20 +654,20 @@ impl ErrorRecoveryManager {
             ExportError::ExportInterrupted { .. } => 1.5,
         };
 
-        // 更新错误率（简化计算）
+        // update error rate (simplified calculation)
         self.degradation_state.current_error_rate = 
             (self.degradation_state.current_error_rate * 0.9) + (error_weight * 0.1);
 
-        // 检查是否需要降级或恢复
+        // check if should degrade or recover
         if !self.degradation_state.is_degraded && 
            self.degradation_state.current_error_rate > self.config.degradation_threshold {
-            // 触发降级
+            // trigger degradation
             self.degradation_state.is_degraded = true;
             self.degradation_state.degradation_start = Some(Instant::now());
             self.degradation_state.degradation_level = DegradationLevel::Light;
         } else if self.degradation_state.is_degraded && 
                   self.degradation_state.current_error_rate < self.config.recovery_threshold {
-            // 恢复正常
+            // trigger recovery
             self.degradation_state.is_degraded = false;
             self.degradation_state.degradation_start = None;
             self.degradation_state.degradation_level = DegradationLevel::Normal;
@@ -675,7 +675,7 @@ impl ErrorRecoveryManager {
         }
     }
 
-    /// 生成部分保存路径
+    /// generate partial save path
     fn generate_partial_save_path(&self, operation: &str) -> PathBuf {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -685,49 +685,49 @@ impl ErrorRecoveryManager {
         self.config.partial_save_directory.join(filename)
     }
 
-    /// 创建内存优化配置
+    /// create memory optimized config
     fn create_memory_optimized_config(&self, context: &ErrorContext) -> FastExportConfig {
         let mut config = context.current_config.clone();
         
-        // 减少并行度
+        // reduce parallelism
         config.shard_config.max_threads = Some(2);
         config.shard_config.shard_size = config.shard_config.shard_size / 2;
         
-        // 减少缓冲区大小
+        // reduce buffer size
         config.writer_config.buffer_size = config.writer_config.buffer_size / 2;
         
-        // 启用流式处理
+        // enable streaming
         config.enable_data_localization = false;
         
         config
     }
 
-    /// 创建性能优化配置
+    /// create performance optimized config
     fn create_performance_optimized_config(&self, context: &ErrorContext) -> FastExportConfig {
         let mut config = context.current_config.clone();
         
-        // 调整分片大小
-        config.shard_config.shard_size = 500; // 较小的分片
-        config.shard_config.parallel_threshold = 1000; // 较低的并行阈值
+        // adjust shard size
+        config.shard_config.shard_size = 500; // smaller shard size
+        config.shard_config.parallel_threshold = 1000; // lower parallel threshold
         
-        // 禁用详细日志
+        // disable verbose logging
         config.verbose_logging = false;
         config.enable_performance_monitoring = false;
         
         config
     }
 
-    /// 获取恢复统计
+    /// get recovery stats
     pub fn get_stats(&self) -> &RecoveryStats {
         &self.stats
     }
 
-    /// 获取降级状态
+    /// get degradation state
     pub fn get_degradation_state(&self) -> &DegradationState {
         &self.degradation_state
     }
 
-    /// 生成恢复报告
+    /// generate recovery report
     pub fn generate_recovery_report(&self) -> RecoveryReport {
         let success_rate = if self.stats.total_errors > 0 {
             (self.stats.successful_recoveries as f64 / self.stats.total_errors as f64) * 100.0
@@ -756,24 +756,22 @@ impl ErrorRecoveryManager {
     }
 }
 
-/// 错误上下文
+/// error context
 #[derive(Debug, Clone)]
 pub struct ErrorContext {
-    /// 操作 ID
-    pub operation_id: String,
-    /// 当前配置
+    /// current config
     pub current_config: FastExportConfig,
-    /// 进度百分比
+    /// progress percentage
     pub progress_percentage: f64,
-    /// 已处理的数据量
+    /// processed data size
     pub processed_data_size: usize,
-    /// 操作开始时间
+    /// operation start time
     pub operation_start_time: Instant,
-    /// 当前导出统计
+    /// current export stats
     pub current_stats: Option<CompleteExportStats>,
 }
 
-/// 恢复报告
+/// recovery report
 #[derive(Debug, Clone)]
 pub struct RecoveryReport {
     pub total_errors: usize,
@@ -789,23 +787,23 @@ pub struct RecoveryReport {
 }
 
 impl RecoveryReport {
-    /// 打印详细的恢复报告
+    /// print detailed recovery report
     pub fn print_detailed_report(&self) {
-        println!("\n🔧 错误恢复报告");
+        println!("\n🔧 recovery report");
         println!("================");
         
-        println!("📊 总体统计:");
-        println!("   总错误数: {}", self.total_errors);
-        println!("   成功恢复: {} ({:.1}%)", self.successful_recoveries, self.success_rate);
-        println!("   失败恢复: {}", self.failed_recoveries);
-        println!("   总重试次数: {}", self.total_retries);
-        println!("   降级次数: {}", self.degradation_count);
-        println!("   部分保存: {}", self.partial_saves);
-        println!("   平均恢复时间: {:.2}ms", self.avg_recovery_time_ms);
+        println!("📊 total statistics:");
+        println!("   total errors: {}", self.total_errors);
+        println!("   successful recoveries: {} ({:.1}%)", self.successful_recoveries, self.success_rate);
+        println!("   failed recoveries: {}", self.failed_recoveries);
+        println!("   total retries: {}", self.total_retries);
+        println!("   degradation count: {}", self.degradation_count);
+        println!("   partial saves: {}", self.partial_saves);
+        println!("   average recovery time: {:.2}ms", self.avg_recovery_time_ms);
         
-        println!("\n🎚️ 当前状态:");
-        println!("   降级级别: {:?}", self.current_degradation_level);
-        println!("   是否降级: {}", if self.is_currently_degraded { "是" } else { "否" });
+        println!("\n🎚️ current state:");
+        println!("   degradation level: {:?}", self.current_degradation_level);
+        println!("   is degraded: {}", if self.is_currently_degraded { "yes" } else { "no" });
     }
 }
 
@@ -885,7 +883,7 @@ mod tests {
         assert!(recovery_result.success);
         assert_eq!(recovery_result.partial_result_path, Some(save_path.clone()));
         
-        // 清理测试文件
+        // clean up test file
         let _ = std::fs::remove_file(save_path);
     }
 
@@ -893,7 +891,7 @@ mod tests {
     fn test_recovery_report() {
         let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
-        // 模拟一些错误和恢复
+        // simulate some errors and recoveries
         manager.stats.total_errors = 10;
         manager.stats.successful_recoveries = 8;
         manager.stats.failed_recoveries = 2;
@@ -913,10 +911,10 @@ mod tests {
     fn test_retry_logic() {
         let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
-        // 第一次重试应该成功
+        // first retry should succeed
         assert!(manager.should_retry("test_operation"));
         
-        // 模拟多次重试
+        // simulate multiple retries
         for i in 0..3 {
             let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
             assert!(result.is_ok());
@@ -924,7 +922,7 @@ mod tests {
             assert!(recovery_result.success);
         }
         
-        // 超过最大重试次数后应该失败
+        // should fail after max retries
         let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
         assert!(result.is_ok());
         let recovery_result = result.unwrap();
