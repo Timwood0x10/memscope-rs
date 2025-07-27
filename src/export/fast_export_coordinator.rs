@@ -223,7 +223,6 @@ impl FastExportCoordinator {
 
         // Create error context
         let mut error_context = ErrorContext {
-            operation_id: operation_id.clone(),
             current_config: self.config.clone(),
             progress_percentage: 0.0,
             processed_data_size: 0,

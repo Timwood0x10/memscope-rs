@@ -6,7 +6,7 @@
 
 use crate::core::tracker::get_global_tracker;
 use crate::core::types::{TrackingResult, AllocationInfo};
-use crate::export::fast_export_coordinator::{FastExportCoordinator, FastExportConfig, CompleteExportStats};
+use crate::export::fast_export_coordinator::{FastExportCoordinator, FastExportConfig};
 use crate::export::optimized_json_export::OptimizedExportOptions;
 use std::collections::HashMap;
 use std::fs;
@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 
 /// Benchmark configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkConfig {
     /// Number of test runs
     pub test_runs: usize,
@@ -64,7 +64,6 @@ pub struct BenchmarkResult {
     /// 错误信息（如果有）
     pub error_message: Option<String>,
 }/// 基准测试比
-较结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkComparison {
     /// 传统导出结果
@@ -163,8 +162,7 @@ impl PerformanceBenchmark {
         self.results_history.push(comparison.clone());
 
         Ok(comparison)
-    }    /// 准备
-测试数据
+    }    /// 准备测试数据
     fn prepare_test_data(&self) -> TrackingResult<()> {
         println!("🔧 准备测试数据...");
         
@@ -294,3 +292,381 @@ impl PerformanceBenchmark {
 
         Ok(result)
     }
+
+    /// 运行单次快速导出测试
+    fn run_single_fast_test(&self, run_number: usize) -> TrackingResult<BenchmarkResult> {
+        let start_time = Instant::now();
+        let output_path = self.config.output_dir.join(format!("fast_export_run_{}.json", run_number));
+
+        // 获取当前内存跟踪器状态
+        let tracker = get_global_tracker();
+        let initial_stats = tracker.get_stats()?;
+
+        // 使用快速导出配置
+        let fast_config = FastExportConfig::default();
+
+        // 创建快速导出协调器
+        let mut coordinator = FastExportCoordinator::new(fast_config);
+
+        // 执行快速导出
+        let export_result = coordinator.export_fast(&output_path);
+        let export_time = start_time.elapsed();
+
+        // 获取最终统计
+        let final_stats = tracker.get_stats()?;
+
+        // 检查文件大小
+        let output_file_size = if output_path.exists() {
+            fs::metadata(&output_path)?.len() as usize
+        } else {
+            0
+        };
+
+        // 计算性能指标
+        let allocations_processed = final_stats.total_allocations;
+        let throughput = if export_time.as_secs_f64() > 0.0 {
+            allocations_processed as f64 / export_time.as_secs_f64()
+        } else {
+            0.0
+        };
+
+        let write_speed_mbps = if export_time.as_secs_f64() > 0.0 && output_file_size > 0 {
+            (output_file_size as f64 / 1024.0 / 1024.0) / export_time.as_secs_f64()
+        } else {
+            0.0
+        };
+
+        let result = BenchmarkResult {
+            test_name: format!("Fast Export Run {}", run_number),
+            export_time_ms: export_time.as_millis() as u64,
+            peak_memory_bytes: final_stats.peak_memory,
+            output_file_size,
+            allocations_processed,
+            throughput_allocations_per_sec: throughput,
+            write_speed_mbps,
+            success: export_result.is_ok(),
+            error_message: export_result.err().map(|e| e.to_string()),
+        };
+
+        if self.config.verbose {
+            println!("    ⚡ 时间: {}ms, 📊 分配: {}, 📁 大小: {:.2}MB", 
+                    result.export_time_ms, 
+                    result.allocations_processed,
+                    result.output_file_size as f64 / 1024.0 / 1024.0);
+        }
+
+        Ok(result)
+    }
+
+    /// 计算性能提升统计
+    fn calculate_performance_improvement(
+        &self,
+        traditional_results: &[BenchmarkResult],
+        fast_results: &[BenchmarkResult],
+    ) -> PerformanceImprovement {
+        // 计算平均值
+        let avg_traditional_time = traditional_results.iter()
+            .map(|r| r.export_time_ms as f64)
+            .sum::<f64>() / traditional_results.len() as f64;
+
+        let avg_fast_time = fast_results.iter()
+            .map(|r| r.export_time_ms as f64)
+            .sum::<f64>() / fast_results.len() as f64;
+
+        let avg_traditional_memory = traditional_results.iter()
+            .map(|r| r.peak_memory_bytes as f64)
+            .sum::<f64>() / traditional_results.len() as f64;
+
+        let avg_fast_memory = fast_results.iter()
+            .map(|r| r.peak_memory_bytes as f64)
+            .sum::<f64>() / fast_results.len() as f64;
+
+        let avg_traditional_throughput = traditional_results.iter()
+            .map(|r| r.throughput_allocations_per_sec)
+            .sum::<f64>() / traditional_results.len() as f64;
+
+        let avg_fast_throughput = fast_results.iter()
+            .map(|r| r.throughput_allocations_per_sec)
+            .sum::<f64>() / fast_results.len() as f64;
+
+        let avg_traditional_write_speed = traditional_results.iter()
+            .map(|r| r.write_speed_mbps)
+            .sum::<f64>() / traditional_results.len() as f64;
+
+        let avg_fast_write_speed = fast_results.iter()
+            .map(|r| r.write_speed_mbps)
+            .sum::<f64>() / fast_results.len() as f64;
+
+        // 计算改善百分比
+        let avg_time_improvement_percent = if avg_traditional_time > 0.0 {
+            ((avg_traditional_time - avg_fast_time) / avg_traditional_time) * 100.0
+        } else {
+            0.0
+        };
+
+        let avg_memory_improvement_percent = if avg_traditional_memory > 0.0 {
+            ((avg_traditional_memory - avg_fast_memory) / avg_traditional_memory) * 100.0
+        } else {
+            0.0
+        };
+
+        let avg_throughput_improvement_percent = if avg_traditional_throughput > 0.0 {
+            ((avg_fast_throughput - avg_traditional_throughput) / avg_traditional_throughput) * 100.0
+        } else {
+            0.0
+        };
+
+        let avg_write_speed_improvement_percent = if avg_traditional_write_speed > 0.0 {
+            ((avg_fast_write_speed - avg_traditional_write_speed) / avg_traditional_write_speed) * 100.0
+        } else {
+            0.0
+        };
+
+        // 计算最佳和最差改善
+        let traditional_times: Vec<f64> = traditional_results.iter().map(|r| r.export_time_ms as f64).collect();
+        let fast_times: Vec<f64> = fast_results.iter().map(|r| r.export_time_ms as f64).collect();
+
+        let best_traditional_time = traditional_times.iter().cloned().fold(f64::INFINITY, f64::min);
+        let best_fast_time = fast_times.iter().cloned().fold(f64::INFINITY, f64::min);
+        let worst_traditional_time = traditional_times.iter().cloned().fold(0.0, f64::max);
+        let worst_fast_time = fast_times.iter().cloned().fold(0.0, f64::max);
+
+        let best_time_improvement_percent = if best_traditional_time > 0.0 {
+            ((best_traditional_time - best_fast_time) / best_traditional_time) * 100.0
+        } else {
+            0.0
+        };
+
+        let worst_time_improvement_percent = if worst_traditional_time > 0.0 {
+            ((worst_traditional_time - worst_fast_time) / worst_traditional_time) * 100.0
+        } else {
+            0.0
+        };
+
+        // 计算一致性评分（基于标准差）
+        let traditional_std = self.calculate_std_dev(&traditional_times);
+        let fast_std = self.calculate_std_dev(&fast_times);
+        let consistency_score = if traditional_std > 0.0 {
+            ((traditional_std - fast_std) / traditional_std * 100.0).max(0.0).min(100.0)
+        } else {
+            100.0
+        };
+
+        PerformanceImprovement {
+            avg_time_improvement_percent,
+            avg_memory_improvement_percent,
+            avg_throughput_improvement_percent,
+            avg_write_speed_improvement_percent,
+            best_time_improvement_percent,
+            worst_time_improvement_percent,
+            consistency_score,
+        }
+    }
+
+    /// 计算标准差
+    fn calculate_std_dev(&self, values: &[f64]) -> f64 {
+        if values.is_empty() {
+            return 0.0;
+        }
+
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        let variance = values.iter()
+            .map(|x| (x - mean).powi(2))
+            .sum::<f64>() / values.len() as f64;
+        variance.sqrt()
+    }
+
+    /// 保存基准测试结果
+    fn save_benchmark_results(&self, comparison: &BenchmarkComparison) -> TrackingResult<()> {
+        let results_file = self.config.output_dir.join("benchmark_results.json");
+        let json_data = serde_json::to_string_pretty(comparison)
+            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+        
+        fs::write(&results_file, json_data)
+            .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+
+        if self.config.verbose {
+            println!("💾 基准测试结果已保存到: {}", results_file.display());
+        }
+
+        Ok(())
+    }
+
+    /// 生成详细报告
+    fn generate_detailed_report(&self, comparison: &BenchmarkComparison) -> TrackingResult<()> {
+        let report_file = self.config.output_dir.join("performance_report.md");
+        let mut report = String::new();
+
+        // 报告标题
+        report.push_str("# 大型项目导出优化 - 性能基准测试报告\n\n");
+        report.push_str(&format!("**测试时间**: {}\n\n", comparison.timestamp));
+        report.push_str(&format!("**测试配置**:\n"));
+        report.push_str(&format!("- 运行次数: {}\n", comparison.config.test_runs));
+        report.push_str(&format!("- 验证一致性: {}\n", comparison.config.verify_consistency));
+        report.push_str("\n");
+
+        // 性能提升摘要
+        let perf = &comparison.performance_improvement;
+        report.push_str("## 📊 性能提升摘要\n\n");
+        report.push_str(&format!("| 指标 | 改善幅度 |\n"));
+        report.push_str(&format!("|------|----------|\n"));
+        report.push_str(&format!("| 平均导出时间 | **{:.1}%** |\n", perf.avg_time_improvement_percent));
+        report.push_str(&format!("| 平均内存使用 | **{:.1}%** |\n", perf.avg_memory_improvement_percent));
+        report.push_str(&format!("| 平均吞吐量 | **+{:.1}%** |\n", perf.avg_throughput_improvement_percent));
+        report.push_str(&format!("| 平均写入速度 | **+{:.1}%** |\n", perf.avg_write_speed_improvement_percent));
+        report.push_str(&format!("| 最佳时间改善 | **{:.1}%** |\n", perf.best_time_improvement_percent));
+        report.push_str(&format!("| 最差时间改善 | **{:.1}%** |\n", perf.worst_time_improvement_percent));
+        report.push_str(&format!("| 一致性评分 | **{:.1}/100** |\n", perf.consistency_score));
+        report.push_str("\n");
+
+        // 详细结果对比
+        report.push_str("## 📈 详细结果对比\n\n");
+        report.push_str("### 传统导出系统\n\n");
+        report.push_str("| 运行 | 时间(ms) | 内存(MB) | 文件大小(MB) | 吞吐量(alloc/s) | 写入速度(MB/s) |\n");
+        report.push_str("|------|----------|----------|--------------|-----------------|----------------|\n");
+        
+        for (i, result) in comparison.traditional_results.iter().enumerate() {
+            report.push_str(&format!(
+                "| {} | {} | {:.2} | {:.2} | {:.0} | {:.2} |\n",
+                i + 1,
+                result.export_time_ms,
+                result.peak_memory_bytes as f64 / 1024.0 / 1024.0,
+                result.output_file_size as f64 / 1024.0 / 1024.0,
+                result.throughput_allocations_per_sec,
+                result.write_speed_mbps
+            ));
+        }
+
+        report.push_str("\n### 快速导出系统\n\n");
+        report.push_str("| 运行 | 时间(ms) | 内存(MB) | 文件大小(MB) | 吞吐量(alloc/s) | 写入速度(MB/s) |\n");
+        report.push_str("|------|----------|----------|--------------|-----------------|----------------|\n");
+        
+        for (i, result) in comparison.fast_results.iter().enumerate() {
+            report.push_str(&format!(
+                "| {} | {} | {:.2} | {:.2} | {:.0} | {:.2} |\n",
+                i + 1,
+                result.export_time_ms,
+                result.peak_memory_bytes as f64 / 1024.0 / 1024.0,
+                result.output_file_size as f64 / 1024.0 / 1024.0,
+                result.throughput_allocations_per_sec,
+                result.write_speed_mbps
+            ));
+        }
+
+        // 结论和建议
+        report.push_str("\n## 🎯 结论和建议\n\n");
+        
+        if perf.avg_time_improvement_percent > 50.0 {
+            report.push_str("✅ **优秀**: 快速导出系统实现了显著的性能提升，超过了50%的时间改善目标。\n\n");
+        } else if perf.avg_time_improvement_percent > 30.0 {
+            report.push_str("✅ **良好**: 快速导出系统实现了良好的性能提升，达到了30%以上的时间改善。\n\n");
+        } else {
+            report.push_str("⚠️ **需要改进**: 快速导出系统的性能提升低于预期，建议进一步优化。\n\n");
+        }
+
+        if perf.consistency_score > 80.0 {
+            report.push_str("✅ **一致性优秀**: 快速导出系统表现稳定，结果一致性高。\n\n");
+        } else if perf.consistency_score > 60.0 {
+            report.push_str("✅ **一致性良好**: 快速导出系统表现较为稳定。\n\n");
+        } else {
+            report.push_str("⚠️ **一致性需要改进**: 快速导出系统结果波动较大，建议优化稳定性。\n\n");
+        }
+
+        // 保存报告
+        fs::write(&report_file, report)
+            .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+
+        if self.config.verbose {
+            println!("📄 详细报告已生成: {}", report_file.display());
+        }
+
+        Ok(())
+    }
+
+    /// 验证输出一致性
+    fn verify_output_consistency(&self, traditional_path: &Path, fast_path: &Path) -> TrackingResult<bool> {
+        if !self.config.verify_consistency {
+            return Ok(true);
+        }
+
+        // 读取两个文件
+        let traditional_content = fs::read_to_string(traditional_path)
+            .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+        let fast_content = fs::read_to_string(fast_path)
+            .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+
+        // 解析 JSON 并比较结构
+        let traditional_json: serde_json::Value = serde_json::from_str(&traditional_content)
+            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+        let fast_json: serde_json::Value = serde_json::from_str(&fast_content)
+            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+
+        // 比较关键字段
+        let consistent = self.compare_json_structure(&traditional_json, &fast_json);
+
+        if self.config.verbose {
+            if consistent {
+                println!("✅ 输出一致性验证通过");
+            } else {
+                println!("❌ 输出一致性验证失败");
+            }
+        }
+
+        Ok(consistent)
+    }
+
+    /// 比较 JSON 结构
+    fn compare_json_structure(&self, traditional: &serde_json::Value, fast: &serde_json::Value) -> bool {
+        // 简化的结构比较 - 检查关键字段是否存在
+        match (traditional, fast) {
+            (serde_json::Value::Object(t_obj), serde_json::Value::Object(f_obj)) => {
+                // 检查关键字段
+                let key_fields = ["allocations", "stats", "metadata"];
+                for field in &key_fields {
+                    if t_obj.contains_key(*field) != f_obj.contains_key(*field) {
+                        return false;
+                    }
+                }
+                
+                // 如果都有 allocations 字段，检查数量
+                if let (Some(t_allocs), Some(f_allocs)) = (t_obj.get("allocations"), f_obj.get("allocations")) {
+                    if let (serde_json::Value::Array(t_arr), serde_json::Value::Array(f_arr)) = (t_allocs, f_allocs) {
+                        if t_arr.len() != f_arr.len() {
+                            return false;
+                        }
+                    }
+                }
+                
+                true
+            }
+            _ => traditional == fast,
+        }
+    }
+
+    /// 运行单个基准测试并返回结果
+    pub fn run_single_benchmark(&mut self, test_name: &str) -> TrackingResult<BenchmarkComparison> {
+        println!("🎯 运行单个基准测试: {}", test_name);
+        
+        // 准备测试数据
+        self.prepare_test_data()?;
+        
+        // 运行单次测试
+        let traditional_result = self.run_single_traditional_test(1)?;
+        let fast_result = self.run_single_fast_test(1)?;
+        
+        let performance_improvement = self.calculate_performance_improvement(
+            &[traditional_result.clone()], 
+            &[fast_result.clone()]
+        );
+        
+        let comparison = BenchmarkComparison {
+            traditional_results: vec![traditional_result],
+            fast_results: vec![fast_result],
+            performance_improvement,
+            config: self.config.clone(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+        
+        Ok(comparison)
+    }
+}

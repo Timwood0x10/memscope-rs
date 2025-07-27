@@ -851,6 +851,12 @@ impl MemoryTracker {
                     println!("   性能提升: {:.2}x", stats.performance_improvement_factor);
                     println!("   输出文件: {}", output_path.display());
                     
+                    // 快速导出模式下直接返回，不生成其他文件
+                    if options.enable_fast_export_mode {
+                        println!("⚡ 快速导出模式：跳过其他分析文件生成");
+                        return Ok(());
+                    }
+                    
                     // 如果需要其他文件类型，继续使用传统方法生成
                     if options.optimization_level == OptimizationLevel::High || 
                        options.optimization_level == OptimizationLevel::Maximum {

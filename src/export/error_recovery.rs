@@ -535,12 +535,11 @@ impl ErrorRecoveryManager {
 
         // save partial results (here is a simplified implementation)
         let partial_data = format!(
-            "{{\"partial_export\":true,\"progress\":{progress_percentage},\"timestamp\":\"{}\",\"context\":\"{}\"}}",
+            "{{\"partial_export\":true,\"progress\":{progress_percentage},\"timestamp\":\"{}\",\"context\":\"unknown\"}}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs(),
-            context.operation_id
+                .as_secs()
         );
 
         std::fs::write(&save_path, partial_data)

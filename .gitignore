@@ -30,6 +30,15 @@ Thumbs.db
 *.svg
 
 
+MemoryAnalysis/
+
+test_data/
+
+core_performance_results/
+performance_only_results/
+
+*.sh
+
 *.txt
 
 # But keep these specific SVG files
