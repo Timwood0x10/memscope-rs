@@ -1,9 +1,9 @@
 //! 性能基准测试主程序
-//! 
+//!
 //! 这个程序运行 complex_lifecycle_showcase.rs 的性能基准测试，
 //! 对比传统导出系统和快速导出系统的性能。
 
-use memscope_rs::export::performance_benchmark::{PerformanceBenchmark, BenchmarkConfig};
+use memscope_rs::export::performance_benchmark::{BenchmarkConfig, PerformanceBenchmark};
 use std::path::PathBuf;
 use std::process;
 
@@ -36,14 +36,29 @@ fn main() {
             println!();
             println!("🎉 基准测试完成！");
             println!("==================");
-            
+
             let perf = &comparison.performance_improvement;
             println!("📊 性能提升摘要:");
-            println!("  • 平均导出时间改善: {:.1}%", perf.avg_time_improvement_percent);
-            println!("  • 平均内存使用改善: {:.1}%", perf.avg_memory_improvement_percent);
-            println!("  • 平均吞吐量提升: +{:.1}%", perf.avg_throughput_improvement_percent);
-            println!("  • 平均写入速度提升: +{:.1}%", perf.avg_write_speed_improvement_percent);
-            println!("  • 最佳时间改善: {:.1}%", perf.best_time_improvement_percent);
+            println!(
+                "  • 平均导出时间改善: {:.1}%",
+                perf.avg_time_improvement_percent
+            );
+            println!(
+                "  • 平均内存使用改善: {:.1}%",
+                perf.avg_memory_improvement_percent
+            );
+            println!(
+                "  • 平均吞吐量提升: +{:.1}%",
+                perf.avg_throughput_improvement_percent
+            );
+            println!(
+                "  • 平均写入速度提升: +{:.1}%",
+                perf.avg_write_speed_improvement_percent
+            );
+            println!(
+                "  • 最佳时间改善: {:.1}%",
+                perf.best_time_improvement_percent
+            );
             println!("  • 一致性评分: {:.1}/100", perf.consistency_score);
             println!();
 

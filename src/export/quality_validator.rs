@@ -1,7 +1,8 @@
-//! 导出数据质量验证器
+//! Export data quality validator
 //!
-//! 这个模块提供了全面的数据质量验证功能，确保导出的数据完整性、
-//! 一致性和正确性，并在发现问题时提供详细的诊断信息。
+//! This module provides comprehensive data quality validation functionality to ensure
+//! data integrity, consistency and correctness of exported data, with detailed
+//! diagnostic information when issues are found.
 
 use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::export::data_localizer::LocalizedExportData;
@@ -11,168 +12,580 @@ use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::Instant;
+use std::future::Future;
+use std::pin::Pin;
+use std::path::Path;
+use tokio::fs;
+use tokio::io::AsyncReadExt;
 
-/// 数据质量验证器
+/// Validation timing configuration
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ValidationTiming {
+    /// Validate during export (blocks I/O)
+    Inline,
+    /// Validate after export (async)
+    Deferred,
+    /// No validation
+    Disabled,
+}
+
+impl Default for ValidationTiming {
+    fn default() -> Self {
+        ValidationTiming::Deferred
+    }
+}
+
+/// Export mode enumeration
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ExportMode {
+    /// Fast mode: prioritize speed over comprehensive validation
+    Fast,
+    /// Slow mode: perform thorough validation during export
+    Slow,
+    /// Auto mode: automatically choose based on data size
+    Auto,
+}
+
+impl Default for ExportMode {
+    fn default() -> Self {
+        ExportMode::Fast
+    }
+}
+
+/// Export configuration that combines mode and validation settings
+#[derive(Debug, Clone)]
+pub struct ExportConfig {
+    /// Export mode
+    pub mode: ExportMode,
+    /// Validation timing
+    pub validation_timing: ValidationTiming,
+    /// Validation configuration
+    pub validation_config: ValidationConfig,
+}
+
+impl ExportConfig {
+    /// Create new export configuration
+    pub fn new(mode: ExportMode, validation_timing: ValidationTiming) -> Self {
+        let validation_config = match mode {
+            ExportMode::Fast => ValidationConfig::for_fast_mode(),
+            ExportMode::Slow => ValidationConfig::for_slow_mode(),
+            ExportMode::Auto => ValidationConfig::default(),
+        };
+
+        Self {
+            mode,
+            validation_timing,
+            validation_config,
+        }
+    }
+
+    /// Create configuration for fast mode
+    pub fn fast() -> Self {
+        Self::new(ExportMode::Fast, ValidationTiming::Deferred)
+    }
+
+    /// Create configuration for slow mode
+    pub fn slow() -> Self {
+        Self::new(ExportMode::Slow, ValidationTiming::Inline)
+    }
+
+    /// Create configuration with auto mode
+    pub fn auto() -> Self {
+        Self::new(ExportMode::Auto, ValidationTiming::Deferred)
+    }
+
+    /// Validate configuration for conflicts and apply safe defaults
+    pub fn validate_and_fix(&mut self) -> Vec<String> {
+        let mut warnings = Vec::new();
+
+        // Check for conflicts between mode and validation timing
+        match (&self.mode, &self.validation_timing) {
+            (ExportMode::Fast, ValidationTiming::Inline) => {
+                warnings.push("Fast mode with inline validation conflicts with performance goals. Switching to deferred validation.".to_string());
+                self.validation_timing = ValidationTiming::Deferred;
+            }
+            (ExportMode::Slow, ValidationTiming::Disabled) => {
+                warnings.push("Slow mode with disabled validation conflicts with thoroughness goals. Enabling deferred validation.".to_string());
+                self.validation_timing = ValidationTiming::Deferred;
+            }
+            _ => {}
+        }
+
+        // Adjust validation config based on mode if needed
+        match self.mode {
+            ExportMode::Fast => {
+                if self.validation_config.enable_json_validation {
+                    warnings.push("Fast mode should not enable JSON validation for optimal performance. Disabling JSON validation.".to_string());
+                    self.validation_config.enable_json_validation = false;
+                }
+                if self.validation_config.enable_encoding_validation {
+                    warnings.push("Fast mode should not enable encoding validation for optimal performance. Disabling encoding validation.".to_string());
+                    self.validation_config.enable_encoding_validation = false;
+                }
+            }
+            ExportMode::Slow => {
+                if !self.validation_config.enable_json_validation {
+                    warnings.push("Slow mode should enable comprehensive validation. Enabling JSON validation.".to_string());
+                    self.validation_config.enable_json_validation = true;
+                }
+                if !self.validation_config.enable_encoding_validation {
+                    warnings.push("Slow mode should enable comprehensive validation. Enabling encoding validation.".to_string());
+                    self.validation_config.enable_encoding_validation = true;
+                }
+            }
+            ExportMode::Auto => {
+                // Auto mode uses balanced defaults, no conflicts to resolve
+            }
+        }
+
+        warnings
+    }
+}
+
+impl Default for ExportConfig {
+    fn default() -> Self {
+        Self::fast()
+    }
+}
+
+/// Export mode manager for automatic mode selection and configuration management
+#[derive(Debug, Clone)]
+pub struct ExportModeManager {
+    /// Default export mode
+    default_mode: ExportMode,
+    /// Data size threshold for auto mode selection (bytes)
+    auto_threshold: usize,
+    /// Performance threshold for switching to fast mode (milliseconds)
+    performance_threshold_ms: u64,
+}
+
+impl ExportModeManager {
+    /// Create new export mode manager
+    pub fn new() -> Self {
+        Self {
+            default_mode: ExportMode::Fast,
+            auto_threshold: 10 * 1024 * 1024, // 10MB threshold
+            performance_threshold_ms: 5000, // 5 seconds
+        }
+    }
+
+    /// Create export mode manager with custom settings
+    pub fn with_settings(
+        default_mode: ExportMode,
+        auto_threshold: usize,
+        performance_threshold_ms: u64,
+    ) -> Self {
+        Self {
+            default_mode,
+            auto_threshold,
+            performance_threshold_ms,
+        }
+    }
+
+    /// Determine optimal export mode based on data size
+    pub fn determine_optimal_mode(&self, data_size: usize) -> ExportMode {
+        match self.default_mode {
+            ExportMode::Auto => {
+                if data_size > self.auto_threshold {
+                    // For large datasets, prioritize speed
+                    ExportMode::Fast
+                } else {
+                    // For smaller datasets, we can afford thorough validation
+                    ExportMode::Slow
+                }
+            }
+            mode => mode, // Use explicitly set mode
+        }
+    }
+
+    /// Create export configuration for the given mode
+    pub fn create_config_for_mode(&self, mode: ExportMode) -> ExportConfig {
+        match mode {
+            ExportMode::Fast => ExportConfig::fast(),
+            ExportMode::Slow => ExportConfig::slow(),
+            ExportMode::Auto => {
+                // Auto mode uses balanced settings
+                ExportConfig::auto()
+            }
+        }
+    }
+
+    /// Create export configuration with automatic mode selection
+    pub fn create_auto_config(&self, data_size: usize) -> ExportConfig {
+        let optimal_mode = self.determine_optimal_mode(data_size);
+        self.create_config_for_mode(optimal_mode)
+    }
+
+    /// Validate and optimize configuration based on system constraints
+    pub fn optimize_config(&self, mut config: ExportConfig, data_size: usize) -> (ExportConfig, Vec<String>) {
+        let mut warnings = config.validate_and_fix();
+
+        // Additional optimizations based on data size
+        if data_size > self.auto_threshold && config.mode != ExportMode::Fast {
+            warnings.push(format!(
+                "Large dataset ({:.2} MB) detected. Consider using Fast mode for better performance.",
+                data_size as f64 / 1024.0 / 1024.0
+            ));
+        }
+
+        // Memory-based optimizations
+        if data_size > 100 * 1024 * 1024 { // 100MB
+            if config.validation_config.enable_json_validation {
+                warnings.push("Large dataset detected. Disabling JSON validation to prevent memory issues.".to_string());
+                config.validation_config.enable_json_validation = false;
+            }
+            if config.validation_config.enable_encoding_validation {
+                warnings.push("Large dataset detected. Disabling encoding validation to prevent memory issues.".to_string());
+                config.validation_config.enable_encoding_validation = false;
+            }
+        }
+
+        (config, warnings)
+    }
+
+    /// Get current settings
+    pub fn get_settings(&self) -> (ExportMode, usize, u64) {
+        (self.default_mode.clone(), self.auto_threshold, self.performance_threshold_ms)
+    }
+}
+
+impl Default for ExportModeManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Data quality validator
 #[derive(Debug)]
 pub struct QualityValidator {
-    /// 验证配置
+    /// Validation configuration
     config: ValidationConfig,
-    /// 验证统计
+    /// Validation statistics
     stats: ValidationStats,
 }
 
-/// 验证配置
+/// Async validator for deferred validation operations
+#[derive(Debug)]
+pub struct AsyncValidator {
+    /// Validation configuration
+    config: ValidationConfig,
+    /// Validation statistics
+    stats: ValidationStats,
+}
+
+/// Deferred validation wrapper that manages validation futures
+pub struct DeferredValidation {
+    /// The validation future
+    future: Pin<Box<dyn Future<Output = TrackingResult<ValidationResult>> + Send>>,
+    /// File path being validated
+    file_path: String,
+    /// Expected allocation count
+    expected_count: usize,
+}
+
+/// Validation configuration
 #[derive(Debug, Clone)]
 pub struct ValidationConfig {
-    /// 是否启用 JSON 结构验证
+    /// Whether to enable JSON structure validation
     pub enable_json_validation: bool,
-    /// 是否启用数据完整性验证
+    /// Whether to enable data integrity validation
     pub enable_integrity_validation: bool,
-    /// 是否启用分配计数验证
+    /// Whether to enable allocation count validation
     pub enable_count_validation: bool,
-    /// 是否启用文件大小验证
+    /// Whether to enable file size validation
     pub enable_size_validation: bool,
-    /// 是否启用编码验证
+    /// Whether to enable encoding validation
     pub enable_encoding_validation: bool,
-    /// 最大允许的数据丢失率（百分比）
+    /// Maximum allowed data loss rate (percentage)
     pub max_data_loss_rate: f64,
-    /// 最小预期文件大小（字节）
+    /// Minimum expected file size (bytes)
     pub min_expected_file_size: usize,
-    /// 最大预期文件大小（字节）
+    /// Maximum expected file size (bytes)
     pub max_expected_file_size: usize,
-    /// 是否启用详细日志
+    /// Whether to enable verbose logging
     pub verbose_logging: bool,
 }
 
 impl Default for ValidationConfig {
     fn default() -> Self {
+        // Balanced configuration suitable for auto mode
         Self {
-            enable_json_validation: false, // 临时禁用，避免大文件读取挂起
+            enable_json_validation: false, // Disabled by default for performance
             enable_integrity_validation: true,
             enable_count_validation: true,
             enable_size_validation: true,
-            enable_encoding_validation: false, // 临时禁用，避免大文件读取挂起
-            max_data_loss_rate: 0.1, // 0.1% 最大数据丢失率
-            min_expected_file_size: 1024, // 1KB 最小文件大小
-            max_expected_file_size: 100 * 1024 * 1024, // 100MB 最大文件大小
+            enable_encoding_validation: false, // Disabled by default for performance
+            max_data_loss_rate: 0.1, // 0.1% maximum data loss rate
+            min_expected_file_size: 1024, // 1KB minimum file size
+            max_expected_file_size: 100 * 1024 * 1024, // 100MB maximum file size
             verbose_logging: false,
         }
     }
 }
 
-/// 验证统计
+impl ValidationConfig {
+    /// Configuration optimized for fast mode - minimal validation
+    pub fn for_fast_mode() -> Self {
+        Self {
+            enable_json_validation: false,
+            enable_integrity_validation: false,
+            enable_count_validation: false,
+            enable_size_validation: true, // Only basic size check
+            enable_encoding_validation: false,
+            max_data_loss_rate: 1.0, // More lenient for fast mode
+            min_expected_file_size: 512, // Lower threshold
+            max_expected_file_size: 1024 * 1024 * 1024, // 1GB max
+            verbose_logging: false,
+        }
+    }
+
+    /// Configuration for slow mode - comprehensive validation
+    pub fn for_slow_mode() -> Self {
+        Self {
+            enable_json_validation: true,
+            enable_integrity_validation: true,
+            enable_count_validation: true,
+            enable_size_validation: true,
+            enable_encoding_validation: true,
+            max_data_loss_rate: 0.01, // Strict 0.01% loss rate
+            min_expected_file_size: 1024, // 1KB minimum
+            max_expected_file_size: 100 * 1024 * 1024, // 100MB maximum
+            verbose_logging: true,
+        }
+    }
+
+    /// Create configuration with custom validation strategy
+    pub fn with_strategy(strategy: ValidationStrategy) -> Self {
+        match strategy {
+            ValidationStrategy::Minimal => Self::for_fast_mode(),
+            ValidationStrategy::Balanced => Self::default(),
+            ValidationStrategy::Comprehensive => Self::for_slow_mode(),
+            ValidationStrategy::Custom(config) => config,
+        }
+    }
+
+    /// Check if configuration conflicts with the given export mode
+    pub fn conflicts_with_mode(&self, mode: &ExportMode) -> Vec<String> {
+        let mut conflicts = Vec::new();
+
+        match mode {
+            ExportMode::Fast => {
+                if self.enable_json_validation {
+                    conflicts.push("JSON validation enabled in fast mode may impact performance".to_string());
+                }
+                if self.enable_encoding_validation {
+                    conflicts.push("Encoding validation enabled in fast mode may impact performance".to_string());
+                }
+                if self.max_data_loss_rate < 0.1 {
+                    conflicts.push("Strict data loss rate in fast mode may impact performance".to_string());
+                }
+            }
+            ExportMode::Slow => {
+                if !self.enable_json_validation {
+                    conflicts.push("JSON validation disabled in slow mode reduces thoroughness".to_string());
+                }
+                if !self.enable_integrity_validation {
+                    conflicts.push("Integrity validation disabled in slow mode reduces thoroughness".to_string());
+                }
+                if !self.enable_encoding_validation {
+                    conflicts.push("Encoding validation disabled in slow mode reduces thoroughness".to_string());
+                }
+            }
+            ExportMode::Auto => {
+                // Auto mode is flexible, fewer conflicts
+            }
+        }
+
+        conflicts
+    }
+
+    /// Apply safe defaults for the given export mode
+    pub fn apply_safe_defaults_for_mode(&mut self, mode: &ExportMode) {
+        match mode {
+            ExportMode::Fast => {
+                // Prioritize performance
+                self.enable_json_validation = false;
+                self.enable_encoding_validation = false;
+                self.enable_integrity_validation = false;
+                self.max_data_loss_rate = self.max_data_loss_rate.max(0.5);
+                self.verbose_logging = false;
+            }
+            ExportMode::Slow => {
+                // Prioritize thoroughness
+                self.enable_json_validation = true;
+                self.enable_integrity_validation = true;
+                self.enable_count_validation = true;
+                self.enable_size_validation = true;
+                self.enable_encoding_validation = true;
+                self.max_data_loss_rate = self.max_data_loss_rate.min(0.1);
+                self.verbose_logging = true;
+            }
+            ExportMode::Auto => {
+                // Keep balanced defaults
+            }
+        }
+    }
+}
+
+/// Validation strategy enumeration for flexible configuration
+#[derive(Debug, Clone)]
+pub enum ValidationStrategy {
+    /// Minimal validation for maximum performance
+    Minimal,
+    /// Balanced validation for general use
+    Balanced,
+    /// Comprehensive validation for maximum thoroughness
+    Comprehensive,
+    /// Custom validation configuration
+    Custom(ValidationConfig),
+}
+
+/// Validation statistics
 #[derive(Debug, Clone, Default)]
 pub struct ValidationStats {
-    /// 总验证次数
+    /// Total number of validations
     pub total_validations: usize,
-    /// 成功验证次数
+    /// Number of successful validations
     pub successful_validations: usize,
-    /// 失败验证次数
+    /// Number of failed validations
     pub failed_validations: usize,
-    /// 各类型验证统计
+    /// Statistics by validation type
     pub validation_type_stats: HashMap<ValidationType, ValidationTypeStats>,
-    /// 总验证时间（毫秒）
+    /// Total validation time (milliseconds)
     pub total_validation_time_ms: u64,
-    /// 发现的问题数量
+    /// Number of issues found
     pub issues_found: usize,
-    /// 修复的问题数量
+    /// Number of issues fixed
     pub issues_fixed: usize,
 }
 
-/// 单个验证类型的统计
+/// Statistics for a single validation type
 #[derive(Debug, Clone, Default)]
 pub struct ValidationTypeStats {
-    /// 执行次数
+    /// Number of executions
     pub executions: usize,
-    /// 成功次数
+    /// Number of successes
     pub successes: usize,
-    /// 失败次数
+    /// Number of failures
     pub failures: usize,
-    /// 平均执行时间（毫秒）
+    /// Average execution time (milliseconds)
     pub avg_execution_time_ms: f64,
 }
 
-/// 验证结果
+/// Validation result
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
-    /// 验证是否通过
+    /// Whether validation passed
     pub is_valid: bool,
-    /// 验证类型
+    /// Type of validation performed
     pub validation_type: ValidationType,
-    /// 验证消息
+    /// Validation message
     pub message: String,
-    /// 发现的问题
+    /// Issues found during validation
     pub issues: Vec<ValidationIssue>,
-    /// 验证耗时
+    /// Time taken for validation (milliseconds)
     pub validation_time_ms: u64,
-    /// 验证的数据量
+    /// Size of data validated
     pub data_size: usize,
 }
 
-/// 验证问题
+/// Validation issue
 #[derive(Debug, Clone)]
 pub struct ValidationIssue {
-    /// 问题类型
+    /// Type of issue
     pub issue_type: IssueType,
-    /// 问题描述
+    /// Description of the issue
     pub description: String,
-    /// 问题严重程度
+    /// Severity of the issue
     pub severity: IssueSeverity,
-    /// 受影响的数据
+    /// Data affected by the issue
     pub affected_data: String,
-    /// 建议的修复方案
+    /// Suggested fix for the issue
     pub suggested_fix: Option<String>,
-    /// 是否可以自动修复
+    /// Whether the issue can be automatically fixed
     pub auto_fixable: bool,
 }
 
-/// 问题类型
+/// Type of validation issue
 #[derive(Debug, Clone, PartialEq)]
 pub enum IssueType {
+    /// Data is missing
     MissingData,
+    /// Data is corrupted
     CorruptedData,
+    /// Data is inconsistent
     InconsistentData,
+    /// Invalid data format
     InvalidFormat,
+    /// Size anomaly detected
     SizeAnomaly,
+    /// Encoding error
     EncodingError,
+    /// Structural error in data
     StructuralError,
+    /// Count mismatch detected
     CountMismatch,
 }
 
-/// 问题严重程度
+/// Severity level of validation issue
 #[derive(Debug, Clone, PartialEq)]
 pub enum IssueSeverity {
+    /// Critical issue that prevents operation
     Critical,
+    /// High priority issue
     High,
+    /// Medium priority issue
     Medium,
+    /// Low priority issue
     Low,
+    /// Informational issue
     Info,
 }
 
 impl QualityValidator {
-    /// 创建新的质量验证器
+    /// Create new quality validator
     pub fn new(config: ValidationConfig) -> Self {
         Self {
             config,
             stats: ValidationStats::default(),
         }
     }
+    
+    /// Create quality validator with default configuration
+    pub fn new_default() -> Self {
+        Self::new(ValidationConfig::default())
+    }
 
-    /// 验证原始数据质量
+    /// Async file validation - used for Normal Future (compatibility method)
+    pub async fn validate_file_async<P: AsRef<Path>>(
+        &mut self,
+        file_path: P,
+    ) -> TrackingResult<ValidationResult> {
+        // Delegate to AsyncValidator for consistency
+        let mut async_validator = AsyncValidator::new(self.config.clone());
+        let result = async_validator.validate_file_async(file_path).await?;
+        
+        // Update our own stats
+        self.update_stats(&result);
+        
+        Ok(result)
+    }
+
+    /// Validate source data quality
     pub fn validate_source_data(&mut self, data: &LocalizedExportData) -> TrackingResult<ValidationResult> {
         let start_time = Instant::now();
         let mut issues = Vec::new();
 
         if self.config.verbose_logging {
-            println!("🔍 开始验证原始数据质量...");
+            println!("🔍 Starting source data quality validation...");
         }
 
-        // 验证数据完整性
+        // Validate data integrity
         if self.config.enable_integrity_validation {
             self.validate_data_integrity(data, &mut issues)?;
         }
 
-        // 验证分配计数
+        // Validate allocation counts
         if self.config.enable_count_validation {
             self.validate_allocation_counts(data, &mut issues)?;
         }
@@ -184,9 +597,9 @@ impl QualityValidator {
             is_valid,
             validation_type: ValidationType::DataIntegrity,
             message: if is_valid {
-                "原始数据质量验证通过".to_string()
+                "Source data quality validation passed".to_string()
             } else {
-                format!("原始数据质量验证失败，发现 {} 个问题", issues.len())
+                format!("Source data quality validation failed with {} issues", issues.len())
             },
             issues,
             validation_time_ms: validation_time,
@@ -202,26 +615,26 @@ impl QualityValidator {
         Ok(result)
     }
 
-    /// 验证处理后的分片数据
+    /// Validate processed shard data
     pub fn validate_processed_shards(&mut self, shards: &[ProcessedShard], original_count: usize) -> TrackingResult<ValidationResult> {
         let start_time = Instant::now();
         let mut issues = Vec::new();
 
         if self.config.verbose_logging {
-            println!("🔍 开始验证处理后的分片数据...");
+            println!("🔍 Starting processed shard data validation...");
         }
 
-        // 验证 JSON 结构
+        // Validate JSON structure
         if self.config.enable_json_validation {
             self.validate_json_structure(shards, &mut issues)?;
         }
 
-        // 验证分配计数一致性
+        // Validate allocation count consistency
         if self.config.enable_count_validation {
             self.validate_shard_counts(shards, original_count, &mut issues)?;
         }
 
-        // 验证数据大小
+        // Validate data sizes
         if self.config.enable_size_validation {
             self.validate_data_sizes(shards, &mut issues)?;
         }
@@ -234,9 +647,9 @@ impl QualityValidator {
             is_valid,
             validation_type: ValidationType::JsonStructure,
             message: if is_valid {
-                "分片数据验证通过".to_string()
+                "Shard data validation passed".to_string()
             } else {
-                format!("分片数据验证失败，发现 {} 个问题", issues.len())
+                format!("Shard data validation failed with {} issues", issues.len())
             },
             issues,
             validation_time_ms: validation_time,
@@ -252,37 +665,37 @@ impl QualityValidator {
         Ok(result)
     }
 
-    /// 验证最终输出文件
+    /// Validate final output file
     pub fn validate_output_file(&mut self, file_path: &str, expected_allocation_count: usize) -> TrackingResult<ValidationResult> {
         let start_time = Instant::now();
         let mut issues = Vec::new();
 
         if self.config.verbose_logging {
-            println!("🔍 开始验证最终输出文件: {file_path}");
+            println!("🔍 Starting final output file validation: {file_path}");
         }
 
-        // 检查文件是否存在
+        // Check if file exists
         if !std::path::Path::new(file_path).exists() {
             issues.push(ValidationIssue {
                 issue_type: IssueType::MissingData,
-                description: "输出文件不存在".to_string(),
+                description: "Output file does not exist".to_string(),
                 severity: IssueSeverity::Critical,
                 affected_data: file_path.to_string(),
-                suggested_fix: Some("检查文件路径和写入权限".to_string()),
+                suggested_fix: Some("Check file path and write permissions".to_string()),
                 auto_fixable: false,
             });
         } else {
-            // 验证文件大小
+            // Validate file size
             if self.config.enable_size_validation {
                 self.validate_file_size(file_path, &mut issues)?;
             }
 
-            // 验证文件内容
+            // Validate file content
             if self.config.enable_json_validation {
                 self.validate_file_content(file_path, expected_allocation_count, &mut issues)?;
             }
 
-            // 验证编码
+            // Validate encoding
             if self.config.enable_encoding_validation {
                 self.validate_file_encoding(file_path, &mut issues)?;
             }
@@ -299,9 +712,9 @@ impl QualityValidator {
             is_valid,
             validation_type: ValidationType::FileSize,
             message: if is_valid {
-                "输出文件验证通过".to_string()
+                "Output file validation passed".to_string()
             } else {
-                format!("输出文件验证失败，发现 {} 个问题", issues.len())
+                format!("Output file validation failed with {} issues", issues.len())
             },
             issues,
             validation_time_ms: validation_time,
@@ -317,414 +730,12 @@ impl QualityValidator {
         Ok(result)
     }
 
-    /// 验证数据完整性
-    fn validate_data_integrity(&self, data: &LocalizedExportData, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        // 检查空数据
-        if data.allocations.is_empty() {
-            issues.push(ValidationIssue {
-                issue_type: IssueType::MissingData,
-                description: "分配数据为空".to_string(),
-                severity: IssueSeverity::High,
-                affected_data: "allocations".to_string(),
-                suggested_fix: Some("检查内存跟踪器是否正常工作".to_string()),
-                auto_fixable: false,
-            });
-        }
-
-        // 检查数据一致性
-        let mut ptr_set = HashSet::new();
-        let mut duplicate_ptrs = Vec::new();
-
-        for (index, allocation) in data.allocations.iter().enumerate() {
-            // 检查重复指针
-            if !ptr_set.insert(allocation.ptr) {
-                duplicate_ptrs.push(allocation.ptr);
-            }
-
-            // 检查基本字段有效性
-            if allocation.size == 0 {
-                issues.push(ValidationIssue {
-                    issue_type: IssueType::InvalidFormat,
-                    description: format!("分配 {} 的大小为 0", index),
-                    severity: IssueSeverity::Medium,
-                    affected_data: format!("allocation[{}]", index),
-                    suggested_fix: Some("检查分配跟踪逻辑".to_string()),
-                    auto_fixable: false,
-                });
-            }
-
-            // 检查时间戳有效性
-            if let Some(dealloc_time) = allocation.timestamp_dealloc {
-                if dealloc_time <= allocation.timestamp_alloc {
-                    issues.push(ValidationIssue {
-                        issue_type: IssueType::InconsistentData,
-                        description: format!("分配 {} 的释放时间早于分配时间", index),
-                        severity: IssueSeverity::High,
-                        affected_data: format!("allocation[{}]", index),
-                        suggested_fix: Some("检查时间戳生成逻辑".to_string()),
-                        auto_fixable: false,
-                    });
-                }
-            }
-        }
-
-        // 报告重复指针
-        if !duplicate_ptrs.is_empty() {
-            issues.push(ValidationIssue {
-                issue_type: IssueType::InconsistentData,
-                description: format!("发现 {} 个重复指针", duplicate_ptrs.len()),
-                severity: IssueSeverity::High,
-                affected_data: format!("pointers: {:?}", duplicate_ptrs),
-                suggested_fix: Some("检查分配跟踪的去重逻辑".to_string()),
-                auto_fixable: false,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// 验证分配计数
-    fn validate_allocation_counts(&self, data: &LocalizedExportData, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        let allocation_count = data.allocations.len();
-        let stats_count = data.stats.total_allocations;
-
-        // 检查计数一致性
-        if allocation_count != stats_count {
-            let loss_rate = if stats_count > 0 {
-                ((stats_count - allocation_count) as f64 / stats_count as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            let severity = if loss_rate > self.config.max_data_loss_rate {
-                IssueSeverity::Critical
-            } else {
-                IssueSeverity::Medium
-            };
-
-            issues.push(ValidationIssue {
-                issue_type: IssueType::CountMismatch,
-                description: format!("分配计数不一致: 实际 {allocation_count}, 统计 {stats_count}, 丢失率 {loss_rate:.2}%"),
-                severity,
-                affected_data: "allocation_count".to_string(),
-                suggested_fix: Some("检查数据收集和统计逻辑".to_string()),
-                auto_fixable: false,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// 验证 JSON 结构
-    fn validate_json_structure(&self, shards: &[ProcessedShard], issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        for (index, shard) in shards.iter().enumerate() {
-            // 尝试解析 JSON
-            match serde_json::from_slice::<Vec<AllocationInfo>>(&shard.data) {
-                Ok(allocations) => {
-                    // 验证解析后的数据
-                    if allocations.len() != shard.allocation_count {
-                        issues.push(ValidationIssue {
-                            issue_type: IssueType::CountMismatch,
-                            description: format!("分片 {index} 的分配计数不匹配: 预期 {}, 实际 {}", 
-                                               shard.allocation_count, allocations.len()),
-                            severity: IssueSeverity::High,
-                            affected_data: format!("shard[{}]", index),
-                            suggested_fix: Some("检查分片处理逻辑".to_string()),
-                            auto_fixable: false,
-                        });
-                    }
-                }
-                Err(e) => {
-                    issues.push(ValidationIssue {
-                        issue_type: IssueType::InvalidFormat,
-                        description: format!("分片 {index} JSON 解析失败: {e}"),
-                        severity: IssueSeverity::Critical,
-                        affected_data: format!("shard[{}]", index),
-                        suggested_fix: Some("检查 JSON 序列化逻辑".to_string()),
-                        auto_fixable: false,
-                    });
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// 验证分片计数
-    fn validate_shard_counts(&self, shards: &[ProcessedShard], original_count: usize, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        let total_shard_count: usize = shards.iter().map(|s| s.allocation_count).sum();
-
-        if total_shard_count != original_count {
-            let loss_rate = if original_count > 0 {
-                ((original_count - total_shard_count) as f64 / original_count as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            let severity = if loss_rate > self.config.max_data_loss_rate {
-                IssueSeverity::Critical
-            } else {
-                IssueSeverity::Medium
-            };
-
-            issues.push(ValidationIssue {
-                issue_type: IssueType::CountMismatch,
-                description: format!("分片总计数不匹配: 原始 {original_count}, 分片总计 {total_shard_count}, 丢失率 {loss_rate:.2}%"),
-                severity,
-                affected_data: "shard_counts".to_string(),
-                suggested_fix: Some("检查分片处理和合并逻辑".to_string()),
-                auto_fixable: false,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// 验证数据大小
-    fn validate_data_sizes(&self, shards: &[ProcessedShard], issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        for (index, shard) in shards.iter().enumerate() {
-            // 检查空分片
-            if shard.data.is_empty() {
-                issues.push(ValidationIssue {
-                    issue_type: IssueType::MissingData,
-                    description: format!("分片 {index} 数据为空"),
-                    severity: IssueSeverity::High,
-                    affected_data: format!("shard[{}]", index),
-                    suggested_fix: Some("检查分片处理逻辑".to_string()),
-                    auto_fixable: false,
-                });
-            }
-
-            // 检查异常大小的分片
-            let expected_min_size = shard.allocation_count * 50; // 每个分配至少 50 字节
-            let expected_max_size = shard.allocation_count * 1000; // 每个分配最多 1000 字节
-
-            if shard.data.len() < expected_min_size {
-                issues.push(ValidationIssue {
-                    issue_type: IssueType::SizeAnomaly,
-                    description: format!("分片 {index} 大小异常小: {} 字节 (预期最少 {} 字节)", 
-                                       shard.data.len(), expected_min_size),
-                    severity: IssueSeverity::Medium,
-                    affected_data: format!("shard[{}]", index),
-                    suggested_fix: Some("检查序列化配置".to_string()),
-                    auto_fixable: false,
-                });
-            }
-
-            if shard.data.len() > expected_max_size {
-                issues.push(ValidationIssue {
-                    issue_type: IssueType::SizeAnomaly,
-                    description: format!("分片 {index} 大小异常大: {} 字节 (预期最多 {} 字节)", 
-                                       shard.data.len(), expected_max_size),
-                    severity: IssueSeverity::Low,
-                    affected_data: format!("shard[{}]", index),
-                    suggested_fix: Some("考虑启用压缩".to_string()),
-                    auto_fixable: false,
-                });
-            }
-        }
-
-        Ok(())
-    }
-
-    /// 验证文件大小
-    fn validate_file_size(&self, file_path: &str, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        let metadata = std::fs::metadata(file_path)
-            .map_err(|e| ExportError::DataQualityError {
-                validation_type: ValidationType::FileSize,
-                expected: "可读取的文件".to_string(),
-                actual: format!("文件读取失败: {e}"),
-                affected_records: 0,
-            })?;
-
-        let file_size = metadata.len() as usize;
-
-        if file_size < self.config.min_expected_file_size {
-            issues.push(ValidationIssue {
-                issue_type: IssueType::SizeAnomaly,
-                description: format!("文件大小过小: {} 字节 (最小预期 {} 字节)", 
-                                   file_size, self.config.min_expected_file_size),
-                severity: IssueSeverity::High,
-                affected_data: file_path.to_string(),
-                suggested_fix: Some("检查数据是否完整写入".to_string()),
-                auto_fixable: false,
-            });
-        }
-
-        if file_size > self.config.max_expected_file_size {
-            issues.push(ValidationIssue {
-                issue_type: IssueType::SizeAnomaly,
-                description: format!("文件大小过大: {} 字节 (最大预期 {} 字节)", 
-                                   file_size, self.config.max_expected_file_size),
-                severity: IssueSeverity::Medium,
-                affected_data: file_path.to_string(),
-                suggested_fix: Some("考虑启用压缩或采样".to_string()),
-                auto_fixable: false,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// 验证文件内容
-    fn validate_file_content(&self, file_path: &str, expected_count: usize, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        let content = std::fs::read_to_string(file_path)
-            .map_err(|e| ExportError::DataQualityError {
-                validation_type: ValidationType::JsonStructure,
-                expected: "可读取的 JSON 文件".to_string(),
-                actual: format!("文件读取失败: {e}"),
-                affected_records: 0,
-            })?;
-
-        // 尝试解析 JSON
-        match serde_json::from_str::<serde_json::Value>(&content) {
-            Ok(json) => {
-                // 检查 JSON 结构
-                if let Some(allocations) = json.get("allocations") {
-                    if let Some(array) = allocations.as_array() {
-                        let actual_count = array.len();
-                        if actual_count != expected_count {
-                            let loss_rate = if expected_count > 0 {
-                                ((expected_count - actual_count) as f64 / expected_count as f64) * 100.0
-                            } else {
-                                0.0
-                            };
-
-                            let severity = if loss_rate > self.config.max_data_loss_rate {
-                                IssueSeverity::Critical
-                            } else {
-                                IssueSeverity::Medium
-                            };
-
-                            issues.push(ValidationIssue {
-                                issue_type: IssueType::CountMismatch,
-                                description: format!("文件中分配计数不匹配: 预期 {expected_count}, 实际 {actual_count}, 丢失率 {loss_rate:.2}%"),
-                                severity,
-                                affected_data: file_path.to_string(),
-                                suggested_fix: Some("检查完整的导出流程".to_string()),
-                                auto_fixable: false,
-                            });
-                        }
-                    } else {
-                        issues.push(ValidationIssue {
-                            issue_type: IssueType::StructuralError,
-                            description: "allocations 字段不是数组".to_string(),
-                            severity: IssueSeverity::Critical,
-                            affected_data: file_path.to_string(),
-                            suggested_fix: Some("检查 JSON 结构生成逻辑".to_string()),
-                            auto_fixable: false,
-                        });
-                    }
-                } else {
-                    issues.push(ValidationIssue {
-                        issue_type: IssueType::StructuralError,
-                        description: "缺少 allocations 字段".to_string(),
-                        severity: IssueSeverity::Critical,
-                        affected_data: file_path.to_string(),
-                        suggested_fix: Some("检查 JSON 结构生成逻辑".to_string()),
-                        auto_fixable: false,
-                    });
-                }
-            }
-            Err(e) => {
-                issues.push(ValidationIssue {
-                    issue_type: IssueType::InvalidFormat,
-                    description: format!("JSON 解析失败: {e}"),
-                    severity: IssueSeverity::Critical,
-                    affected_data: file_path.to_string(),
-                    suggested_fix: Some("检查 JSON 格式和编码".to_string()),
-                    auto_fixable: false,
-                });
-            }
-        }
-
-        Ok(())
-    }
-
-    /// 验证文件编码
-    fn validate_file_encoding(&self, file_path: &str, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
-        // 尝试以 UTF-8 读取文件
-        match std::fs::read_to_string(file_path) {
-            Ok(_) => {
-                // UTF-8 读取成功，编码正确
-            }
-            Err(e) => {
-                issues.push(ValidationIssue {
-                    issue_type: IssueType::EncodingError,
-                    description: format!("文件编码验证失败: {e}"),
-                    severity: IssueSeverity::High,
-                    affected_data: file_path.to_string(),
-                    suggested_fix: Some("确保文件以 UTF-8 编码保存".to_string()),
-                    auto_fixable: false,
-                });
-            }
-        }
-
-        Ok(())
-    }
-
-    /// 更新统计信息
-    fn update_stats(&mut self, result: &ValidationResult) {
-        self.stats.total_validations += 1;
-        
-        if result.is_valid {
-            self.stats.successful_validations += 1;
-        } else {
-            self.stats.failed_validations += 1;
-        }
-
-        self.stats.total_validation_time_ms += result.validation_time_ms;
-        self.stats.issues_found += result.issues.len();
-
-        // 更新验证类型统计
-        let type_stats = self.stats.validation_type_stats
-            .entry(result.validation_type.clone())
-            .or_insert_with(ValidationTypeStats::default);
-
-        type_stats.executions += 1;
-        if result.is_valid {
-            type_stats.successes += 1;
-        } else {
-            type_stats.failures += 1;
-        }
-
-        // 更新平均执行时间
-        type_stats.avg_execution_time_ms = if type_stats.executions > 0 {
-            (type_stats.avg_execution_time_ms * (type_stats.executions - 1) as f64 + result.validation_time_ms as f64) / type_stats.executions as f64
-        } else {
-            result.validation_time_ms as f64
-        };
-    }
-
-    /// 打印验证结果
-    fn print_validation_result(&self, result: &ValidationResult) {
-        let status_icon = if result.is_valid { "✅" } else { "❌" };
-        println!("{status_icon} 验证结果: {} ({}ms)", result.message, result.validation_time_ms);
-
-        if !result.issues.is_empty() {
-            println!("   发现的问题:");
-            for (index, issue) in result.issues.iter().enumerate() {
-                let severity_icon = match issue.severity {
-                    IssueSeverity::Critical => "🔴",
-                    IssueSeverity::High => "🟠",
-                    IssueSeverity::Medium => "🟡",
-                    IssueSeverity::Low => "🔵",
-                    IssueSeverity::Info => "ℹ️",
-                };
-                println!("   {index}. {severity_icon} {}: {}", issue.issue_type, issue.description);
-                if let Some(fix) = &issue.suggested_fix {
-                    println!("      建议修复: {fix}");
-                }
-            }
-        }
-    }
-
-    /// 获取验证统计
+    /// Get validation statistics
     pub fn get_stats(&self) -> &ValidationStats {
         &self.stats
     }
 
-    /// 生成验证报告
+    /// Generate validation report
     pub fn generate_validation_report(&self) -> ValidationReport {
         let success_rate = if self.stats.total_validations > 0 {
             (self.stats.successful_validations as f64 / self.stats.total_validations as f64) * 100.0
@@ -749,9 +760,735 @@ impl QualityValidator {
             validation_type_breakdown: self.stats.validation_type_stats.clone(),
         }
     }
+
+    /// Validate data integrity
+    fn validate_data_integrity(&self, data: &LocalizedExportData, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        // Check for empty data
+        if data.allocations.is_empty() {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::MissingData,
+                description: "Allocation data is empty".to_string(),
+                severity: IssueSeverity::High,
+                affected_data: "allocations".to_string(),
+                suggested_fix: Some("Check if memory tracker is working properly".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        // Check data consistency
+        let mut ptr_set = HashSet::new();
+        let mut duplicate_ptrs = Vec::new();
+
+        for (index, allocation) in data.allocations.iter().enumerate() {
+            // Check for duplicate pointers
+            if !ptr_set.insert(allocation.ptr) {
+                duplicate_ptrs.push(allocation.ptr);
+            }
+
+            // Check basic field validity
+            if allocation.size == 0 {
+                issues.push(ValidationIssue {
+                    issue_type: IssueType::InvalidFormat,
+                    description: format!("Allocation {} has size 0", index),
+                    severity: IssueSeverity::Medium,
+                    affected_data: format!("allocation[{}]", index),
+                    suggested_fix: Some("Check allocation tracking logic".to_string()),
+                    auto_fixable: false,
+                });
+            }
+
+            // Check timestamp validity
+            if let Some(dealloc_time) = allocation.timestamp_dealloc {
+                if dealloc_time <= allocation.timestamp_alloc {
+                    issues.push(ValidationIssue {
+                        issue_type: IssueType::InconsistentData,
+                        description: format!("Allocation {} deallocation time is before allocation time", index),
+                        severity: IssueSeverity::High,
+                        affected_data: format!("allocation[{}]", index),
+                        suggested_fix: Some("Check timestamp generation logic".to_string()),
+                        auto_fixable: false,
+                    });
+                }
+            }
+        }
+
+        // Report duplicate pointers
+        if !duplicate_ptrs.is_empty() {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::InconsistentData,
+                description: format!("Found {} duplicate pointers", duplicate_ptrs.len()),
+                severity: IssueSeverity::High,
+                affected_data: format!("pointers: {:?}", duplicate_ptrs),
+                suggested_fix: Some("Check allocation tracking deduplication logic".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Validate allocation counts
+    fn validate_allocation_counts(&self, data: &LocalizedExportData, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        let allocation_count = data.allocations.len();
+        let stats_count = data.stats.total_allocations;
+
+        // Check count consistency
+        if allocation_count != stats_count {
+            let loss_rate = if stats_count > 0 {
+                ((stats_count - allocation_count) as f64 / stats_count as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            let severity = if loss_rate > self.config.max_data_loss_rate {
+                IssueSeverity::Critical
+            } else {
+                IssueSeverity::Medium
+            };
+
+            issues.push(ValidationIssue {
+                issue_type: IssueType::CountMismatch,
+                description: format!("Allocation count mismatch: actual {allocation_count}, stats {stats_count}, loss rate {loss_rate:.2}%"),
+                severity,
+                affected_data: "allocation_count".to_string(),
+                suggested_fix: Some("Check data collection and statistics logic".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Validate JSON structure
+    fn validate_json_structure(&self, shards: &[ProcessedShard], issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        for (index, shard) in shards.iter().enumerate() {
+            // Try to parse JSON
+            match serde_json::from_slice::<Vec<AllocationInfo>>(&shard.data) {
+                Ok(allocations) => {
+                    // Validate parsed data
+                    if allocations.len() != shard.allocation_count {
+                        issues.push(ValidationIssue {
+                            issue_type: IssueType::CountMismatch,
+                            description: format!("Shard {index} allocation count mismatch: expected {}, actual {}", 
+                                               shard.allocation_count, allocations.len()),
+                            severity: IssueSeverity::High,
+                            affected_data: format!("shard[{}]", index),
+                            suggested_fix: Some("Check shard processing logic".to_string()),
+                            auto_fixable: false,
+                        });
+                    }
+                }
+                Err(e) => {
+                    issues.push(ValidationIssue {
+                        issue_type: IssueType::InvalidFormat,
+                        description: format!("Shard {index} JSON parsing failed: {e}"),
+                        severity: IssueSeverity::Critical,
+                        affected_data: format!("shard[{}]", index),
+                        suggested_fix: Some("Check JSON serialization logic".to_string()),
+                        auto_fixable: false,
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate shard counts
+    fn validate_shard_counts(&self, shards: &[ProcessedShard], original_count: usize, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        let total_shard_count: usize = shards.iter().map(|s| s.allocation_count).sum();
+
+        if total_shard_count != original_count {
+            let loss_rate = if original_count > 0 {
+                ((original_count - total_shard_count) as f64 / original_count as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            let severity = if loss_rate > self.config.max_data_loss_rate {
+                IssueSeverity::Critical
+            } else {
+                IssueSeverity::Medium
+            };
+
+            issues.push(ValidationIssue {
+                issue_type: IssueType::CountMismatch,
+                description: format!("Shard total count mismatch: original {original_count}, shard total {total_shard_count}, loss rate {loss_rate:.2}%"),
+                severity,
+                affected_data: "shard_counts".to_string(),
+                suggested_fix: Some("Check shard processing and merging logic".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Validate data sizes
+    fn validate_data_sizes(&self, shards: &[ProcessedShard], issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        for (index, shard) in shards.iter().enumerate() {
+            // Check for empty shards
+            if shard.data.is_empty() {
+                issues.push(ValidationIssue {
+                    issue_type: IssueType::MissingData,
+                    description: format!("Shard {index} data is empty"),
+                    severity: IssueSeverity::High,
+                    affected_data: format!("shard[{}]", index),
+                    suggested_fix: Some("Check shard processing logic".to_string()),
+                    auto_fixable: false,
+                });
+            }
+
+            // Check for abnormally sized shards
+            let expected_min_size = shard.allocation_count * 50; // At least 50 bytes per allocation
+            let expected_max_size = shard.allocation_count * 1000; // At most 1000 bytes per allocation
+
+            if shard.data.len() < expected_min_size {
+                issues.push(ValidationIssue {
+                    issue_type: IssueType::SizeAnomaly,
+                    description: format!("Shard {index} size abnormally small: {} bytes (expected at least {} bytes)", 
+                                       shard.data.len(), expected_min_size),
+                    severity: IssueSeverity::Medium,
+                    affected_data: format!("shard[{}]", index),
+                    suggested_fix: Some("Check serialization configuration".to_string()),
+                    auto_fixable: false,
+                });
+            }
+
+            if shard.data.len() > expected_max_size {
+                issues.push(ValidationIssue {
+                    issue_type: IssueType::SizeAnomaly,
+                    description: format!("Shard {index} size abnormally large: {} bytes (expected at most {} bytes)", 
+                                       shard.data.len(), expected_max_size),
+                    severity: IssueSeverity::Low,
+                    affected_data: format!("shard[{}]", index),
+                    suggested_fix: Some("Consider enabling compression".to_string()),
+                    auto_fixable: false,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate file size
+    fn validate_file_size(&self, file_path: &str, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        let metadata = std::fs::metadata(file_path)
+            .map_err(|e| ExportError::DataQualityError {
+                validation_type: ValidationType::FileSize,
+                expected: "Readable file".to_string(),
+                actual: format!("File read failed: {e}"),
+                affected_records: 0,
+            })?;
+
+        let file_size = metadata.len() as usize;
+
+        if file_size < self.config.min_expected_file_size {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::SizeAnomaly,
+                description: format!("File size too small: {} bytes (minimum expected {} bytes)", 
+                                   file_size, self.config.min_expected_file_size),
+                severity: IssueSeverity::High,
+                affected_data: file_path.to_string(),
+                suggested_fix: Some("Check if data was completely written".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        if file_size > self.config.max_expected_file_size {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::SizeAnomaly,
+                description: format!("File size too large: {} bytes (maximum expected {} bytes)", 
+                                   file_size, self.config.max_expected_file_size),
+                severity: IssueSeverity::Medium,
+                affected_data: file_path.to_string(),
+                suggested_fix: Some("Consider enabling compression or sampling".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Validate file content
+    fn validate_file_content(&self, file_path: &str, expected_count: usize, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        let content = std::fs::read_to_string(file_path)
+            .map_err(|e| ExportError::DataQualityError {
+                validation_type: ValidationType::JsonStructure,
+                expected: "Readable JSON file".to_string(),
+                actual: format!("File read failed: {e}"),
+                affected_records: 0,
+            })?;
+
+        // Try to parse JSON
+        match serde_json::from_str::<serde_json::Value>(&content) {
+            Ok(json) => {
+                // Check JSON structure
+                if let Some(allocations) = json.get("allocations") {
+                    if let Some(array) = allocations.as_array() {
+                        let actual_count = array.len();
+                        if actual_count != expected_count {
+                            let loss_rate = if expected_count > 0 {
+                                ((expected_count - actual_count) as f64 / expected_count as f64) * 100.0
+                            } else {
+                                0.0
+                            };
+
+                            let severity = if loss_rate > self.config.max_data_loss_rate {
+                                IssueSeverity::Critical
+                            } else {
+                                IssueSeverity::Medium
+                            };
+
+                            issues.push(ValidationIssue {
+                                issue_type: IssueType::CountMismatch,
+                                description: format!("File allocation count mismatch: expected {expected_count}, actual {actual_count}, loss rate {loss_rate:.2}%"),
+                                severity,
+                                affected_data: file_path.to_string(),
+                                suggested_fix: Some("Check complete export pipeline".to_string()),
+                                auto_fixable: false,
+                            });
+                        }
+                    } else {
+                        issues.push(ValidationIssue {
+                            issue_type: IssueType::StructuralError,
+                            description: "allocations field is not an array".to_string(),
+                            severity: IssueSeverity::Critical,
+                            affected_data: file_path.to_string(),
+                            suggested_fix: Some("Check JSON structure generation logic".to_string()),
+                            auto_fixable: false,
+                        });
+                    }
+                } else {
+                    issues.push(ValidationIssue {
+                        issue_type: IssueType::StructuralError,
+                        description: "Missing allocations field".to_string(),
+                        severity: IssueSeverity::Critical,
+                        affected_data: file_path.to_string(),
+                        suggested_fix: Some("Check JSON structure generation logic".to_string()),
+                        auto_fixable: false,
+                    });
+                }
+            }
+            Err(e) => {
+                issues.push(ValidationIssue {
+                    issue_type: IssueType::InvalidFormat,
+                    description: format!("JSON parsing failed: {e}"),
+                    severity: IssueSeverity::Critical,
+                    affected_data: file_path.to_string(),
+                    suggested_fix: Some("Check JSON format and encoding".to_string()),
+                    auto_fixable: false,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate file encoding
+    fn validate_file_encoding(&self, file_path: &str, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        // Try to read file as UTF-8
+        match std::fs::read_to_string(file_path) {
+            Ok(_) => {
+                // UTF-8 read successful, encoding is correct
+            }
+            Err(e) => {
+                issues.push(ValidationIssue {
+                    issue_type: IssueType::EncodingError,
+                    description: format!("File encoding validation failed: {e}"),
+                    severity: IssueSeverity::High,
+                    affected_data: file_path.to_string(),
+                    suggested_fix: Some("Ensure file is saved with UTF-8 encoding".to_string()),
+                    auto_fixable: false,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Update validation statistics
+    fn update_stats(&mut self, result: &ValidationResult) {
+        self.stats.total_validations += 1;
+
+        if result.is_valid {
+            self.stats.successful_validations += 1;
+        } else {
+            self.stats.failed_validations += 1;
+        }
+
+        self.stats.total_validation_time_ms += result.validation_time_ms;
+        self.stats.issues_found += result.issues.len();
+
+        // Update validation type statistics
+        let type_stats = self
+            .stats
+            .validation_type_stats
+            .entry(result.validation_type.clone())
+            .or_insert_with(ValidationTypeStats::default);
+
+        type_stats.executions += 1;
+        if result.is_valid {
+            type_stats.successes += 1;
+        } else {
+            type_stats.failures += 1;
+        }
+
+        // Update average execution time
+        type_stats.avg_execution_time_ms = if type_stats.executions > 0 {
+            (type_stats.avg_execution_time_ms * (type_stats.executions - 1) as f64
+                + result.validation_time_ms as f64)
+                / type_stats.executions as f64
+        } else {
+            result.validation_time_ms as f64
+        };
+    }
+
+    /// Print validation result
+    fn print_validation_result(&self, result: &ValidationResult) {
+        let status_icon = if result.is_valid { "✅" } else { "❌" };
+        println!(
+            "{status_icon} Validation result: {} ({}ms)",
+            result.message, result.validation_time_ms
+        );
+
+        if !result.issues.is_empty() {
+            println!("   Issues found:");
+            for (index, issue) in result.issues.iter().enumerate() {
+                let severity_icon = match issue.severity {
+                    IssueSeverity::Critical => "🔴",
+                    IssueSeverity::High => "🟠",
+                    IssueSeverity::Medium => "🟡",
+                    IssueSeverity::Low => "🔵",
+                    IssueSeverity::Info => "ℹ️",
+                };
+                println!(
+                    "   {index}. {severity_icon} {:?}: {}",
+                    issue.issue_type, issue.description
+                );
+                if let Some(fix) = &issue.suggested_fix {
+                    println!("      Suggested fix: {fix}");
+                }
+            }
+        }
+    }
 }
 
-/// 验证报告
+impl AsyncValidator {
+    /// Create new async validator
+    pub fn new(config: ValidationConfig) -> Self {
+        Self {
+            config,
+            stats: ValidationStats::default(),
+        }
+    }
+
+    /// Create async validator with default configuration
+    pub fn new_default() -> Self {
+        Self::new(ValidationConfig::default())
+    }
+
+    /// Async file validation method that returns a Future
+    pub async fn validate_file_async<P: AsRef<Path>>(
+        &mut self,
+        file_path: P,
+    ) -> TrackingResult<ValidationResult> {
+        let start_time = Instant::now();
+        let mut issues = Vec::new();
+        let path = file_path.as_ref();
+
+        if self.config.verbose_logging {
+            println!("🔍 Starting async file validation: {}", path.display());
+        }
+
+        // Check if file exists
+        if !path.exists() {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::MissingData,
+                description: "Output file does not exist".to_string(),
+                severity: IssueSeverity::Critical,
+                affected_data: path.display().to_string(),
+                suggested_fix: Some("Check file path and write permissions".to_string()),
+                auto_fixable: false,
+            });
+        } else {
+            // Validate file size (lightweight check)
+            if self.config.enable_size_validation {
+                if let Err(e) = self.validate_file_size_async(path, &mut issues).await {
+                    println!("⚠️ File size validation failed: {}", e);
+                }
+            }
+
+            // Stream-based content validation for large files
+            if self.config.enable_json_validation {
+                if let Err(e) = self.validate_content_stream(path, &mut issues).await {
+                    println!("⚠️ Content stream validation failed: {}", e);
+                }
+            }
+        }
+
+        let validation_time = start_time.elapsed().as_millis() as u64;
+        let is_valid = issues.iter().all(|issue| issue.severity != IssueSeverity::Critical);
+
+        let file_size = fs::metadata(path)
+            .await
+            .map(|m| m.len() as usize)
+            .unwrap_or(0);
+
+        let result = ValidationResult {
+            is_valid,
+            validation_type: ValidationType::FileSize,
+            message: if is_valid {
+                "Async file validation passed".to_string()
+            } else {
+                format!("Async file validation failed with {} issues", issues.len())
+            },
+            issues,
+            validation_time_ms: validation_time,
+            data_size: file_size,
+        };
+
+        self.update_stats(&result);
+
+        if self.config.verbose_logging {
+            self.print_validation_result(&result);
+        }
+
+        Ok(result)
+    }
+
+    /// Stream-based content validation for large files
+    pub async fn validate_content_stream<P: AsRef<Path>>(
+        &self,
+        file_path: P,
+        issues: &mut Vec<ValidationIssue>,
+    ) -> TrackingResult<()> {
+        let file = fs::File::open(&file_path).await.map_err(|e| {
+            ExportError::DataQualityError {
+                validation_type: ValidationType::JsonStructure,
+                expected: "Readable file".to_string(),
+                actual: format!("File open failed: {e}"),
+                affected_records: 0,
+            }
+        })?;
+
+        let mut reader = tokio::io::BufReader::new(file);
+        let mut buffer = Vec::new();
+        let chunk_size = 8192; // 8KB chunks
+
+        // Read file in chunks to avoid memory issues with large files
+        loop {
+            let mut chunk = vec![0u8; chunk_size];
+            let bytes_read = reader.read(&mut chunk).await.map_err(|e| {
+                ExportError::DataQualityError {
+                    validation_type: ValidationType::JsonStructure,
+                    expected: "Readable file content".to_string(),
+                    actual: format!("Read failed: {e}"),
+                    affected_records: 0,
+                }
+            })?;
+
+            if bytes_read == 0 {
+                break; // End of file
+            }
+
+            chunk.truncate(bytes_read);
+            buffer.extend_from_slice(&chunk);
+
+            // Basic JSON structure validation on accumulated buffer
+            if buffer.len() > 1024 * 1024 {
+                // Process 1MB chunks
+                self.validate_json_chunk(&buffer, issues)?;
+                buffer.clear();
+            }
+        }
+
+        // Validate remaining buffer
+        if !buffer.is_empty() {
+            self.validate_json_chunk(&buffer, issues)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate JSON chunk for streaming validation
+    fn validate_json_chunk(
+        &self,
+        chunk: &[u8],
+        issues: &mut Vec<ValidationIssue>,
+    ) -> TrackingResult<()> {
+        // Try to parse as JSON to check basic structure
+        if let Err(e) = serde_json::from_slice::<serde_json::Value>(chunk) {
+            // Only report if it's not a partial chunk issue
+            if !e.to_string().contains("EOF") {
+                issues.push(ValidationIssue {
+                    issue_type: IssueType::InvalidFormat,
+                    description: format!("JSON chunk validation failed: {e}"),
+                    severity: IssueSeverity::Medium,
+                    affected_data: "JSON chunk".to_string(),
+                    suggested_fix: Some("Check JSON format and encoding".to_string()),
+                    auto_fixable: false,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Async file size validation
+    async fn validate_file_size_async<P: AsRef<Path>>(
+        &self,
+        file_path: P,
+        issues: &mut Vec<ValidationIssue>,
+    ) -> TrackingResult<()> {
+        let metadata = fs::metadata(&file_path).await.map_err(|e| {
+            ExportError::DataQualityError {
+                validation_type: ValidationType::FileSize,
+                expected: "Readable file metadata".to_string(),
+                actual: format!("Metadata read failed: {e}"),
+                affected_records: 0,
+            }
+        })?;
+
+        let file_size = metadata.len() as usize;
+
+        if file_size < self.config.min_expected_file_size {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::SizeAnomaly,
+                description: format!(
+                    "File size too small: {} bytes, minimum expected: {} bytes",
+                    file_size, self.config.min_expected_file_size
+                ),
+                severity: IssueSeverity::Medium,
+                affected_data: file_path.as_ref().display().to_string(),
+                suggested_fix: Some("Check if export data is complete".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        if file_size > self.config.max_expected_file_size {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::SizeAnomaly,
+                description: format!(
+                    "File size too large: {} bytes, maximum expected: {} bytes",
+                    file_size, self.config.max_expected_file_size
+                ),
+                severity: IssueSeverity::Medium,
+                affected_data: file_path.as_ref().display().to_string(),
+                suggested_fix: Some("Check for data duplication or configuration errors".to_string()),
+                auto_fixable: false,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Update validation statistics
+    fn update_stats(&mut self, result: &ValidationResult) {
+        self.stats.total_validations += 1;
+
+        if result.is_valid {
+            self.stats.successful_validations += 1;
+        } else {
+            self.stats.failed_validations += 1;
+        }
+
+        self.stats.total_validation_time_ms += result.validation_time_ms;
+        self.stats.issues_found += result.issues.len();
+
+        // Update validation type statistics
+        let type_stats = self
+            .stats
+            .validation_type_stats
+            .entry(result.validation_type.clone())
+            .or_insert_with(ValidationTypeStats::default);
+
+        type_stats.executions += 1;
+        if result.is_valid {
+            type_stats.successes += 1;
+        } else {
+            type_stats.failures += 1;
+        }
+
+        // Update average execution time
+        type_stats.avg_execution_time_ms = if type_stats.executions > 0 {
+            (type_stats.avg_execution_time_ms * (type_stats.executions - 1) as f64
+                + result.validation_time_ms as f64)
+                / type_stats.executions as f64
+        } else {
+            result.validation_time_ms as f64
+        };
+    }
+
+    /// Print validation result
+    fn print_validation_result(&self, result: &ValidationResult) {
+        let status_icon = if result.is_valid { "✅" } else { "❌" };
+        println!(
+            "{status_icon} Validation result: {} ({}ms)",
+            result.message, result.validation_time_ms
+        );
+
+        if !result.issues.is_empty() {
+            println!("   Issues found:");
+            for (index, issue) in result.issues.iter().enumerate() {
+                let severity_icon = match issue.severity {
+                    IssueSeverity::Critical => "🔴",
+                    IssueSeverity::High => "🟠",
+                    IssueSeverity::Medium => "🟡",
+                    IssueSeverity::Low => "🔵",
+                    IssueSeverity::Info => "ℹ️",
+                };
+                println!(
+                    "   {index}. {severity_icon} {:?}: {}",
+                    issue.issue_type, issue.description
+                );
+                if let Some(fix) = &issue.suggested_fix {
+                    println!("      Suggested fix: {fix}");
+                }
+            }
+        }
+    }
+}
+
+impl DeferredValidation {
+    /// Create new deferred validation
+    pub fn new<P: AsRef<Path>>(
+        file_path: P,
+        expected_count: usize,
+        config: ValidationConfig,
+    ) -> Self {
+        let path_str = file_path.as_ref().display().to_string();
+        let path_clone = file_path.as_ref().to_path_buf();
+
+        let future = Box::pin(async move {
+            let mut validator = AsyncValidator::new(config);
+            validator.validate_file_async(path_clone).await
+        });
+
+        Self {
+            future,
+            file_path: path_str,
+            expected_count,
+        }
+    }
+
+    /// Get the file path being validated
+    pub fn file_path(&self) -> &str {
+        &self.file_path
+    }
+
+    /// Get the expected allocation count
+    pub fn expected_count(&self) -> usize {
+        self.expected_count
+    }
+
+    /// Await the validation result
+    pub async fn await_result(self) -> TrackingResult<ValidationResult> {
+        self.future.await
+    }
+}
+
+/// Validation report
 #[derive(Debug, Clone)]
 pub struct ValidationReport {
     pub total_validations: usize,
@@ -765,28 +1502,28 @@ pub struct ValidationReport {
 }
 
 impl ValidationReport {
-    /// 打印详细的验证报告
+    /// Print detailed validation report
     pub fn print_detailed_report(&self) {
-        println!("\n🔍 数据质量验证报告");
+        println!("\n🔍 Data Quality Validation Report");
         println!("==================");
         
-        println!("📊 总体统计:");
-        println!("   总验证次数: {}", self.total_validations);
-        println!("   成功验证: {} ({:.1}%)", self.successful_validations, self.success_rate);
-        println!("   失败验证: {}", self.failed_validations);
-        println!("   平均验证时间: {:.2}ms", self.avg_validation_time_ms);
-        println!("   发现问题: {}", self.total_issues_found);
-        println!("   修复问题: {}", self.total_issues_fixed);
+        println!("📊 Overall Statistics:");
+        println!("   Total validations: {}", self.total_validations);
+        println!("   Successful validations: {} ({:.1}%)", self.successful_validations, self.success_rate);
+        println!("   Failed validations: {}", self.failed_validations);
+        println!("   Average validation time: {:.2}ms", self.avg_validation_time_ms);
+        println!("   Issues found: {}", self.total_issues_found);
+        println!("   Issues fixed: {}", self.total_issues_fixed);
         
         if !self.validation_type_breakdown.is_empty() {
-            println!("\n🔍 验证类型统计:");
+            println!("\n🔍 Validation Type Statistics:");
             for (validation_type, stats) in &self.validation_type_breakdown {
                 let success_rate = if stats.executions > 0 {
                     (stats.successes as f64 / stats.executions as f64) * 100.0
                 } else {
                     0.0
                 };
-                println!("   {validation_type:?}: {} 次执行, {:.1}% 成功率, {:.2}ms 平均时间", 
+                println!("   {validation_type:?}: {} executions, {:.1}% success rate, {:.2}ms average time", 
                         stats.executions, success_rate, stats.avg_execution_time_ms);
             }
         }
@@ -796,14 +1533,14 @@ impl ValidationReport {
 impl fmt::Display for IssueType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IssueType::MissingData => write!(f, "数据缺失"),
-            IssueType::CorruptedData => write!(f, "数据损坏"),
-            IssueType::InconsistentData => write!(f, "数据不一致"),
-            IssueType::InvalidFormat => write!(f, "格式无效"),
-            IssueType::SizeAnomaly => write!(f, "大小异常"),
-            IssueType::EncodingError => write!(f, "编码错误"),
-            IssueType::StructuralError => write!(f, "结构错误"),
-            IssueType::CountMismatch => write!(f, "计数不匹配"),
+            IssueType::MissingData => write!(f, "Missing Data"),
+            IssueType::CorruptedData => write!(f, "Corrupted Data"),
+            IssueType::InconsistentData => write!(f, "Inconsistent Data"),
+            IssueType::InvalidFormat => write!(f, "Invalid Format"),
+            IssueType::SizeAnomaly => write!(f, "Size Anomaly"),
+            IssueType::EncodingError => write!(f, "Encoding Error"),
+            IssueType::StructuralError => write!(f, "Structural Error"),
+            IssueType::CountMismatch => write!(f, "Count Mismatch"),
         }
     }
 }
@@ -890,7 +1627,7 @@ mod tests {
         assert!(result.is_ok());
         
         let validation_result = result.unwrap();
-        assert!(!validation_result.is_valid); // 应该失败，因为数据为空
+        assert!(!validation_result.is_valid); // Should fail because data is empty
         assert!(!validation_result.issues.is_empty());
     }
 
@@ -919,7 +1656,7 @@ mod tests {
         let mut validator = QualityValidator::new(ValidationConfig::default());
         let data = create_test_data(50);
         
-        // 执行几次验证
+        // Execute several validations
         let _ = validator.validate_source_data(&data);
         let _ = validator.validate_source_data(&data);
         
@@ -940,5 +1677,33 @@ mod tests {
         assert_eq!(report.total_validations, 1);
         assert_eq!(report.success_rate, 100.0);
         assert!(report.avg_validation_time_ms > 0.0);
+    }
+
+    #[test]
+    fn test_validation_config_modes() {
+        let fast_config = ValidationConfig::for_fast_mode();
+        assert!(!fast_config.enable_json_validation);
+        assert!(!fast_config.enable_integrity_validation);
+        assert!(fast_config.enable_size_validation);
+
+        let slow_config = ValidationConfig::for_slow_mode();
+        assert!(slow_config.enable_json_validation);
+        assert!(slow_config.enable_integrity_validation);
+        assert!(slow_config.enable_size_validation);
+    }
+
+    #[tokio::test]
+    async fn test_async_validator() {
+        let mut validator = AsyncValidator::new(ValidationConfig::default());
+        
+        // Create a temporary file for testing
+        let temp_file = std::env::temp_dir().join("test_validation.json");
+        std::fs::write(&temp_file, r#"{"test": "data"}"#).unwrap();
+        
+        let result = validator.validate_file_async(&temp_file).await;
+        assert!(result.is_ok());
+        
+        // Clean up
+        let _ = std::fs::remove_file(&temp_file);
     }
 }

@@ -16,7 +16,7 @@ use crate::export::parallel_shard_processor::{
 use crate::export::progress_monitor::{
     ProgressMonitor, ProgressCallback, ExportStage, ProgressConfig,
 };
-use crate::export::quality_validator::{QualityValidator, ValidationConfig};
+use crate::export::quality_validator::{QualityValidator, AsyncValidator, ValidationConfig, ExportConfig, ExportMode, ValidationTiming, DeferredValidation};
 use std::path::Path;
 use std::time::Instant;
 
@@ -136,6 +136,10 @@ pub struct FastExportCoordinator {
     error_recovery_manager: ErrorRecoveryManager,
     /// Data quality validator
     quality_validator: QualityValidator,
+    /// Async validator for deferred validation
+    async_validator: AsyncValidator,
+    /// Export mode configuration
+    export_config: ExportConfig,
     /// Resource monitor
     resource_monitor: Option<ResourceMonitor>,
 }
@@ -178,6 +182,12 @@ impl FastExportCoordinator {
             None
         };
 
+        // Create async validator with same configuration
+        let async_validator = AsyncValidator::new(config.validation_config.clone());
+        
+        // Create default export configuration (fast mode)
+        let export_config = ExportConfig::fast();
+
         Self {
             config,
             data_localizer,
@@ -185,8 +195,221 @@ impl FastExportCoordinator {
             performance_logger,
             error_recovery_manager,
             quality_validator,
+            async_validator,
+            export_config,
             resource_monitor,
         }
+    }
+
+    /// Create a new fast export coordinator for fast mode (no validation)
+    pub fn new_fast_mode() -> Self {
+        let mut config = FastExportConfig::default();
+        // 快速模式：禁用验证以获得最大性能
+        config.validation_config.enable_json_validation = false;
+        config.validation_config.enable_encoding_validation = false;
+        config.validation_config.enable_integrity_validation = false;
+        config.verbose_logging = false;
+        Self::new(config)
+    }
+    
+    /// Create a new fast export coordinator for normal mode (with validation capability)
+    pub fn new_normal_mode() -> Self {
+        let mut config = FastExportConfig::default();
+        // 正常模式：保持验证能力，但不在导出过程中执行
+        config.validation_config.enable_json_validation = true;
+        config.validation_config.enable_encoding_validation = true;
+        config.validation_config.enable_integrity_validation = true;
+        config.verbose_logging = true;
+        Self::new(config)
+    }
+
+    /// Create a new fast export coordinator with export mode configuration
+    pub fn new_with_export_config(export_config: ExportConfig) -> Self {
+        let mut fast_config = FastExportConfig::default();
+        
+        // Apply export config to fast config
+        fast_config.validation_config = export_config.validation_config.clone();
+        fast_config.verbose_logging = match export_config.mode {
+            ExportMode::Fast => false,
+            ExportMode::Slow => true,
+            ExportMode::Auto => false,
+        };
+
+        let mut coordinator = Self::new(fast_config);
+        coordinator.export_config = export_config;
+        coordinator
+    }
+
+    /// Execute export without validation (for both fast and normal modes)
+    pub async fn export_without_validation<P: AsRef<Path>>(
+        &mut self,
+        output_path: P,
+    ) -> TrackingResult<CompleteExportStats> {
+        // 跳过验证步骤，直接执行导出
+        let total_start = Instant::now();
+        
+        if self.config.verbose_logging {
+            println!("🚀 开始无验证导出模式");
+        }
+        
+        // 数据本地化
+        let (localized_data, data_stats) = self.gather_data()?;
+        
+        // 并行分片处理
+        let (processed_shards, processing_stats) = self.process_data_parallel(&localized_data)?;
+        
+        // 高速写入（跳过验证步骤）
+        let write_stats = self.write_data_fast_without_validation(&output_path, &processed_shards)?;
+        
+        let total_time = total_start.elapsed();
+        
+        // 计算完整统计
+        let complete_stats = self.calculate_complete_stats(
+            data_stats,
+            processing_stats,
+            write_stats,
+            total_time.as_millis() as u64,
+        );
+        
+        if self.config.verbose_logging {
+            println!("✅ 无验证导出完成，总耗时: {:?}", total_time);
+        }
+        
+        Ok(complete_stats)
+    }
+
+    /// Export with mode-specific behavior and optional deferred validation
+    pub async fn export_with_mode<P: AsRef<Path>>(
+        &mut self,
+        output_path: P,
+    ) -> TrackingResult<(CompleteExportStats, Option<DeferredValidation>)> {
+        let path = output_path.as_ref();
+        
+        if self.export_config.validation_timing == ValidationTiming::Disabled {
+            // No validation mode - just export
+            let stats = self.export_without_validation(path).await?;
+            return Ok((stats, None));
+        }
+
+        match (&self.export_config.mode, &self.export_config.validation_timing) {
+            (ExportMode::Fast, _) => {
+                // Fast mode: export without validation, optionally create deferred validation
+                let stats = self.export_without_validation(path).await?;
+                
+                let deferred_validation = if self.export_config.validation_timing == ValidationTiming::Deferred {
+                    Some(self.create_deferred_validation(path, stats.parallel_processing.total_allocations).await?)
+                } else {
+                    None
+                };
+                
+                Ok((stats, deferred_validation))
+            }
+            (ExportMode::Slow, ValidationTiming::Inline) => {
+                // Slow mode with inline validation: validate during export
+                let stats = self.export_with_inline_validation(path).await?;
+                Ok((stats, None))
+            }
+            (ExportMode::Slow, ValidationTiming::Deferred) | (ExportMode::Auto, ValidationTiming::Deferred) => {
+                // Slow/Auto mode with deferred validation: export first, then validate
+                let stats = self.export_without_validation(path).await?;
+                let deferred_validation = self.create_deferred_validation(path, stats.parallel_processing.total_allocations).await?;
+                Ok((stats, Some(deferred_validation)))
+            }
+            _ => {
+                // Default case: export without validation
+                let stats = self.export_without_validation(path).await?;
+                Ok((stats, None))
+            }
+        }
+    }
+
+    /// Create deferred validation for the exported file
+    async fn create_deferred_validation<P: AsRef<Path>>(
+        &mut self,
+        file_path: P,
+        expected_count: usize,
+    ) -> TrackingResult<DeferredValidation> {
+        // Create deferred validation with the current validation config
+        let deferred_validation = DeferredValidation::new(
+            &file_path,
+            expected_count,
+            self.export_config.validation_config.clone(),
+        );
+        
+        Ok(deferred_validation)
+    }
+
+    /// Export with inline validation (for slow mode)
+    async fn export_with_inline_validation<P: AsRef<Path>>(
+        &mut self,
+        output_path: P,
+    ) -> TrackingResult<CompleteExportStats> {
+        let total_start = std::time::Instant::now();
+        
+        if self.config.verbose_logging {
+            println!("🚀 Starting export with inline validation");
+        }
+        
+        // Step 1: Data localization
+        let (localized_data, data_stats) = self.gather_data()?;
+        
+        // Step 2: Validate source data
+        if self.export_config.validation_config.enable_integrity_validation {
+            let validation_result = self.quality_validator.validate_source_data(&localized_data)?;
+            if !validation_result.is_valid {
+                if self.config.verbose_logging {
+                    println!("⚠️ Source data validation failed: {}", validation_result.message);
+                }
+            }
+        }
+        
+        // Step 3: Parallel shard processing
+        let (processed_shards, processing_stats) = self.process_data_parallel(&localized_data)?;
+        
+        // Step 4: Validate processed shards
+        if self.export_config.validation_config.enable_json_validation {
+            let validation_result = self.quality_validator.validate_processed_shards(
+                &processed_shards, 
+                localized_data.allocations.len()
+            )?;
+            if !validation_result.is_valid {
+                if self.config.verbose_logging {
+                    println!("⚠️ Processed shard validation failed: {}", validation_result.message);
+                }
+            }
+        }
+        
+        // Step 5: Write data
+        let write_stats = self.write_data_fast_without_validation(&output_path, &processed_shards)?;
+        
+        // Step 6: Validate output file
+        if self.export_config.validation_config.enable_size_validation {
+            let validation_result = self.quality_validator.validate_output_file(
+                &output_path.as_ref().to_string_lossy(),
+                localized_data.allocations.len()
+            )?;
+            if !validation_result.is_valid {
+                if self.config.verbose_logging {
+                    println!("⚠️ Output file validation failed: {}", validation_result.message);
+                }
+            }
+        }
+        
+        let total_time = total_start.elapsed();
+        
+        // Calculate complete statistics
+        let complete_stats = self.calculate_complete_stats(
+            data_stats,
+            processing_stats,
+            write_stats,
+            total_time.as_millis() as u64,
+        );
+        
+        if self.config.verbose_logging {
+            println!("✅ Export with inline validation completed, total time: {:?}", total_time);
+        }
+        
+        Ok(complete_stats)
     }
 
     /// Execute fast export
@@ -507,6 +730,33 @@ impl FastExportCoordinator {
         Ok(result)
     }
 
+    /// High-speed writing stage without validation
+    fn write_data_fast_without_validation<P: AsRef<Path>>(
+        &self,
+        output_path: P,
+        shards: &[crate::export::parallel_shard_processor::ProcessedShard],
+    ) -> TrackingResult<WritePerformanceStats> {
+        let stage_start = Instant::now();
+
+        if self.config.verbose_logging {
+            println!("💾 高速写入阶段 (跳过验证)");
+        }
+
+        // 估算总大小用于写入器配置优化
+        let total_size: usize = shards.iter().map(|s| s.data.len()).sum();
+        let mut writer_config = self.config.writer_config.clone();
+        writer_config.estimated_total_size = Some(total_size + 1024);
+
+        let mut writer = HighSpeedBufferedWriter::new(output_path, writer_config)?;
+        let result = writer.write_processed_shards(shards)?;
+
+        if self.config.verbose_logging {
+            println!("   ✅ 高速写入完成 (已跳过验证), 耗时: {:?}", stage_start.elapsed());
+        }
+
+        Ok(result)
+    }
+
     /// High-speed writing stage
     fn write_data_fast<P: AsRef<Path>>(
         &self,
@@ -670,6 +920,23 @@ impl FastExportCoordinator {
     /// Get current configuration
     pub fn get_config(&self) -> &FastExportConfig {
         &self.config
+    }
+
+    /// Get current export configuration
+    pub fn get_export_config(&self) -> &ExportConfig {
+        &self.export_config
+    }
+
+    /// Update export configuration
+    pub fn update_export_config(&mut self, export_config: ExportConfig) {
+        // Update validation config in fast config
+        self.config.validation_config = export_config.validation_config.clone();
+        
+        // Update async validator
+        self.async_validator = AsyncValidator::new(export_config.validation_config.clone());
+        
+        // Update export config
+        self.export_config = export_config;
     }
 
 
