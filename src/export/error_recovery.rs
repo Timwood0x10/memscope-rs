@@ -3,10 +3,10 @@
 //! this module provides comprehensive error recovery strategies,
 //! including automatic retries, graceful degradation,
 //! partial result saving, and error state recovery,
-//! ensuring optimal user experience in various 
+//! ensuring optimal user experience in various
 use crate::core::types::{TrackingError, TrackingResult};
-use crate::export::error_handling::{ExportError, ExportStage, ResourceType, ConflictType};
-use crate::export::fast_export_coordinator::{FastExportConfig, CompleteExportStats};
+use crate::export::error_handling::{ConflictType, ExportError, ExportStage, ResourceType};
+use crate::export::fast_export_coordinator::{CompleteExportStats, FastExportConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -38,21 +38,21 @@ pub struct RecoveryConfig {
     pub retry_backoff_factor: f64,
     /// max retry interval (milliseconds)
     pub max_retry_interval_ms: u64,
-    
+
     /// whether to enable graceful degradation
     pub enable_graceful_degradation: bool,
     /// degradation threshold (error rate percentage)
     pub degradation_threshold: f64,
     /// recovery threshold (error rate percentage)
     pub recovery_threshold: f64,
-    
+
     /// whether to enable partial result saving
     pub enable_partial_save: bool,
     /// partial result save directory
     pub partial_save_directory: PathBuf,
     /// partial result save interval (operations count)
     pub partial_save_interval: usize,
-    
+
     /// whether to enable verbose logging
     pub verbose_logging: bool,
 }
@@ -65,15 +65,15 @@ impl Default for RecoveryConfig {
             retry_interval_ms: 1000,
             retry_backoff_factor: 2.0,
             max_retry_interval_ms: 10000,
-            
+
             enable_graceful_degradation: true,
             degradation_threshold: 10.0, // 10% error rate triggers degradation
             recovery_threshold: 2.0,     // 2% error rate恢复正常
-            
+
             enable_partial_save: true,
             partial_save_directory: PathBuf::from("./partial_exports"),
             partial_save_interval: 1000,
-            
+
             verbose_logging: false,
         }
     }
@@ -173,10 +173,7 @@ pub enum RecoveryStrategy {
         amount: usize,
     },
     /// skip operation
-    SkipOperation {
-        operation: String,
-        reason: String,
-    },
+    SkipOperation { operation: String, reason: String },
 }
 
 /// recovery result
@@ -254,7 +251,10 @@ impl ErrorRecoveryManager {
         self.update_degradation_state(error, &result);
 
         if self.config.verbose_logging {
-            println!("🔧 Recovery completed: {} ({}ms)", result.message, recovery_time);
+            println!(
+                "🔧 Recovery completed: {} ({}ms)",
+                result.message, recovery_time
+            );
         }
 
         Ok(result)
@@ -279,36 +279,39 @@ impl ErrorRecoveryManager {
                 } else {
                     Ok(RecoveryStrategy::GracefulDegradation {
                         target_level: DegradationLevel::Light,
-                        reason: format!("shard {shard_index} processing failed, degrade parallelism"),
+                        reason: format!(
+                            "shard {shard_index} processing failed, degrade parallelism"
+                        ),
                     })
                 }
             }
 
-            ExportError::ResourceLimitExceeded { resource_type, suggested_action, .. } => {
+            ExportError::ResourceLimitExceeded {
+                resource_type,
+                suggested_action,
+                ..
+            } => {
                 // resource limit exceeded: release resources or adjust configuration
                 match resource_type {
-                    ResourceType::Memory => {
-                        Ok(RecoveryStrategy::ConfigAdjustment {
-                            new_config: self.create_memory_optimized_config(context),
-                            reason: "memory limit exceeded, adjust to memory optimized configuration".to_string(),
-                        })
-                    }
-                    ResourceType::CPU => {
-                        Ok(RecoveryStrategy::GracefulDegradation {
-                            target_level: DegradationLevel::Moderate,
-                            reason: "CPU usage exceeded, degrade processing intensity".to_string(),
-                        })
-                    }
-                    _ => {
-                        Ok(RecoveryStrategy::ConfigAdjustment {
-                            new_config: context.current_config.clone(),
-                            reason: suggested_action.clone(),
-                        })
-                    }
+                    ResourceType::Memory => Ok(RecoveryStrategy::ConfigAdjustment {
+                        new_config: self.create_memory_optimized_config(context),
+                        reason: "memory limit exceeded, adjust to memory optimized configuration"
+                            .to_string(),
+                    }),
+                    ResourceType::CPU => Ok(RecoveryStrategy::GracefulDegradation {
+                        target_level: DegradationLevel::Moderate,
+                        reason: "CPU usage exceeded, degrade processing intensity".to_string(),
+                    }),
+                    _ => Ok(RecoveryStrategy::ConfigAdjustment {
+                        new_config: context.current_config.clone(),
+                        reason: suggested_action.clone(),
+                    }),
                 }
             }
 
-            ExportError::DataQualityError { affected_records, .. } => {
+            ExportError::DataQualityError {
+                affected_records, ..
+            } => {
                 // data quality error: save partial results
                 if self.config.enable_partial_save && context.progress_percentage > 10.0 {
                     Ok(RecoveryStrategy::PartialSave {
@@ -326,22 +329,24 @@ impl ErrorRecoveryManager {
             ExportError::PerformanceThresholdExceeded { stage, .. } => {
                 // performance threshold exceeded: adjust configuration or degrade
                 match stage {
-                    ExportStage::ParallelProcessing => {
-                        Ok(RecoveryStrategy::ConfigAdjustment {
-                            new_config: self.create_performance_optimized_config(context),
-                            reason: "performance threshold exceeded, adjust configuration".to_string(),
-                        })
-                    }
-                    _ => {
-                        Ok(RecoveryStrategy::GracefulDegradation {
-                            target_level: DegradationLevel::Light,
-                            reason: format!("performance threshold exceeded in stage {stage:?}, degrade processing"),
-                        })
-                    }
+                    ExportStage::ParallelProcessing => Ok(RecoveryStrategy::ConfigAdjustment {
+                        new_config: self.create_performance_optimized_config(context),
+                        reason: "performance threshold exceeded, adjust configuration".to_string(),
+                    }),
+                    _ => Ok(RecoveryStrategy::GracefulDegradation {
+                        target_level: DegradationLevel::Light,
+                        reason: format!(
+                            "performance threshold exceeded in stage {stage:?}, degrade processing"
+                        ),
+                    }),
                 }
             }
 
-            ExportError::ConcurrencyConflict { conflict_type, retry_count, .. } => {
+            ExportError::ConcurrencyConflict {
+                conflict_type,
+                retry_count,
+                ..
+            } => {
                 // concurrency conflict: retry or adjust concurrency strategy
                 if *retry_count < self.config.max_retry_attempts {
                     let interval = match conflict_type {
@@ -367,11 +372,15 @@ impl ErrorRecoveryManager {
                 // insufficient resources: emergency degradation
                 Ok(RecoveryStrategy::GracefulDegradation {
                     target_level: DegradationLevel::Emergency,
-                    reason: "system resources severely insufficient, enable emergency mode".to_string(),
+                    reason: "system resources severely insufficient, enable emergency mode"
+                        .to_string(),
                 })
             }
 
-            ExportError::ExportInterrupted { progress_percentage, .. } => {
+            ExportError::ExportInterrupted {
+                progress_percentage,
+                ..
+            } => {
                 // export interrupted: save partial results
                 Ok(RecoveryStrategy::PartialSave {
                     save_path: self.generate_partial_save_path(operation),
@@ -379,7 +388,9 @@ impl ErrorRecoveryManager {
                 })
             }
 
-            ExportError::DataCorruption { recovery_possible, .. } => {
+            ExportError::DataCorruption {
+                recovery_possible, ..
+            } => {
                 // data corruption: determine strategy based on whether recovery is possible
                 if *recovery_possible {
                     Ok(RecoveryStrategy::AutoRetry {
@@ -390,7 +401,8 @@ impl ErrorRecoveryManager {
                 } else {
                     Ok(RecoveryStrategy::SkipOperation {
                         operation: operation.to_string(),
-                        reason: "data corruption and cannot be recovered, skip operation".to_string(),
+                        reason: "data corruption and cannot be recovered, skip operation"
+                            .to_string(),
                     })
                 }
             }
@@ -408,25 +420,30 @@ impl ErrorRecoveryManager {
         let _execution_start = Instant::now();
 
         match strategy {
-            RecoveryStrategy::AutoRetry { max_attempts, interval_ms, backoff_factor } => {
-                self.execute_auto_retry(operation, max_attempts, interval_ms, backoff_factor)
-            }
+            RecoveryStrategy::AutoRetry {
+                max_attempts,
+                interval_ms,
+                backoff_factor,
+            } => self.execute_auto_retry(operation, max_attempts, interval_ms, backoff_factor),
 
-            RecoveryStrategy::GracefulDegradation { target_level, reason } => {
-                self.execute_graceful_degradation(target_level, reason)
-            }
+            RecoveryStrategy::GracefulDegradation {
+                target_level,
+                reason,
+            } => self.execute_graceful_degradation(target_level, reason),
 
-            RecoveryStrategy::PartialSave { save_path, progress_percentage } => {
-                self.execute_partial_save(save_path, progress_percentage, context)
-            }
+            RecoveryStrategy::PartialSave {
+                save_path,
+                progress_percentage,
+            } => self.execute_partial_save(save_path, progress_percentage, context),
 
             RecoveryStrategy::ConfigAdjustment { new_config, reason } => {
                 self.execute_config_adjustment(new_config, reason)
             }
 
-            RecoveryStrategy::ResourceRelease { resource_type, amount } => {
-                self.execute_resource_release(resource_type, amount)
-            }
+            RecoveryStrategy::ResourceRelease {
+                resource_type,
+                amount,
+            } => self.execute_resource_release(resource_type, amount),
 
             RecoveryStrategy::SkipOperation { operation, reason } => {
                 self.execute_skip_operation(operation, reason)
@@ -442,7 +459,9 @@ impl ErrorRecoveryManager {
         interval_ms: u64,
         backoff_factor: f64,
     ) -> TrackingResult<RecoveryResult> {
-        let history = self.retry_history.entry(operation.to_string())
+        let history = self
+            .retry_history
+            .entry(operation.to_string())
             .or_insert_with(|| RetryHistory {
                 operation: operation.to_string(),
                 attempt_count: 0,
@@ -454,11 +473,17 @@ impl ErrorRecoveryManager {
         if history.attempt_count >= max_attempts {
             return Ok(RecoveryResult {
                 success: false,
-                strategy: RecoveryStrategy::AutoRetry { max_attempts, interval_ms, backoff_factor },
+                strategy: RecoveryStrategy::AutoRetry {
+                    max_attempts,
+                    interval_ms,
+                    backoff_factor,
+                },
                 message: format!("reached maximum retry limit ({max_attempts})"),
                 recovery_time_ms: 0,
                 partial_result_path: None,
-                suggested_actions: vec!["consider manual intervention or configuration adjustment".to_string()],
+                suggested_actions: vec![
+                    "consider manual intervention or configuration adjustment".to_string()
+                ],
             });
         }
 
@@ -470,14 +495,23 @@ impl ErrorRecoveryManager {
         history.attempt_count += 1;
         history.last_attempt = Instant::now();
         history.next_interval_ms = (history.next_interval_ms as f64 * backoff_factor) as u64;
-        history.next_interval_ms = history.next_interval_ms.min(self.config.max_retry_interval_ms);
+        history.next_interval_ms = history
+            .next_interval_ms
+            .min(self.config.max_retry_interval_ms);
 
         self.stats.total_retries += 1;
 
         Ok(RecoveryResult {
             success: true,
-            strategy: RecoveryStrategy::AutoRetry { max_attempts, interval_ms, backoff_factor },
-            message: format!("prepare for retry {} (max {})", history.attempt_count, max_attempts),
+            strategy: RecoveryStrategy::AutoRetry {
+                max_attempts,
+                interval_ms,
+                backoff_factor,
+            },
+            message: format!(
+                "prepare for retry {} (max {})",
+                history.attempt_count, max_attempts
+            ),
             recovery_time_ms: history.next_interval_ms,
             partial_result_path: None,
             suggested_actions: vec![
@@ -509,7 +543,10 @@ impl ErrorRecoveryManager {
 
         Ok(RecoveryResult {
             success: true,
-            strategy: RecoveryStrategy::GracefulDegradation { target_level, reason },
+            strategy: RecoveryStrategy::GracefulDegradation {
+                target_level,
+                reason,
+            },
             message: message.to_string(),
             recovery_time_ms: 0,
             partial_result_path: None,
@@ -529,8 +566,9 @@ impl ErrorRecoveryManager {
     ) -> TrackingResult<RecoveryResult> {
         // create partial save directory
         if let Some(parent) = save_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| TrackingError::IoError(format!("create partial save directory failed: {e}")))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                TrackingError::IoError(format!("create partial save directory failed: {e}"))
+            })?;
         }
 
         // save partial results (here is a simplified implementation)
@@ -549,7 +587,10 @@ impl ErrorRecoveryManager {
 
         Ok(RecoveryResult {
             success: true,
-            strategy: RecoveryStrategy::PartialSave { save_path: save_path.clone(), progress_percentage },
+            strategy: RecoveryStrategy::PartialSave {
+                save_path: save_path.clone(),
+                progress_percentage,
+            },
             message: format!("partial results saved ({progress_percentage:.1}% completed)"),
             recovery_time_ms: 0,
             partial_result_path: Some(save_path),
@@ -568,7 +609,10 @@ impl ErrorRecoveryManager {
     ) -> TrackingResult<RecoveryResult> {
         Ok(RecoveryResult {
             success: true,
-            strategy: RecoveryStrategy::ConfigAdjustment { new_config, reason: reason.clone() },
+            strategy: RecoveryStrategy::ConfigAdjustment {
+                new_config,
+                reason: reason.clone(),
+            },
             message: format!("config adjusted: {reason}"),
             recovery_time_ms: 0,
             partial_result_path: None,
@@ -596,7 +640,10 @@ impl ErrorRecoveryManager {
 
         Ok(RecoveryResult {
             success: true,
-            strategy: RecoveryStrategy::ResourceRelease { resource_type, amount },
+            strategy: RecoveryStrategy::ResourceRelease {
+                resource_type,
+                amount,
+            },
             message,
             recovery_time_ms: 0,
             partial_result_path: None,
@@ -615,7 +662,10 @@ impl ErrorRecoveryManager {
     ) -> TrackingResult<RecoveryResult> {
         Ok(RecoveryResult {
             success: true,
-            strategy: RecoveryStrategy::SkipOperation { operation: operation.clone(), reason: reason.clone() },
+            strategy: RecoveryStrategy::SkipOperation {
+                operation: operation.clone(),
+                reason: reason.clone(),
+            },
             message: format!("skip operation '{operation}': {reason}"),
             recovery_time_ms: 0,
             partial_result_path: None,
@@ -654,18 +704,20 @@ impl ErrorRecoveryManager {
         };
 
         // update error rate (simplified calculation)
-        self.degradation_state.current_error_rate = 
+        self.degradation_state.current_error_rate =
             (self.degradation_state.current_error_rate * 0.9) + (error_weight * 0.1);
 
         // check if should degrade or recover
-        if !self.degradation_state.is_degraded && 
-           self.degradation_state.current_error_rate > self.config.degradation_threshold {
+        if !self.degradation_state.is_degraded
+            && self.degradation_state.current_error_rate > self.config.degradation_threshold
+        {
             // trigger degradation
             self.degradation_state.is_degraded = true;
             self.degradation_state.degradation_start = Some(Instant::now());
             self.degradation_state.degradation_level = DegradationLevel::Light;
-        } else if self.degradation_state.is_degraded && 
-                  self.degradation_state.current_error_rate < self.config.recovery_threshold {
+        } else if self.degradation_state.is_degraded
+            && self.degradation_state.current_error_rate < self.config.recovery_threshold
+        {
             // trigger recovery
             self.degradation_state.is_degraded = false;
             self.degradation_state.degradation_start = None;
@@ -687,32 +739,32 @@ impl ErrorRecoveryManager {
     /// create memory optimized config
     fn create_memory_optimized_config(&self, context: &ErrorContext) -> FastExportConfig {
         let mut config = context.current_config.clone();
-        
+
         // reduce parallelism
         config.shard_config.max_threads = Some(2);
         config.shard_config.shard_size = config.shard_config.shard_size / 2;
-        
+
         // reduce buffer size
         config.writer_config.buffer_size = config.writer_config.buffer_size / 2;
-        
+
         // enable streaming
         config.enable_data_localization = false;
-        
+
         config
     }
 
     /// create performance optimized config
     fn create_performance_optimized_config(&self, context: &ErrorContext) -> FastExportConfig {
         let mut config = context.current_config.clone();
-        
+
         // adjust shard size
         config.shard_config.shard_size = 500; // smaller shard size
         config.shard_config.parallel_threshold = 1000; // lower parallel threshold
-        
+
         // disable verbose logging
         config.verbose_logging = false;
         config.enable_performance_monitoring = false;
-        
+
         config
     }
 
@@ -790,19 +842,32 @@ impl RecoveryReport {
     pub fn print_detailed_report(&self) {
         println!("\n🔧 recovery report");
         println!("================");
-        
+
         println!("📊 total statistics:");
         println!("   total errors: {}", self.total_errors);
-        println!("   successful recoveries: {} ({:.1}%)", self.successful_recoveries, self.success_rate);
+        println!(
+            "   successful recoveries: {} ({:.1}%)",
+            self.successful_recoveries, self.success_rate
+        );
         println!("   failed recoveries: {}", self.failed_recoveries);
         println!("   total retries: {}", self.total_retries);
         println!("   degradation count: {}", self.degradation_count);
         println!("   partial saves: {}", self.partial_saves);
-        println!("   average recovery time: {:.2}ms", self.avg_recovery_time_ms);
-        
+        println!(
+            "   average recovery time: {:.2}ms",
+            self.avg_recovery_time_ms
+        );
+
         println!("\n🎚️ current state:");
         println!("   degradation level: {:?}", self.current_degradation_level);
-        println!("   is degraded: {}", if self.is_currently_degraded { "yes" } else { "no" });
+        println!(
+            "   is degraded: {}",
+            if self.is_currently_degraded {
+                "yes"
+            } else {
+                "no"
+            }
+        );
     }
 }
 
@@ -843,7 +908,7 @@ mod tests {
 
         let result = manager.handle_export_error(&error, "test_operation", &context);
         assert!(result.is_ok());
-        
+
         let recovery_result = result.unwrap();
         assert!(recovery_result.success);
         assert_eq!(manager.stats.total_errors, 1);
@@ -852,17 +917,18 @@ mod tests {
     #[test]
     fn test_graceful_degradation() {
         let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-        
-        let result = manager.execute_graceful_degradation(
-            DegradationLevel::Light,
-            "测试降级".to_string(),
-        );
-        
+
+        let result =
+            manager.execute_graceful_degradation(DegradationLevel::Light, "测试降级".to_string());
+
         assert!(result.is_ok());
         let recovery_result = result.unwrap();
         assert!(recovery_result.success);
         assert!(manager.degradation_state.is_degraded);
-        assert_eq!(manager.degradation_state.degradation_level, DegradationLevel::Light);
+        assert_eq!(
+            manager.degradation_state.degradation_level,
+            DegradationLevel::Light
+        );
     }
 
     #[test]
@@ -876,12 +942,12 @@ mod tests {
 
         let save_path = manager.generate_partial_save_path("test_op");
         let result = manager.execute_partial_save(save_path.clone(), 75.0, &context);
-        
+
         assert!(result.is_ok());
         let recovery_result = result.unwrap();
         assert!(recovery_result.success);
         assert_eq!(recovery_result.partial_result_path, Some(save_path.clone()));
-        
+
         // clean up test file
         let _ = std::fs::remove_file(save_path);
     }
@@ -889,7 +955,7 @@ mod tests {
     #[test]
     fn test_recovery_report() {
         let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-        
+
         // simulate some errors and recoveries
         manager.stats.total_errors = 10;
         manager.stats.successful_recoveries = 8;
@@ -909,10 +975,10 @@ mod tests {
     #[test]
     fn test_retry_logic() {
         let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-        
+
         // first retry should succeed
         assert!(manager.should_retry("test_operation"));
-        
+
         // simulate multiple retries
         for i in 0..3 {
             let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
@@ -920,7 +986,7 @@ mod tests {
             let recovery_result = result.unwrap();
             assert!(recovery_result.success);
         }
-        
+
         // should fail after max retries
         let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
         assert!(result.is_ok());

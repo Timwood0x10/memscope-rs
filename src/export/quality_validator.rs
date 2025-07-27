@@ -6,17 +6,17 @@
 
 use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::export::data_localizer::LocalizedExportData;
-use crate::export::error_handling::{ExportError, ValidationType};
+use crate::export::error_handling::{ExportError, ValidationType, ValidationError};
 use crate::export::parallel_shard_processor::ProcessedShard;
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::Instant;
-use std::future::Future;
-use std::pin::Pin;
 use std::path::Path;
+use std::time::Duration;
 use tokio::fs;
 use tokio::io::AsyncReadExt;
+use tokio::sync::oneshot;
 
 /// Validation timing configuration
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -273,15 +273,98 @@ pub struct AsyncValidator {
     stats: ValidationStats,
 }
 
-/// Deferred validation wrapper that manages validation futures
-pub struct DeferredValidation {
-    /// The validation future
-    future: Pin<Box<dyn Future<Output = TrackingResult<ValidationResult>> + Send>>,
-    /// File path being validated
-    file_path: String,
-    /// Expected allocation count
-    expected_count: usize,
+/// Validation handle for managing different validation states
+/// 
+/// This enum manages the lifecycle of async validation operations with
+/// proper Send + Sync bounds for thread safety.
+#[derive(Debug)]
+pub enum ValidationHandle {
+    /// Validation is pending (not started yet)
+    Pending {
+        /// File path to validate
+        file_path: String,
+        /// Expected allocation count
+        expected_count: usize,
+        /// Validation configuration
+        config: ValidationConfig,
+    },
+    /// Validation is running
+    Running {
+        /// File path being validated
+        file_path: String,
+        /// Cancellation sender
+        cancel_sender: oneshot::Sender<()>,
+        /// Join handle for the validation task
+        task_handle: tokio::task::JoinHandle<TrackingResult<ValidationResult>>,
+    },
+    /// Validation completed successfully
+    Completed {
+        /// File path that was validated
+        file_path: String,
+        /// Validation result
+        result: ValidationResult,
+    },
+    /// Validation failed with error
+    Failed {
+        /// File path that failed validation
+        file_path: String,
+        /// Error that occurred
+        error: ValidationError,
+    },
+    /// Validation was cancelled
+    Cancelled {
+        /// File path that was being validated
+        file_path: String,
+        /// Reason for cancellation
+        reason: String,
+    },
+    /// Validation timed out
+    TimedOut {
+        /// File path that timed out
+        file_path: String,
+        /// Timeout duration that was exceeded
+        timeout_duration: Duration,
+    },
 }
+
+// Ensure ValidationHandle is Send + Sync for thread safety
+// This is safe because all contained types are Send + Sync
+unsafe impl Send for ValidationHandle {}
+unsafe impl Sync for ValidationHandle {}
+
+/// Validation status enumeration
+#[derive(Debug, Clone, PartialEq)]
+pub enum ValidationStatus {
+    /// Validation is pending (not started yet)
+    Pending,
+    /// Validation is currently running
+    Running,
+    /// Validation completed successfully
+    Completed,
+    /// Validation failed with error
+    Failed,
+    /// Validation was cancelled
+    Cancelled,
+    /// Validation timed out
+    TimedOut,
+}
+
+/// Enhanced deferred validation wrapper with cancellation and timeout support
+/// 
+/// This struct ensures that validation futures are Send + Sync and provides
+/// cancellation and timeout mechanisms for robust async validation.
+pub struct DeferredValidation {
+    /// Validation handle managing the validation state
+    handle: ValidationHandle,
+    /// Timeout duration for validation
+    timeout_duration: Duration,
+    /// Whether the validation supports cancellation
+    cancellable: bool,
+}
+
+// Ensure DeferredValidation is Send + Sync for thread safety
+unsafe impl Send for DeferredValidation {}
+unsafe impl Sync for DeferredValidation {}
 
 /// Validation configuration
 #[derive(Debug, Clone)]
@@ -1457,34 +1540,271 @@ impl DeferredValidation {
         expected_count: usize,
         config: ValidationConfig,
     ) -> Self {
-        let path_str = file_path.as_ref().display().to_string();
-        let path_clone = file_path.as_ref().to_path_buf();
-
-        let future = Box::pin(async move {
-            let mut validator = AsyncValidator::new(config);
-            validator.validate_file_async(path_clone).await
-        });
-
+        let file_path_str = file_path.as_ref().to_string_lossy().to_string();
+        
         Self {
-            future,
-            file_path: path_str,
-            expected_count,
+            handle: ValidationHandle::Pending {
+                file_path: file_path_str,
+                expected_count,
+                config,
+            },
+            timeout_duration: Duration::from_secs(30), // Default 30 second timeout
+            cancellable: true,
         }
     }
 
-    /// Get the file path being validated
-    pub fn file_path(&self) -> &str {
-        &self.file_path
+    /// Create deferred validation with custom timeout
+    pub fn with_timeout<P: AsRef<Path>>(
+        file_path: P,
+        expected_count: usize,
+        config: ValidationConfig,
+        timeout_duration: Duration,
+    ) -> Self {
+        let mut validation = Self::new(file_path, expected_count, config);
+        validation.timeout_duration = timeout_duration;
+        validation
     }
 
-    /// Get the expected allocation count
-    pub fn expected_count(&self) -> usize {
-        self.expected_count
+    /// Start the validation process asynchronously
+    pub async fn start_validation(&mut self) -> TrackingResult<()> {
+        match &self.handle {
+            ValidationHandle::Pending { file_path, expected_count, config } => {
+                let file_path_clone = file_path.clone();
+                let expected_count = *expected_count;
+                let config = config.clone();
+                let timeout_duration = self.timeout_duration;
+
+                // Create cancellation channel
+                let (cancel_sender, cancel_receiver) = oneshot::channel::<()>();
+
+                // Spawn validation task
+                let task_handle = tokio::spawn(async move {
+                    Self::run_validation_with_timeout(file_path_clone, expected_count, config, timeout_duration, cancel_receiver).await
+                });
+
+                // Update handle to running state
+                self.handle = ValidationHandle::Running {
+                    file_path: file_path.clone(),
+                    cancel_sender,
+                    task_handle,
+                };
+
+                Ok(())
+            }
+            _ => Err(ValidationError::ConfigurationError {
+                error: "Validation is not in pending state".to_string(),
+            }.into()),
+        }
     }
 
-    /// Await the validation result
-    pub async fn await_result(self) -> TrackingResult<ValidationResult> {
-        self.future.await
+    /// Run validation with timeout and cancellation support
+    async fn run_validation_with_timeout(
+        file_path: String,
+        _expected_count: usize,
+        config: ValidationConfig,
+        timeout_duration: Duration,
+        mut cancel_receiver: oneshot::Receiver<()>,
+    ) -> TrackingResult<ValidationResult> {
+        let validation_future = async {
+            let mut async_validator = AsyncValidator::new(config);
+            async_validator.validate_file_async(&file_path).await
+        };
+
+        // Race between validation, timeout, and cancellation
+        tokio::select! {
+            result = validation_future => {
+                result
+            }
+            _ = tokio::time::sleep(timeout_duration) => {
+                Err(ValidationError::TimeoutError {
+                    file_path: file_path.clone(),
+                    timeout_duration,
+                }.into())
+            }
+            _ = &mut cancel_receiver => {
+                Err(ValidationError::CancelledError {
+                    file_path: file_path.clone(),
+                    reason: "Validation cancelled by user".to_string(),
+                }.into())
+            }
+        }
+    }
+
+    /// Check if validation is complete
+    pub fn is_complete(&self) -> bool {
+        matches!(self.handle, ValidationHandle::Completed { .. } | ValidationHandle::Failed { .. } | ValidationHandle::Cancelled { .. } | ValidationHandle::TimedOut { .. })
+    }
+
+    /// Check if validation is running
+    pub fn is_running(&self) -> bool {
+        matches!(self.handle, ValidationHandle::Running { .. })
+    }
+
+    /// Check if validation is pending
+    pub fn is_pending(&self) -> bool {
+        matches!(self.handle, ValidationHandle::Pending { .. })
+    }
+
+    /// Cancel the validation if it's running
+    pub fn cancel(&mut self) -> TrackingResult<()> {
+        if !self.cancellable {
+            return Err(ValidationError::ConfigurationError {
+                error: "Validation is not cancellable".to_string(),
+            }.into());
+        }
+
+        match std::mem::replace(&mut self.handle, ValidationHandle::Cancelled {
+            file_path: "unknown".to_string(),
+            reason: "Cancelled by user".to_string(),
+        }) {
+            ValidationHandle::Running { file_path, cancel_sender, task_handle } => {
+                // Send cancellation signal
+                let _ = cancel_sender.send(());
+                
+                // Abort the task
+                task_handle.abort();
+
+                // Update handle to cancelled state
+                self.handle = ValidationHandle::Cancelled {
+                    file_path,
+                    reason: "Cancelled by user".to_string(),
+                };
+
+                Ok(())
+            }
+            ValidationHandle::Pending { file_path, .. } => {
+                // Cancel pending validation
+                self.handle = ValidationHandle::Cancelled {
+                    file_path,
+                    reason: "Cancelled before starting".to_string(),
+                };
+                Ok(())
+            }
+            other => {
+                // Restore original handle
+                self.handle = other;
+                Err(ValidationError::ConfigurationError {
+                    error: "Cannot cancel validation in current state".to_string(),
+                }.into())
+            }
+        }
+    }
+
+    /// Get validation result if available
+    pub async fn get_result(&mut self) -> TrackingResult<ValidationResult> {
+        // Start validation if it's pending
+        if self.is_pending() {
+            self.start_validation().await?;
+        }
+
+        // Wait for completion if running
+        if let ValidationHandle::Running { file_path, task_handle, .. } = 
+            std::mem::replace(&mut self.handle, ValidationHandle::Cancelled {
+                file_path: "temp".to_string(),
+                reason: "temp".to_string(),
+            }) {
+            
+            match task_handle.await {
+                Ok(Ok(result)) => {
+                    self.handle = ValidationHandle::Completed {
+                        file_path: file_path.clone(),
+                        result: result.clone(),
+                    };
+                    Ok(result)
+                }
+                Ok(Err(e)) => {
+                    let validation_error = ValidationError::InternalError {
+                        error: e.to_string(),
+                    };
+                    self.handle = ValidationHandle::Failed {
+                        file_path: file_path.clone(),
+                        error: validation_error.clone(),
+                    };
+                    Err(validation_error.into())
+                }
+                Err(join_error) => {
+                    if join_error.is_cancelled() {
+                        self.handle = ValidationHandle::Cancelled {
+                            file_path: file_path.clone(),
+                            reason: "Task was cancelled".to_string(),
+                        };
+                        Err(ValidationError::CancelledError {
+                            file_path,
+                            reason: "Task was cancelled".to_string(),
+                        }.into())
+                    } else {
+                        let validation_error = ValidationError::InternalError {
+                            error: format!("Task join error: {}", join_error),
+                        };
+                        self.handle = ValidationHandle::Failed {
+                            file_path: file_path.clone(),
+                            error: validation_error.clone(),
+                        };
+                        Err(validation_error.into())
+                    }
+                }
+            }
+        } else {
+            // Return result based on current state
+            match &self.handle {
+                ValidationHandle::Completed { result, .. } => Ok(result.clone()),
+                ValidationHandle::Failed { error, .. } => Err(error.clone().into()),
+                ValidationHandle::Cancelled { file_path, reason } => {
+                    Err(ValidationError::CancelledError {
+                        file_path: file_path.clone(),
+                        reason: reason.clone(),
+                    }.into())
+                }
+                ValidationHandle::TimedOut { file_path, timeout_duration } => {
+                    Err(ValidationError::TimeoutError {
+                        file_path: file_path.clone(),
+                        timeout_duration: *timeout_duration,
+                    }.into())
+                }
+                _ => Err(ValidationError::ConfigurationError {
+                    error: "Validation is in unexpected state".to_string(),
+                }.into())
+            }
+        }
+    }
+
+    /// Get current validation status
+    pub fn get_status(&self) -> ValidationStatus {
+        match &self.handle {
+            ValidationHandle::Pending { .. } => ValidationStatus::Pending,
+            ValidationHandle::Running { .. } => ValidationStatus::Running,
+            ValidationHandle::Completed { .. } => ValidationStatus::Completed,
+            ValidationHandle::Failed { .. } => ValidationStatus::Failed,
+            ValidationHandle::Cancelled { .. } => ValidationStatus::Cancelled,
+            ValidationHandle::TimedOut { .. } => ValidationStatus::TimedOut,
+        }
+    }
+
+    /// Get file path being validated
+    pub fn get_file_path(&self) -> String {
+        match &self.handle {
+            ValidationHandle::Pending { file_path, .. } => file_path.clone(),
+            ValidationHandle::Running { file_path, .. } => file_path.clone(),
+            ValidationHandle::Completed { file_path, .. } => file_path.clone(),
+            ValidationHandle::Failed { file_path, .. } => file_path.clone(),
+            ValidationHandle::Cancelled { file_path, .. } => file_path.clone(),
+            ValidationHandle::TimedOut { file_path, .. } => file_path.clone(),
+        }
+    }
+
+    /// Set timeout duration
+    pub fn set_timeout(&mut self, timeout_duration: Duration) {
+        self.timeout_duration = timeout_duration;
+    }
+
+    /// Set cancellable flag
+    pub fn set_cancellable(&mut self, cancellable: bool) {
+        self.cancellable = cancellable;
+    }
+
+    /// Await the validation result (compatibility method)
+    pub async fn await_result(mut self) -> TrackingResult<ValidationResult> {
+        self.get_result().await
     }
 }
 

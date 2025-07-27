@@ -217,6 +217,82 @@ impl fmt::Display for ExportError {
 
 impl std::error::Error for ExportError {}
 
+/// Validation-specific error types (separate from export errors)
+#[derive(Debug, Clone)]
+pub enum ValidationError {
+    /// File access error during validation
+    FileAccessError {
+        /// File path that couldn't be accessed
+        file_path: String,
+        /// Underlying error message
+        error: String,
+    },
+    /// JSON parsing error during validation
+    JsonParsingError {
+        /// File path with invalid JSON
+        file_path: String,
+        /// JSON error details
+        error: String,
+    },
+    /// Validation timeout error
+    TimeoutError {
+        /// File path that timed out
+        file_path: String,
+        /// Timeout duration
+        timeout_duration: std::time::Duration,
+    },
+    /// Validation was cancelled
+    CancelledError {
+        /// File path being validated
+        file_path: String,
+        /// Cancellation reason
+        reason: String,
+    },
+    /// Configuration error
+    ConfigurationError {
+        /// Configuration error details
+        error: String,
+    },
+    /// Internal validation error
+    InternalError {
+        /// Internal error details
+        error: String,
+    },
+}
+
+impl fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ValidationError::FileAccessError { file_path, error } => {
+                write!(f, "file access error for {}: {}", file_path, error)
+            }
+            ValidationError::JsonParsingError { file_path, error } => {
+                write!(f, "JSON parsing error in {}: {}", file_path, error)
+            }
+            ValidationError::TimeoutError { file_path, timeout_duration } => {
+                write!(f, "validation timeout for {} after {:?}", file_path, timeout_duration)
+            }
+            ValidationError::CancelledError { file_path, reason } => {
+                write!(f, "validation cancelled for {}: {}", file_path, reason)
+            }
+            ValidationError::ConfigurationError { error } => {
+                write!(f, "validation configuration error: {}", error)
+            }
+            ValidationError::InternalError { error } => {
+                write!(f, "internal validation error: {}", error)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ValidationError {}
+
+impl From<ValidationError> for TrackingError {
+    fn from(error: ValidationError) -> Self {
+        TrackingError::ExportError(error.to_string())
+    }
+}
+
 impl From<ExportError> for TrackingError {
     fn from(error: ExportError) -> Self {
         TrackingError::ExportError(error.to_string())
