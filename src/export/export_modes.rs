@@ -33,7 +33,7 @@ pub fn export_fast<P: AsRef<Path>>(
     let path = output_path.as_ref().to_path_buf();
     
     Box::pin(async move {
-        println!("🚀 启动快速导出模式 (无验证)");
+        println!("🚀 Starting fast export mode (no validation)");
         
         // 创建快速模式协调器
         let mut coordinator = FastExportCoordinator::new_fast_mode();
@@ -41,7 +41,7 @@ pub fn export_fast<P: AsRef<Path>>(
         // 纯导出，跳过所有验证
         let stats = coordinator.export_without_validation(&path).await?;
         
-        println!("✅ 快速导出完成: {} 个分配, {:.2} MB", 
+        println!("✅ Fast export completed: {} allocations, {:.2} MB", 
                 stats.parallel_processing.total_allocations,
                 stats.write_performance.total_bytes_written as f64 / 1024.0 / 1024.0);
         

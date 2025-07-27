@@ -803,7 +803,7 @@ impl MemoryTracker {
         
         // 如果启用了快速导出模式或自动检测到大数据集，使用新的快速导出协调器
         if should_use_fast_export {
-            println!("🚀 使用快速导出协调器进行高性能导出 (分配数量: {})", allocation_count);
+            println!("🚀 Using fast export coordinator for high-performance export (allocations: {})", allocation_count);
             
             let mut config_builder = FastExportConfigBuilder::new()
                 .shard_size(options.batch_size)
@@ -841,33 +841,33 @@ impl MemoryTracker {
             
             match coordinator.export_fast(output_path.to_string_lossy().as_ref()) {
                 Ok(stats) => {
-                    println!("✅ 快速导出完成:");
-                    println!("   总分配数: {}", stats.total_allocations_processed);
-                    println!("   总耗时: {}ms", stats.total_export_time_ms);
-                    println!("   数据获取: {}ms", stats.data_gathering.total_time_ms);
-                    println!("   并行处理: {}ms", stats.parallel_processing.total_processing_time_ms);
-                    println!("   写入时间: {}ms", stats.write_performance.total_write_time_ms);
-                    println!("   使用线程: {}", stats.parallel_processing.threads_used);
-                    println!("   性能提升: {:.2}x", stats.performance_improvement_factor);
-                    println!("   输出文件: {}", output_path.display());
+                    println!("✅ Fast export completed:");
+                    println!("   Total allocations: {}", stats.total_allocations_processed);
+                    println!("   Total time: {}ms", stats.total_export_time_ms);
+                    println!("   Data gathering: {}ms", stats.data_gathering.total_time_ms);
+                    println!("   Parallel processing: {}ms", stats.parallel_processing.total_processing_time_ms);
+                    println!("   Write time: {}ms", stats.write_performance.total_write_time_ms);
+                    println!("   Threads used: {}", stats.parallel_processing.threads_used);
+                    println!("   Performance improvement: {:.2}x", stats.performance_improvement_factor);
+                    println!("   Output file: {}", output_path.display());
                     
-                    // 快速导出模式下直接返回，不生成其他文件
+                    // Fast export mode returns directly without generating other files
                     if options.enable_fast_export_mode {
-                        println!("⚡ 快速导出模式：跳过其他分析文件生成");
+                        println!("⚡ Fast export mode: skipping other analysis file generation");
                         return Ok(());
                     }
                     
-                    // 如果需要其他文件类型，继续使用传统方法生成
+                    // If other file types are needed, continue with traditional method
                     if options.optimization_level == OptimizationLevel::High || 
                        options.optimization_level == OptimizationLevel::Maximum {
-                        println!("📝 生成其他分析文件...");
-                        // 继续执行传统导出逻辑生成其他文件
+                        println!("📝 Generating other analysis files...");
+                        // Continue with traditional export logic for other files
                     } else {
                         return Ok(());
                     }
                 }
                 Err(e) => {
-                    eprintln!("⚠️ 快速导出失败，回退到传统导出: {}", e);
+                    eprintln!("⚠️ Fast export failed, falling back to traditional export: {}", e);
                     // 继续使用传统导出方法
                 }
             }

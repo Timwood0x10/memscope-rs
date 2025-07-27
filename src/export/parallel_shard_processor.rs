@@ -109,7 +109,7 @@ impl ParallelShardProcessor {
         let allocations = &data.allocations;
 
         println!(
-            "🔄 开始并行分片处理 {} 个分配...",
+            "🔄 Starting parallel shard processing for {} allocations...",
             allocations.len()
         );
 
@@ -122,8 +122,8 @@ impl ParallelShardProcessor {
         };
 
         println!(
-            "   并行模式: {}, 线程数: {}, 分片大小: {}",
-            if use_parallel { "启用" } else { "禁用" },
+            "   Parallel mode: {}, threads: {}, shard size: {}",
+            if use_parallel { "enabled" } else { "disabled" },
             actual_threads,
             self.config.shard_size
         );
@@ -136,7 +136,7 @@ impl ParallelShardProcessor {
             .chunks(self.config.shard_size)
             .collect();
 
-        println!("   分片数量: {}", shards.len());
+        println!("   Shard count: {}", shards.len());
 
         // 并行或串行处理分片
         let processed_shards: TrackingResult<Vec<ProcessedShard>> = if use_parallel {
@@ -197,7 +197,7 @@ impl ParallelShardProcessor {
         if self.config.enable_monitoring && shard_index % 10 == 0 {
             let _processed = self.processed_count.load(Ordering::Relaxed);
             println!(
-                "   分片 {} 完成: {} 个分配, {} 字节, {:?}",
+                "   Shard {} completed: {} allocations, {} bytes, {:?}",
                 shard_index,
                 shard.len(),
                 output_buffer.len(),
@@ -266,19 +266,19 @@ impl ParallelShardProcessor {
 
     /// 打印性能统计信息
     fn print_performance_stats(&self, stats: &ParallelProcessingStats) {
-        println!("✅ 并行分片处理完成:");
-        println!("   总分配数: {}", stats.total_allocations);
-        println!("   分片数量: {}", stats.shard_count);
-        println!("   使用线程: {}", stats.threads_used);
-        println!("   总耗时: {}ms", stats.total_processing_time_ms);
-        println!("   平均分片耗时: {:.2}ms", stats.avg_shard_processing_time_ms);
-        println!("   吞吐量: {:.0} 分配/秒", stats.throughput_allocations_per_sec);
-        println!("   输出大小: {:.2} MB", stats.total_output_size_bytes as f64 / 1024.0 / 1024.0);
+        println!("✅ Parallel shard processing completed:");
+        println!("   Total allocations: {}", stats.total_allocations);
+        println!("   Shard count: {}", stats.shard_count);
+        println!("   Threads used: {}", stats.threads_used);
+        println!("   Total time: {}ms", stats.total_processing_time_ms);
+        println!("   Average shard time: {:.2}ms", stats.avg_shard_processing_time_ms);
+        println!("   Throughput: {:.0} allocations/sec", stats.throughput_allocations_per_sec);
+        println!("   Output size: {:.2} MB", stats.total_output_size_bytes as f64 / 1024.0 / 1024.0);
         
         if stats.used_parallel_processing {
-            println!("   并行效率: {:.1}%", stats.parallel_efficiency * 100.0);
+            println!("   Parallel efficiency: {:.1}%", stats.parallel_efficiency * 100.0);
             let speedup = stats.parallel_efficiency * stats.threads_used as f64;
-            println!("   实际加速比: {:.2}x", speedup);
+            println!("   Actual speedup: {:.2}x", speedup);
         }
     }
 

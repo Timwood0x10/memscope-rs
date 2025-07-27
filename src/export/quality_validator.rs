@@ -9,6 +9,7 @@ use crate::export::data_localizer::LocalizedExportData;
 use crate::export::error_handling::{ExportError, ValidationType, ValidationError};
 use crate::export::parallel_shard_processor::ProcessedShard;
 use clap::{Parser, ValueEnum};
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -369,7 +370,7 @@ unsafe impl Send for DeferredValidation {}
 unsafe impl Sync for DeferredValidation {}
 
 /// Validation configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationConfig {
     /// Whether to enable JSON structure validation
     pub enable_json_validation: bool,
@@ -575,7 +576,7 @@ pub struct ValidationResult {
 }
 
 /// Validation issue
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationIssue {
     /// Type of issue
     pub issue_type: IssueType,
@@ -592,7 +593,7 @@ pub struct ValidationIssue {
 }
 
 /// Type of validation issue
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum IssueType {
     /// Data is missing
     MissingData,
@@ -613,7 +614,7 @@ pub enum IssueType {
 }
 
 /// Severity level of validation issue
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum IssueSeverity {
     /// Critical issue that prevents operation
     Critical,
@@ -1533,6 +1534,55 @@ impl AsyncValidator {
             }
         }
     }
+
+    /// Create enhanced streaming validator for large file validation
+    pub fn create_enhanced_streaming_validator(&self, streaming_config: StreamingValidationConfig) -> EnhancedStreamingValidator {
+        EnhancedStreamingValidator::new(self.config.clone(), streaming_config)
+    }
+
+    /// Validate file using enhanced streaming with progress reporting
+    pub async fn validate_file_with_streaming<P: AsRef<Path>>(
+        &mut self,
+        file_path: P,
+        streaming_config: Option<StreamingValidationConfig>,
+        progress_callback: Option<Box<dyn Fn(&ValidationProgress) + Send + Sync>>,
+    ) -> TrackingResult<ValidationResult> {
+        let config = streaming_config.unwrap_or_default();
+        let mut streaming_validator = EnhancedStreamingValidator::new(self.config.clone(), config);
+        
+        if let Some(callback) = progress_callback {
+            streaming_validator.set_progress_callback(callback);
+        }
+
+        // Open file and get size
+        let file = fs::File::open(&file_path).await.map_err(|e| {
+            ExportError::DataQualityError {
+                validation_type: ValidationType::FileSize,
+                expected: "Readable file".to_string(),
+                actual: format!("File open failed: {e}"),
+                affected_records: 0,
+            }
+        })?;
+
+        let metadata = file.metadata().await.map_err(|e| {
+            ExportError::DataQualityError {
+                validation_type: ValidationType::FileSize,
+                expected: "Readable file metadata".to_string(),
+                actual: format!("Metadata read failed: {e}"),
+                affected_records: 0,
+            }
+        })?;
+
+        let file_size = metadata.len();
+        let reader = tokio::io::BufReader::new(file);
+
+        let result = streaming_validator.validate_stream_async(reader, Some(file_size)).await?;
+        
+        // Update our stats
+        self.update_stats(&result);
+        
+        Ok(result)
+    }
 }
 
 impl DeferredValidation {
@@ -2026,6 +2076,502 @@ impl fmt::Display for IssueType {
             IssueType::StructuralError => write!(f, "Structural Error"),
             IssueType::CountMismatch => write!(f, "Count Mismatch"),
         }
+    }
+}
+
+/// Enhanced streaming validation configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamingValidationConfig {
+    /// Chunk size for reading data (default: 64KB)
+    pub chunk_size: usize,
+    /// Maximum memory usage for buffering (default: 16MB)
+    pub max_buffer_size: usize,
+    /// Enable progress reporting
+    pub enable_progress_reporting: bool,
+    /// Progress reporting interval in bytes
+    pub progress_report_interval: usize,
+    /// Enable validation interruption support
+    pub enable_interruption: bool,
+    /// Enable validation resume from checkpoint
+    pub enable_resume: bool,
+    /// Checkpoint save interval in bytes
+    pub checkpoint_interval: usize,
+}
+
+impl Default for StreamingValidationConfig {
+    fn default() -> Self {
+        Self {
+            chunk_size: 64 * 1024,           // 64KB chunks
+            max_buffer_size: 16 * 1024 * 1024, // 16MB max buffer
+            enable_progress_reporting: true,
+            progress_report_interval: 1024 * 1024, // Report every 1MB
+            enable_interruption: true,
+            enable_resume: true,
+            checkpoint_interval: 10 * 1024 * 1024, // Checkpoint every 10MB
+        }
+    }
+}
+
+/// Validation progress information
+#[derive(Debug, Clone)]
+pub struct ValidationProgress {
+    /// Total bytes to validate
+    pub total_bytes: u64,
+    /// Bytes processed so far
+    pub processed_bytes: u64,
+    /// Progress percentage (0.0 to 100.0)
+    pub progress_percentage: f64,
+    /// Current validation phase
+    pub current_phase: ValidationPhase,
+    /// Estimated time remaining in seconds
+    pub estimated_time_remaining_secs: Option<f64>,
+    /// Current processing speed in bytes per second
+    pub processing_speed_bps: f64,
+    /// Issues found so far
+    pub issues_found: usize,
+    /// Current chunk being processed
+    pub current_chunk: usize,
+    /// Total chunks to process
+    pub total_chunks: usize,
+}
+
+/// Validation phases for progress tracking
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ValidationPhase {
+    /// Initializing validation
+    Initializing,
+    /// Reading file metadata
+    ReadingMetadata,
+    /// Validating JSON structure
+    ValidatingStructure,
+    /// Validating content integrity
+    ValidatingContent,
+    /// Validating encoding
+    ValidatingEncoding,
+    /// Finalizing validation
+    Finalizing,
+    /// Validation completed
+    Completed,
+    /// Validation interrupted
+    Interrupted,
+    /// Validation failed
+    Failed,
+}
+
+impl fmt::Display for ValidationPhase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ValidationPhase::Initializing => write!(f, "Initializing"),
+            ValidationPhase::ReadingMetadata => write!(f, "Reading metadata"),
+            ValidationPhase::ValidatingStructure => write!(f, "Validating structure"),
+            ValidationPhase::ValidatingContent => write!(f, "Validating content"),
+            ValidationPhase::ValidatingEncoding => write!(f, "Validating encoding"),
+            ValidationPhase::Finalizing => write!(f, "Finalizing"),
+            ValidationPhase::Completed => write!(f, "Completed"),
+            ValidationPhase::Interrupted => write!(f, "Interrupted"),
+            ValidationPhase::Failed => write!(f, "Failed"),
+        }
+    }
+}
+
+/// Validation checkpoint for resume functionality
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationCheckpoint {
+    /// File path being validated
+    pub file_path: String,
+    /// Byte offset where validation was paused
+    pub byte_offset: u64,
+    /// Issues found up to this point
+    pub issues_found: Vec<ValidationIssue>,
+    /// Validation phase at checkpoint
+    pub phase: ValidationPhase,
+    /// Timestamp when checkpoint was created
+    pub timestamp: std::time::SystemTime,
+    /// Validation configuration used
+    pub config: ValidationConfig,
+    /// Streaming configuration used
+    pub streaming_config: StreamingValidationConfig,
+}
+
+/// Enhanced streaming validator with progress reporting and interruption support
+pub struct EnhancedStreamingValidator {
+    /// Base validation configuration
+    config: ValidationConfig,
+    /// Streaming-specific configuration
+    streaming_config: StreamingValidationConfig,
+    /// Current validation progress
+    progress: Option<ValidationProgress>,
+    /// Interruption flag
+    interrupted: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Progress callback function
+    progress_callback: Option<Box<dyn Fn(&ValidationProgress) + Send + Sync>>,
+    /// Current checkpoint
+    checkpoint: Option<ValidationCheckpoint>,
+}
+
+impl EnhancedStreamingValidator {
+    /// Create new enhanced streaming validator
+    pub fn new(config: ValidationConfig, streaming_config: StreamingValidationConfig) -> Self {
+        Self {
+            config,
+            streaming_config,
+            progress: None,
+            interrupted: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            progress_callback: None,
+            checkpoint: None,
+        }
+    }
+
+    /// Set progress callback function
+    pub fn set_progress_callback<F>(&mut self, callback: F)
+    where
+        F: Fn(&ValidationProgress) + Send + Sync + 'static,
+    {
+        self.progress_callback = Some(Box::new(callback));
+    }
+
+    /// Request validation interruption
+    pub fn interrupt(&self) {
+        self.interrupted.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Check if validation was interrupted
+    pub fn is_interrupted(&self) -> bool {
+        self.interrupted.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Get current validation progress
+    pub fn get_progress(&self) -> Option<&ValidationProgress> {
+        self.progress.as_ref()
+    }
+
+    /// Save validation checkpoint
+    pub async fn save_checkpoint<P: AsRef<Path>>(&self, checkpoint_path: P) -> TrackingResult<()> {
+        if let Some(checkpoint) = &self.checkpoint {
+            let checkpoint_data = serde_json::to_string_pretty(checkpoint).map_err(|e| {
+                ExportError::DataQualityError {
+                    validation_type: ValidationType::JsonStructure,
+                    expected: "Serializable checkpoint".to_string(),
+                    actual: format!("Serialization failed: {e}"),
+                    affected_records: 0,
+                }
+            })?;
+
+            fs::write(checkpoint_path, checkpoint_data).await.map_err(|e| {
+                ExportError::DataQualityError {
+                    validation_type: ValidationType::FileSize,
+                    expected: "Writable checkpoint file".to_string(),
+                    actual: format!("Write failed: {e}"),
+                    affected_records: 0,
+                }
+            })?;
+        }
+
+        Ok(())
+    }
+
+    /// Load validation checkpoint
+    pub async fn load_checkpoint<P: AsRef<Path>>(&mut self, checkpoint_path: P) -> TrackingResult<()> {
+        let checkpoint_data = fs::read_to_string(checkpoint_path).await.map_err(|e| {
+            ExportError::DataQualityError {
+                validation_type: ValidationType::FileSize,
+                expected: "Readable checkpoint file".to_string(),
+                actual: format!("Read failed: {e}"),
+                affected_records: 0,
+            }
+        })?;
+
+        let checkpoint: ValidationCheckpoint = serde_json::from_str(&checkpoint_data).map_err(|e| {
+            ExportError::DataQualityError {
+                validation_type: ValidationType::JsonStructure,
+                expected: "Valid checkpoint JSON".to_string(),
+                actual: format!("Deserialization failed: {e}"),
+                affected_records: 0,
+            }
+        })?;
+
+        self.checkpoint = Some(checkpoint);
+        Ok(())
+    }
+
+    /// Enhanced streaming validation with AsyncRead support
+    pub async fn validate_stream_async<R>(&mut self, mut reader: R, total_size: Option<u64>) -> TrackingResult<ValidationResult>
+    where
+        R: tokio::io::AsyncRead + Unpin,
+    {
+        let start_time = std::time::Instant::now();
+        let mut issues = Vec::new();
+        let mut processed_bytes = 0u64;
+        let total_bytes = total_size.unwrap_or(0);
+
+        // Initialize progress tracking
+        self.progress = Some(ValidationProgress {
+            total_bytes,
+            processed_bytes: 0,
+            progress_percentage: 0.0,
+            current_phase: ValidationPhase::Initializing,
+            estimated_time_remaining_secs: None,
+            processing_speed_bps: 0.0,
+            issues_found: 0,
+            current_chunk: 0,
+            total_chunks: if total_bytes > 0 { 
+                (total_bytes as usize + self.streaming_config.chunk_size - 1) / self.streaming_config.chunk_size 
+            } else { 
+                0 
+            },
+        });
+
+        self.update_progress(ValidationPhase::ValidatingStructure);
+
+        let mut buffer = Vec::with_capacity(self.streaming_config.max_buffer_size);
+        let mut chunk_buffer = vec![0u8; self.streaming_config.chunk_size];
+        let mut chunk_count = 0;
+        let validation_start = std::time::Instant::now();
+
+        loop {
+            // Check for interruption
+            if self.is_interrupted() {
+                self.update_progress(ValidationPhase::Interrupted);
+                break;
+            }
+
+            // Read next chunk
+            let bytes_read = reader.read(&mut chunk_buffer).await.map_err(|e| {
+                ExportError::DataQualityError {
+                    validation_type: ValidationType::JsonStructure,
+                    expected: "Readable stream data".to_string(),
+                    actual: format!("Read failed: {e}"),
+                    affected_records: 0,
+                }
+            })?;
+
+            if bytes_read == 0 {
+                break; // End of stream
+            }
+
+            processed_bytes += bytes_read as u64;
+            chunk_count += 1;
+
+            // Add chunk to buffer
+            buffer.extend_from_slice(&chunk_buffer[..bytes_read]);
+
+            // Process buffer when it reaches threshold or we have a complete JSON structure
+            if buffer.len() >= self.streaming_config.max_buffer_size || self.is_complete_json_structure(&buffer) {
+                self.validate_buffer_chunk(&buffer, &mut issues)?;
+                buffer.clear();
+            }
+
+            // Update progress
+            if let Some(progress) = &mut self.progress {
+                progress.processed_bytes = processed_bytes;
+                progress.current_chunk = chunk_count;
+                progress.progress_percentage = if total_bytes > 0 {
+                    (processed_bytes as f64 / total_bytes as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                // Calculate processing speed
+                let elapsed = validation_start.elapsed().as_secs_f64();
+                if elapsed > 0.0 {
+                    progress.processing_speed_bps = processed_bytes as f64 / elapsed;
+                    
+                    // Estimate remaining time
+                    if total_bytes > 0 && progress.processing_speed_bps > 0.0 {
+                        let remaining_bytes = total_bytes - processed_bytes;
+                        progress.estimated_time_remaining_secs = Some(remaining_bytes as f64 / progress.processing_speed_bps);
+                    }
+                }
+
+                progress.issues_found = issues.len();
+
+                // Report progress if callback is set
+                if let Some(callback) = &self.progress_callback {
+                    if processed_bytes % self.streaming_config.progress_report_interval as u64 == 0 {
+                        callback(progress);
+                    }
+                }
+            }
+
+            // Save checkpoint if enabled
+            if self.streaming_config.enable_resume && 
+               processed_bytes % self.streaming_config.checkpoint_interval as u64 == 0 {
+                self.create_checkpoint(processed_bytes, &issues, ValidationPhase::ValidatingStructure);
+            }
+        }
+
+        // Process remaining buffer
+        if !buffer.is_empty() {
+            self.validate_buffer_chunk(&buffer, &mut issues)?;
+        }
+
+        self.update_progress(ValidationPhase::Finalizing);
+
+        let validation_time = start_time.elapsed().as_millis() as u64;
+        let is_valid = issues.iter().all(|issue| issue.severity != IssueSeverity::Critical);
+
+        let result = ValidationResult {
+            is_valid,
+            validation_type: ValidationType::JsonStructure,
+            message: if is_valid {
+                format!("Streaming validation completed successfully. Processed {} bytes in {} chunks.", processed_bytes, chunk_count)
+            } else {
+                format!("Streaming validation failed with {} issues. Processed {} bytes in {} chunks.", issues.len(), processed_bytes, chunk_count)
+            },
+            issues,
+            validation_time_ms: validation_time,
+            data_size: processed_bytes as usize,
+        };
+
+        self.update_progress(ValidationPhase::Completed);
+
+        Ok(result)
+    }
+
+    /// Check if buffer contains a complete JSON structure
+    fn is_complete_json_structure(&self, buffer: &[u8]) -> bool {
+        // Simple heuristic: check for balanced braces
+        let mut brace_count = 0;
+        let mut in_string = false;
+        let mut escape_next = false;
+
+        for &byte in buffer {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+
+            match byte {
+                b'\\' if in_string => escape_next = true,
+                b'"' => in_string = !in_string,
+                b'{' if !in_string => brace_count += 1,
+                b'}' if !in_string => {
+                    brace_count -= 1;
+                    if brace_count == 0 {
+                        return true; // Complete JSON object found
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        false
+    }
+
+    /// Validate a buffer chunk with enhanced error handling
+    fn validate_buffer_chunk(&self, buffer: &[u8], issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        // Try to parse as JSON
+        match serde_json::from_slice::<serde_json::Value>(buffer) {
+            Ok(json_value) => {
+                // Additional validation on parsed JSON
+                self.validate_json_content(&json_value, issues)?;
+            }
+            Err(e) => {
+                // Only report if it's not a partial chunk issue
+                if !e.to_string().contains("EOF") && !e.to_string().contains("unexpected end") {
+                    issues.push(ValidationIssue {
+                        issue_type: IssueType::InvalidFormat,
+                        description: format!("JSON parsing failed: {e}"),
+                        severity: IssueSeverity::High,
+                        affected_data: format!("Buffer chunk ({} bytes)", buffer.len()),
+                        suggested_fix: Some("Check JSON format and structure".to_string()),
+                        auto_fixable: false,
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate JSON content structure and values
+    fn validate_json_content(&self, json_value: &serde_json::Value, issues: &mut Vec<ValidationIssue>) -> TrackingResult<()> {
+        match json_value {
+            serde_json::Value::Object(obj) => {
+                // Validate object structure
+                if obj.is_empty() {
+                    issues.push(ValidationIssue {
+                        issue_type: IssueType::StructuralError,
+                        description: "Empty JSON object found".to_string(),
+                        severity: IssueSeverity::Low,
+                        affected_data: "JSON object".to_string(),
+                        suggested_fix: Some("Ensure objects contain meaningful data".to_string()),
+                        auto_fixable: false,
+                    });
+                }
+
+                // Recursively validate nested objects
+                for (key, value) in obj {
+                    if key.is_empty() {
+                        issues.push(ValidationIssue {
+                            issue_type: IssueType::StructuralError,
+                            description: "Empty key found in JSON object".to_string(),
+                            severity: IssueSeverity::Medium,
+                            affected_data: format!("Object key: '{key}'"),
+                            suggested_fix: Some("Use meaningful key names".to_string()),
+                            auto_fixable: false,
+                        });
+                    }
+                    self.validate_json_content(value, issues)?;
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                // Validate array structure
+                if arr.is_empty() {
+                    issues.push(ValidationIssue {
+                        issue_type: IssueType::StructuralError,
+                        description: "Empty JSON array found".to_string(),
+                        severity: IssueSeverity::Low,
+                        affected_data: "JSON array".to_string(),
+                        suggested_fix: Some("Consider removing empty arrays or adding default values".to_string()),
+                        auto_fixable: true,
+                    });
+                }
+
+                // Recursively validate array elements
+                for value in arr {
+                    self.validate_json_content(value, issues)?;
+                }
+            }
+            serde_json::Value::String(s) => {
+                // Validate string content
+                if s.is_empty() {
+                    issues.push(ValidationIssue {
+                        issue_type: IssueType::StructuralError,
+                        description: "Empty string value found".to_string(),
+                        severity: IssueSeverity::Low,
+                        affected_data: "String value".to_string(),
+                        suggested_fix: Some("Use null instead of empty strings where appropriate".to_string()),
+                        auto_fixable: true,
+                    });
+                }
+            }
+            _ => {
+                // Other JSON types are generally valid
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Update validation progress
+    fn update_progress(&mut self, phase: ValidationPhase) {
+        if let Some(progress) = &mut self.progress {
+            progress.current_phase = phase;
+        }
+    }
+
+    /// Create validation checkpoint
+    fn create_checkpoint(&mut self, byte_offset: u64, issues: &[ValidationIssue], phase: ValidationPhase) {
+        self.checkpoint = Some(ValidationCheckpoint {
+            file_path: "stream".to_string(), // Will be set by caller
+            byte_offset,
+            issues_found: issues.to_vec(),
+            phase,
+            timestamp: std::time::SystemTime::now(),
+            config: self.config.clone(),
+            streaming_config: self.streaming_config.clone(),
+        });
     }
 }
 

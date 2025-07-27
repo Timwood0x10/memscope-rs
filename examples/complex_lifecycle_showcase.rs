@@ -698,10 +698,11 @@ fn generate_final_analysis() {
         println!("✅ Enhanced lifecycle timeline exported to: MemoryAnalysis/complex_lifecycle_timeline/");
     }
 
+    // Export using default fast mode
     if let Err(e) = tracker.export_to_json("complex_lifecycle_snapshot") {
         println!("❌ JSON snapshot export failed: {e}");
     } else {
-        println!("✅ Memory snapshot exported to: MemoryAnalysis/complex_lifecycle/");
+        println!("✅ Memory snapshot (fast mode) exported to: MemoryAnalysis/complex_lifecycle/");
     }
 
 

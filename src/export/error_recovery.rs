@@ -199,7 +199,7 @@ impl ErrorRecoveryManager {
         // 确保部分保存目录存在
         if config.enable_partial_save {
             if let Err(e) = std::fs::create_dir_all(&config.partial_save_directory) {
-                eprintln!("⚠️ 无法创建部分保存目录: {e}");
+                eprintln!("⚠️ Unable to create partial save directory: {e}");
             }
         }
 

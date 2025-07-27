@@ -2021,10 +2021,15 @@ impl MemoryTracker {
         // Ensure output goes to MemoryAnalysis directory
         let output_path = self.ensure_memory_analysis_path(path);
         
-        // Use the new integrated export pipeline from optimized_json_export
+        // Use fast mode by default for optimal performance
         use crate::export::optimized_json_export::OptimizedExportOptions;
         
-        let options = OptimizedExportOptions::default();
+        let options = OptimizedExportOptions::default()
+            .fast_export_mode(true)
+            .security_analysis(false)           // Disable for speed
+            .schema_validation(false)           // Disable for speed
+            .integrity_hashes(false);           // Disable for speed
+            
         self.export_to_json_with_optimized_options(output_path, options)
     }
 
@@ -2091,6 +2096,70 @@ impl MemoryTracker {
         
         // Use the new optimized export method
         self.export_to_json_with_optimized_options(path, optimized_options)
+    }
+
+    /// Export memory tracking data with specified export mode.
+    ///
+    /// This method provides explicit control over export mode while maintaining
+    /// backward compatibility with existing code.
+    ///
+    /// # Arguments
+    /// * `path` - Output file path
+    /// * `mode` - Export mode (Fast, Slow, or Auto)
+    ///
+    /// # Examples
+    /// ```rust
+    /// use memscope::export::quality_validator::ExportMode;
+    /// 
+    /// // Fast mode for production monitoring
+    /// tracker.export_json_with_mode("prod_snapshot", ExportMode::Fast)?;
+    /// 
+    /// // Slow mode for comprehensive analysis
+    /// tracker.export_json_with_mode("debug_analysis", ExportMode::Slow)?;
+    /// 
+    /// // Auto mode for adaptive behavior
+    /// tracker.export_json_with_mode("analysis", ExportMode::Auto)?;
+    /// ```
+    pub fn export_json_with_mode<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        mode: crate::export::quality_validator::ExportMode,
+    ) -> TrackingResult<()> {
+        use crate::export::optimized_json_export::OptimizedExportOptions;
+        use crate::export::quality_validator::ExportMode;
+        
+        // Ensure output goes to MemoryAnalysis directory
+        let output_path = self.ensure_memory_analysis_path(path);
+        
+        let options = match mode {
+            ExportMode::Fast => {
+                let mut opts = OptimizedExportOptions::default()
+                    .fast_export_mode(true)
+                    .schema_validation(false)
+                    .security_analysis(false)
+                    .integrity_hashes(false);
+                // Disable expensive analysis features for maximum speed
+                opts.enable_enhanced_ffi_analysis = false;
+                opts.enable_boundary_event_processing = false;
+                opts.enable_memory_passport_tracking = false;
+                opts.include_low_severity_violations = false;
+                opts
+            }
+            ExportMode::Slow => {
+                let mut opts = OptimizedExportOptions::default()
+                    .fast_export_mode(false)
+                    .schema_validation(true)
+                    .security_analysis(true);
+                opts.enable_enhanced_ffi_analysis = true;
+                opts
+            }
+            ExportMode::Auto => {
+                OptimizedExportOptions::default()
+                    .auto_fast_export_threshold(Some(5000))
+            }
+        };
+        
+        self.export_to_json_with_optimized_options(output_path, options)
     }
 
     /// Internal method to handle export with mode and options

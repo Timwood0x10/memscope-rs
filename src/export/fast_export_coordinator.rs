@@ -249,7 +249,7 @@ impl FastExportCoordinator {
         let total_start = Instant::now();
         
         if self.config.verbose_logging {
-            println!("🚀 开始无验证导出模式");
+            println!("🚀 Starting export mode without validation");
         }
         
         // 数据本地化
@@ -272,7 +272,7 @@ impl FastExportCoordinator {
         );
         
         if self.config.verbose_logging {
-            println!("✅ 无验证导出完成，总耗时: {:?}", total_time);
+            println!("✅ Export without validation completed, total time: {:?}", total_time);
         }
         
         Ok(complete_stats)
@@ -739,7 +739,7 @@ impl FastExportCoordinator {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
-            println!("💾 高速写入阶段 (跳过验证)");
+            println!("💾 High-speed write phase (validation skipped)");
         }
 
         // 估算总大小用于写入器配置优化
@@ -751,7 +751,7 @@ impl FastExportCoordinator {
         let result = writer.write_processed_shards(shards)?;
 
         if self.config.verbose_logging {
-            println!("   ✅ 高速写入完成 (已跳过验证), 耗时: {:?}", stage_start.elapsed());
+            println!("   ✅ High-speed write completed (validation skipped), time: {:?}", stage_start.elapsed());
         }
 
         Ok(result)

@@ -109,7 +109,7 @@ impl HighSpeedBufferedWriter {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!("🔄 开始高速缓冲写入 {} 个分片...", shards.len());
+            println!("🔄 Starting high-speed buffered write for {} shards...", shards.len());
         }
 
         // 预计算总大小并预分配缓冲区
@@ -194,7 +194,7 @@ impl HighSpeedBufferedWriter {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!("🔄 开始写入自定义 JSON 数据 ({} 字节)...", json_data.len());
+            println!("🔄 Starting custom JSON data write ({} bytes)...", json_data.len());
         }
 
         // 预分配缓冲区
@@ -254,8 +254,8 @@ impl HighSpeedBufferedWriter {
         self.stats.total_write_time_ms = total_time.as_millis() as u64;
 
         if self.config.enable_monitoring {
-            println!("✅ 高速缓冲写入完成:");
-            println!("   总耗时: {:?}", total_time);
+            println!("✅ High-speed buffered write completed:");
+            println!("   Total time: {:?}", total_time);
             self.print_write_stats();
         }
 
@@ -272,17 +272,17 @@ impl HighSpeedBufferedWriter {
         &self.config
     }
 
-    /// 打印写入统计信息
+    /// Print write statistics
     fn print_write_stats(&self) {
-        println!("   写入字节: {} ({:.2} MB)", 
+        println!("   Bytes written: {} ({:.2} MB)", 
                 self.stats.total_bytes_written,
                 self.stats.total_bytes_written as f64 / 1024.0 / 1024.0);
-        println!("   写入分片: {}", self.stats.shards_written);
-        println!("   写入速度: {:.2} MB/s", 
+        println!("   Shards written: {}", self.stats.shards_written);
+        println!("   Write speed: {:.2} MB/s", 
                 self.stats.avg_write_speed_bps / 1024.0 / 1024.0);
-        println!("   缓冲区利用率: {:.1}%", self.stats.buffer_utilization * 100.0);
-        println!("   刷新次数: {}", self.stats.flush_count);
-        println!("   预分配有效: {}", self.stats.preallocation_effective);
+        println!("   Buffer utilization: {:.1}%", self.stats.buffer_utilization * 100.0);
+        println!("   Flush count: {}", self.stats.flush_count);
+        println!("   Preallocation effective: {}", self.stats.preallocation_effective);
     }
 }
 
