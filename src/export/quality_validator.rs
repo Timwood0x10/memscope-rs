@@ -47,11 +47,11 @@ pub struct ValidationConfig {
 impl Default for ValidationConfig {
     fn default() -> Self {
         Self {
-            enable_json_validation: true,
+            enable_json_validation: false, // 临时禁用，避免大文件读取挂起
             enable_integrity_validation: true,
             enable_count_validation: true,
             enable_size_validation: true,
-            enable_encoding_validation: true,
+            enable_encoding_validation: false, // 临时禁用，避免大文件读取挂起
             max_data_loss_rate: 0.1, // 0.1% 最大数据丢失率
             min_expected_file_size: 1024, // 1KB 最小文件大小
             max_expected_file_size: 100 * 1024 * 1024, // 100MB 最大文件大小

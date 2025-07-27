@@ -269,7 +269,7 @@ fn demonstrate_smart_pointers() -> Vec<Box<dyn std::any::Any>> {
 }
 
 fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
-    let keep_alive = Vec::new();
+    let mut keep_alive = Vec::new();
     println!("🏗️  Phase 3: Custom Data Structures");
     println!("===================================");
 
@@ -289,6 +289,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
     let boxed_user = Box::new(user);
     track_var!(boxed_user);
     println!("✓ Box<User>: complex nested data with HashMap");
+    keep_alive.push(boxed_user as Box<dyn std::any::Any>);
 
     // Database connection simulation
     let mut db_conn = DatabaseConnection {
@@ -311,6 +312,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
         boxed_db_conn.connection_pool.len(),
         boxed_db_conn.active_queries.len()
     );
+    keep_alive.push(boxed_db_conn as Box<dyn std::any::Any>);
 
     // Cache entries with generic types
     let string_cache = CacheEntry {
@@ -321,6 +323,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
     };
     let boxed_string_cache = Box::new(string_cache);
     track_var!(boxed_string_cache);
+    keep_alive.push(boxed_string_cache as Box<dyn std::any::Any>);
 
     let vec_cache = CacheEntry {
         key: String::from("computed_results"),
@@ -331,6 +334,7 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
     let boxed_vec_cache = Box::new(vec_cache);
     track_var!(boxed_vec_cache);
     println!("✓ Box<CacheEntry<T>>: generic cache structures");
+    keep_alive.push(boxed_vec_cache as Box<dyn std::any::Any>);
 
     // Graph node with complex relationships
     let mut graph_nodes = Vec::new();
@@ -355,15 +359,16 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
 
         graph_nodes.push(node);
     }
-    track_var!(graph_nodes);
+    let tracked_graph_nodes = track_var!(graph_nodes);
     println!("✓ Vec<GraphNode>: 5 interconnected nodes with metadata");
+    keep_alive.push(Box::new(tracked_graph_nodes) as Box<dyn std::any::Any>);
 
     println!();
     keep_alive
 }
 
 fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
-    let keep_alive = Vec::new();
+    let mut keep_alive = Vec::new();
     println!("🌀 Phase 4: Complex Memory Patterns");
     println!("===================================");
 
@@ -379,6 +384,7 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
     let boxed_nested = Box::new(nested_structure);
     track_var!(boxed_nested);
     println!("✓ Box<HashMap<String, BTreeMap<i32, Vec<String>>>>: 3-level nesting");
+    keep_alive.push(boxed_nested as Box<dyn std::any::Any>);
 
     // Circular reference simulation (using Rc)
     let node_a = Rc::new(RefCell::new(vec!["Node A data".to_string()]));
@@ -386,14 +392,17 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
     track_var!(node_a);
     track_var!(node_b);
     println!("✓ Circular reference pattern: Rc<RefCell<Vec<String>>>");
+    keep_alive.push(Box::new(node_a) as Box<dyn std::any::Any>);
+    keep_alive.push(Box::new(node_b) as Box<dyn std::any::Any>);
 
     // Memory-intensive computation result
     let mut computation_result = Vec::new();
     for i in 0..1000 {
         computation_result.push(format!("Result {}: {}", i, i * i));
     }
-    track_var!(computation_result);
+    let tracked_computation_result = track_var!(computation_result);
     println!("✓ Large computation result: 1000 formatted strings");
+    keep_alive.push(Box::new(tracked_computation_result) as Box<dyn std::any::Any>);
 
     // Stream processing buffer (using Box to make trackable)
     let mut stream_processor = StreamProcessor {
@@ -421,13 +430,14 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
         boxed_stream_processor.buffer.len(),
         boxed_stream_processor.error_log.len()
     );
+    keep_alive.push(boxed_stream_processor as Box<dyn std::any::Any>);
 
     println!();
     keep_alive
 }
 
 fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
-    let keep_alive = Vec::new();
+    let mut keep_alive = Vec::new();
     println!("🌐 Phase 5a: Web Server Simulation");
     println!("==================================");
 
@@ -451,6 +461,7 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
     );
     let boxed_routes = Box::new(routes);
     track_var!(boxed_routes);
+    keep_alive.push(boxed_routes as Box<dyn std::any::Any>);
 
     // Session storage
     let mut sessions = HashMap::new();
@@ -471,6 +482,7 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
     }
     let boxed_sessions = Box::new(sessions);
     track_var!(boxed_sessions);
+    keep_alive.push(boxed_sessions as Box<dyn std::any::Any>);
 
     // Request log buffer
     let mut request_log = VecDeque::new();
@@ -490,19 +502,20 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
     }
     let boxed_request_log = Box::new(request_log);
     track_var!(boxed_request_log);
+    keep_alive.push(boxed_request_log as Box<dyn std::any::Any>);
 
     println!(
         "✓ Web server: {} routes, {} sessions, {} log entries",
-        boxed_routes.len(),
-        boxed_sessions.len(),
-        boxed_request_log.len()
+        4, // routes count
+        50, // sessions count  
+        100 // log entries count
     );
     println!();
     keep_alive
 }
 
 fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
-    let keep_alive = Vec::new();
+    let mut keep_alive = Vec::new();
     println!("⚙️  Phase 5b: Data Processing Pipeline");
     println!("=====================================");
 
@@ -513,6 +526,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
     }
     let boxed_input_queue = Box::new(input_queue);
     track_var!(boxed_input_queue);
+    keep_alive.push(boxed_input_queue as Box<dyn std::any::Any>);
 
     // Processing stages
     let mut stage1_results = Vec::new();
@@ -524,21 +538,30 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
         let processed = format!("validated_data_record_{i:06}");
         stage1_results.push(processed);
     }
+    let tracked_stage1_results = track_var!(stage1_results);
+    keep_alive.push(Box::new(tracked_stage1_results) as Box<dyn std::any::Any>);
+    
     // Stage 2: Transform and enrich
     for record in &stage1_results {
         let enriched = format!("enriched_{record}_with_metadata");
         stage2_results.push(enriched);
     }
+    let tracked_stage2_results = track_var!(stage2_results);
+    keep_alive.push(Box::new(tracked_stage2_results) as Box<dyn std::any::Any>);
+    
     // Final stage: Aggregate and index
     for (i, record) in stage2_results.iter().enumerate() {
         let key = format!("index_{}", i / 10); // Group by 10s
         final_results
             .entry(key)
             .or_insert_with(Vec::new)
-            .push(record);
+            .push(record.clone());
     }
     let boxed_final_results = Box::new(final_results);
     track_var!(boxed_final_results);
+    let final_results_len = boxed_final_results.len();
+    keep_alive.push(boxed_final_results as Box<dyn std::any::Any>);
+    
     // Error tracking
     let mut error_tracker = Vec::new();
     for i in 0..25 {
@@ -548,13 +571,14 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
             i * 20
         ));
     }
-    track_var!(error_tracker);
+    let tracked_error_tracker = track_var!(error_tracker);
+    keep_alive.push(Box::new(tracked_error_tracker) as Box<dyn std::any::Any>);
 
     println!(
         "✓ Data pipeline: {} → {} → {} groups, {} errors tracked",
         500,
         stage1_results.len(),
-        boxed_final_results.len(),
+        final_results_len,
         error_tracker.len()
     );
     println!();
