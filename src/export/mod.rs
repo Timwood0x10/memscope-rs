@@ -20,7 +20,7 @@ pub mod quality_validator;
 
 // Re-export commonly used types for convenience
 pub use quality_validator::{
-    ExportConfig, ExportMode, ExportModeManager, ValidationTiming, ValidationStrategy,
+    ExportArgs, ExportConfig, ExportMode, ExportModeManager, ValidationTiming, ValidationStrategy,
     QualityValidator, AsyncValidator, ValidationConfig, ValidationResult
 };
 pub use export_modes::{ExportCoordinator, ExportOutcome, export_fast, export_with_validation};

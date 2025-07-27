@@ -8,9 +8,11 @@ use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::export::data_localizer::LocalizedExportData;
 use crate::export::error_handling::{ExportError, ValidationType, ValidationError};
 use crate::export::parallel_shard_processor::ProcessedShard;
+use clap::{Parser, ValueEnum};
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::path::PathBuf;
 use std::time::Instant;
 use std::path::Path;
 use std::time::Duration;
@@ -19,7 +21,7 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::oneshot;
 
 /// Validation timing configuration
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
 pub enum ValidationTiming {
     /// Validate during export (blocks I/O)
     Inline,
@@ -36,7 +38,7 @@ impl Default for ValidationTiming {
 }
 
 /// Export mode enumeration
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
 pub enum ExportMode {
     /// Fast mode: prioritize speed over comprehensive validation
     Fast,
@@ -1805,6 +1807,168 @@ impl DeferredValidation {
     /// Await the validation result (compatibility method)
     pub async fn await_result(mut self) -> TrackingResult<ValidationResult> {
         self.get_result().await
+    }
+}
+
+/// Command line arguments for export operations
+#[derive(Parser, Debug, Clone)]
+#[command(name = "export")]
+#[command(about = "Export memory tracking data with configurable validation")]
+pub struct ExportArgs {
+    /// Export mode: fast (speed optimized), slow (thorough validation), or auto (adaptive)
+    #[arg(long, value_enum, default_value = "fast")]
+    pub mode: ExportMode,
+    
+    /// Validation timing: inline (during export), deferred (after export), or disabled
+    #[arg(long, value_enum, default_value = "deferred")]
+    pub validation: ValidationTiming,
+    
+    /// Disable all validation (overrides validation timing)
+    #[arg(long)]
+    pub disable_validation: bool,
+    
+    /// Output file path
+    #[arg(long, short = 'o')]
+    pub output: PathBuf,
+    
+    /// Validation timeout in seconds
+    #[arg(long, default_value = "30")]
+    pub timeout: u64,
+    
+    /// Enable verbose logging
+    #[arg(long, short = 'v')]
+    pub verbose: bool,
+    
+    /// Maximum data loss rate percentage (0.0-100.0)
+    #[arg(long, default_value = "0.1")]
+    pub max_data_loss_rate: f64,
+    
+    /// Minimum expected file size in bytes
+    #[arg(long, default_value = "1024")]
+    pub min_file_size: usize,
+    
+    /// Maximum expected file size in bytes  
+    #[arg(long, default_value = "104857600")] // 100MB
+    pub max_file_size: usize,
+}
+
+impl ExportArgs {
+    /// Validate command line arguments and return helpful error messages
+    pub fn validate(&self) -> Result<(), String> {
+        // Validate output path
+        if self.output.as_os_str().is_empty() {
+            return Err("Output path cannot be empty".to_string());
+        }
+        
+        // Check if output directory exists
+        if let Some(parent) = self.output.parent() {
+            if !parent.exists() {
+                return Err(format!("Output directory does not exist: {}", parent.display()));
+            }
+        }
+        
+        // Validate timeout
+        if self.timeout == 0 {
+            return Err("Timeout must be greater than 0 seconds".to_string());
+        }
+        
+        if self.timeout > 3600 {
+            return Err("Timeout cannot exceed 3600 seconds (1 hour)".to_string());
+        }
+        
+        // Validate data loss rate
+        if self.max_data_loss_rate < 0.0 || self.max_data_loss_rate > 100.0 {
+            return Err("Max data loss rate must be between 0.0 and 100.0".to_string());
+        }
+        
+        // Validate file size limits
+        if self.min_file_size >= self.max_file_size {
+            return Err("Minimum file size must be less than maximum file size".to_string());
+        }
+        
+        // Check for conflicting options
+        if self.disable_validation && self.validation == ValidationTiming::Inline {
+            return Err("Cannot use inline validation when validation is disabled".to_string());
+        }
+        
+        // Warn about potentially problematic combinations
+        if self.mode == ExportMode::Fast && self.validation == ValidationTiming::Inline {
+            eprintln!("Warning: Fast mode with inline validation may impact performance");
+        }
+        
+        if self.mode == ExportMode::Slow && self.validation == ValidationTiming::Disabled {
+            eprintln!("Warning: Slow mode with disabled validation reduces thoroughness");
+        }
+        
+        Ok(())
+    }
+    
+    /// Convert CLI arguments to ExportConfig
+    pub fn to_export_config(&self) -> ExportConfig {
+        let validation_timing = if self.disable_validation {
+            ValidationTiming::Disabled
+        } else {
+            self.validation
+        };
+        
+        let mut config = ExportConfig::new(self.mode, validation_timing);
+        
+        // Apply CLI-specific validation settings
+        config.validation_config.max_data_loss_rate = self.max_data_loss_rate / 100.0; // Convert percentage to fraction
+        config.validation_config.min_expected_file_size = self.min_file_size;
+        config.validation_config.max_expected_file_size = self.max_file_size;
+        config.validation_config.verbose_logging = self.verbose;
+        
+        // Validate and fix any conflicts
+        let warnings = config.validate_and_fix();
+        for warning in warnings {
+            eprintln!("Warning: {}", warning);
+        }
+        
+        config
+    }
+    
+    /// Get timeout duration
+    pub fn get_timeout_duration(&self) -> Duration {
+        Duration::from_secs(self.timeout)
+    }
+    
+    /// Print help information for export modes
+    pub fn print_mode_help() {
+        println!("Export Modes:");
+        println!("  fast  - Prioritize speed over comprehensive validation");
+        println!("          - Disables JSON and encoding validation");
+        println!("          - Uses minimal validation checks");
+        println!("          - Best for performance-critical scenarios");
+        println!();
+        println!("  slow  - Perform thorough validation during export");
+        println!("          - Enables all validation types");
+        println!("          - Comprehensive error checking");
+        println!("          - Best for data integrity assurance");
+        println!();
+        println!("  auto  - Automatically choose based on data size");
+        println!("          - Uses fast mode for large datasets");
+        println!("          - Uses slow mode for smaller datasets");
+        println!("          - Balanced approach for general use");
+    }
+    
+    /// Print help information for validation timing
+    pub fn print_validation_help() {
+        println!("Validation Timing:");
+        println!("  inline   - Validate during export (blocks I/O)");
+        println!("             - Validation happens synchronously");
+        println!("             - Export fails immediately on validation errors");
+        println!("             - Best for critical data integrity requirements");
+        println!();
+        println!("  deferred - Validate after export (async)");
+        println!("             - Export completes quickly");
+        println!("             - Validation runs in background");
+        println!("             - Best for performance with validation");
+        println!();
+        println!("  disabled - No validation performed");
+        println!("             - Maximum performance");
+        println!("             - No data integrity checks");
+        println!("             - Use only when validation is not needed");
     }
 }
 
