@@ -91,7 +91,7 @@ fn run_complex_lifecycle_benchmark() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// 运行分片大小优化测试
+/// Run shard size optimization tests
 fn run_shard_size_optimization_test() -> Result<(), Box<dyn std::error::Error>> {
     println!("测试不同分片大小对性能的影响...");
     

@@ -1,36 +1,38 @@
-//! 性能对比工具模块
+//! Performance comparison tool module
 //!
-//! 这个模块提供性能对比分析工具，用于展示优化前后的性能差异。
+//! This module provides performance comparison analysis tools to show performance differences before and after optimization.
+
 
 use crate::core::types::TrackingResult;
+
 use crate::export::performance_testing::PerformanceTestResult;
 use std::collections::HashMap;
 
 use serde::{Serialize, Deserialize};
 
-/// 性能对比报告
+/// Performance comparison report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceComparisonReport {
-    /// 报告生成时间 (Unix 时间戳)
+    /// Report generation time (Unix timestamp)
     pub generated_at: u64,
-    /// 测试配置
+    /// test configuration
     pub test_configuration: TestConfiguration,
-    /// 基准测试结果（优化前）
+    /// Baseline test result (before optimization)
     pub baseline_results: Vec<PerformanceTestResult>,
-    /// 优化后测试结果
+    /// optimized results
     pub optimized_results: Vec<PerformanceTestResult>,
-    /// 对比分析
+    /// comparison analysis
     pub comparison_analysis: ComparisonAnalysis,
-    /// 性能提升摘要
+    /// improvement summary
     pub improvement_summary: ImprovementSummary,
-    /// 详细对比数据
+    /// detailed comparisons
     pub detailed_comparisons: Vec<DetailedComparison>,
 }
 
 /// 测试配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestConfiguration {
-    /// 测试数据集大小
+    /// Test dataset sizes
     pub dataset_sizes: Vec<usize>,
     /// 测试迭代次数
     pub iterations: usize,
@@ -123,7 +125,7 @@ pub struct KeyMetricsImprovement {
 /// 详细对比数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetailedComparison {
-    /// 数据集大小
+    /// Dataset size
     pub dataset_size: usize,
     /// 基准性能
     pub baseline_performance: PerformanceMetrics,

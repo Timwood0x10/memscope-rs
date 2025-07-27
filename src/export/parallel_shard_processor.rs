@@ -1,7 +1,7 @@
-//! 并行分片处理器 - 高性能并行 JSON 序列化
+//! Parallel shard processor - high performance parallel JSON serialization
 //!
-//! 这个模块实现了并行分片处理功能，将大量分配数据分片后并行处理，
-//! 显著提高 JSON 序列化的性能，特别是在多核系统上。
+//! This module implements parallel shard processing functionality, dividing large allocation data into shards for parallel processing,
+//! significantly improving JSON serialization performance, especially on multi-core systems.
 
 use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
 use crate::export::data_localizer::LocalizedExportData;
@@ -10,87 +10,87 @@ use serde_json;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-/// 并行分片处理器配置
+/// Parallel shard processor configuration
 #[derive(Debug, Clone)]
 pub struct ParallelShardConfig {
-    /// 每个分片的大小（分配数量）
+    /// Size of each shard (allocation count)
     pub shard_size: usize,
-    /// 并行处理的阈值（超过此数量才启用并行）
+    /// Parallel processing threshold (only enable parallel processing if the number of allocations exceeds this value)
     pub parallel_threshold: usize,
-    /// 最大线程数（None 表示使用系统默认）
+    /// Maximum number of threads (None means use system default)
     pub max_threads: Option<usize>,
-    /// 是否启用性能监控
+    /// Whether to enable performance monitoring
     pub enable_monitoring: bool,
-    /// 预估每个分配的 JSON 大小（用于预分配）
+    /// Estimated JSON size per allocation (for pre-allocation)
     pub estimated_json_size_per_allocation: usize,
 }
 
 impl Default for ParallelShardConfig {
     fn default() -> Self {
         Self {
-            shard_size: 1000,                    // 每个分片 1000 个分配
-            parallel_threshold: 2000,            // 超过 2000 个分配才并行
-            max_threads: None,                   // 使用系统默认线程数
-            enable_monitoring: true,             // 启用性能监控
-            estimated_json_size_per_allocation: 200, // 每个分配约 200 字节 JSON
+            shard_size: 1000,                    // Each shard contains 1000 allocations
+            parallel_threshold: 2000,            // Only enable parallel processing if the number of allocations exceeds 2000
+            max_threads: None,                   // Use system default number of threads
+            enable_monitoring: true,             // Enable performance monitoring
+            estimated_json_size_per_allocation: 200, // Estimated JSON size per allocation (for pre-allocation)
         }
     }
 }
 
-/// 处理后的分片数据
+/// Processed shard data
 #[derive(Debug, Clone)]
 pub struct ProcessedShard {
-    /// 序列化后的 JSON 数据
+    /// Serialized JSON data
     pub data: Vec<u8>,
-    /// 分片中的分配数量
+    /// Number of allocations in the shard
     pub allocation_count: usize,
-    /// 分片索引
+    /// Shard index
     pub shard_index: usize,
-    /// 处理耗时（毫秒）
+    /// Processing time (milliseconds)
     pub processing_time_ms: u64,
 }
 
-/// 并行处理统计信息
+/// Parallel processing statistics
 #[derive(Debug, Clone)]
 pub struct ParallelProcessingStats {
-    /// 总分配数量
+    /// Total number of allocations
     pub total_allocations: usize,
-    /// 分片数量
+    /// Number of shards
     pub shard_count: usize,
-    /// 使用的线程数
+    /// Number of threads used
     pub threads_used: usize,
-    /// 总处理时间（毫秒）
+    /// Total processing time (milliseconds)
     pub total_processing_time_ms: u64,
-    /// 平均每个分片的处理时间（毫秒）
+    /// Average processing time per shard (milliseconds)
     pub avg_shard_processing_time_ms: f64,
-    /// 并行效率（相对于单线程的加速比）
+    /// Parallel efficiency (acceleration ratio compared to single thread)
     pub parallel_efficiency: f64,
-    /// 吞吐量（分配/秒）
+    /// Throughput (allocations per second)
     pub throughput_allocations_per_sec: f64,
-    /// 是否使用了并行处理
+    /// Whether parallel processing was used
     pub used_parallel_processing: bool,
-    /// 总输出大小（字节）
+    /// Total output size (bytes)
     pub total_output_size_bytes: usize,
 }
 
-/// 并行分片处理器
+/// Parallel shard processor
 pub struct ParallelShardProcessor {
-    /// 配置
+    /// Configuration
     config: ParallelShardConfig,
-    /// 处理计数器（用于监控）
+    /// Processing counter (for monitoring)
     processed_count: AtomicUsize,
 }
 
 impl ParallelShardProcessor {
-    /// 创建新的并行分片处理器
+    /// Create a new parallel shard processor
     pub fn new(config: ParallelShardConfig) -> Self {
-        // 如果指定了最大线程数，设置 rayon 线程池
+        // If a maximum thread count is specified, set the rayon thread pool
         if let Some(max_threads) = config.max_threads {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(max_threads)
                 .build_global()
                 .unwrap_or_else(|e| {
-                    eprintln!("⚠️ 无法设置线程池大小为 {}: {}", max_threads, e);
+                    eprintln!("⚠️ Failed to set thread pool size to {}: {}", max_threads, e);
                 });
         }
 
@@ -100,7 +100,7 @@ impl ParallelShardProcessor {
         }
     }
 
-    /// 并行处理分配数据
+    /// Process allocations in parallel
     pub fn process_allocations_parallel(
         &self,
         data: &LocalizedExportData,
@@ -113,7 +113,7 @@ impl ParallelShardProcessor {
             allocations.len()
         );
 
-        // 决定是否使用并行处理
+        // Determine whether to use parallel processing
         let use_parallel = allocations.len() >= self.config.parallel_threshold;
         let actual_threads = if use_parallel {
             rayon::current_num_threads()
@@ -128,17 +128,17 @@ impl ParallelShardProcessor {
             self.config.shard_size
         );
 
-        // 重置计数器
+        // Reset counter for monitoring
         self.processed_count.store(0, Ordering::Relaxed);
 
-        // 将数据分片
+        // Split data into shards
         let shards: Vec<&[AllocationInfo]> = allocations
             .chunks(self.config.shard_size)
             .collect();
 
         println!("   Shard count: {}", shards.len());
 
-        // 并行或串行处理分片
+        // Parallel or serial processing of shards
         let processed_shards: TrackingResult<Vec<ProcessedShard>> = if use_parallel {
             shards
                 .into_par_iter()
@@ -156,7 +156,7 @@ impl ParallelShardProcessor {
         let processed_shards = processed_shards?;
         let total_time = start_time.elapsed();
 
-        // 计算统计信息
+        // Calculate statistics
         let stats = self.calculate_processing_stats(
             &processed_shards,
             allocations.len(),
@@ -165,13 +165,13 @@ impl ParallelShardProcessor {
             use_parallel,
         );
 
-        // 打印性能统计
+        // Print performance statistics
         self.print_performance_stats(&stats);
 
         Ok((processed_shards, stats))
     }
 
-    /// 优化的分片处理方法
+    /// Optimized shard processing method
     fn process_shard_optimized(
         &self,
         shard: &[AllocationInfo],
@@ -179,21 +179,21 @@ impl ParallelShardProcessor {
     ) -> TrackingResult<ProcessedShard> {
         let shard_start = Instant::now();
 
-        // 预估输出大小并预分配缓冲区
+        // Estimate output size and preallocate buffers
         let estimated_size = shard.len() * self.config.estimated_json_size_per_allocation;
         let mut output_buffer = Vec::with_capacity(estimated_size);
 
-        // 使用 serde_json 的高效 API 直接序列化到字节向量
-        // 这比手动格式化更可靠，性能也很好
+        // Use serde_json's efficient API to serialize directly to byte vector
+        // This is more reliable than manual formatting and performs well
         serde_json::to_writer(&mut output_buffer, shard)
             .map_err(|e| TrackingError::ExportError(format!("分片 {} 序列化失败: {}", shard_index, e)))?;
 
         let processing_time = shard_start.elapsed();
 
-        // 更新处理计数器
+        // Update processed counter
         self.processed_count.fetch_add(shard.len(), Ordering::Relaxed);
 
-        // 如果启用监控，打印进度
+        // If monitoring is enabled, print progress
         if self.config.enable_monitoring && shard_index % 10 == 0 {
             let _processed = self.processed_count.load(Ordering::Relaxed);
             println!(
@@ -213,7 +213,7 @@ impl ParallelShardProcessor {
         })
     }
 
-    /// 计算处理统计信息
+    /// Calculate processing statistics
     fn calculate_processing_stats(
         &self,
         shards: &[ProcessedShard],
@@ -235,10 +235,10 @@ impl ParallelShardProcessor {
             0.0
         };
 
-        // 估算并行效率（简化计算）
+        // Estimate parallel efficiency (simplified calculation)
         let parallel_efficiency = if used_parallel && threads_used > 1 {
-            // 理想情况下，N 个线程应该提供接近 N 倍的性能
-            // 实际效率 = 实际加速比 / 理论加速比
+            // In an ideal scenario, N threads should provide close to N times the performance
+            // Actual efficiency = Actual acceleration ratio / Theoretical acceleration ratio
             let theoretical_speedup = threads_used as f64;
             let estimated_sequential_time = avg_shard_time * shards.len() as f64;
             let actual_speedup = if total_time_ms > 0 {
@@ -248,7 +248,7 @@ impl ParallelShardProcessor {
             };
             (actual_speedup / theoretical_speedup).min(1.0)
         } else {
-            1.0 // 单线程效率为 100%
+            1.0 // Single thread efficiency is 100%
         };
 
         ParallelProcessingStats {
@@ -264,7 +264,7 @@ impl ParallelShardProcessor {
         }
     }
 
-    /// 打印性能统计信息
+    /// Print performance statistics
     fn print_performance_stats(&self, stats: &ParallelProcessingStats) {
         println!("✅ Parallel shard processing completed:");
         println!("   Total allocations: {}", stats.total_allocations);
@@ -282,17 +282,17 @@ impl ParallelShardProcessor {
         }
     }
 
-    /// 获取当前配置
+    /// Get current configuration
     pub fn get_config(&self) -> &ParallelShardConfig {
         &self.config
     }
 
-    /// 更新配置
+    /// Update configuration
     pub fn update_config(&mut self, config: ParallelShardConfig) {
         self.config = config;
     }
 
-    /// 获取处理进度
+    /// Get processed count
     pub fn get_processed_count(&self) -> usize {
         self.processed_count.load(Ordering::Relaxed)
     }
@@ -304,7 +304,7 @@ impl Default for ParallelShardProcessor {
     }
 }
 
-/// 便利函数：快速并行处理分配数据
+/// Convenience function: Fast parallel processing of allocation data
 pub fn process_allocations_fast(
     data: &LocalizedExportData,
 ) -> TrackingResult<(Vec<ProcessedShard>, ParallelProcessingStats)> {
@@ -312,7 +312,7 @@ pub fn process_allocations_fast(
     processor.process_allocations_parallel(data)
 }
 
-/// 便利函数：使用自定义配置并行处理
+/// Convenience function: Parallel processing with custom configuration
 pub fn process_allocations_with_config(
     data: &LocalizedExportData,
     config: ParallelShardConfig,
@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn test_small_dataset_sequential_processing() {
-        let data = create_test_data(100); // 小数据集，应该使用串行处理
+        let data = create_test_data(100); // Small dataset, should use sequential processing
         let processor = ParallelShardProcessor::default();
         
         let result = processor.process_allocations_parallel(&data);
@@ -388,13 +388,13 @@ mod tests {
         
         let (shards, stats) = result.unwrap();
         assert_eq!(stats.total_allocations, 100);
-        assert!(!stats.used_parallel_processing); // 应该使用串行处理
-        assert_eq!(shards.len(), 1); // 只有一个分片
+        assert!(!stats.used_parallel_processing); // Should use sequential processing
+        assert_eq!(shards.len(), 1); // Only one shard
     }
 
     #[test]
     fn test_large_dataset_parallel_processing() {
-        let data = create_test_data(5000); // 大数据集，应该使用并行处理
+        let data = create_test_data(5000); // Large dataset, should use parallel processing
         let processor = ParallelShardProcessor::default();
         
         let result = processor.process_allocations_parallel(&data);
@@ -402,10 +402,10 @@ mod tests {
         
         let (shards, stats) = result.unwrap();
         assert_eq!(stats.total_allocations, 5000);
-        assert!(stats.used_parallel_processing); // 应该使用并行处理
-        assert!(shards.len() > 1); // 应该有多个分片
+        assert!(stats.used_parallel_processing); // Should use parallel processing
+        assert!(shards.len() > 1); // Should have multiple shards
         
-        // 验证所有分片的分配总数等于原始数据
+        // Verify that the total number of allocations processed equals the original data
         let total_processed: usize = shards.iter().map(|s| s.allocation_count).sum();
         assert_eq!(total_processed, 5000);
     }
@@ -428,18 +428,18 @@ mod tests {
         
         let (shards, stats) = result.unwrap();
         assert_eq!(stats.total_allocations, 2000);
-        assert_eq!(shards.len(), 4); // 2000 / 500 = 4 个分片
+        assert_eq!(shards.len(), 4); // 2000 / 500 = 4 shards
     }
 
     #[test]
     fn test_convenience_functions() {
         let data = create_test_data(1500);
         
-        // 测试快速处理函数
+        // Test fast processing function
         let result = process_allocations_fast(&data);
         assert!(result.is_ok());
         
-        // 测试自定义配置函数
+        // Test custom configuration function
         let config = ParallelShardConfig {
             shard_size: 300,
             ..Default::default()
@@ -448,7 +448,7 @@ mod tests {
         assert!(result.is_ok());
         
         let (shards, _) = result.unwrap();
-        assert_eq!(shards.len(), 5); // 1500 / 300 = 5 个分片
+        assert_eq!(shards.len(), 5); // 1500 / 300 = 5 shards
     }
 
     #[test]
@@ -469,7 +469,7 @@ mod tests {
         // processing_time_ms is u64, always >= 0, so just check it exists
         assert!(shard.processing_time_ms < u64::MAX);
         
-        // 验证 JSON 数据是有效的
+        // Verify that the JSON data is valid
         let parsed: Result<Vec<AllocationInfo>, _> = serde_json::from_slice(&shard.data);
         assert!(parsed.is_ok());
         assert_eq!(parsed.unwrap().len(), 100);

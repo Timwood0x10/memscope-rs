@@ -1,4 +1,4 @@
-//! 进度监控和取消机制演示
+//! Progress monitoring and cancellation mechanism演示
 //!
 //! 这个示例展示了如何使用进度监控功能来跟踪导出进度，
 //! 以及如何实现取消机制来中断长时间运行的导出操作。

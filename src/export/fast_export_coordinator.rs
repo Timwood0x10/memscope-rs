@@ -245,25 +245,25 @@ impl FastExportCoordinator {
         &mut self,
         output_path: P,
     ) -> TrackingResult<CompleteExportStats> {
-        // 跳过验证步骤，直接执行导出
+        // skip validation steps, directly execute export
         let total_start = Instant::now();
         
         if self.config.verbose_logging {
             println!("🚀 Starting export mode without validation");
         }
         
-        // 数据本地化
+        // data localization
         let (localized_data, data_stats) = self.gather_data()?;
         
-        // 并行分片处理
+        // parallel sharding processing
         let (processed_shards, processing_stats) = self.process_data_parallel(&localized_data)?;
         
-        // 高速写入（跳过验证步骤）
+        // high-speed writing (skip validation steps)
         let write_stats = self.write_data_fast_without_validation(&output_path, &processed_shards)?;
         
         let total_time = total_start.elapsed();
         
-        // 计算完整统计
+        // calculate complete statistics
         let complete_stats = self.calculate_complete_stats(
             data_stats,
             processing_stats,
@@ -500,10 +500,10 @@ impl FastExportCoordinator {
                 };
                 self.performance_logger.log_operation_failure("fast_export", &export_error, total_start.elapsed());
                 
-                // 尝试错误恢复
+                // try error recovery
                 if let Ok(recovery_result) = self.error_recovery_manager.handle_export_error(&export_error, "data_localization", &error_context) {
                     if recovery_result.success {
-                        self.performance_logger.log_debug("数据本地化错误恢复成功，但仍返回原始错误");
+                        self.performance_logger.log_debug("data localization error recovery successful, still returning original error");
                     }
                 }
                 
@@ -632,13 +632,13 @@ impl FastExportCoordinator {
         self.performance_logger.log_performance_metric(
             crate::export::error_handling::PerformanceMetric::ExportTime,
             total_time.as_millis() as f64,
-            Some(5000.0), // 5秒阈值
+            Some(5000.0), // 5 second threshold
         );
 
         self.performance_logger.log_performance_metric(
             crate::export::error_handling::PerformanceMetric::ThroughputRate,
             complete_stats.overall_throughput_allocations_per_sec,
-            Some(1000.0), // 1000 分配/秒阈值
+            Some(1000.0), // 1000 allocations/second threshold
         );
 
         if self.config.enable_performance_monitoring {
@@ -701,7 +701,7 @@ impl FastExportCoordinator {
         self.process_data_parallel_with_progress(data, None)
     }
 
-    /// 并行处理阶段（带进度监控）
+    /// Parallel processing stage (with progress monitoring)
     fn process_data_parallel_with_progress(
         &self,
         data: &LocalizedExportData,
@@ -742,7 +742,7 @@ impl FastExportCoordinator {
             println!("💾 High-speed write phase (validation skipped)");
         }
 
-        // 估算总大小用于写入器配置优化
+        // estimate total size for writer configuration optimization
         let total_size: usize = shards.iter().map(|s| s.data.len()).sum();
         let mut writer_config = self.config.writer_config.clone();
         writer_config.estimated_total_size = Some(total_size + 1024);
@@ -766,7 +766,7 @@ impl FastExportCoordinator {
         self.write_data_fast_with_progress(output_path, shards, None)
     }
 
-    /// 高速写入阶段（带进度监控）
+    /// High-speed writing stage (with progress monitoring)
     fn write_data_fast_with_progress<P: AsRef<Path>>(
         &self,
         output_path: P,

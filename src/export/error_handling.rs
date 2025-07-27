@@ -366,7 +366,7 @@ pub struct ErrorStatistics {
 }
 
 impl PerformanceLogger {
-    /// 创建新的性能日志记录器
+    /// Create new performance logger
     pub fn new(log_level: LogLevel) -> Self {
         Self {
             log_level,

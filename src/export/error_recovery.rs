@@ -148,32 +148,48 @@ pub enum DegradationLevel {
 pub enum RecoveryStrategy {
     /// auto retry
     AutoRetry {
+        /// max attempts
         max_attempts: usize,
+        /// interval milliseconds
         interval_ms: u64,
+        /// backoff factor
         backoff_factor: f64,
     },
     /// graceful degradation
     GracefulDegradation {
+        /// target degradation level
         target_level: DegradationLevel,
+        /// reason for degradation
         reason: String,
     },
     /// partial result saving
     PartialSave {
+        /// save path
         save_path: PathBuf,
+        /// progress percentage
         progress_percentage: f64,
     },
     /// config adjustment
     ConfigAdjustment {
+        /// new config
         new_config: FastExportConfig,
+        /// reason for adjustment
         reason: String,
     },
     /// resource release
     ResourceRelease {
+        /// resource type
         resource_type: ResourceType,
+        /// amount of resource released
         amount: usize,
     },
     /// skip operation
-    SkipOperation { operation: String, reason: String },
+    SkipOperation {
+        /// operation name
+        operation: String,
+        /// reason for skipping
+        reason: String,
+    },
 }
 
 /// recovery result
@@ -196,7 +212,7 @@ pub struct RecoveryResult {
 impl ErrorRecoveryManager {
     /// create new error recovery manager
     pub fn new(config: RecoveryConfig) -> Self {
-        // 确保部分保存目录存在
+        // ensure partial save directory exists
         if config.enable_partial_save {
             if let Err(e) = std::fs::create_dir_all(&config.partial_save_directory) {
                 eprintln!("⚠️ Unable to create partial save directory: {e}");
@@ -487,7 +503,7 @@ impl ErrorRecoveryManager {
             });
         }
 
-        // 等待重试间隔
+        // wait for retry interval
         if history.attempt_count > 0 {
             std::thread::sleep(Duration::from_millis(history.next_interval_ms));
         }
@@ -534,11 +550,11 @@ impl ErrorRecoveryManager {
         self.stats.degradation_count += 1;
 
         let message = match target_level {
-            DegradationLevel::Light => "启用轻微降级模式：减少并行度",
-            DegradationLevel::Moderate => "启用中等降级模式：禁用复杂功能",
-            DegradationLevel::Severe => "启用严重降级模式：仅保留基本功能",
-            DegradationLevel::Emergency => "启用紧急模式：最小功能运行",
-            DegradationLevel::Normal => "恢复正常模式",
+            DegradationLevel::Light => "Enable slightly degraded mode: reduce parallelism",
+            DegradationLevel::Moderate => "Enable moderate degraded mode: disable complex features",
+            DegradationLevel::Severe => "Enable severe degraded mode: only basic features",
+            DegradationLevel::Emergency => "Enable emergency mode: minimum features",
+            DegradationLevel::Normal => "Enable normal mode",
         };
 
         Ok(RecoveryResult {
@@ -919,7 +935,7 @@ mod tests {
         let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
 
         let result =
-            manager.execute_graceful_degradation(DegradationLevel::Light, "测试降级".to_string());
+            manager.execute_graceful_degradation(DegradationLevel::Light, "test degradation".to_string());
 
         assert!(result.is_ok());
         let recovery_result = result.unwrap();

@@ -1,19 +1,19 @@
-//! 进度监控和取消机制
+//! Progress monitoring and cancellation mechanism
 //!
-//! 这个模块提供了导出过程的进度监控、取消机制和剩余时间预估功能。
-//! 支持回调接口、优雅中断和部分结果保存。
+//! This module provides progress monitoring, cancellation mechanisms, and remaining time estimation for the export process.
+//! Supports callback interfaces, graceful interruption, and partial result saving.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use crate::core::types::TrackingResult;
 
-/// 导出进度信息
+/// Export progress information
 #[derive(Debug, Clone)]
 pub struct ExportProgress {
-    /// 当前阶段
+    /// Current stage
     pub current_stage: ExportStage,
-    /// 当前阶段进度 (0.0 - 1.0)
+    /// Current stage进度 (0.0 - 1.0)
     pub stage_progress: f64,
     /// 总体进度 (0.0 - 1.0)
     pub overall_progress: f64,
@@ -125,7 +125,7 @@ impl Default for CancellationToken {
 pub struct ProgressMonitor {
     /// 开始时间
     start_time: Instant,
-    /// 当前阶段
+    /// Current stage
     current_stage: ExportStage,
     /// 总分配数量
     total_allocations: usize,

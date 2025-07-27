@@ -1,6 +1,6 @@
-//! 性能测试和优化模块
+//! Performance testing and optimization module
 //!
-//! 这个模块提供了全面的性能测试工具，用于测试和优化大型项目导出功能。
+//! This module provides comprehensive performance testing tools for testing and optimizing large project export functionality.
 
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::TrackingResult;
@@ -10,22 +10,22 @@ use std::collections::HashMap;
 use std::time::Instant;
 use serde::{Serialize, Deserialize};
 
-/// 性能测试配置
+/// Performance test configuration
 #[derive(Debug, Clone)]
 pub struct PerformanceTestConfig {
-    /// 测试数据集大小
+    /// Test dataset sizes
     pub dataset_sizes: Vec<usize>,
-    /// 分片大小测试范围
+    /// Shard size test range
     pub shard_sizes: Vec<usize>,
-    /// 线程数测试范围
+    /// Thread count test range
     pub thread_counts: Vec<usize>,
-    /// 缓冲区大小测试范围
+    /// Buffer size test range
     pub buffer_sizes: Vec<usize>,
-    /// 测试重复次数
+    /// Test iteration count
     pub test_iterations: usize,
-    /// 内存限制 (MB)
+    /// Memory limit (MB)
     pub memory_limit_mb: usize,
-    /// 是否启用详细输出
+    /// Enable verbose output
     pub verbose: bool,
 }
 
@@ -43,34 +43,34 @@ impl Default for PerformanceTestConfig {
     }
 }
 
-/// 性能测试结果
+/// Performance test result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceTestResult {
-    /// 测试名称
+    /// Test name
     pub test_name: String,
-    /// 数据集大小
+    /// Dataset size
     pub dataset_size: usize,
-    /// 配置参数
+    /// Configuration parameters
     pub config_params: HashMap<String, String>,
-    /// 导出时间 (毫秒)
+    /// Export time (milliseconds)
     pub export_time_ms: u64,
-    /// 内存使用峰值 (MB)
+    /// Peak memory usage (MB)
     pub peak_memory_mb: f64,
-    /// 吞吐量 (分配/秒)
+    /// Throughput (allocations/sec)
     pub throughput_allocations_per_sec: f64,
-    /// 文件大小 (字节)
+    /// File size (bytes)
     pub output_file_size_bytes: usize,
-    /// 是否成功
+    /// Success
     pub success: bool,
-    /// 错误信息
+    /// Error message
     pub error_message: Option<String>,
 }
 
-/// 性能基准测试工具
+/// Performance benchmark tool
 pub struct PerformanceBenchmark;
 
 impl PerformanceBenchmark {
-    /// 运行快速基准测试
+    /// Run quick benchmark
     pub fn run_quick_benchmark() -> TrackingResult<()> {
         println!("🚀 Running quick performance benchmark");
         println!("========================");
@@ -304,7 +304,7 @@ impl PerformanceBenchmark {
         }
     }
 
-    /// 运行完整基准测试
+    /// Run complete benchmark
     pub fn run_comprehensive_benchmark() -> TrackingResult<PerformanceTestReport> {
         println!("🚀 运行完整性能基准测试");
         println!("========================");
@@ -319,7 +319,7 @@ impl PerformanceBenchmark {
         Ok(report)
     }
 
-    /// 打印详细报告
+    /// Print detailed report
     fn print_detailed_report(report: &PerformanceTestReport) {
         println!("\n📊 性能测试报告");
         println!("================");
@@ -350,7 +350,7 @@ pub struct PerformanceTestSuite {
 }
 
 impl PerformanceTestSuite {
-    /// 创建新的性能测试套件
+    /// Create new performance test suite
     pub fn new(config: PerformanceTestConfig) -> Self {
         Self {
             config,
@@ -358,7 +358,7 @@ impl PerformanceTestSuite {
         }
     }
 
-    /// 运行基本测试
+    /// Run basic tests
     pub fn run_basic_tests(&mut self) -> TrackingResult<PerformanceTestReport> {
         println!("📊 运行基本性能测试");
 
@@ -379,7 +379,7 @@ impl PerformanceTestSuite {
         Ok(self.generate_performance_report())
     }
 
-    /// 运行完整测试套件
+    /// Run complete test suite
     pub fn run_full_test_suite(&mut self) -> TrackingResult<PerformanceTestReport> {
         println!("🚀 开始运行完整性能测试套件");
 
@@ -399,7 +399,7 @@ impl PerformanceTestSuite {
         Ok(self.generate_performance_report())
     }
 
-    /// 运行基准性能测试
+    /// Run benchmark performance tests
     pub fn run_baseline_performance_tests(&mut self) -> TrackingResult<()> {
         println!("📊 运行基准性能测试");
 
@@ -416,7 +416,7 @@ impl PerformanceTestSuite {
         Ok(())
     }
 
-    /// 运行分片大小优化测试
+    /// Run shard size optimization tests
     pub fn run_shard_size_optimization_tests(&mut self) -> TrackingResult<()> {
         println!("⚡ 分片大小优化测试");
 
@@ -429,7 +429,7 @@ impl PerformanceTestSuite {
         Ok(())
     }
 
-    /// 运行内存使用测试
+    /// Run memory usage tests
     pub fn run_memory_usage_tests(&mut self) -> TrackingResult<()> {
         println!("💾 内存使用测试");
 
@@ -447,7 +447,7 @@ impl PerformanceTestSuite {
         Ok(())
     }
 
-    /// 运行优化前后对比测试
+    /// Run before/after optimization comparison tests
     pub fn run_before_after_comparison_tests(&mut self) -> TrackingResult<()> {
         println!("🔄 优化前后对比测试");
 
@@ -845,7 +845,7 @@ pub struct PerformanceTestReport {
     pub test_summary: TestSummary,
     /// 性能分析
     pub performance_analysis: PerformanceAnalysis,
-    /// 优化建议
+    /// Optimization suggestions
     pub optimization_recommendations: Vec<OptimizationRecommendation>,
     /// 详细结果
     pub detailed_results: Vec<PerformanceTestResult>,
@@ -903,7 +903,7 @@ impl Default for PerformanceAnalysis {
     }
 }
 
-/// 优化建议
+/// Optimization suggestions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationRecommendation {
     /// 类别
@@ -967,7 +967,7 @@ impl ConfigurationOptimizer {
     }
 }
 
-/// 优化目标
+/// Optimization target
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum OptimizationTarget {
     /// 优化速度
@@ -1013,15 +1013,15 @@ impl ComplexLifecycleBenchmarkResult {
 /// 导出基准测试结果
 #[derive(Debug, Clone, Default)]
 pub struct ExportBenchmarkResult {
-    /// 导出时间 (毫秒)
+    /// Export time (milliseconds)
     pub export_time_ms: u64,
-    /// 内存使用峰值 (MB)
+    /// Peak memory usage (MB)
     pub peak_memory_mb: f64,
     /// 输出文件大小 (字节)
     pub output_file_size_bytes: usize,
-    /// 是否成功
+    /// Success
     pub success: bool,
-    /// 错误信息
+    /// Error message
     pub error_message: Option<String>,
     /// 标准输出
     pub stdout: String,

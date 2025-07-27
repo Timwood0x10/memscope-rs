@@ -1,6 +1,6 @@
-//! 系统优化器模块
+//! System optimizer module
 //!
-//! 这个模块提供系统资源检测、配置优化建议和性能分析工具。
+//! This module provides system resource detection, configuration optimization recommendations, and performance analysis tools.
 
 use crate::core::types::TrackingResult;
 use crate::export::fast_export_coordinator::FastExportConfigBuilder;
@@ -8,75 +8,75 @@ use crate::export::performance_testing::{PerformanceTestResult, OptimizationTarg
 
 use serde::{Serialize, Deserialize};
 
-/// 系统资源信息
+/// System resource information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemResources {
-    /// CPU 核心数
+    /// Number of CPU cores
     pub cpu_cores: usize,
-    /// 可用内存 (MB)
+    /// Available memory (MB)
     pub available_memory_mb: usize,
-    /// 系统负载
+    /// System load
     pub system_load: f64,
-    /// 磁盘可用空间 (MB)
+    /// Available disk space (MB)
     pub disk_space_mb: usize,
-    /// 系统类型
+    /// System type
     pub system_type: SystemType,
 }
 
-/// 系统类型
+/// System type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SystemType {
-    /// 高性能服务器
+    /// High performance server
     HighPerformanceServer,
-    /// 开发工作站
+    /// Development workstation
     DevelopmentWorkstation,
-    /// 普通桌面
+    /// Desktop
     Desktop,
-    /// 笔记本电脑
+    /// Laptop
     Laptop,
-    /// 嵌入式系统
+    /// Embedded system
     Embedded,
-    /// 未知系统
+    /// Unknown system
     Unknown,
 }
 
-/// 配置建议
+/// Configuration recommendation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigurationRecommendation {
-    /// 建议的分片大小
+    /// Recommended shard size
     pub recommended_shard_size: usize,
-    /// 建议的线程数
+    /// Recommended thread count
     pub recommended_thread_count: usize,
-    /// 建议的缓冲区大小
+    /// Recommended buffer size
     pub recommended_buffer_size: usize,
-    /// 优化目标
+    /// Optimization target
     pub optimization_target: OptimizationTarget,
-    /// 预期性能提升
+    /// Expected performance gain
     pub expected_performance_gain: f64,
-    /// 预期内存使用
+    /// Expected memory usage
     pub expected_memory_usage_mb: f64,
-    /// 建议原因
+    /// Reasoning
     pub reasoning: Vec<String>,
-    /// 配置置信度 (0.0-1.0)
+    /// Configuration confidence (0.0-1.0)
     pub confidence: f64,
 }
 
-/// 性能诊断结果
+/// Performance diagnosis result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceDiagnosis {
-    /// 诊断时间 (Unix 时间戳)
+    /// Diagnosis time (Unix timestamp)
     pub diagnosis_time: u64,
-    /// 系统资源状态
+    /// System resource status
     pub system_status: SystemResourceStatus,
-    /// 性能瓶颈
+    /// Performance bottlenecks
     pub bottlenecks: Vec<PerformanceBottleneck>,
-    /// 优化建议
+    /// Optimization suggestions
     pub optimization_suggestions: Vec<OptimizationSuggestion>,
-    /// 整体健康评分 (0-100)
+    /// Overall health score (0-100)
     pub health_score: u8,
 }
 
-/// 系统资源状态
+/// System resource status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemResourceStatus {
     /// CPU 使用率
@@ -85,7 +85,7 @@ pub struct SystemResourceStatus {
     pub memory_usage_percent: f64,
     /// 磁盘使用率
     pub disk_usage_percent: f64,
-    /// 系统负载状态
+    /// System load状态
     pub load_status: LoadStatus,
 }
 
@@ -102,7 +102,7 @@ pub enum LoadStatus {
     Overloaded,
 }
 
-/// 性能瓶颈
+/// Performance bottlenecks
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceBottleneck {
     /// 瓶颈类型
@@ -132,7 +132,7 @@ pub enum BottleneckType {
     Configuration,
 }
 
-/// 优化建议
+/// Optimization suggestions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationSuggestion {
     /// 建议类型
@@ -141,7 +141,7 @@ pub struct OptimizationSuggestion {
     pub priority: u8,
     /// 标题
     pub title: String,
-    /// 详细描述
+    /// Detailed description
     pub description: String,
     /// 预期效果
     pub expected_impact: String,
@@ -164,7 +164,7 @@ pub enum SuggestionType {
 
 /// 系统优化器
 pub struct SystemOptimizer {
-    /// 系统资源信息
+    /// System resource information
     system_resources: SystemResources,
     /// 历史性能数据
     performance_history: Vec<PerformanceTestResult>,
@@ -206,7 +206,7 @@ impl Default for ConfigurationValidationRules {
 }
 
 impl SystemOptimizer {
-    /// 创建新的系统优化器
+    /// Create new system optimizer
     pub fn new() -> TrackingResult<Self> {
         let system_resources = Self::detect_system_resources()?;
         
@@ -217,7 +217,7 @@ impl SystemOptimizer {
         })
     }
 
-    /// 检测系统资源
+    /// Detect system resources
     pub fn detect_system_resources() -> TrackingResult<SystemResources> {
         let cpu_cores = num_cpus::get();
         let available_memory_mb = Self::get_available_memory_mb();
@@ -234,7 +234,7 @@ impl SystemOptimizer {
         })
     }
 
-    /// 获取可用内存 (MB)
+    /// Get available memory (MB)
     fn get_available_memory_mb() -> usize {
         // 简化实现 - 在实际应用中可以使用 sysinfo 等库获取准确信息
         #[cfg(target_os = "linux")]
@@ -256,7 +256,7 @@ impl SystemOptimizer {
         4096 // 假设 4GB 可用内存
     }
 
-    /// 获取系统负载
+    /// Get system load
     fn get_system_load() -> f64 {
         // 简化实现 - 在实际应用中可以读取 /proc/loadavg
         #[cfg(target_os = "linux")]
@@ -273,13 +273,13 @@ impl SystemOptimizer {
         0.5 // 默认低负载
     }
 
-    /// 获取磁盘可用空间 (MB)
+    /// Get available disk space (MB)
     fn get_disk_space_mb() -> usize {
         // 简化实现 - 在实际应用中可以使用 statvfs 系统调用
         10240 // 假设 10GB 可用空间
     }
 
-    /// 分类系统类型
+    /// Classify system type
     fn classify_system_type(cpu_cores: usize, memory_mb: usize) -> SystemType {
         match (cpu_cores, memory_mb) {
             (cores, mem) if cores >= 16 && mem >= 32768 => SystemType::HighPerformanceServer,
@@ -291,7 +291,7 @@ impl SystemOptimizer {
         }
     }
 
-    /// 生成配置建议
+    /// Generate configuration recommendations
     pub fn generate_configuration_recommendation(
         &self,
         target: OptimizationTarget,
@@ -321,7 +321,7 @@ impl SystemOptimizer {
         }
     }
 
-    /// 速度优化
+    /// Speed optimization
     fn optimize_for_speed(&self, dataset_size: usize) -> (usize, usize, usize, Vec<String>) {
         let mut reasoning = Vec::new();
         
@@ -372,7 +372,7 @@ impl SystemOptimizer {
         (shard_size, thread_count, buffer_size, reasoning)
     }
 
-    /// 内存优化
+    /// Memory optimization
     fn optimize_for_memory(&self, _dataset_size: usize) -> (usize, usize, usize, Vec<String>) {
         let mut reasoning = Vec::new();
 

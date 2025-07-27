@@ -11,22 +11,22 @@ use std::pin::Pin;
 
 // ExportMode is now defined in quality_validator.rs
 
-/// Fast Future 结果类型
+/// Fast Future result type
 pub type FastExportResult = TrackingResult<CompleteExportStats>;
 
-/// Normal Future 结果类型  
+/// Normal Future result type  
 pub type NormalExportResult = TrackingResult<(CompleteExportStats, ValidationResult)>;
 
-/// 导出结果统一类型
+/// Export result type
 #[derive(Debug)]
 pub enum ExportOutcome {
-    /// 快速导出结果（无验证）
+    /// Fast export result (no validation)
     Fast(CompleteExportStats),
-    /// 正常导出结果（包含验证）
+    /// Normal export result (with validation)
     WithValidation(CompleteExportStats, ValidationResult),
 }
 
-/// Fast Future: 纯导出，无验证
+/// Fast Future: pure export, no validation
 pub fn export_fast<P: AsRef<Path>>(
     output_path: P,
 ) -> Pin<Box<dyn Future<Output = FastExportResult> + Send>> {
@@ -35,10 +35,10 @@ pub fn export_fast<P: AsRef<Path>>(
     Box::pin(async move {
         println!("🚀 Starting fast export mode (no validation)");
         
-        // 创建快速模式协调器
+        // create fast mode coordinator
         let mut coordinator = FastExportCoordinator::new_fast_mode();
         
-        // 纯导出，跳过所有验证
+        // pure export, skip all validation
         let stats = coordinator.export_without_validation(&path).await?;
         
         println!("✅ Fast export completed: {} allocations, {:.2} MB", 

@@ -45,7 +45,7 @@ impl Default for BenchmarkConfig {
 /// 单次测试结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkResult {
-    /// 测试名称
+    /// Test name
     pub test_name: String,
     /// 导出时间（毫秒）
     pub export_time_ms: u64,
@@ -59,9 +59,9 @@ pub struct BenchmarkResult {
     pub throughput_allocations_per_sec: f64,
     /// 写入速度（MB/s）
     pub write_speed_mbps: f64,
-    /// 是否成功
+    /// Success
     pub success: bool,
-    /// 错误信息（如果有）
+    /// Error message（如果有）
     pub error_message: Option<String>,
 }/// 基准测试比
 #[derive(Debug, Clone, Serialize, Deserialize)]

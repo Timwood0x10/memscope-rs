@@ -1,7 +1,7 @@
-//! 高速缓冲写入器 - 减少 I/O 开销的高性能文件写入
+//! High-speed buffered writer - high performance file writing with reduced I/O overhead
 //!
-//! 这个模块实现了高速缓冲写入功能，使用大缓冲区减少系统调用次数，
-//! 并提供高效的分片合并逻辑，显著提高文件写入性能。
+//! This module implements high-speed buffered writing functionality, using large buffers to reduce system call frequency,
+//! and provides efficient shard merging logic, significantly improving file writing performance.
 
 use crate::core::types::{TrackingError, TrackingResult};
 use crate::export::parallel_shard_processor::ProcessedShard;
@@ -10,18 +10,18 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::time::Instant;
 
-/// 高速缓冲写入器配置
+/// High-speed buffered writer configuration
 #[derive(Debug, Clone)]
 pub struct HighSpeedWriterConfig {
-    /// 缓冲区大小（字节）
+    /// Buffer size (bytes)
     pub buffer_size: usize,
-    /// 是否启用性能监控
+    /// Whether to enable performance monitoring
     pub enable_monitoring: bool,
-    /// 预估总输出大小（用于预分配）
+    /// Estimated total output size (for pre-allocation)
     pub estimated_total_size: Option<usize>,
-    /// 是否使用压缩写入
+    /// Whether to use compression writing
     pub enable_compression: bool,
-    /// 写入完成后是否立即刷新
+    /// Whether to flush the buffer automatically after writing
     pub auto_flush: bool,
 }
 
@@ -37,51 +37,51 @@ impl Default for HighSpeedWriterConfig {
     }
 }
 
-/// 写入性能统计
+/// Write performance statistics
 #[derive(Debug, Clone)]
 pub struct WritePerformanceStats {
-    /// 写入的总字节数
+    /// Total bytes written
     pub total_bytes_written: usize,
-    /// 写入的分片数量
+    /// Number of shards written
     pub shards_written: usize,
-    /// 总写入时间（毫秒）
+    /// Total write time (milliseconds)
     pub total_write_time_ms: u64,
-    /// 平均写入速度（字节/秒）
+    /// Average write speed (bytes per second)
     pub avg_write_speed_bps: f64,
-    /// 缓冲区刷新次数
+    /// Buffer flush count
     pub flush_count: usize,
-    /// 预分配是否有效
+    /// Whether pre-allocation was effective
     pub preallocation_effective: bool,
-    /// 实际缓冲区使用率
+    /// Actual buffer utilization
     pub buffer_utilization: f64,
 }
 
-/// 高速缓冲写入器
+/// High-speed buffered writer
 pub struct HighSpeedBufferedWriter {
-    /// 内部缓冲写入器
+    /// Internal buffer writer
     writer: BufWriter<File>,
-    /// 配置
+    /// Configuration
     config: HighSpeedWriterConfig,
-    /// 内部缓冲区
+    /// Internal buffer
     internal_buffer: Vec<u8>,
-    /// 统计信息
+    /// Write performance statistics
     stats: WritePerformanceStats,
-    /// 开始时间
+    /// Start time
     start_time: Instant,
-    /// 刷新计数
+    /// Flush count
     flush_count: usize,
 }
 
 impl HighSpeedBufferedWriter {
-    /// 创建新的高速缓冲写入器
+    /// Create a new high-speed buffered writer
     pub fn new<P: AsRef<Path>>(path: P, config: HighSpeedWriterConfig) -> TrackingResult<Self> {
         let file = File::create(path.as_ref())
-            .map_err(|e| TrackingError::IoError(format!("创建文件失败: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("create file failed: {}", e)))?;
 
         let writer = BufWriter::with_capacity(config.buffer_size, file);
 
-        // 预分配内部缓冲区
-        let initial_capacity = config.estimated_total_size.unwrap_or(1024 * 1024); // 默认 1MB
+        // Pre-allocate internal buffer
+        let initial_capacity = config.estimated_total_size.unwrap_or(1024 * 1024); // Default 1MB
         let internal_buffer = Vec::with_capacity(initial_capacity);
 
         let stats = WritePerformanceStats {
@@ -104,7 +104,7 @@ impl HighSpeedBufferedWriter {
         })
     }
 
-    /// 写入处理后的分片数据
+    /// Write processed shards
     pub fn write_processed_shards(&mut self, shards: &[ProcessedShard]) -> TrackingResult<WritePerformanceStats> {
         let write_start = Instant::now();
 
@@ -112,23 +112,23 @@ impl HighSpeedBufferedWriter {
             println!("🔄 Starting high-speed buffered write for {} shards...", shards.len());
         }
 
-        // 预计算总大小并预分配缓冲区
+        // Pre-calculate total size and pre-allocate buffer
         let total_size: usize = shards.iter().map(|s| s.data.len()).sum();
-        let estimated_final_size = total_size + 1024; // 额外空间用于 JSON 结构
+        let estimated_final_size = total_size + 1024; // Extra space for JSON structure
 
-        // 检查预分配是否有效
+        // Check if pre-allocation was effective
         self.stats.preallocation_effective = self.internal_buffer.capacity() >= estimated_final_size;
         
         if !self.stats.preallocation_effective {
             self.internal_buffer.reserve(estimated_final_size);
         }
 
-        // 构建完整的 JSON 结构
+        // Build complete JSON structure
         self.build_complete_json(shards)?;
 
-        // 一次性写入文件
+        // Write to file
         self.writer.write_all(&self.internal_buffer)
-            .map_err(|e| TrackingError::IoError(format!("写入文件失败: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("write file failed: {}", e)))?;
 
         // 刷新缓冲区
         if self.config.auto_flush {
@@ -159,21 +159,21 @@ impl HighSpeedBufferedWriter {
         Ok(self.stats.clone())
     }
 
-    /// 构建完整的 JSON 结构
+    /// Build complete JSON structure
     fn build_complete_json(&mut self, shards: &[ProcessedShard]) -> TrackingResult<()> {
-        // 清空内部缓冲区
+        // Clear internal buffer
         self.internal_buffer.clear();
 
-        // 写入 JSON 开始
+        // Write JSON start
         self.internal_buffer.extend_from_slice(b"{\"allocations\":[");
 
-        // 合并所有分片，只在分片之间添加逗号
+        // Merge all shards, add comma only between shards
         for (i, shard) in shards.iter().enumerate() {
             if i > 0 {
                 self.internal_buffer.extend_from_slice(b",");
             }
 
-            // 移除分片的 [ 和 ]，只保留内容
+            // Remove shard's [ and ], only keep content
             let shard_content = if shard.data.starts_with(b"[") && shard.data.ends_with(b"]") {
                 &shard.data[1..shard.data.len()-1]
             } else {
@@ -183,13 +183,13 @@ impl HighSpeedBufferedWriter {
             self.internal_buffer.extend_from_slice(shard_content);
         }
 
-        // 写入 JSON 结束
+        // Write JSON end
         self.internal_buffer.extend_from_slice(b"]}");
 
         Ok(())
     }
 
-    /// 写入自定义 JSON 数据
+    /// Write custom JSON data
     pub fn write_custom_json(&mut self, json_data: &[u8]) -> TrackingResult<WritePerformanceStats> {
         let write_start = Instant::now();
 
@@ -197,18 +197,18 @@ impl HighSpeedBufferedWriter {
             println!("🔄 Starting custom JSON data write ({} bytes)...", json_data.len());
         }
 
-        // 预分配缓冲区
+        // Pre-allocate buffer
         if self.internal_buffer.capacity() < json_data.len() {
             self.internal_buffer.reserve(json_data.len());
         }
 
-        // 复制数据到内部缓冲区
+        // Copy data to internal buffer
         self.internal_buffer.clear();
         self.internal_buffer.extend_from_slice(json_data);
 
-        // 写入文件
+        // Write to file
         self.writer.write_all(&self.internal_buffer)
-            .map_err(|e| TrackingError::IoError(format!("写入自定义 JSON 失败: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("write custom JSON failed: {}", e)))?;
 
         if self.config.auto_flush {
             self.flush()?;
@@ -216,9 +216,9 @@ impl HighSpeedBufferedWriter {
 
         let write_time = write_start.elapsed();
 
-        // 更新统计信息
+        // Update statistics
         self.stats.total_bytes_written = json_data.len();
-        self.stats.shards_written = 1; // 自定义数据算作一个分片
+        self.stats.shards_written = 1; // Custom data counts as one shard
         self.stats.total_write_time_ms = write_time.as_millis() as u64;
         self.stats.avg_write_speed_bps = if write_time.as_secs_f64() > 0.0 {
             json_data.len() as f64 / write_time.as_secs_f64()
@@ -233,10 +233,10 @@ impl HighSpeedBufferedWriter {
         Ok(self.stats.clone())
     }
 
-    /// 强制刷新缓冲区
+    /// Force buffer flush
     pub fn flush(&mut self) -> TrackingResult<()> {
         self.writer.flush()
-            .map_err(|e| TrackingError::IoError(format!("刷新缓冲区失败: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("flush buffer failed: {}", e)))?;
         
         self.flush_count += 1;
         self.stats.flush_count = self.flush_count;
@@ -244,12 +244,12 @@ impl HighSpeedBufferedWriter {
         Ok(())
     }
 
-    /// 完成写入并获取最终统计信息
+    /// Finalize writing and get final statistics
     pub fn finalize(mut self) -> TrackingResult<WritePerformanceStats> {
-        // 确保所有数据都被写入
+        // Ensure all data is written
         self.flush()?;
 
-        // 计算总体统计
+        // Calculate total statistics
         let total_time = self.start_time.elapsed();
         self.stats.total_write_time_ms = total_time.as_millis() as u64;
 
@@ -262,12 +262,12 @@ impl HighSpeedBufferedWriter {
         Ok(self.stats)
     }
 
-    /// 获取当前统计信息
+    /// Get current statistics
     pub fn get_stats(&self) -> &WritePerformanceStats {
         &self.stats
     }
 
-    /// 获取配置信息
+    /// Get configuration
     pub fn get_config(&self) -> &HighSpeedWriterConfig {
         &self.config
     }
@@ -286,7 +286,7 @@ impl HighSpeedBufferedWriter {
     }
 }
 
-/// 便利函数：快速写入分片数据
+/// Convenience function: fast write shards
 pub fn write_shards_fast<P: AsRef<Path>>(
     path: P,
     shards: &[ProcessedShard],
@@ -301,7 +301,7 @@ pub fn write_shards_fast<P: AsRef<Path>>(
     writer.write_processed_shards(shards)
 }
 
-/// 便利函数：使用自定义配置写入
+/// Convenience function: write shards with custom config
 pub fn write_shards_with_config<P: AsRef<Path>>(
     path: P,
     shards: &[ProcessedShard],
@@ -354,7 +354,7 @@ mod tests {
         assert!(stats.total_bytes_written > 0);
         assert!(stats.avg_write_speed_bps > 0.0);
 
-        // 验证文件内容
+        // Verify file content
         let content = fs::read_to_string(temp_file.path()).unwrap();
         assert!(content.starts_with("{\"allocations\":["));
         assert!(content.ends_with("]}"));
@@ -373,7 +373,7 @@ mod tests {
         let stats = result.unwrap();
         assert_eq!(stats.total_bytes_written, json_data.len());
 
-        // 验证文件内容
+        // Verify file content
         let content = fs::read(temp_file.path()).unwrap();
         assert_eq!(content, json_data);
     }
@@ -384,7 +384,7 @@ mod tests {
         let shards = create_test_shards(5, 200);
         let total_size: usize = shards.iter().map(|s| s.data.len()).sum();
 
-        // 测试有效预分配
+        // Test effective preallocation
         let config = HighSpeedWriterConfig {
             estimated_total_size: Some(total_size + 1024),
             enable_monitoring: false,
@@ -394,10 +394,10 @@ mod tests {
         let stats = writer.write_processed_shards(&shards).unwrap();
         assert!(stats.preallocation_effective);
 
-        // 测试无效预分配
+        // Test ineffective preallocation
         let temp_file2 = NamedTempFile::new().unwrap();
         let config2 = HighSpeedWriterConfig {
-            estimated_total_size: Some(100), // 太小的预分配
+            estimated_total_size: Some(100), // too small preallocation
             enable_monitoring: false,
             ..Default::default()
         };
@@ -411,11 +411,11 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let shards = create_test_shards(2, 150);
 
-        // 测试快速写入函数
+        // Test fast write function
         let result = write_shards_fast(temp_file.path(), &shards);
         assert!(result.is_ok());
 
-        // 测试自定义配置函数
+        // Test custom config function
         let temp_file2 = NamedTempFile::new().unwrap();
         let config = HighSpeedWriterConfig {
             buffer_size: 1024 * 1024,
@@ -439,7 +439,7 @@ mod tests {
         let shards = create_test_shards(1, 100);
         let _stats = writer.write_processed_shards(&shards).unwrap();
 
-        // 手动刷新
+        // Manually flush
         let flush_result = writer.flush();
         assert!(flush_result.is_ok());
         assert_eq!(writer.get_stats().flush_count, 1);
@@ -461,7 +461,7 @@ mod tests {
         assert!(final_stats.is_ok());
         
         let stats = final_stats.unwrap();
-        // 在快速测试中，时间可能为 0，所以检查 >= 0
+        // In fast tests, time may be 0, so check >= 0
         assert!(stats.total_write_time_ms >= 0);
     }
 }

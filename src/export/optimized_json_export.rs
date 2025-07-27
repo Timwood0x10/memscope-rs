@@ -2184,24 +2184,24 @@ fn create_optimized_complex_types_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
-    // 复杂类型分析：识别和分析各种复杂的Rust类型
+    // Complex type analysis: Identify and analyze various complex Rust types
     let mut complex_type_stats: HashMap<String, ComplexTypeInfo> = HashMap::new();
     let mut generic_types = Vec::new();
     let mut trait_objects = Vec::new();
     let mut smart_pointers = Vec::new();
     let mut collections = Vec::new();
 
-    // 使用并行处理分析复杂类型
+    //  Use parallel processing to analyze complex types
     let use_parallel = options.parallel_processing && allocations.len() > 1000;
 
     if use_parallel {
-        // 并行分析复杂类型
+        // Parallel analysis of complex types
         let results: Vec<_> = allocations
             .par_chunks(options.batch_size)
             .map(|chunk| analyze_complex_types_batch(chunk))
             .collect();
 
-        // 合并结果
+        // Merge results
         for batch_result in results {
             for (type_name, info) in batch_result.type_stats {
                 let entry = complex_type_stats
@@ -2215,7 +2215,7 @@ fn create_optimized_complex_types_analysis(
             collections.extend(batch_result.collections);
         }
     } else {
-        // 串行分析
+        // Serial analysis of complex types
         let batch_result = analyze_complex_types_batch(allocations);
         complex_type_stats = batch_result.type_stats;
         generic_types = batch_result.generic_types;
@@ -2224,7 +2224,7 @@ fn create_optimized_complex_types_analysis(
         collections = batch_result.collections;
     }
 
-    // 转换为JSON格式并排序
+    // Convert to JSON format and sort
     let mut type_analysis: Vec<_> = complex_type_stats.into_iter()
         .map(|(type_name, info)| {
             serde_json::json!({
@@ -2245,7 +2245,7 @@ fn create_optimized_complex_types_analysis(
         })
         .collect();
 
-    // 按复杂度分数和总大小排序
+    // Sort by complexity score and total size
     type_analysis.sort_by(|a, b| {
         let score_cmp = b["complexity_score"]
             .as_u64()
@@ -2293,13 +2293,18 @@ fn create_optimized_complex_types_analysis(
     }))
 }
 
-/// 复杂类型信息结构
+/// Complex type information structure
 #[derive(Debug, Clone)]
 struct ComplexTypeInfo {
+    /// Type category   
     category: String,
+    /// Total size of allocations
     total_size: usize,
+    /// Number of allocations
     allocation_count: usize,
+    /// Maximum size of allocations
     max_size: usize,
+    /// Complexity score of type    
     complexity_score: u64,
 }
 
@@ -2325,7 +2330,7 @@ impl ComplexTypeInfo {
     }
 }
 
-/// 批量分析结果
+/// Batch analysis result
 struct ComplexTypeBatchResult {
     type_stats: HashMap<String, ComplexTypeInfo>,
     generic_types: Vec<serde_json::Value>,
@@ -2334,7 +2339,7 @@ struct ComplexTypeBatchResult {
     collections: Vec<serde_json::Value>,
 }
 
-/// 批量分析复杂类型
+/// Batch analyze complex types
 fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBatchResult {
     let mut type_stats: HashMap<String, ComplexTypeInfo> = HashMap::new();
     let mut generic_types = Vec::new();
@@ -2348,7 +2353,7 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
             let category = categorize_complex_type(type_name);
             let complexity = calculate_type_complexity(type_name);
 
-            // 更新类型统计
+            // Update type statistics
             let entry = type_stats
                 .entry(normalized_type.clone())
                 .or_insert_with(|| {
@@ -2376,7 +2381,7 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
                 "TraitObject" => trait_objects.push(type_info),
                 "SmartPointer" => smart_pointers.push(type_info),
                 "Collection" => collections.push(type_info),
-                _ => {} // 其他类型不特别收集
+                _ => {} // Other types are not collected
             }
         }
     }
@@ -2390,9 +2395,9 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
     }
 }
 
-/// 标准化类型名称
+/// Standardize type name
 fn normalize_type_name(type_name: &str) -> String {
-    // 移除具体的泛型参数，保留结构
+    // Remove specific generic parameters, keep structure
     if type_name.contains('<') {
         if let Some(base) = type_name.split('<').next() {
             format!("{}<T>", base)
@@ -2404,7 +2409,7 @@ fn normalize_type_name(type_name: &str) -> String {
     }
 }
 
-/// 分类复杂类型
+/// Categorize complex types
 fn categorize_complex_type(type_name: &str) -> String {
     if type_name.contains("dyn ") {
         "TraitObject".to_string()
@@ -2429,21 +2434,21 @@ fn categorize_complex_type(type_name: &str) -> String {
     }
 }
 
-/// 计算类型复杂度
+/// Calculate type complexity
 fn calculate_type_complexity(type_name: &str) -> u64 {
     let mut score = 0u64;
 
-    // 基础分数
+    // Base score
     score += 1;
 
-    // 泛型参数增加复杂度
+    // Generic parameters increase complexity
     score += type_name.matches('<').count() as u64 * 2;
 
-    // 嵌套层级增加复杂度
+    // Nested level increases complexity
     let nesting_level = type_name.chars().filter(|&c| c == '<').count();
     score += nesting_level as u64 * 3;
 
-    // 特殊类型增加复杂度
+    // Special types increase complexity
     if type_name.contains("dyn ") {
         score += 5;
     }
@@ -2457,7 +2462,7 @@ fn calculate_type_complexity(type_name: &str) -> u64 {
         score += 3;
     }
 
-    // 智能指针增加复杂度
+    // Smart pointers increase complexity
     if type_name.contains("Box<") {
         score += 2;
     }
@@ -2482,7 +2487,7 @@ fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize)
 
     let avg_size = total_size / count;
 
-    // Calculate efficiency based on type and average size
+    //  Calculate efficiency based on type and average size
     let efficiency = if type_name.contains("Vec<") {
         // Vec efficiency depends on capacity utilization
         if avg_size < 64 {
