@@ -5,10 +5,10 @@
 //! particularly using complex_lifecycle_showcase.rs as the benchmark test case.
 
 use crate::core::tracker::get_global_tracker;
-use crate::core::types::{TrackingResult, AllocationInfo};
+use crate::core::types::TrackingResult;
 use crate::export::fast_export_coordinator::{FastExportCoordinator, FastExportConfig};
 use crate::export::optimized_json_export::OptimizedExportOptions;
-use std::collections::HashMap;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -231,16 +231,30 @@ impl PerformanceBenchmark {
 
         // 获取当前内存跟踪器状态
         let tracker = get_global_tracker();
-        let initial_stats = tracker.get_stats()?;
+        let _initial_stats = tracker.get_stats()?;
 
         // 使用传统的优化导出选项
         let options = OptimizedExportOptions {
-            enable_streaming: true,
-            enable_compression: false,
+            use_streaming_writer: true,
+            buffer_size: 8192, // 8KB buffer
+            parallel_processing: false, // 传统方式不使用并行
+            use_compact_format: Some(false),
+            enable_type_cache: true,
             batch_size: 1000,
-            enable_parallel_processing: false, // 传统方式不使用并行
-            max_file_size_mb: 100,
-            output_format: crate::export::optimized_json_export::OutputFormat::Json,
+            enable_schema_validation: true,
+            optimization_level: crate::export::optimized_json_export::OptimizationLevel::Low,
+            enable_enhanced_ffi_analysis: false,
+            enable_boundary_event_processing: false,
+            enable_memory_passport_tracking: false,
+            enable_adaptive_optimization: false,
+            max_cache_size: 100,
+            target_batch_time_ms: 50,
+            enable_security_analysis: false,
+            include_low_severity_violations: false,
+            generate_integrity_hashes: false,
+            enable_fast_export_mode: false,
+            auto_fast_export_threshold: None,
+            thread_count: Some(1),
         };
 
         // 执行传统导出
@@ -300,7 +314,7 @@ impl PerformanceBenchmark {
 
         // 获取当前内存跟踪器状态
         let tracker = get_global_tracker();
-        let initial_stats = tracker.get_stats()?;
+        let _initial_stats = tracker.get_stats()?;
 
         // 使用快速导出配置
         let fast_config = FastExportConfig::default();

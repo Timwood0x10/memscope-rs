@@ -17,9 +17,11 @@ use crate::web::{MemScopeServer, server::ServerConfig};
 pub mod data_normalizer;
 mod data_integrator;
 pub mod template_generator;
+pub mod json_file_discovery;
 
 use data_normalizer::{DataNormalizer, UnifiedMemoryData};
 use data_integrator::DataIntegrator;
+use json_file_discovery::{JsonFileDiscovery, JsonFileConfig};
 
 mod direct_json_template;
 
@@ -100,52 +102,29 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
         println!("   Total generation time: {}ms", template_stats.generation_time_ms);
         println!("   Cache hit rate: {:.1}%", template_stats.cache_hit_rate);
         
+        // Determine output path - if output is just a filename, put it in the input directory
+        let output_path = if Path::new(output_file).is_absolute() || output_file.contains('/') {
+            // Use the provided path as-is
+            output_file.to_string()
+        } else {
+            // Put the HTML file in the input directory
+            format!("{}/{}", input_dir.trim_end_matches('/'), output_file)
+        };
+        
+        println!("📁 Writing HTML file to: {}", output_path);
+        
         // Write HTML file
-        fs::write(output_file, html_content)?;
+        fs::write(&output_path, html_content)?;
+        
+        // Update the output message
+        println!("✅ HTML report generated successfully!");
+        println!("🌐 Open {} in your browser to view the interactive report", output_path);
     }
-    
-    println!("✅ HTML report generated successfully!");
-    println!("🌐 Open {} in your browser to view the interactive report", output_file);
     
     Ok(())
 }
 
-/// Configuration for JSON file loading
-#[derive(Debug, Clone)]
-pub struct JsonFileConfig {
-    /// File suffix
-    pub suffix: &'static str,
-    /// Human-readable description
-    pub description: &'static str,
-    /// Whether the file is required
-    pub required: bool,
-    /// Maximum file size in MB
-    pub max_size_mb: Option<usize>,
-}
 
-impl JsonFileConfig {
-    /// Create new file configuration
-    pub fn new(suffix: &'static str, description: &'static str) -> Self {
-        Self {
-            suffix,
-            description,
-            required: false,
-            max_size_mb: Some(100), // Default 100MB limit
-        }
-    }
-    
-    /// Mark file as required
-    pub fn required(mut self) -> Self {
-        self.required = true;
-        self
-    }
-    
-    /// Set maximum file size
-    pub fn max_size_mb(mut self, size: usize) -> Self {
-        self.max_size_mb = Some(size);
-        self
-    }
-}
 
 /// Result of loading a single JSON file
 #[derive(Debug)]
@@ -190,88 +169,25 @@ type JsonDataCollection = HashMap<String, Value>;
 fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollection, Box<dyn Error>> {
     let start_time = Instant::now();
     
-    // 定义要加载的JSON文件类型配置
-    let file_configs = vec![
-        JsonFileConfig::new("memory_analysis", "Memory Analysis").required(),
-        JsonFileConfig::new("lifetime", "Lifecycle Analysis"),
-        JsonFileConfig::new("unsafe_ffi", "Unsafe/FFI Analysis"),
-        JsonFileConfig::new("performance", "Performance Metrics"),
-        JsonFileConfig::new("complex_types", "Complex Types Analysis"),
-        JsonFileConfig::new("security_violations", "Security Violations"),
-        JsonFileConfig::new("variable_relationships", "Variable Relationships"),
-    ];
-    
     println!("🚀 Starting optimized JSON file loading...");
     println!("📁 Directory: {}", input_dir);
     println!("🏷️  Base name: {}", base_name);
     
-    // check file exist and size
+    // Use the new JSON file discovery system
+    let discovery = JsonFileDiscovery::new(input_dir.to_string(), base_name.to_string());
+    let discovery_result = discovery.discover_files()
+        .map_err(|e| format!("JSON file discovery failed: {}", e))?;
+    
+    // Convert discovered files to the format expected by the loader
     let mut valid_files = Vec::new();
     let mut total_size = 0usize;
     
-    for config in &file_configs {
-        // try multiple file name formats
-        let _possible_paths = vec![
-            format!("{}/{}_{}.json", input_dir, base_name, config.suffix),
-            format!("{}/*{}*.json", input_dir, config.suffix),
-        ];
+    for file_info in &discovery_result.found_files {
+        let file_path = file_info.path.to_string_lossy().to_string();
+        let file_size = file_info.size_bytes as usize;
         
-        let mut found_path = None;
-        
-        // try exact match first
-        let exact_path = format!("{}/{}_{}.json", input_dir, base_name, config.suffix);
-        if Path::new(&exact_path).exists() {
-            found_path = Some(exact_path);
-        } else {
-            // if exact match fails, search for files containing keywords
-            if let Ok(entries) = fs::read_dir(input_dir) {
-                for entry in entries {
-                    if let Ok(entry) = entry {
-                        let path = entry.path();
-                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                            if file_name.contains(&config.suffix) && file_name.ends_with(".json") {
-                                found_path = Some(path.to_string_lossy().to_string());
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        if let Some(file_path) = found_path {
-            let path = Path::new(&file_path);
-        
-            if path.exists() {
-            match fs::metadata(&file_path) {
-                Ok(metadata) => {
-                    let file_size = metadata.len() as usize;
-                    
-                    // check file size limit
-                    if let Some(max_size) = config.max_size_mb {
-                        let max_bytes = max_size * 1024 * 1024;
-                        if file_size > max_bytes {
-                            println!("⚠️  File {} ({:.1} MB) exceeds size limit ({} MB), skipping", 
-                                file_path, file_size as f64 / 1024.0 / 1024.0, max_size);
-                            continue;
-                        }
-                    }
-                    
-                    total_size += file_size;
-                    println!("✓ Found {}: {} ({:.1} KB)", 
-                        config.description, file_path, file_size as f64 / 1024.0);
-                    valid_files.push((config.clone(), file_path, file_size));
-                }
-                Err(e) => {
-                    println!("⚠️  Cannot read metadata for {}: {}", file_path, e);
-                }
-            }
-            } else if config.required {
-                return Err(format!("Required file not found: {}_{}*.json", base_name, config.suffix).into());
-            } else {
-                println!("⚠️  Optional file not found: {}_{}*.json (skipping)", base_name, config.suffix);
-            }
-        }
+        total_size += file_size;
+        valid_files.push((file_info.config.clone(), file_path, file_size));
     }
     
     if valid_files.is_empty() {
@@ -707,7 +623,7 @@ fn build_html_template_unified(
             }}
         }}
         
-        // 其他初始化函数的占位符
+        
         function initializePerformanceAnalysisUnified(performance) {{
             console.log('Initializing performance analysis:', performance);
         }}
@@ -732,7 +648,7 @@ fn build_html_template_unified(
             console.log('Initializing complex types analysis:', complexTypes);
         }}
         
-        // 基础格式化函数
+       
         function formatBytes(bytes) {{
             const units = ['B', 'KB', 'MB', 'GB'];
             let size = bytes;

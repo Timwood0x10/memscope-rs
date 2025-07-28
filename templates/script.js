@@ -1,97 +1,167 @@
-// Basic JavaScript for MemScope dashboard
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('MemScope dashboard loaded');
-    
-    // Initialize dashboard
-    initializeDashboard();
-});
+// MemScope Dashboard JavaScript - Simplified version
+// This file contains only the essential functions for the existing dashboard
 
-function initializeDashboard() {
-    // Basic dashboard initialization
-    console.log('Initializing MemScope dashboard...');
-    
-    // Show loading message
-    showLoading();
-    
-    // Simulate data loading
-    setTimeout(() => {
-        hideLoading();
-        showSuccess('Dashboard initialized successfully');
-    }, 1000);
-}
+// Global data store - will be populated by HTML template
+window.analysisData = window.analysisData || {};
 
-function showLoading() {
-    const container = document.querySelector('.container');
-    if (container) {
-        const loading = document.createElement('div');
-        loading.className = 'loading';
-        loading.id = 'loading';
-        loading.innerHTML = '<p>Loading memory analysis data...</p>';
-        container.appendChild(loading);
+// Initialize lifetime visualization from JSON data
+function initLifetimeVisualization() {
+    console.log('🔄 Initializing lifetime visualization...');
+    
+    // Get lifetime data from the global data store
+    const lifetimeData = window.analysisData.lifetime;
+    if (!lifetimeData || !lifetimeData.lifecycle_events) {
+        console.warn('⚠️ No lifetime data found');
+        showEmptyLifetimeState();
+        return;
     }
-}
-
-function hideLoading() {
-    const loading = document.getElementById('loading');
-    if (loading) {
-        loading.remove();
+    
+    // Filter for user-defined variables (non-unknown var_name and type_name)
+    const userVariables = lifetimeData.lifecycle_events.filter(event => 
+        event.var_name && event.var_name !== 'unknown' && 
+        event.type_name && event.type_name !== 'unknown'
+    );
+    
+    console.log(`📊 Found ${userVariables.length} user-defined variables in lifetime data`);
+    
+    if (userVariables.length === 0) {
+        showEmptyLifetimeState();
+        return;
     }
+    
+    // Group by variable name to get allocation/deallocation pairs
+    const variableGroups = groupVariablesByName(userVariables);
+    
+    // Render the lifetime visualization
+    renderLifetimeVisualization(variableGroups);
 }
 
-function showSuccess(message) {
-    const container = document.querySelector('.container');
-    if (container) {
-        const success = document.createElement('div');
-        success.className = 'success';
-        success.innerHTML = `<p>${message}</p>`;
-        container.appendChild(success);
+// Group variables by name to track their lifecycle
+function groupVariablesByName(events) {
+    const groups = {};
+    
+    events.forEach(event => {
+        const varName = event.var_name;
+        if (!groups[varName]) {
+            groups[varName] = {
+                var_name: varName,
+                type_name: event.type_name,
+                events: []
+            };
+        }
+        groups[varName].events.push(event);
+    });
+    
+    return Object.values(groups);
+}
+
+// Render the lifetime visualization
+function renderLifetimeVisualization(variableGroups) {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    // Clear loading state
+    container.innerHTML = '';
+    
+    // Get color scheme for different types
+    const typeColors = {
+        'Vec': { bg: 'bg-blue-500', border: 'border-blue-500' },
+        'Box': { bg: 'bg-purple-500', border: 'border-purple-500' },
+        'Rc': { bg: 'bg-yellow-500', border: 'border-yellow-500' },
+        'Arc': { bg: 'bg-green-500', border: 'border-green-500' },
+        'String': { bg: 'bg-pink-500', border: 'border-pink-500' },
+        'default': { bg: 'bg-gray-500', border: 'border-gray-500' }
+    };
+    
+    // Calculate timeline bounds
+    const allTimestamps = variableGroups.flatMap(group => 
+        group.events.map(e => e.timestamp)
+    );
+    const minTime = Math.min(...allTimestamps);
+    const maxTime = Math.max(...allTimestamps);
+    const timeRange = maxTime - minTime;
+    
+    console.log(`📊 Timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
+    
+    // Render each variable
+    variableGroups.forEach((group) => {
+        const varDiv = document.createElement('div');
+        varDiv.className = 'flex items-end py-3 border-b border-gray-100';
         
-        // Auto-remove after 3 seconds
-        setTimeout(() => {
-            success.remove();
-        }, 3000);
-    }
-}
-
-function showError(message) {
-    const container = document.querySelector('.container');
-    if (container) {
-        const error = document.createElement('div');
-        error.className = 'error';
-        error.innerHTML = `<p>Error: ${message}</p>`;
-        container.appendChild(error);
-    }
-}
-
-function formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function updateStats(stats) {
-    // Update statistics display
-    const statsContainer = document.querySelector('.stats-grid');
-    if (statsContainer && stats) {
-        statsContainer.innerHTML = `
-            <div class="stat-card">
-                <span class="stat-value">${stats.active_allocations || 0}</span>
-                <span class="stat-label">Active Allocations</span>
+        // Determine color based on type
+        const typeKey = Object.keys(typeColors).find(key => 
+            group.type_name.includes(key)
+        ) || 'default';
+        const colors = typeColors[typeKey];
+        
+        // Calculate position and width based on timestamps
+        const firstEvent = group.events[0];
+        const startTime = firstEvent.timestamp;
+        const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
+        
+        // For now, assume a fixed width since we don't have deallocation events
+        // In a real implementation, you'd track deallocation events too
+        const widthPercent = 60; // Default width
+        
+        // Format type name for display
+        const displayTypeName = formatTypeName(group.type_name);
+        
+        varDiv.innerHTML = `
+            <div class="w-40 flex-shrink-0 text-sm font-medium">
+                ${group.var_name} (${displayTypeName})
             </div>
-            <div class="stat-card">
-                <span class="stat-value">${formatBytes(stats.active_memory || 0)}</span>
-                <span class="stat-label">Active Memory</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-value">${formatBytes(stats.peak_memory || 0)}</span>
-                <span class="stat-label">Peak Memory</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-value">${stats.total_allocations || 0}</span>
-                <span class="stat-label">Total Allocations</span>
+            <div class="flex-grow relative">
+                <div class="lifespan-indicator ${colors.bg}" 
+                     style="width: ${widthPercent}%; margin-left: ${startPercent}%;" 
+                     title="Variable: ${group.var_name}, Type: ${displayTypeName}">
+                    <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
+                        Allocated: ${formatTimestamp(startTime, minTime)}
+                    </div>
+                </div>
             </div>
         `;
-    }
+        
+        container.appendChild(varDiv);
+    });
+    
+    console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization`);
 }
+
+// Format type name for better display
+function formatTypeName(typeName) {
+    // Simplify complex type names
+    return typeName
+        .replace(/alloc::/g, '')
+        .replace(/std::/g, '')
+        .replace(/::Vec/g, 'Vec')
+        .replace(/::Box/g, 'Box')
+        .replace(/::Rc/g, 'Rc')
+        .replace(/::Arc/g, 'Arc')
+        .replace(/::String/g, 'String');
+}
+
+// Format timestamp relative to start time
+function formatTimestamp(timestamp, minTime) {
+    const relativeMs = Math.round((timestamp - minTime) / 1000000); // Convert nanoseconds to milliseconds
+    return `${relativeMs}ms`;
+}
+
+// Show empty state when no user variables found
+function showEmptyLifetimeState() {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div class="text-center py-8 text-gray-500">
+            <i class="fa fa-info-circle text-2xl mb-2"></i>
+            <p>No user-defined variables found in lifetime data</p>
+            <p class="text-sm mt-1">Use track_var! macro to track variable lifetimes</p>
+        </div>
+    `;
+}
+
+// Initialize dashboard when DOM is loaded
+document.addEventListener("DOMContentLoaded", () => {
+    console.log('MemScope dashboard loaded');
+    initLifetimeVisualization();
+});

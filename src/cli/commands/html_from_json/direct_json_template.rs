@@ -31,12 +31,21 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     }
     
 
-    // Try multiple possible paths for the template files
+    // Try multiple possible paths for the template files - prioritize the original dashboard.html
     let template_paths = [
+        // Primary: Use the original dashboard.html template
         "templates/dashboard.html",
         "./templates/dashboard.html",
         "../templates/dashboard.html",
         "../../templates/dashboard.html",
+        // Fallback: Self-contained version if available
+        "templates/dashboard_self_contained.html",
+        "./templates/dashboard_self_contained.html",
+        "../templates/dashboard_self_contained.html",
+        "../../templates/dashboard_self_contained.html",
+        // Last resort: Simple report (should be avoided)
+        "simple_report.html",
+        "./simple_report.html",
     ];
     
     let css_paths = [
@@ -44,6 +53,13 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         "./templates/styles.css", 
         "../templates/styles.css",
         "../../templates/styles.css",
+    ];
+    
+    let js_paths = [
+        "templates/dashboard.js",
+        "./templates/dashboard.js",
+        "../templates/dashboard.js",
+        "../../templates/dashboard.js",
     ];
     
     let template_content = template_paths.iter()
@@ -55,10 +71,17 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         .find_map(|path| std::fs::read_to_string(path).ok())
         .ok_or("Failed to find CSS template file in any expected location")?;
     
+    // Load JavaScript content
+    let js_content = js_paths.iter()
+        .find_map(|path| std::fs::read_to_string(path).ok())
+        .ok_or("Failed to find JavaScript template file in any expected location")?;
+    
     // Replace placeholders in the template
     let html = template_content
         .replace("{{json_data}}", &json_data_str)
-        .replace("{{CSS_CONTENT}}", &css_content);
+        .replace("{{CSS_CONTENT}}", &css_content)
+        .replace("{{JS_CONTENT}}", &js_content)
+        .replace("{{DATA_PLACEHOLDER}}", &json_data_str);
     
     println!("✅ Generated HTML with {} bytes of embedded JSON data", json_data_str.len());
     

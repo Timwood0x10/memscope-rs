@@ -12,7 +12,7 @@ pub mod high_speed_buffered_writer;
 pub mod html_export;
 pub mod optimized_json_export;
 pub mod parallel_shard_processor;
-// pub mod performance_benchmark; // Temporarily disabled due to compilation issues
+pub mod performance_benchmark;
 pub mod performance_comparison;
 pub mod performance_testing;
 pub mod progress_monitor;
