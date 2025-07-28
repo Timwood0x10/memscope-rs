@@ -289,8 +289,8 @@ function getComplexTypesData() {
         console.log('Using embedded complex types data');
         return window.embeddedJsonData.complex_types;
     }
-    console.log('Using fallback fake complex types data');
-    return complexTypesDataFallback;
+    console.log('No complex types data available - showing empty state');
+    return null;
 }
 
 function getFfiSnapshotData() {
@@ -302,341 +302,14 @@ function getFfiSnapshotData() {
         console.log('Using embedded FFI data');
         return window.embeddedJsonData.unsafe_ffi.enhanced_ffi_data || [];
     }
-    console.log('Using fallback fake FFI data');
-    return ffiSnapshotDataFallback;
+    console.log('No FFI data available - showing empty state');
+    return [];
 }
 
 // Fallback data definitions
-const complexTypesDataFallback = {
-    "categorized_types": {
-        "collections": [],
-        "generic_types": [
-            {
-                "complexity_score": 6,
-                "normalized_type": "alloc::vec::Vec<T>",
-                "ptr": "0x145005bd0",
-                "size": 20,
-                "type_name": "alloc::vec::Vec<i32>",
-                "var_name": "numbers_vec",
-                "lifetime_ms": 800
-            },
-            {
-                "complexity_score": 10,
-                "normalized_type": "alloc::sync::Arc<T>",
-                "ptr": "0x6dd34c96",
-                "size": 56,
-                "type_name": "alloc::sync::Arc<alloc::string::String>",
-                "var_name": "arc_data",
-                "lifetime_ms": 600
-            },
-            {
-                "complexity_score": 8,
-                "normalized_type": "alloc::boxed::Box<T>",
-                "ptr": "0x123e04720",
-                "size": 4,
-                "type_name": "alloc::boxed::Box<i32>",
-                "var_name": "boxed_value",
-                "lifetime_ms": 400
-            },
-            {
-                "complexity_score": 14,
-                "normalized_type": "alloc::rc::Rc<T>",
-                "ptr": "0x5dd34c26",
-                "size": 56,
-                "type_name": "alloc::rc::Rc<alloc::vec::Vec<i32>>",
-                "var_name": "rc_data",
-                "lifetime_ms": 700
-            },
-            {
-                "complexity_score": 14,
-                "normalized_type": "alloc::rc::Rc<T>",
-                "ptr": "0x5dd34d06",
-                "size": 56,
-                "type_name": "alloc::rc::Rc<alloc::vec::Vec<i32>>",
-                "var_name": "rc_data_clone",
-                "lifetime_ms": 500
-            },
-            {
-                "complexity_score": 8,
-                "normalized_type": "alloc::boxed::Box<T>",
-                "ptr": "0x123e05460",
-                "size": 4,
-                "type_name": "alloc::boxed::Box<i32>",
-                "var_name": "boxed_value2",
-                "lifetime_ms": 300
-            }
-        ],
-        "smart_pointers": [],
-        "trait_objects": []
-    },
-    "complex_type_analysis": [
-        {
-            "allocation_count": 2,
-            "average_size": 56,
-            "category": "Generic",
-            "complexity_score": 14,
-            "max_size": 56,
-            "memory_efficiency": 80,
-            "optimization_suggestions": [
-                "High complexity type - consider simplifying or using type aliases"
-            ],
-            "total_size": 112,
-            "type_name": "alloc::rc::Rc<T>"
-        },
-        {
-            "allocation_count": 1,
-            "average_size": 56,
-            "category": "Generic",
-            "complexity_score": 10,
-            "max_size": 56,
-            "memory_efficiency": 80,
-            "optimization_suggestions": [],
-            "total_size": 56,
-            "type_name": "alloc::sync::Arc<T>"
-        },
-        {
-            "allocation_count": 2,
-            "average_size": 4,
-            "category": "Generic",
-            "complexity_score": 8,
-            "max_size": 4,
-            "memory_efficiency": 90,
-            "optimization_suggestions": [],
-            "total_size": 8,
-            "type_name": "alloc::boxed::Box<T>"
-        },
-        {
-            "allocation_count": 1,
-            "average_size": 20,
-            "category": "Generic",
-            "complexity_score": 6,
-            "max_size": 20,
-            "memory_efficiency": 60,
-            "optimization_suggestions": [],
-            "total_size": 20,
-            "type_name": "alloc::vec::Vec<T>"
-        },
-        {
-            "allocation_count": 1,
-            "average_size": 19,
-            "category": "Simple",
-            "complexity_score": 1,
-            "max_size": 19,
-            "memory_efficiency": 85,
-            "optimization_suggestions": [],
-            "total_size": 19,
-            "type_name": "String"
-        }
-    ],
-    "metadata": {
-        "analysis_type": "complex_types_analysis_optimized",
-        "export_version": "2.0",
-        "optimization_level": "high",
-        "processing_mode": "sequential",
-        "timestamp": 1753328255,
-        "total_allocations_analyzed": 639,
-        "unique_complex_types": 5
-    },
-    "optimization_recommendations": [
-        "Use 'cargo clippy' to identify additional optimization opportunities",
-        "Consider profiling with 'perf' or 'valgrind' for detailed performance analysis",
-        "Optimize Vec capacity to improve memory efficiency",
-        "Use appropriate smart pointers based on concurrency requirements"
-    ],
-    "summary": {
-        "collection_count": 0,
-        "complexity_distribution": {
-            "high_complexity": 3,
-            "low_complexity": 1,
-            "medium_complexity": 1,
-            "very_high_complexity": 0
-        },
-        "generic_type_count": 6,
-        "smart_pointer_count": 0,
-        "total_complex_types": 5,
-        "trait_object_count": 0
-    }
-};
+// Complex types fallback data removed - using only real JSON data
 
-// Fallback fake FFI data
-const ffiSnapshotDataFallback = [
-    {
-        "base": {
-            "ptr": 5408595456,
-            "size": 256,
-            "var_name": null,
-            "type_name": null,
-            "scope_name": null,
-            "timestamp_alloc": 1753414296355925000,
-            "timestamp_dealloc": null,
-            "borrow_count": 0,
-            "stack_trace": null,
-            "is_leaked": false,
-            "lifetime_ms": null,
-            "smart_pointer_info": null,
-            "memory_layout": null,
-            "generic_info": null,
-            "dynamic_type_info": null,
-            "runtime_state": null,
-            "stack_allocation": null,
-            "temporary_object": null,
-            "fragmentation_analysis": null,
-            "generic_instantiation": null,
-            "type_relationships": null,
-            "type_usage": null,
-            "function_call_tracking": null,
-            "lifecycle_tracking": null,
-            "access_tracking": null
-        },
-        "source": {
-            "FfiC": {
-                "library_name": "libc",
-                "function_name": "malloc",
-                "call_stack": [
-                    {
-                        "function_name": "current_function",
-                        "file_name": "src/unsafe_ffi_tracker.rs",
-                        "line_number": 42,
-                        "is_unsafe": true
-                    }
-                ],
-                "libc_hook_info": {
-                    "hook_method": "DynamicLinker",
-                    "original_function": "malloc",
-                    "hook_timestamp": 1753414296355937000,
-                    "allocation_metadata": {
-                        "requested_size": 256,
-                        "actual_size": 256,
-                        "alignment": 8,
-                        "allocator_info": "libc malloc",
-                        "protection_flags": {
-                            "readable": true,
-                            "writable": true,
-                            "executable": false,
-                            "shared": false
-                        }
-                    },
-                    "hook_overhead_ns": 100
-                }
-            }
-        },
-        "call_stack": [
-            {
-                "function_name": "current_function",
-                "file_name": "src/unsafe_ffi_tracker.rs",
-                "line_number": 42,
-                "is_unsafe": true
-            }
-        ],
-        "cross_boundary_events": [
-            {
-                "event_type": "FfiToRust",
-                "timestamp": 1753414296356,
-                "from_context": "libc",
-                "to_context": "rust_main",
-                "stack": [
-                    {
-                        "function_name": "current_function",
-                        "file_name": "src/unsafe_ffi_tracker.rs",
-                        "line_number": 42,
-                        "is_unsafe": true
-                    }
-                ]
-            }
-        ],
-        "safety_violations": [],
-        "ffi_tracked": true,
-        "memory_passport": null,
-        "ownership_history": null
-    },
-    {
-        "base": {
-            "ptr": 5408583952,
-            "size": 40,
-            "var_name": null,
-            "type_name": null,
-            "scope_name": null,
-            "timestamp_alloc": 1753414296355789000,
-            "timestamp_dealloc": null,
-            "borrow_count": 0,
-            "stack_trace": null,
-            "is_leaked": false,
-            "lifetime_ms": null,
-            "smart_pointer_info": null,
-            "memory_layout": null,
-            "generic_info": null,
-            "dynamic_type_info": null,
-            "runtime_state": null,
-            "stack_allocation": null,
-            "temporary_object": null,
-            "fragmentation_analysis": null,
-            "generic_instantiation": null,
-            "type_relationships": null,
-            "type_usage": null,
-            "function_call_tracking": null,
-            "lifecycle_tracking": null,
-            "access_tracking": null
-        },
-        "source": {
-            "UnsafeRust": {
-                "unsafe_block_location": "examples/unsafe_ffi_demo.rs:37:13",
-                "call_stack": [
-                    {
-                        "function_name": "current_function",
-                        "file_name": "src/unsafe_ffi_tracker.rs",
-                        "line_number": 42,
-                        "is_unsafe": true
-                    }
-                ],
-                "risk_assessment": {
-                    "risk_level": "Medium",
-                    "risk_factors": [
-                        {
-                            "factor_type": "ManualMemoryManagement",
-                            "severity": 5.0,
-                            "description": "Manual memory management in unsafe block",
-                            "source_location": "examples/unsafe_ffi_demo.rs:37:13"
-                        }
-                    ],
-                    "mitigation_suggestions": [
-                        "Ensure proper memory cleanup",
-                        "Use RAII patterns where possible"
-                    ],
-                    "confidence_score": 0.7,
-                    "assessment_timestamp": 1753414296355826000
-                }
-            }
-        },
-        "call_stack": [
-            {
-                "function_name": "current_function",
-                "file_name": "src/unsafe_ffi_tracker.rs",
-                "line_number": 42,
-                "is_unsafe": true
-            }
-        ],
-        "cross_boundary_events": [
-            {
-                "event_type": "RustToFfi",
-                "timestamp": 1753414296355,
-                "from_context": "unsafe_rust_block",
-                "to_context": "potential_ffi_target",
-                "stack": [
-                    {
-                        "function_name": "current_function",
-                        "file_name": "src/unsafe_ffi_tracker.rs",
-                        "line_number": 42,
-                        "is_unsafe": true
-                    }
-                ]
-            }
-        ],
-        "safety_violations": [],
-        "ffi_tracked": false,
-        "memory_passport": null,
-        "ownership_history": null
-    }
-];
+// FFI fallback data removed - using only real JSON data
 
 // Utility functions
 function formatBytes(bytes) {
@@ -676,7 +349,7 @@ function updateStats(stats) {
 function initializeDashboard() {
     console.log('Initializing MemScope dashboard...');
     
-    // Use embedded data if available, otherwise use fallback
+    // Use embedded data if available, otherwise show empty state
     const complexTypesData = getComplexTypesData();
     const ffiSnapshotData = getFfiSnapshotData();
 
@@ -686,10 +359,10 @@ function initializeDashboard() {
     const genericTypeCountEl = document.getElementById('generic-type-count');
     const unsafeFfiCountEl = document.getElementById('unsafe-ffi-count');
 
-    if (totalComplexTypesEl) totalComplexTypesEl.textContent = complexTypesData.summary.total_complex_types;
-    if (totalAllocationsEl) totalAllocationsEl.textContent = complexTypesData.metadata.total_allocations_analyzed;
-    if (genericTypeCountEl) genericTypeCountEl.textContent = complexTypesData.summary.generic_type_count;
-    if (unsafeFfiCountEl) unsafeFfiCountEl.textContent = ffiSnapshotData.length;
+    if (totalComplexTypesEl) totalComplexTypesEl.textContent = complexTypesData?.summary?.total_complex_types || 0;
+    if (totalAllocationsEl) totalAllocationsEl.textContent = complexTypesData?.metadata?.total_allocations_analyzed || 0;
+    if (genericTypeCountEl) genericTypeCountEl.textContent = complexTypesData?.summary?.generic_type_count || 0;
+    if (unsafeFfiCountEl) unsafeFfiCountEl.textContent = ffiSnapshotData?.length || 0;
 
     // Populate generic types table with lifetime information
     populateGenericTypesTable(complexTypesData);
@@ -714,6 +387,12 @@ function initializeDashboard() {
 function populateGenericTypesTable(complexTypesData) {
     const tableBody = document.getElementById('generic-types-table-body');
     if (!tableBody) return;
+    
+    // Handle null or missing data
+    if (!complexTypesData || !complexTypesData.categorized_types || !complexTypesData.categorized_types.generic_types) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No complex types data available</td></tr>';
+        return;
+    }
     
     complexTypesData.categorized_types.generic_types.forEach(type => {
         let typeClass = '';
@@ -759,6 +438,15 @@ function populateOptimizationRecommendations(complexTypesData) {
     const memoryRecList = document.getElementById('memory-optimization-recommendations');
     if (!memoryRecList) return;
     
+    // Handle null or missing data
+    if (!complexTypesData || !complexTypesData.optimization_recommendations) {
+        const li = document.createElement('li');
+        li.className = 'text-gray-500 italic';
+        li.textContent = 'No optimization recommendations available';
+        memoryRecList.appendChild(li);
+        return;
+    }
+    
     complexTypesData.optimization_recommendations.forEach(rec => {
         const li = document.createElement('li');
         li.className = 'text-gray-700';
@@ -771,6 +459,16 @@ function createComplexityChart(complexTypesData) {
     const complexityCtx = document.getElementById('complexity-chart');
     if (!complexityCtx) return;
     
+    // Handle null or missing data
+    if (!complexTypesData || !complexTypesData.summary || !complexTypesData.summary.complexity_distribution) {
+        const ctx = complexityCtx.getContext('2d');
+        ctx.fillStyle = '#9CA3AF';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No complexity data available', complexityCtx.width / 2, complexityCtx.height / 2);
+        return;
+    }
+    
     new Chart(complexityCtx.getContext('2d'), {
         type: 'bar',
         data: {
@@ -778,10 +476,10 @@ function createComplexityChart(complexTypesData) {
             datasets: [{
                 label: 'Number of Types',
                 data: [
-                    complexTypesData.summary.complexity_distribution.low_complexity,
-                    complexTypesData.summary.complexity_distribution.medium_complexity,
-                    complexTypesData.summary.complexity_distribution.high_complexity,
-                    complexTypesData.summary.complexity_distribution.very_high_complexity
+                    complexTypesData.summary.complexity_distribution.low_complexity || 0,
+                    complexTypesData.summary.complexity_distribution.medium_complexity || 0,
+                    complexTypesData.summary.complexity_distribution.high_complexity || 0,
+                    complexTypesData.summary.complexity_distribution.very_high_complexity || 0
                 ],
                 backgroundColor: [
                     'rgba(16, 185, 129, 0.7)',
@@ -815,6 +513,16 @@ function createComplexityChart(complexTypesData) {
 function createMemoryDistributionChart(complexTypesData) {
     const memoryCtx = document.getElementById('memory-distribution-chart');
     if (!memoryCtx) return;
+    
+    // Handle null or missing data
+    if (!complexTypesData || !complexTypesData.complex_type_analysis || complexTypesData.complex_type_analysis.length === 0) {
+        const ctx = memoryCtx.getContext('2d');
+        ctx.fillStyle = '#9CA3AF';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No memory distribution data available', memoryCtx.width / 2, memoryCtx.height / 2);
+        return;
+    }
     
     new Chart(memoryCtx.getContext('2d'), {
         type: 'pie',
@@ -859,6 +567,12 @@ function createMemoryDistributionChart(complexTypesData) {
  FFI Data Rendering Functions
 function renderFfiData(data, container) {
     if (!container) return;
+    
+    // Handle empty or null data
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="bg-gray-50 rounded-lg p-8 text-center text-gray-500 border-2 border-dashed border-gray-300"><i class="fa fa-info-circle text-2xl mb-2"></i><p>No unsafe/FFI data available</p></div>';
+        return;
+    }
     
     data.forEach((item, index) => {
         const entryDiv = document.createElement('div');
