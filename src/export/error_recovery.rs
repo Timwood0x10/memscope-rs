@@ -894,7 +894,6 @@ mod tests {
 
     fn create_test_context() -> ErrorContext {
         ErrorContext {
-            operation_id: "test_operation".to_string(),
             current_config: FastExportConfig::default(),
             progress_percentage: 50.0,
             processed_data_size: 1000,

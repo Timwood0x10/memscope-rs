@@ -482,6 +482,48 @@
             </div>
         </section>
 
+        <!-- Complex Type Analysis -->
+        <section class="mb-12">
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-cogs text-primary mr-2"></i>Complex Type Analysis
+                </h2>
+                
+                <!-- Analysis Chart -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-medium mb-3">Complexity vs Memory Efficiency</h3>
+                    <div class="h-64">
+                        <canvas id="complex-type-analysis-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Analysis Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Type</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Complexity</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Efficiency</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Allocations</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Total Size</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Suggestions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="complex-type-analysis-table">
+                            <tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
         <!-- Memory Optimization Recommendations -->
         <section class="mb-12">
             <div class="bg-white rounded-xl p-6 card-shadow">
@@ -500,6 +542,16 @@
                 <h2 class="text-xl font-semibold mb-4 flex items-center">
                     <i class="fa fa-exclamation-triangle text-ffi-red mr-2"></i>Unsafe FFI Data
                 </h2>
+                
+                <!-- FFI Risk Chart -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-medium mb-3">Risk Assessment</h3>
+                    <div class="h-64">
+                        <canvas id="ffi-risk-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- FFI Data Details -->
                 <div id="ffi-data-render" class="space-y-4">
                     <!-- Will be populated by JavaScript -->
                 </div>

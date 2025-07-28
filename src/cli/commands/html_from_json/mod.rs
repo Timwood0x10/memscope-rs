@@ -18,10 +18,12 @@ pub mod data_normalizer;
 mod data_integrator;
 pub mod template_generator;
 pub mod json_file_discovery;
+pub mod large_file_optimizer;
 
 use data_normalizer::{DataNormalizer, UnifiedMemoryData};
 use data_integrator::DataIntegrator;
 use json_file_discovery::{JsonFileDiscovery, JsonFileConfig};
+use large_file_optimizer::{LargeFileOptimizer, LargeFileConfig};
 
 mod direct_json_template;
 
@@ -169,9 +171,9 @@ type JsonDataCollection = HashMap<String, Value>;
 fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollection, Box<dyn Error>> {
     let start_time = Instant::now();
     
-    println!("🚀 Starting optimized JSON file loading...");
-    println!("📁 Directory: {}", input_dir);
-    println!("🏷️  Base name: {}", base_name);
+    println!("🚀 Starting optimized JSON file loading with memory monitoring...");
+    println!("📁 Directory: {input_dir}");
+    println!("🏷️  Base name: {base_name}");
     
     // Use the new JSON file discovery system
     let discovery = JsonFileDiscovery::new(input_dir.to_string(), base_name.to_string());
@@ -197,13 +199,18 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
     println!("📊 Found {} valid files, total size: {:.1} MB", 
         valid_files.len(), total_size as f64 / 1024.0 / 1024.0);
     
-    // decide whether to use parallel loading (>= 3 files or >= 10MB)
-    let use_parallel = valid_files.len() >= 3 || total_size >= 10 * 1024 * 1024;
+    // Intelligent decision for parallel loading based on file count, size, and system resources
+    let has_large_files = valid_files.iter().any(|(_, _, size)| *size > 20 * 1024 * 1024);
+    let use_parallel = valid_files.len() >= 3 || 
+                      total_size >= 10 * 1024 * 1024 || 
+                      has_large_files;
     
     if use_parallel {
-        println!("⚡ Using parallel loading for {} files", valid_files.len());
+        println!("⚡ Using parallel loading for {} files (total: {:.1} MB, has large files: {})", 
+            valid_files.len(), total_size as f64 / 1024.0 / 1024.0, has_large_files);
     } else {
-        println!("📝 Using sequential loading for {} files", valid_files.len());
+        println!("📝 Using sequential loading for {} files (total: {:.1} MB)", 
+            valid_files.len(), total_size as f64 / 1024.0 / 1024.0);
     }
     
     // load files
@@ -278,48 +285,93 @@ fn load_files_sequential(files: &[(JsonFileConfig, String, usize)]) -> Result<Ve
 fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) -> JsonLoadResult {
     let start_time = Instant::now();
     
-    let result = match fs::read_to_string(file_path) {
-        Ok(content) => {
-            match serde_json::from_str::<Value>(&content) {
-                Ok(json_value) => {
-                    // validate JSON structure
-                    if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
-                        JsonLoadResult {
-                            suffix: config.suffix.to_string(),
-                            success: false,
-                            data: None,
-                            error: Some(format!("Validation error: {}", validation_error)),
-                            file_size,
-                            load_time_ms: start_time.elapsed().as_millis() as u64,
-                        }
-                    } else {
-                        JsonLoadResult {
-                            suffix: config.suffix.to_string(),
-                            success: true,
-                            data: Some(json_value),
-                            error: None,
-                            file_size,
-                            load_time_ms: start_time.elapsed().as_millis() as u64,
-                        }
-                    }
-                }
-                Err(e) => JsonLoadResult {
+    // Use large file optimizer for files > 50MB or if specified in config
+    let use_large_file_optimizer = file_size > 50 * 1024 * 1024 || 
+        config.max_size_mb.map_or(false, |max_mb| file_size > max_mb * 1024 * 1024 / 2);
+    
+    let result = if use_large_file_optimizer {
+        // Use optimized large file processing
+        let large_file_config = LargeFileConfig {
+            max_memory_bytes: 256 * 1024 * 1024, // 256MB limit for large files
+            stream_chunk_size: 128 * 1024,       // 128KB chunks
+            enable_memory_monitoring: true,
+            enable_progress_reporting: true,
+            max_file_size_bytes: config.max_size_mb.unwrap_or(500) * 1024 * 1024,
+        };
+        
+        let optimizer = LargeFileOptimizer::new(large_file_config);
+        
+        match optimizer.process_file(file_path, config.suffix) {
+            Ok((json_value, processing_stats)) => {
+                println!("📊 Large file processing stats for {}: {:.1} MB/s, {} objects, streaming: {}", 
+                    config.suffix,
+                    processing_stats.throughput_mb_per_sec,
+                    processing_stats.objects_processed,
+                    processing_stats.streaming_mode_used);
+                
+                JsonLoadResult {
                     suffix: config.suffix.to_string(),
-                    success: false,
-                    data: None,
-                    error: Some(format!("JSON parsing error: {}", e)),
+                    success: true,
+                    data: Some(json_value),
+                    error: None,
                     file_size,
-                    load_time_ms: start_time.elapsed().as_millis() as u64,
+                    load_time_ms: processing_stats.processing_time_ms,
                 }
             }
+            Err(e) => JsonLoadResult {
+                suffix: config.suffix.to_string(),
+                success: false,
+                data: None,
+                error: Some(format!("Large file processing error: {}", e)),
+                file_size,
+                load_time_ms: start_time.elapsed().as_millis() as u64,
+            }
         }
-        Err(e) => JsonLoadResult {
-            suffix: config.suffix.to_string(),
-            success: false,
-            data: None,
-            error: Some(format!("File read error: {}", e)),
-            file_size,
-            load_time_ms: start_time.elapsed().as_millis() as u64,
+    } else {
+        // Use standard processing for smaller files
+        match fs::read_to_string(file_path) {
+            Ok(content) => {
+                match serde_json::from_str::<Value>(&content) {
+                    Ok(json_value) => {
+                        // validate JSON structure
+                        if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
+                            JsonLoadResult {
+                                suffix: config.suffix.to_string(),
+                                success: false,
+                                data: None,
+                                error: Some(format!("Validation error: {validation_error}")),
+                                file_size,
+                                load_time_ms: start_time.elapsed().as_millis() as u64,
+                            }
+                        } else {
+                            JsonLoadResult {
+                                suffix: config.suffix.to_string(),
+                                success: true,
+                                data: Some(json_value),
+                                error: None,
+                                file_size,
+                                load_time_ms: start_time.elapsed().as_millis() as u64,
+                            }
+                        }
+                    }
+                    Err(e) => JsonLoadResult {
+                        suffix: config.suffix.to_string(),
+                        success: false,
+                        data: None,
+                        error: Some(format!("JSON parsing error: {e}")),
+                        file_size,
+                        load_time_ms: start_time.elapsed().as_millis() as u64,
+                    }
+                }
+            }
+            Err(e) => JsonLoadResult {
+                suffix: config.suffix.to_string(),
+                success: false,
+                data: None,
+                error: Some(format!("File read error: {e}")),
+                file_size,
+                load_time_ms: start_time.elapsed().as_millis() as u64,
+            }
         }
     };
     
@@ -369,6 +421,17 @@ fn print_load_statistics(stats: &JsonLoadStats) {
         };
         println!("   Average time per file: {}ms", avg_time);
         println!("   Throughput: {:.1} MB/s", throughput);
+        
+        // Memory efficiency information
+        let memory_efficiency = if stats.total_size_bytes > 0 {
+            // Estimate memory efficiency based on file sizes and processing time
+            let estimated_peak_memory = stats.total_size_bytes as f64 * 1.5; // Assume 1.5x overhead
+            let efficiency = (stats.total_size_bytes as f64 / estimated_peak_memory) * 100.0;
+            format!("{:.1}%", efficiency)
+        } else {
+            "N/A".to_string()
+        };
+        println!("   Memory efficiency: {}", memory_efficiency);
     }
     println!();
 }

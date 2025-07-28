@@ -548,6 +548,9 @@ function initializeDashboard() {
     // Populate memory allocations table with real data
     populateMemoryAllocationsTable(memoryAnalysisData);
     
+    // Populate complex type analysis table
+    populateComplexTypeAnalysisTable(complexTypesData);
+    
     // Populate optimization recommendations
     populateOptimizationRecommendations(complexTypesData);
     
@@ -556,6 +559,8 @@ function initializeDashboard() {
     createMemoryDistributionChart(complexTypesData);
     createAllocationSizeChart(memoryAnalysisData);
     createPerformanceChart(performanceData);
+    createComplexTypeAnalysisChart(complexTypesData);
+    createFfiRiskChart(ffiSnapshotData);
     
     // Populate detailed performance metrics
     populatePerformanceMetrics(performanceData);
@@ -624,21 +629,56 @@ function populateOptimizationRecommendations(complexTypesData) {
     const memoryRecList = document.getElementById('memory-optimization-recommendations');
     if (!memoryRecList) return;
     
+    // Clear existing content
+    memoryRecList.innerHTML = '';
+    
     // Handle null or missing data
-    if (!complexTypesData || !complexTypesData.optimization_recommendations) {
+    if (!complexTypesData) {
         const li = document.createElement('li');
         li.className = 'text-gray-500 italic';
-        li.textContent = 'No optimization recommendations available';
+        li.textContent = 'No complex types data available';
         memoryRecList.appendChild(li);
         return;
     }
     
-    complexTypesData.optimization_recommendations.forEach(rec => {
+    // Collect optimization suggestions from complex_type_analysis
+    const suggestions = [];
+    
+    // From complex_type_analysis if available
+    if (complexTypesData.complex_type_analysis) {
+        complexTypesData.complex_type_analysis.forEach(analysis => {
+            if (analysis.optimization_suggestions && analysis.optimization_suggestions.length > 0) {
+                analysis.optimization_suggestions.forEach(suggestion => {
+                    suggestions.push(`${analysis.type_name}: ${suggestion}`);
+                });
+            }
+        });
+    }
+    
+    // From optimization_recommendations if available (fallback)
+    if (complexTypesData.optimization_recommendations) {
+        complexTypesData.optimization_recommendations.forEach(rec => {
+            suggestions.push(rec);
+        });
+    }
+    
+    // Display suggestions or empty state
+    if (suggestions.length === 0) {
         const li = document.createElement('li');
-        li.className = 'text-gray-700';
-        li.textContent = rec;
+        li.className = 'text-gray-500 italic';
+        li.textContent = 'No optimization recommendations available';
         memoryRecList.appendChild(li);
-    });
+    } else {
+        suggestions.forEach(suggestion => {
+            const li = document.createElement('li');
+            li.className = 'text-gray-700 flex items-start';
+            li.innerHTML = `
+                <i class="fa fa-lightbulb-o text-yellow-500 mr-2 mt-1 flex-shrink-0"></i>
+                <span>${suggestion}</span>
+            `;
+            memoryRecList.appendChild(li);
+        });
+    }
 }
 
 function createComplexityChart(complexTypesData) {
@@ -751,16 +791,106 @@ function createMemoryDistributionChart(complexTypesData) {
     });
 }//
  FFI Data Rendering Functions
-function renderFfiData(data, container) {
+function renderFfiData(ffiData, container) {
     if (!container) return;
     
     // Handle empty or null data
-    if (!data || data.length === 0) {
+    if (!ffiData) {
         container.innerHTML = '<div class="bg-gray-50 rounded-lg p-8 text-center text-gray-500 border-2 border-dashed border-gray-300"><i class="fa fa-info-circle text-2xl mb-2"></i><p>No unsafe/FFI data available</p></div>';
         return;
     }
     
-    data.forEach((item, index) => {
+    // Clear container
+    container.innerHTML = '';
+    
+    // Create FFI summary section
+    createFfiSummarySection(ffiData, container);
+    
+    // Create enhanced FFI data section if available
+    if (ffiData.enhanced_ffi_data && ffiData.enhanced_ffi_data.length > 0) {
+        createEnhancedFfiSection(ffiData.enhanced_ffi_data, container);
+    }
+    
+    // Create boundary events section if available
+    if (ffiData.boundary_events && ffiData.boundary_events.length > 0) {
+        createBoundaryEventsSection(ffiData.boundary_events, container);
+    }
+    
+    // Create safety violations section if available
+    if (ffiData.safety_violations && ffiData.safety_violations.length > 0) {
+        createSafetyViolationsSection(ffiData.safety_violations, container);
+    }
+    
+    // If no detailed data, show summary only
+    if ((!ffiData.enhanced_ffi_data || ffiData.enhanced_ffi_data.length === 0) &&
+        (!ffiData.boundary_events || ffiData.boundary_events.length === 0) &&
+        (!ffiData.safety_violations || ffiData.safety_violations.length === 0)) {
+        
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'mt-6 bg-blue-50 rounded-lg p-6 border border-blue-200';
+        emptyDiv.innerHTML = `
+            <div class="flex items-center">
+                <i class="fa fa-shield text-blue-500 text-xl mr-3"></i>
+                <div>
+                    <h4 class="font-semibold text-blue-800">Safe Code Detected</h4>
+                    <p class="text-blue-600 text-sm mt-1">No unsafe operations or FFI calls detected in this analysis.</p>
+                </div>
+            </div>
+        `;
+        container.appendChild(emptyDiv);
+    }
+}
+
+function createFfiSummarySection(ffiData, container) {
+    const summary = ffiData.summary || {};
+    
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'grid grid-cols-2 md:grid-cols-4 gap-4 mb-6';
+    
+    // Risk level color
+    let riskColor = 'text-green-600 bg-green-100';
+    if (summary.risk_assessment === 'high') riskColor = 'text-red-600 bg-red-100';
+    else if (summary.risk_assessment === 'medium') riskColor = 'text-yellow-600 bg-yellow-100';
+    
+    summaryDiv.innerHTML = `
+        <div class="bg-white rounded-lg p-4 border border-gray-200">
+            <div class="text-2xl font-bold text-gray-900">${summary.unsafe_count || 0}</div>
+            <div class="text-sm text-gray-600">Unsafe Operations</div>
+        </div>
+        <div class="bg-white rounded-lg p-4 border border-gray-200">
+            <div class="text-2xl font-bold text-gray-900">${summary.ffi_count || 0}</div>
+            <div class="text-sm text-gray-600">FFI Calls</div>
+        </div>
+        <div class="bg-white rounded-lg p-4 border border-gray-200">
+            <div class="text-2xl font-bold text-gray-900">${summary.safety_violations || 0}</div>
+            <div class="text-sm text-gray-600">Safety Violations</div>
+        </div>
+        <div class="bg-white rounded-lg p-4 border border-gray-200">
+            <div class="text-sm text-gray-600 mb-1">Risk Level</div>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${riskColor}">
+                ${(summary.risk_assessment || 'low').toUpperCase()}
+            </span>
+        </div>
+    `;
+    
+    container.appendChild(summaryDiv);
+}
+
+function createEnhancedFfiSection(enhancedFfiData, container) {
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'mb-6';
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'mb-4';
+    headerDiv.innerHTML = `
+        <h4 class="text-lg font-semibold text-gray-800 flex items-center">
+            <i class="fa fa-exclamation-triangle text-orange-500 mr-2"></i>
+            Enhanced FFI Analysis (${enhancedFfiData.length} entries)
+        </h4>
+    `;
+    sectionDiv.appendChild(headerDiv);
+    
+    enhancedFfiData.forEach((item, index) => {
         const entryDiv = document.createElement('div');
         entryDiv.className = 'bg-white rounded-lg card-shadow hover-lift border-l-4 ' +
             (item.source.FfiC ? 'border-blue-500' : 'border-yellow-500');
@@ -1411,4 +1541,315 @@ function displayExportPerformanceMetrics(exportPerformance) {
             Total processing time: ${exportPerformance.total_processing_time_ms.toLocaleString()}ms
         </div>
     `;
+}//
+ Complex type analysis chart using real complex_type_analysis data
+function createComplexTypeAnalysisChart(complexTypesData) {
+    const ctx = document.getElementById('complex-type-analysis-chart');
+    if (!ctx) return;
+    
+    // Handle null or missing data
+    if (!complexTypesData || !complexTypesData.complex_type_analysis || complexTypesData.complex_type_analysis.length === 0) {
+        const context = ctx.getContext('2d');
+        context.fillStyle = '#9CA3AF';
+        context.font = '14px Arial';
+        context.textAlign = 'center';
+        context.fillText('No complex type analysis data available', ctx.width / 2, ctx.height / 2);
+        return;
+    }
+    
+    const analysisData = complexTypesData.complex_type_analysis;
+    
+    // Create a scatter plot showing complexity vs memory efficiency
+    new Chart(ctx.getContext('2d'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Type Complexity vs Memory Efficiency',
+                data: analysisData.map(item => ({
+                    x: item.complexity_score,
+                    y: item.memory_efficiency,
+                    label: item.type_name,
+                    allocation_count: item.allocation_count,
+                    total_size: item.total_size
+                })),
+                backgroundColor: analysisData.map(item => {
+                    // Color based on complexity score
+                    if (item.complexity_score >= 12) return 'rgba(239, 68, 68, 0.7)';   // Red for high complexity
+                    if (item.complexity_score >= 8) return 'rgba(245, 158, 11, 0.7)';   // Yellow for medium
+                    return 'rgba(34, 197, 94, 0.7)';  // Green for low complexity
+                }),
+                borderColor: analysisData.map(item => {
+                    if (item.complexity_score >= 12) return 'rgb(239, 68, 68)';
+                    if (item.complexity_score >= 8) return 'rgb(245, 158, 11)';
+                    return 'rgb(34, 197, 94)';
+                }),
+                borderWidth: 2,
+                pointRadius: analysisData.map(item => Math.max(5, Math.min(15, item.allocation_count * 3)))
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Type Complexity vs Memory Efficiency'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const point = context.raw;
+                            return [
+                                `Type: ${point.label}`,
+                                `Complexity: ${point.x}`,
+                                `Memory Efficiency: ${point.y}%`,
+                                `Allocations: ${point.allocation_count}`,
+                                `Total Size: ${point.total_size} bytes`
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Complexity Score'
+                    },
+                    beginAtZero: true
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Memory Efficiency (%)'
+                    },
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+
+// Enhanced complex types table with analysis data
+function populateComplexTypeAnalysisTable(complexTypesData) {
+    const tableBody = document.getElementById('complex-type-analysis-table');
+    if (!tableBody) return;
+    
+    // Handle null or missing data
+    if (!complexTypesData || !complexTypesData.complex_type_analysis || complexTypesData.complex_type_analysis.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No complex type analysis data available</td></tr>';
+        return;
+    }
+    
+    // Clear existing content
+    tableBody.innerHTML = '';
+    
+    complexTypesData.complex_type_analysis.forEach(analysis => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50 transition-colors';
+        
+        // Determine complexity level and color
+        let complexityClass = 'text-green-600';
+        let complexityLabel = 'Low';
+        if (analysis.complexity_score >= 12) {
+            complexityClass = 'text-red-600';
+            complexityLabel = 'High';
+        } else if (analysis.complexity_score >= 8) {
+            complexityClass = 'text-yellow-600';
+            complexityLabel = 'Medium';
+        }
+        
+        // Determine efficiency level and color
+        let efficiencyClass = 'text-red-600';
+        if (analysis.memory_efficiency >= 80) {
+            efficiencyClass = 'text-green-600';
+        } else if (analysis.memory_efficiency >= 60) {
+            efficiencyClass = 'text-yellow-600';
+        }
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="font-medium text-gray-900">${analysis.type_name}</div>
+                <div class="text-sm text-gray-500">${analysis.category}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${complexityClass.replace('text-', 'bg-').replace('-600', '-100')} ${complexityClass}">
+                    ${analysis.complexity_score} (${complexityLabel})
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${efficiencyClass.replace('text-', 'bg-').replace('-600', '-100')} ${efficiencyClass}">
+                    ${analysis.memory_efficiency}%
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                ${analysis.allocation_count}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                ${analysis.total_size} bytes
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-500">
+                ${analysis.optimization_suggestions && analysis.optimization_suggestions.length > 0 
+                    ? analysis.optimization_suggestions.join('; ') 
+                    : 'No suggestions'}
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+}function c
+reateBoundaryEventsSection(boundaryEvents, container) {
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'mb-6';
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'mb-4';
+    headerDiv.innerHTML = `
+        <h4 class="text-lg font-semibold text-gray-800 flex items-center">
+            <i class="fa fa-exchange text-blue-500 mr-2"></i>
+            Boundary Events (${boundaryEvents.length} events)
+        </h4>
+    `;
+    sectionDiv.appendChild(headerDiv);
+    
+    const eventsDiv = document.createElement('div');
+    eventsDiv.className = 'space-y-3';
+    
+    boundaryEvents.forEach((event, index) => {
+        const eventDiv = document.createElement('div');
+        eventDiv.className = 'bg-blue-50 rounded-lg p-4 border border-blue-200';
+        
+        eventDiv.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="font-medium text-blue-800">Event ${index + 1}: ${event.event_type || 'Unknown'}</div>
+                    <div class="text-sm text-blue-600 mt-1">
+                        From: ${event.from_context || 'Unknown'} → To: ${event.to_context || 'Unknown'}
+                    </div>
+                    ${event.timestamp ? `<div class="text-xs text-blue-500 mt-1">Timestamp: ${new Date(event.timestamp / 1000000).toLocaleString()}</div>` : ''}
+                </div>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Boundary
+                </span>
+            </div>
+        `;
+        
+        eventsDiv.appendChild(eventDiv);
+    });
+    
+    sectionDiv.appendChild(eventsDiv);
+    container.appendChild(sectionDiv);
+}
+
+function createSafetyViolationsSection(safetyViolations, container) {
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'mb-6';
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'mb-4';
+    headerDiv.innerHTML = `
+        <h4 class="text-lg font-semibold text-gray-800 flex items-center">
+            <i class="fa fa-warning text-red-500 mr-2"></i>
+            Safety Violations (${safetyViolations.length} violations)
+        </h4>
+    `;
+    sectionDiv.appendChild(headerDiv);
+    
+    const violationsDiv = document.createElement('div');
+    violationsDiv.className = 'space-y-3';
+    
+    safetyViolations.forEach((violation, index) => {
+        const violationDiv = document.createElement('div');
+        violationDiv.className = 'bg-red-50 rounded-lg p-4 border border-red-200';
+        
+        // Determine severity color
+        let severityColor = 'bg-yellow-100 text-yellow-800';
+        if (violation.severity === 'high') severityColor = 'bg-red-100 text-red-800';
+        else if (violation.severity === 'low') severityColor = 'bg-green-100 text-green-800';
+        
+        violationDiv.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="flex-grow">
+                    <div class="font-medium text-red-800">Violation ${index + 1}</div>
+                    <div class="text-sm text-red-600 mt-1">${violation.description || 'No description available'}</div>
+                    ${violation.location ? `<div class="text-xs text-red-500 mt-1">Location: ${violation.location}</div>` : ''}
+                </div>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${severityColor}">
+                    ${(violation.severity || 'medium').toUpperCase()}
+                </span>
+            </div>
+        `;
+        
+        violationsDiv.appendChild(violationDiv);
+    });
+    
+    sectionDiv.appendChild(violationsDiv);
+    container.appendChild(sectionDiv);
+}
+
+// Create FFI risk assessment chart
+function createFfiRiskChart(ffiData) {
+    const ctx = document.getElementById('ffi-risk-chart');
+    if (!ctx) return;
+    
+    if (!ffiData || !ffiData.summary) {
+        const context = ctx.getContext('2d');
+        context.fillStyle = '#9CA3AF';
+        context.font = '14px Arial';
+        context.textAlign = 'center';
+        context.fillText('No FFI risk data available', ctx.width / 2, ctx.height / 2);
+        return;
+    }
+    
+    const summary = ffiData.summary;
+    
+    // Create a risk breakdown chart
+    const riskData = {
+        'Safe Operations': (summary.total_risk_items || 0) === 0 ? 1 : 0,
+        'Unsafe Operations': summary.unsafe_count || 0,
+        'FFI Calls': summary.ffi_count || 0,
+        'Safety Violations': summary.safety_violations || 0
+    };
+    
+    // Filter out zero values for better visualization
+    const filteredData = Object.entries(riskData).filter(([key, value]) => value > 0);
+    
+    if (filteredData.length === 0) {
+        filteredData.push(['Safe Operations', 1]);
+    }
+    
+    new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: filteredData.map(([key]) => key),
+            datasets: [{
+                data: filteredData.map(([, value]) => value),
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.7)',   // Green for safe
+                    'rgba(245, 158, 11, 0.7)',  // Yellow for unsafe
+                    'rgba(59, 130, 246, 0.7)',  // Blue for FFI
+                    'rgba(239, 68, 68, 0.7)'    // Red for violations
+                ],
+                borderColor: [
+                    'rgb(34, 197, 94)',
+                    'rgb(245, 158, 11)',
+                    'rgb(59, 130, 246)',
+                    'rgb(239, 68, 68)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'FFI Risk Assessment'
+                },
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
 }
