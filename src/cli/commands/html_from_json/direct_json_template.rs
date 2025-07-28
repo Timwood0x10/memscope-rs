@@ -31,12 +31,29 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     }
     
 
-    let template_content = std::fs::read_to_string("templates/dashboard.html")
-        .map_err(|e| format!("Failed to read dashboard template: {e}"))?;
+    // Try multiple possible paths for the template files
+    let template_paths = [
+        "templates/dashboard.html",
+        "./templates/dashboard.html",
+        "../templates/dashboard.html",
+        "../../templates/dashboard.html",
+    ];
+    
+    let css_paths = [
+        "templates/styles.css",
+        "./templates/styles.css", 
+        "../templates/styles.css",
+        "../../templates/styles.css",
+    ];
+    
+    let template_content = template_paths.iter()
+        .find_map(|path| std::fs::read_to_string(path).ok())
+        .ok_or("Failed to find dashboard template file in any expected location")?;
     
     // Load CSS content
-    let css_content = std::fs::read_to_string("templates/styles.css")
-        .map_err(|e| format!("Failed to read CSS template: {e}"))?;
+    let css_content = css_paths.iter()
+        .find_map(|path| std::fs::read_to_string(path).ok())
+        .ok_or("Failed to find CSS template file in any expected location")?;
     
     // Replace placeholders in the template
     let html = template_content

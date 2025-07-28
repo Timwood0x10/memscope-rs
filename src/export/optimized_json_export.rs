@@ -494,8 +494,8 @@ fn write_json_optimized<P: AsRef<Path>>(
 ) -> TrackingResult<()> {
     let path = path.as_ref();
     
-    // Validate schema if enabled
-    if options.enable_schema_validation {
+    // Validate schema if enabled and not in fast export mode
+    if options.enable_schema_validation && !options.enable_fast_export_mode {
         let validator = SchemaValidator::new();
         if let Ok(validation_result) = validator.validate_unsafe_ffi_analysis(data) {
             if !validation_result.is_valid {
@@ -508,6 +508,8 @@ fn write_json_optimized<P: AsRef<Path>>(
                 }
             }
         }
+    } else if options.enable_fast_export_mode {
+        // Fast mode: skip validation for better performance
     }
 
     // Determine format based on data size
@@ -851,15 +853,16 @@ impl MemoryTracker {
                     println!("   Performance improvement: {:.2}x", stats.performance_improvement_factor);
                     println!("   Output file: {}", output_path.display());
                     
-                    // Fast export mode returns directly without generating other files
+                    // Fast export mode: continue to generate all files, just skip validation
                     if options.enable_fast_export_mode {
-                        println!("⚡ Fast export mode: skipping other analysis file generation");
-                        return Ok(());
+                        println!("⚡ Fast export mode: generating all analysis files without validation");
+                        // Continue to generate other analysis files
                     }
                     
                     // If other file types are needed, continue with traditional method
                     if options.optimization_level == OptimizationLevel::High || 
-                       options.optimization_level == OptimizationLevel::Maximum {
+                       options.optimization_level == OptimizationLevel::Maximum ||
+                       options.enable_fast_export_mode {
                         println!("📝 Generating other analysis files...");
                         // Continue with traditional export logic for other files
                     } else {
@@ -908,30 +911,45 @@ impl MemoryTracker {
             }
         }
 
-        // Determine which files to export based on optimization level
-        let file_types = match options.optimization_level {
-            OptimizationLevel::Low => vec![
-                JsonFileType::MemoryAnalysis,
-                JsonFileType::Performance,
-            ],
-            OptimizationLevel::Medium => vec![
+        // Determine which files to export based on optimization level or fast export mode
+        let file_types = if options.enable_fast_export_mode {
+            // Fast mode: generate all files but skip validation
+            let mut types = vec![
                 JsonFileType::MemoryAnalysis,
                 JsonFileType::Lifetime,
+                JsonFileType::UnsafeFfi,
                 JsonFileType::Performance,
-            ],
-            OptimizationLevel::High | OptimizationLevel::Maximum => {
-                let mut types = vec![
+                JsonFileType::ComplexTypes,
+            ];
+            if options.enable_security_analysis {
+                types.push(JsonFileType::SecurityViolations);
+            }
+            types
+        } else {
+            match options.optimization_level {
+                OptimizationLevel::Low => vec![
+                    JsonFileType::MemoryAnalysis,
+                    JsonFileType::Performance,
+                ],
+                OptimizationLevel::Medium => vec![
                     JsonFileType::MemoryAnalysis,
                     JsonFileType::Lifetime,
-                    JsonFileType::UnsafeFfi,
                     JsonFileType::Performance,
-                    JsonFileType::ComplexTypes,
-                ];
-                if options.enable_security_analysis {
-                    types.push(JsonFileType::SecurityViolations);
-                }
-                types
-            },
+                ],
+                OptimizationLevel::High | OptimizationLevel::Maximum => {
+                    let mut types = vec![
+                        JsonFileType::MemoryAnalysis,
+                        JsonFileType::Lifetime,
+                        JsonFileType::UnsafeFfi,
+                        JsonFileType::Performance,
+                        JsonFileType::ComplexTypes,
+                    ];
+                    if options.enable_security_analysis {
+                        types.push(JsonFileType::SecurityViolations);
+                    }
+                    types
+                },
+            }
         };
 
         // Export files using the integrated pipeline
@@ -1846,13 +1864,15 @@ fn create_integrated_lifetime_analysis(
                 entry.1 += 1;
                 entry.2.push(alloc.size);
 
-                // Track lifecycle events
+                // Track lifecycle events with variable and type information
                 local_events.push(serde_json::json!({
                     "ptr": format!("0x{:x}", alloc.ptr),
                     "event": "allocation",
                     "scope": scope,
                     "timestamp": alloc.timestamp_alloc,
-                    "size": alloc.size
+                    "size": alloc.size,
+                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown")
                 }));
             }
             
@@ -1885,7 +1905,9 @@ fn create_integrated_lifetime_analysis(
                 "event": "allocation",
                 "scope": scope,
                 "timestamp": alloc.timestamp_alloc,
-                "size": alloc.size
+                "size": alloc.size,
+                "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                "type_name": alloc.type_name.as_deref().unwrap_or("unknown")
             }));
         }
     }
