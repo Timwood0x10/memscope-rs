@@ -29,7 +29,7 @@ use error_handler::{ErrorRecoveryContext, HtmlErrorHandler};
 use json_file_discovery::{JsonFileConfig, JsonFileDiscovery};
 use large_file_optimizer::{LargeFileConfig, LargeFileOptimizer};
 
-mod direct_json_template;
+pub mod direct_json_template;
 
 /// Run the HTML from JSON generation command
 pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {

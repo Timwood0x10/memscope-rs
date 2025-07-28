@@ -592,7 +592,8 @@ mod tests {
         logger.next_progress_step("Step 1", 10);
         logger.update_progress_items(5);
         
-        if let Ok(progress) = logger.progress.lock() {
+        {
+            let progress = logger.progress.lock().unwrap();
             if let Some(ref prog) = *progress {
                 assert_eq!(prog.current_step, 1);
                 assert_eq!(prog.items_processed, 5);

@@ -4,7 +4,7 @@
 
 use memscope_rs::{init, track_var};
 use memscope_rs::export::export_modes::{
-    ExportCoordinator, ExportMode, ExportOutcome,
+    ExportCoordinator, ExportOutcome,
     export_fast, export_with_validation
 };
 use std::collections::HashMap;
@@ -91,8 +91,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     
-    // 正常模式
-    let coordinator = ExportCoordinator::new_normal();
+   
+    let coordinator = ExportCoordinator::new_fast();
     let outcome = coordinator.export("test_coordinator_normal.json").await;
     match outcome {
         Ok(ExportOutcome::WithValidation(stats, validation)) => {

@@ -91,7 +91,10 @@ impl MemScopeServer {
         
         let mut app = Router::new()
             // Main dashboard page
-            .route("/", get(serve_dashboard))
+            .route("/", get({
+                let data = Arc::clone(&data);
+                move |query| serve_dashboard(query, data)
+            }))
             
             // Raw JSON data endpoint - matches static HTML embedded data format
             .route("/api/data", get({

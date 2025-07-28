@@ -44,8 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 4: DeferredValidation wrapper
     println!("\n4. Testing DeferredValidation wrapper");
     let deferred = DeferredValidation::new(&temp_file, 0, ValidationConfig::default());
-    println!("   📁 File path: {}", deferred.file_path());
-    println!("   🔢 Expected count: {}", deferred.expected_count());
+    println!("   📁 File path: {}", deferred.get_file_path());
     
     let deferred_result = deferred.await_result().await?;
     println!("   ✅ Deferred validation result: {}", if deferred_result.is_valid { "PASSED" } else { "FAILED" });

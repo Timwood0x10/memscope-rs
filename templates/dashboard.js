@@ -182,15 +182,21 @@ function renderLifetimeVisualization(variableGroups) {
     // Clear loading state
     container.innerHTML = '';
     
-    // Get color scheme for different types
-    const typeColors = {
-        'Vec': { bg: 'bg-blue-500', border: 'border-blue-500' },
-        'Box': { bg: 'bg-purple-500', border: 'border-purple-500' },
-        'Rc': { bg: 'bg-yellow-500', border: 'border-yellow-500' },
-        'Arc': { bg: 'bg-green-500', border: 'border-green-500' },
-        'String': { bg: 'bg-pink-500', border: 'border-pink-500' },
-        'default': { bg: 'bg-gray-500', border: 'border-gray-500' }
-    };
+    // Get colorful scheme for different types - more vibrant colors
+    const typeColors = [
+        { bg: 'bg-red-500', border: 'border-red-500', color: '#ef4444' },
+        { bg: 'bg-blue-500', border: 'border-blue-500', color: '#3b82f6' },
+        { bg: 'bg-green-500', border: 'border-green-500', color: '#10b981' },
+        { bg: 'bg-yellow-500', border: 'border-yellow-500', color: '#f59e0b' },
+        { bg: 'bg-purple-500', border: 'border-purple-500', color: '#8b5cf6' },
+        { bg: 'bg-pink-500', border: 'border-pink-500', color: '#ec4899' },
+        { bg: 'bg-indigo-500', border: 'border-indigo-500', color: '#6366f1' },
+        { bg: 'bg-teal-500', border: 'border-teal-500', color: '#14b8a6' },
+        { bg: 'bg-orange-500', border: 'border-orange-500', color: '#f97316' },
+        { bg: 'bg-cyan-500', border: 'border-cyan-500', color: '#06b6d4' },
+        { bg: 'bg-lime-500', border: 'border-lime-500', color: '#84cc16' },
+        { bg: 'bg-rose-500', border: 'border-rose-500', color: '#f43f5e' }
+    ];
     
     // Calculate timeline bounds
     const allTimestamps = variableGroups.flatMap(group => 
@@ -203,15 +209,12 @@ function renderLifetimeVisualization(variableGroups) {
     console.log(`📊 Timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
     
     // Render each variable
-    variableGroups.forEach((group) => {
+    variableGroups.forEach((group, index) => {
         const varDiv = document.createElement('div');
         varDiv.className = 'flex items-end py-3 border-b border-gray-100';
         
-        // Determine color based on type
-        const typeKey = Object.keys(typeColors).find(key => 
-            group.type_name.includes(key)
-        ) || 'default';
-        const colors = typeColors[typeKey];
+        // Assign colors cyclically to make it colorful
+        const colors = typeColors[index % typeColors.length];
         
         // Calculate position and width based on timestamps
         const firstEvent = group.events[0];
@@ -278,8 +281,7 @@ function showEmptyLifetimeState() {
         </div>
     `;
 }
-// Data 
-processing functions
+// Data processing functions
 function getComplexTypesData() {
     if (window.analysisData && window.analysisData.complex_types) {
         console.log('Using embedded complex types data');
@@ -346,7 +348,7 @@ function getFfiSnapshotData() {
 }
 
 // Fallback data definitions
-// Memory allocations table population using real data
+// Memory allocations table population using real data - filter out system allocations
 function populateMemoryAllocationsTable(memoryAnalysisData) {
     const tableBody = document.getElementById('allocations-table');
     if (!tableBody) return;
@@ -360,8 +362,18 @@ function populateMemoryAllocationsTable(memoryAnalysisData) {
     // Clear existing content
     tableBody.innerHTML = '';
     
-    // Show first 50 allocations to avoid overwhelming the UI
-    const allocationsToShow = memoryAnalysisData.allocations.slice(0, 50);
+    // Filter out system allocations - only show user-defined variables
+    const userAllocations = memoryAnalysisData.allocations.filter(allocation => 
+        allocation.var_name && 
+        allocation.var_name !== null && 
+        allocation.var_name !== 'unknown' &&
+        allocation.type_name && 
+        allocation.type_name !== null && 
+        allocation.type_name !== 'unknown'
+    );
+    
+    // Show first 50 user allocations to avoid overwhelming the UI
+    const allocationsToShow = userAllocations.slice(0, 50);
     
     allocationsToShow.forEach(allocation => {
         const row = document.createElement('tr');
@@ -397,15 +409,17 @@ function populateMemoryAllocationsTable(memoryAnalysisData) {
     });
     
     // Add summary row if there are more allocations
-    if (memoryAnalysisData.allocations.length > 50) {
+    if (userAllocations.length > 50) {
         const summaryRow = document.createElement('tr');
         summaryRow.className = 'bg-gray-50 font-medium';
         summaryRow.innerHTML = `
             <td colspan="4" class="px-4 py-2 text-center text-gray-600">
-                Showing 50 of ${memoryAnalysisData.allocations.length} total allocations
+                Showing 50 of ${userAllocations.length} user-defined allocations (${memoryAnalysisData.allocations.length} total)
             </td>
         `;
         tableBody.appendChild(summaryRow);
+    } else if (userAllocations.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No user-defined variables found. Use track_var! macro to track variables.</td></tr>';
     }
 }
 
@@ -520,6 +534,134 @@ function updateStats(stats) {
     }
 }
 
+// Create memory usage analysis visualization similar to memoryAnalysis.svg
+function createMemoryUsageAnalysis(memoryAnalysisData, performanceData) {
+    const container = document.getElementById('memory-usage-analysis');
+    if (!container) return;
+    
+    // Calculate metrics from data
+    const metrics = calculateMemoryMetrics(memoryAnalysisData, performanceData);
+    
+    // Create SVG-style visualization
+    container.innerHTML = `
+        <div class="text-center mb-6">
+            <h3 class="text-xl font-light text-gray-700 mb-2" style="letter-spacing: 1px;">
+                Rust Memory Usage Analysis
+            </h3>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Key Performance Metrics
+            </p>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            ${metrics.map(metric => `
+                <div class="bg-white rounded-xl p-4 shadow-lg hover:shadow-xl transition-shadow">
+                    <div class="flex flex-col items-center">
+                        <div class="relative w-16 h-16 mb-3">
+                            <svg class="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                                <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none"
+                                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <path class="text-${metric.color}" stroke="currentColor" stroke-width="3" fill="none"
+                                      stroke-dasharray="${metric.percentage}, 100"
+                                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-sm font-bold text-${metric.color}">${metric.percentage}%</span>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-xs font-semibold text-gray-600 mb-1">${metric.label}</p>
+                            <p class="text-sm font-bold text-gray-800">${metric.value}</p>
+                            <div class="flex items-center justify-center mt-1">
+                                <div class="w-2 h-2 rounded-full bg-${metric.color} mr-1"></div>
+                                <span class="text-xs font-semibold text-${metric.color} uppercase">${metric.status}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Calculate memory metrics from data
+function calculateMemoryMetrics(memoryAnalysisData, performanceData) {
+    const defaultMetrics = [
+        { label: 'Active Memory', value: '0KB', percentage: 0, color: 'blue-500', status: 'LOW' },
+        { label: 'Peak Memory', value: '0KB', percentage: 0, color: 'red-500', status: 'LOW' },
+        { label: 'Active Allocs', value: '0', percentage: 0, color: 'green-500', status: 'LOW' },
+        { label: 'Reclamation', value: '0%', percentage: 0, color: 'yellow-500', status: 'LOW' },
+        { label: 'Efficiency', value: '0%', percentage: 0, color: 'purple-500', status: 'LOW' },
+        { label: 'Median Size', value: '0B', percentage: 0, color: 'teal-500', status: 'LOW' }
+    ];
+    
+    if (!memoryAnalysisData || !memoryAnalysisData.allocations) {
+        return defaultMetrics;
+    }
+    
+    const allocations = memoryAnalysisData.allocations;
+    const activeAllocations = allocations.filter(a => !a.timestamp_dealloc);
+    const totalAllocated = allocations.reduce((sum, a) => sum + a.size, 0);
+    const activeMemory = activeAllocations.reduce((sum, a) => sum + a.size, 0);
+    const peakMemory = Math.max(totalAllocated, activeMemory);
+    
+    // Calculate sizes array for median
+    const sizes = allocations.map(a => a.size).sort((a, b) => a - b);
+    const medianSize = sizes.length > 0 ? sizes[Math.floor(sizes.length / 2)] : 0;
+    
+    // Calculate reclamation rate
+    const deallocatedCount = allocations.filter(a => a.timestamp_dealloc).length;
+    const reclamationRate = allocations.length > 0 ? (deallocatedCount / allocations.length) * 100 : 0;
+    
+    // Calculate efficiency (active memory / peak memory)
+    const efficiency = peakMemory > 0 ? (activeMemory / peakMemory) * 100 : 0;
+    
+    return [
+        {
+            label: 'Active Memory',
+            value: formatBytes(activeMemory),
+            percentage: Math.min(100, Math.round((activeMemory / (1024 * 1024)) * 100)), // Normalize to MB
+            color: 'blue-500',
+            status: activeMemory > 500000 ? 'HIGH' : activeMemory > 100000 ? 'MEDIUM' : 'LOW'
+        },
+        {
+            label: 'Peak Memory',
+            value: formatBytes(peakMemory),
+            percentage: 100, // Peak is always 100%
+            color: 'red-500',
+            status: peakMemory > 1000000 ? 'HIGH' : peakMemory > 200000 ? 'MEDIUM' : 'LOW'
+        },
+        {
+            label: 'Active Allocs',
+            value: activeAllocations.length.toString(),
+            percentage: Math.min(100, Math.round((activeAllocations.length / 1000) * 100)), // Normalize to thousands
+            color: 'green-500',
+            status: activeAllocations.length > 1000 ? 'HIGH' : activeAllocations.length > 100 ? 'MEDIUM' : 'LOW'
+        },
+        {
+            label: 'Reclamation',
+            value: `${reclamationRate.toFixed(1)}%`,
+            percentage: Math.round(reclamationRate),
+            color: 'yellow-500',
+            status: reclamationRate > 80 ? 'HIGH' : reclamationRate > 50 ? 'MEDIUM' : 'LOW'
+        },
+        {
+            label: 'Efficiency',
+            value: `${efficiency.toFixed(1)}%`,
+            percentage: Math.round(efficiency),
+            color: 'purple-500',
+            status: efficiency > 80 ? 'HIGH' : efficiency > 50 ? 'MEDIUM' : 'LOW'
+        },
+        {
+            label: 'Median Size',
+            value: formatBytes(medianSize),
+            percentage: Math.min(100, Math.round((medianSize / 1024) * 100)), // Normalize to KB
+            color: 'teal-500',
+            status: medianSize > 1024 ? 'HIGH' : medianSize > 100 ? 'MEDIUM' : 'LOW'
+        }
+    ];
+}
+
 // Dashboard initialization and data population
 function initializeDashboard() {
     console.log('Initializing MemScope dashboard...');
@@ -573,6 +715,9 @@ function initializeDashboard() {
     
     // Initialize modern variable graph
     initModernVariableGraph(complexTypesData);
+    
+    // Create memory usage analysis visualization
+    createMemoryUsageAnalysis(memoryAnalysisData, performanceData);
 }
 
 function populateGenericTypesTable(complexTypesData) {
@@ -789,8 +934,9 @@ function createMemoryDistributionChart(complexTypesData) {
             }
         }
     });
-}//
- FFI Data Rendering Functions
+}
+
+// FFI Data Rendering Functions
 function renderFfiData(ffiData, container) {
     if (!container) return;
     
@@ -1132,6 +1278,12 @@ function initModernVariableGraph(complexTypesData) {
     node.append("title")
         .text(d => `${d.name}\nType: ${d.type}\nSize: ${d.size} bytes\nComplexity: ${d.complexity}\nLifetime: ${d.lifetime}ms`);
 
+    // Add click event to show node details
+    node.on("click", function(event, d) {
+        event.stopPropagation();
+        showNodeDetails(d);
+    });
+
     // Update positions on simulation tick
     simulation.on("tick", () => {
         link
@@ -1202,13 +1354,106 @@ function getNodeColor(category) {
     return colors[category] || colors.default;
 }
 
+// Show node details in the side panel
+function showNodeDetails(nodeData) {
+    const detailsPanel = document.getElementById('node-details');
+    const detailsContent = document.getElementById('node-details-content');
+    
+    if (!detailsPanel || !detailsContent) return;
+    
+    // Format the details
+    const complexityLevel = nodeData.complexity > 10 ? 'High' : 
+                           nodeData.complexity > 5 ? 'Medium' : 'Low';
+    const complexityColor = nodeData.complexity > 10 ? 'text-red-600' : 
+                           nodeData.complexity > 5 ? 'text-yellow-600' : 'text-green-600';
+    
+    detailsContent.innerHTML = `
+        <div class="space-y-3">
+            <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Variable Name</label>
+                <p class="text-sm font-medium text-gray-900">${nodeData.name}</p>
+            </div>
+            
+            <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</label>
+                <p class="text-sm text-gray-700 break-all">${nodeData.type}</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</label>
+                    <p class="text-sm font-medium text-gray-900">${nodeData.size} bytes</p>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Lifetime</label>
+                    <p class="text-sm font-medium text-gray-900">${nodeData.lifetime}ms</p>
+                </div>
+            </div>
+            
+            <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Complexity</label>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm font-bold ${complexityColor}">${nodeData.complexity}</span>
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${
+                        nodeData.complexity > 10 ? 'bg-red-100 text-red-800' :
+                        nodeData.complexity > 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                    }">${complexityLevel}</span>
+                </div>
+            </div>
+            
+            <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</label>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full" style="background-color: ${getNodeColor(nodeData.category)}"></div>
+                    <span class="text-sm capitalize text-gray-700">${nodeData.category.replace('_', ' ')}</span>
+                </div>
+            </div>
+            
+            <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Memory Address</label>
+                <p class="text-xs font-mono text-gray-600">${nodeData.ptr || 'N/A'}</p>
+            </div>
+        </div>
+    `;
+    
+    // Show the panel
+    detailsPanel.classList.remove('hidden');
+}
+
+// Hide node details panel
+function hideNodeDetails() {
+    const detailsPanel = document.getElementById('node-details');
+    if (detailsPanel) {
+        detailsPanel.classList.add('hidden');
+    }
+}
+
+// Add event listener for close button
+document.addEventListener('DOMContentLoaded', () => {
+    const closeBtn = document.getElementById('close-details');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', hideNodeDetails);
+    }
+    
+    // Hide details when clicking outside the graph
+    document.addEventListener('click', (event) => {
+        const graphContainer = document.getElementById('variable-graph-container');
+        const detailsPanel = document.getElementById('node-details');
+        
+        if (graphContainer && detailsPanel && 
+            !graphContainer.contains(event.target) && 
+            !detailsPanel.contains(event.target)) {
+            hideNodeDetails();
+        }
+    });
+});
+
 // Initialize dashboard when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
     console.log('MemScope dashboard loaded');
     initializeDashboard();
 });
-// Perf
-ormance metrics chart using real data
+// Performance metrics chart using real data
 function createPerformanceChart(performanceData) {
     const ctx = document.getElementById('performance-chart');
     if (!ctx) return;
@@ -1275,8 +1520,7 @@ function createPerformanceChart(performanceData) {
             }
         }
     });
-}// Lifeti
-me visualization using real lifecycle_events data
+}// Lifetime visualization using real lifecycle_events data
 function initializeLifetimeVisualization(lifetimeData) {
     const container = document.getElementById('lifetimeVisualization');
     if (!container) return;
@@ -1410,8 +1654,9 @@ function initializeLifetimeVisualization(lifetimeData) {
         summaryDiv.textContent = `Showing 20 of ${lifetimes.length} total variables`;
         container.appendChild(summaryDiv);
     }
-}// 
-Populate detailed performance metrics using real data
+}
+
+// Populate detailed performance metrics using real data
 function populatePerformanceMetrics(performanceData) {
     // Update smart pointers count
     const smartPointersEl = document.getElementById('smart-pointers-count');
@@ -1541,8 +1786,7 @@ function displayExportPerformanceMetrics(exportPerformance) {
             Total processing time: ${exportPerformance.total_processing_time_ms.toLocaleString()}ms
         </div>
     `;
-}//
- Complex type analysis chart using real complex_type_analysis data
+}//Complex type analysis chart using real complex_type_analysis data
 function createComplexTypeAnalysisChart(complexTypesData) {
     const ctx = document.getElementById('complex-type-analysis-chart');
     if (!ctx) return;
@@ -1697,8 +1941,8 @@ function populateComplexTypeAnalysisTable(complexTypesData) {
         
         tableBody.appendChild(row);
     });
-}function c
-reateBoundaryEventsSection(boundaryEvents, container) {
+}
+function createBoundaryEventsSection(boundaryEvents, container) {
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'mb-6';
     
