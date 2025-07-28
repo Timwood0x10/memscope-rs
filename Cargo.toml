@@ -26,6 +26,7 @@ clap = { version = "4.0", features = ["derive"] }
 num_cpus = "1.16"
 libc = "0.2"
 flate2 = "1.0"
+regex = "1.10"
 memscope-derive = { path = "./memscope-derive", optional = true }
 
 # WebServer dependencies

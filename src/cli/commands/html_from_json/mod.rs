@@ -19,11 +19,13 @@ mod data_integrator;
 pub mod template_generator;
 pub mod json_file_discovery;
 pub mod large_file_optimizer;
+pub mod error_handler;
 
 use data_normalizer::{DataNormalizer, UnifiedMemoryData};
 use data_integrator::DataIntegrator;
 use json_file_discovery::{JsonFileDiscovery, JsonFileConfig};
 use large_file_optimizer::{LargeFileOptimizer, LargeFileConfig};
+use error_handler::{HtmlErrorHandler, ErrorRecoveryContext};
 
 mod direct_json_template;
 
@@ -171,14 +173,42 @@ type JsonDataCollection = HashMap<String, Value>;
 fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollection, Box<dyn Error>> {
     let start_time = Instant::now();
     
-    println!("🚀 Starting optimized JSON file loading with memory monitoring...");
+    println!("🚀 Starting optimized JSON file loading with comprehensive error handling...");
     println!("📁 Directory: {input_dir}");
     println!("🏷️  Base name: {base_name}");
     
-    // Use the new JSON file discovery system
+    // Initialize error handler with recovery context
+    let recovery_context = ErrorRecoveryContext {
+        attempt_recovery: true,
+        max_retries: 3,
+        allow_partial_data: true,
+        use_fallbacks: true,
+        verbose_errors: false,
+    };
+    let mut error_handler = HtmlErrorHandler::with_context(recovery_context);
+    
+    // Use the new JSON file discovery system with error handling
     let discovery = JsonFileDiscovery::new(input_dir.to_string(), base_name.to_string());
-    let discovery_result = discovery.discover_files()
-        .map_err(|e| format!("JSON file discovery failed: {}", e))?;
+    let discovery_result = match discovery.discover_files() {
+        Ok(result) => result,
+        Err(e) => {
+            match error_handler.handle_file_discovery_error(
+                input_dir,
+                base_name,
+                Box::new(e),
+            ) {
+                Ok(alternatives) => {
+                    println!("🔄 Found alternative directories: {:?}", alternatives);
+                    // For now, still return error but with better message
+                    return Err("JSON file discovery failed after attempting recovery".into());
+                }
+                Err(handled_error) => {
+                    eprintln!("{}", handled_error);
+                    return Err(handled_error.into());
+                }
+            }
+        }
+    };
     
     // Convert discovered files to the format expected by the loader
     let mut valid_files = Vec::new();
@@ -251,6 +281,9 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
     // print statistics
     print_load_statistics(&stats);
     
+    // Print error recovery summary
+    error_handler.print_recovery_summary();
+    
     if data.is_empty() {
         return Err("No JSON files were successfully loaded!".into());
     }
@@ -258,30 +291,211 @@ fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollectio
     Ok(data)
 }
 
-/// Load files in parallel using rayon
+/// Load files in parallel using rayon with error handling
 fn load_files_parallel(files: &[(JsonFileConfig, String, usize)]) -> Result<Vec<JsonLoadResult>, Box<dyn Error>> {
     let results: Vec<JsonLoadResult> = files
         .par_iter()
         .map(|(config, file_path, file_size)| {
-            load_single_file(config, file_path, *file_size)
+            load_single_file_with_recovery(config, file_path, *file_size)
         })
         .collect();
     
     Ok(results)
 }
 
-/// Load files sequentially
+/// Load files sequentially with error handling
 fn load_files_sequential(files: &[(JsonFileConfig, String, usize)]) -> Result<Vec<JsonLoadResult>, Box<dyn Error>> {
     let mut results = Vec::new();
     
     for (config, file_path, file_size) in files {
-        results.push(load_single_file(config, file_path, *file_size));
+        results.push(load_single_file_with_recovery(config, file_path, *file_size));
     }
     
     Ok(results)
 }
 
-/// Load a single JSON file with error handling and timing
+/// Load a single JSON file with comprehensive error handling and recovery
+fn load_single_file_with_recovery(config: &JsonFileConfig, file_path: &str, file_size: usize) -> JsonLoadResult {
+    // Create a local error handler for this file
+    let mut local_error_handler = HtmlErrorHandler::new();
+    
+    match load_single_file_internal(config, file_path, file_size, &mut local_error_handler) {
+        Ok(result) => result,
+        Err(e) => {
+            // Convert error to JsonLoadResult format
+            JsonLoadResult {
+                suffix: config.suffix.to_string(),
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+                file_size,
+                load_time_ms: 0,
+            }
+        }
+    }
+}
+
+/// Internal file loading with error handler
+fn load_single_file_internal(
+    config: &JsonFileConfig, 
+    file_path: &str, 
+    file_size: usize,
+    error_handler: &mut HtmlErrorHandler,
+) -> Result<JsonLoadResult, Box<dyn Error>> {
+    let start_time = Instant::now();
+    
+    // Use large file optimizer for files > 50MB or if specified in config
+    let use_large_file_optimizer = file_size > 50 * 1024 * 1024 || 
+        config.max_size_mb.map_or(false, |max_mb| file_size > max_mb * 1024 * 1024 / 2);
+    
+    if use_large_file_optimizer {
+        // Use optimized large file processing
+        let large_file_config = LargeFileConfig {
+            max_memory_bytes: 256 * 1024 * 1024, // 256MB limit for large files
+            stream_chunk_size: 128 * 1024,       // 128KB chunks
+            enable_memory_monitoring: true,
+            enable_progress_reporting: true,
+            max_file_size_bytes: config.max_size_mb.unwrap_or(500) * 1024 * 1024,
+        };
+        
+        let optimizer = LargeFileOptimizer::new(large_file_config);
+        
+        match optimizer.process_file(file_path, config.suffix) {
+            Ok((json_value, processing_stats)) => {
+                println!("📊 Large file processing stats for {}: {:.1} MB/s, {} objects, streaming: {}", 
+                    config.suffix,
+                    processing_stats.throughput_mb_per_sec,
+                    processing_stats.objects_processed,
+                    processing_stats.streaming_mode_used);
+                
+                Ok(JsonLoadResult {
+                    suffix: config.suffix.to_string(),
+                    success: true,
+                    data: Some(json_value),
+                    error: None,
+                    file_size,
+                    load_time_ms: processing_stats.processing_time_ms,
+                })
+            }
+            Err(e) => {
+                // Handle large file processing error with recovery
+                let file_path_buf = std::path::PathBuf::from(file_path);
+                match error_handler.handle_file_loading_error(
+                    file_path_buf,
+                    config.suffix,
+                    file_size,
+                    Box::new(e),
+                ) {
+                    Ok(Some(recovered_data)) => {
+                        println!("✅ Recovered data for {} using fallback", config.suffix);
+                        Ok(JsonLoadResult {
+                            suffix: config.suffix.to_string(),
+                            success: true,
+                            data: Some(recovered_data),
+                            error: None,
+                            file_size,
+                            load_time_ms: start_time.elapsed().as_millis() as u64,
+                        })
+                    }
+                    Ok(None) => {
+                        Err(format!("Failed to load {} and no fallback available", config.suffix).into())
+                    }
+                    Err(handled_error) => {
+                        Err(handled_error.into())
+                    }
+                }
+            }
+        }
+    } else {
+        // Use standard processing for smaller files with error handling
+        match std::fs::read_to_string(file_path) {
+            Ok(content) => {
+                match serde_json::from_str::<Value>(&content) {
+                    Ok(json_value) => {
+                        // Validate JSON structure
+                        if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
+                            let validation_err = error_handler.handle_validation_error(
+                                std::path::PathBuf::from(file_path),
+                                config.suffix,
+                                &validation_error,
+                                &json_value,
+                            );
+                            
+                            eprintln!("{}", validation_err);
+                            
+                            // Try to continue with partial data if allowed
+                            let allow_partial = {
+                                let stats = error_handler.get_stats();
+                                stats.total_errors < 5 // Allow partial data if not too many errors
+                            };
+                            if allow_partial {
+                                println!("⚠️  Continuing with potentially invalid data for {}", config.suffix);
+                                Ok(JsonLoadResult {
+                                    suffix: config.suffix.to_string(),
+                                    success: true,
+                                    data: Some(json_value),
+                                    error: Some(format!("Validation warning: {validation_error}")),
+                                    file_size,
+                                    load_time_ms: start_time.elapsed().as_millis() as u64,
+                                })
+                            } else {
+                                Err(validation_err.into())
+                            }
+                        } else {
+                            Ok(JsonLoadResult {
+                                suffix: config.suffix.to_string(),
+                                success: true,
+                                data: Some(json_value),
+                                error: None,
+                                file_size,
+                                load_time_ms: start_time.elapsed().as_millis() as u64,
+                            })
+                        }
+                    }
+                    Err(e) => {
+                        let parsing_err = error_handler.handle_json_parsing_error(
+                            std::path::PathBuf::from(file_path),
+                            &e.to_string(),
+                        );
+                        
+                        eprintln!("{}", parsing_err);
+                        Err(parsing_err.into())
+                    }
+                }
+            }
+            Err(e) => {
+                // Handle file reading error with recovery
+                let file_path_buf = std::path::PathBuf::from(file_path);
+                match error_handler.handle_file_loading_error(
+                    file_path_buf,
+                    config.suffix,
+                    file_size,
+                    Box::new(e),
+                ) {
+                    Ok(Some(recovered_data)) => {
+                        println!("✅ Recovered data for {} using fallback", config.suffix);
+                        Ok(JsonLoadResult {
+                            suffix: config.suffix.to_string(),
+                            success: true,
+                            data: Some(recovered_data),
+                            error: None,
+                            file_size,
+                            load_time_ms: start_time.elapsed().as_millis() as u64,
+                        })
+                    }
+                    Ok(None) => {
+                        Err(format!("Failed to load {} and no fallback available", config.suffix).into())
+                    }
+                    Err(handled_error) => {
+                        Err(handled_error.into())
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Original load single file function (kept for compatibility)
 fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) -> JsonLoadResult {
     let start_time = Instant::now();
     
