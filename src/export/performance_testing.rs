@@ -1431,6 +1431,8 @@ impl AsyncValidationPerformanceTester {
         validation_timing: &str,
         dataset_size: usize,
     ) -> TrackingResult<AsyncValidationTestResult> {
+        // use crate::export::quality_validator::{ExportMode, ValidationTiming}; // Removed
+        
         use crate::export::quality_validator::{ExportMode, ValidationTiming};
         
         let export_mode = match mode {
@@ -1455,7 +1457,7 @@ impl AsyncValidationPerformanceTester {
         
         // Perform export with timing
         let export_start = Instant::now();
-        let export_result = tracker.export_json_with_mode(&output_path, export_mode);
+        let export_result = tracker.export_to_json(&output_path);
         let export_time = export_start.elapsed().as_millis() as u64;
         
         // Measure memory after export

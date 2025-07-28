@@ -62,9 +62,9 @@ help:
 	@echo "  run-complex-lifecycle-showcase - Run complex lifecycle showcase example"
 	@echo ""
 	@echo "$(GREEN)HTML Reports (Enhanced):$(NC)"
-	@echo "  html           - Generate HTML report and start web server"
-	@echo "                   Usage: make html [DIR=path] [PORT=8080] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]"
-	@echo "  html-only      - Generate HTML report only (no server)"
+	@echo "  html           - Generate HTML report"
+	@echo "                   Usage: make html [DIR=path] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]"
+	@echo "  html-only      - Generate HTML report only"
 	@echo "                   Usage: make html-only [DIR=path] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]"
 	@echo "  html-clean     - Clean generated HTML files"
 	@echo "  html-help      - Show detailed HTML command usage and examples"
@@ -319,22 +319,20 @@ info:
 	@echo "  Target directory: $(TARGET_DIR)"
 	@echo "  Documentation: $(DOCS_DIR)"
 
-# HTML Report Generation and Server
-# Usage: make html [DIR=path/to/json/files] [PORT=8080] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]
+# HTML Report Generation
+# Usage: make html [DIR=path/to/json/files] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]
 .PHONY: html
 html: release
 	$(eval INPUT_DIR := $(or $(DIR),MemoryAnalysis/basic_usage))
-	$(eval SERVER_PORT := $(or $(PORT),8080))
 	$(eval OUTPUT_FILE := $(or $(OUTPUT),memory_report.html))
 	$(eval BASE_NAME := $(or $(BASE),snapshot))
 	$(eval VERBOSE_FLAG := $(if $(VERBOSE),--verbose,))
 	$(eval DEBUG_FLAG := $(if $(DEBUG),--debug,))
 	$(eval PERFORMANCE_FLAG := $(if $(PERFORMANCE),--performance,))
-	@echo "$(BLUE)Generating HTML report and starting web server (Enhanced)...$(NC)"
+	@echo "$(BLUE)Generating HTML report (Enhanced)...$(NC)"
 	@echo "$(BLUE)Input directory: $(INPUT_DIR)$(NC)"
 	@echo "$(BLUE)Output file: $(OUTPUT_FILE)$(NC)"
 	@echo "$(BLUE)Base name: $(BASE_NAME)$(NC)"
-	@echo "$(BLUE)Server port: $(SERVER_PORT)$(NC)"
 	@if [ -n "$(VERBOSE)" ]; then echo "$(BLUE)Verbose mode: enabled$(NC)"; fi
 	@if [ -n "$(DEBUG)" ]; then echo "$(BLUE)Debug mode: enabled$(NC)"; fi
 	@if [ -n "$(PERFORMANCE)" ]; then echo "$(BLUE)Performance mode: enabled$(NC)"; fi
@@ -366,9 +364,6 @@ html: release
 	@echo "$(GREEN)Generating HTML report from $(INPUT_DIR)/ directory...$(NC)"
 	./target/release/memscope-rs html-from-json --input-dir "$(INPUT_DIR)" --output "$(OUTPUT_FILE)" --base-name "$(BASE_NAME)" $(VERBOSE_FLAG) $(DEBUG_FLAG) $(PERFORMANCE_FLAG)
 	@echo "$(GREEN)✅ HTML report generated: $(OUTPUT_FILE)$(NC)"
-	@echo "$(GREEN)Starting web server at http://localhost:$(SERVER_PORT)$(NC)"
-	@echo "$(BLUE)Press Ctrl+C to stop the server$(NC)"
-	./target/release/memscope-rs html-from-json --input-dir "$(INPUT_DIR)" --output "$(OUTPUT_FILE)" --base-name "$(BASE_NAME)" --serve --port $(SERVER_PORT) $(VERBOSE_FLAG) $(DEBUG_FLAG) $(PERFORMANCE_FLAG)
 
 # Usage: make html-only [DIR=path/to/json/files] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]
 .PHONY: html-only
@@ -379,7 +374,7 @@ html-only: release
 	$(eval VERBOSE_FLAG := $(if $(VERBOSE),--verbose,))
 	$(eval DEBUG_FLAG := $(if $(DEBUG),--debug,))
 	$(eval PERFORMANCE_FLAG := $(if $(PERFORMANCE),--performance,))
-	@echo "$(BLUE)Generating HTML report only (no server, Enhanced)...$(NC)"
+	@echo "$(BLUE)Generating HTML report (Enhanced)...$(NC)"
 	@echo "$(BLUE)Input directory: $(INPUT_DIR)$(NC)"
 	@echo "$(BLUE)Output file: $(OUTPUT_FILE)$(NC)"
 	@echo "$(BLUE)Base name: $(BASE_NAME)$(NC)"
@@ -470,8 +465,6 @@ html-help:
 	@echo "  make html BASE=my_snapshot   # Use custom base name for JSON files"
 	@echo "  make html BASE=test_data     # Look for test_data_*.json files"
 	@echo ""
-	@echo "$(GREEN)Custom Port:$(NC)"
-	@echo "  make html PORT=3000          # Use port 3000 instead of 8080"
 	@echo ""
 	@echo "$(GREEN)Debug and Performance Options:$(NC)"
 	@echo "  make html VERBOSE=1          # Enable verbose output with progress info"
@@ -480,14 +473,13 @@ html-help:
 	@echo "  make html DEBUG=1 PERFORMANCE=1  # Combine debug and performance modes"
 	@echo ""
 	@echo "$(GREEN)Combined Examples:$(NC)"
-	@echo "  make html DIR=test_data/ PORT=9000 OUTPUT=test.html BASE=test VERBOSE=1"
+	@echo "  make html DIR=test_data/ OUTPUT=test.html BASE=test VERBOSE=1"
 	@echo "  make html-only DIR=../results/ OUTPUT=analysis.html DEBUG=1 PERFORMANCE=1"
 	@echo "  make html DIR=MemoryAnalysis/snapshot_memory_analysis BASE=snapshot_memory_analysis VERBOSE=1"
 	@echo ""
 	@echo "$(GREEN)Requirements:$(NC)"
 	@echo "  - Directory must exist and contain .json files"
 	@echo "  - JSON files should follow naming pattern: {BASE}_{type}.json"
-	@echo "  - Port must be available (for html command)"
 	@echo ""
 	@echo "$(GREEN)Examples of valid directory structures:$(NC)"
 	@echo "  my_data/ (with BASE=snapshot)"

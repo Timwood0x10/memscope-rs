@@ -26,11 +26,9 @@ fn main() {
     }
     
     // Test explicit fast mode
-    use memscope_rs::export::quality_validator::ExportMode;
-    
     println!("\nTesting explicit fast mode...");
     let start = Instant::now();
-    if let Err(e) = tracker.export_json_with_mode("speed_test_fast", ExportMode::Fast) {
+    if let Err(e) = tracker.export_to_json("speed_test_fast") {
         println!("Export failed: {}", e);
     } else {
         let duration = start.elapsed();

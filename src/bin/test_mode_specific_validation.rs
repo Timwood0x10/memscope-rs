@@ -3,10 +3,11 @@
 //! This binary tests the new mode-specific validation system to ensure
 //! different export modes work correctly with their respective validation configurations.
 
-use memscope_rs::export::{
+use memscope_rs::export::quality_validator::{
     ExportConfig, ExportMode, ExportModeManager, ValidationTiming, ValidationStrategy,
-    ExportCoordinator, QualityValidator, ValidationConfig
+    ValidationConfig
 };
+use memscope_rs::export::export_modes::ExportCoordinator;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🧪 Testing Mode-Specific Validation Configuration");
@@ -139,7 +140,7 @@ fn test_export_mode_manager() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test configuration optimization
     let test_config = ExportConfig::fast();
-    let (optimized_config, optimization_warnings) = auto_manager.optimize_config(
+    let (_optimized_config, optimization_warnings) = auto_manager.optimize_config(
         test_config, 
         200 * 1024 * 1024 // 200MB - large dataset
     );

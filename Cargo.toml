@@ -29,12 +29,6 @@ flate2 = "1.0"
 regex = "1.10"
 memscope-derive = { path = "./memscope-derive", optional = true }
 
-# WebServer dependencies
-axum = "0.7"
-tokio = { version = "1.0", features = ["full"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["fs", "cors"] }
-mime_guess = "2.0"
 
 [lib]
 name = "memscope_rs"
@@ -54,5 +48,6 @@ rayon = "1.8"
 parking_lot = "0.12"
 tracing-test = "0.2"
 tempfile = "3.10.1" # Or a compatible version
+tokio = { version = "1.0", features = ["full"] }
 
 

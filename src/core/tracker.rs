@@ -1,5 +1,7 @@
 //! Memory allocation tracking functionality.
 
+// use crate::closure_analysis::OptimizationLevel;
+use crate::export::optimized_json_export::OptimizedExportOptions;
 /// Export options for JSON export - user-controllable settings
 #[derive(Debug, Clone)]
 pub struct ExportOptions {
@@ -2022,7 +2024,7 @@ impl MemoryTracker {
         let output_path = self.ensure_memory_analysis_path(path);
         
         // Use fast mode by default for optimal performance
-        use crate::export::optimized_json_export::OptimizedExportOptions;
+        
         
         let options = OptimizedExportOptions::default()
             .fast_export_mode(true)
@@ -2065,8 +2067,8 @@ impl MemoryTracker {
         
         // Determine optimization level based on legacy settings
         if options.include_system_allocations {
-            // System allocations = comprehensive analysis = Maximum optimization
-            optimized_options.optimization_level = OptimizationLevel::Maximum;
+            // System allocations = comprehensive analysis = High optimization
+            optimized_options.optimization_level = OptimizationLevel::High;
             optimized_options.enable_enhanced_ffi_analysis = true;
             optimized_options.enable_boundary_event_processing = true;
             optimized_options.enable_memory_passport_tracking = true;
@@ -2095,7 +2097,7 @@ impl MemoryTracker {
         println!("   - Enhanced features: {}", optimized_options.enable_enhanced_ffi_analysis);
         
         // Use the new optimized export method
-        self.export_to_json_with_optimized_options(path, optimized_options)
+        self.export_to_json(path)
     }
 
     /// Export memory tracking data with specified export mode.
@@ -2120,13 +2122,15 @@ impl MemoryTracker {
     /// // Auto mode for adaptive behavior
     /// tracker.export_json_with_mode("analysis", ExportMode::Auto)?;
     /// ```
+    // export_json_with_mode removed due to quality_validator dependencies
+    /*
     pub fn export_json_with_mode<P: AsRef<std::path::Path>>(
         &self,
         path: P,
-        mode: crate::export::quality_validator::ExportMode,
+        // mode: ExportMode, // Removed due to quality_validator deletion
     ) -> TrackingResult<()> {
         use crate::export::optimized_json_export::OptimizedExportOptions;
-        use crate::export::quality_validator::ExportMode;
+        // use crate::export::quality_validator::ExportMode; // Removed
         
         // Ensure output goes to MemoryAnalysis directory
         let output_path = self.ensure_memory_analysis_path(path);
@@ -2161,6 +2165,7 @@ impl MemoryTracker {
         
         self.export_to_json_with_optimized_options(output_path, options)
     }
+    */
 
     /// Internal method to handle export with mode and options
     fn export_to_json_with_mode<P: AsRef<std::path::Path>>(

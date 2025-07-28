@@ -12,7 +12,6 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
-use crate::web::{server::ServerConfig, MemScopeServer};
 
 mod data_integrator;
 pub mod data_normalizer;
@@ -32,7 +31,7 @@ use large_file_optimizer::{LargeFileConfig, LargeFileOptimizer};
 pub mod direct_json_template;
 
 /// Run the HTML from JSON generation command
-pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let input_dir = matches
         .get_one::<String>("input-dir")
         .ok_or("Input directory is required")?;
@@ -158,27 +157,7 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
         integration_stats.integration_time_ms
     );
 
-    // Check if web server should be started
-    if matches.get_flag("serve") {
-        let port = matches.get_one::<u16>("port").copied().unwrap_or(8080);
-
-        println!("🚀 Starting MemScope web server...");
-        println!(
-            "📊 Data loaded: {} allocations, {} variables",
-            unified_data.allocations.len(),
-            integration_stats.cross_references_found
-        );
-
-        // Start web server
-        let config = ServerConfig {
-            port,
-            host: "127.0.0.1".to_string(),
-            static_dir: None,
-        };
-
-        let server = MemScopeServer::new(unified_data, config);
-        server.serve().await?;
-    } else {
+    {
         // 🎨 Generate static HTML report - using direct JSON data template
         logger.next_progress_step("Generating HTML template", 1);
         let template_timing = logger.start_timing("template_generation");

@@ -4,7 +4,7 @@
 //! with configurable validation modes and timing.
 
 use clap::Parser;
-use memscope_rs::export::{ExportArgs, ExportConfig, ValidationTiming, ExportMode};
+use memscope_rs::export::quality_validator::{ExportArgs, ExportConfig, ValidationTiming, ExportMode};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments

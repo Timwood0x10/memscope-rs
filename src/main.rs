@@ -5,8 +5,7 @@
 use clap::{Arg, Command};
 use std::process;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let matches = Command::new("memscope")
         .version("0.1.2")
         .author("TimWood")
@@ -94,21 +93,6 @@ async fn main() {
                         .default_value("snapshot"),
                 )
                 .arg(
-                    Arg::new("serve")
-                        .long("serve")
-                        .help("Start web server instead of generating static HTML")
-                        .action(clap::ArgAction::SetTrue),
-                )
-                .arg(
-                    Arg::new("port")
-                        .short('p')
-                        .long("port")
-                        .value_name("PORT")
-                        .help("Port for web server (default: 8080)")
-                        .value_parser(clap::value_parser!(u16))
-                        .default_value("8080"),
-                )
-                .arg(
                     Arg::new("verbose")
                         .short('v')
                         .long("verbose")
@@ -161,7 +145,7 @@ async fn main() {
             }
         }
         Some(("html-from-json", sub_matches)) => {
-            if let Err(e) = run_html_from_json_command(sub_matches).await {
+            if let Err(e) = run_html_from_json_command(sub_matches) {
                 eprintln!("Error running html-from-json command: {}", e);
                 process::exit(1);
             }
@@ -189,9 +173,9 @@ fn run_report_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
     run_generate_report(matches)
 }
 
-async fn run_html_from_json_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+fn run_html_from_json_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::html_from_json::run_html_from_json;
-    run_html_from_json(matches).await
+    run_html_from_json(matches)
 }
 
 fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {

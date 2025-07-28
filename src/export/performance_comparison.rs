@@ -4,8 +4,8 @@
 
 
 use crate::core::types::TrackingResult;
-
 use crate::export::performance_testing::PerformanceTestResult;
+
 use std::collections::HashMap;
 
 use serde::{Serialize, Deserialize};
@@ -627,7 +627,7 @@ impl PerformanceComparator {
 
         // 简化的 t 检验
         let pooled_std = ((baseline_std.powi(2) + optimized_std.powi(2)) / 2.0).sqrt();
-        let t_statistic = (baseline_mean - optimized_mean) / (pooled_std * (2.0 / baseline_times.len() as f64).sqrt());
+        let t_statistic = (baseline_mean - optimized_mean) / (pooled_std * (2.0_f64 / baseline_times.len() as f64).sqrt());
 
         let p_value = if t_statistic.abs() > 2.0 { 0.05 } else { 0.1 }; // 简化
         let is_significant = p_value < 0.05;

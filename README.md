@@ -109,7 +109,7 @@ The HTML dashboard provides:
 - **Performance Monitoring**: Real-time cache hit rates, loading times, and memory usage
 - **Error Handling**: Comprehensive error recovery with exponential backoff retry
 - **Data Recovery**: Automatic detection and reloading of recovered data files
-- **Unified Architecture**: Seamless support for both static HTML and web server modes
+- **Static HTML Generation**: Self-contained HTML reports for offline viewing
 
 ## 🌟 Key Features
 
@@ -143,7 +143,7 @@ The HTML dashboard provides:
 - **Performance Monitoring**: Real-time cache performance metrics, hit rates, and loading time analytics
 - **Data Integrity Validation**: Automatic validation, integrity checking, and format verification
 - **Parallel Processing**: Concurrent loading of multiple data files with optimized resource management
-- **Unified Architecture**: Seamless support for both static HTML generation and dynamic web server modes
+- **Static HTML Generation**: Self-contained HTML reports with embedded data
 - **Flexible Directory Support**: Works with any directory structure containing JSON files
 - **Memory Optimization**: Intelligent memory management to prevent excessive usage during large data processing
 
@@ -165,10 +165,10 @@ The HTML dashboard provides a modern, interactive web interface for memory analy
 
 ### Usage
 ```bash
-# Generate HTML dashboard and start web server at http://localhost:8080
+# Generate HTML dashboard
 make html
 
-# Generate HTML file only (no server)
+# Generate HTML file only
 make html-only
 
 # Clean generated HTML files
@@ -211,36 +211,29 @@ The new data loading system provides comprehensive capabilities:
 - **Progress Tracking**: Real-time progress indicators for long-running data operations
 - **Performance Analytics**: Detailed performance metrics and bottleneck identification
 
-### Unified Architecture
-The HTML dashboard uses a unified architecture that ensures consistency between static HTML and web server modes:
+### Static HTML Architecture
+The HTML dashboard generates self-contained static HTML files with embedded data:
 
-**🔄 Consistent Data Processing**
-- **Shared Data Structures**: Both modes use identical `UnifiedMemoryData` structures
-- **Same Processing Logic**: Static HTML and web server use the same data normalization and processing functions
-- **Unified Templates**: Single template system supports both static embedding and dynamic API loading
-- **Consistent JavaScript**: Same client-side code handles both embedded JSON and API-loaded data
-
-**🌐 Dual Mode Support**
-- **Static HTML Mode**: Embeds JSON data directly in HTML for offline viewing and sharing
-- **Web Server Mode**: Serves data via REST API endpoints for real-time updates and interactivity
-- **Automatic Detection**: Client-side code automatically detects mode and adapts data loading strategy
-- **Seamless Switching**: Easy transition between modes without code changes
+**🔄 Data Processing**
+- **Unified Data Structures**: Uses `UnifiedMemoryData` structures for consistent data handling
+- **Embedded JSON**: All data is embedded directly in the HTML file for offline viewing
+- **Template System**: Single template system generates complete standalone reports
+- **Client-side Processing**: JavaScript handles all data visualization without external dependencies
 
 ### Error Handling
 The dashboard includes comprehensive error handling:
 - **File Not Found**: Shows helpful guidance for generating missing data
 - **JSON Parse Errors**: Displays specific parsing error information
-- **Network Issues**: Automatic retry mechanism with exponential backoff
 - **Partial Data**: Graceful handling of incomplete data sets
 - **Data Recovery**: Automatic detection and reloading of recovered files
-- **Mode Fallback**: Automatic fallback between API and embedded data sources
+- **Embedded Data Validation**: Validates embedded JSON data integrity
 
 ### Performance Features
-- **Caching**: Intelligent caching with TTL and LRU eviction policies
-- **Parallel Loading**: Concurrent loading of multiple JSON files
-- **Memory Optimization**: Automatic memory usage monitoring and optimization
-- **Data Validation**: Real-time validation of data integrity and completeness
-- **Unified Processing**: Single data processing pipeline eliminates duplication and improves performance
+- **Embedded Data**: No network requests needed, instant loading
+- **Parallel Processing**: Concurrent processing of multiple JSON files during generation
+- **Memory Optimization**: Efficient memory usage during HTML generation
+- **Data Validation**: Validation of data integrity during processing
+- **Optimized Templates**: Streamlined HTML generation pipeline
 
 ### 1. 🎯 Memory Analysis SVG 
 

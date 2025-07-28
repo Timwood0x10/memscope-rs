@@ -1,13 +1,12 @@
 # 🔧 MemScope-RS Troubleshooting Guide
 
-This guide helps you resolve common issues with MemScope-RS HTML dashboard generation and web server functionality.
+This guide helps you resolve common issues with MemScope-RS HTML dashboard generation.
 
 ## 📋 Table of Contents
 
 - [Quick Diagnostics](#quick-diagnostics)
 - [Common Issues](#common-issues)
 - [Data Loading Problems](#data-loading-problems)
-- [Web Server Issues](#web-server-issues)
 - [Performance Problems](#performance-problems)
 - [Template and JavaScript Issues](#template-and-javascript-issues)
 - [Advanced Troubleshooting](#advanced-troubleshooting)
@@ -185,86 +184,6 @@ make run-basic
    - Missing sections will show appropriate messages
    - Core functionality remains available
 
-## 🌐 Web Server Issues
-
-### Issue: "Web server fails to start"
-
-**Symptoms:**
-- Error: "Address already in use"
-- Server startup fails
-- Port binding errors
-
-**Solutions:**
-1. **Check port availability:**
-   ```bash
-   # Check if port 8080 is in use
-   lsof -i :8080
-   # Or use different port
-   make html PORT=3000
-   ```
-
-2. **Kill existing processes:**
-   ```bash
-   # Find and kill processes using the port
-   sudo lsof -ti:8080 | xargs kill -9
-   ```
-
-3. **Use alternative port:**
-   ```bash
-   make html PORT=8081
-   make html PORT=9000
-   ```
-
-### Issue: "API endpoints return errors"
-
-**Symptoms:**
-- 404 errors for /api/* endpoints
-- Server returns error responses
-- Data not loading in web server mode
-
-**Solutions:**
-1. **Verify server is running:**
-   ```bash
-   curl http://localhost:8080/health
-   # Should return success response
-   ```
-
-2. **Test API endpoints:**
-   ```bash
-   # Test unified data endpoint
-   curl http://localhost:8080/api/data | jq .
-   
-   # Test individual endpoints
-   curl http://localhost:8080/api/data/overview | jq .
-   ```
-
-3. **Check server logs:**
-   - Look at terminal output where server is running
-   - Check for error messages or stack traces
-
-### Issue: "Web server and static HTML show different data"
-
-**Symptoms:**
-- Inconsistent data between modes
-- Different visualizations
-- Missing data in one mode
-
-**Solutions:**
-1. **Run unified architecture test:**
-   ```bash
-   ./scripts/test-unified-architecture.sh
-   ```
-
-2. **Verify data source consistency:**
-   ```bash
-   # Both modes should use same JSON files
-   ls -la MemoryAnalysis/
-   ```
-
-3. **Check for caching issues:**
-   - Clear browser cache
-   - Restart web server
-   - Regenerate static HTML
 
 ## ⚡ Performance Problems
 
@@ -314,10 +233,10 @@ make run-basic
    # Files >10MB may be slow to load
    ```
 
-2. **Use web server mode:**
+2. **Optimize data processing:**
    ```bash
-   # Web server mode loads data progressively
-   make html
+   # Use optimized HTML generation
+   make html-only
    ```
 
 3. **Enable browser performance monitoring:**
