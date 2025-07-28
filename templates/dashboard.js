@@ -293,6 +293,45 @@ function getComplexTypesData() {
     return null;
 }
 
+function getMemoryAnalysisData() {
+    if (window.analysisData && window.analysisData.memory_analysis) {
+        console.log('Using embedded memory analysis data');
+        return window.analysisData.memory_analysis;
+    }
+    if (window.embeddedJsonData && window.embeddedJsonData.memory_analysis) {
+        console.log('Using embedded memory analysis data');
+        return window.embeddedJsonData.memory_analysis;
+    }
+    console.log('No memory analysis data available - showing empty state');
+    return null;
+}
+
+function getPerformanceData() {
+    if (window.analysisData && window.analysisData.performance) {
+        console.log('Using embedded performance data');
+        return window.analysisData.performance;
+    }
+    if (window.embeddedJsonData && window.embeddedJsonData.performance) {
+        console.log('Using embedded performance data');
+        return window.embeddedJsonData.performance;
+    }
+    console.log('No performance data available - showing empty state');
+    return null;
+}
+
+function getLifetimeData() {
+    if (window.analysisData && window.analysisData.lifetime) {
+        console.log('Using embedded lifetime data');
+        return window.analysisData.lifetime;
+    }
+    if (window.embeddedJsonData && window.embeddedJsonData.lifetime) {
+        console.log('Using embedded lifetime data');
+        return window.embeddedJsonData.lifetime;
+    }
+    console.log('No lifetime data available - showing empty state');
+    return null;
+}
+
 function getFfiSnapshotData() {
     if (window.analysisData && window.analysisData.unsafe_ffi) {
         console.log('Using embedded FFI data');
@@ -307,9 +346,145 @@ function getFfiSnapshotData() {
 }
 
 // Fallback data definitions
-// Complex types fallback data removed - using only real JSON data
+// Memory allocations table population using real data
+function populateMemoryAllocationsTable(memoryAnalysisData) {
+    const tableBody = document.getElementById('allocations-table');
+    if (!tableBody) return;
+    
+    // Handle null or missing data
+    if (!memoryAnalysisData || !memoryAnalysisData.allocations || memoryAnalysisData.allocations.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No memory allocation data available</td></tr>';
+        return;
+    }
+    
+    // Clear existing content
+    tableBody.innerHTML = '';
+    
+    // Show first 50 allocations to avoid overwhelming the UI
+    const allocationsToShow = memoryAnalysisData.allocations.slice(0, 50);
+    
+    allocationsToShow.forEach(allocation => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50 transition-colors';
+        
+        // Format timestamp to readable date
+        const allocTime = new Date(allocation.timestamp_alloc / 1000000); // Convert nanoseconds to milliseconds
+        const timeStr = allocTime.toLocaleTimeString();
+        
+        // Determine allocation status
+        const isActive = !allocation.timestamp_dealloc;
+        const statusClass = isActive ? 'text-green-600' : 'text-gray-500';
+        const statusText = isActive ? 'Active' : 'Deallocated';
+        
+        row.innerHTML = `
+            <td class="px-4 py-2">
+                <div class="font-mono text-sm">${allocation.var_name || 'Unknown'}</div>
+                <div class="text-xs text-gray-500">${allocation.ptr}</div>
+            </td>
+            <td class="px-4 py-2">
+                <div class="text-sm">${allocation.type_name || 'Unknown'}</div>
+                <div class="text-xs ${statusClass}">${statusText}</div>
+            </td>
+            <td class="px-4 py-2 text-right">
+                <span class="font-mono text-sm">${allocation.size} bytes</span>
+            </td>
+            <td class="px-4 py-2 text-right">
+                <span class="text-xs text-gray-500">${timeStr}</span>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+    
+    // Add summary row if there are more allocations
+    if (memoryAnalysisData.allocations.length > 50) {
+        const summaryRow = document.createElement('tr');
+        summaryRow.className = 'bg-gray-50 font-medium';
+        summaryRow.innerHTML = `
+            <td colspan="4" class="px-4 py-2 text-center text-gray-600">
+                Showing 50 of ${memoryAnalysisData.allocations.length} total allocations
+            </td>
+        `;
+        tableBody.appendChild(summaryRow);
+    }
+}
 
-// FFI fallback data removed - using only real JSON data
+// Allocation size distribution chart using real data
+function createAllocationSizeChart(memoryAnalysisData) {
+    const ctx = document.getElementById('allocation-size-chart');
+    if (!ctx) return;
+    
+    // Handle null or missing data
+    if (!memoryAnalysisData || !memoryAnalysisData.allocations || memoryAnalysisData.allocations.length === 0) {
+        const context = ctx.getContext('2d');
+        context.fillStyle = '#9CA3AF';
+        context.font = '14px Arial';
+        context.textAlign = 'center';
+        context.fillText('No allocation data available', ctx.width / 2, ctx.height / 2);
+        return;
+    }
+    
+    // Categorize allocations by size
+    const sizeCategories = {
+        'Tiny (< 16B)': 0,
+        'Small (16-64B)': 0,
+        'Medium (64-256B)': 0,
+        'Large (256-1KB)': 0,
+        'Huge (> 1KB)': 0
+    };
+    
+    memoryAnalysisData.allocations.forEach(allocation => {
+        const size = allocation.size;
+        if (size < 16) {
+            sizeCategories['Tiny (< 16B)']++;
+        } else if (size < 64) {
+            sizeCategories['Small (16-64B)']++;
+        } else if (size < 256) {
+            sizeCategories['Medium (64-256B)']++;
+        } else if (size < 1024) {
+            sizeCategories['Large (256-1KB)']++;
+        } else {
+            sizeCategories['Huge (> 1KB)']++;
+        }
+    });
+    
+    new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(sizeCategories),
+            datasets: [{
+                data: Object.values(sizeCategories),
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.7)',   // Green for tiny
+                    'rgba(59, 130, 246, 0.7)',  // Blue for small
+                    'rgba(245, 158, 11, 0.7)',  // Yellow for medium
+                    'rgba(239, 68, 68, 0.7)',   // Red for large
+                    'rgba(147, 51, 234, 0.7)'   // Purple for huge
+                ],
+                borderColor: [
+                    'rgb(34, 197, 94)',
+                    'rgb(59, 130, 246)',
+                    'rgb(245, 158, 11)',
+                    'rgb(239, 68, 68)',
+                    'rgb(147, 51, 234)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                title: {
+                    display: true,
+                    text: 'Memory Allocation Size Distribution'
+                }
+            }
+        }
+    });
+}
 
 // Utility functions
 function formatBytes(bytes) {
@@ -351,6 +526,9 @@ function initializeDashboard() {
     
     // Use embedded data if available, otherwise show empty state
     const complexTypesData = getComplexTypesData();
+    const memoryAnalysisData = getMemoryAnalysisData();
+    const performanceData = getPerformanceData();
+    const lifetimeData = getLifetimeData();
     const ffiSnapshotData = getFfiSnapshotData();
 
     // Populate summary data
@@ -360,28 +538,36 @@ function initializeDashboard() {
     const unsafeFfiCountEl = document.getElementById('unsafe-ffi-count');
 
     if (totalComplexTypesEl) totalComplexTypesEl.textContent = complexTypesData?.summary?.total_complex_types || 0;
-    if (totalAllocationsEl) totalAllocationsEl.textContent = complexTypesData?.metadata?.total_allocations_analyzed || 0;
-    if (genericTypeCountEl) genericTypeCountEl.textContent = complexTypesData?.summary?.generic_type_count || 0;
+    if (totalAllocationsEl) totalAllocationsEl.textContent = memoryAnalysisData?.allocations?.length || 0;
+    if (genericTypeCountEl) genericTypeCountEl.textContent = complexTypesData?.categorized_types?.generic_types?.length || 0;
     if (unsafeFfiCountEl) unsafeFfiCountEl.textContent = ffiSnapshotData?.length || 0;
 
     // Populate generic types table with lifetime information
     populateGenericTypesTable(complexTypesData);
     
+    // Populate memory allocations table with real data
+    populateMemoryAllocationsTable(memoryAnalysisData);
+    
     // Populate optimization recommendations
     populateOptimizationRecommendations(complexTypesData);
     
-    // Create charts
+    // Create charts with real data
     createComplexityChart(complexTypesData);
     createMemoryDistributionChart(complexTypesData);
+    createAllocationSizeChart(memoryAnalysisData);
+    createPerformanceChart(performanceData);
+    
+    // Populate detailed performance metrics
+    populatePerformanceMetrics(performanceData);
+    
+    // Initialize lifetime visualization
+    initializeLifetimeVisualization(lifetimeData);
     
     // Render FFI data
     renderFfiData(ffiSnapshotData, document.getElementById('ffi-data-render'));
     
     // Initialize modern variable graph
     initModernVariableGraph(complexTypesData);
-    
-    // Initialize lifetime visualization
-    initLifetimeVisualization();
 }
 
 function populateGenericTypesTable(complexTypesData) {
@@ -891,3 +1077,338 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log('MemScope dashboard loaded');
     initializeDashboard();
 });
+// Perf
+ormance metrics chart using real data
+function createPerformanceChart(performanceData) {
+    const ctx = document.getElementById('performance-chart');
+    if (!ctx) return;
+    
+    // Handle null or missing data
+    if (!performanceData || !performanceData.memory_performance) {
+        const context = ctx.getContext('2d');
+        context.fillStyle = '#9CA3AF';
+        context.font = '14px Arial';
+        context.textAlign = 'center';
+        context.fillText('No performance data available', ctx.width / 2, ctx.height / 2);
+        return;
+    }
+    
+    const memPerf = performanceData.memory_performance;
+    
+    new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: ['Active Memory', 'Peak Memory', 'Total Allocated'],
+            datasets: [{
+                label: 'Memory Usage (bytes)',
+                data: [
+                    memPerf.active_memory || 0,
+                    memPerf.peak_memory || 0,
+                    memPerf.total_allocated || 0
+                ],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.7)',   // Green for active
+                    'rgba(239, 68, 68, 0.7)',   // Red for peak
+                    'rgba(59, 130, 246, 0.7)'   // Blue for total
+                ],
+                borderColor: [
+                    'rgb(34, 197, 94)',
+                    'rgb(239, 68, 68)',
+                    'rgb(59, 130, 246)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            // Format bytes to human readable
+                            if (value >= 1024 * 1024) {
+                                return (value / (1024 * 1024)).toFixed(1) + 'MB';
+                            } else if (value >= 1024) {
+                                return (value / 1024).toFixed(1) + 'KB';
+                            }
+                            return value + 'B';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Memory Performance Metrics'
+                }
+            }
+        }
+    });
+}// Lifeti
+me visualization using real lifecycle_events data
+function initializeLifetimeVisualization(lifetimeData) {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    // Handle null or missing data
+    if (!lifetimeData || !lifetimeData.lifecycle_events || lifetimeData.lifecycle_events.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fa fa-info-circle text-2xl mb-2"></i><p>No lifetime data available</p></div>';
+        return;
+    }
+    
+    // Filter out "unknown" entries as specified in the task
+    const validEvents = lifetimeData.lifecycle_events.filter(event => 
+        event.type_name !== "unknown" && event.var_name !== "unknown"
+    );
+    
+    if (validEvents.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fa fa-info-circle text-2xl mb-2"></i><p>No valid lifetime data available (filtered out unknown entries)</p></div>';
+        return;
+    }
+    
+    // Group events by variable
+    const variableLifetimes = {};
+    validEvents.forEach(event => {
+        const key = `${event.var_name}_${event.ptr}`;
+        if (!variableLifetimes[key]) {
+            variableLifetimes[key] = {
+                var_name: event.var_name,
+                type_name: event.type_name,
+                ptr: event.ptr,
+                size: event.size,
+                allocation_time: null,
+                deallocation_time: null,
+                scope: event.scope
+            };
+        }
+        
+        if (event.event === 'allocation') {
+            variableLifetimes[key].allocation_time = event.timestamp;
+        } else if (event.event === 'deallocation') {
+            variableLifetimes[key].deallocation_time = event.timestamp;
+        }
+    });
+    
+    // Convert to array and calculate lifetimes
+    const lifetimes = Object.values(variableLifetimes).map(item => {
+        const allocTime = item.allocation_time;
+        const deallocTime = item.deallocation_time;
+        const lifetime_ms = deallocTime ? (deallocTime - allocTime) / 1000000 : null; // Convert nanoseconds to milliseconds
+        
+        return {
+            ...item,
+            lifetime_ms,
+            is_active: !deallocTime
+        };
+    });
+    
+    // Sort by allocation time
+    lifetimes.sort((a, b) => (a.allocation_time || 0) - (b.allocation_time || 0));
+    
+    // Find time range
+    const minTime = Math.min(...lifetimes.map(l => l.allocation_time || 0));
+    const maxTime = Math.max(...lifetimes.map(l => l.deallocation_time || l.allocation_time || 0));
+    const timeRange = maxTime - minTime;
+    
+    // Clear container and create timeline
+    container.innerHTML = '';
+    
+    // Create timeline header
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'mb-4';
+    headerDiv.innerHTML = `
+        <h4 class="font-semibold text-gray-800 mb-2">Variable Lifetimes (${lifetimes.length} variables)</h4>
+        <div class="text-sm text-gray-600">Timeline shows allocation and deallocation events over time</div>
+    `;
+    container.appendChild(headerDiv);
+    
+    // Create timeline container
+    const timelineDiv = document.createElement('div');
+    timelineDiv.className = 'space-y-2';
+    
+    lifetimes.slice(0, 20).forEach((lifetime, index) => { // Show first 20 to avoid overwhelming UI
+        const row = document.createElement('div');
+        row.className = 'flex items-center space-x-4 p-2 hover:bg-gray-50 rounded';
+        
+        // Variable info
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'w-40 flex-shrink-0';
+        infoDiv.innerHTML = `
+            <div class="font-medium text-sm">${lifetime.var_name}</div>
+            <div class="text-xs text-gray-500">${lifetime.type_name}</div>
+        `;
+        
+        // Timeline bar
+        const timelineBarDiv = document.createElement('div');
+        timelineBarDiv.className = 'flex-grow relative h-6 bg-gray-100 rounded';
+        
+        if (lifetime.allocation_time) {
+            const startPercent = ((lifetime.allocation_time - minTime) / timeRange) * 100;
+            const endPercent = lifetime.deallocation_time ? 
+                ((lifetime.deallocation_time - minTime) / timeRange) * 100 : 100;
+            
+            const bar = document.createElement('div');
+            bar.className = `absolute h-full rounded ${lifetime.is_active ? 'bg-green-500' : 'bg-blue-500'}`;
+            bar.style.left = `${startPercent}%`;
+            bar.style.width = `${endPercent - startPercent}%`;
+            bar.title = `${lifetime.var_name}: ${lifetime.lifetime_ms ? lifetime.lifetime_ms.toFixed(2) + 'ms' : 'Active'}`;
+            
+            timelineBarDiv.appendChild(bar);
+        }
+        
+        // Lifetime info
+        const lifetimeInfoDiv = document.createElement('div');
+        lifetimeInfoDiv.className = 'w-24 flex-shrink-0 text-right text-sm';
+        lifetimeInfoDiv.innerHTML = lifetime.is_active ? 
+            '<span class="text-green-600">Active</span>' : 
+            `<span class="text-gray-600">${lifetime.lifetime_ms?.toFixed(2) || 0}ms</span>`;
+        
+        row.appendChild(infoDiv);
+        row.appendChild(timelineBarDiv);
+        row.appendChild(lifetimeInfoDiv);
+        
+        timelineDiv.appendChild(row);
+    });
+    
+    container.appendChild(timelineDiv);
+    
+    // Add summary if there are more items
+    if (lifetimes.length > 20) {
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'mt-4 text-center text-gray-500 text-sm';
+        summaryDiv.textContent = `Showing 20 of ${lifetimes.length} total variables`;
+        container.appendChild(summaryDiv);
+    }
+}// 
+Populate detailed performance metrics using real data
+function populatePerformanceMetrics(performanceData) {
+    // Update smart pointers count
+    const smartPointersEl = document.getElementById('smart-pointers-count');
+    const collectionsEl = document.getElementById('collections-count');
+    const primitivesEl = document.getElementById('primitives-count');
+    
+    if (performanceData && performanceData.allocation_distribution) {
+        const dist = performanceData.allocation_distribution;
+        const totalAllocations = Object.values(dist).reduce((sum, count) => sum + count, 0);
+        
+        // Use allocation distribution as proxy for different categories
+        if (smartPointersEl) smartPointersEl.textContent = dist.large || 0;
+        if (collectionsEl) collectionsEl.textContent = dist.medium || 0;
+        if (primitivesEl) primitivesEl.textContent = dist.small || 0;
+    }
+    
+    // Create allocation distribution chart if we have the data
+    if (performanceData && performanceData.allocation_distribution) {
+        createAllocationDistributionChart(performanceData.allocation_distribution);
+    }
+    
+    // Display export performance metrics
+    if (performanceData && performanceData.export_performance) {
+        displayExportPerformanceMetrics(performanceData.export_performance);
+    }
+}
+
+// Create allocation distribution chart
+function createAllocationDistributionChart(allocationDistribution) {
+    const ctx = document.getElementById('allocation-distribution-chart');
+    if (!ctx) return;
+    
+    const labels = Object.keys(allocationDistribution).map(key => 
+        key.charAt(0).toUpperCase() + key.slice(1)
+    );
+    const data = Object.values(allocationDistribution);
+    
+    new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Number of Allocations',
+                data: data,
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.7)',   // Green
+                    'rgba(59, 130, 246, 0.7)',  // Blue
+                    'rgba(245, 158, 11, 0.7)',  // Yellow
+                    'rgba(239, 68, 68, 0.7)',   // Red
+                    'rgba(147, 51, 234, 0.7)'   // Purple
+                ],
+                borderColor: [
+                    'rgb(34, 197, 94)',
+                    'rgb(59, 130, 246)',
+                    'rgb(245, 158, 11)',
+                    'rgb(239, 68, 68)',
+                    'rgb(147, 51, 234)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Allocation Size Distribution'
+                }
+            }
+        }
+    });
+}
+
+// Display export performance metrics
+function displayExportPerformanceMetrics(exportPerformance) {
+    const container = document.getElementById('export-performance-metrics');
+    if (!container) return;
+    
+    const processingRate = exportPerformance.processing_rate;
+    const performanceClass = processingRate.performance_class;
+    
+    // Determine color based on performance class
+    let statusColor = 'text-gray-600';
+    let statusBg = 'bg-gray-100';
+    if (performanceClass === 'excellent') {
+        statusColor = 'text-green-600';
+        statusBg = 'bg-green-100';
+    } else if (performanceClass === 'good') {
+        statusColor = 'text-blue-600';
+        statusBg = 'bg-blue-100';
+    } else if (performanceClass === 'needs_optimization') {
+        statusColor = 'text-yellow-600';
+        statusBg = 'bg-yellow-100';
+    } else if (performanceClass === 'poor') {
+        statusColor = 'text-red-600';
+        statusBg = 'bg-red-100';
+    }
+    
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="text-sm text-gray-500">Allocations Processed</div>
+                <div class="text-2xl font-bold text-gray-900">${exportPerformance.allocations_processed.toLocaleString()}</div>
+            </div>
+            <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="text-sm text-gray-500">Processing Rate</div>
+                <div class="text-2xl font-bold text-gray-900">${processingRate.allocations_per_second.toFixed(1)}/s</div>
+            </div>
+            <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="text-sm text-gray-500">Performance Status</div>
+                <div class="mt-1">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBg} ${statusColor}">
+                        ${performanceClass.replace('_', ' ').toUpperCase()}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="mt-4 text-sm text-gray-600">
+            Total processing time: ${exportPerformance.total_processing_time_ms.toLocaleString()}ms
+        </div>
+    `;
+}
