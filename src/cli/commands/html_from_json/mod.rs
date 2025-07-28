@@ -36,9 +36,15 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
     let input_dir = matches
         .get_one::<String>("input-dir")
         .ok_or("Input directory is required")?;
-    let output_file = matches
-        .get_one::<String>("output")
-        .ok_or("Output HTML file is required")?;
+    let validate_only = matches.get_flag("validate-only");
+    let default_output = "validation_only.html".to_string();
+    let output_file = if validate_only {
+        matches.get_one::<String>("output").unwrap_or(&default_output)
+    } else {
+        matches
+            .get_one::<String>("output")
+            .ok_or("Output HTML file is required")?
+    };
     let base_name = matches
         .get_one::<String>("base-name")
         .map(|s| s.as_str())
@@ -101,6 +107,21 @@ pub async fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Erro
         "📊 Normalized {} allocations",
         unified_data.allocations.len()
     ));
+
+    // Check if we should only validate and exit early
+    if validate_only {
+        logger.info("✅ JSON validation completed successfully!");
+        logger.info(&format!("📊 Validation results:"));
+        logger.info(&format!("   - Files loaded: {}", json_data.len()));
+        logger.info(&format!("   - Allocations found: {}", unified_data.allocations.len()));
+        logger.info(&format!("   - Lifecycle events: {}", unified_data.lifecycle.lifecycle_events.len()));
+        logger.info(&format!("   - Performance data: Available"));
+        logger.info(&format!("   - Security violations: {}", unified_data.security.total_violations));
+        logger.info(&format!("   - Complex types: {}", unified_data.complex_types.summary.total_complex_types));
+        logger.info(&format!("   - Active memory: {} bytes", unified_data.stats.active_memory));
+        logger.info(&format!("   - Peak memory: {} bytes", unified_data.stats.peak_memory));
+        return Ok(());
+    }
 
     // 🔗 Integrate multiple data sources
     logger.next_progress_step("Integrating data sources", 1);

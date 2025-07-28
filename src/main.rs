@@ -83,7 +83,7 @@ async fn main() {
                         .long("output")
                         .value_name("FILE")
                         .help("Output HTML file path")
-                        .required(true),
+                        .required_unless_present("validate-only"),
                 )
                 .arg(
                     Arg::new("base-name")
