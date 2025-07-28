@@ -107,6 +107,32 @@ async fn main() {
                         .help("Port for web server (default: 8080)")
                         .value_parser(clap::value_parser!(u16))
                         .default_value("8080"),
+                )
+                .arg(
+                    Arg::new("verbose")
+                        .short('v')
+                        .long("verbose")
+                        .help("Enable verbose output with detailed progress information")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("debug")
+                        .short('d')
+                        .long("debug")
+                        .help("Enable debug mode with detailed logging and timing information")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("performance")
+                        .long("performance")
+                        .help("Enable performance analysis mode with comprehensive timing and memory tracking")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("validate-only")
+                        .long("validate-only")
+                        .help("Only validate JSON files without generating HTML")
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
         .subcommand(
