@@ -429,11 +429,27 @@
                     </div>
                 </div>
 
-                <!-- Simplified Legend -->
-                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Enhanced Legend -->
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="legend-bg rounded-lg p-3">
+                        <h4 class="font-semibold text-sm mb-2 text-heading">Node Size & Complexity</h4>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex items-center justify-between">
+                                <span class="legend-text">Node Size:</span>
+                                <span class="legend-text">Memory Usage</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="legend-text">Small Circle:</span>
+                                <span class="legend-text">Complexity Score</span>
+                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                Larger nodes = more memory allocated
+                            </div>
+                        </div>
+                    </div>
                     <div class="legend-bg rounded-lg p-3">
                         <h4 class="font-semibold text-sm mb-2 text-heading">Type Colors</h4>
-                        <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="grid grid-cols-2 gap-1 text-xs">
                             <div class="flex items-center"><div class="w-3 h-3 rounded-full mr-2 bg-blue-500"></div><span class="legend-text">Collections</span></div>
                             <div class="flex items-center"><div class="w-3 h-3 rounded-full mr-2 bg-purple-500"></div><span class="legend-text">Smart Pointers</span></div>
                             <div class="flex items-center"><div class="w-3 h-3 rounded-full mr-2 bg-yellow-500"></div><span class="legend-text">Strings</span></div>
@@ -443,9 +459,50 @@
                     <div class="legend-bg rounded-lg p-3">
                         <h4 class="font-semibold text-sm mb-2 text-heading">Interactions</h4>
                         <div class="space-y-1 text-xs legend-text">
-                            <div>• Click nodes for details • Drag to reposition</div>
-                            <div>• Scroll to zoom • Hover to highlight</div>
+                            <div>• Click nodes for details</div>
+                            <div>• Drag to reposition</div>
+                            <div>• Scroll to zoom</div>
+                            <div>• Hover to highlight</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Complexity Score Legend -->
+                <div class="mt-4 legend-bg rounded-lg p-4">
+                    <h4 class="font-semibold text-sm mb-3 text-heading">Complexity Score Guide</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs">1</div>
+                            <div class="text-xs">
+                                <div class="font-medium text-gray-900 dark:text-white">Simple (1-2)</div>
+                                <div class="text-gray-500 dark:text-gray-400">Basic types, primitives</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center text-white font-bold text-xs">4</div>
+                            <div class="text-xs">
+                                <div class="font-medium text-gray-900 dark:text-white">Medium (3-5)</div>
+                                <div class="text-gray-500 dark:text-gray-400">String, Path types</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-xs">6</div>
+                            <div class="text-xs">
+                                <div class="font-medium text-gray-900 dark:text-white">Complex (6-8)</div>
+                                <div class="text-gray-500 dark:text-gray-400">Vec, Box, Option</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs">9</div>
+                            <div class="text-xs">
+                                <div class="font-medium text-gray-900 dark:text-white">Very Complex (9-10)</div>
+                                <div class="text-gray-500 dark:text-gray-400">HashMap, BTreeMap</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded p-2">
+                        <strong>Note:</strong> Higher complexity scores indicate types with greater performance overhead and memory management complexity. 
+                        Numbers like 5 and 6 represent medium to complex types that involve heap allocation and smart pointers.
                     </div>
                 </div>
 

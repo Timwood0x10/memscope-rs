@@ -2449,7 +2449,14 @@ function initVariableGraph() {
         )
         .force('center', d3.forceCenter(width / 2, height / 2))
         .force('collision', d3.forceCollide()
-            .radius(d => Math.max(15, Math.sqrt(d.size) / 8) + 5)
+            .radius(d => {
+                const minRadius = 15;
+                const maxRadius = 50;
+                const maxSize = Math.max(...nodes.map(n => n.size));
+                const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+                const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+                return nodeRadius + 5;
+            })
         );
 
     // Create link elements
@@ -2477,18 +2484,26 @@ function initVariableGraph() {
             .on('end', dragended)
         );
 
-    // Add circles to nodes
+    // Add circles to nodes - size based on memory usage
     node.append('circle')
-        .attr('r', d => Math.max(12, Math.sqrt(d.size) / 8))
+        .attr('r', d => {
+            // Scale node size based on memory usage (larger memory = larger node)
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            return minRadius + (sizeRatio * (maxRadius - minRadius));
+        })
         .attr('fill', d => getEnhancedTypeColor(d.type, d.category))
         .attr('stroke', '#fff')
         .attr('stroke-width', 2)
         .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))')
         .on('mouseover', function (event, d) {
+            const currentRadius = d3.select(this).attr('r');
             d3.select(this)
                 .transition()
                 .duration(200)
-                .attr('r', Math.max(15, Math.sqrt(d.size) / 6))
+                .attr('r', parseFloat(currentRadius) * 1.2)
                 .style('filter', 'drop-shadow(0px 4px 8px rgba(0,0,0,0.3))');
 
             // Highlight connected links
@@ -2497,10 +2512,16 @@ function initVariableGraph() {
             );
         })
         .on('mouseout', function (event, d) {
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            const originalRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+            
             d3.select(this)
                 .transition()
                 .duration(200)
-                .attr('r', Math.max(12, Math.sqrt(d.size) / 8))
+                .attr('r', originalRadius)
                 .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))');
 
             // Reset link opacity
@@ -2513,8 +2534,22 @@ function initVariableGraph() {
 
     complexityGroup.append('circle')
         .attr('r', 8)
-        .attr('cx', d => Math.max(12, Math.sqrt(d.size) / 8) + 8)
-        .attr('cy', d => -Math.max(12, Math.sqrt(d.size) / 8) - 8)
+        .attr('cx', d => {
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+            return nodeRadius + 8;
+        })
+        .attr('cy', d => {
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+            return -nodeRadius - 8;
+        })
         .attr('fill', d => getComplexityColor(d.complexity))
         .attr('stroke', '#fff')
         .attr('stroke-width', 2);
@@ -2522,8 +2557,22 @@ function initVariableGraph() {
     // Add complexity score text
     complexityGroup.append('text')
         .text(d => d.complexity || 2)
-        .attr('x', d => Math.max(12, Math.sqrt(d.size) / 8) + 8)
-        .attr('y', d => -Math.max(12, Math.sqrt(d.size) / 8) - 8 + 3)
+        .attr('x', d => {
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+            return nodeRadius + 8;
+        })
+        .attr('y', d => {
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+            return -nodeRadius - 8 + 3;
+        })
         .attr('text-anchor', 'middle')
         .style('font-size', '10px')
         .style('font-weight', 'bold')
@@ -2534,7 +2583,14 @@ function initVariableGraph() {
     node.append('text')
         .text(d => d.id)
         .attr('text-anchor', 'middle')
-        .attr('dy', d => Math.max(12, Math.sqrt(d.size) / 8) + 15)
+        .attr('dy', d => {
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+            return nodeRadius + 15;
+        })
         .style('font-size', '11px')
         .style('font-weight', 'bold')
         .style('fill', 'var(--text-primary)')
@@ -2544,7 +2600,14 @@ function initVariableGraph() {
     node.append('text')
         .text(d => formatTypeName(d.type))
         .attr('text-anchor', 'middle')
-        .attr('dy', d => Math.max(12, Math.sqrt(d.size) / 8) + 28)
+        .attr('dy', d => {
+            const minRadius = 15;
+            const maxRadius = 50;
+            const maxSize = Math.max(...nodes.map(n => n.size));
+            const sizeRatio = maxSize > 0 ? d.size / maxSize : 0;
+            const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
+            return nodeRadius + 28;
+        })
         .style('font-size', '9px')
         .style('fill', 'var(--text-secondary)')
         .style('pointer-events', 'none');
