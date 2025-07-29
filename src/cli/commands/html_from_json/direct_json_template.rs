@@ -90,13 +90,19 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
 
     // Replace placeholders in the template with proper escaping
     let html = template_content
-        .replace("{{ json_data }}", &json_data_str)  // 注意空格
-        .replace("{{json_data}}", &json_data_str)    // 无空格版本
+        .replace("{{ json_data }}", &json_data_str) // 注意空格
+        .replace("{{json_data}}", &json_data_str) // 无空格版本
         .replace("{{CSS_CONTENT}}", &css_content)
         .replace("{{JS_CONTENT}}", &js_content)
         .replace("{{DATA_PLACEHOLDER}}", &json_data_str)
-        .replace("{{\n                {\n                CSS_CONTENT\n            }\n        }", &css_content)  // 修复CSS格式问题
-        .replace("{\n                {\n                CSS_CONTENT\n            }\n        }", &css_content);  // 另一种格式
+        .replace(
+            "{{\n                {\n                CSS_CONTENT\n            }\n        }",
+            &css_content,
+        ) // 修复CSS格式问题
+        .replace(
+            "{\n                {\n                CSS_CONTENT\n            }\n        }",
+            &css_content,
+        ); // 另一种格式
 
     println!(
         "✅ Generated HTML with {} bytes of embedded JSON data",

@@ -173,7 +173,9 @@ fn run_report_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
     run_generate_report(matches)
 }
 
-fn run_html_from_json_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+fn run_html_from_json_command(
+    matches: &clap::ArgMatches,
+) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::html_from_json::run_html_from_json;
     run_html_from_json(matches)
 }

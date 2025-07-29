@@ -3,10 +3,10 @@
 //! This module provides progress monitoring, cancellation mechanisms, and remaining time estimation for the export process.
 //! Supports callback interfaces, graceful interruption, and partial result saving.
 
+use crate::core::types::TrackingResult;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use crate::core::types::TrackingResult;
 
 /// Export progress information
 #[derive(Debug, Clone)]
@@ -63,7 +63,7 @@ impl ExportStage {
             ExportStage::Error(_) => 0.0,
         }
     }
-    
+
     /// 获取阶段描述
     pub fn description(&self) -> &str {
         match self {
@@ -94,21 +94,25 @@ impl CancellationToken {
             cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
-    
+
     /// 取消操作
     pub fn cancel(&self) {
         self.cancelled.store(true, Ordering::SeqCst);
     }
-    
+
     /// 检查是否已取消
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::SeqCst)
     }
-    
+
     /// 如果已取消则返回错误
     pub fn check_cancelled(&self) -> TrackingResult<()> {
         if self.is_cancelled() {
-            Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Export operation was cancelled").into())
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "Export operation was cancelled",
+            )
+            .into())
         } else {
             Ok(())
         }
@@ -161,63 +165,64 @@ impl ProgressMonitor {
             max_history_size: 20,
         }
     }
-    
+
     /// 设置进度回调
     pub fn set_callback(&mut self, callback: ProgressCallback) {
         self.callback = Some(callback);
     }
-    
+
     /// 获取取消令牌
     pub fn cancellation_token(&self) -> CancellationToken {
         self.cancellation_token.clone()
     }
-    
+
     /// 设置当前阶段
     pub fn set_stage(&mut self, stage: ExportStage) {
         self.current_stage = stage;
         // 不自动调用 update_progress，让调用者控制进度
     }
-    
+
     /// 更新阶段进度
     pub fn update_progress(&mut self, stage_progress: f64, _details: Option<String>) {
         let now = Instant::now();
-        
+
         // 检查更新间隔，避免过于频繁的回调
         if now.duration_since(self.last_update) < self.update_interval {
             return;
         }
-        
+
         self.last_update = now;
-        
+
         let processed = self.processed_allocations.load(Ordering::SeqCst);
-        
+
         // 更新速度历史
         self.speed_history.push((now, processed));
         if self.speed_history.len() > self.max_history_size {
             self.speed_history.remove(0);
         }
-        
+
         let progress = self.calculate_progress(stage_progress, processed);
-        
+
         if let Some(ref callback) = self.callback {
             callback(progress);
         }
     }
-    
+
     /// 增加已处理分配数量
     pub fn add_processed(&self, count: usize) {
-        self.processed_allocations.fetch_add(count, Ordering::SeqCst);
+        self.processed_allocations
+            .fetch_add(count, Ordering::SeqCst);
     }
-    
+
     /// 设置已处理分配数量
     pub fn set_processed(&self, count: usize) {
         self.processed_allocations.store(count, Ordering::SeqCst);
     }
-    
+
     /// 计算进度信息
     fn calculate_progress(&self, stage_progress: f64, processed: usize) -> ExportProgress {
         let elapsed = self.start_time.elapsed();
-        
+
         // 计算总体进度
         let stage_weights = [
             (ExportStage::Initializing, 0.05),
@@ -225,10 +230,10 @@ impl ProgressMonitor {
             (ExportStage::ParallelProcessing, 0.70),
             (ExportStage::Writing, 0.10),
         ];
-        
+
         let mut overall_progress = 0.0;
         let mut found_current = false;
-        
+
         for (stage, weight) in &stage_weights {
             if *stage == self.current_stage {
                 overall_progress += weight * stage_progress;
@@ -238,7 +243,7 @@ impl ProgressMonitor {
                 overall_progress += weight;
             }
         }
-        
+
         if !found_current {
             overall_progress = match self.current_stage {
                 ExportStage::Completed => 1.0,
@@ -247,17 +252,17 @@ impl ProgressMonitor {
                 _ => overall_progress,
             };
         }
-        
+
         // 计算处理速度
         let processing_speed = if elapsed.as_secs() > 0 {
             processed as f64 / elapsed.as_secs_f64()
         } else {
             0.0
         };
-        
+
         // 预估剩余时间
         let estimated_remaining = self.estimate_remaining_time(processed, processing_speed);
-        
+
         ExportProgress {
             current_stage: self.current_stage.clone(),
             stage_progress,
@@ -270,13 +275,13 @@ impl ProgressMonitor {
             stage_details: self.current_stage.description().to_string(),
         }
     }
-    
+
     /// 预估剩余时间
     fn estimate_remaining_time(&self, processed: usize, current_speed: f64) -> Option<Duration> {
         if processed >= self.total_allocations || current_speed <= 0.0 {
             return None;
         }
-        
+
         // 使用历史速度数据进行更准确的预估
         let avg_speed = if self.speed_history.len() >= 2 {
             let recent_history = &self.speed_history[self.speed_history.len().saturating_sub(5)..];
@@ -285,7 +290,7 @@ impl ProgressMonitor {
                 let last = &recent_history[recent_history.len() - 1];
                 let time_diff = last.0.duration_since(first.0).as_secs_f64();
                 let processed_diff = last.1.saturating_sub(first.1) as f64;
-                
+
                 if time_diff > 0.0 {
                     processed_diff / time_diff
                 } else {
@@ -297,7 +302,7 @@ impl ProgressMonitor {
         } else {
             current_speed
         };
-        
+
         if avg_speed > 0.0 {
             let remaining_allocations = self.total_allocations.saturating_sub(processed) as f64;
             let remaining_seconds = remaining_allocations / avg_speed;
@@ -306,31 +311,31 @@ impl ProgressMonitor {
             None
         }
     }
-    
+
     /// 完成导出
     pub fn complete(&mut self) {
         self.current_stage = ExportStage::Completed;
         self.update_progress(1.0, Some("导出完成".to_string()));
     }
-    
+
     /// 取消导出
     pub fn cancel(&mut self) {
         self.cancellation_token.cancel();
         self.current_stage = ExportStage::Cancelled;
         self.update_progress(0.0, Some("导出已取消".to_string()));
     }
-    
+
     /// 设置错误状态
     pub fn set_error(&mut self, error: String) {
         self.current_stage = ExportStage::Error(error.clone());
         self.update_progress(0.0, Some(error));
     }
-    
+
     /// 检查是否应该取消
     pub fn should_cancel(&self) -> bool {
         self.cancellation_token.is_cancelled()
     }
-    
+
     /// 获取当前进度快照
     pub fn get_progress_snapshot(&self) -> ExportProgress {
         let processed = self.processed_allocations.load(Ordering::SeqCst);
@@ -377,7 +382,7 @@ impl ConsoleProgressDisplay {
             last_line_length: 0,
         }
     }
-    
+
     /// 显示进度
     pub fn display(&mut self, progress: &ExportProgress) {
         // 清除上一行
@@ -385,20 +390,20 @@ impl ConsoleProgressDisplay {
             print!("\r{}", " ".repeat(self.last_line_length));
             print!("\r");
         }
-        
+
         let progress_bar = self.create_progress_bar(progress.overall_progress);
         let speed_info = if progress.processing_speed > 0.0 {
             format!(" ({:.0} 分配/秒)", progress.processing_speed)
         } else {
             String::new()
         };
-        
+
         let time_info = if let Some(remaining) = progress.estimated_remaining {
             format!(" 剩余: {:?}", remaining)
         } else {
             String::new()
         };
-        
+
         let line = format!(
             "{} {:.1}% {} ({}/{}){}{}",
             progress_bar,
@@ -409,22 +414,22 @@ impl ConsoleProgressDisplay {
             speed_info,
             time_info
         );
-        
+
         print!("{}", line);
         std::io::Write::flush(&mut std::io::stdout()).ok();
-        
+
         self.last_line_length = line.len();
     }
-    
+
     /// 创建进度条
     fn create_progress_bar(&self, progress: f64) -> String {
         let width = 20;
         let filled = (progress * width as f64) as usize;
         let empty = width - filled;
-        
+
         format!("[{}{}]", "█".repeat(filled), "░".repeat(empty))
     }
-    
+
     /// 完成显示（换行）
     pub fn finish(&mut self) {
         println!();
@@ -449,7 +454,7 @@ mod tests {
     fn test_cancellation_token() {
         let token = CancellationToken::new();
         assert!(!token.is_cancelled());
-        
+
         token.cancel();
         assert!(token.is_cancelled());
         assert!(token.check_cancelled().is_err());
@@ -458,18 +463,18 @@ mod tests {
     #[test]
     fn test_progress_monitor_basic() {
         let mut monitor = ProgressMonitor::new(1000);
-        
+
         // 测试初始状态
         let progress = monitor.get_progress_snapshot();
         assert_eq!(progress.current_stage, ExportStage::Initializing);
         assert_eq!(progress.processed_allocations, 0);
         assert_eq!(progress.total_allocations, 1000);
-        
+
         // 测试阶段切换
         monitor.set_stage(ExportStage::DataLocalization);
         let progress = monitor.get_progress_snapshot();
         assert_eq!(progress.current_stage, ExportStage::DataLocalization);
-        
+
         // 测试进度更新
         monitor.add_processed(100);
         let progress = monitor.get_progress_snapshot();
@@ -480,19 +485,19 @@ mod tests {
     fn test_progress_callback() {
         let callback_called = Arc::new(Mutex::new(false));
         let callback_called_clone = callback_called.clone();
-        
+
         let mut monitor = ProgressMonitor::new(100);
         monitor.set_callback(Box::new(move |_progress| {
             *callback_called_clone.lock().unwrap() = true;
         }));
-        
+
         // 等待一下让更新间隔过去
         thread::sleep(Duration::from_millis(150));
         monitor.update_progress(0.5, None);
-        
+
         // 等待回调执行
         thread::sleep(Duration::from_millis(50));
-        
+
         assert!(*callback_called.lock().unwrap());
     }
 
@@ -501,24 +506,31 @@ mod tests {
         let mut monitor = ProgressMonitor::new(1000);
         // 设置更短的更新间隔用于测试
         monitor.update_interval = Duration::from_millis(1);
-        
+
         // 直接测试计算函数
         let progress = monitor.calculate_progress(1.0, 0);
         assert_eq!(progress.current_stage, ExportStage::Initializing);
-        
+
         // 测试初始化阶段
         monitor.set_stage(ExportStage::Initializing);
         let progress = monitor.calculate_progress(1.0, 0);
-        assert!((progress.overall_progress - 0.05).abs() < 0.01, 
-                "Expected ~0.05, got {}", progress.overall_progress);
-        
+        assert!(
+            (progress.overall_progress - 0.05).abs() < 0.01,
+            "Expected ~0.05, got {}",
+            progress.overall_progress
+        );
+
         // 测试数据本地化阶段
         monitor.set_stage(ExportStage::DataLocalization);
         let progress = monitor.calculate_progress(0.5, 0);
         let expected = 0.05 + 0.15 * 0.5;
-        assert!((progress.overall_progress - expected).abs() < 0.01,
-                "Expected ~{}, got {}", expected, progress.overall_progress);
-        
+        assert!(
+            (progress.overall_progress - expected).abs() < 0.01,
+            "Expected ~{}, got {}",
+            expected,
+            progress.overall_progress
+        );
+
         // 测试完成
         monitor.set_stage(ExportStage::Completed);
         let progress = monitor.calculate_progress(1.0, 0);
@@ -529,21 +541,27 @@ mod tests {
     #[test]
     fn test_speed_calculation() {
         let monitor = ProgressMonitor::new(1000);
-        
+
         // 模拟处理一些分配
         monitor.add_processed(100);
-        
+
         // 等待一段时间以便计算速度
         thread::sleep(Duration::from_millis(500));
-        
+
         let progress = monitor.get_progress_snapshot();
         // 速度应该大于等于0
-        assert!(progress.processing_speed >= 0.0, 
-                "Processing speed should be >= 0, got {}", progress.processing_speed);
-        
+        assert!(
+            progress.processing_speed >= 0.0,
+            "Processing speed should be >= 0, got {}",
+            progress.processing_speed
+        );
+
         // 基本测试：确保速度计算不会崩溃
-        assert!(progress.elapsed_time.as_millis() > 0, "Elapsed time should be > 0");
-        
+        assert!(
+            progress.elapsed_time.as_millis() > 0,
+            "Elapsed time should be > 0"
+        );
+
         // 如果有处理的分配和足够的时间，速度应该大于0
         // 但由于测试环境的不确定性，我们只检查基本的数学正确性
         let expected_speed = if progress.elapsed_time.as_secs() > 0 {
@@ -551,16 +569,20 @@ mod tests {
         } else {
             0.0
         };
-        
+
         // 允许一定的误差范围
-        assert!((progress.processing_speed - expected_speed).abs() < 1.0,
-                "Speed calculation mismatch: expected ~{}, got {}", expected_speed, progress.processing_speed);
+        assert!(
+            (progress.processing_speed - expected_speed).abs() < 1.0,
+            "Speed calculation mismatch: expected ~{}, got {}",
+            expected_speed,
+            progress.processing_speed
+        );
     }
 
     #[test]
     fn test_console_progress_display() {
         let mut display = ConsoleProgressDisplay::new();
-        
+
         let progress = ExportProgress {
             current_stage: ExportStage::ParallelProcessing,
             stage_progress: 0.5,
@@ -572,7 +594,7 @@ mod tests {
             processing_speed: 60.0,
             stage_details: "并行分片处理".to_string(),
         };
-        
+
         // 这个测试主要确保不会 panic
         display.display(&progress);
         display.finish();

@@ -14,28 +14,28 @@ use std::fmt;
 pub struct UnifiedMemoryData {
     /// Core memory statistics
     pub stats: MemoryStatistics,
-    
+
     /// Memory allocation details
     pub allocations: Vec<AllocationInfo>,
-    
+
     /// Performance analysis data
     pub performance: PerformanceMetrics,
-    
+
     /// Lifecycle analysis
     pub lifecycle: LifecycleAnalysis,
-    
+
     /// Security analysis
     pub security: SecurityAnalysis,
-    
+
     /// Complex type analysis
     pub complex_types: ComplexTypeAnalysis,
-    
+
     /// Variable relationships
     pub variable_relationships: VariableRelationships,
-    
+
     /// Analysis metadata
     pub metadata: AnalysisMetadata,
-    
+
     /// Original multi-source data (for advanced features)
     #[serde(rename = "_multiSource")]
     pub multi_source: HashMap<String, Value>,
@@ -286,6 +286,7 @@ pub struct DataNormalizer {
     /// Validation enabled
     validation_enabled: bool,
     /// Default values for missing fields
+    #[allow(dead_code)]
     default_values: HashMap<String, Value>,
 }
 
@@ -297,7 +298,7 @@ impl DataNormalizer {
             default_values: Self::create_default_values(),
         }
     }
-    
+
     /// Create normalizer with validation disabled
     pub fn without_validation() -> Self {
         Self {
@@ -305,11 +306,14 @@ impl DataNormalizer {
             default_values: Self::create_default_values(),
         }
     }
-    
+
     /// Normalize multi-source JSON data to unified format
-    pub fn normalize(&self, multi_source: &HashMap<String, Value>) -> Result<UnifiedMemoryData, NormalizationError> {
+    pub fn normalize(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<UnifiedMemoryData, NormalizationError> {
         println!("🔄 Starting data normalization...");
-        
+
         // Extract and normalize each data source
         let stats = self.normalize_memory_stats(multi_source)?;
         let allocations = self.normalize_allocations(multi_source)?;
@@ -319,7 +323,7 @@ impl DataNormalizer {
         let complex_types = self.normalize_complex_types(multi_source)?;
         let variable_relationships = self.normalize_variable_relationships(multi_source)?;
         let metadata = self.normalize_metadata(multi_source)?;
-        
+
         let unified = UnifiedMemoryData {
             stats,
             allocations,
@@ -331,16 +335,16 @@ impl DataNormalizer {
             metadata,
             multi_source: multi_source.clone(),
         };
-        
+
         // Validate the unified data if validation is enabled
         if self.validation_enabled {
             self.validate_unified_data(&unified)?;
         }
-        
+
         println!("✅ Data normalization completed successfully");
         Ok(unified)
     }
-    
+
     /// Create default values for missing fields
     fn create_default_values() -> HashMap<String, Value> {
         let mut defaults = HashMap::new();
@@ -349,46 +353,55 @@ impl DataNormalizer {
         defaults.insert("peak_memory".to_string(), Value::Number(0.into()));
         defaults.insert("total_allocations".to_string(), Value::Number(0.into()));
         defaults.insert("total_allocated".to_string(), Value::Number(0.into()));
-        defaults.insert("memory_efficiency".to_string(), Value::Number(serde_json::Number::from_f64(0.0).unwrap()));
+        defaults.insert(
+            "memory_efficiency".to_string(),
+            Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
         defaults
     }
-    
+
     /// Normalize memory statistics
-    fn normalize_memory_stats(&self, multi_source: &HashMap<String, Value>) -> Result<MemoryStatistics, NormalizationError> {
+    fn normalize_memory_stats(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<MemoryStatistics, NormalizationError> {
         // Try to get stats from memory_analysis first, then performance
         let memory_data = multi_source.get("memory_analysis");
         let performance_data = multi_source.get("performance");
-        
+
         let memory_stats = memory_data
             .and_then(|data| data.get("memory_stats"))
             .or_else(|| memory_data.and_then(|data| data.get("stats")));
-            
-        let perf_memory = performance_data
-            .and_then(|data| data.get("memory_performance"));
-            
-        let metadata = memory_data
-            .and_then(|data| data.get("metadata"));
-        
+
+        let perf_memory = performance_data.and_then(|data| data.get("memory_performance"));
+
+        let metadata = memory_data.and_then(|data| data.get("metadata"));
+
         Ok(MemoryStatistics {
-            active_memory: self.extract_usize(memory_stats, "active_memory")
+            active_memory: self
+                .extract_usize(memory_stats, "active_memory")
                 .or_else(|| self.extract_usize(perf_memory, "active_memory"))
                 .unwrap_or(0),
             active_allocations: self.count_active_allocations(memory_data),
-            peak_memory: self.extract_usize(memory_stats, "peak_memory")
+            peak_memory: self
+                .extract_usize(memory_stats, "peak_memory")
                 .or_else(|| self.extract_usize(perf_memory, "peak_memory"))
                 .unwrap_or(0),
-            total_allocations: self.extract_usize(memory_stats, "total_allocations")
+            total_allocations: self
+                .extract_usize(memory_stats, "total_allocations")
                 .or_else(|| self.extract_usize(perf_memory, "total_allocated"))
                 .or_else(|| self.extract_usize(metadata, "total_allocations"))
                 .unwrap_or(0),
-            total_allocated: self.extract_usize(memory_stats, "total_allocated")
+            total_allocated: self
+                .extract_usize(memory_stats, "total_allocated")
                 .or_else(|| self.extract_usize(perf_memory, "total_allocated"))
                 .unwrap_or(0),
-            memory_efficiency: self.extract_f64(perf_memory, "memory_efficiency")
+            memory_efficiency: self
+                .extract_f64(perf_memory, "memory_efficiency")
                 .unwrap_or(0.0),
         })
     }
-    
+
     /// Count active allocations from allocation array
     fn count_active_allocations(&self, memory_data: Option<&Value>) -> usize {
         memory_data
@@ -397,29 +410,35 @@ impl DataNormalizer {
             .map(|arr| arr.len())
             .unwrap_or(0)
     }
-    
+
     /// Normalize allocations data
-    fn normalize_allocations(&self, multi_source: &HashMap<String, Value>) -> Result<Vec<AllocationInfo>, NormalizationError> {
+    fn normalize_allocations(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<Vec<AllocationInfo>, NormalizationError> {
         let memory_data = multi_source.get("memory_analysis");
         let empty_vec = vec![];
         let allocations_array = memory_data
             .and_then(|data| data.get("allocations"))
             .and_then(|allocs| allocs.as_array())
             .unwrap_or(&empty_vec);
-        
+
         let mut normalized_allocations = Vec::new();
-        
+
         for (index, alloc) in allocations_array.iter().enumerate() {
             if let Some(_alloc_obj) = alloc.as_object() {
                 let allocation_info = AllocationInfo {
-                    ptr: self.extract_string(Some(alloc), "ptr")
+                    ptr: self
+                        .extract_string(Some(alloc), "ptr")
                         .unwrap_or_else(|| format!("0x{:x}", index)),
                     size: self.extract_usize(Some(alloc), "size").unwrap_or(0),
                     var_name: self.extract_string(Some(alloc), "var_name"),
                     type_name: self.extract_string(Some(alloc), "type_name"),
-                    scope_name: self.extract_string(Some(alloc), "scope_name")
+                    scope_name: self
+                        .extract_string(Some(alloc), "scope_name")
                         .or_else(|| self.extract_string(Some(alloc), "scope")),
-                    timestamp_alloc: self.extract_u64(Some(alloc), "timestamp_alloc")
+                    timestamp_alloc: self
+                        .extract_u64(Some(alloc), "timestamp_alloc")
                         .or_else(|| self.extract_u64(Some(alloc), "timestamp"))
                         .unwrap_or(0),
                     timestamp_dealloc: self.extract_u64(Some(alloc), "timestamp_dealloc"),
@@ -430,30 +449,43 @@ impl DataNormalizer {
                 normalized_allocations.push(allocation_info);
             }
         }
-        
+
         println!("📊 Normalized {} allocations", normalized_allocations.len());
         Ok(normalized_allocations)
     }
-    
+
     /// Normalize performance data
-    fn normalize_performance(&self, multi_source: &HashMap<String, Value>) -> Result<PerformanceMetrics, NormalizationError> {
+    fn normalize_performance(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<PerformanceMetrics, NormalizationError> {
         let performance_data = multi_source.get("performance");
         let export_perf = performance_data.and_then(|data| data.get("export_performance"));
         let memory_perf = performance_data.and_then(|data| data.get("memory_performance"));
         let alloc_dist = performance_data.and_then(|data| data.get("allocation_distribution"));
         let opt_status = performance_data.and_then(|data| data.get("optimization_status"));
-        
+
         Ok(PerformanceMetrics {
-            processing_time_ms: self.extract_u64(export_perf, "total_processing_time_ms").unwrap_or(0),
+            processing_time_ms: self
+                .extract_u64(export_perf, "total_processing_time_ms")
+                .unwrap_or(0),
             allocations_per_second: export_perf
                 .and_then(|data| data.get("processing_rate"))
                 .and_then(|rate| self.extract_f64(Some(rate), "allocations_per_second"))
                 .unwrap_or(0.0),
-            memory_efficiency: self.extract_f64(memory_perf, "memory_efficiency").unwrap_or(0.0),
+            memory_efficiency: self
+                .extract_f64(memory_perf, "memory_efficiency")
+                .unwrap_or(0.0),
             optimization_status: OptimizationStatus {
-                parallel_processing: self.extract_bool(opt_status, "parallel_processing").unwrap_or(false),
-                schema_validation: self.extract_bool(opt_status, "schema_validation").unwrap_or(false),
-                streaming_enabled: self.extract_bool(opt_status, "streaming_enabled").unwrap_or(false),
+                parallel_processing: self
+                    .extract_bool(opt_status, "parallel_processing")
+                    .unwrap_or(false),
+                schema_validation: self
+                    .extract_bool(opt_status, "schema_validation")
+                    .unwrap_or(false),
+                streaming_enabled: self
+                    .extract_bool(opt_status, "streaming_enabled")
+                    .unwrap_or(false),
                 batch_size: self.extract_usize(opt_status, "batch_size"),
                 buffer_size_kb: self.extract_usize(opt_status, "buffer_size_kb"),
             },
@@ -466,12 +498,15 @@ impl DataNormalizer {
             },
         })
     }
-    
+
     /// Normalize lifecycle data
-    fn normalize_lifecycle(&self, multi_source: &HashMap<String, Value>) -> Result<LifecycleAnalysis, NormalizationError> {
+    fn normalize_lifecycle(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<LifecycleAnalysis, NormalizationError> {
         let empty_object = Value::Object(serde_json::Map::new());
         let lifecycle_data = multi_source.get("lifetime").unwrap_or(&empty_object);
-        
+
         Ok(LifecycleAnalysis {
             lifecycle_events: lifecycle_data
                 .get("lifecycle_events")
@@ -490,18 +525,22 @@ impl DataNormalizer {
                 .unwrap_or_default(),
         })
     }
-    
+
     /// Normalize security data
-    fn normalize_security(&self, multi_source: &HashMap<String, Value>) -> Result<SecurityAnalysis, NormalizationError> {
+    fn normalize_security(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<SecurityAnalysis, NormalizationError> {
         let security_data = multi_source.get("security_violations");
         let security_summary = security_data
             .and_then(|data| data.get("security_summary"))
             .and_then(|summary| summary.get("security_analysis_summary"));
-        let severity = security_summary
-            .and_then(|summary| summary.get("severity_breakdown"));
-        
+        let severity = security_summary.and_then(|summary| summary.get("severity_breakdown"));
+
         Ok(SecurityAnalysis {
-            total_violations: self.extract_usize(security_summary, "total_violations").unwrap_or(0),
+            total_violations: self
+                .extract_usize(security_summary, "total_violations")
+                .unwrap_or(0),
             risk_level: security_summary
                 .and_then(|summary| summary.get("risk_assessment"))
                 .and_then(|risk| self.extract_string(Some(risk), "risk_level"))
@@ -521,19 +560,26 @@ impl DataNormalizer {
             recommendations: security_data
                 .and_then(|data| data.get("analysis_recommendations"))
                 .and_then(|recs| recs.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_default(),
         })
     }
-    
+
     /// Normalize complex types data
-    fn normalize_complex_types(&self, multi_source: &HashMap<String, Value>) -> Result<ComplexTypeAnalysis, NormalizationError> {
+    fn normalize_complex_types(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<ComplexTypeAnalysis, NormalizationError> {
         let empty_object = Value::Object(serde_json::Map::new());
         let complex_data = multi_source.get("complex_types").unwrap_or(&empty_object);
         let categorized = complex_data.get("categorized_types");
         let summary = complex_data.get("summary");
         let complexity_dist = summary.and_then(|s| s.get("complexity_distribution"));
-        
+
         Ok(ComplexTypeAnalysis {
             categorized_types: CategorizedTypes {
                 collections: categorized
@@ -563,22 +609,37 @@ impl DataNormalizer {
                 .cloned()
                 .unwrap_or_default(),
             summary: ComplexTypeSummary {
-                total_complex_types: self.extract_usize(summary, "total_complex_types").unwrap_or(0),
+                total_complex_types: self
+                    .extract_usize(summary, "total_complex_types")
+                    .unwrap_or(0),
                 complexity_distribution: ComplexityDistribution {
-                    low_complexity: self.extract_usize(complexity_dist, "low_complexity").unwrap_or(0),
-                    medium_complexity: self.extract_usize(complexity_dist, "medium_complexity").unwrap_or(0),
-                    high_complexity: self.extract_usize(complexity_dist, "high_complexity").unwrap_or(0),
-                    very_high_complexity: self.extract_usize(complexity_dist, "very_high_complexity").unwrap_or(0),
+                    low_complexity: self
+                        .extract_usize(complexity_dist, "low_complexity")
+                        .unwrap_or(0),
+                    medium_complexity: self
+                        .extract_usize(complexity_dist, "medium_complexity")
+                        .unwrap_or(0),
+                    high_complexity: self
+                        .extract_usize(complexity_dist, "high_complexity")
+                        .unwrap_or(0),
+                    very_high_complexity: self
+                        .extract_usize(complexity_dist, "very_high_complexity")
+                        .unwrap_or(0),
                 },
             },
         })
     }
-    
+
     /// Normalize variable relationships data
-    fn normalize_variable_relationships(&self, multi_source: &HashMap<String, Value>) -> Result<VariableRelationships, NormalizationError> {
+    fn normalize_variable_relationships(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<VariableRelationships, NormalizationError> {
         let empty_object = Value::Object(serde_json::Map::new());
-        let var_data = multi_source.get("variable_relationships").unwrap_or(&empty_object);
-        
+        let var_data = multi_source
+            .get("variable_relationships")
+            .unwrap_or(&empty_object);
+
         Ok(VariableRelationships {
             relationships: var_data
                 .get("variable_relationships")
@@ -602,79 +663,93 @@ impl DataNormalizer {
                 .unwrap_or_default(),
         })
     }
-    
+
     /// Normalize metadata
-    fn normalize_metadata(&self, multi_source: &HashMap<String, Value>) -> Result<AnalysisMetadata, NormalizationError> {
+    fn normalize_metadata(
+        &self,
+        multi_source: &HashMap<String, Value>,
+    ) -> Result<AnalysisMetadata, NormalizationError> {
         let memory_data = multi_source.get("memory_analysis");
         let metadata = memory_data.and_then(|data| data.get("metadata"));
-        
+
         Ok(AnalysisMetadata {
-            timestamp: self.extract_u64(metadata, "timestamp")
-                .unwrap_or_else(|| std::time::SystemTime::now()
+            timestamp: self.extract_u64(metadata, "timestamp").unwrap_or_else(|| {
+                std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_secs()),
-            export_version: self.extract_string(metadata, "export_version")
+                    .as_secs()
+            }),
+            export_version: self
+                .extract_string(metadata, "export_version")
                 .unwrap_or_else(|| "2.0".to_string()),
-            analysis_type: self.extract_string(metadata, "analysis_type")
+            analysis_type: self
+                .extract_string(metadata, "analysis_type")
                 .unwrap_or_else(|| "integrated_analysis".to_string()),
             data_integrity_hash: self.extract_string(metadata, "data_integrity_hash"),
         })
     }
-    
+
     /// Validate unified data structure
     fn validate_unified_data(&self, data: &UnifiedMemoryData) -> Result<(), NormalizationError> {
         // Basic validation checks
         if data.stats.active_memory > data.stats.peak_memory && data.stats.peak_memory > 0 {
             return Err(NormalizationError::ValidationError(
-                "Active memory cannot exceed peak memory".to_string()
+                "Active memory cannot exceed peak memory".to_string(),
             ));
         }
-        
-        if data.stats.active_allocations > data.stats.total_allocations && data.stats.total_allocations > 0 {
+
+        if data.stats.active_allocations > data.stats.total_allocations
+            && data.stats.total_allocations > 0
+        {
             return Err(NormalizationError::ValidationError(
-                "Active allocations cannot exceed total allocations".to_string()
+                "Active allocations cannot exceed total allocations".to_string(),
             ));
         }
-        
+
         // Validate allocation data consistency
-        let actual_active_count = data.allocations.iter()
+        let actual_active_count = data
+            .allocations
+            .iter()
             .filter(|alloc| alloc.timestamp_dealloc.is_none())
             .count();
-        
-        if actual_active_count != data.stats.active_allocations && data.stats.active_allocations > 0 {
-            println!("⚠️  Warning: Active allocation count mismatch (stats: {}, actual: {})", 
-                data.stats.active_allocations, actual_active_count);
+
+        if actual_active_count != data.stats.active_allocations && data.stats.active_allocations > 0
+        {
+            println!(
+                "⚠️  Warning: Active allocation count mismatch (stats: {}, actual: {})",
+                data.stats.active_allocations, actual_active_count
+            );
         }
-        
+
         println!("✅ Data validation passed");
         Ok(())
     }
-    
+
     // Helper methods for data extraction
-    
+
     fn extract_usize(&self, data: Option<&Value>, field: &str) -> Option<usize> {
         data?.get(field)?.as_u64().map(|v| v as usize)
     }
-    
+
     fn extract_u64(&self, data: Option<&Value>, field: &str) -> Option<u64> {
         data?.get(field)?.as_u64()
     }
-    
+
     fn extract_f64(&self, data: Option<&Value>, field: &str) -> Option<f64> {
         data?.get(field)?.as_f64()
     }
-    
+
     fn extract_bool(&self, data: Option<&Value>, field: &str) -> Option<bool> {
         data?.get(field)?.as_bool()
     }
-    
+
     fn extract_string(&self, data: Option<&Value>, field: &str) -> Option<String> {
         data?.get(field)?.as_str().map(|s| s.to_string())
     }
-    
+
     fn extract_string_array(&self, data: Option<&Value>, field: &str) -> Option<Vec<String>> {
-        data?.get(field)?
+        data?
+            .get(field)?
             .as_array()?
             .iter()
             .map(|v| v.as_str().map(|s| s.to_string()))

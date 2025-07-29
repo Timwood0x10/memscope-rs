@@ -28,10 +28,10 @@ pub struct ParallelShardConfig {
 impl Default for ParallelShardConfig {
     fn default() -> Self {
         Self {
-            shard_size: 1000,                    // Each shard contains 1000 allocations
-            parallel_threshold: 2000,            // Only enable parallel processing if the number of allocations exceeds 2000
-            max_threads: None,                   // Use system default number of threads
-            enable_monitoring: true,             // Enable performance monitoring
+            shard_size: 1000,                        // Each shard contains 1000 allocations
+            parallel_threshold: 2000, // Only enable parallel processing if the number of allocations exceeds 2000
+            max_threads: None,        // Use system default number of threads
+            enable_monitoring: true,  // Enable performance monitoring
             estimated_json_size_per_allocation: 200, // Estimated JSON size per allocation (for pre-allocation)
         }
     }
@@ -90,7 +90,10 @@ impl ParallelShardProcessor {
                 .num_threads(max_threads)
                 .build_global()
                 .unwrap_or_else(|e| {
-                    eprintln!("⚠️ Failed to set thread pool size to {}: {}", max_threads, e);
+                    eprintln!(
+                        "⚠️ Failed to set thread pool size to {}: {}",
+                        max_threads, e
+                    );
                 });
         }
 
@@ -132,9 +135,7 @@ impl ParallelShardProcessor {
         self.processed_count.store(0, Ordering::Relaxed);
 
         // Split data into shards
-        let shards: Vec<&[AllocationInfo]> = allocations
-            .chunks(self.config.shard_size)
-            .collect();
+        let shards: Vec<&[AllocationInfo]> = allocations.chunks(self.config.shard_size).collect();
 
         println!("   Shard count: {}", shards.len());
 
@@ -185,13 +186,15 @@ impl ParallelShardProcessor {
 
         // Use serde_json's efficient API to serialize directly to byte vector
         // This is more reliable than manual formatting and performs well
-        serde_json::to_writer(&mut output_buffer, shard)
-            .map_err(|e| TrackingError::ExportError(format!("分片 {} 序列化失败: {}", shard_index, e)))?;
+        serde_json::to_writer(&mut output_buffer, shard).map_err(|e| {
+            TrackingError::ExportError(format!("分片 {} 序列化失败: {}", shard_index, e))
+        })?;
 
         let processing_time = shard_start.elapsed();
 
         // Update processed counter
-        self.processed_count.fetch_add(shard.len(), Ordering::Relaxed);
+        self.processed_count
+            .fetch_add(shard.len(), Ordering::Relaxed);
 
         // If monitoring is enabled, print progress
         if self.config.enable_monitoring && shard_index % 10 == 0 {
@@ -224,7 +227,11 @@ impl ParallelShardProcessor {
     ) -> ParallelProcessingStats {
         let total_output_size: usize = shards.iter().map(|s| s.data.len()).sum();
         let avg_shard_time: f64 = if !shards.is_empty() {
-            shards.iter().map(|s| s.processing_time_ms as f64).sum::<f64>() / shards.len() as f64
+            shards
+                .iter()
+                .map(|s| s.processing_time_ms as f64)
+                .sum::<f64>()
+                / shards.len() as f64
         } else {
             0.0
         };
@@ -271,12 +278,24 @@ impl ParallelShardProcessor {
         println!("   Shard count: {}", stats.shard_count);
         println!("   Threads used: {}", stats.threads_used);
         println!("   Total time: {}ms", stats.total_processing_time_ms);
-        println!("   Average shard time: {:.2}ms", stats.avg_shard_processing_time_ms);
-        println!("   Throughput: {:.0} allocations/sec", stats.throughput_allocations_per_sec);
-        println!("   Output size: {:.2} MB", stats.total_output_size_bytes as f64 / 1024.0 / 1024.0);
-        
+        println!(
+            "   Average shard time: {:.2}ms",
+            stats.avg_shard_processing_time_ms
+        );
+        println!(
+            "   Throughput: {:.0} allocations/sec",
+            stats.throughput_allocations_per_sec
+        );
+        println!(
+            "   Output size: {:.2} MB",
+            stats.total_output_size_bytes as f64 / 1024.0 / 1024.0
+        );
+
         if stats.used_parallel_processing {
-            println!("   Parallel efficiency: {:.1}%", stats.parallel_efficiency * 100.0);
+            println!(
+                "   Parallel efficiency: {:.1}%",
+                stats.parallel_efficiency * 100.0
+            );
             let speedup = stats.parallel_efficiency * stats.threads_used as f64;
             println!("   Actual speedup: {:.2}x", speedup);
         }
@@ -324,8 +343,8 @@ pub fn process_allocations_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::{MemoryStats, ScopeInfo};
     use crate::analysis::unsafe_ffi_tracker::UnsafeFFIStats;
+    use crate::core::types::{MemoryStats, ScopeInfo};
     use std::time::Instant;
 
     fn create_test_data(allocation_count: usize) -> LocalizedExportData {
@@ -382,10 +401,10 @@ mod tests {
     fn test_small_dataset_sequential_processing() {
         let data = create_test_data(100); // Small dataset, should use sequential processing
         let processor = ParallelShardProcessor::default();
-        
+
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
-        
+
         let (shards, stats) = result.unwrap();
         assert_eq!(stats.total_allocations, 100);
         assert!(!stats.used_parallel_processing); // Should use sequential processing
@@ -396,15 +415,15 @@ mod tests {
     fn test_large_dataset_parallel_processing() {
         let data = create_test_data(5000); // Large dataset, should use parallel processing
         let processor = ParallelShardProcessor::default();
-        
+
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
-        
+
         let (shards, stats) = result.unwrap();
         assert_eq!(stats.total_allocations, 5000);
         assert!(stats.used_parallel_processing); // Should use parallel processing
         assert!(shards.len() > 1); // Should have multiple shards
-        
+
         // Verify that the total number of allocations processed equals the original data
         let total_processed: usize = shards.iter().map(|s| s.allocation_count).sum();
         assert_eq!(total_processed, 5000);
@@ -419,13 +438,13 @@ mod tests {
             enable_monitoring: false,
             estimated_json_size_per_allocation: 150,
         };
-        
+
         let data = create_test_data(2000);
         let processor = ParallelShardProcessor::new(config);
-        
+
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
-        
+
         let (shards, stats) = result.unwrap();
         assert_eq!(stats.total_allocations, 2000);
         assert_eq!(shards.len(), 4); // 2000 / 500 = 4 shards
@@ -434,11 +453,11 @@ mod tests {
     #[test]
     fn test_convenience_functions() {
         let data = create_test_data(1500);
-        
+
         // Test fast processing function
         let result = process_allocations_fast(&data);
         assert!(result.is_ok());
-        
+
         // Test custom configuration function
         let config = ParallelShardConfig {
             shard_size: 300,
@@ -446,7 +465,7 @@ mod tests {
         };
         let result = process_allocations_with_config(&data, config);
         assert!(result.is_ok());
-        
+
         let (shards, _) = result.unwrap();
         assert_eq!(shards.len(), 5); // 1500 / 300 = 5 shards
     }
@@ -455,20 +474,20 @@ mod tests {
     fn test_processed_shard_structure() {
         let data = create_test_data(100);
         let processor = ParallelShardProcessor::default();
-        
+
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
-        
+
         let (shards, _) = result.unwrap();
         assert_eq!(shards.len(), 1);
-        
+
         let shard = &shards[0];
         assert_eq!(shard.allocation_count, 100);
         assert_eq!(shard.shard_index, 0);
         assert!(!shard.data.is_empty());
         // processing_time_ms is u64, always >= 0, so just check it exists
         assert!(shard.processing_time_ms < u64::MAX);
-        
+
         // Verify that the JSON data is valid
         let parsed: Result<Vec<AllocationInfo>, _> = serde_json::from_slice(&shard.data);
         assert!(parsed.is_ok());

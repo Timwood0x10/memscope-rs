@@ -3,10 +3,10 @@
 //! This module provides comprehensive logging, debugging information,
 //! and performance monitoring for the HTML generation process.
 
-use std::time::Instant;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::fmt;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// Debug logging levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -61,7 +61,7 @@ impl TimingInfo {
             metadata: HashMap::new(),
         }
     }
-    
+
     /// Complete the timing measurement
     pub fn complete(&mut self) {
         let end_time = Instant::now();
@@ -69,12 +69,12 @@ impl TimingInfo {
         self.end_time = Some(end_time);
         self.duration_ms = Some(duration.as_millis() as u64);
     }
-    
+
     /// Add metadata to the timing info
     pub fn add_metadata(&mut self, key: String, value: String) {
         self.metadata.insert(key, value);
     }
-    
+
     /// Get duration in milliseconds
     pub fn get_duration_ms(&self) -> Option<u64> {
         self.duration_ms
@@ -110,7 +110,7 @@ impl ProgressInfo {
             start_time: Instant::now(),
         }
     }
-    
+
     /// Update progress to next step
     pub fn next_step(&mut self, operation: String, total_items: usize) {
         self.current_step += 1;
@@ -119,27 +119,27 @@ impl ProgressInfo {
         self.total_items = total_items;
         self.start_time = Instant::now();
     }
-    
+
     /// Update items processed in current step
     pub fn update_items(&mut self, processed: usize) {
         self.items_processed = processed;
     }
-    
+
     /// Get overall progress percentage
     pub fn get_overall_progress(&self) -> f64 {
         if self.total_steps == 0 {
             return 100.0;
         }
-        
+
         let step_progress = if self.total_items > 0 {
             self.items_processed as f64 / self.total_items as f64
         } else {
             1.0
         };
-        
+
         ((self.current_step as f64 + step_progress) / self.total_steps as f64) * 100.0
     }
-    
+
     /// Get current step progress percentage
     pub fn get_step_progress(&self) -> f64 {
         if self.total_items == 0 {
@@ -220,13 +220,13 @@ impl PerformanceStats {
         }
         (self.data_size_bytes as f64 / 1024.0 / 1024.0) / (self.total_time_ms as f64 / 1000.0)
     }
-    
+
     /// Get processing efficiency score (0-100)
     pub fn get_efficiency_score(&self) -> f64 {
         let base_score = 100.0;
         let error_penalty = (self.error_count as f64) * 10.0;
         let warning_penalty = (self.warning_count as f64) * 2.0;
-        
+
         (base_score - error_penalty - warning_penalty).max(0.0)
     }
 }
@@ -254,7 +254,7 @@ impl DebugLogger {
     pub fn new() -> Self {
         Self::with_config(DebugConfig::default())
     }
-    
+
     /// Create a new debug logger with custom configuration
     pub fn with_config(config: DebugConfig) -> Self {
         Self {
@@ -267,7 +267,7 @@ impl DebugLogger {
             last_progress_time: Arc::new(Mutex::new(Instant::now())),
         }
     }
-    
+
     /// Log a message at the specified level
     pub fn log(&self, level: LogLevel, message: &str) {
         if level <= self.config.log_level {
@@ -277,7 +277,7 @@ impl DebugLogger {
             } else {
                 String::new()
             };
-            
+
             let level_icon = match level {
                 LogLevel::Error => "❌",
                 LogLevel::Warn => "⚠️ ",
@@ -285,11 +285,11 @@ impl DebugLogger {
                 LogLevel::Debug => "🔍",
                 LogLevel::Trace => "🔎",
             };
-            
+
             println!("{}{} {} {}", timestamp, level_icon, level, message);
         }
     }
-    
+
     /// Log an error message
     pub fn error(&self, message: &str) {
         self.log(LogLevel::Error, message);
@@ -297,7 +297,7 @@ impl DebugLogger {
             stats.error_count += 1;
         }
     }
-    
+
     /// Log a warning message
     pub fn warn(&self, message: &str) {
         self.log(LogLevel::Warn, message);
@@ -305,57 +305,60 @@ impl DebugLogger {
             stats.warning_count += 1;
         }
     }
-    
+
     /// Log an info message
     pub fn info(&self, message: &str) {
         self.log(LogLevel::Info, message);
     }
-    
+
     /// Log a debug message
     pub fn debug(&self, message: &str) {
         self.log(LogLevel::Debug, message);
     }
-    
+
     /// Log a trace message
     pub fn trace(&self, message: &str) {
         self.log(LogLevel::Trace, message);
     }
-    
+
     /// Start timing an operation
     pub fn start_timing(&self, operation: &str) -> String {
         if !self.config.enable_timing {
             return operation.to_string();
         }
-        
+
         let timing_id = format!("{}_{}", operation, self.start_time.elapsed().as_millis());
         let timing_info = TimingInfo::new(operation.to_string());
-        
+
         if let Ok(mut timings) = self.active_timings.lock() {
             timings.insert(timing_id.clone(), timing_info);
         }
-        
+
         self.debug(&format!("Started timing: {}", operation));
         timing_id
     }
-    
+
     /// End timing an operation
     pub fn end_timing(&self, timing_id: &str) -> Option<u64> {
         if !self.config.enable_timing {
             return None;
         }
-        
+
         let duration = if let Ok(mut active) = self.active_timings.lock() {
             if let Some(mut timing) = active.remove(timing_id) {
                 timing.complete();
                 let duration = timing.get_duration_ms();
-                
-                self.debug(&format!("Completed timing: {} in {}ms", 
-                    timing.operation, duration.unwrap_or(0)));
-                
+
+                self.debug(&format!(
+                    "Completed timing: {} in {}ms",
+                    timing.operation,
+                    duration.unwrap_or(0)
+                ));
+
                 if let Ok(mut completed) = self.completed_timings.lock() {
                     completed.push(timing);
                 }
-                
+
                 duration
             } else {
                 None
@@ -363,46 +366,48 @@ impl DebugLogger {
         } else {
             None
         };
-        
+
         duration
     }
-    
+
     /// Start progress tracking
     pub fn start_progress(&self, total_steps: usize, initial_operation: &str) {
         if !self.config.enable_progress {
             return;
         }
-        
+
         let progress_info = ProgressInfo::new(total_steps, initial_operation.to_string());
-        
+
         if let Ok(mut progress) = self.progress.lock() {
             *progress = Some(progress_info);
         }
-        
+
         self.info(&format!("Started progress tracking: {} steps", total_steps));
     }
-    
+
     /// Update progress to next step
     pub fn next_progress_step(&self, operation: &str, total_items: usize) {
         if !self.config.enable_progress {
             return;
         }
-        
+
         if let Ok(mut progress) = self.progress.lock() {
             if let Some(ref mut prog) = *progress {
                 prog.next_step(operation.to_string(), total_items);
-                self.info(&format!("Progress: Step {}/{} - {}", 
-                    prog.current_step, prog.total_steps, operation));
+                self.info(&format!(
+                    "Progress: Step {}/{} - {}",
+                    prog.current_step, prog.total_steps, operation
+                ));
             }
         }
     }
-    
+
     /// Update items processed in current step
     pub fn update_progress_items(&self, processed: usize) {
         if !self.config.enable_progress {
             return;
         }
-        
+
         let should_report = if let Ok(mut last_time) = self.last_progress_time.lock() {
             let now = Instant::now();
             let elapsed = now.duration_since(*last_time);
@@ -415,56 +420,65 @@ impl DebugLogger {
         } else {
             false
         };
-        
+
         if let Ok(mut progress) = self.progress.lock() {
             if let Some(ref mut prog) = *progress {
                 prog.update_items(processed);
-                
+
                 if should_report {
                     let overall = prog.get_overall_progress();
                     let step = prog.get_step_progress();
-                    self.debug(&format!("Progress: {:.1}% overall, {:.1}% current step ({}/{})", 
-                        overall, step, prog.items_processed, prog.total_items));
+                    self.debug(&format!(
+                        "Progress: {:.1}% overall, {:.1}% current step ({}/{})",
+                        overall, step, prog.items_processed, prog.total_items
+                    ));
                 }
             }
         }
     }
-    
+
     /// Log file operation
     pub fn log_file_operation(&self, operation: &str, file_path: &str, size_bytes: Option<usize>) {
         if !self.config.enable_file_ops {
             return;
         }
-        
+
         let size_info = if let Some(size) = size_bytes {
             format!(" ({:.1} KB)", size as f64 / 1024.0)
         } else {
             String::new()
         };
-        
+
         self.debug(&format!("File {}: {}{}", operation, file_path, size_info));
     }
-    
+
     /// Log JSON processing details
-    pub fn log_json_processing(&self, file_type: &str, objects_count: usize, processing_time_ms: u64) {
+    pub fn log_json_processing(
+        &self,
+        file_type: &str,
+        objects_count: usize,
+        processing_time_ms: u64,
+    ) {
         if !self.config.enable_json_details {
             return;
         }
-        
-        self.debug(&format!("JSON processing: {} - {} objects in {}ms", 
-            file_type, objects_count, processing_time_ms));
+
+        self.debug(&format!(
+            "JSON processing: {} - {} objects in {}ms",
+            file_type, objects_count, processing_time_ms
+        ));
     }
-    
+
     /// Update performance statistics
-    pub fn update_stats<F>(&self, updater: F) 
-    where 
+    pub fn update_stats<F>(&self, updater: F)
+    where
         F: FnOnce(&mut PerformanceStats),
     {
         if let Ok(mut stats) = self.stats.lock() {
             updater(&mut *stats);
         }
     }
-    
+
     /// Get current performance statistics
     pub fn get_stats(&self) -> PerformanceStats {
         if let Ok(stats) = self.stats.lock() {
@@ -473,40 +487,59 @@ impl DebugLogger {
             PerformanceStats::default()
         }
     }
-    
+
     /// Print comprehensive performance report
     pub fn print_performance_report(&self) {
         if !self.config.enable_timing {
             return;
         }
-        
+
         let stats = self.get_stats();
         let total_elapsed = self.start_time.elapsed().as_millis() as u64;
-        
+
         println!("\n📊 Performance Report:");
         println!("   Total time: {}ms", total_elapsed);
-        println!("   Discovery: {}ms ({:.1}%)", 
-            stats.discovery_time_ms, 
-            (stats.discovery_time_ms as f64 / total_elapsed as f64) * 100.0);
-        println!("   Loading: {}ms ({:.1}%)", 
+        println!(
+            "   Discovery: {}ms ({:.1}%)",
+            stats.discovery_time_ms,
+            (stats.discovery_time_ms as f64 / total_elapsed as f64) * 100.0
+        );
+        println!(
+            "   Loading: {}ms ({:.1}%)",
             stats.loading_time_ms,
-            (stats.loading_time_ms as f64 / total_elapsed as f64) * 100.0);
-        println!("   Normalization: {}ms ({:.1}%)", 
+            (stats.loading_time_ms as f64 / total_elapsed as f64) * 100.0
+        );
+        println!(
+            "   Normalization: {}ms ({:.1}%)",
             stats.normalization_time_ms,
-            (stats.normalization_time_ms as f64 / total_elapsed as f64) * 100.0);
-        println!("   Integration: {}ms ({:.1}%)", 
+            (stats.normalization_time_ms as f64 / total_elapsed as f64) * 100.0
+        );
+        println!(
+            "   Integration: {}ms ({:.1}%)",
             stats.integration_time_ms,
-            (stats.integration_time_ms as f64 / total_elapsed as f64) * 100.0);
-        println!("   Template: {}ms ({:.1}%)", 
+            (stats.integration_time_ms as f64 / total_elapsed as f64) * 100.0
+        );
+        println!(
+            "   Template: {}ms ({:.1}%)",
             stats.template_time_ms,
-            (stats.template_time_ms as f64 / total_elapsed as f64) * 100.0);
-        
+            (stats.template_time_ms as f64 / total_elapsed as f64) * 100.0
+        );
+
         println!("\n📈 Processing Statistics:");
         println!("   Files processed: {}", stats.files_processed);
-        println!("   Data size: {:.1} MB", stats.data_size_bytes as f64 / 1024.0 / 1024.0);
-        println!("   Throughput: {:.1} MB/s", stats.get_throughput_mb_per_sec());
-        println!("   Efficiency score: {:.1}/100", stats.get_efficiency_score());
-        
+        println!(
+            "   Data size: {:.1} MB",
+            stats.data_size_bytes as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   Throughput: {:.1} MB/s",
+            stats.get_throughput_mb_per_sec()
+        );
+        println!(
+            "   Efficiency score: {:.1}/100",
+            stats.get_efficiency_score()
+        );
+
         if stats.error_count > 0 || stats.warning_count > 0 {
             println!("\n⚠️  Issues:");
             if stats.error_count > 0 {
@@ -516,7 +549,7 @@ impl DebugLogger {
                 println!("   Warnings: {}", stats.warning_count);
             }
         }
-        
+
         // Print detailed timing breakdown
         if let Ok(completed) = self.completed_timings.lock() {
             if !completed.is_empty() {
@@ -532,20 +565,24 @@ impl DebugLogger {
             }
         }
     }
-    
+
     /// Print memory usage information
     pub fn print_memory_info(&self) {
         if !self.config.enable_memory_tracking {
             return;
         }
-        
+
         let stats = self.get_stats();
         if stats.peak_memory_bytes > 0 {
             println!("\n💾 Memory Usage:");
-            println!("   Peak memory: {:.1} MB", stats.peak_memory_bytes as f64 / 1024.0 / 1024.0);
-            
+            println!(
+                "   Peak memory: {:.1} MB",
+                stats.peak_memory_bytes as f64 / 1024.0 / 1024.0
+            );
+
             if stats.data_size_bytes > 0 {
-                let memory_efficiency = (stats.data_size_bytes as f64 / stats.peak_memory_bytes as f64) * 100.0;
+                let memory_efficiency =
+                    (stats.data_size_bytes as f64 / stats.peak_memory_bytes as f64) * 100.0;
                 println!("   Memory efficiency: {:.1}%", memory_efficiency);
             }
         }
@@ -563,35 +600,35 @@ mod tests {
     use super::*;
     use std::thread;
     use std::time::Duration;
-    
+
     #[test]
     fn test_debug_logger_creation() {
         let logger = DebugLogger::new();
         assert_eq!(logger.config.log_level, LogLevel::Info);
         assert!(logger.config.enable_timing);
     }
-    
+
     #[test]
     fn test_timing_operations() {
         let logger = DebugLogger::new();
         let timing_id = logger.start_timing("test_operation");
-        
+
         // Simulate some work
         thread::sleep(Duration::from_millis(10));
-        
+
         let duration = logger.end_timing(&timing_id);
         assert!(duration.is_some());
         assert!(duration.unwrap() >= 10);
     }
-    
+
     #[test]
     fn test_progress_tracking() {
         let logger = DebugLogger::new();
         logger.start_progress(3, "Initial operation");
-        
+
         logger.next_progress_step("Step 1", 10);
         logger.update_progress_items(5);
-        
+
         {
             let progress = logger.progress.lock().unwrap();
             if let Some(ref prog) = *progress {
@@ -602,22 +639,22 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_performance_stats() {
         let logger = DebugLogger::new();
-        
+
         logger.update_stats(|stats| {
             stats.files_processed = 5;
             stats.data_size_bytes = 1024 * 1024; // 1MB
             stats.total_time_ms = 1000; // 1 second
         });
-        
+
         let stats = logger.get_stats();
         assert_eq!(stats.files_processed, 5);
         assert_eq!(stats.get_throughput_mb_per_sec(), 1.0);
     }
-    
+
     #[test]
     fn test_log_levels() {
         let config = DebugConfig {
@@ -625,7 +662,7 @@ mod tests {
             ..Default::default()
         };
         let logger = DebugLogger::with_config(config);
-        
+
         // These should not panic
         logger.error("Test error");
         logger.warn("Test warning");

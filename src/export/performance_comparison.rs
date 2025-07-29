@@ -2,13 +2,12 @@
 //!
 //! This module provides performance comparison analysis tools to show performance differences before and after optimization.
 
-
 use crate::core::types::TrackingResult;
 use crate::export::performance_testing::PerformanceTestResult;
 
 use std::collections::HashMap;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Performance comparison report
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,167 +28,167 @@ pub struct PerformanceComparisonReport {
     pub detailed_comparisons: Vec<DetailedComparison>,
 }
 
-/// 测试配置
+/// Test configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestConfiguration {
     /// Test dataset sizes
     pub dataset_sizes: Vec<usize>,
-    /// 测试迭代次数
+    /// Test iterations
     pub iterations: usize,
-    /// 测试环境信息
+    /// Environment information
     pub environment_info: EnvironmentInfo,
 }
 
-/// 环境信息
+/// Environment information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvironmentInfo {
-    /// CPU 信息
+    /// CPU information
     pub cpu_info: String,
-    /// 内存大小
+    /// Memory size
     pub memory_size_mb: usize,
-    /// 操作系统
+    /// OS information
     pub os_info: String,
-    /// Rust 版本
+    /// Rust version
     pub rust_version: String,
 }
 
-/// 对比分析
+/// Comparison analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComparisonAnalysis {
-    /// 平均性能提升倍数
+    /// Average performance improvement
     pub average_performance_improvement: f64,
-    /// 内存使用改善
+    /// Memory usage improvement
     pub memory_usage_improvement: f64,
-    /// 吞吐量提升
+    /// Throughput improvement
     pub throughput_improvement: f64,
-    /// 稳定性分析
+    /// Stability analysis
     pub stability_analysis: StabilityAnalysis,
-    /// 扩展性分析
+    /// Scalability analysis
     pub scalability_analysis: ScalabilityAnalysis,
 }
 
-/// 稳定性分析
+/// Stability analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StabilityAnalysis {
-    /// 基准测试标准差
+    /// Baseline standard deviation
     pub baseline_std_deviation: f64,
-    /// 优化后标准差
+    /// Optimized standard deviation
     pub optimized_std_deviation: f64,
-    /// 稳定性改善程度
+    /// Stability improvement
     pub stability_improvement: f64,
-    /// 一致性评分 (0-100)
+    /// Consistency score (0-100)
     pub consistency_score: f64,
 }
 
-/// 扩展性分析
+/// Scalability analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScalabilityAnalysis {
-    /// 数据量扩展性
+    /// Data scalability
     pub data_scalability: f64,
-    /// 线程扩展性
+    /// Thread scalability
     pub thread_scalability: f64,
-    /// 内存扩展性
+    /// Memory scalability
     pub memory_scalability: f64,
-    /// 扩展性评分 (0-100)
+    /// Scalability score (0-100)
     pub scalability_score: f64,
 }
 
-/// 性能提升摘要
+/// Improvement summary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImprovementSummary {
-    /// 最佳性能提升
+    /// Best improvement
     pub best_improvement: f64,
-    /// 最差性能提升
+    /// Worst improvement
     pub worst_improvement: f64,
-    /// 平均性能提升
+    /// Average improvement
     pub average_improvement: f64,
-    /// 提升一致性
+    /// Improvement consistency
     pub improvement_consistency: f64,
-    /// 关键指标改善
+    /// Key metrics improvement
     pub key_metrics: KeyMetricsImprovement,
 }
 
-/// 关键指标改善
+/// Key metrics improvement
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyMetricsImprovement {
-    /// 导出时间改善 (%)
+    /// Export time improvement (%)
     pub export_time_improvement_percent: f64,
-    /// 内存使用改善 (%)
+    /// Memory usage improvement (%)
     pub memory_usage_improvement_percent: f64,
-    /// 吞吐量改善 (%)
+    /// Throughput improvement (%)
     pub throughput_improvement_percent: f64,
-    /// CPU 利用率改善 (%)
+    /// CPU utilization improvement (%)
     pub cpu_utilization_improvement_percent: f64,
 }
 
-/// 详细对比数据
+/// Detailed comparison data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetailedComparison {
     /// Dataset size
     pub dataset_size: usize,
-    /// 基准性能
+    /// Baseline performance
     pub baseline_performance: PerformanceMetrics,
-    /// 优化后性能
+    /// Optimized performance
     pub optimized_performance: PerformanceMetrics,
-    /// 改善指标
+    /// Improvement metrics
     pub improvements: ImprovementMetrics,
-    /// 统计显著性
+    /// Statistical significance
     pub statistical_significance: StatisticalSignificance,
 }
 
-/// 性能指标
+/// Performance metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceMetrics {
-    /// 平均导出时间 (ms)
+    /// Average export time (ms)
     pub avg_export_time_ms: f64,
-    /// 导出时间标准差
+    /// Export time standard deviation
     pub export_time_std_dev: f64,
-    /// 平均内存使用 (MB)
+    /// Average memory usage (MB)
     pub avg_memory_usage_mb: f64,
-    /// 平均吞吐量 (分配/秒)
+    /// Average throughput (allocations/second)
     pub avg_throughput: f64,
-    /// 成功率 (%)
+    /// Success rate (%)
     pub success_rate_percent: f64,
 }
 
-/// 改善指标
+/// Improvement metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImprovementMetrics {
-    /// 时间改善倍数
+    /// Time improvement factor
     pub time_improvement_factor: f64,
-    /// 内存改善倍数
+    /// Memory improvement factor
     pub memory_improvement_factor: f64,
-    /// 吞吐量改善倍数
+    /// Throughput improvement factor
     pub throughput_improvement_factor: f64,
-    /// 整体改善评分 (0-100)
+    /// Overall improvement score (0-100)
     pub overall_improvement_score: f64,
 }
 
-/// 统计显著性
+/// Statistical significance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatisticalSignificance {
-    /// p 值
+    /// p value
     pub p_value: f64,
-    /// 是否显著
+    /// Whether significant
     pub is_significant: bool,
-    /// 置信区间
+    /// Confidence interval
     pub confidence_interval: (f64, f64),
-    /// 效应大小
+    /// Effect size
     pub effect_size: f64,
 }
 
-/// 性能对比工具
+/// Performance comparator
 pub struct PerformanceComparator {
-    /// 基准测试结果
+    /// Baseline test results
     baseline_results: Vec<PerformanceTestResult>,
-    /// 优化后测试结果
+    /// Optimized test results
     optimized_results: Vec<PerformanceTestResult>,
-    /// 测试配置
+    /// Test configuration
     test_config: TestConfiguration,
 }
 
 impl PerformanceComparator {
-    /// 创建新的性能对比工具
+    /// Create new performance comparator
     pub fn new() -> Self {
         Self {
             baseline_results: Vec::new(),
@@ -198,25 +197,27 @@ impl PerformanceComparator {
         }
     }
 
-    /// 添加基准测试结果
+    /// Add baseline test result
     pub fn add_baseline_result(&mut self, result: PerformanceTestResult) {
         self.baseline_results.push(result);
     }
 
-    /// 添加优化后测试结果
+    /// Add optimized test result
     pub fn add_optimized_result(&mut self, result: PerformanceTestResult) {
         self.optimized_results.push(result);
     }
 
-    /// 设置测试配置
+    /// Set test configuration
     pub fn set_test_configuration(&mut self, config: TestConfiguration) {
         self.test_config = config;
     }
 
-    /// 生成性能对比报告
+    /// Generate performance comparison report
     pub fn generate_comparison_report(&self) -> TrackingResult<PerformanceComparisonReport> {
         if self.baseline_results.is_empty() || self.optimized_results.is_empty() {
-            return Err(crate::core::types::TrackingError::IoError("需要基准测试和优化后测试结果".to_string()));
+            return Err(crate::core::types::TrackingError::IoError(
+                "need baseline and optimized results".to_string(),
+            ));
         }
 
         let comparison_analysis = self.analyze_performance_comparison();
@@ -237,15 +238,18 @@ impl PerformanceComparator {
         })
     }
 
-    /// 分析性能对比
+    /// Analyze performance comparison
     fn analyze_performance_comparison(&self) -> ComparisonAnalysis {
         let performance_improvements: Vec<f64> = self.calculate_performance_improvements();
         let memory_improvements: Vec<f64> = self.calculate_memory_improvements();
         let throughput_improvements: Vec<f64> = self.calculate_throughput_improvements();
 
-        let average_performance_improvement = performance_improvements.iter().sum::<f64>() / performance_improvements.len() as f64;
-        let memory_usage_improvement = memory_improvements.iter().sum::<f64>() / memory_improvements.len() as f64;
-        let throughput_improvement = throughput_improvements.iter().sum::<f64>() / throughput_improvements.len() as f64;
+        let average_performance_improvement =
+            performance_improvements.iter().sum::<f64>() / performance_improvements.len() as f64;
+        let memory_usage_improvement =
+            memory_improvements.iter().sum::<f64>() / memory_improvements.len() as f64;
+        let throughput_improvement =
+            throughput_improvements.iter().sum::<f64>() / throughput_improvements.len() as f64;
 
         let stability_analysis = self.analyze_stability();
         let scalability_analysis = self.analyze_scalability();
@@ -259,19 +263,27 @@ impl PerformanceComparator {
         }
     }
 
-    /// 计算性能改善
+    /// Calculate performance improvements
     fn calculate_performance_improvements(&self) -> Vec<f64> {
         let mut improvements = Vec::new();
-        
-        // 按数据集大小分组对比
+
+        // Group results by dataset size
         let baseline_by_size = self.group_results_by_size(&self.baseline_results);
         let optimized_by_size = self.group_results_by_size(&self.optimized_results);
 
         for (size, baseline_group) in baseline_by_size {
             if let Some(optimized_group) = optimized_by_size.get(&size) {
-                let baseline_avg = baseline_group.iter().map(|r| r.export_time_ms as f64).sum::<f64>() / baseline_group.len() as f64;
-                let optimized_avg = optimized_group.iter().map(|r| r.export_time_ms as f64).sum::<f64>() / optimized_group.len() as f64;
-                
+                let baseline_avg = baseline_group
+                    .iter()
+                    .map(|r| r.export_time_ms as f64)
+                    .sum::<f64>()
+                    / baseline_group.len() as f64;
+                let optimized_avg = optimized_group
+                    .iter()
+                    .map(|r| r.export_time_ms as f64)
+                    .sum::<f64>()
+                    / optimized_group.len() as f64;
+
                 if optimized_avg > 0.0 {
                     improvements.push(baseline_avg / optimized_avg);
                 }
@@ -281,18 +293,23 @@ impl PerformanceComparator {
         improvements
     }
 
-    /// 计算内存改善
+    /// Calculate memory improvements
     fn calculate_memory_improvements(&self) -> Vec<f64> {
         let mut improvements = Vec::new();
-        
+
         let baseline_by_size = self.group_results_by_size(&self.baseline_results);
         let optimized_by_size = self.group_results_by_size(&self.optimized_results);
 
         for (size, baseline_group) in baseline_by_size {
             if let Some(optimized_group) = optimized_by_size.get(&size) {
-                let baseline_avg = baseline_group.iter().map(|r| r.peak_memory_mb).sum::<f64>() / baseline_group.len() as f64;
-                let optimized_avg = optimized_group.iter().map(|r| r.peak_memory_mb).sum::<f64>() / optimized_group.len() as f64;
-                
+                let baseline_avg = baseline_group.iter().map(|r| r.peak_memory_mb).sum::<f64>()
+                    / baseline_group.len() as f64;
+                let optimized_avg = optimized_group
+                    .iter()
+                    .map(|r| r.peak_memory_mb)
+                    .sum::<f64>()
+                    / optimized_group.len() as f64;
+
                 if optimized_avg > 0.0 {
                     improvements.push(baseline_avg / optimized_avg);
                 }
@@ -302,18 +319,26 @@ impl PerformanceComparator {
         improvements
     }
 
-    /// 计算吞吐量改善
+    /// Calculate throughput improvements
     fn calculate_throughput_improvements(&self) -> Vec<f64> {
         let mut improvements = Vec::new();
-        
+
         let baseline_by_size = self.group_results_by_size(&self.baseline_results);
         let optimized_by_size = self.group_results_by_size(&self.optimized_results);
 
         for (size, baseline_group) in baseline_by_size {
             if let Some(optimized_group) = optimized_by_size.get(&size) {
-                let baseline_avg = baseline_group.iter().map(|r| r.throughput_allocations_per_sec).sum::<f64>() / baseline_group.len() as f64;
-                let optimized_avg = optimized_group.iter().map(|r| r.throughput_allocations_per_sec).sum::<f64>() / optimized_group.len() as f64;
-                
+                let baseline_avg = baseline_group
+                    .iter()
+                    .map(|r| r.throughput_allocations_per_sec)
+                    .sum::<f64>()
+                    / baseline_group.len() as f64;
+                let optimized_avg = optimized_group
+                    .iter()
+                    .map(|r| r.throughput_allocations_per_sec)
+                    .sum::<f64>()
+                    / optimized_group.len() as f64;
+
                 if baseline_avg > 0.0 {
                     improvements.push(optimized_avg / baseline_avg);
                 }
@@ -323,21 +348,35 @@ impl PerformanceComparator {
         improvements
     }
 
-    /// 按数据集大小分组结果
-    fn group_results_by_size<'a>(&self, results: &'a [PerformanceTestResult]) -> HashMap<usize, Vec<&'a PerformanceTestResult>> {
+    /// Group results by dataset size
+    fn group_results_by_size<'a>(
+        &self,
+        results: &'a [PerformanceTestResult],
+    ) -> HashMap<usize, Vec<&'a PerformanceTestResult>> {
         let mut grouped = HashMap::new();
-        
+
         for result in results {
-            grouped.entry(result.dataset_size).or_insert_with(Vec::new).push(result);
+            grouped
+                .entry(result.dataset_size)
+                .or_insert_with(Vec::new)
+                .push(result);
         }
-        
+
         grouped
     }
 
-    /// 分析稳定性
+    /// Analyze stability
     fn analyze_stability(&self) -> StabilityAnalysis {
-        let baseline_times: Vec<f64> = self.baseline_results.iter().map(|r| r.export_time_ms as f64).collect();
-        let optimized_times: Vec<f64> = self.optimized_results.iter().map(|r| r.export_time_ms as f64).collect();
+        let baseline_times: Vec<f64> = self
+            .baseline_results
+            .iter()
+            .map(|r| r.export_time_ms as f64)
+            .collect();
+        let optimized_times: Vec<f64> = self
+            .optimized_results
+            .iter()
+            .map(|r| r.export_time_ms as f64)
+            .collect();
 
         let baseline_std_deviation = self.calculate_standard_deviation(&baseline_times);
         let optimized_std_deviation = self.calculate_standard_deviation(&optimized_times);
@@ -358,13 +397,14 @@ impl PerformanceComparator {
         }
     }
 
-    /// 分析扩展性
+    /// Analyze scalability
     fn analyze_scalability(&self) -> ScalabilityAnalysis {
         let data_scalability = self.calculate_data_scalability();
         let thread_scalability = self.calculate_thread_scalability();
         let memory_scalability = self.calculate_memory_scalability();
 
-        let scalability_score = (data_scalability + thread_scalability + memory_scalability) / 3.0 * 100.0;
+        let scalability_score =
+            (data_scalability + thread_scalability + memory_scalability) / 3.0 * 100.0;
 
         ScalabilityAnalysis {
             data_scalability,
@@ -374,9 +414,9 @@ impl PerformanceComparator {
         }
     }
 
-    /// 计算数据扩展性
+    /// Calculate data scalability
     fn calculate_data_scalability(&self) -> f64 {
-        // 分析性能随数据量增长的变化
+        // Analyze performance changes with data size growth
         let baseline_by_size = self.group_results_by_size(&self.baseline_results);
         let optimized_by_size = self.group_results_by_size(&self.optimized_results);
 
@@ -407,15 +447,15 @@ impl PerformanceComparator {
         scalability_ratios.iter().sum::<f64>() / scalability_ratios.len().max(1) as f64
     }
 
-    /// 计算线程扩展性
+    /// Calculate thread scalability
     fn calculate_thread_scalability(&self) -> f64 {
-        // 简化实现 - 基于配置参数分析
-        0.8 // 假设良好的线程扩展性
+        // Simplified implementation - based on configuration parameters analysis
+        0.8 // Assuming good thread scalability
     }
 
-    /// 计算内存扩展性
+    /// Calculate memory scalability
     fn calculate_memory_scalability(&self) -> f64 {
-        // 分析内存使用随数据量增长的变化
+        // Analyze memory usage changes with data size growth
         let baseline_by_size = self.group_results_by_size(&self.baseline_results);
         let optimized_by_size = self.group_results_by_size(&self.optimized_results);
 
@@ -434,7 +474,8 @@ impl PerformanceComparator {
                 optimized_by_size.get(&prev_size),
                 optimized_by_size.get(&curr_size),
             ) {
-                let baseline_ratio = self.avg_memory(baseline_curr) / self.avg_memory(baseline_prev);
+                let baseline_ratio =
+                    self.avg_memory(baseline_curr) / self.avg_memory(baseline_prev);
                 let optimized_ratio = self.avg_memory(opt_curr) / self.avg_memory(opt_prev);
 
                 if baseline_ratio > 0.0 {
@@ -446,17 +487,17 @@ impl PerformanceComparator {
         memory_ratios.iter().sum::<f64>() / memory_ratios.len().max(1) as f64
     }
 
-    /// 计算平均时间
+    /// Calculate average time
     fn avg_time(&self, results: &[&PerformanceTestResult]) -> f64 {
         results.iter().map(|r| r.export_time_ms as f64).sum::<f64>() / results.len() as f64
     }
 
-    /// 计算平均内存
+    /// Calculate average memory
     fn avg_memory(&self, results: &[&PerformanceTestResult]) -> f64 {
         results.iter().map(|r| r.peak_memory_mb).sum::<f64>() / results.len() as f64
     }
 
-    /// 计算标准差
+    /// Calculate standard deviation
     fn calculate_standard_deviation(&self, values: &[f64]) -> f64 {
         if values.is_empty() {
             return 0.0;
@@ -467,12 +508,16 @@ impl PerformanceComparator {
         variance.sqrt()
     }
 
-    /// 计算一致性评分
+    /// Calculate consistency score
     fn calculate_consistency_score(&self, baseline: &[f64], optimized: &[f64]) -> f64 {
         let baseline_cv = if !baseline.is_empty() {
             let mean = baseline.iter().sum::<f64>() / baseline.len() as f64;
             let std_dev = self.calculate_standard_deviation(baseline);
-            if mean > 0.0 { std_dev / mean } else { 0.0 }
+            if mean > 0.0 {
+                std_dev / mean
+            } else {
+                0.0
+            }
         } else {
             0.0
         };
@@ -480,12 +525,16 @@ impl PerformanceComparator {
         let optimized_cv = if !optimized.is_empty() {
             let mean = optimized.iter().sum::<f64>() / optimized.len() as f64;
             let std_dev = self.calculate_standard_deviation(optimized);
-            if mean > 0.0 { std_dev / mean } else { 0.0 }
+            if mean > 0.0 {
+                std_dev / mean
+            } else {
+                0.0
+            }
         } else {
             0.0
         };
 
-        // 一致性评分：变异系数越小，一致性越好
+        // Consistency score: smaller CV indicates better consistency
         let improvement = if baseline_cv > 0.0 {
             (baseline_cv - optimized_cv) / baseline_cv
         } else {
@@ -495,14 +544,15 @@ impl PerformanceComparator {
         (improvement * 100.0).max(0.0).min(100.0)
     }
 
-    /// 计算改善摘要
+    /// Calculate improvement summary
     fn calculate_improvement_summary(&self) -> ImprovementSummary {
         let improvements = self.calculate_performance_improvements();
-        
+
         let best_improvement = improvements.iter().fold(0.0f64, |a, &b| a.max(b));
         let worst_improvement = improvements.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let average_improvement = improvements.iter().sum::<f64>() / improvements.len().max(1) as f64;
-        
+        let average_improvement =
+            improvements.iter().sum::<f64>() / improvements.len().max(1) as f64;
+
         let improvement_consistency = self.calculate_standard_deviation(&improvements);
 
         let key_metrics = self.calculate_key_metrics_improvement();
@@ -516,28 +566,36 @@ impl PerformanceComparator {
         }
     }
 
-    /// 计算关键指标改善
+    /// Calculate key metrics improvement
     fn calculate_key_metrics_improvement(&self) -> KeyMetricsImprovement {
         let time_improvements = self.calculate_performance_improvements();
         let memory_improvements = self.calculate_memory_improvements();
         let throughput_improvements = self.calculate_throughput_improvements();
 
-        let export_time_improvement_percent = (time_improvements.iter().sum::<f64>() / time_improvements.len().max(1) as f64 - 1.0) * 100.0;
-        let memory_usage_improvement_percent = (memory_improvements.iter().sum::<f64>() / memory_improvements.len().max(1) as f64 - 1.0) * 100.0;
-        let throughput_improvement_percent = (throughput_improvements.iter().sum::<f64>() / throughput_improvements.len().max(1) as f64 - 1.0) * 100.0;
+        let export_time_improvement_percent =
+            (time_improvements.iter().sum::<f64>() / time_improvements.len().max(1) as f64 - 1.0)
+                * 100.0;
+        let memory_usage_improvement_percent = (memory_improvements.iter().sum::<f64>()
+            / memory_improvements.len().max(1) as f64
+            - 1.0)
+            * 100.0;
+        let throughput_improvement_percent = (throughput_improvements.iter().sum::<f64>()
+            / throughput_improvements.len().max(1) as f64
+            - 1.0)
+            * 100.0;
 
         KeyMetricsImprovement {
             export_time_improvement_percent,
             memory_usage_improvement_percent,
             throughput_improvement_percent,
-            cpu_utilization_improvement_percent: 15.0, // 简化实现
+            cpu_utilization_improvement_percent: 15.0, // Simplified implementation
         }
     }
 
-    /// 生成详细对比
+    /// Generate detailed comparisons
     fn generate_detailed_comparisons(&self) -> Vec<DetailedComparison> {
         let mut comparisons = Vec::new();
-        
+
         let baseline_by_size = self.group_results_by_size(&self.baseline_results);
         let optimized_by_size = self.group_results_by_size(&self.optimized_results);
 
@@ -545,8 +603,10 @@ impl PerformanceComparator {
             if let Some(optimized_group) = optimized_by_size.get(&size) {
                 let baseline_metrics = self.calculate_performance_metrics(&baseline_group);
                 let optimized_metrics = self.calculate_performance_metrics(&optimized_group);
-                let improvements = self.calculate_improvement_metrics(&baseline_metrics, &optimized_metrics);
-                let significance = self.calculate_statistical_significance(&baseline_group, &optimized_group);
+                let improvements =
+                    self.calculate_improvement_metrics(&baseline_metrics, &optimized_metrics);
+                let significance =
+                    self.calculate_statistical_significance(&baseline_group, &optimized_group);
 
                 comparisons.push(DetailedComparison {
                     dataset_size: size,
@@ -562,17 +622,24 @@ impl PerformanceComparator {
         comparisons
     }
 
-    /// 计算性能指标
-    fn calculate_performance_metrics(&self, results: &[&PerformanceTestResult]) -> PerformanceMetrics {
+    /// Calculate performance metrics
+    fn calculate_performance_metrics(
+        &self,
+        results: &[&PerformanceTestResult],
+    ) -> PerformanceMetrics {
         let times: Vec<f64> = results.iter().map(|r| r.export_time_ms as f64).collect();
         let memories: Vec<f64> = results.iter().map(|r| r.peak_memory_mb).collect();
-        let throughputs: Vec<f64> = results.iter().map(|r| r.throughput_allocations_per_sec).collect();
+        let throughputs: Vec<f64> = results
+            .iter()
+            .map(|r| r.throughput_allocations_per_sec)
+            .collect();
 
         let avg_export_time_ms = times.iter().sum::<f64>() / times.len() as f64;
         let export_time_std_dev = self.calculate_standard_deviation(&times);
         let avg_memory_usage_mb = memories.iter().sum::<f64>() / memories.len() as f64;
         let avg_throughput = throughputs.iter().sum::<f64>() / throughputs.len() as f64;
-        let success_rate_percent = results.iter().filter(|r| r.success).count() as f64 / results.len() as f64 * 100.0;
+        let success_rate_percent =
+            results.iter().filter(|r| r.success).count() as f64 / results.len() as f64 * 100.0;
 
         PerformanceMetrics {
             avg_export_time_ms,
@@ -583,8 +650,12 @@ impl PerformanceComparator {
         }
     }
 
-    /// 计算改善指标
-    fn calculate_improvement_metrics(&self, baseline: &PerformanceMetrics, optimized: &PerformanceMetrics) -> ImprovementMetrics {
+    /// Calculate improvement metrics
+    fn calculate_improvement_metrics(
+        &self,
+        baseline: &PerformanceMetrics,
+        optimized: &PerformanceMetrics,
+    ) -> ImprovementMetrics {
         let time_improvement_factor = if optimized.avg_export_time_ms > 0.0 {
             baseline.avg_export_time_ms / optimized.avg_export_time_ms
         } else {
@@ -603,7 +674,10 @@ impl PerformanceComparator {
             1.0
         };
 
-        let overall_improvement_score = (time_improvement_factor + memory_improvement_factor + throughput_improvement_factor) / 3.0 * 20.0;
+        let overall_improvement_score =
+            (time_improvement_factor + memory_improvement_factor + throughput_improvement_factor)
+                / 3.0
+                * 20.0;
 
         ImprovementMetrics {
             time_improvement_factor,
@@ -613,9 +687,13 @@ impl PerformanceComparator {
         }
     }
 
-    /// 计算统计显著性
-    fn calculate_statistical_significance(&self, baseline: &[&PerformanceTestResult], optimized: &[&PerformanceTestResult]) -> StatisticalSignificance {
-        // 简化的统计显著性计算
+    /// Calculate statistical significance
+    fn calculate_statistical_significance(
+        &self,
+        baseline: &[&PerformanceTestResult],
+        optimized: &[&PerformanceTestResult],
+    ) -> StatisticalSignificance {
+        // Simplified statistical significance calculation
         let baseline_times: Vec<f64> = baseline.iter().map(|r| r.export_time_ms as f64).collect();
         let optimized_times: Vec<f64> = optimized.iter().map(|r| r.export_time_ms as f64).collect();
 
@@ -625,16 +703,20 @@ impl PerformanceComparator {
         let baseline_std = self.calculate_standard_deviation(&baseline_times);
         let optimized_std = self.calculate_standard_deviation(&optimized_times);
 
-        // 简化的 t 检验
+        // Simplified t-test
         let pooled_std = ((baseline_std.powi(2) + optimized_std.powi(2)) / 2.0).sqrt();
-        let t_statistic = (baseline_mean - optimized_mean) / (pooled_std * (2.0_f64 / baseline_times.len() as f64).sqrt());
+        let t_statistic = (baseline_mean - optimized_mean)
+            / (pooled_std * (2.0_f64 / baseline_times.len() as f64).sqrt());
 
-        let p_value = if t_statistic.abs() > 2.0 { 0.05 } else { 0.1 }; // 简化
+        let p_value = if t_statistic.abs() > 2.0 { 0.05 } else { 0.1 }; // Simplified
         let is_significant = p_value < 0.05;
 
         let effect_size = (baseline_mean - optimized_mean) / pooled_std;
         let margin_of_error = 1.96 * pooled_std / (baseline_times.len() as f64).sqrt();
-        let confidence_interval = (baseline_mean - margin_of_error, baseline_mean + margin_of_error);
+        let confidence_interval = (
+            baseline_mean - margin_of_error,
+            baseline_mean + margin_of_error,
+        );
 
         StatisticalSignificance {
             p_value,
@@ -644,52 +726,88 @@ impl PerformanceComparator {
         }
     }
 
-    /// 打印对比报告
+    /// Print comparison report
     pub fn print_comparison_report(&self, report: &PerformanceComparisonReport) {
-        println!("\n📊 性能对比报告");
+        println!("\n📊 Performance comparison report");
         println!("================");
-        println!("生成时间: {:?}", report.generated_at);
-        
-        println!("\n🚀 性能提升摘要:");
-        println!("  平均性能提升: {:.2}x", report.improvement_summary.average_improvement);
-        println!("  最佳性能提升: {:.2}x", report.improvement_summary.best_improvement);
-        println!("  最差性能提升: {:.2}x", report.improvement_summary.worst_improvement);
-        
-        println!("\n📈 关键指标改善:");
+        println!("Generated at: {:?}", report.generated_at);
+
+        println!("\n🚀 Performance improvement summary:");
+        println!(
+            "  Average performance improvement: {:.2}x",
+            report.improvement_summary.average_improvement
+        );
+        println!(
+            "  Best performance improvement: {:.2}x",
+            report.improvement_summary.best_improvement
+        );
+        println!(
+            "  Worst performance improvement: {:.2}x",
+            report.improvement_summary.worst_improvement
+        );
+
+        println!("\n📈 Key metrics improvement:");
         let metrics = &report.improvement_summary.key_metrics;
-        println!("  导出时间改善: {:.1}%", metrics.export_time_improvement_percent);
-        println!("  内存使用改善: {:.1}%", metrics.memory_usage_improvement_percent);
-        println!("  吞吐量改善: {:.1}%", metrics.throughput_improvement_percent);
-        println!("  CPU 利用率改善: {:.1}%", metrics.cpu_utilization_improvement_percent);
+        println!(
+            "  Export time improvement: {:.1}%",
+            metrics.export_time_improvement_percent
+        );
+        println!(
+            "  Memory usage improvement: {:.1}%",
+            metrics.memory_usage_improvement_percent
+        );
+        println!(
+            "  Throughput improvement: {:.1}%",
+            metrics.throughput_improvement_percent
+        );
+        println!(
+            "  CPU utilization improvement: {:.1}%",
+            metrics.cpu_utilization_improvement_percent
+        );
 
-        println!("\n📊 稳定性分析:");
+        println!("\n📊 Stability analysis:");
         let stability = &report.comparison_analysis.stability_analysis;
-        println!("  稳定性改善: {:.1}%", stability.stability_improvement * 100.0);
-        println!("  一致性评分: {:.1}/100", stability.consistency_score);
+        println!(
+            "  Stability improvement: {:.1}%",
+            stability.stability_improvement * 100.0
+        );
+        println!("  Consistency score: {:.1}/100", stability.consistency_score);
 
-        println!("\n📈 扩展性分析:");
+        println!("\n📈 Scalability analysis:");
         let scalability = &report.comparison_analysis.scalability_analysis;
-        println!("  数据扩展性: {:.2}", scalability.data_scalability);
-        println!("  扩展性评分: {:.1}/100", scalability.scalability_score);
+        println!("  Data scalability: {:.2}", scalability.data_scalability);
+        println!("  Scalability score: {:.1}/100", scalability.scalability_score);
 
-        println!("\n📋 详细对比:");
+        println!("\n📋 Detailed comparison:");
         for comparison in &report.detailed_comparisons {
-            println!("  数据集大小: {}", comparison.dataset_size);
-            println!("    基准性能: {:.1}ms, {:.2}MB, {:.0} 分配/秒", 
+            println!("  Dataset size: {}", comparison.dataset_size);
+            println!(
+                "    Baseline performance: {:.1}ms, {:.2}MB, {:.0} 分配/秒",
                 comparison.baseline_performance.avg_export_time_ms,
                 comparison.baseline_performance.avg_memory_usage_mb,
-                comparison.baseline_performance.avg_throughput);
-            println!("    优化性能: {:.1}ms, {:.2}MB, {:.0} 分配/秒", 
+                comparison.baseline_performance.avg_throughput
+            );
+            println!(
+                "    Optimized performance: {:.1}ms, {:.2}MB, {:.0} 分配/秒",
                 comparison.optimized_performance.avg_export_time_ms,
                 comparison.optimized_performance.avg_memory_usage_mb,
-                comparison.optimized_performance.avg_throughput);
-            println!("    改善倍数: {:.2}x 时间, {:.2}x 内存, {:.2}x 吞吐量", 
+                comparison.optimized_performance.avg_throughput
+            );
+            println!(
+                "    Improvement factor: {:.2}x time, {:.2}x memory, {:.2}x throughput",
                 comparison.improvements.time_improvement_factor,
                 comparison.improvements.memory_improvement_factor,
-                comparison.improvements.throughput_improvement_factor);
-            println!("    统计显著性: {} (p={:.3})", 
-                if comparison.statistical_significance.is_significant { "显著" } else { "不显著" },
-                comparison.statistical_significance.p_value);
+                comparison.improvements.throughput_improvement_factor
+            );
+            println!(
+                "    Statistical significance: {} (p={:.3})",
+                if comparison.statistical_significance.is_significant {
+                    "significant"
+                } else {
+                    "not significant"
+                },
+                comparison.statistical_significance.p_value
+            );
             println!();
         }
     }

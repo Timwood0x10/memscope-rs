@@ -4,9 +4,9 @@
 
 use crate::core::types::TrackingResult;
 use crate::export::fast_export_coordinator::FastExportConfigBuilder;
-use crate::export::system_optimizer::SystemOptimizer;
 use crate::export::performance_testing::OptimizationTarget;
-use serde::{Serialize, Deserialize};
+use crate::export::system_optimizer::SystemOptimizer;
+use serde::{Deserialize, Serialize};
 
 /// configuration optimizer
 pub struct ConfigOptimizer {
@@ -54,10 +54,16 @@ impl ConfigOptimizer {
     }
 
     /// auto optimize configuration
-    pub fn auto_optimize(&mut self, target: OptimizationTarget, dataset_size: Option<usize>) -> TrackingResult<FastExportConfigBuilder> {
+    pub fn auto_optimize(
+        &mut self,
+        target: OptimizationTarget,
+        dataset_size: Option<usize>,
+    ) -> TrackingResult<FastExportConfigBuilder> {
         // generate configuration recommendation
-        let recommendation = self.system_optimizer.generate_configuration_recommendation(target, dataset_size);
-        
+        let recommendation = self
+            .system_optimizer
+            .generate_configuration_recommendation(target, dataset_size);
+
         // create configuration
         let config_builder = FastExportConfigBuilder::new()
             .shard_size(recommendation.recommended_shard_size)
@@ -66,8 +72,10 @@ impl ConfigOptimizer {
             .performance_monitoring(true);
 
         // validate configuration
-        let validation_result = self.system_optimizer.validate_configuration(&config_builder);
-        
+        let validation_result = self
+            .system_optimizer
+            .validate_configuration(&config_builder);
+
         if !validation_result.is_valid {
             println!("⚠️ configuration validation failed, using default configuration");
             for error in &validation_result.errors {
@@ -93,10 +101,12 @@ impl ConfigOptimizer {
                 shard_size: recommendation.recommended_shard_size,
                 thread_count: recommendation.recommended_thread_count,
                 buffer_size: recommendation.recommended_buffer_size,
-                config_hash: format!("{:x}", 
-                    recommendation.recommended_shard_size ^ 
-                    recommendation.recommended_thread_count ^ 
-                    recommendation.recommended_buffer_size),
+                config_hash: format!(
+                    "{:x}",
+                    recommendation.recommended_shard_size
+                        ^ recommendation.recommended_thread_count
+                        ^ recommendation.recommended_buffer_size
+                ),
             },
             performance_improvement: recommendation.expected_performance_gain,
             success_rate: recommendation.confidence,

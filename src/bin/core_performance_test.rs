@@ -1,5 +1,5 @@
 //! 核心性能测试（只测试导出核心，不包含验证）
-//! 
+//!
 //! 这个程序直接测试快速导出协调器的核心性能，不包含任何验证
 
 use memscope_rs::{get_global_tracker, init};
@@ -26,7 +26,12 @@ fn main() {
     // 运行 complex_lifecycle_showcase 生成测试数据
     println!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
     let output = Command::new("cargo")
-        .args(&["run", "--release", "--example", "complex_lifecycle_showcase"])
+        .args(&[
+            "run",
+            "--release",
+            "--example",
+            "complex_lifecycle_showcase",
+        ])
         .output();
 
     match output {
@@ -64,15 +69,15 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
     println!("🐌 测试传统导出核心性能...");
     for run in 1..=test_runs {
         println!("  运行 {}/{}: 传统导出核心", run, test_runs);
-        
+
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("traditional_core_run_{}.json", run));
-        
+
         // 获取跟踪器并导出（使用最简配置，只生成主文件）
         let tracker = get_global_tracker();
         let result = tracker.export_to_json(&output_path);
         let export_time = start_time.elapsed();
-        
+
         match result {
             Ok(_) => {
                 traditional_core_times.push(export_time.as_millis() as u64);
@@ -82,7 +87,7 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
                 eprintln!("    ❌ 导出失败: {}", e);
             }
         }
-        
+
         // 短暂休息
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -91,17 +96,19 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
     println!("⚡ 测试快速导出核心性能...");
     for run in 1..=test_runs {
         println!("  运行 {}/{}: 快速导出核心", run, test_runs);
-        
+
         // 直接测试快速导出协调器
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("fast_core_run_{}", run));
-        
+
         // 使用快速导出协调器
         let config = memscope_rs::export::fast_export_coordinator::FastExportConfig {
             enable_data_localization: true,
             data_cache_ttl_ms: 100,
-            shard_config: memscope_rs::export::parallel_shard_processor::ParallelShardConfig::default(),
-            writer_config: memscope_rs::export::high_speed_buffered_writer::HighSpeedWriterConfig::default(),
+            shard_config:
+                memscope_rs::export::parallel_shard_processor::ParallelShardConfig::default(),
+            writer_config:
+                memscope_rs::export::high_speed_buffered_writer::HighSpeedWriterConfig::default(),
             enable_performance_monitoring: false, // 禁用性能监控以减少开销
             verbose_logging: false,
             progress_config: memscope_rs::export::progress_monitor::ProgressConfig {
@@ -130,29 +137,36 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
             disk_limit_mb: 2048,
             cpu_limit_percent: 80.0,
         };
-        
-        let mut coordinator = memscope_rs::export::fast_export_coordinator::FastExportCoordinator::new(config);
+
+        let mut coordinator =
+            memscope_rs::export::fast_export_coordinator::FastExportCoordinator::new(config);
         let result = coordinator.export_fast(&output_path);
         let export_time = start_time.elapsed();
-        
+
         match result {
             Ok(stats) => {
                 // 只记录核心导出时间，不包含验证
-                let core_time = stats.data_gathering.total_time_ms + 
-                               stats.parallel_processing.total_processing_time_ms + 
-                               stats.write_performance.total_write_time_ms;
+                let core_time = stats.data_gathering.total_time_ms
+                    + stats.parallel_processing.total_processing_time_ms
+                    + stats.write_performance.total_write_time_ms;
                 fast_core_times.push(core_time);
-                println!("    ⚡ 核心时间: {}ms (总时间: {}ms)", core_time, export_time.as_millis());
-                println!("       数据获取: {}ms, 并行处理: {}ms, 写入: {}ms", 
-                        stats.data_gathering.total_time_ms,
-                        stats.parallel_processing.total_processing_time_ms,
-                        stats.write_performance.total_write_time_ms);
+                println!(
+                    "    ⚡ 核心时间: {}ms (总时间: {}ms)",
+                    core_time,
+                    export_time.as_millis()
+                );
+                println!(
+                    "       数据获取: {}ms, 并行处理: {}ms, 写入: {}ms",
+                    stats.data_gathering.total_time_ms,
+                    stats.parallel_processing.total_processing_time_ms,
+                    stats.write_performance.total_write_time_ms
+                );
             }
             Err(e) => {
                 eprintln!("    ❌ 导出失败: {}", e);
             }
         }
-        
+
         // 短暂休息
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -161,7 +175,11 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
     display_core_performance_results(&traditional_core_times, &fast_core_times, output_dir);
 }
 
-fn display_core_performance_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &PathBuf) {
+fn display_core_performance_results(
+    traditional_times: &[u64],
+    fast_times: &[u64],
+    output_dir: &PathBuf,
+) {
     println!();
     println!("📈 核心性能测试结果");
     println!("====================");
@@ -172,9 +190,10 @@ fn display_core_performance_results(traditional_times: &[u64], fast_times: &[u64
     }
 
     // 计算统计数据
-    let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+    let avg_traditional =
+        traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
-    
+
     let min_traditional = *traditional_times.iter().min().unwrap_or(&0);
     let max_traditional = *traditional_times.iter().max().unwrap_or(&0);
     let min_fast = *fast_times.iter().min().unwrap_or(&0);
@@ -234,7 +253,12 @@ fn display_core_performance_results(traditional_times: &[u64], fast_times: &[u64
     }
 
     // 生成详细报告
-    generate_core_performance_report(traditional_times, fast_times, improvement_percent, output_dir);
+    generate_core_performance_report(
+        traditional_times,
+        fast_times,
+        improvement_percent,
+        output_dir,
+    );
 }
 
 fn calculate_std_dev(values: &[u64]) -> f64 {
@@ -243,18 +267,26 @@ fn calculate_std_dev(values: &[u64]) -> f64 {
     }
 
     let mean = values.iter().sum::<u64>() as f64 / values.len() as f64;
-    let variance = values.iter()
+    let variance = values
+        .iter()
         .map(|x| (*x as f64 - mean).powi(2))
-        .sum::<f64>() / values.len() as f64;
+        .sum::<f64>()
+        / values.len() as f64;
     variance.sqrt()
 }
 
-fn generate_core_performance_report(traditional_times: &[u64], fast_times: &[u64], improvement_percent: f64, output_dir: &PathBuf) {
+fn generate_core_performance_report(
+    traditional_times: &[u64],
+    fast_times: &[u64],
+    improvement_percent: f64,
+    output_dir: &PathBuf,
+) {
     let report_file = output_dir.join("core_performance_report.md");
-    
-    let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+
+    let avg_traditional =
+        traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
-    
+
     let report = format!(
         r#"# 大型项目导出优化 - 核心性能基准测试报告
 
@@ -329,11 +361,15 @@ fn generate_core_performance_report(traditional_times: &[u64], fast_times: &[u64
         fast_times.iter().max().unwrap_or(&0),
         calculate_std_dev(traditional_times),
         calculate_std_dev(fast_times),
-        traditional_times.iter().enumerate()
+        traditional_times
+            .iter()
+            .enumerate()
             .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),
-        fast_times.iter().enumerate()
+        fast_times
+            .iter()
+            .enumerate()
             .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),

@@ -506,9 +506,9 @@ fn simulate_web_server_scenario() -> Vec<Box<dyn std::any::Any>> {
 
     println!(
         "✓ Web server: {} routes, {} sessions, {} log entries",
-        4, // routes count
-        50, // sessions count  
-        100 // log entries count
+        4,   // routes count
+        50,  // sessions count
+        100  // log entries count
     );
     println!();
     keep_alive
@@ -540,7 +540,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
     }
     let tracked_stage1_results = track_var!(stage1_results);
     keep_alive.push(Box::new(tracked_stage1_results) as Box<dyn std::any::Any>);
-    
+
     // Stage 2: Transform and enrich
     for record in &stage1_results {
         let enriched = format!("enriched_{record}_with_metadata");
@@ -548,7 +548,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
     }
     let tracked_stage2_results = track_var!(stage2_results);
     keep_alive.push(Box::new(tracked_stage2_results) as Box<dyn std::any::Any>);
-    
+
     // Final stage: Aggregate and index
     for (i, record) in stage2_results.iter().enumerate() {
         let key = format!("index_{}", i / 10); // Group by 10s
@@ -561,7 +561,7 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
     track_var!(boxed_final_results);
     let final_results_len = boxed_final_results.len();
     keep_alive.push(boxed_final_results as Box<dyn std::any::Any>);
-    
+
     // Error tracking
     let mut error_tracker = Vec::new();
     for i in 0..25 {
@@ -704,7 +704,6 @@ fn generate_final_analysis() {
     } else {
         println!("✅ Memory snapshot (fast mode) exported to: MemoryAnalysis/complex_lifecycle/");
     }
-
 
     println!("\n🎯 Showcase Complete!");
     println!("=====================");

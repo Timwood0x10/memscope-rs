@@ -1,5 +1,5 @@
 //! 简化的性能基准测试
-//! 
+//!
 //! 这个程序运行简化的性能基准测试，对比传统导出和快速导出的性能
 
 use memscope_rs::{get_global_tracker, init};
@@ -26,7 +26,12 @@ fn main() {
     // 运行 complex_lifecycle_showcase 生成测试数据
     println!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
     let output = Command::new("cargo")
-        .args(&["run", "--release", "--example", "complex_lifecycle_showcase"])
+        .args(&[
+            "run",
+            "--release",
+            "--example",
+            "complex_lifecycle_showcase",
+        ])
         .output();
 
     match output {
@@ -64,15 +69,15 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
     println!("🐌 测试传统导出系统...");
     for run in 1..=test_runs {
         println!("  运行 {}/{}: 传统导出", run, test_runs);
-        
+
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("traditional_export_run_{}.json", run));
-        
+
         // 获取跟踪器并导出
         let tracker = get_global_tracker();
         let result = tracker.export_to_json(&output_path);
         let export_time = start_time.elapsed();
-        
+
         match result {
             Ok(_) => {
                 traditional_times.push(export_time.as_millis() as u64);
@@ -82,7 +87,7 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
                 eprintln!("    ❌ 导出失败: {}", e);
             }
         }
-        
+
         // 短暂休息
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -91,20 +96,21 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
     println!("⚡ 测试快速导出系统...");
     for run in 1..=test_runs {
         println!("  运行 {}/{}: 快速导出", run, test_runs);
-        
+
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("fast_export_run_{}.json", run));
-        
+
         // 获取跟踪器并使用优化导出
         let tracker = get_global_tracker();
-        let mut options = memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
+        let mut options =
+            memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
         options.parallel_processing = true; // 启用并行处理
         options.enable_fast_export_mode = true; // 启用快速导出模式
         options.enable_schema_validation = false; // 禁用模式验证以提高性能
-        
+
         let result = tracker.export_to_json_with_optimized_options(&output_path, options);
         let export_time = start_time.elapsed();
-        
+
         match result {
             Ok(_) => {
                 fast_times.push(export_time.as_millis() as u64);
@@ -114,7 +120,7 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
                 eprintln!("    ❌ 导出失败: {}", e);
             }
         }
-        
+
         // 短暂休息
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -134,7 +140,8 @@ fn display_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &P
     }
 
     // 计算平均值
-    let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+    let avg_traditional =
+        traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
 
     // 计算改善百分比
@@ -147,8 +154,14 @@ fn display_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &P
     // 显示结果
     println!("传统导出系统:");
     println!("  • 平均时间: {:.1}ms", avg_traditional);
-    println!("  • 最快时间: {}ms", traditional_times.iter().min().unwrap_or(&0));
-    println!("  • 最慢时间: {}ms", traditional_times.iter().max().unwrap_or(&0));
+    println!(
+        "  • 最快时间: {}ms",
+        traditional_times.iter().min().unwrap_or(&0)
+    );
+    println!(
+        "  • 最慢时间: {}ms",
+        traditional_times.iter().max().unwrap_or(&0)
+    );
 
     println!();
     println!("快速导出系统:");
@@ -181,15 +194,26 @@ fn display_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &P
     }
 
     // 生成简单报告
-    generate_simple_report(traditional_times, fast_times, improvement_percent, output_dir);
+    generate_simple_report(
+        traditional_times,
+        fast_times,
+        improvement_percent,
+        output_dir,
+    );
 }
 
-fn generate_simple_report(traditional_times: &[u64], fast_times: &[u64], improvement_percent: f64, output_dir: &PathBuf) {
+fn generate_simple_report(
+    traditional_times: &[u64],
+    fast_times: &[u64],
+    improvement_percent: f64,
+    output_dir: &PathBuf,
+) {
     let report_file = output_dir.join("simple_benchmark_report.md");
-    
-    let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+
+    let avg_traditional =
+        traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
-    
+
     let report = format!(
         r#"# 大型项目导出优化 - 简化基准测试报告
 
@@ -229,11 +253,15 @@ fn generate_simple_report(traditional_times: &[u64], fast_times: &[u64], improve
         fast_times.iter().min().unwrap_or(&0),
         traditional_times.iter().max().unwrap_or(&0),
         fast_times.iter().max().unwrap_or(&0),
-        traditional_times.iter().enumerate()
+        traditional_times
+            .iter()
+            .enumerate()
             .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),
-        fast_times.iter().enumerate()
+        fast_times
+            .iter()
+            .enumerate()
             .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),

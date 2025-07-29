@@ -1198,7 +1198,6 @@ fn install_exit_hook() {
     });
 }
 
-
 /// Export final memory snapshot with complete lifecycle data
 fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {
     let tracker = get_global_tracker();

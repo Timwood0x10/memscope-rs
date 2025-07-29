@@ -12,7 +12,6 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
-
 mod data_integrator;
 pub mod data_normalizer;
 pub mod debug_logger;
@@ -22,7 +21,7 @@ pub mod large_file_optimizer;
 pub mod template_generator;
 
 use data_integrator::DataIntegrator;
-use data_normalizer::{DataNormalizer, UnifiedMemoryData};
+use data_normalizer::DataNormalizer;
 use debug_logger::{DebugConfig, DebugLogger, LogLevel};
 use error_handler::{ErrorRecoveryContext, HtmlErrorHandler};
 use json_file_discovery::{JsonFileConfig, JsonFileDiscovery};
@@ -38,7 +37,9 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let validate_only = matches.get_flag("validate-only");
     let default_output = "validation_only.html".to_string();
     let output_file = if validate_only {
-        matches.get_one::<String>("output").unwrap_or(&default_output)
+        matches
+            .get_one::<String>("output")
+            .unwrap_or(&default_output)
     } else {
         matches
             .get_one::<String>("output")
@@ -112,13 +113,31 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         logger.info("✅ JSON validation completed successfully!");
         logger.info(&format!("📊 Validation results:"));
         logger.info(&format!("   - Files loaded: {}", json_data.len()));
-        logger.info(&format!("   - Allocations found: {}", unified_data.allocations.len()));
-        logger.info(&format!("   - Lifecycle events: {}", unified_data.lifecycle.lifecycle_events.len()));
+        logger.info(&format!(
+            "   - Allocations found: {}",
+            unified_data.allocations.len()
+        ));
+        logger.info(&format!(
+            "   - Lifecycle events: {}",
+            unified_data.lifecycle.lifecycle_events.len()
+        ));
         logger.info(&format!("   - Performance data: Available"));
-        logger.info(&format!("   - Security violations: {}", unified_data.security.total_violations));
-        logger.info(&format!("   - Complex types: {}", unified_data.complex_types.summary.total_complex_types));
-        logger.info(&format!("   - Active memory: {} bytes", unified_data.stats.active_memory));
-        logger.info(&format!("   - Peak memory: {} bytes", unified_data.stats.peak_memory));
+        logger.info(&format!(
+            "   - Security violations: {}",
+            unified_data.security.total_violations
+        ));
+        logger.info(&format!(
+            "   - Complex types: {}",
+            unified_data.complex_types.summary.total_complex_types
+        ));
+        logger.info(&format!(
+            "   - Active memory: {} bytes",
+            unified_data.stats.active_memory
+        ));
+        logger.info(&format!(
+            "   - Peak memory: {} bytes",
+            unified_data.stats.peak_memory
+        ));
         return Ok(());
     }
 
@@ -444,6 +463,7 @@ fn load_json_files_with_logging(
 }
 
 /// Original load function for backward compatibility
+#[allow(dead_code)]
 fn load_json_files(input_dir: &str, base_name: &str) -> Result<JsonDataCollection, Box<dyn Error>> {
     let logger = DebugLogger::new();
     load_json_files_with_logging(input_dir, base_name, &logger)
@@ -476,6 +496,7 @@ fn load_files_parallel_with_logging(
 }
 
 /// Load files in parallel using rayon with error handling (backward compatibility)
+#[allow(dead_code)]
 fn load_files_parallel(
     files: &[(JsonFileConfig, String, usize)],
 ) -> Result<Vec<JsonLoadResult>, Box<dyn Error>> {
@@ -510,6 +531,7 @@ fn load_files_sequential_with_logging(
 }
 
 /// Load files sequentially with error handling (backward compatibility)
+#[allow(dead_code)]
 fn load_files_sequential(
     files: &[(JsonFileConfig, String, usize)],
 ) -> Result<Vec<JsonLoadResult>, Box<dyn Error>> {
@@ -712,6 +734,7 @@ fn load_single_file_internal(
 }
 
 /// Original load single file function (kept for compatibility)
+#[allow(dead_code)]
 fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) -> JsonLoadResult {
     let start_time = Instant::now();
 
@@ -884,321 +907,4 @@ fn print_load_statistics_with_logging(stats: &JsonLoadStats, logger: &DebugLogge
         logger.info(&format!("   Memory efficiency: {}", memory_efficiency));
     }
     logger.info("");
-}
-
-/// Print loading statistics (backward compatibility)
-fn print_load_statistics(stats: &JsonLoadStats) {
-    let logger = DebugLogger::new();
-    print_load_statistics_with_logging(stats, &logger);
-}
-
-/// Generate HTML report from unified data
-fn generate_html_from_unified_data(
-    unified_data: &UnifiedMemoryData,
-    output_file: &str,
-) -> Result<(), Box<dyn Error>> {
-    // read template files
-    let css_content = include_str!("../../../../templates/styles.css");
-    let js_content = include_str!("../../../../templates/script.js");
-
-    // build HTML content
-    let html_content = build_html_template_unified(css_content, js_content, unified_data)?;
-
-    // write to file
-    fs::write(output_file, html_content)?;
-
-    Ok(())
-}
-
-/// Build complete HTML template with unified data
-fn build_html_template_unified(
-    css_content: &str,
-    js_content: &str,
-    unified_data: &UnifiedMemoryData,
-) -> Result<String, Box<dyn Error>> {
-    // prepare data summary for header statistics
-    let stats = &unified_data.stats;
-
-    // format statistics information
-    let total_memory = format_bytes(stats.active_memory);
-    let active_allocs = format!("{} Active", stats.active_allocations);
-    let peak_memory = format_bytes(stats.peak_memory);
-
-    // serialize unified data to JSON
-    let json_data_str = serde_json::to_string(unified_data)?;
-
-    // build complete HTML
-    let html = format!(
-        r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MemScope-RS Interactive Memory Analysis</title>
-    <style>
-        {css_content}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>🔍 MemScope-RS Interactive Memory Analysis</h1>
-            <div class="header-stats">
-                <span class="stat-badge" id="totalMemory">{total_memory}</span>
-                <span class="stat-badge" id="activeAllocs">{active_allocs}</span>
-                <span class="stat-badge" id="peakMemory">{peak_memory}</span>
-            </div>
-        </header>
-
-        <nav class="tab-nav">
-            <button class="tab-btn active" data-tab="overview">📊 Overview</button>
-            <button class="tab-btn" data-tab="memory-analysis">🧠 Memory Analysis</button>
-            <button class="tab-btn" data-tab="lifecycle">⏱️ Lifecycle Timeline</button>
-            <button class="tab-btn" data-tab="unsafe-ffi">⚠️ Unsafe/FFI</button>
-            <button class="tab-btn" data-tab="performance">⚡ Performance</button>
-            <button class="tab-btn" data-tab="security">🔒 Security</button>
-            <button class="tab-btn" data-tab="complex-types">🔧 Complex Types</button>
-            <button class="tab-btn" data-tab="variables">🔗 Variable Relationships</button>
-            <button class="tab-btn" data-tab="interactive">🎮 Interactive Explorer</button>
-        </nav>
-
-        <main class="content">
-            <!-- Overview Tab -->
-            <div class="tab-content active" id="overview">
-                <div class="overview-grid">
-                    <div class="overview-card">
-                        <h3>📈 Memory Statistics</h3>
-                        <div id="memoryStats">Loading...</div>
-                    </div>
-                    <div class="overview-card">
-                        <h3>🏷️ Type Distribution</h3>
-                        <div id="typeDistribution">Loading...</div>
-                    </div>
-                    <div class="overview-card">
-                        <h3>📋 Recent Allocations</h3>
-                        <div id="recentAllocations">Loading...</div>
-                    </div>
-                    <div class="overview-card">
-                        <h3>⚡ Performance Insights</h3>
-                        <div id="performanceInsights">Loading...</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Memory Analysis Tab -->
-            <div class="tab-content" id="memory-analysis">
-                <div id="memoryAnalysisContent">Loading memory analysis...</div>
-            </div>
-
-            <!-- Lifecycle Timeline Tab -->
-            <div class="tab-content" id="lifecycle">
-                <div id="lifecycleContent">Loading lifecycle analysis...</div>
-            </div>
-
-            <!-- Unsafe/FFI Tab -->
-            <div class="tab-content" id="unsafe-ffi">
-                <div id="unsafeFfiContent">Loading unsafe/FFI analysis...</div>
-            </div>
-
-            <!-- Performance Tab -->
-            <div class="tab-content" id="performance">
-                <div id="performanceContent">Loading performance analysis...</div>
-            </div>
-
-            <!-- Security Tab -->
-            <div class="tab-content" id="security">
-                <div id="securityContent">Loading security analysis...</div>
-            </div>
-
-            <!-- Complex Types Tab -->
-            <div class="tab-content" id="complex-types">
-                <div id="complexTypesContent">Loading complex types analysis...</div>
-            </div>
-
-            <!-- Variable Relationships Tab -->
-            <div class="tab-content" id="variables">
-                <div id="variableContent">Loading variable relationships...</div>
-            </div>
-
-            <!-- Interactive Explorer Tab -->
-            <div class="tab-content" id="interactive">
-                <div class="explorer-controls">
-                    <div class="control-group">
-                        <label for="filterType">Filter by Type:</label>
-                        <select id="filterType">
-                            <option value="">All Types</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label for="sizeRange">Size Range:</label>
-                        <input type="range" id="sizeRange" min="0" max="100" value="100">
-                        <span id="sizeRangeValue">All sizes</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="sortBy">Sort by:</label>
-                        <select id="sortBy">
-                            <option value="size">Size</option>
-                            <option value="timestamp">Timestamp</option>
-                            <option value="type">Type</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="explorer-content">
-                    <div class="allocation-grid" id="allocationGrid">
-                        Loading allocations...
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <script>
-        // 🎯 统一的数据结构
-        const UNIFIED_DATA = {json_data_str};
-        
-        // 🚀 增强的JavaScript功能
-        {js_content}
-        
-        // 🎨 初始化统一数据支持
-        document.addEventListener('DOMContentLoaded', function() {{
-            console.log('🎯 Initializing unified memory analysis...');
-            console.log('📊 Unified data structure loaded:', UNIFIED_DATA);
-            
-            // 初始化可视化器
-            if (typeof MemScopeVisualizer !== 'undefined') {{
-                window.memscope = new MemScopeVisualizer(UNIFIED_DATA);
-                console.log('✅ MemScope visualizer initialized with unified data');
-            }} else {{
-                console.warn('⚠️ MemScopeVisualizer not found, falling back to basic initialization');
-                initializeBasicViewUnified(UNIFIED_DATA);
-            }}
-        }});
-        
-        // 基础视图初始化（当MemScopeVisualizer不可用时）
-        function initializeBasicViewUnified(data) {{
-            console.log('🎯 Initializing basic view with unified data:', data);
-            
-            // 更新header统计
-            updateHeaderStats(data.stats);
-            
-            // 填充Overview内容
-            initializeOverviewUnified(data);
-            
-            // 初始化各个标签页
-            initializePerformanceAnalysisUnified(data.performance);
-            initializeSecurityAnalysisUnified(data.security);
-            initializeMemoryAnalysisDetailsUnified(data.allocations);
-            initializeVariableRelationshipsUnified(data.variable_relationships);
-            initializeLifecycleAnalysisUnified(data.lifecycle);
-            initializeComplexTypesAnalysisUnified(data.complex_types);
-            
-            console.log('✅ Basic unified view initialized');
-        }}
-        
-        // 更新header统计信息
-        function updateHeaderStats(stats) {{
-            const totalMemoryEl = document.getElementById('totalMemory');
-            const activeAllocsEl = document.getElementById('activeAllocs');
-            const peakMemoryEl = document.getElementById('peakMemory');
-            
-            if (totalMemoryEl) totalMemoryEl.textContent = formatBytes(stats.active_memory);
-            if (activeAllocsEl) activeAllocsEl.textContent = stats.active_allocations + ' Active';
-            if (peakMemoryEl) peakMemoryEl.textContent = formatBytes(stats.peak_memory);
-        }}
-        
-        // 初始化Overview
-        function initializeOverviewUnified(data) {{
-            const memoryStatsEl = document.getElementById('memoryStats');
-            if (memoryStatsEl) {{
-                memoryStatsEl.innerHTML = `
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <span class="stat-label">Active Memory:</span>
-                            <span class="stat-value">${{formatBytes(data.stats.active_memory)}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Peak Memory:</span>
-                            <span class="stat-value">${{formatBytes(data.stats.peak_memory)}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Total Allocations:</span>
-                            <span class="stat-value">${{data.stats.total_allocations.toLocaleString()}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Active Allocations:</span>
-                            <span class="stat-value">${{data.stats.active_allocations.toLocaleString()}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Total Allocated:</span>
-                            <span class="stat-value">${{formatBytes(data.stats.total_allocated)}}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Memory Efficiency:</span>
-                            <span class="stat-value">${{data.stats.memory_efficiency.toFixed(1)}}%</span>
-                        </div>
-                    </div>
-                `;
-            }}
-        }}
-        
-        
-        function initializePerformanceAnalysisUnified(performance) {{
-            console.log('Initializing performance analysis:', performance);
-        }}
-        
-        function initializeSecurityAnalysisUnified(security) {{
-            console.log('Initializing security analysis:', security);
-        }}
-        
-        function initializeMemoryAnalysisDetailsUnified(allocations) {{
-            console.log('Initializing memory analysis details:', allocations.length, 'allocations');
-        }}
-        
-        function initializeVariableRelationshipsUnified(relationships) {{
-            console.log('Initializing variable relationships:', relationships);
-        }}
-        
-        function initializeLifecycleAnalysisUnified(lifecycle) {{
-            console.log('Initializing lifecycle analysis:', lifecycle);
-        }}
-        
-        function initializeComplexTypesAnalysisUnified(complexTypes) {{
-            console.log('Initializing complex types analysis:', complexTypes);
-        }}
-        
-       
-        function formatBytes(bytes) {{
-            const units = ['B', 'KB', 'MB', 'GB'];
-            let size = bytes;
-            let unitIndex = 0;
-            while (size >= 1024 && unitIndex < units.length - 1) {{
-                size /= 1024;
-                unitIndex++;
-            }}
-            return unitIndex === 0 ? `${{bytes}} ${{units[unitIndex]}}` : `${{size.toFixed(1)}} ${{units[unitIndex]}}`;
-        }}
-    </script>
-</body>
-</html>"#
-    );
-
-    Ok(html)
-}
-
-/// Format bytes into human-readable string
-fn format_bytes(bytes: usize) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
-    let mut size = bytes as f64;
-    let mut unit_index = 0;
-
-    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit_index += 1;
-    }
-
-    if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
-    } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
-    }
 }

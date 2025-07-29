@@ -1,5 +1,5 @@
 //! Adaptive Performance Optimization
-//! 
+//!
 //! This module implements adaptive performance optimizations for JSON export:
 //! - Adaptive batch size adjustment based on system performance
 //! - Memory usage optimization and intelligent caching
@@ -40,7 +40,7 @@ impl Default for PerformanceMetrics {
 }
 
 /// Adaptive batch size controller
-/// 
+///
 /// Automatically adjusts batch sizes based on:
 /// - System memory pressure
 /// - Processing time per batch
@@ -82,13 +82,15 @@ impl AdaptiveBatchController {
 
     /// Record performance metrics and adjust batch size
     pub fn record_performance(&mut self, metrics: PerformanceMetrics) {
-        println!("📊 Recording performance: {}ms, {} allocs/sec, batch_size: {}", 
-                metrics.processing_time_ms, 
-                metrics.allocations_per_second as u64,
-                self.current_batch_size);
+        println!(
+            "📊 Recording performance: {}ms, {} allocs/sec, batch_size: {}",
+            metrics.processing_time_ms,
+            metrics.allocations_per_second as u64,
+            self.current_batch_size
+        );
 
         self.performance_history.push(metrics.clone());
-        
+
         // Keep only recent history (last 50 measurements)
         if self.performance_history.len() > 50 {
             self.performance_history.remove(0);
@@ -104,27 +106,37 @@ impl AdaptiveBatchController {
 
         if current_metrics.processing_time_ms > self.target_processing_time_ms {
             // Processing is too slow, reduce batch size
-            let reduction_factor = (current_metrics.processing_time_ms as f64 / self.target_processing_time_ms as f64).min(2.0);
-            self.current_batch_size = ((self.current_batch_size as f64 / reduction_factor) as usize)
+            let reduction_factor = (current_metrics.processing_time_ms as f64
+                / self.target_processing_time_ms as f64)
+                .min(2.0);
+            self.current_batch_size = ((self.current_batch_size as f64 / reduction_factor)
+                as usize)
                 .max(self.min_batch_size);
-            
-            println!("🔽 Reducing batch size: {} -> {} (processing too slow: {}ms)", 
-                    old_batch_size, self.current_batch_size, current_metrics.processing_time_ms);
+
+            println!(
+                "🔽 Reducing batch size: {} -> {} (processing too slow: {}ms)",
+                old_batch_size, self.current_batch_size, current_metrics.processing_time_ms
+            );
         } else if current_metrics.processing_time_ms < self.target_processing_time_ms / 2 {
             // Processing is fast, we can increase batch size
-            self.current_batch_size = ((self.current_batch_size as f64 * self.adjustment_factor) as usize)
+            self.current_batch_size = ((self.current_batch_size as f64 * self.adjustment_factor)
+                as usize)
                 .min(self.max_batch_size);
-            
-            println!("🔼 Increasing batch size: {} -> {} (processing fast: {}ms)", 
-                    old_batch_size, self.current_batch_size, current_metrics.processing_time_ms);
+
+            println!(
+                "🔼 Increasing batch size: {} -> {} (processing fast: {}ms)",
+                old_batch_size, self.current_batch_size, current_metrics.processing_time_ms
+            );
         }
 
         // Additional adjustments based on memory pressure
         if current_metrics.memory_usage_mb > 500 {
             // High memory usage, reduce batch size
             self.current_batch_size = (self.current_batch_size * 3 / 4).max(self.min_batch_size);
-            println!("💾 Reducing batch size due to memory pressure: {} -> {} ({}MB)", 
-                    old_batch_size, self.current_batch_size, current_metrics.memory_usage_mb);
+            println!(
+                "💾 Reducing batch size due to memory pressure: {} -> {} ({}MB)",
+                old_batch_size, self.current_batch_size, current_metrics.memory_usage_mb
+            );
         }
     }
 
@@ -134,18 +146,24 @@ impl AdaptiveBatchController {
             return None;
         }
 
-        let recent_avg = self.performance_history.iter()
+        let recent_avg = self
+            .performance_history
+            .iter()
             .rev()
             .take(5)
             .map(|m| m.processing_time_ms)
-            .sum::<u64>() as f64 / 5.0;
+            .sum::<u64>() as f64
+            / 5.0;
 
-        let older_avg = self.performance_history.iter()
+        let older_avg = self
+            .performance_history
+            .iter()
             .rev()
             .skip(5)
             .take(5)
             .map(|m| m.processing_time_ms)
-            .sum::<u64>() as f64 / 5.0;
+            .sum::<u64>() as f64
+            / 5.0;
 
         let trend_ratio = recent_avg / older_avg;
 
@@ -160,7 +178,7 @@ impl AdaptiveBatchController {
 }
 
 /// Intelligent type information cache
-/// 
+///
 /// Caches frequently accessed type information to reduce computation overhead
 #[derive(Debug)]
 pub struct TypeInfoCache {
@@ -216,13 +234,13 @@ impl TypeInfoCache {
             let cache = self.cache.read().ok()?;
             cache.get(type_name).map(|info| info.computed_info.clone())
         };
-        
+
         if cached_value.is_some() {
             // Update access statistics
             if let Ok(mut stats) = self.cache_stats.lock() {
                 stats.hits += 1;
             }
-            
+
             // Update access time in a separate write lock
             if let Ok(mut cache) = self.cache.write() {
                 if let Some(info) = cache.get_mut(type_name) {
@@ -230,7 +248,7 @@ impl TypeInfoCache {
                     info.last_accessed = Instant::now();
                 }
             }
-            
+
             cached_value
         } else {
             // Cache miss
@@ -269,7 +287,8 @@ impl TypeInfoCache {
         }
 
         // Find the least recently used entry
-        let lru_key = cache.iter()
+        let lru_key = cache
+            .iter()
             .min_by_key(|(_, info)| info.last_accessed)
             .map(|(key, _)| key.clone());
 
@@ -336,7 +355,7 @@ impl MemoryUsageMonitor {
             peak_usage_mb: 0,
             current_usage_mb: 0,
             usage_history: Vec::new(),
-            warning_threshold_mb: 1024, // 1GB warning
+            warning_threshold_mb: 1024,  // 1GB warning
             critical_threshold_mb: 2048, // 2GB critical
         }
     }
@@ -345,9 +364,9 @@ impl MemoryUsageMonitor {
     pub fn update_usage(&mut self, usage_mb: u64) {
         self.current_usage_mb = usage_mb;
         self.peak_usage_mb = self.peak_usage_mb.max(usage_mb);
-        
+
         self.usage_history.push((Instant::now(), usage_mb));
-        
+
         // Keep only recent history (last 100 measurements)
         if self.usage_history.len() > 100 {
             self.usage_history.remove(0);
@@ -355,11 +374,15 @@ impl MemoryUsageMonitor {
 
         // Check thresholds
         if usage_mb > self.critical_threshold_mb {
-            println!("🚨 CRITICAL: Memory usage {}MB exceeds critical threshold {}MB", 
-                    usage_mb, self.critical_threshold_mb);
+            println!(
+                "🚨 CRITICAL: Memory usage {}MB exceeds critical threshold {}MB",
+                usage_mb, self.critical_threshold_mb
+            );
         } else if usage_mb > self.warning_threshold_mb {
-            println!("⚠️ WARNING: Memory usage {}MB exceeds warning threshold {}MB", 
-                    usage_mb, self.warning_threshold_mb);
+            println!(
+                "⚠️ WARNING: Memory usage {}MB exceeds warning threshold {}MB",
+                usage_mb, self.warning_threshold_mb
+            );
         }
     }
 
@@ -382,18 +405,24 @@ impl MemoryUsageMonitor {
             return None;
         }
 
-        let recent_avg = self.usage_history.iter()
+        let recent_avg = self
+            .usage_history
+            .iter()
             .rev()
             .take(5)
             .map(|(_, usage)| *usage)
-            .sum::<u64>() as f64 / 5.0;
+            .sum::<u64>() as f64
+            / 5.0;
 
-        let older_avg = self.usage_history.iter()
+        let older_avg = self
+            .usage_history
+            .iter()
             .rev()
             .skip(5)
             .take(5)
             .map(|(_, usage)| *usage)
-            .sum::<u64>() as f64 / 5.0;
+            .sum::<u64>() as f64
+            / 5.0;
 
         let trend_ratio = recent_avg / older_avg;
 
@@ -432,7 +461,7 @@ pub enum MemoryTrend {
 }
 
 /// Adaptive performance optimizer - main coordinator
-/// 
+///
 /// Coordinates all adaptive optimization components:
 /// - Batch size controller
 /// - Type info cache
@@ -453,7 +482,7 @@ impl AdaptivePerformanceOptimizer {
         println!("🚀 Initializing Adaptive Performance Optimizer");
         println!("   • Initial batch size: {}", initial_batch_size);
         println!("   • Cache size: {}", cache_size);
-        
+
         Self {
             batch_controller: AdaptiveBatchController::new(initial_batch_size),
             type_cache: TypeInfoCache::new(cache_size),
@@ -468,9 +497,9 @@ impl AdaptivePerformanceOptimizer {
         if !self.optimization_enabled {
             return 1000; // Default fallback
         }
-        
+
         let base_size = self.batch_controller.get_optimal_batch_size();
-        
+
         // Adjust based on memory pressure
         match self.memory_monitor.get_memory_pressure() {
             MemoryPressureLevel::Critical => base_size / 4,
@@ -482,8 +511,8 @@ impl AdaptivePerformanceOptimizer {
 
     /// Record processing performance and adapt
     pub fn record_batch_performance(
-        &mut self, 
-        batch_size: usize, 
+        &mut self,
+        batch_size: usize,
         processing_time: Duration,
         memory_usage_mb: u64,
         allocations_processed: usize,
@@ -499,7 +528,7 @@ impl AdaptivePerformanceOptimizer {
         };
 
         let (_cache_hits, _cache_misses, cache_hit_ratio) = self.type_cache.get_stats();
-        
+
         let batch_efficiency = allocations_processed as f64 / batch_size as f64;
 
         let metrics = PerformanceMetrics {
@@ -520,7 +549,7 @@ impl AdaptivePerformanceOptimizer {
         if !self.optimization_enabled {
             return None;
         }
-        
+
         self.type_cache.get(type_name)
     }
 
@@ -537,7 +566,7 @@ impl AdaptivePerformanceOptimizer {
         let memory_pressure = self.memory_monitor.get_memory_pressure();
         let memory_trend = self.memory_monitor.get_usage_trend();
         let performance_trend = self.batch_controller.get_performance_trend();
-        
+
         serde_json::json!({
             "adaptive_optimization": {
                 "enabled": self.optimization_enabled,
@@ -564,37 +593,45 @@ impl AdaptivePerformanceOptimizer {
     /// Get optimization recommendations based on current metrics
     fn get_optimization_recommendations(&self) -> Vec<String> {
         let mut recommendations = Vec::new();
-        
+
         let (_, _, cache_hit_ratio) = self.type_cache.get_stats();
         if cache_hit_ratio < 0.7 {
             recommendations.push("Consider increasing cache size for better hit ratio".to_string());
         }
-        
+
         match self.memory_monitor.get_memory_pressure() {
             MemoryPressureLevel::Critical => {
-                recommendations.push("URGENT: Reduce batch sizes and enable streaming to reduce memory pressure".to_string());
-            },
+                recommendations.push(
+                    "URGENT: Reduce batch sizes and enable streaming to reduce memory pressure"
+                        .to_string(),
+                );
+            }
             MemoryPressureLevel::High => {
-                recommendations.push("Consider reducing batch sizes or enabling compression".to_string());
-            },
+                recommendations
+                    .push("Consider reducing batch sizes or enabling compression".to_string());
+            }
             _ => {}
         }
-        
+
         if let Some(MemoryTrend::Increasing) = self.memory_monitor.get_usage_trend() {
-            recommendations.push("Memory usage is trending upward - monitor for potential leaks".to_string());
+            recommendations
+                .push("Memory usage is trending upward - monitor for potential leaks".to_string());
         }
-        
+
         if recommendations.is_empty() {
             recommendations.push("Performance is optimal - no recommendations".to_string());
         }
-        
+
         recommendations
     }
 
     /// Enable or disable adaptive optimization
     pub fn set_optimization_enabled(&mut self, enabled: bool) {
         self.optimization_enabled = enabled;
-        println!("🔧 Adaptive optimization {}", if enabled { "enabled" } else { "disabled" });
+        println!(
+            "🔧 Adaptive optimization {}",
+            if enabled { "enabled" } else { "disabled" }
+        );
     }
 
     /// Clear all caches and reset metrics

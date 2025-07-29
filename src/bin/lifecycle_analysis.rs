@@ -1,5 +1,5 @@
 //! 生命周期分析程序
-//! 
+//!
 //! 分析为什么大部分分配在complex_lifecycle_showcase中被释放
 
 use memscope_rs::{get_global_tracker, init, track_var};
@@ -33,36 +33,36 @@ fn main() {
 
 fn test_short_lifetime_allocations() {
     println!("  创建1000个短生命周期分配...");
-    
+
     for i in 0..1000 {
         let temp_vec = vec![i; 100];
         let _tracked = track_var!(temp_vec);
-        
+
         let temp_string = format!("Temporary string {}", i);
         let _tracked_string = track_var!(temp_string);
-        
+
         let mut temp_map = HashMap::new();
         temp_map.insert(format!("key_{}", i), i);
         let _tracked_map = track_var!(temp_map);
     } // ← 所有变量在这里被释放
-    
+
     println!("  ✅ 1000个短生命周期分配完成（已自动释放）");
 }
 
 fn test_long_lifetime_allocations() -> Vec<Box<dyn std::any::Any>> {
     println!("  创建100个长生命周期分配...");
     let mut keep_alive = Vec::new();
-    
+
     for i in 0..100 {
         let long_vec = vec![i; 100];
         let tracked_vec = track_var!(long_vec);
         keep_alive.push(Box::new(tracked_vec) as Box<dyn std::any::Any>);
-        
+
         let long_string = format!("Long-lived string {}", i);
         let tracked_string = track_var!(long_string);
         keep_alive.push(Box::new(tracked_string) as Box<dyn std::any::Any>);
     }
-    
+
     println!("  ✅ 100个长生命周期分配完成（保持存活）");
     keep_alive
 }
@@ -70,13 +70,13 @@ fn test_long_lifetime_allocations() -> Vec<Box<dyn std::any::Any>> {
 fn test_mixed_lifetime_pattern() -> Vec<Box<dyn std::any::Any>> {
     println!("  创建混合生命周期模式...");
     let mut keep_alive = Vec::new();
-    
+
     // 创建500个短生命周期 + 50个长生命周期
     for i in 0..500 {
         // 短生命周期（会被释放）
         let temp_data = vec![i; 50];
         let _tracked_temp = track_var!(temp_data);
-        
+
         // 每10个创建一个长生命周期（会保持存活）
         if i % 10 == 0 {
             let long_data = vec![i; 50];
@@ -84,7 +84,7 @@ fn test_mixed_lifetime_pattern() -> Vec<Box<dyn std::any::Any>> {
             keep_alive.push(Box::new(tracked_long) as Box<dyn std::any::Any>);
         }
     }
-    
+
     println!("  ✅ 混合模式: 500个短生命周期 + 50个长生命周期");
     keep_alive
 }
@@ -92,11 +92,13 @@ fn test_mixed_lifetime_pattern() -> Vec<Box<dyn std::any::Any>> {
 fn print_stats(phase: &str) {
     let tracker = get_global_tracker();
     if let Ok(stats) = tracker.get_stats() {
-        println!("  📊 {}: 总分配={}, 活跃分配={}, 已释放={}", 
-                phase,
-                stats.total_allocations,
-                stats.active_allocations,
-                stats.total_allocations - stats.active_allocations);
+        println!(
+            "  📊 {}: 总分配={}, 活跃分配={}, 已释放={}",
+            phase,
+            stats.total_allocations,
+            stats.active_allocations,
+            stats.total_allocations - stats.active_allocations
+        );
     }
 }
 
@@ -106,17 +108,30 @@ fn analyze_lifecycle_patterns() {
         println!("🔍 生命周期模式分析:");
         println!("  • 总分配数: {}", stats.total_allocations);
         println!("  • 活跃分配数: {}", stats.active_allocations);
-        println!("  • 已释放分配数: {}", stats.total_allocations - stats.active_allocations);
-        println!("  • 释放率: {:.1}%", 
-                (stats.total_allocations - stats.active_allocations) as f64 / stats.total_allocations as f64 * 100.0);
-        
+        println!(
+            "  • 已释放分配数: {}",
+            stats.total_allocations - stats.active_allocations
+        );
+        println!(
+            "  • 释放率: {:.1}%",
+            (stats.total_allocations - stats.active_allocations) as f64
+                / stats.total_allocations as f64
+                * 100.0
+        );
+
         let lifecycle = &stats.lifecycle_stats;
         println!("\n📈 生命周期分布:");
         println!("  • 瞬时分配 (< 1ms): {}", lifecycle.instant_allocations);
-        println!("  • 短期分配 (1-100ms): {}", lifecycle.short_term_allocations);
-        println!("  • 中期分配 (100ms-1s): {}", lifecycle.medium_term_allocations);
+        println!(
+            "  • 短期分配 (1-100ms): {}",
+            lifecycle.short_term_allocations
+        );
+        println!(
+            "  • 中期分配 (100ms-1s): {}",
+            lifecycle.medium_term_allocations
+        );
         println!("  • 长期分配 (> 1s): {}", lifecycle.long_term_allocations);
-        
+
         println!("\n💡 结论:");
         if stats.active_allocations < stats.total_allocations / 2 {
             println!("  ⚠️  大部分分配已被释放，这解释了为什么导出文件大小不随总分配数增长");

@@ -1,5 +1,5 @@
 //! 分配数量诊断程序
-//! 
+//!
 //! 检查为什么导出的文件大小不随分配数量线性增长
 
 use memscope_rs::{get_global_tracker, init};
@@ -18,7 +18,12 @@ fn main() {
     // 运行 complex_lifecycle_showcase 生成测试数据
     println!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
     let output = Command::new("cargo")
-        .args(&["run", "--release", "--example", "complex_lifecycle_showcase"])
+        .args(&[
+            "run",
+            "--release",
+            "--example",
+            "complex_lifecycle_showcase",
+        ])
         .output();
 
     match output {
@@ -54,8 +59,14 @@ fn diagnose_allocation_count() {
     println!("🔍 全局跟踪器统计:");
     println!("  • 总分配数: {}", stats.total_allocations);
     println!("  • 活跃分配数: {}", stats.active_allocations);
-    println!("  • 峰值内存: {:.2} MB", stats.peak_memory as f64 / 1024.0 / 1024.0);
-    println!("  • 当前内存: {:.2} MB", stats.active_memory as f64 / 1024.0 / 1024.0);
+    println!(
+        "  • 峰值内存: {:.2} MB",
+        stats.peak_memory as f64 / 1024.0 / 1024.0
+    );
+    println!(
+        "  • 当前内存: {:.2} MB",
+        stats.active_memory as f64 / 1024.0 / 1024.0
+    );
 
     // 创建输出目录
     let output_dir = PathBuf::from("diagnostic_results");
@@ -81,8 +92,15 @@ fn test_traditional_export(output_dir: &PathBuf, stats: &memscope_rs::core::type
         Ok(_) => {
             if let Ok(metadata) = fs::metadata(&output_path) {
                 let file_size = metadata.len();
-                println!("  • 文件大小: {:.2} MB ({} bytes)", file_size as f64 / 1024.0 / 1024.0, file_size);
-                println!("  • 每个分配平均大小: {:.1} bytes", file_size as f64 / stats.total_allocations as f64);
+                println!(
+                    "  • 文件大小: {:.2} MB ({} bytes)",
+                    file_size as f64 / 1024.0 / 1024.0,
+                    file_size
+                );
+                println!(
+                    "  • 每个分配平均大小: {:.1} bytes",
+                    file_size as f64 / stats.total_allocations as f64
+                );
 
                 // 读取文件内容分析
                 if let Ok(content) = fs::read_to_string(&output_path) {
@@ -114,21 +132,35 @@ fn test_fast_export(output_dir: &PathBuf, stats: &memscope_rs::core::types::Memo
 
     // 使用快速导出协调器
     let config = memscope_rs::export::fast_export_coordinator::FastExportConfig::default();
-    let mut coordinator = memscope_rs::export::fast_export_coordinator::FastExportCoordinator::new(config);
+    let mut coordinator =
+        memscope_rs::export::fast_export_coordinator::FastExportCoordinator::new(config);
 
     match coordinator.export_fast(&output_path) {
         Ok(export_stats) => {
-            println!("  • 处理的分配数量: {}", export_stats.parallel_processing.total_allocations);
-            println!("  • 写入的字节数: {:.2} MB ({} bytes)", 
-                    export_stats.write_performance.total_bytes_written as f64 / 1024.0 / 1024.0,
-                    export_stats.write_performance.total_bytes_written);
-            println!("  • 分片数量: {}", export_stats.parallel_processing.shard_count);
-            println!("  • 每个分配平均大小: {:.1} bytes", 
-                    export_stats.write_performance.total_bytes_written as f64 / export_stats.parallel_processing.total_allocations as f64);
+            println!(
+                "  • 处理的分配数量: {}",
+                export_stats.parallel_processing.total_allocations
+            );
+            println!(
+                "  • 写入的字节数: {:.2} MB ({} bytes)",
+                export_stats.write_performance.total_bytes_written as f64 / 1024.0 / 1024.0,
+                export_stats.write_performance.total_bytes_written
+            );
+            println!(
+                "  • 分片数量: {}",
+                export_stats.parallel_processing.shard_count
+            );
+            println!(
+                "  • 每个分配平均大小: {:.1} bytes",
+                export_stats.write_performance.total_bytes_written as f64
+                    / export_stats.parallel_processing.total_allocations as f64
+            );
 
             if export_stats.parallel_processing.total_allocations != stats.total_allocations {
-                println!("  ⚠️  快速导出处理的分配数量 ({}) 与跟踪器报告的数量 ({}) 不匹配！", 
-                        export_stats.parallel_processing.total_allocations, stats.total_allocations);
+                println!(
+                    "  ⚠️  快速导出处理的分配数量 ({}) 与跟踪器报告的数量 ({}) 不匹配！",
+                    export_stats.parallel_processing.total_allocations, stats.total_allocations
+                );
             }
         }
         Err(e) => {
@@ -145,16 +177,21 @@ fn test_raw_data_access(stats: &memscope_rs::core::types::MemoryStats) {
 
     // 尝试获取所有分配信息
     println!("  • 尝试直接访问分配数据...");
-    
+
     // 这里我们需要检查跟踪器是否有获取所有分配的方法
     // 由于API限制，我们只能通过统计信息来推断
     println!("  • 跟踪器统计显示:");
     println!("    - 总分配数: {}", stats.total_allocations);
     println!("    - 活跃分配数: {}", stats.active_allocations);
-    println!("    - 已释放分配数: {}", stats.total_allocations - stats.active_allocations);
+    println!(
+        "    - 已释放分配数: {}",
+        stats.total_allocations - stats.active_allocations
+    );
 
     if stats.active_allocations < stats.total_allocations {
-        println!("  💡 发现: 有 {} 个分配已被释放，这可能影响导出的数据量", 
-                stats.total_allocations - stats.active_allocations);
+        println!(
+            "  💡 发现: 有 {} 个分配已被释放，这可能影响导出的数据量",
+            stats.total_allocations - stats.active_allocations
+        );
     }
 }

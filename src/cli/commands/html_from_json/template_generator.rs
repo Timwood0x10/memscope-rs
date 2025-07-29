@@ -29,7 +29,9 @@ pub enum TemplateError {
 impl fmt::Display for TemplateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TemplateError::CompilationError(msg) => write!(f, "Template compilation error: {}", msg),
+            TemplateError::CompilationError(msg) => {
+                write!(f, "Template compilation error: {}", msg)
+            }
             TemplateError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
             TemplateError::CacheError(msg) => write!(f, "Cache error: {}", msg),
             TemplateError::ResourceError(msg) => write!(f, "Resource error: {}", msg),
@@ -49,6 +51,7 @@ struct CacheEntry {
     /// Access count
     access_count: usize,
     /// Template hash for validation
+    #[allow(dead_code)]
     hash: u64,
 }
 
@@ -74,7 +77,7 @@ impl TemplateCache {
             misses: 0,
         }
     }
-    
+
     fn get(&mut self, key: &str) -> Option<String> {
         if let Some(entry) = self.entries.get_mut(key) {
             entry.access_count += 1;
@@ -85,25 +88,26 @@ impl TemplateCache {
             None
         }
     }
-    
+
     fn put(&mut self, key: String, content: String, hash: u64) {
         // Evict oldest entry if cache is full
         if self.entries.len() >= self.max_size {
             self.evict_lru();
         }
-        
+
         let entry = CacheEntry {
             content,
             created_at: Instant::now(),
             access_count: 1,
             hash,
         };
-        
+
         self.entries.insert(key, entry);
     }
-    
+
     fn evict_lru(&mut self) {
-        if let Some((key_to_remove, _)) = self.entries
+        if let Some((key_to_remove, _)) = self
+            .entries
             .iter()
             .min_by_key(|(_, entry)| (entry.access_count, entry.created_at))
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -111,7 +115,7 @@ impl TemplateCache {
             self.entries.remove(&key_to_remove);
         }
     }
-    
+
     fn get_stats(&self) -> (usize, usize, f64) {
         let total_requests = self.hits + self.misses;
         let hit_rate = if total_requests > 0 {
@@ -200,7 +204,7 @@ impl TemplateGenerator {
             js_content: None,
         }
     }
-    
+
     /// Create template generator with custom configuration
     pub fn with_config(config: TemplateConfig) -> Self {
         Self {
@@ -209,42 +213,43 @@ impl TemplateGenerator {
             js_content: None,
         }
     }
-    
+
     /// Generate optimized HTML template
     pub fn generate_html(
         &mut self,
         unified_data: &UnifiedMemoryData,
     ) -> Result<(String, TemplateStats), TemplateError> {
         let start_time = Instant::now();
-        
+
         println!("🎨 Starting optimized HTML template generation...");
-        
+
         // Initialize cache if needed
         self.init_cache()?;
-        
+
         // Load and process CSS
         let css_start = Instant::now();
         let css_content = self.get_processed_css()?;
         let css_time = css_start.elapsed().as_millis() as u64;
-        
+
         // Load and process JavaScript
         let js_start = Instant::now();
         let js_content = self.get_processed_js()?;
         let js_time = js_start.elapsed().as_millis() as u64;
-        
+
         // Serialize data
         let serialization_start = Instant::now();
         let json_data = self.serialize_data(unified_data)?;
         let serialization_time = serialization_start.elapsed().as_millis() as u64;
-        
+
         // Generate template
-        let template_content = self.build_template(&css_content, &js_content, &json_data, unified_data)?;
-        
+        let template_content =
+            self.build_template(&css_content, &js_content, &json_data, unified_data)?;
+
         // Get cache statistics
         let cache_hit_rate = self.get_cache_hit_rate();
-        
+
         let total_time = start_time.elapsed().as_millis() as u64;
-        
+
         let stats = TemplateStats {
             generation_time_ms: total_time,
             css_processing_time_ms: css_time,
@@ -254,35 +259,37 @@ impl TemplateGenerator {
             cache_hit_rate,
             compression_ratio: None, // TODO: Implement compression
         };
-        
+
         println!("✅ Template generation completed in {}ms", total_time);
         println!("   CSS processing: {}ms", css_time);
         println!("   JS processing: {}ms", js_time);
         println!("   Data serialization: {}ms", serialization_time);
-        println!("   Template size: {:.1} KB", template_content.len() as f64 / 1024.0);
+        println!(
+            "   Template size: {:.1} KB",
+            template_content.len() as f64 / 1024.0
+        );
         println!("   Cache hit rate: {:.1}%", cache_hit_rate);
-        
+
         Ok((template_content, stats))
     }
-    
+
     /// Initialize template cache
     fn init_cache(&self) -> Result<(), TemplateError> {
         if self.config.enable_caching {
-            TEMPLATE_CACHE.get_or_init(|| {
-                Arc::new(Mutex::new(TemplateCache::new(self.config.cache_size)))
-            });
+            TEMPLATE_CACHE
+                .get_or_init(|| Arc::new(Mutex::new(TemplateCache::new(self.config.cache_size))));
         }
         Ok(())
     }
-    
+
     /// Get processed CSS content with caching
     fn get_processed_css(&mut self) -> Result<String, TemplateError> {
         if let Some(cached_css) = &self.css_content {
             return Ok(cached_css.clone());
         }
-        
+
         let cache_key = format!("css_{}_{}", self.config.theme, self.config.minify_css);
-        
+
         // Try cache first
         if self.config.enable_caching {
             if let Some(cache) = TEMPLATE_CACHE.get() {
@@ -294,26 +301,26 @@ impl TemplateGenerator {
                 }
             }
         }
-        
+
         // Load and process CSS
         let mut css_content = include_str!("../../../../templates/styles.css").to_string();
-        
+
         // Apply theme modifications
         css_content = self.apply_theme(&css_content)?;
-        
+
         // Apply custom CSS variables
         css_content = self.apply_css_variables(&css_content)?;
-        
+
         // Add responsive design enhancements
         if self.config.enable_responsive {
             css_content = self.add_responsive_css(&css_content)?;
         }
-        
+
         // Minify if requested
         if self.config.minify_css {
             css_content = self.minify_css(&css_content)?;
         }
-        
+
         // Cache the result
         if self.config.enable_caching {
             if let Some(cache) = TEMPLATE_CACHE.get() {
@@ -323,19 +330,19 @@ impl TemplateGenerator {
                 }
             }
         }
-        
+
         self.css_content = Some(css_content.clone());
         Ok(css_content)
     }
-    
+
     /// Get processed JavaScript content with caching
     fn get_processed_js(&mut self) -> Result<String, TemplateError> {
         if let Some(cached_js) = &self.js_content {
             return Ok(cached_js.clone());
         }
-        
+
         let cache_key = format!("js_{}", self.config.minify_js);
-        
+
         // Try cache first
         if self.config.enable_caching {
             if let Some(cache) = TEMPLATE_CACHE.get() {
@@ -347,18 +354,18 @@ impl TemplateGenerator {
                 }
             }
         }
-        
+
         // Load and process JavaScript
         let mut js_content = include_str!("../../../../templates/script.js").to_string();
-        
+
         // Add enhanced functionality
         js_content = self.add_enhanced_js_features(&js_content)?;
-        
+
         // Minify if requested
         if self.config.minify_js {
             js_content = self.minify_js(&js_content)?;
         }
-        
+
         // Cache the result
         if self.config.enable_caching {
             if let Some(cache) = TEMPLATE_CACHE.get() {
@@ -368,15 +375,15 @@ impl TemplateGenerator {
                 }
             }
         }
-        
+
         self.js_content = Some(js_content.clone());
         Ok(js_content)
     }
-    
+
     /// Apply theme to CSS
     fn apply_theme(&self, css: &str) -> Result<String, TemplateError> {
         let mut themed_css = css.to_string();
-        
+
         match self.config.theme.as_str() {
             "dark" => {
                 themed_css = themed_css.replace(
@@ -392,29 +399,27 @@ impl TemplateGenerator {
             }
             _ => {} // Default theme
         }
-        
+
         Ok(themed_css)
     }
-    
+
     /// Apply custom CSS variables
     fn apply_css_variables(&self, css: &str) -> Result<String, TemplateError> {
         let mut css_with_vars = css.to_string();
-        
+
         if !self.config.css_variables.is_empty() {
             let mut variables_section = String::new();
             for (key, value) in &self.config.css_variables {
                 variables_section.push_str(&format!("  --{}: {};\n", key, value));
             }
-            
-            css_with_vars = css_with_vars.replace(
-                ":root {",
-                &format!(":root {{\n{}", variables_section)
-            );
+
+            css_with_vars =
+                css_with_vars.replace(":root {", &format!(":root {{\n{}", variables_section));
         }
-        
+
         Ok(css_with_vars)
     }
-    
+
     /// Add responsive CSS enhancements
     fn add_responsive_css(&self, css: &str) -> Result<String, TemplateError> {
         let responsive_css = r#"
@@ -530,10 +535,10 @@ impl TemplateGenerator {
     }
 }
 "#;
-        
+
         Ok(format!("{}\n{}", css, responsive_css))
     }
-    
+
     /// Add enhanced JavaScript features
     fn add_enhanced_js_features(&self, js: &str) -> Result<String, TemplateError> {
         let enhanced_js = r#"
@@ -1038,10 +1043,10 @@ if (typeof initializeBasicViewUnified === 'function') {
     };
 }
 "#;
-        
+
         Ok(format!("{}\n{}", js, enhanced_js))
     }
-    
+
     /// Minify CSS (basic implementation)
     fn minify_css(&self, css: &str) -> Result<String, TemplateError> {
         // Basic CSS minification
@@ -1056,10 +1061,10 @@ if (typeof initializeBasicViewUnified === 'function') {
             .replace(": ", ":")
             .replace("{ ", "{")
             .replace(" }", "}");
-        
+
         Ok(minified)
     }
-    
+
     /// Minify JavaScript (basic implementation)
     fn minify_js(&self, js: &str) -> Result<String, TemplateError> {
         // Basic JavaScript minification
@@ -1073,16 +1078,16 @@ if (typeof initializeBasicViewUnified === 'function') {
             .replace("; ", ";")
             .replace("{ ", "{")
             .replace(" }", "}");
-        
+
         Ok(minified)
     }
-    
+
     /// Serialize data to JSON
     fn serialize_data(&self, unified_data: &UnifiedMemoryData) -> Result<String, TemplateError> {
         serde_json::to_string(unified_data)
             .map_err(|e| TemplateError::SerializationError(e.to_string()))
     }
-    
+
     /// Build complete HTML template
     fn build_template(
         &self,
@@ -1092,27 +1097,28 @@ if (typeof initializeBasicViewUnified === 'function') {
         unified_data: &UnifiedMemoryData,
     ) -> Result<String, TemplateError> {
         let stats = &unified_data.stats;
-        
+
         // Format statistics for header
         let total_memory = format_bytes(stats.active_memory);
         let active_allocs = format!("{} Active", stats.active_allocations);
         let peak_memory = format_bytes(stats.peak_memory);
-        
+
         // Build responsive viewport meta tag
         let viewport_meta = if self.config.enable_responsive {
             r#"<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">"#
         } else {
             r#"<meta name="viewport" content="width=device-width, initial-scale=1.0">"#
         };
-        
+
         // Build theme class
         let theme_class = if self.config.theme != "default" {
             format!(" theme-{}", self.config.theme)
         } else {
             String::new()
         };
-        
-        let html = format!(r#"<!DOCTYPE html>
+
+        let html = format!(
+            r#"<!DOCTYPE html>
 <html lang="en"{theme_class}>
 <head>
     <meta charset="UTF-8">
@@ -1506,21 +1512,22 @@ if (typeof initializeBasicViewUnified === 'function') {
         }});
     </script>
 </body>
-</html>"#);
+</html>"#
+        );
 
         Ok(html)
     }
-    
+
     /// Calculate simple hash for caching
     fn calculate_hash(&self, content: &str) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         content.hash(&mut hasher);
         hasher.finish()
     }
-    
+
     /// Get cache hit rate
     fn get_cache_hit_rate(&self) -> f64 {
         if let Some(cache) = TEMPLATE_CACHE.get() {
@@ -1544,12 +1551,12 @@ fn format_bytes(bytes: usize) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
     let mut size = bytes as f64;
     let mut unit_index = 0;
-    
+
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{} {}", bytes, UNITS[unit_index])
     } else {

@@ -719,7 +719,6 @@ pub struct LifecycleAnalysisReport {
     pub analysis_timestamp: u64,
 }
 
-
 /// Get current timestamp in nanoseconds
 fn current_timestamp() -> u64 {
     SystemTime::now()

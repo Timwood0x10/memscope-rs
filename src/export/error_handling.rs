@@ -5,9 +5,9 @@
 
 use crate::core::types::{TrackingError, TrackingResult};
 use std::fmt;
-use std::time::{Duration, Instant};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// export system error type
 #[derive(Debug, Clone)]
@@ -187,28 +187,65 @@ pub enum CorruptionType {
 impl fmt::Display for ExportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExportError::ParallelProcessingError { shard_index, thread_id, error_message, .. } => {
+            ExportError::ParallelProcessingError {
+                shard_index,
+                thread_id,
+                error_message,
+                ..
+            } => {
                 write!(f, "parallel processing error - shard {shard_index} (thread {thread_id}): {error_message}")
             }
-            ExportError::ResourceLimitExceeded { resource_type, limit, actual, suggested_action } => {
+            ExportError::ResourceLimitExceeded {
+                resource_type,
+                limit,
+                actual,
+                suggested_action,
+            } => {
                 write!(f, "resource limit exceeded - {resource_type:?}: limit {limit}, actual {actual}. suggested action: {suggested_action}")
             }
-            ExportError::DataQualityError { validation_type, expected, actual, affected_records } => {
+            ExportError::DataQualityError {
+                validation_type,
+                expected,
+                actual,
+                affected_records,
+            } => {
                 write!(f, "data quality error - {validation_type:?}: expected {expected}, actual {actual}, affected records {affected_records}")
             }
-            ExportError::PerformanceThresholdExceeded { metric, threshold, actual, stage } => {
+            ExportError::PerformanceThresholdExceeded {
+                metric,
+                threshold,
+                actual,
+                stage,
+            } => {
                 write!(f, "performance threshold exceeded - {metric:?} in {stage:?}: threshold {threshold}, actual {actual}")
             }
-            ExportError::ConcurrencyConflict { operation, conflict_type, retry_count } => {
+            ExportError::ConcurrencyConflict {
+                operation,
+                conflict_type,
+                retry_count,
+            } => {
                 write!(f, "concurrency conflict - operation {operation}, type {conflict_type:?}, retry count {retry_count}")
             }
-            ExportError::DataCorruption { corruption_type, affected_data, recovery_possible } => {
+            ExportError::DataCorruption {
+                corruption_type,
+                affected_data,
+                recovery_possible,
+            } => {
                 write!(f, "data corruption - type {corruption_type:?}, affected data {affected_data}, recovery possible: {recovery_possible}")
             }
-            ExportError::InsufficientResources { required_memory, available_memory, required_disk, available_disk } => {
+            ExportError::InsufficientResources {
+                required_memory,
+                available_memory,
+                required_disk,
+                available_disk,
+            } => {
                 write!(f, "insufficient resources - required memory {required_memory}MB, available {available_memory}MB, required disk {required_disk}MB, available {available_disk}MB")
             }
-            ExportError::ExportInterrupted { stage, progress_percentage, partial_output_path } => {
+            ExportError::ExportInterrupted {
+                stage,
+                progress_percentage,
+                partial_output_path,
+            } => {
                 write!(f, "export interrupted - stage {stage:?}, progress {progress_percentage:.1}%, partial output: {partial_output_path:?}")
             }
         }
@@ -269,8 +306,15 @@ impl fmt::Display for ValidationError {
             ValidationError::JsonParsingError { file_path, error } => {
                 write!(f, "JSON parsing error in {}: {}", file_path, error)
             }
-            ValidationError::TimeoutError { file_path, timeout_duration } => {
-                write!(f, "validation timeout for {} after {:?}", file_path, timeout_duration)
+            ValidationError::TimeoutError {
+                file_path,
+                timeout_duration,
+            } => {
+                write!(
+                    f,
+                    "validation timeout for {} after {:?}",
+                    file_path, timeout_duration
+                )
             }
             ValidationError::CancelledError { file_path, reason } => {
                 write!(f, "validation cancelled for {}: {}", file_path, reason)
@@ -379,43 +423,71 @@ impl PerformanceLogger {
     /// record operation start
     pub fn log_operation_start(&self, operation: &str, details: &str) {
         if self.should_log(LogLevel::Info) {
-            println!("🚀 [{}] start operation: {} - {}", 
-                    self.format_timestamp(), operation, details);
+            println!(
+                "🚀 [{}] start operation: {} - {}",
+                self.format_timestamp(),
+                operation,
+                details
+            );
         }
-        self.metrics_collector.total_operations.fetch_add(1, Ordering::Relaxed);
+        self.metrics_collector
+            .total_operations
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// record operation success
     pub fn log_operation_success(&self, operation: &str, duration: Duration, details: &str) {
         if self.should_log(LogLevel::Info) {
-            println!("✅ [{}] operation success: {} ({:?}) - {}", 
-                    self.format_timestamp(), operation, duration, details);
+            println!(
+                "✅ [{}] operation success: {} ({:?}) - {}",
+                self.format_timestamp(),
+                operation,
+                duration,
+                details
+            );
         }
-        self.metrics_collector.successful_operations.fetch_add(1, Ordering::Relaxed);
-        self.metrics_collector.total_processing_time_ms.fetch_add(
-            duration.as_millis() as usize, Ordering::Relaxed);
+        self.metrics_collector
+            .successful_operations
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics_collector
+            .total_processing_time_ms
+            .fetch_add(duration.as_millis() as usize, Ordering::Relaxed);
     }
 
     /// record operation failure
     pub fn log_operation_failure(&self, operation: &str, error: &ExportError, duration: Duration) {
         if self.should_log(LogLevel::Error) {
-            println!("❌ [{}] operation failure: {} ({:?}) - {}", 
-                    self.format_timestamp(), operation, duration, error);
+            println!(
+                "❌ [{}] operation failure: {} ({:?}) - {}",
+                self.format_timestamp(),
+                operation,
+                duration,
+                error
+            );
         }
-        self.metrics_collector.failed_operations.fetch_add(1, Ordering::Relaxed);
+        self.metrics_collector
+            .failed_operations
+            .fetch_add(1, Ordering::Relaxed);
         self.update_error_statistics(error);
     }
 
     /// record performance metric
-    pub fn log_performance_metric(&self, metric: PerformanceMetric, value: f64, threshold: Option<f64>) {
+    pub fn log_performance_metric(
+        &self,
+        metric: PerformanceMetric,
+        value: f64,
+        threshold: Option<f64>,
+    ) {
         if self.should_log(LogLevel::Debug) {
             let threshold_info = if let Some(t) = threshold {
                 format!(" (threshold: {t})")
             } else {
                 String::new()
             };
-            println!("📊 [{}] performance metric - {metric:?}: {value}{threshold_info}", 
-                    self.format_timestamp());
+            println!(
+                "📊 [{}] performance metric - {metric:?}: {value}{threshold_info}",
+                self.format_timestamp()
+            );
         }
 
         // check if exceeded threshold
@@ -435,18 +507,27 @@ impl PerformanceLogger {
     /// record memory usage
     pub fn log_memory_usage(&self, current_usage: usize, peak_usage: usize) {
         if self.should_log(LogLevel::Debug) {
-            println!("💾 [{}] memory usage - current: {:.2}MB, peak: {:.2}MB", 
-                    self.format_timestamp(),
-                    current_usage as f64 / 1024.0 / 1024.0,
-                    peak_usage as f64 / 1024.0 / 1024.0);
+            println!(
+                "💾 [{}] memory usage - current: {:.2}MB, peak: {:.2}MB",
+                self.format_timestamp(),
+                current_usage as f64 / 1024.0 / 1024.0,
+                peak_usage as f64 / 1024.0 / 1024.0
+            );
         }
-        
-        self.metrics_collector.current_memory_usage.store(current_usage, Ordering::Relaxed);
-        
+
+        self.metrics_collector
+            .current_memory_usage
+            .store(current_usage, Ordering::Relaxed);
+
         // update peak memory usage
-        let current_peak = self.metrics_collector.peak_memory_usage.load(Ordering::Relaxed);
+        let current_peak = self
+            .metrics_collector
+            .peak_memory_usage
+            .load(Ordering::Relaxed);
         if peak_usage > current_peak {
-            self.metrics_collector.peak_memory_usage.store(peak_usage, Ordering::Relaxed);
+            self.metrics_collector
+                .peak_memory_usage
+                .store(peak_usage, Ordering::Relaxed);
         }
     }
 
@@ -475,12 +556,30 @@ impl PerformanceLogger {
     /// generate performance report
     pub fn generate_performance_report(&self) -> PerformanceReport {
         let total_time = self.start_time.elapsed();
-        let total_ops = self.metrics_collector.total_operations.load(Ordering::Relaxed);
-        let successful_ops = self.metrics_collector.successful_operations.load(Ordering::Relaxed);
-        let failed_ops = self.metrics_collector.failed_operations.load(Ordering::Relaxed);
-        let total_processing_time = self.metrics_collector.total_processing_time_ms.load(Ordering::Relaxed);
-        let peak_memory = self.metrics_collector.peak_memory_usage.load(Ordering::Relaxed);
-        let current_memory = self.metrics_collector.current_memory_usage.load(Ordering::Relaxed);
+        let total_ops = self
+            .metrics_collector
+            .total_operations
+            .load(Ordering::Relaxed);
+        let successful_ops = self
+            .metrics_collector
+            .successful_operations
+            .load(Ordering::Relaxed);
+        let failed_ops = self
+            .metrics_collector
+            .failed_operations
+            .load(Ordering::Relaxed);
+        let total_processing_time = self
+            .metrics_collector
+            .total_processing_time_ms
+            .load(Ordering::Relaxed);
+        let peak_memory = self
+            .metrics_collector
+            .peak_memory_usage
+            .load(Ordering::Relaxed);
+        let current_memory = self
+            .metrics_collector
+            .current_memory_usage
+            .load(Ordering::Relaxed);
 
         let success_rate = if total_ops > 0 {
             (successful_ops as f64 / total_ops as f64) * 100.0
@@ -513,7 +612,10 @@ impl PerformanceLogger {
             (LogLevel::Error, LogLevel::Error) => true,
             (LogLevel::Warn, LogLevel::Error | LogLevel::Warn) => true,
             (LogLevel::Info, LogLevel::Error | LogLevel::Warn | LogLevel::Info) => true,
-            (LogLevel::Debug, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug) => true,
+            (
+                LogLevel::Debug,
+                LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug,
+            ) => true,
             (LogLevel::Trace, _) => true,
             _ => false,
         }
@@ -529,28 +631,44 @@ impl PerformanceLogger {
     fn update_error_statistics(&self, error: &ExportError) {
         match error {
             ExportError::ParallelProcessingError { .. } => {
-                self.error_stats.parallel_processing_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .parallel_processing_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
             ExportError::ResourceLimitExceeded { .. } => {
-                self.error_stats.resource_limit_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .resource_limit_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
             ExportError::DataQualityError { .. } => {
-                self.error_stats.data_quality_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .data_quality_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
             ExportError::PerformanceThresholdExceeded { .. } => {
-                self.error_stats.performance_threshold_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .performance_threshold_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
             ExportError::ConcurrencyConflict { .. } => {
-                self.error_stats.concurrency_conflict_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .concurrency_conflict_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
             ExportError::DataCorruption { .. } => {
-                self.error_stats.data_corruption_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .data_corruption_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
             ExportError::InsufficientResources { .. } => {
-                self.error_stats.insufficient_resources_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .insufficient_resources_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
             ExportError::ExportInterrupted { .. } => {
-                self.error_stats.export_interrupted_errors.fetch_add(1, Ordering::Relaxed);
+                self.error_stats
+                    .export_interrupted_errors
+                    .fetch_add(1, Ordering::Relaxed);
             }
         }
     }
@@ -558,14 +676,35 @@ impl PerformanceLogger {
     /// get error breakdown
     fn get_error_breakdown(&self) -> ErrorBreakdown {
         ErrorBreakdown {
-            parallel_processing_errors: self.error_stats.parallel_processing_errors.load(Ordering::Relaxed),
-            resource_limit_errors: self.error_stats.resource_limit_errors.load(Ordering::Relaxed),
+            parallel_processing_errors: self
+                .error_stats
+                .parallel_processing_errors
+                .load(Ordering::Relaxed),
+            resource_limit_errors: self
+                .error_stats
+                .resource_limit_errors
+                .load(Ordering::Relaxed),
             data_quality_errors: self.error_stats.data_quality_errors.load(Ordering::Relaxed),
-            performance_threshold_errors: self.error_stats.performance_threshold_errors.load(Ordering::Relaxed),
-            concurrency_conflict_errors: self.error_stats.concurrency_conflict_errors.load(Ordering::Relaxed),
-            data_corruption_errors: self.error_stats.data_corruption_errors.load(Ordering::Relaxed),
-            insufficient_resources_errors: self.error_stats.insufficient_resources_errors.load(Ordering::Relaxed),
-            export_interrupted_errors: self.error_stats.export_interrupted_errors.load(Ordering::Relaxed),
+            performance_threshold_errors: self
+                .error_stats
+                .performance_threshold_errors
+                .load(Ordering::Relaxed),
+            concurrency_conflict_errors: self
+                .error_stats
+                .concurrency_conflict_errors
+                .load(Ordering::Relaxed),
+            data_corruption_errors: self
+                .error_stats
+                .data_corruption_errors
+                .load(Ordering::Relaxed),
+            insufficient_resources_errors: self
+                .error_stats
+                .insufficient_resources_errors
+                .load(Ordering::Relaxed),
+            export_interrupted_errors: self
+                .error_stats
+                .export_interrupted_errors
+                .load(Ordering::Relaxed),
         }
     }
 }
@@ -647,24 +786,57 @@ impl PerformanceReport {
     pub fn print_detailed_report(&self) {
         println!("\n📈 detailed performance report");
         println!("================");
-        
+
         println!("⏱️ runtime: {:?}", self.total_runtime);
         println!("🔢 total operations: {}", self.total_operations);
-        println!("✅ successful operations: {} ({:.1}%)", self.successful_operations, self.success_rate);
+        println!(
+            "✅ successful operations: {} ({:.1}%)",
+            self.successful_operations, self.success_rate
+        );
         println!("❌ failed operations: {}", self.failed_operations);
-        println!("⚡ average processing time: {:.2}ms", self.average_processing_time_ms);
+        println!(
+            "⚡ average processing time: {:.2}ms",
+            self.average_processing_time_ms
+        );
         println!("💾 peak memory usage: {:.2}MB", self.peak_memory_usage_mb);
-        println!("💾 current memory usage: {:.2}MB", self.current_memory_usage_mb);
-        
+        println!(
+            "💾 current memory usage: {:.2}MB",
+            self.current_memory_usage_mb
+        );
+
         println!("\n🚨 error breakdown:");
-        println!("   parallel processing errors: {}", self.error_breakdown.parallel_processing_errors);
-        println!("   resource limit errors: {}", self.error_breakdown.resource_limit_errors);
-        println!("   data quality errors: {}", self.error_breakdown.data_quality_errors);
-        println!("   performance threshold errors: {}", self.error_breakdown.performance_threshold_errors);
-        println!("   concurrency conflict errors: {}", self.error_breakdown.concurrency_conflict_errors);
-        println!("   data corruption errors: {}", self.error_breakdown.data_corruption_errors);
-        println!("   insufficient resources errors: {}", self.error_breakdown.insufficient_resources_errors);
-        println!("   export interrupted errors: {}", self.error_breakdown.export_interrupted_errors);
+        println!(
+            "   parallel processing errors: {}",
+            self.error_breakdown.parallel_processing_errors
+        );
+        println!(
+            "   resource limit errors: {}",
+            self.error_breakdown.resource_limit_errors
+        );
+        println!(
+            "   data quality errors: {}",
+            self.error_breakdown.data_quality_errors
+        );
+        println!(
+            "   performance threshold errors: {}",
+            self.error_breakdown.performance_threshold_errors
+        );
+        println!(
+            "   concurrency conflict errors: {}",
+            self.error_breakdown.concurrency_conflict_errors
+        );
+        println!(
+            "   data corruption errors: {}",
+            self.error_breakdown.data_corruption_errors
+        );
+        println!(
+            "   insufficient resources errors: {}",
+            self.error_breakdown.insufficient_resources_errors
+        );
+        println!(
+            "   export interrupted errors: {}",
+            self.error_breakdown.export_interrupted_errors
+        );
     }
 }
 
@@ -705,7 +877,8 @@ impl ResourceMonitor {
                 limit: self.memory_limit as u64,
                 actual: memory_usage as u64,
                 suggested_action: "reduce parallelism or enable streaming processing".to_string(),
-            }.into());
+            }
+            .into());
         }
 
         if disk_usage > self.disk_limit {
@@ -713,8 +886,10 @@ impl ResourceMonitor {
                 resource_type: ResourceType::Disk,
                 limit: self.disk_limit as u64,
                 actual: disk_usage as u64,
-                suggested_action: "clean up temporary files or select other output location".to_string(),
-            }.into());
+                suggested_action: "clean up temporary files or select other output location"
+                    .to_string(),
+            }
+            .into());
         }
 
         if cpu_usage > self.cpu_limit {
@@ -723,7 +898,8 @@ impl ResourceMonitor {
                 limit: (self.cpu_limit * 100.0) as u64,
                 actual: (cpu_usage * 100.0) as u64,
                 suggested_action: "reduce thread count or lower processing priority".to_string(),
-            }.into());
+            }
+            .into());
         }
 
         Ok(ResourceUsage {
@@ -804,7 +980,7 @@ mod tests {
             error_message: "serialization failed".to_string(),
             partial_results: None,
         };
-        
+
         let display = format!("{error}");
         assert!(display.contains("parallel processing error"));
         assert!(display.contains("shard 5"));
@@ -814,10 +990,10 @@ mod tests {
     #[test]
     fn test_performance_logger() {
         let logger = PerformanceLogger::new(LogLevel::Info);
-        
+
         logger.log_operation_start("test operation", "test details");
         logger.log_operation_success("test operation", Duration::from_millis(100), "success");
-        
+
         let report = logger.generate_performance_report();
         assert_eq!(report.total_operations, 1);
         assert_eq!(report.successful_operations, 1);
@@ -828,11 +1004,11 @@ mod tests {
     #[test]
     fn test_resource_monitor() {
         let monitor = ResourceMonitor::new(1024, 2048, 80.0);
-        
+
         // test resource check (using simplified implementation, should always succeed)
         let result = monitor.check_resource_usage();
         assert!(result.is_ok());
-        
+
         let usage = result.unwrap();
         assert_eq!(usage.memory_limit, 1024 * 1024 * 1024);
         assert_eq!(usage.disk_limit, 2048 * 1024 * 1024);
@@ -842,14 +1018,14 @@ mod tests {
     #[test]
     fn test_resource_usage_percentages() {
         let usage = ResourceUsage {
-            memory_usage: 512 * 1024 * 1024, // 512MB
-            disk_usage: 1024 * 1024 * 1024,  // 1GB
-            cpu_usage: 0.6,                  // 60%
+            memory_usage: 512 * 1024 * 1024,  // 512MB
+            disk_usage: 1024 * 1024 * 1024,   // 1GB
+            cpu_usage: 0.6,                   // 60%
             memory_limit: 1024 * 1024 * 1024, // 1GB
             disk_limit: 2048 * 1024 * 1024,   // 2GB
             cpu_limit: 0.8,                   // 80%
         };
-        
+
         assert_eq!(usage.memory_usage_percentage(), 50.0);
         assert_eq!(usage.disk_usage_percentage(), 50.0);
         assert_eq!(usage.cpu_usage_percentage(), 60.0);

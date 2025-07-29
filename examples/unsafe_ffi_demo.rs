@@ -132,19 +132,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 Exporting JSON files to MemoryAnalysis folder...");
     let analysis_dir = "MemoryAnalysis";
     std::fs::create_dir_all(analysis_dir)?;
-    
+
     // Export main memory analysis (correct naming for html_from_json)
     let memory_json = format!("{}/snapshot_memory_analysis.json", analysis_dir);
     tracker.export_to_json(&memory_json)?;
     println!("   ✅ Memory analysis: {}", memory_json);
-    
+
     // Export unsafe/FFI analysis
     let ffi_json = format!("{}/snapshot_unsafe_ffi.json", analysis_dir);
     let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
     let ffi_data = serde_json::to_string_pretty(&enhanced_allocations)?;
     std::fs::write(&ffi_json, ffi_data)?;
     println!("   ✅ Unsafe/FFI analysis: {}", ffi_json);
-    
+
     // Export performance metrics
     let perf_json = format!("{}/snapshot_performance.json", analysis_dir);
     let stats = tracker.get_stats()?;
@@ -157,10 +157,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     std::fs::write(&perf_json, serde_json::to_string_pretty(&perf_data)?)?;
     println!("   ✅ Performance metrics: {}", perf_json);
-    
+
     // Export security violations
     let security_json = format!("{}/snapshot_security_violations.json", analysis_dir);
-    let violations = unsafe_ffi_tracker.get_safety_violations().unwrap_or_default();
+    let violations = unsafe_ffi_tracker
+        .get_safety_violations()
+        .unwrap_or_default();
     let security_data = serde_json::json!({
         "security_violations": violations,
         "timestamp": std::time::SystemTime::now()
@@ -168,9 +170,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_default()
             .as_secs()
     });
-    std::fs::write(&security_json, serde_json::to_string_pretty(&security_data)?)?;
+    std::fs::write(
+        &security_json,
+        serde_json::to_string_pretty(&security_data)?,
+    )?;
     println!("   ✅ Security violations: {}", security_json);
-    
+
     // 7. Display summary statistics
     println!("\n📈 7. Summary Statistics");
     let stats = tracker.get_stats()?;

@@ -115,7 +115,6 @@ fn io_error_to_tracking_error(e: std::io::Error) -> crate::core::types::Tracking
     crate::core::types::TrackingError::IoError(e.to_string())
 }
 
-
 /// Global memory tracker instance
 static GLOBAL_TRACKER: OnceLock<Arc<MemoryTracker>> = OnceLock::new();
 
@@ -1921,12 +1920,15 @@ impl MemoryTracker {
     }
 
     /// Ensure path is within MemoryAnalysis/project_name directory
-    fn ensure_memory_analysis_path<P: AsRef<std::path::Path>>(&self, path: P) -> std::path::PathBuf {
+    fn ensure_memory_analysis_path<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> std::path::PathBuf {
         use std::path::Path;
-        
+
         let path = path.as_ref();
         let base_memory_analysis_dir = Path::new("MemoryAnalysis");
-        
+
         // Extract project name from the filename
         let project_name = if let Some(file_stem) = path.file_stem() {
             let stem_str = file_stem.to_string_lossy();
@@ -1945,22 +1947,26 @@ impl MemoryTracker {
         } else {
             "default".to_string()
         };
-        
+
         // Create project-specific directory: MemoryAnalysis/project_name/
         let project_dir = base_memory_analysis_dir.join(&project_name);
-        
+
         // Create the project directory if it doesn't exist
         if let Err(e) = std::fs::create_dir_all(&project_dir) {
-            eprintln!("Warning: Failed to create project directory {}: {}", project_dir.display(), e);
+            eprintln!(
+                "Warning: Failed to create project directory {}: {}",
+                project_dir.display(),
+                e
+            );
         }
-        
+
         // Get the filename
         let filename = if let Some(filename) = path.file_name() {
             filename
         } else {
             path.as_os_str()
         };
-        
+
         // Return the full path: MemoryAnalysis/project_name/filename
         project_dir.join(filename)
     }
@@ -2022,16 +2028,15 @@ impl MemoryTracker {
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         // Ensure output goes to MemoryAnalysis directory
         let output_path = self.ensure_memory_analysis_path(path);
-        
+
         // Use fast mode by default for optimal performance
-        
-        
+
         let options = OptimizedExportOptions::default()
             .fast_export_mode(true)
-            .security_analysis(false)           // Disable for speed
-            .schema_validation(false)           // Disable for speed
-            .integrity_hashes(false);           // Disable for speed
-            
+            .security_analysis(false) // Disable for speed
+            .schema_validation(false) // Disable for speed
+            .integrity_hashes(false); // Disable for speed
+
         self.export_to_json_with_optimized_options(output_path, options)
     }
 
@@ -2057,14 +2062,14 @@ impl MemoryTracker {
         options: ExportOptions,
     ) -> TrackingResult<()> {
         // Convert legacy ExportOptions to OptimizedExportOptions for backward compatibility
-        use crate::export::optimized_json_export::{OptimizedExportOptions, OptimizationLevel};
-        
+        use crate::export::optimized_json_export::{OptimizationLevel, OptimizedExportOptions};
+
         let mut optimized_options = OptimizedExportOptions::default();
-        
+
         // Map legacy options to optimized options
         optimized_options.buffer_size = options.buffer_size;
         optimized_options.use_compact_format = Some(!options.verbose_logging); // Verbose = pretty format
-        
+
         // Determine optimization level based on legacy settings
         if options.include_system_allocations {
             // System allocations = comprehensive analysis = High optimization
@@ -2073,29 +2078,45 @@ impl MemoryTracker {
             optimized_options.enable_boundary_event_processing = true;
             optimized_options.enable_memory_passport_tracking = true;
             optimized_options.enable_security_analysis = true;
-            
-            println!("⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!");
+
+            println!(
+                "⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!"
+            );
             println!("💡 To speed up export, use default options: tracker.export_to_json(path)");
         } else {
             // User-focused mode = High optimization (default)
             optimized_options.optimization_level = OptimizationLevel::High;
         }
-        
+
         // Enable compression if requested in legacy options
         if options.compress_output {
             optimized_options.use_compact_format = Some(true);
-            optimized_options.buffer_size = optimized_options.buffer_size.max(512 * 1024); // Larger buffer for compression
+            optimized_options.buffer_size = optimized_options.buffer_size.max(512 * 1024);
+            // Larger buffer for compression
         }
-        
+
         // Adjust parallel processing based on expected load
-        optimized_options.parallel_processing = options.include_system_allocations || options.buffer_size > 128 * 1024;
-        
+        optimized_options.parallel_processing =
+            options.include_system_allocations || options.buffer_size > 128 * 1024;
+
         println!("🔄 Converted legacy ExportOptions to OptimizedExportOptions:");
-        println!("   - Optimization level: {:?}", optimized_options.optimization_level);
-        println!("   - Buffer size: {} KB", optimized_options.buffer_size / 1024);
-        println!("   - Parallel processing: {}", optimized_options.parallel_processing);
-        println!("   - Enhanced features: {}", optimized_options.enable_enhanced_ffi_analysis);
-        
+        println!(
+            "   - Optimization level: {:?}",
+            optimized_options.optimization_level
+        );
+        println!(
+            "   - Buffer size: {} KB",
+            optimized_options.buffer_size / 1024
+        );
+        println!(
+            "   - Parallel processing: {}",
+            optimized_options.parallel_processing
+        );
+        println!(
+            "   - Enhanced features: {}",
+            optimized_options.enable_enhanced_ffi_analysis
+        );
+
         // Use the new optimized export method
         self.export_to_json(path)
     }
@@ -2112,13 +2133,13 @@ impl MemoryTracker {
     /// # Examples
     /// ```rust
     /// use memscope::export::quality_validator::ExportMode;
-    /// 
+    ///
     /// // Fast mode for production monitoring
     /// tracker.export_json_with_mode("prod_snapshot", ExportMode::Fast)?;
-    /// 
+    ///
     /// // Slow mode for comprehensive analysis
     /// tracker.export_json_with_mode("debug_analysis", ExportMode::Slow)?;
-    /// 
+    ///
     /// // Auto mode for adaptive behavior
     /// tracker.export_json_with_mode("analysis", ExportMode::Auto)?;
     /// ```
@@ -2131,10 +2152,10 @@ impl MemoryTracker {
     ) -> TrackingResult<()> {
         use crate::export::optimized_json_export::OptimizedExportOptions;
         // use crate::export::quality_validator::ExportMode; // Removed
-        
+
         // Ensure output goes to MemoryAnalysis directory
         let output_path = self.ensure_memory_analysis_path(path);
-        
+
         let options = match mode {
             ExportMode::Fast => {
                 let mut opts = OptimizedExportOptions::default()
@@ -2162,12 +2183,13 @@ impl MemoryTracker {
                     .auto_fast_export_threshold(Some(5000))
             }
         };
-        
+
         self.export_to_json_with_optimized_options(output_path, options)
     }
     */
 
     /// Internal method to handle export with mode and options
+    #[allow(dead_code)]
     fn export_to_json_with_mode<P: AsRef<std::path::Path>>(
         &self,
         path: P,
@@ -2295,6 +2317,7 @@ impl MemoryTracker {
     }
 
     /// Export memory analysis data with mode-specific enrichment
+    #[allow(dead_code)]
     fn export_memory_analysis_with_mode<P: AsRef<std::path::Path>>(
         &self,
         path: P,
@@ -2380,6 +2403,7 @@ impl MemoryTracker {
     }
 
     /// Export lifetime analysis data directly from raw data (ULTRA FAST!)
+    #[allow(dead_code)]
     fn export_lifetime_analysis_direct<P: AsRef<std::path::Path>>(
         &self,
         path: P,
@@ -2453,6 +2477,7 @@ impl MemoryTracker {
     }
 
     /// Export unsafe/FFI analysis data directly from raw data (ULTRA FAST!)
+    #[allow(dead_code)]
     fn export_unsafe_ffi_direct<P: AsRef<std::path::Path>>(
         &self,
         path: P,
@@ -2491,6 +2516,7 @@ impl MemoryTracker {
     }
 
     /// Export variable relationships data directly from raw data (ULTRA FAST!)
+    #[allow(dead_code)]
     fn export_variable_relationships_direct<P: AsRef<std::path::Path>>(
         &self,
         path: P,
@@ -2587,6 +2613,7 @@ impl MemoryTracker {
     }
 
     /// Enrich allocation info based on export mode and allocation type
+    #[allow(dead_code)]
     fn enrich_allocation_with_mode(
         &self,
         alloc: &crate::core::types::AllocationInfo,
@@ -2613,6 +2640,7 @@ impl MemoryTracker {
     }
 
     /// Check if allocation is user-tracked (FAST version - no registry lookup)
+    #[allow(dead_code)]
     fn is_user_tracked_allocation(&self, alloc: &crate::core::types::AllocationInfo) -> bool {
         // Strategy 1: Check if variable name exists and looks user-generated
         if let Some(var_name) = &alloc.var_name {
@@ -2639,6 +2667,7 @@ impl MemoryTracker {
     }
 
     /// Complete enrichment for important allocations
+    #[allow(dead_code)]
     fn enrich_allocation_complete(
         &self,
         alloc: &crate::core::types::AllocationInfo,
@@ -2679,6 +2708,7 @@ impl MemoryTracker {
     }
 
     /// Minimal enrichment for system allocations (fast)
+    #[allow(dead_code)]
     fn enrich_allocation_minimal(
         &self,
         alloc: &crate::core::types::AllocationInfo,
@@ -2707,6 +2737,7 @@ impl MemoryTracker {
     }
 
     /// Legacy method for backward compatibility
+    #[allow(dead_code)]
     fn enrich_allocation_info(
         &self,
         alloc: &crate::core::types::AllocationInfo,
@@ -2751,6 +2782,7 @@ impl MemoryTracker {
     }
 
     /// Fast variable name lookup - registry only, no fallback processing
+    #[allow(dead_code)]
     fn get_variable_name_fast(&self, ptr: usize) -> Option<String> {
         let variable_registry = crate::variable_registry::VariableRegistry::get_all_variables();
 
@@ -2764,6 +2796,7 @@ impl MemoryTracker {
     }
 
     /// Fast type inference - simple size-based patterns only
+    #[allow(dead_code)]
     fn infer_type_fast(&self, size: usize) -> String {
         match size {
             1 => "u8",
@@ -2781,6 +2814,7 @@ impl MemoryTracker {
     }
 
     /// Get accurate type name with better inference
+    #[allow(dead_code)]
     fn get_accurate_type_name_fast(&self, size: usize) -> String {
         match size {
             1 => "u8/i8/bool".to_string(),
@@ -2799,6 +2833,7 @@ impl MemoryTracker {
     }
 
     /// Get real variable name through comprehensive matching
+    #[allow(dead_code)]
     fn get_real_variable_name(&self, ptr: usize, size: usize, timestamp: u64) -> Option<String> {
         let variable_registry = crate::variable_registry::VariableRegistry::get_all_variables();
 
@@ -2840,6 +2875,7 @@ impl MemoryTracker {
     }
 
     /// Get accurate type name through multiple strategies
+    #[allow(dead_code)]
     fn get_accurate_type_name(&self, ptr: usize, size: usize) -> Option<String> {
         let variable_registry = crate::variable_registry::VariableRegistry::get_all_variables();
 
@@ -2870,6 +2906,7 @@ impl MemoryTracker {
     }
 
     /// Get real scope name from scope tracker
+    #[allow(dead_code)]
     fn get_real_scope_name(&self, _timestamp: u64) -> Option<String> {
         // Try to get scope information from the scope tracker
         // This is a simplified version - in reality you'd track scope changes over time
@@ -2877,6 +2914,7 @@ impl MemoryTracker {
     }
 
     /// Generate meaningful stack trace
+    #[allow(dead_code)]
     fn generate_meaningful_stack_trace(&self, ptr: usize) -> Option<Vec<String>> {
         // Generate a more meaningful stack trace
         Some(vec![
@@ -2888,6 +2926,7 @@ impl MemoryTracker {
     }
 
     /// Enrich lifecycle information
+    #[allow(dead_code)]
     fn enrich_lifecycle_info(&self, enriched: &mut crate::core::types::AllocationInfo) {
         // Calculate lifetime if possible
         if enriched.lifetime_ms.is_none() && enriched.timestamp_dealloc.is_some() {
@@ -2904,6 +2943,7 @@ impl MemoryTracker {
     }
 
     /// Add memory pattern analysis
+    #[allow(dead_code)]
     fn add_memory_pattern_info(&self, enriched: &mut crate::core::types::AllocationInfo) {
         // Analyze memory patterns
         let ptr_value = enriched.ptr;

@@ -578,7 +578,7 @@ impl ErrorRecoveryManager {
         &mut self,
         save_path: PathBuf,
         progress_percentage: f64,
-        context: &ErrorContext,
+        _context: &ErrorContext,
     ) -> TrackingResult<RecoveryResult> {
         // create partial save directory
         if let Some(parent) = save_path.parent() {
@@ -933,8 +933,8 @@ mod tests {
     fn test_graceful_degradation() {
         let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
 
-        let result =
-            manager.execute_graceful_degradation(DegradationLevel::Light, "test degradation".to_string());
+        let result = manager
+            .execute_graceful_degradation(DegradationLevel::Light, "test degradation".to_string());
 
         assert!(result.is_ok());
         let recovery_result = result.unwrap();
@@ -995,7 +995,7 @@ mod tests {
         assert!(manager.should_retry("test_operation"));
 
         // simulate multiple retries
-        for i in 0..3 {
+        for _i in 0..3 {
             let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
             assert!(result.is_ok());
             let recovery_result = result.unwrap();

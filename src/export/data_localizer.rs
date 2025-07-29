@@ -1,14 +1,16 @@
 //! data localizer - reduce global state access overhead
 //!
-//! This module implements data localization functionality, 
+//! This module implements data localization functionality,
 //! fetching all export data at once to avoid repeated access to global state,
 //! thus significantly improving export performance.
 
-use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, EnhancedAllocationInfo, UnsafeFFIStats};
+use crate::analysis::unsafe_ffi_tracker::{
+    get_global_unsafe_ffi_tracker, EnhancedAllocationInfo, UnsafeFFIStats,
+};
 use crate::core::scope_tracker::get_global_scope_tracker;
-use crate::core::types::ScopeInfo;
 use crate::core::tracker::get_global_tracker;
 use crate::core::types::MemoryStats;
+use crate::core::types::ScopeInfo;
 use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
 use std::time::{Duration, Instant};
 
@@ -94,9 +96,11 @@ impl DataLocalizer {
     }
 
     /// gather all export data at once to avoid repeated access to global state
-    pub fn gather_all_export_data(&mut self) -> TrackingResult<(LocalizedExportData, DataGatheringStats)> {
+    pub fn gather_all_export_data(
+        &mut self,
+    ) -> TrackingResult<(LocalizedExportData, DataGatheringStats)> {
         let total_start = Instant::now();
-        
+
         println!("🔄 start data localization to reduce global state access...");
 
         // check if cache is still valid
@@ -108,20 +112,24 @@ impl DataLocalizer {
         // step 1: get basic memory tracking data
         let basic_start = Instant::now();
         let tracker = get_global_tracker();
-        let allocations = tracker.get_active_allocations()
-            .map_err(|e| TrackingError::ExportError(format!("get active allocations failed: {}", e)))?;
-        let stats = tracker.get_stats()
+        let allocations = tracker.get_active_allocations().map_err(|e| {
+            TrackingError::ExportError(format!("get active allocations failed: {}", e))
+        })?;
+        let stats = tracker
+            .get_stats()
             .map_err(|e| TrackingError::ExportError(format!("get stats failed: {}", e)))?;
         let basic_time = basic_start.elapsed();
 
         // step 2: get ffi related data
         let ffi_start = Instant::now();
         let ffi_tracker = get_global_unsafe_ffi_tracker();
-        let enhanced_allocations = ffi_tracker.get_enhanced_allocations()
-            .unwrap_or_else(|e| {
-                eprintln!("s⚠️ get enhanced allocations failed: {}, using empty data", e);
-                Vec::new()
-            });
+        let enhanced_allocations = ffi_tracker.get_enhanced_allocations().unwrap_or_else(|e| {
+            eprintln!(
+                "s⚠️ get enhanced allocations failed: {}, using empty data",
+                e
+            );
+            Vec::new()
+        });
         let ffi_stats = ffi_tracker.get_stats();
         let ffi_time = ffi_start.elapsed();
 
@@ -163,11 +171,22 @@ impl DataLocalizer {
         // print performance stats
         println!("✅ data localization completed:");
         println!("   total time: {:?}", total_time);
-        println!("   basic data: {:?} ({} allocations)", basic_time, gathering_stats.allocation_count);
-        println!("   ffi data: {:?} ({} enhanced allocations)", ffi_time, gathering_stats.ffi_allocation_count);
-        println!("   scope data: {:?} ({} scopes)", scope_time, gathering_stats.scope_count);
-        println!("   data localization avoided {} global state accesses", 
-                self.estimate_avoided_global_accesses(&gathering_stats));
+        println!(
+            "   basic data: {:?} ({} allocations)",
+            basic_time, gathering_stats.allocation_count
+        );
+        println!(
+            "   ffi data: {:?} ({} enhanced allocations)",
+            ffi_time, gathering_stats.ffi_allocation_count
+        );
+        println!(
+            "   scope data: {:?} ({} scopes)",
+            scope_time, gathering_stats.scope_count
+        );
+        println!(
+            "   data localization avoided {} global state accesses",
+            self.estimate_avoided_global_accesses(&gathering_stats)
+        );
 
         Ok((localized_data, gathering_stats))
     }
@@ -180,7 +199,7 @@ impl DataLocalizer {
 
     /// check if cache is still valid
     fn is_cache_valid(&self) -> bool {
-        self.cached_allocations.is_some() 
+        self.cached_allocations.is_some()
             && self.cached_ffi_data.is_some()
             && self.cached_stats.is_some()
             && self.cached_ffi_stats.is_some()
@@ -228,7 +247,7 @@ impl DataLocalizer {
         let basic_accesses = stats.allocation_count * 2; // Each allocation needs to access tracker 2 times
         let ffi_accesses = stats.ffi_allocation_count * 3; // FFI allocations need more accesses
         let scope_accesses = stats.scope_count * 1; // 作用域访问
-        
+
         basic_accesses + ffi_accesses + scope_accesses
     }
 
@@ -238,9 +257,17 @@ impl DataLocalizer {
             is_cached: self.is_cache_valid(),
             cache_age_ms: self.last_update.elapsed().as_millis() as u64,
             cache_ttl_ms: self.cache_ttl.as_millis() as u64,
-            cached_allocation_count: self.cached_allocations.as_ref().map(|v| v.len()).unwrap_or(0),
+            cached_allocation_count: self
+                .cached_allocations
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
             cached_ffi_count: self.cached_ffi_data.as_ref().map(|v| v.len()).unwrap_or(0),
-            cached_scope_count: self.cached_scope_info.as_ref().map(|v| v.len()).unwrap_or(0),
+            cached_scope_count: self
+                .cached_scope_info
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
         }
     }
 }
@@ -304,7 +331,7 @@ mod tests {
     fn test_data_localizer_creation() {
         let localizer = DataLocalizer::new();
         assert!(!localizer.is_cache_valid());
-        
+
         let cache_stats = localizer.get_cache_stats();
         assert!(!cache_stats.is_cached);
         assert_eq!(cache_stats.cached_allocation_count, 0);
@@ -314,7 +341,7 @@ mod tests {
     fn test_cache_ttl() {
         let short_ttl = Duration::from_millis(1);
         let mut localizer = DataLocalizer::with_cache_ttl(short_ttl);
-        
+
         // simulate cached data
         localizer.cached_allocations = Some(vec![]);
         localizer.cached_ffi_data = Some(vec![]);
@@ -322,9 +349,9 @@ mod tests {
         localizer.cached_ffi_stats = Some(UnsafeFFIStats::default());
         localizer.cached_scope_info = Some(vec![]);
         localizer.last_update = Instant::now();
-        
+
         assert!(localizer.is_cache_valid());
-        
+
         // wait for cache to expire
         std::thread::sleep(Duration::from_millis(2));
         assert!(!localizer.is_cache_valid());
@@ -343,7 +370,7 @@ mod tests {
 
         assert_eq!(data.total_allocation_count(), 0);
         assert!(data.is_fresh(Duration::from_secs(1)));
-        
+
         let summary = data.get_summary();
         assert!(summary.contains("allocations: 0"));
     }

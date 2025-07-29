@@ -272,19 +272,19 @@ impl ScopeTracker {
     /// Get all scopes (active and completed) for data localization
     pub fn get_all_scopes(&self) -> Vec<ScopeInfo> {
         let mut all_scopes = Vec::new();
-        
+
         // Add active scopes
         {
             let active_scopes = self.active_scopes.lock().unwrap();
             all_scopes.extend(active_scopes.values().cloned());
         }
-        
+
         // Add completed scopes
         {
             let completed_scopes = self.completed_scopes.lock().unwrap();
             all_scopes.extend(completed_scopes.iter().cloned());
         }
-        
+
         all_scopes
     }
 

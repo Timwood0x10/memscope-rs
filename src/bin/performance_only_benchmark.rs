@@ -1,5 +1,5 @@
 //! 纯性能基准测试（禁用所有验证）
-//! 
+//!
 //! 这个程序专注于测试导出性能，禁用所有质量验证以获得真实的性能数据
 
 use memscope_rs::{get_global_tracker, init};
@@ -26,7 +26,12 @@ fn main() {
     // 运行 complex_lifecycle_showcase 生成测试数据
     println!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
     let output = Command::new("cargo")
-        .args(&["run", "--release", "--example", "complex_lifecycle_showcase"])
+        .args(&[
+            "run",
+            "--release",
+            "--example",
+            "complex_lifecycle_showcase",
+        ])
         .output();
 
     match output {
@@ -64,14 +69,15 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
     println!("🐌 测试传统导出系统（无验证）...");
     for run in 1..=test_runs {
         println!("  运行 {}/{}: 传统导出", run, test_runs);
-        
+
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("traditional_export_run_{}.json", run));
-        
+
         // 获取跟踪器并导出（使用最简配置）
         let tracker = get_global_tracker();
-        let mut options = memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
-        
+        let mut options =
+            memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
+
         // 禁用所有验证和额外功能
         options.enable_schema_validation = false;
         options.enable_enhanced_ffi_analysis = false;
@@ -81,10 +87,10 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         options.enable_adaptive_optimization = false;
         options.parallel_processing = false; // 传统方式不使用并行
         options.use_streaming_writer = true; // 但保持流式写入
-        
+
         let result = tracker.export_to_json_with_optimized_options(&output_path, options);
         let export_time = start_time.elapsed();
-        
+
         match result {
             Ok(_) => {
                 traditional_times.push(export_time.as_millis() as u64);
@@ -94,7 +100,7 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
                 eprintln!("    ❌ 导出失败: {}", e);
             }
         }
-        
+
         // 短暂休息
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -103,19 +109,20 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
     println!("⚡ 测试快速导出系统（无验证）...");
     for run in 1..=test_runs {
         println!("  运行 {}/{}: 快速导出", run, test_runs);
-        
+
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("fast_export_run_{}.json", run));
-        
+
         // 获取跟踪器并使用快速导出（禁用验证）
         let tracker = get_global_tracker();
-        let mut options = memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
-        
+        let mut options =
+            memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
+
         // 启用快速导出但禁用所有验证
         options.enable_fast_export_mode = true;
         options.parallel_processing = true;
         options.use_streaming_writer = true;
-        
+
         // 禁用所有验证和额外分析
         options.enable_schema_validation = false;
         options.enable_enhanced_ffi_analysis = false;
@@ -123,14 +130,14 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         options.enable_memory_passport_tracking = false;
         options.enable_security_analysis = false;
         options.enable_adaptive_optimization = false;
-        
+
         // 设置最小缓冲区以减少开销
         options.buffer_size = 64 * 1024; // 64KB
         options.batch_size = 10000; // 大批次
-        
+
         let result = tracker.export_to_json_with_optimized_options(&output_path, options);
         let export_time = start_time.elapsed();
-        
+
         match result {
             Ok(_) => {
                 fast_times.push(export_time.as_millis() as u64);
@@ -140,7 +147,7 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
                 eprintln!("    ❌ 导出失败: {}", e);
             }
         }
-        
+
         // 短暂休息
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -149,7 +156,11 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
     display_performance_results(&traditional_times, &fast_times, output_dir);
 }
 
-fn display_performance_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &PathBuf) {
+fn display_performance_results(
+    traditional_times: &[u64],
+    fast_times: &[u64],
+    output_dir: &PathBuf,
+) {
     println!();
     println!("📈 纯性能测试结果");
     println!("==================");
@@ -160,7 +171,8 @@ fn display_performance_results(traditional_times: &[u64], fast_times: &[u64], ou
     }
 
     // 计算平均值
-    let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+    let avg_traditional =
+        traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
 
     // 计算改善百分比
@@ -173,16 +185,28 @@ fn display_performance_results(traditional_times: &[u64], fast_times: &[u64], ou
     // 显示结果
     println!("传统导出系统（无验证）:");
     println!("  • 平均时间: {:.1}ms", avg_traditional);
-    println!("  • 最快时间: {}ms", traditional_times.iter().min().unwrap_or(&0));
-    println!("  • 最慢时间: {}ms", traditional_times.iter().max().unwrap_or(&0));
-    println!("  • 时间范围: {}ms", traditional_times.iter().max().unwrap_or(&0) - traditional_times.iter().min().unwrap_or(&0));
+    println!(
+        "  • 最快时间: {}ms",
+        traditional_times.iter().min().unwrap_or(&0)
+    );
+    println!(
+        "  • 最慢时间: {}ms",
+        traditional_times.iter().max().unwrap_or(&0)
+    );
+    println!(
+        "  • 时间范围: {}ms",
+        traditional_times.iter().max().unwrap_or(&0) - traditional_times.iter().min().unwrap_or(&0)
+    );
 
     println!();
     println!("快速导出系统（无验证）:");
     println!("  • 平均时间: {:.1}ms", avg_fast);
     println!("  • 最快时间: {}ms", fast_times.iter().min().unwrap_or(&0));
     println!("  • 最慢时间: {}ms", fast_times.iter().max().unwrap_or(&0));
-    println!("  • 时间范围: {}ms", fast_times.iter().max().unwrap_or(&0) - fast_times.iter().min().unwrap_or(&0));
+    println!(
+        "  • 时间范围: {}ms",
+        fast_times.iter().max().unwrap_or(&0) - fast_times.iter().min().unwrap_or(&0)
+    );
 
     println!();
     println!("📊 纯性能对比:");
@@ -212,15 +236,26 @@ fn display_performance_results(traditional_times: &[u64], fast_times: &[u64], ou
     }
 
     // 生成纯性能报告
-    generate_performance_report(traditional_times, fast_times, improvement_percent, output_dir);
+    generate_performance_report(
+        traditional_times,
+        fast_times,
+        improvement_percent,
+        output_dir,
+    );
 }
 
-fn generate_performance_report(traditional_times: &[u64], fast_times: &[u64], improvement_percent: f64, output_dir: &PathBuf) {
+fn generate_performance_report(
+    traditional_times: &[u64],
+    fast_times: &[u64],
+    improvement_percent: f64,
+    output_dir: &PathBuf,
+) {
     let report_file = output_dir.join("pure_performance_report.md");
-    
-    let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+
+    let avg_traditional =
+        traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
-    
+
     let report = format!(
         r#"# 大型项目导出优化 - 纯性能基准测试报告
 
@@ -278,11 +313,15 @@ fn generate_performance_report(traditional_times: &[u64], fast_times: &[u64], im
         fast_times.iter().max().unwrap_or(&0),
         traditional_times.iter().max().unwrap_or(&0) - traditional_times.iter().min().unwrap_or(&0),
         fast_times.iter().max().unwrap_or(&0) - fast_times.iter().min().unwrap_or(&0),
-        traditional_times.iter().enumerate()
+        traditional_times
+            .iter()
+            .enumerate()
             .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),
-        fast_times.iter().enumerate()
+        fast_times
+            .iter()
+            .enumerate()
             .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),

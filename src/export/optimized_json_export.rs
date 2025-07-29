@@ -3,21 +3,23 @@
 //! This module provides highly optimized JSON export functionality that addresses
 //! the main performance bottlenecks identified in the current implementation.
 
+use crate::analysis::security_violation_analyzer::{
+    AnalysisConfig, SecurityViolationAnalyzer, ViolationSeverity,
+};
+use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
-use crate::export::schema_validator::SchemaValidator;
 use crate::export::adaptive_performance::AdaptivePerformanceOptimizer;
-use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};
-use crate::analysis::security_violation_analyzer::{SecurityViolationAnalyzer, AnalysisConfig, ViolationSeverity};
-use crate::export::fast_export_coordinator::{FastExportCoordinator, FastExportConfigBuilder};
+use crate::export::fast_export_coordinator::{FastExportConfigBuilder, FastExportCoordinator};
+use crate::export::schema_validator::SchemaValidator;
 use rayon::prelude::*;
 
 use std::{
-   collections::HashMap,
-   fs::File,
-   io::{BufWriter,Write},
-   sync::LazyLock,
-   path::Path,
+    collections::HashMap,
+    fs::File,
+    io::{BufWriter, Write},
+    path::Path,
+    sync::LazyLock,
 };
 
 /// Json file types
@@ -146,7 +148,7 @@ impl Default for OptimizedExportOptions {
     fn default() -> Self {
         Self {
             parallel_processing: true,
-            buffer_size: 256 * 1024, // 256KB buffer
+            buffer_size: 256 * 1024,  // 256KB buffer
             use_compact_format: None, // Auto-detect based on file size
             enable_type_cache: true,
             batch_size: 1000,
@@ -174,7 +176,7 @@ impl OptimizedExportOptions {
     pub fn with_optimization_level(level: OptimizationLevel) -> Self {
         let mut options = Self::default();
         options.optimization_level = level;
-        
+
         match level {
             OptimizationLevel::Low => {
                 options.parallel_processing = false;
@@ -203,82 +205,82 @@ impl OptimizedExportOptions {
                 // All features enabled with maximum settings
             }
         }
-        
+
         options
     }
-    
+
     /// Enable or disable parallel processing
     pub fn parallel_processing(mut self, enabled: bool) -> Self {
         self.parallel_processing = enabled;
         self
     }
-    
+
     /// Set buffer size for I/O operations
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
-    
+
     /// Set batch size for processing
     pub fn batch_size(mut self, size: usize) -> Self {
         self.batch_size = size;
         self
     }
-    
+
     /// Enable or disable streaming writer
     pub fn streaming_writer(mut self, enabled: bool) -> Self {
         self.use_streaming_writer = enabled;
         self
     }
-    
+
     /// Enable or disable schema validation
     pub fn schema_validation(mut self, enabled: bool) -> Self {
         self.enable_schema_validation = enabled;
         self
     }
-    
+
     /// Enable or disable adaptive optimization
     pub fn adaptive_optimization(mut self, enabled: bool) -> Self {
         self.enable_adaptive_optimization = enabled;
         self
     }
-    
+
     /// Set maximum cache size
     pub fn max_cache_size(mut self, size: usize) -> Self {
         self.max_cache_size = size;
         self
     }
-    
+
     /// Enable or disable security violation analysis
     pub fn security_analysis(mut self, enabled: bool) -> Self {
         self.enable_security_analysis = enabled;
         self
     }
-    
+
     /// Include low severity violations in reports
     pub fn include_low_severity(mut self, include: bool) -> Self {
         self.include_low_severity_violations = include;
         self
     }
-    
+
     /// Enable or disable integrity hash generation
     pub fn integrity_hashes(mut self, enabled: bool) -> Self {
         self.generate_integrity_hashes = enabled;
         self
     }
-    
+
     /// Enable or disable fast export mode
     pub fn fast_export_mode(mut self, enabled: bool) -> Self {
         self.enable_fast_export_mode = enabled;
         self
     }
-    
+
     /// Set auto fast export threshold (None to disable auto mode)
     pub fn auto_fast_export_threshold(mut self, threshold: Option<usize>) -> Self {
         self.auto_fast_export_threshold = threshold;
         self
     }
-    
+
     /// Set thread count for parallel processing (None for auto-detect)
     pub fn thread_count(mut self, count: Option<usize>) -> Self {
         self.thread_count = count;
@@ -330,9 +332,6 @@ pub fn clear_type_cache() {
         cache.clear();
     }
 }
-
-
-
 
 /// Process a batch of allocations (legacy function for compatibility)
 #[allow(dead_code)]
@@ -400,8 +399,11 @@ fn process_allocation_batch_enhanced(
 fn analyze_ffi_allocation(alloc: &AllocationInfo) -> Option<serde_json::Value> {
     // Check if this allocation has FFI characteristics
     if let Some(type_name) = &alloc.type_name {
-        if type_name.contains("*mut") || type_name.contains("*const") || 
-           type_name.contains("extern") || type_name.contains("libc::") {
+        if type_name.contains("*mut")
+            || type_name.contains("*const")
+            || type_name.contains("extern")
+            || type_name.contains("libc::")
+        {
             return Some(serde_json::json!({
                 "is_ffi_related": true,
                 "ffi_type": if type_name.contains("*mut") || type_name.contains("*const") {
@@ -418,7 +420,7 @@ fn analyze_ffi_allocation(alloc: &AllocationInfo) -> Option<serde_json::Value> {
             }));
         }
     }
-    
+
     if let Some(var_name) = &alloc.var_name {
         if var_name.contains("ffi") || var_name.contains("extern") || var_name.contains("c_") {
             return Some(serde_json::json!({
@@ -429,7 +431,7 @@ fn analyze_ffi_allocation(alloc: &AllocationInfo) -> Option<serde_json::Value> {
             }));
         }
     }
-    
+
     None
 }
 
@@ -439,17 +441,22 @@ fn analyze_boundary_events(alloc: &AllocationInfo) -> Option<serde_json::Value> 
     let tracker = get_global_unsafe_ffi_tracker();
     if let Ok(allocations) = tracker.get_enhanced_allocations() {
         for enhanced_alloc in allocations {
-            if enhanced_alloc.base.ptr == alloc.ptr && !enhanced_alloc.cross_boundary_events.is_empty() {
-                let events: Vec<serde_json::Value> = enhanced_alloc.cross_boundary_events
+            if enhanced_alloc.base.ptr == alloc.ptr
+                && !enhanced_alloc.cross_boundary_events.is_empty()
+            {
+                let events: Vec<serde_json::Value> = enhanced_alloc
+                    .cross_boundary_events
                     .iter()
-                    .map(|event| serde_json::json!({
-                        "event_type": format!("{:?}", event.event_type),
-                        "from_context": event.from_context,
-                        "to_context": event.to_context,
-                        "timestamp": event.timestamp
-                    }))
+                    .map(|event| {
+                        serde_json::json!({
+                            "event_type": format!("{:?}", event.event_type),
+                            "from_context": event.from_context,
+                            "to_context": event.to_context,
+                            "timestamp": event.timestamp
+                        })
+                    })
                     .collect();
-                
+
                 return Some(serde_json::json!({
                     "has_boundary_events": true,
                     "event_count": events.len(),
@@ -458,7 +465,7 @@ fn analyze_boundary_events(alloc: &AllocationInfo) -> Option<serde_json::Value> 
             }
         }
     }
-    
+
     None
 }
 
@@ -482,7 +489,7 @@ fn get_memory_passport_info(ptr: usize) -> Option<serde_json::Value> {
             }));
         }
     }
-    
+
     None
 }
 
@@ -493,7 +500,7 @@ fn write_json_optimized<P: AsRef<Path>>(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<()> {
     let path = path.as_ref();
-    
+
     // Validate schema if enabled and not in fast export mode
     if options.enable_schema_validation && !options.enable_fast_export_mode {
         let validator = SchemaValidator::new();
@@ -563,11 +570,11 @@ fn convert_legacy_options_to_optimized(
     legacy: crate::core::tracker::ExportOptions,
 ) -> OptimizedExportOptions {
     let mut optimized = OptimizedExportOptions::default();
-    
+
     // Map legacy options to optimized options
     optimized.buffer_size = legacy.buffer_size;
     optimized.use_compact_format = Some(!legacy.verbose_logging); // Verbose = pretty format
-    
+
     // Determine optimization level based on legacy settings
     if legacy.include_system_allocations {
         // System allocations = comprehensive analysis = Maximum optimization
@@ -580,43 +587,52 @@ fn convert_legacy_options_to_optimized(
         // User-focused mode = High optimization (default)
         optimized.optimization_level = OptimizationLevel::High;
     }
-    
+
     // Enable compression if requested in legacy options
     if legacy.compress_output {
         optimized.use_compact_format = Some(true);
         optimized.buffer_size = optimized.buffer_size.max(512 * 1024); // Larger buffer for compression
     }
-    
+
     // Adjust parallel processing based on expected load
-    optimized.parallel_processing = legacy.include_system_allocations || legacy.buffer_size > 128 * 1024;
-    
+    optimized.parallel_processing =
+        legacy.include_system_allocations || legacy.buffer_size > 128 * 1024;
+
     println!("🔄 Converted legacy ExportOptions to OptimizedExportOptions:");
-    println!("   - Optimization level: {:?}", optimized.optimization_level);
+    println!(
+        "   - Optimization level: {:?}",
+        optimized.optimization_level
+    );
     println!("   - Buffer size: {} KB", optimized.buffer_size / 1024);
-    println!("   - Parallel processing: {}", optimized.parallel_processing);
-    println!("   - Enhanced features: {}", optimized.enable_enhanced_ffi_analysis);
-    
+    println!(
+        "   - Parallel processing: {}",
+        optimized.parallel_processing
+    );
+    println!(
+        "   - Enhanced features: {}",
+        optimized.enable_enhanced_ffi_analysis
+    );
+
     optimized
 }
 
 /// Main export interface - unified entry point for all JSON export operations
 impl MemoryTracker {
-    
     /// **[CONVENIENCE]** Quick export with performance optimization
-    /// 
+    ///
     /// This method provides a convenient way to export with performance-focused settings.
     /// Ideal for production environments where speed is more important than comprehensive analysis.
     /// Automatically enables fast export mode for large datasets (>5000 allocations).
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Output base path for multiple optimized files
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// // Fast export for production monitoring
     /// tracker.export_to_json_fast("prod_snapshot")?;
     /// ```
-    /// 
+    ///
     /// # Performance
     /// - Uses parallel shard processing for large datasets
     /// - Automatically switches to fast export coordinator when beneficial
@@ -626,20 +642,20 @@ impl MemoryTracker {
             .parallel_processing(true)
             .streaming_writer(false)
             .schema_validation(false)
-            .fast_export_mode(true)  // Force fast export mode
+            .fast_export_mode(true) // Force fast export mode
             .auto_fast_export_threshold(Some(1000)); // Lower threshold for fast mode
-        
+
         self.export_to_json_with_optimized_options(path, options)
     }
-    
+
     /// **[CONVENIENCE]** Comprehensive export with all features enabled
-    /// 
+    ///
     /// This method provides maximum analysis depth with all security and FFI features enabled.
     /// Ideal for debugging, security audits, and comprehensive analysis.
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Output base path for comprehensive analysis files
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// // Comprehensive export for security audit
@@ -649,12 +665,12 @@ impl MemoryTracker {
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
             .security_analysis(true)
             .adaptive_optimization(true);
-        
+
         self.export_to_json_with_optimized_options(path, options)
     }
-    
+
     /// **[UTILITY]** Display upgrade path information
-    /// 
+    ///
     /// This method shows users how to migrate from the old API to the new optimized API.
     /// Useful for understanding the available options and migration path.
     pub fn show_export_upgrade_path(&self) {
@@ -685,7 +701,9 @@ impl MemoryTracker {
         println!();
         println!("   // Auto mode selection (recommended)");
         println!("   let options = OptimizedExportOptions::default()");
-        println!("       .auto_fast_export_threshold(Some(5000)); // Auto-enable for >5000 allocations");
+        println!(
+            "       .auto_fast_export_threshold(Some(5000)); // Auto-enable for >5000 allocations"
+        );
         println!("   tracker.export_to_json_with_optimized_options(\"auto\", options)?;");
         println!();
         println!("💡 MIGRATION BENEFITS:");
@@ -706,33 +724,33 @@ impl MemoryTracker {
         println!("   - High:    Full features, good performance (default)");
         println!("   - Maximum: All features, maximum analysis depth");
     }
-    
+
     /// **[UTILITY]** Get current export capabilities and status
-    /// 
+    ///
     /// Returns information about available export features and current system status.
     pub fn get_export_capabilities(&self) -> TrackingResult<serde_json::Value> {
         let allocations = self.get_active_allocations()?;
         let stats = self.get_stats()?;
-        
+
         // Check FFI tracker availability
         let ffi_tracker_available = {
             let tracker = get_global_unsafe_ffi_tracker();
             tracker.get_enhanced_allocations().is_ok()
         };
-        
+
         // Check security analyzer availability
         let security_analyzer_available = SECURITY_ANALYZER.lock().is_ok();
-        
+
         // Check adaptive optimizer availability
         let adaptive_optimizer_available = ADAPTIVE_OPTIMIZER.lock().is_ok();
-        
+
         Ok(serde_json::json!({
             "export_capabilities": {
                 "api_version": "2.0",
                 "backward_compatible": true,
                 "available_methods": [
                     "export_to_json",
-                    "export_to_json_with_options", 
+                    "export_to_json_with_options",
                     "export_to_json_with_optimized_options",
                     "export_to_json_fast",
                     "export_to_json_comprehensive"
@@ -767,18 +785,18 @@ impl MemoryTracker {
         }))
     }
     /// Unified export to JSON with custom options
-    /// 
+    ///
     /// This method provides full control over the export process with custom options.
     /// It integrates all the new data processing components including BatchProcessor,
     /// StreamingJsonWriter, SchemaValidator, and enhanced FFI analysis.
-    /// 
+    ///
     /// # Arguments
     /// * `base_path` - Base path for output
     /// * Custom export options
-    /// 
+    ///
     /// # Returns
     /// * `TrackingResult<()>` - Success or error result
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
@@ -793,76 +811,109 @@ impl MemoryTracker {
         options: OptimizedExportOptions,
     ) -> TrackingResult<()> {
         let start_time = std::time::Instant::now();
-        
-        // 获取分配数据以决定是否使用快速导出模式
+
+        // check the fast model
         let allocations = self.get_active_allocations()?;
         let allocation_count = allocations.len();
-        
-        // 自动模式选择：根据数据量大小决定是否启用快速导出
-        let should_use_fast_export = options.enable_fast_export_mode || 
-            (options.auto_fast_export_threshold.map_or(false, |threshold| 
-                allocation_count > threshold && options.optimization_level != OptimizationLevel::Low));
-        
-        // 如果启用了快速导出模式或自动检测到大数据集，使用新的快速导出协调器
+
+        // auto-check model :decide whether to enable quick export based on the amount of data
+        let should_use_fast_export = options.enable_fast_export_mode
+            || (options
+                .auto_fast_export_threshold
+                .map_or(false, |threshold| {
+                    allocation_count > threshold
+                        && options.optimization_level != OptimizationLevel::Low
+                }));
+
+        // If fast export mode is enabled or a large dataset is automatically detected, use the new fast export coordinator
         if should_use_fast_export {
-            println!("🚀 Using fast export coordinator for high-performance export (allocations: {})", allocation_count);
-            
+            println!(
+                "🚀 Using fast export coordinator for high-performance export (allocations: {})",
+                allocation_count
+            );
+
             let mut config_builder = FastExportConfigBuilder::new()
                 .shard_size(options.batch_size)
                 .buffer_size(options.buffer_size)
                 .performance_monitoring(true)
                 .verbose_logging(false);
-            
+
             if let Some(thread_count) = options.thread_count {
                 config_builder = config_builder.max_threads(Some(thread_count));
             }
-            
+
             let fast_config = config_builder.build();
-            
+
             let mut coordinator = FastExportCoordinator::new(fast_config);
-            
-            // 使用与传统导出相同的文件命名和目录结构
-            let base_name = base_path.as_ref()
+
+            // Uses the same file naming and directory structure as traditional exports
+            let base_name = base_path
+                .as_ref()
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("export");
-            
+
             let project_name = if base_name.ends_with("_snapshot") {
                 base_name.trim_end_matches("_snapshot")
             } else {
                 base_name
             };
-            
+
             let base_memory_analysis_dir = Path::new("MemoryAnalysis");
             let project_dir = base_memory_analysis_dir.join(project_name);
             if let Err(e) = std::fs::create_dir_all(&project_dir) {
-                eprintln!("Warning: Failed to create project directory {}: {}", project_dir.display(), e);
+                eprintln!(
+                    "Warning: Failed to create project directory {}: {}",
+                    project_dir.display(),
+                    e
+                );
             }
-            
+
             let output_path = project_dir.join(format!("{}_memory_analysis.json", base_name));
-            
+
             match coordinator.export_fast(output_path.to_string_lossy().as_ref()) {
                 Ok(stats) => {
                     println!("✅ Fast export completed:");
-                    println!("   Total allocations: {}", stats.total_allocations_processed);
+                    println!(
+                        "   Total allocations: {}",
+                        stats.total_allocations_processed
+                    );
                     println!("   Total time: {}ms", stats.total_export_time_ms);
-                    println!("   Data gathering: {}ms", stats.data_gathering.total_time_ms);
-                    println!("   Parallel processing: {}ms", stats.parallel_processing.total_processing_time_ms);
-                    println!("   Write time: {}ms", stats.write_performance.total_write_time_ms);
-                    println!("   Threads used: {}", stats.parallel_processing.threads_used);
-                    println!("   Performance improvement: {:.2}x", stats.performance_improvement_factor);
+                    println!(
+                        "   Data gathering: {}ms",
+                        stats.data_gathering.total_time_ms
+                    );
+                    println!(
+                        "   Parallel processing: {}ms",
+                        stats.parallel_processing.total_processing_time_ms
+                    );
+                    println!(
+                        "   Write time: {}ms",
+                        stats.write_performance.total_write_time_ms
+                    );
+                    println!(
+                        "   Threads used: {}",
+                        stats.parallel_processing.threads_used
+                    );
+                    println!(
+                        "   Performance improvement: {:.2}x",
+                        stats.performance_improvement_factor
+                    );
                     println!("   Output file: {}", output_path.display());
-                    
+
                     // Fast export mode: continue to generate all files, just skip validation
                     if options.enable_fast_export_mode {
-                        println!("⚡ Fast export mode: generating all analysis files without validation");
+                        println!(
+                            "⚡ Fast export mode: generating all analysis files without validation"
+                        );
                         // Continue to generate other analysis files
                     }
-                    
+
                     // If other file types are needed, continue with traditional method
-                    if options.optimization_level == OptimizationLevel::High || 
-                       options.optimization_level == OptimizationLevel::Maximum ||
-                       options.enable_fast_export_mode {
+                    if options.optimization_level == OptimizationLevel::High
+                        || options.optimization_level == OptimizationLevel::Maximum
+                        || options.enable_fast_export_mode
+                    {
                         println!("📝 Generating other analysis files...");
                         // Continue with traditional export logic for other files
                     } else {
@@ -870,39 +921,51 @@ impl MemoryTracker {
                     }
                 }
                 Err(e) => {
-                    eprintln!("⚠️ Fast export failed, falling back to traditional export: {}", e);
-                    // 继续使用传统导出方法
+                    eprintln!(
+                        "⚠️ Fast export failed, falling back to traditional export: {}",
+                        e
+                    );
                 }
             }
         }
-        
-        println!("🚀 Starting unified JSON export with optimization level: {:?}", options.optimization_level);
+
+        println!(
+            "🚀 Starting unified JSON export with optimization level: {:?}",
+            options.optimization_level
+        );
 
         let base_path = base_path.as_ref();
         let base_name = base_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("export");
-        
+
         // Extract project name from base_name for directory organization
         let project_name = if base_name.ends_with("_snapshot") {
             base_name.trim_end_matches("_snapshot")
         } else {
             base_name
         };
-        
+
         // Ensure all output goes to MemoryAnalysis/project_name directory
         let base_memory_analysis_dir = Path::new("MemoryAnalysis");
         let project_dir = base_memory_analysis_dir.join(project_name);
         if let Err(e) = std::fs::create_dir_all(&project_dir) {
-            eprintln!("Warning: Failed to create project directory {}: {}", project_dir.display(), e);
+            eprintln!(
+                "Warning: Failed to create project directory {}: {}",
+                project_dir.display(),
+                e
+            );
         }
         let parent_dir = &project_dir;
 
         // Get additional data from all sources
         let stats = self.get_stats()?;
 
-        println!("📊 Processing {} allocations with integrated pipeline...", allocations.len());
+        println!(
+            "📊 Processing {} allocations with integrated pipeline...",
+            allocations.len()
+        );
 
         // Update security analyzer with current allocations if enabled
         if options.enable_security_analysis {
@@ -927,10 +990,9 @@ impl MemoryTracker {
             types
         } else {
             match options.optimization_level {
-                OptimizationLevel::Low => vec![
-                    JsonFileType::MemoryAnalysis,
-                    JsonFileType::Performance,
-                ],
+                OptimizationLevel::Low => {
+                    vec![JsonFileType::MemoryAnalysis, JsonFileType::Performance]
+                }
                 OptimizationLevel::Medium => vec![
                     JsonFileType::MemoryAnalysis,
                     JsonFileType::Lifetime,
@@ -948,7 +1010,7 @@ impl MemoryTracker {
                         types.push(JsonFileType::SecurityViolations);
                     }
                     types
-                },
+                }
             }
         };
 
@@ -972,7 +1034,12 @@ impl MemoryTracker {
                 }
                 JsonFileType::Performance => {
                     let filename = format!("{}_performance.json", base_name);
-                    let data = create_integrated_performance_analysis(&allocations, &stats, start_time, &options)?;
+                    let data = create_integrated_performance_analysis(
+                        &allocations,
+                        &stats,
+                        start_time,
+                        &options,
+                    )?;
                     (filename, data)
                 }
                 JsonFileType::ComplexTypes => {
@@ -989,12 +1056,15 @@ impl MemoryTracker {
 
             let file_path = parent_dir.join(filename);
             write_json_optimized(&file_path, &data, &options)?;
-            println!("   ✅ Generated: {}", file_path.file_name().unwrap().to_string_lossy());
+            println!(
+                "   ✅ Generated: {}",
+                file_path.file_name().unwrap().to_string_lossy()
+            );
         }
 
         let total_duration = start_time.elapsed();
         println!("✅ Unified JSON export completed in {:?}", total_duration);
-        
+
         // Record overall performance if adaptive optimization is enabled
         if options.enable_adaptive_optimization {
             let memory_usage_mb = (allocations.len() * 64) / (1024 * 1024); // Estimate
@@ -1007,7 +1077,7 @@ impl MemoryTracker {
                 );
             }
         }
-        
+
         // Display optimization features used
         println!("💡 Optimization features applied:");
         if options.parallel_processing {
@@ -1033,14 +1103,18 @@ impl MemoryTracker {
         }
         if options.enable_adaptive_optimization {
             println!("   - Adaptive performance optimization enabled");
-            
+
             // Display performance report
             if let Ok(optimizer) = ADAPTIVE_OPTIMIZER.lock() {
                 let report = optimizer.get_performance_report();
-                if let Some(batch_size) = report["adaptive_optimization"]["current_batch_size"].as_u64() {
+                if let Some(batch_size) =
+                    report["adaptive_optimization"]["current_batch_size"].as_u64()
+                {
                     println!("   - Current optimal batch size: {}", batch_size);
                 }
-                if let Some(hit_ratio) = report["adaptive_optimization"]["cache_statistics"]["hit_ratio"].as_f64() {
+                if let Some(hit_ratio) =
+                    report["adaptive_optimization"]["cache_statistics"]["hit_ratio"].as_f64()
+                {
                     println!("   - Cache hit ratio: {:.1}%", hit_ratio * 100.0);
                 }
             }
@@ -1048,15 +1122,15 @@ impl MemoryTracker {
 
         Ok(())
     }
-    
+
     /// Test backward compatibility with legacy export methods
-    /// 
+    ///
     /// This method verifies that the new optimized export system maintains
     /// full backward compatibility with existing export methods.
     pub fn test_export_backward_compatibility(&self) -> TrackingResult<serde_json::Value> {
         let start_time = std::time::Instant::now();
         let mut test_results = Vec::new();
-        
+
         // Test 1: Basic export_to_json compatibility
         let test1_start = std::time::Instant::now();
         match self.export_to_json("test_compatibility_basic.json") {
@@ -1077,11 +1151,10 @@ impl MemoryTracker {
                 }));
             }
         }
-        
+
         // Test 2: Fast export mode
         let test2_start = std::time::Instant::now();
-        let fast_options = OptimizedExportOptions::default()
-            .fast_export_mode(true);
+        let fast_options = OptimizedExportOptions::default().fast_export_mode(true);
         match self.export_to_json_with_optimized_options("test_compatibility_fast", fast_options) {
             Ok(_) => {
                 test_results.push(serde_json::json!({
@@ -1100,11 +1173,10 @@ impl MemoryTracker {
                 }));
             }
         }
-        
+
         // Test 3: Auto mode selection
         let test3_start = std::time::Instant::now();
-        let auto_options = OptimizedExportOptions::default()
-            .auto_fast_export_threshold(Some(1)); // Force auto mode for any data
+        let auto_options = OptimizedExportOptions::default().auto_fast_export_threshold(Some(1)); // Force auto mode for any data
         match self.export_to_json_with_optimized_options("test_compatibility_auto", auto_options) {
             Ok(_) => {
                 test_results.push(serde_json::json!({
@@ -1123,15 +1195,23 @@ impl MemoryTracker {
                 }));
             }
         }
-        
+
         // Test 4: Traditional export with all optimization levels
-        for level in [OptimizationLevel::Low, OptimizationLevel::Medium, OptimizationLevel::High, OptimizationLevel::Maximum] {
+        for level in [
+            OptimizationLevel::Low,
+            OptimizationLevel::Medium,
+            OptimizationLevel::High,
+            OptimizationLevel::Maximum,
+        ] {
             let test_start = std::time::Instant::now();
-            let level_options = OptimizedExportOptions::with_optimization_level(level)
-                .fast_export_mode(false); // Force traditional export
+            let level_options =
+                OptimizedExportOptions::with_optimization_level(level).fast_export_mode(false); // Force traditional export
             let test_name = format!("optimization_level_{:?}", level);
-            
-            match self.export_to_json_with_optimized_options(&format!("test_compatibility_{:?}", level), level_options) {
+
+            match self.export_to_json_with_optimized_options(
+                &format!("test_compatibility_{:?}", level),
+                level_options,
+            ) {
                 Ok(_) => {
                     test_results.push(serde_json::json!({
                         "test": test_name,
@@ -1150,11 +1230,14 @@ impl MemoryTracker {
                 }
             }
         }
-        
+
         let total_duration = start_time.elapsed();
-        let passed_tests = test_results.iter().filter(|t| t["status"] == "passed").count();
+        let passed_tests = test_results
+            .iter()
+            .filter(|t| t["status"] == "passed")
+            .count();
         let total_tests = test_results.len();
-        
+
         Ok(serde_json::json!({
             "backward_compatibility_test": {
                 "summary": {
@@ -1174,9 +1257,9 @@ impl MemoryTracker {
             }
         }))
     }
-    
+
     /// Get adaptive performance report
-    /// 
+    ///
     /// Returns detailed performance metrics and optimization recommendations
     /// from the adaptive performance optimizer.
     pub fn get_adaptive_performance_report(&self) -> TrackingResult<serde_json::Value> {
@@ -1191,9 +1274,9 @@ impl MemoryTracker {
             }))
         }
     }
-    
+
     /// Reset adaptive performance optimizer
-    /// 
+    ///
     /// Clears all cached data and performance metrics. Useful for testing
     /// or when starting fresh performance measurements.
     pub fn reset_adaptive_optimizer(&self) -> TrackingResult<()> {
@@ -1203,9 +1286,9 @@ impl MemoryTracker {
         }
         Ok(())
     }
-    
+
     /// Configure adaptive optimization settings
-    /// 
+    ///
     /// Allows runtime configuration of the adaptive performance optimizer.
     pub fn configure_adaptive_optimization(
         &self,
@@ -1215,7 +1298,7 @@ impl MemoryTracker {
     ) -> TrackingResult<()> {
         if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
             optimizer.set_optimization_enabled(enabled);
-            
+
             if enabled {
                 if let Some(cache_size) = cache_size {
                     // Reset with new cache size
@@ -1232,9 +1315,9 @@ impl MemoryTracker {
         }
         Ok(())
     }
-    
+
     /// Get comprehensive security violation report
-    /// 
+    ///
     /// Returns detailed security analysis including violation reports,
     /// impact assessments, and remediation suggestions.
     pub fn get_security_violation_report(&self) -> TrackingResult<serde_json::Value> {
@@ -1242,9 +1325,9 @@ impl MemoryTracker {
         let options = OptimizedExportOptions::default();
         create_security_violation_analysis(&allocations, &options)
     }
-    
+
     /// Get security violations by severity level
-    /// 
+    ///
     /// Filters security violations by minimum severity level.
     pub fn get_security_violations_by_severity(
         &self,
@@ -1252,44 +1335,47 @@ impl MemoryTracker {
     ) -> TrackingResult<Vec<serde_json::Value>> {
         if let Ok(analyzer) = SECURITY_ANALYZER.lock() {
             let reports = analyzer.get_reports_by_severity(min_severity);
-            let json_reports = reports.iter().map(|report| {
-                serde_json::json!({
-                    "violation_id": report.violation_id,
-                    "violation_type": report.violation_type,
-                    "severity": format!("{:?}", report.severity),
-                    "description": report.description,
-                    "overall_risk_score": report.impact_assessment.overall_risk_score,
-                    "generated_at_ns": report.generated_at_ns
+            let json_reports = reports
+                .iter()
+                .map(|report| {
+                    serde_json::json!({
+                        "violation_id": report.violation_id,
+                        "violation_type": report.violation_type,
+                        "severity": format!("{:?}", report.severity),
+                        "description": report.description,
+                        "overall_risk_score": report.impact_assessment.overall_risk_score,
+                        "generated_at_ns": report.generated_at_ns
+                    })
                 })
-            }).collect();
+                .collect();
             Ok(json_reports)
         } else {
             Ok(Vec::new())
         }
     }
-    
+
     /// Verify integrity of security violation reports
-    /// 
+    ///
     /// Checks data integrity hashes for all security violation reports.
     pub fn verify_security_report_integrity(&self) -> TrackingResult<serde_json::Value> {
         if let Ok(analyzer) = SECURITY_ANALYZER.lock() {
             let all_reports = analyzer.get_all_reports();
             let mut verification_results = Vec::new();
             let mut all_verified = true;
-            
+
             for (violation_id, report) in all_reports {
                 let is_valid = analyzer.verify_report_integrity(report).unwrap_or(false);
                 if !is_valid {
                     all_verified = false;
                 }
-                
+
                 verification_results.push(serde_json::json!({
                     "violation_id": violation_id,
                     "integrity_verified": is_valid,
                     "hash": report.integrity_hash
                 }));
             }
-            
+
             Ok(serde_json::json!({
                 "verification_summary": {
                     "total_reports": all_reports.len(),
@@ -1307,9 +1393,9 @@ impl MemoryTracker {
             }))
         }
     }
-    
+
     /// Clear all security violation reports
-    /// 
+    ///
     /// Clears all stored security violation data. Useful for testing
     /// or when starting fresh security analysis.
     pub fn clear_security_violations(&self) -> TrackingResult<()> {
@@ -1319,9 +1405,9 @@ impl MemoryTracker {
         }
         Ok(())
     }
-    
+
     /// Configure security analysis settings
-    /// 
+    ///
     /// Allows runtime configuration of security violation analysis.
     pub fn configure_security_analysis(
         &self,
@@ -1337,13 +1423,15 @@ impl MemoryTracker {
             include_low_severity,
             generate_integrity_hashes: generate_hashes,
         };
-        
+
         if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
             *analyzer = SecurityViolationAnalyzer::new(config);
-            println!("🔧 Security analysis configured: correlation={}, low_severity={}, hashes={}", 
-                    enable_correlation, include_low_severity, generate_hashes);
+            println!(
+                "🔧 Security analysis configured: correlation={}, low_severity={}, hashes={}",
+                enable_correlation, include_low_severity, generate_hashes
+            );
         }
-        
+
         Ok(())
     }
 }
@@ -1510,10 +1598,9 @@ impl MemoryTracker {
                     let data = create_optimized_complex_types_analysis(&allocations, &options)?;
                     (filename, data)
                 }
-                JsonFileType::SecurityViolations => todo!()
-                // future can easily add new file types
-                  // JsonFileType::AsyncAnalysis => { ... }
-                  // JsonFileType::ThreadSafety => { ... }
+                JsonFileType::SecurityViolations => todo!(), // future can easily add new file types
+                                                             // JsonFileType::AsyncAnalysis => { ... }
+                                                             // JsonFileType::ThreadSafety => { ... }
             };
 
             let file_path = parent_dir.join(filename);
@@ -1776,7 +1863,7 @@ fn create_integrated_memory_analysis(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     println!("🔧 Creating integrated memory analysis with enhanced pipeline...");
-    
+
     // Use BatchProcessor for large datasets (simplified for now)
     let _processed_allocations = process_allocations_optimized(allocations, options)?;
 
@@ -1843,7 +1930,7 @@ fn create_integrated_lifetime_analysis(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     println!("🔧 Creating integrated lifetime analysis with enhanced pipeline...");
-    
+
     // Use BatchProcessor for scope analysis
     let mut scope_analysis: HashMap<String, (usize, usize, Vec<usize>)> = HashMap::new();
     let mut lifecycle_events = Vec::new();
@@ -1851,33 +1938,37 @@ fn create_integrated_lifetime_analysis(
     // Process in batches if enabled
     if options.parallel_processing && allocations.len() > options.batch_size {
         let chunks: Vec<_> = allocations.chunks(options.batch_size).collect();
-        let results: Vec<_> = chunks.par_iter().map(|chunk| {
-            let mut local_scope_analysis = HashMap::new();
-            let mut local_events = Vec::new();
-            
-            for alloc in *chunk {
-                let scope = alloc.scope_name.as_deref().unwrap_or("global");
-                let entry = local_scope_analysis
-                    .entry(scope.to_string())
-                    .or_insert((0, 0, Vec::new()));
-                entry.0 += alloc.size;
-                entry.1 += 1;
-                entry.2.push(alloc.size);
+        let results: Vec<_> = chunks
+            .par_iter()
+            .map(|chunk| {
+                let mut local_scope_analysis = HashMap::new();
+                let mut local_events = Vec::new();
 
-                // Track lifecycle events with variable and type information
-                local_events.push(serde_json::json!({
-                    "ptr": format!("0x{:x}", alloc.ptr),
-                    "event": "allocation",
-                    "scope": scope,
-                    "timestamp": alloc.timestamp_alloc,
-                    "size": alloc.size,
-                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown")
-                }));
-            }
-            
-            (local_scope_analysis, local_events)
-        }).collect();
+                for alloc in *chunk {
+                    let scope = alloc.scope_name.as_deref().unwrap_or("global");
+                    let entry =
+                        local_scope_analysis
+                            .entry(scope.to_string())
+                            .or_insert((0, 0, Vec::new()));
+                    entry.0 += alloc.size;
+                    entry.1 += 1;
+                    entry.2.push(alloc.size);
+
+                    // Track lifecycle events with variable and type information
+                    local_events.push(serde_json::json!({
+                        "ptr": format!("0x{:x}", alloc.ptr),
+                        "event": "allocation",
+                        "scope": scope,
+                        "timestamp": alloc.timestamp_alloc,
+                        "size": alloc.size,
+                        "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                        "type_name": alloc.type_name.as_deref().unwrap_or("unknown")
+                    }));
+                }
+
+                (local_scope_analysis, local_events)
+            })
+            .collect();
 
         // Merge results
         for (local_scope, local_events) in results {
@@ -1969,7 +2060,7 @@ fn create_integrated_unsafe_ffi_analysis(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     println!("🔧 Creating integrated unsafe FFI analysis with enhanced pipeline...");
-    
+
     let mut unsafe_indicators = Vec::new();
     let mut ffi_patterns = Vec::new();
     let mut enhanced_ffi_data = Vec::new();
@@ -1994,11 +2085,16 @@ fn create_integrated_unsafe_ffi_analysis(
                 for violation in &enhanced_alloc.safety_violations {
                     let (violation_type, timestamp) = match violation {
                         SafetyViolation::DoubleFree { timestamp, .. } => ("DoubleFree", *timestamp),
-                        SafetyViolation::InvalidFree { timestamp, .. } => ("InvalidFree", *timestamp),
-                        SafetyViolation::PotentialLeak { leak_detection_timestamp, .. } => ("PotentialLeak", *leak_detection_timestamp),
+                        SafetyViolation::InvalidFree { timestamp, .. } => {
+                            ("InvalidFree", *timestamp)
+                        }
+                        SafetyViolation::PotentialLeak {
+                            leak_detection_timestamp,
+                            ..
+                        } => ("PotentialLeak", *leak_detection_timestamp),
                         SafetyViolation::CrossBoundaryRisk { .. } => ("CrossBoundaryRisk", 0),
                     };
-                    
+
                     safety_violations.push(serde_json::json!({
                         "ptr": format!("0x{:x}", enhanced_alloc.base.ptr),
                         "violation_type": violation_type,
@@ -2107,7 +2203,7 @@ fn create_integrated_performance_analysis(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     println!("🔧 Creating integrated performance analysis with enhanced pipeline...");
-    
+
     let processing_time = start_time.elapsed();
     let allocations_per_second = if processing_time.as_secs() > 0 {
         allocations.len() as f64 / processing_time.as_secs_f64()
@@ -2788,7 +2884,7 @@ fn process_allocations_optimized(
 ) -> TrackingResult<Vec<serde_json::Value>> {
     let start_time = std::time::Instant::now();
     let mut processed = Vec::with_capacity(allocations.len());
-    
+
     // Get adaptive batch size if optimization is enabled
     let effective_batch_size = if options.enable_adaptive_optimization {
         if let Ok(optimizer) = ADAPTIVE_OPTIMIZER.lock() {
@@ -2799,28 +2895,34 @@ fn process_allocations_optimized(
     } else {
         options.batch_size
     };
-    
-    println!("🔧 Processing {} allocations with adaptive batch size: {}", 
-             allocations.len(), effective_batch_size);
-    
+
+    println!(
+        "🔧 Processing {} allocations with adaptive batch size: {}",
+        allocations.len(),
+        effective_batch_size
+    );
+
     if options.parallel_processing && allocations.len() > effective_batch_size {
         // Parallel processing for large datasets
         let results: Vec<_> = allocations
             .par_chunks(effective_batch_size)
             .map(|chunk| {
-                chunk.iter().map(|alloc| {
-                    serde_json::json!({
-                        "ptr": format!("0x{:x}", alloc.ptr),
-                        "size": alloc.size,
-                        "type_name": alloc.type_name,
-                        "var_name": alloc.var_name,
-                        "scope_name": alloc.scope_name,
-                        "timestamp": alloc.timestamp_alloc
+                chunk
+                    .iter()
+                    .map(|alloc| {
+                        serde_json::json!({
+                            "ptr": format!("0x{:x}", alloc.ptr),
+                            "size": alloc.size,
+                            "type_name": alloc.type_name,
+                            "var_name": alloc.var_name,
+                            "scope_name": alloc.scope_name,
+                            "timestamp": alloc.timestamp_alloc
+                        })
                     })
-                }).collect::<Vec<_>>()
+                    .collect::<Vec<_>>()
             })
             .collect();
-        
+
         for chunk_result in results {
             processed.extend(chunk_result);
         }
@@ -2837,12 +2939,13 @@ fn process_allocations_optimized(
             }));
         }
     }
-    
+
     // Record performance metrics if adaptive optimization is enabled
     if options.enable_adaptive_optimization {
         let processing_time = start_time.elapsed();
-        let memory_usage_mb = (processed.len() * std::mem::size_of::<serde_json::Value>()) / (1024 * 1024);
-        
+        let memory_usage_mb =
+            (processed.len() * std::mem::size_of::<serde_json::Value>()) / (1024 * 1024);
+
         if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
             optimizer.record_batch_performance(
                 effective_batch_size,
@@ -2852,7 +2955,7 @@ fn process_allocations_optimized(
             );
         }
     }
-    
+
     Ok(processed)
 }
 
@@ -2862,7 +2965,7 @@ fn create_security_violation_analysis(
     options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     println!("🔒 Creating comprehensive security violation analysis...");
-    
+
     if !options.enable_security_analysis {
         return Ok(serde_json::json!({
             "metadata": {
@@ -2885,17 +2988,20 @@ fn create_security_violation_analysis(
     // Get security analyzer and update with current allocations
     let mut violation_reports = Vec::new();
     let mut security_summary = serde_json::json!({});
-    
+
     if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
         // Update analyzer configuration
         *analyzer = SecurityViolationAnalyzer::new(analysis_config);
         analyzer.update_allocations(allocations.to_vec());
 
         // Analyze violations from unsafe FFI tracker
-        if let Ok(enhanced_allocations) = get_global_unsafe_ffi_tracker().get_enhanced_allocations() {
+        if let Ok(enhanced_allocations) = get_global_unsafe_ffi_tracker().get_enhanced_allocations()
+        {
             for enhanced_alloc in enhanced_allocations {
                 for violation in &enhanced_alloc.safety_violations {
-                    if let Ok(violation_id) = analyzer.analyze_violation(violation, enhanced_alloc.base.ptr) {
+                    if let Ok(violation_id) =
+                        analyzer.analyze_violation(violation, enhanced_alloc.base.ptr)
+                    {
                         println!("   ✅ Analyzed violation: {}", violation_id);
                     }
                 }
@@ -2904,7 +3010,7 @@ fn create_security_violation_analysis(
 
         // Get all violation reports
         let all_reports = analyzer.get_all_reports();
-        
+
         // Filter by severity if needed
         let filtered_reports: Vec<_> = if options.include_low_severity_violations {
             all_reports.values().collect()

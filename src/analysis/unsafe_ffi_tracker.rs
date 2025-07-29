@@ -1862,7 +1862,11 @@ impl UnsafeFFITracker {
             timestamp: current_time,
             risk_assessment: risk_analysis.clone(),
             ownership_chain: self.get_ownership_chain(ptr)?,
-            security_implications: self.analyze_security_implications(ptr, from_context, to_context)?,
+            security_implications: self.analyze_security_implications(
+                ptr,
+                from_context,
+                to_context,
+            )?,
             performance_impact: self.estimate_performance_impact(&event_type, transfer_size),
             mitigation_recommendations: self.generate_mitigation_recommendations(&risk_analysis),
         };
@@ -1888,8 +1892,10 @@ impl UnsafeFFITracker {
                 risk_factors.push(BoundaryRiskFactor {
                     factor_type: BoundaryRiskFactorType::RustToForeignTransfer,
                     severity: 6.0,
-                    description: "Memory allocated in Rust being passed to foreign code".to_string(),
-                    mitigation: "Ensure foreign code doesn't free Rust-allocated memory".to_string(),
+                    description: "Memory allocated in Rust being passed to foreign code"
+                        .to_string(),
+                    mitigation: "Ensure foreign code doesn't free Rust-allocated memory"
+                        .to_string(),
                 });
                 risk_score += 6.0;
             }
@@ -1906,8 +1912,10 @@ impl UnsafeFFITracker {
                 risk_factors.push(BoundaryRiskFactor {
                     factor_type: BoundaryRiskFactorType::OwnershipTransfer,
                     severity: 8.0,
-                    description: "Memory ownership being transferred across language boundary".to_string(),
-                    mitigation: "Clearly document ownership transfer and cleanup responsibilities".to_string(),
+                    description: "Memory ownership being transferred across language boundary"
+                        .to_string(),
+                    mitigation: "Clearly document ownership transfer and cleanup responsibilities"
+                        .to_string(),
                 });
                 risk_score += 8.0;
             }
@@ -2074,7 +2082,8 @@ impl UnsafeFFITracker {
                 severity: RiskLevel::High,
                 description: "Memory transfer from user context to system context".to_string(),
                 potential_impact: "Potential privilege escalation vulnerability".to_string(),
-                recommended_action: "Validate and sanitize all data before system context access".to_string(),
+                recommended_action: "Validate and sanitize all data before system context access"
+                    .to_string(),
             });
         }
 
@@ -2085,7 +2094,8 @@ impl UnsafeFFITracker {
                 severity: RiskLevel::Medium,
                 description: "Memory transfer involving secure context".to_string(),
                 potential_impact: "Potential sensitive data exposure".to_string(),
-                recommended_action: "Ensure proper data sanitization and access controls".to_string(),
+                recommended_action: "Ensure proper data sanitization and access controls"
+                    .to_string(),
             });
         }
 
@@ -2096,7 +2106,8 @@ impl UnsafeFFITracker {
                 severity: RiskLevel::Critical,
                 description: "Memory transfer to code interpretation context".to_string(),
                 potential_impact: "Potential code injection vulnerability".to_string(),
-                recommended_action: "Validate and sanitize all input data before interpretation".to_string(),
+                recommended_action: "Validate and sanitize all input data before interpretation"
+                    .to_string(),
             });
         }
 
@@ -2149,10 +2160,12 @@ impl UnsafeFFITracker {
 
         match risk_assessment.overall_risk_level {
             RiskLevel::Critical => {
-                recommendations.push("URGENT: Review and redesign boundary crossing strategy".to_string());
+                recommendations
+                    .push("URGENT: Review and redesign boundary crossing strategy".to_string());
                 recommendations.push("Implement comprehensive input validation".to_string());
                 recommendations.push("Add runtime safety checks".to_string());
-                recommendations.push("Consider using safer alternatives to raw pointers".to_string());
+                recommendations
+                    .push("Consider using safer alternatives to raw pointers".to_string());
             }
             RiskLevel::High => {
                 recommendations.push("Implement additional safety checks".to_string());
@@ -2197,7 +2210,8 @@ impl UnsafeFFITracker {
         };
 
         if let Ok(allocations) = self.enhanced_allocations.lock() {
-            let mut context_activity: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+            let mut context_activity: std::collections::HashMap<String, usize> =
+                std::collections::HashMap::new();
             let mut total_size = 0usize;
             let mut event_count = 0usize;
 
@@ -2207,11 +2221,18 @@ impl UnsafeFFITracker {
                     event_count += 1;
 
                     // Count by event type
-                    *stats.events_by_type.entry(format!("{:?}", event.event_type)).or_insert(0) += 1;
+                    *stats
+                        .events_by_type
+                        .entry(format!("{:?}", event.event_type))
+                        .or_insert(0) += 1;
 
                     // Track context activity
-                    *context_activity.entry(event.from_context.clone()).or_insert(0) += 1;
-                    *context_activity.entry(event.to_context.clone()).or_insert(0) += 1;
+                    *context_activity
+                        .entry(event.from_context.clone())
+                        .or_insert(0) += 1;
+                    *context_activity
+                        .entry(event.to_context.clone())
+                        .or_insert(0) += 1;
 
                     // Estimate transfer size (would need actual size tracking)
                     let estimated_size = allocation.base.size;

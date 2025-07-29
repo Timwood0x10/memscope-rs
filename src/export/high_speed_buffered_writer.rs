@@ -105,11 +105,17 @@ impl HighSpeedBufferedWriter {
     }
 
     /// Write processed shards
-    pub fn write_processed_shards(&mut self, shards: &[ProcessedShard]) -> TrackingResult<WritePerformanceStats> {
+    pub fn write_processed_shards(
+        &mut self,
+        shards: &[ProcessedShard],
+    ) -> TrackingResult<WritePerformanceStats> {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!("🔄 Starting high-speed buffered write for {} shards...", shards.len());
+            println!(
+                "🔄 Starting high-speed buffered write for {} shards...",
+                shards.len()
+            );
         }
 
         // Pre-calculate total size and pre-allocate buffer
@@ -117,8 +123,9 @@ impl HighSpeedBufferedWriter {
         let estimated_final_size = total_size + 1024; // Extra space for JSON structure
 
         // Check if pre-allocation was effective
-        self.stats.preallocation_effective = self.internal_buffer.capacity() >= estimated_final_size;
-        
+        self.stats.preallocation_effective =
+            self.internal_buffer.capacity() >= estimated_final_size;
+
         if !self.stats.preallocation_effective {
             self.internal_buffer.reserve(estimated_final_size);
         }
@@ -127,17 +134,18 @@ impl HighSpeedBufferedWriter {
         self.build_complete_json(shards)?;
 
         // Write to file
-        self.writer.write_all(&self.internal_buffer)
+        self.writer
+            .write_all(&self.internal_buffer)
             .map_err(|e| TrackingError::IoError(format!("write file failed: {}", e)))?;
 
-        // 刷新缓冲区
+        // flush cache
         if self.config.auto_flush {
             self.flush()?;
         }
 
         let write_time = write_start.elapsed();
 
-        // 更新统计信息
+        // update data
         self.stats.total_bytes_written = self.internal_buffer.len();
         self.stats.shards_written = shards.len();
         self.stats.total_write_time_ms = write_time.as_millis() as u64;
@@ -165,7 +173,8 @@ impl HighSpeedBufferedWriter {
         self.internal_buffer.clear();
 
         // Write JSON start
-        self.internal_buffer.extend_from_slice(b"{\"allocations\":[");
+        self.internal_buffer
+            .extend_from_slice(b"{\"allocations\":[");
 
         // Merge all shards, add comma only between shards
         for (i, shard) in shards.iter().enumerate() {
@@ -175,7 +184,7 @@ impl HighSpeedBufferedWriter {
 
             // Remove shard's [ and ], only keep content
             let shard_content = if shard.data.starts_with(b"[") && shard.data.ends_with(b"]") {
-                &shard.data[1..shard.data.len()-1]
+                &shard.data[1..shard.data.len() - 1]
             } else {
                 &shard.data
             };
@@ -194,7 +203,10 @@ impl HighSpeedBufferedWriter {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!("🔄 Starting custom JSON data write ({} bytes)...", json_data.len());
+            println!(
+                "🔄 Starting custom JSON data write ({} bytes)...",
+                json_data.len()
+            );
         }
 
         // Pre-allocate buffer
@@ -207,7 +219,8 @@ impl HighSpeedBufferedWriter {
         self.internal_buffer.extend_from_slice(json_data);
 
         // Write to file
-        self.writer.write_all(&self.internal_buffer)
+        self.writer
+            .write_all(&self.internal_buffer)
             .map_err(|e| TrackingError::IoError(format!("write custom JSON failed: {}", e)))?;
 
         if self.config.auto_flush {
@@ -235,12 +248,13 @@ impl HighSpeedBufferedWriter {
 
     /// Force buffer flush
     pub fn flush(&mut self) -> TrackingResult<()> {
-        self.writer.flush()
+        self.writer
+            .flush()
             .map_err(|e| TrackingError::IoError(format!("flush buffer failed: {}", e)))?;
-        
+
         self.flush_count += 1;
         self.stats.flush_count = self.flush_count;
-        
+
         Ok(())
     }
 
@@ -274,15 +288,25 @@ impl HighSpeedBufferedWriter {
 
     /// Print write statistics
     fn print_write_stats(&self) {
-        println!("   Bytes written: {} ({:.2} MB)", 
-                self.stats.total_bytes_written,
-                self.stats.total_bytes_written as f64 / 1024.0 / 1024.0);
+        println!(
+            "   Bytes written: {} ({:.2} MB)",
+            self.stats.total_bytes_written,
+            self.stats.total_bytes_written as f64 / 1024.0 / 1024.0
+        );
         println!("   Shards written: {}", self.stats.shards_written);
-        println!("   Write speed: {:.2} MB/s", 
-                self.stats.avg_write_speed_bps / 1024.0 / 1024.0);
-        println!("   Buffer utilization: {:.1}%", self.stats.buffer_utilization * 100.0);
+        println!(
+            "   Write speed: {:.2} MB/s",
+            self.stats.avg_write_speed_bps / 1024.0 / 1024.0
+        );
+        println!(
+            "   Buffer utilization: {:.1}%",
+            self.stats.buffer_utilization * 100.0
+        );
         println!("   Flush count: {}", self.stats.flush_count);
-        println!("   Preallocation effective: {}", self.stats.preallocation_effective);
+        println!(
+            "   Preallocation effective: {}",
+            self.stats.preallocation_effective
+        );
     }
 }
 
@@ -459,7 +483,7 @@ mod tests {
 
         let final_stats = writer.finalize();
         assert!(final_stats.is_ok());
-        
+
         let stats = final_stats.unwrap();
         // In fast tests, time may be 0, so check >= 0
         assert!(stats.total_write_time_ms >= 0);

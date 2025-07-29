@@ -771,7 +771,6 @@ fn calculate_alignment(type_name: &str) -> usize {
     }
 }
 
-
 /// Generate statistics for the analysis
 fn generate_advanced_type_statistics(
     by_category: &HashMap<String, Vec<AdvancedTypeInfo>>,

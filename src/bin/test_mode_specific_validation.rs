@@ -3,11 +3,11 @@
 //! This binary tests the new mode-specific validation system to ensure
 //! different export modes work correctly with their respective validation configurations.
 
-use memscope_rs::export::quality_validator::{
-    ExportConfig, ExportMode, ExportModeManager, ValidationTiming, ValidationStrategy,
-    ValidationConfig
-};
 use memscope_rs::export::export_modes::ExportCoordinator;
+use memscope_rs::export::quality_validator::{
+    ExportConfig, ExportMode, ExportModeManager, ValidationConfig, ValidationStrategy,
+    ValidationTiming,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🧪 Testing Mode-Specific Validation Configuration");
@@ -15,13 +15,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test 1: Basic mode configurations
     test_basic_mode_configurations()?;
-    
+
     // Test 2: Configuration validation and conflict resolution
     test_configuration_validation()?;
-    
+
     // Test 3: Export mode manager
     test_export_mode_manager()?;
-    
+
     // Test 4: Export coordinator with different modes
     test_export_coordinator()?;
 
@@ -37,24 +37,42 @@ fn test_basic_mode_configurations() -> Result<(), Box<dyn std::error::Error>> {
     let fast_config = ValidationConfig::for_fast_mode();
     println!("Fast mode config:");
     println!("  JSON validation: {}", fast_config.enable_json_validation);
-    println!("  Integrity validation: {}", fast_config.enable_integrity_validation);
+    println!(
+        "  Integrity validation: {}",
+        fast_config.enable_integrity_validation
+    );
     println!("  Size validation: {}", fast_config.enable_size_validation);
-    println!("  Max data loss rate: {:.2}%", fast_config.max_data_loss_rate * 100.0);
+    println!(
+        "  Max data loss rate: {:.2}%",
+        fast_config.max_data_loss_rate * 100.0
+    );
 
     // Test slow mode configuration
     let slow_config = ValidationConfig::for_slow_mode();
     println!("\nSlow mode config:");
     println!("  JSON validation: {}", slow_config.enable_json_validation);
-    println!("  Integrity validation: {}", slow_config.enable_integrity_validation);
+    println!(
+        "  Integrity validation: {}",
+        slow_config.enable_integrity_validation
+    );
     println!("  Size validation: {}", slow_config.enable_size_validation);
-    println!("  Max data loss rate: {:.2}%", slow_config.max_data_loss_rate * 100.0);
+    println!(
+        "  Max data loss rate: {:.2}%",
+        slow_config.max_data_loss_rate * 100.0
+    );
 
     // Test validation strategies
     let minimal_config = ValidationConfig::with_strategy(ValidationStrategy::Minimal);
     let comprehensive_config = ValidationConfig::with_strategy(ValidationStrategy::Comprehensive);
-    
-    println!("\nMinimal strategy: JSON validation = {}", minimal_config.enable_json_validation);
-    println!("Comprehensive strategy: JSON validation = {}", comprehensive_config.enable_json_validation);
+
+    println!(
+        "\nMinimal strategy: JSON validation = {}",
+        minimal_config.enable_json_validation
+    );
+    println!(
+        "Comprehensive strategy: JSON validation = {}",
+        comprehensive_config.enable_json_validation
+    );
 
     assert!(!fast_config.enable_json_validation);
     assert!(slow_config.enable_json_validation);
@@ -87,20 +105,29 @@ fn test_configuration_validation() -> Result<(), Box<dyn std::error::Error>> {
     for warning in &warnings {
         println!("    - {}", warning);
     }
-    println!("  Fixed timing: {:?}", slow_disabled_config.validation_timing);
+    println!(
+        "  Fixed timing: {:?}",
+        slow_disabled_config.validation_timing
+    );
 
     // Test validation config conflicts
     let mut validation_config = ValidationConfig::for_fast_mode();
     validation_config.enable_json_validation = true; // This conflicts with fast mode
-    
+
     let conflicts = validation_config.conflicts_with_mode(&ExportMode::Fast);
     println!("\nValidation config conflicts with Fast mode:");
     for conflict in &conflicts {
         println!("  - {}", conflict);
     }
 
-    assert_eq!(fast_inline_config.validation_timing, ValidationTiming::Deferred);
-    assert_eq!(slow_disabled_config.validation_timing, ValidationTiming::Deferred);
+    assert_eq!(
+        fast_inline_config.validation_timing,
+        ValidationTiming::Deferred
+    );
+    assert_eq!(
+        slow_disabled_config.validation_timing,
+        ValidationTiming::Deferred
+    );
     assert!(!conflicts.is_empty());
 
     println!("✅ Configuration validation test passed");
@@ -115,14 +142,17 @@ fn test_export_mode_manager() -> Result<(), Box<dyn std::error::Error>> {
     let (default_mode, threshold, perf_threshold) = manager.get_settings();
     println!("Default settings:");
     println!("  Default mode: {:?}", default_mode);
-    println!("  Auto threshold: {:.2} MB", threshold as f64 / 1024.0 / 1024.0);
+    println!(
+        "  Auto threshold: {:.2} MB",
+        threshold as f64 / 1024.0 / 1024.0
+    );
     println!("  Performance threshold: {} ms", perf_threshold);
 
     // Test auto mode selection
     let auto_manager = ExportModeManager::with_settings(
-        ExportMode::Auto, 
+        ExportMode::Auto,
         5 * 1024 * 1024, // 5MB threshold
-        3000
+        3000,
     );
 
     let small_data_mode = auto_manager.determine_optimal_mode(1024 * 1024); // 1MB
@@ -141,10 +171,10 @@ fn test_export_mode_manager() -> Result<(), Box<dyn std::error::Error>> {
     // Test configuration optimization
     let test_config = ExportConfig::fast();
     let (_optimized_config, optimization_warnings) = auto_manager.optimize_config(
-        test_config, 
-        200 * 1024 * 1024 // 200MB - large dataset
+        test_config,
+        200 * 1024 * 1024, // 200MB - large dataset
     );
-    
+
     println!("\nOptimization for large dataset (200MB):");
     println!("  Optimization warnings: {}", optimization_warnings.len());
     for warning in &optimization_warnings {
@@ -169,10 +199,22 @@ fn test_export_coordinator() -> Result<(), Box<dyn std::error::Error>> {
     let sized_coordinator = ExportCoordinator::new_auto_sized(50 * 1024 * 1024); // 50MB
 
     println!("Coordinator configurations:");
-    println!("  Fast coordinator mode: {:?}", fast_coordinator.config().mode);
-    println!("  Slow coordinator mode: {:?}", slow_coordinator.config().mode);
-    println!("  Auto coordinator mode: {:?}", auto_coordinator.config().mode);
-    println!("  Sized coordinator mode: {:?}", sized_coordinator.config().mode);
+    println!(
+        "  Fast coordinator mode: {:?}",
+        fast_coordinator.config().mode
+    );
+    println!(
+        "  Slow coordinator mode: {:?}",
+        slow_coordinator.config().mode
+    );
+    println!(
+        "  Auto coordinator mode: {:?}",
+        auto_coordinator.config().mode
+    );
+    println!(
+        "  Sized coordinator mode: {:?}",
+        sized_coordinator.config().mode
+    );
 
     // Test configuration updates
     let mut coordinator = ExportCoordinator::new_fast();
