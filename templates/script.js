@@ -510,7 +510,7 @@ function calculateMemoryStatistics(allocations) {
     };
 }
 
-// Initialize memory usage analysis with enhanced data processing
+// Initialize memory usage analysis with enhanced SVG-style visualization
 function initMemoryUsageAnalysis() {
     const container = document.getElementById('memory-usage-analysis');
     if (!container) return;
@@ -520,16 +520,7 @@ function initMemoryUsageAnalysis() {
     const allocations = memoryData.allocations;
 
     if (allocations.length === 0 || memoryData.isFallback) {
-        container.innerHTML = `
-            <div class="h-full flex items-center justify-center text-muted">
-                <div class="text-center">
-                    <i class="fa fa-info-circle text-4xl mb-4"></i>
-                    <h4 class="text-lg font-semibold mb-2 text-heading">No Memory Data Available</h4>
-                    <p class="text-sm text-secondary">No memory allocation data found for analysis</p>
-                    <p class="text-xs mt-2 text-muted">Use memory tracking features to collect data</p>
-                </div>
-            </div>
-        `;
+        container.innerHTML = createEnhancedEmptyState();
         return;
     }
 
@@ -549,76 +540,281 @@ function initMemoryUsageAnalysis() {
     const userMemory = userAllocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
     const systemMemory = systemAllocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
 
-    const userPercentage = totalMemory > 0 ? (userMemory / totalMemory * 100) : 0;
-    const systemPercentage = totalMemory > 0 ? (systemMemory / totalMemory * 100) : 0;
+    // Create enhanced SVG-style visualization
+    container.innerHTML = createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, totalMemory);
+}
 
-    container.innerHTML = `
-        <div class="h-full flex flex-col">
-            <h4 class="text-lg font-semibold mb-4 text-center text-heading">Memory Usage Analysis</h4>
-            
-            <!-- Statistics Grid -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-center">
-                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${allocations.length}</div>
-                    <div class="text-xs text-blue-600 dark:text-blue-400">Total Allocations</div>
+// Create enhanced empty state with better styling
+function createEnhancedEmptyState() {
+    return `
+        <div class="h-full flex items-center justify-center">
+            <div class="text-center p-8 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-800 dark:to-gray-700 rounded-xl border-2 border-dashed border-blue-200 dark:border-gray-600">
+                <div class="mb-4">
+                    <svg class="w-16 h-16 mx-auto text-blue-400 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
                 </div>
-                <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg text-center">
-                    <div class="text-2xl font-bold text-green-600 dark:text-green-400">${formatBytes(totalMemory)}</div>
-                    <div class="text-xs text-green-600 dark:text-green-400">Total Memory</div>
-                </div>
-                <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg text-center">
-                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">${formatBytes(stats.averageSize)}</div>
-                    <div class="text-xs text-purple-600 dark:text-purple-400">Average Size</div>
-                </div>
-                <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg text-center">
-                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-400">${formatBytes(stats.largestAllocation)}</div>
-                    <div class="text-xs text-orange-600 dark:text-orange-400">Largest Block</div>
-                </div>
-            </div>
-            
-            <!-- Memory Distribution -->
-            <div class="flex-grow">
-                <h5 class="text-md font-medium mb-3 text-gray-900 dark:text-white">Memory Distribution</h5>
-                <div class="space-y-4">
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-medium text-blue-600 dark:text-blue-400">User Allocations (${stats.userAllocations})</span>
-                            <span class="text-sm text-gray-600 dark:text-gray-300">${formatBytes(userMemory)} (${userPercentage.toFixed(1)}%)</span>
-                        </div>
-                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                            <div class="bg-blue-500 h-3 rounded-full transition-all duration-500" style="width: ${userPercentage}%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">System Allocations (${stats.systemAllocations})</span>
-                            <span class="text-sm text-gray-600 dark:text-gray-300">${formatBytes(systemMemory)} (${systemPercentage.toFixed(1)}%)</span>
-                        </div>
-                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                            <div class="bg-gray-500 h-3 rounded-full transition-all duration-500" style="width: ${systemPercentage}%"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Memory Trends -->
-                ${memoryData.trends && (memoryData.trends.peak_memory > 0 || memoryData.trends.growth_rate !== 0) ? `
-                    <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
-                        <h5 class="text-md font-medium mb-3 text-gray-900 dark:text-white">Memory Trends</h5>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <span class="text-gray-600 dark:text-gray-400">Peak Memory:</span>
-                                <span class="font-medium text-gray-900 dark:text-white ml-2">${formatBytes(memoryData.trends.peak_memory)}</span>
-                            </div>
-                            <div>
-                                <span class="text-gray-600 dark:text-gray-400">Growth Rate:</span>
-                                <span class="font-medium text-gray-900 dark:text-white ml-2">${memoryData.trends.growth_rate}%</span>
-                            </div>
-                        </div>
-                    </div>
-                ` : ''}
+                <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Memory Analysis Ready</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">No memory allocation data found for analysis</p>
+                <p class="text-xs text-gray-500 dark:text-gray-500">Run your application with memory tracking enabled to see detailed analysis</p>
             </div>
         </div>
     `;
+}
+
+// Create SVG-style memory analysis visualization inspired by the memoryAnalysis.svg
+function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, totalMemory) {
+    const userPercentage = totalMemory > 0 ? (userMemory / totalMemory * 100) : 0;
+    const systemPercentage = totalMemory > 0 ? (systemMemory / totalMemory * 100) : 0;
+    
+    // Calculate efficiency metrics
+    const efficiency = totalMemory > 0 ? Math.min(100, (userMemory / totalMemory * 100)) : 0;
+    const fragmentation = Math.min(100, (allocations.length / (totalMemory / 1024)) * 10); // Rough fragmentation estimate
+    
+    // Size distribution analysis
+    const sizeDistribution = {
+        tiny: allocations.filter(a => a.size < 64).length,
+        small: allocations.filter(a => a.size >= 64 && a.size < 1024).length,
+        medium: allocations.filter(a => a.size >= 1024 && a.size < 65536).length,
+        large: allocations.filter(a => a.size >= 65536).length
+    };
+
+    return `
+        <div class="h-full bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 overflow-auto">
+            <!-- Header -->
+            <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Rust Memory Usage Analysis</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wider">Key Performance Metrics</p>
+            </div>
+
+            <!-- Key Metrics Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                ${createMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', 'MEDIUM')}
+                ${createMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', 'HIGH')}
+                ${createMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', 'HIGH')}
+                ${createMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM')}
+            </div>
+
+            <!-- Memory Allocation Timeline -->
+            <div class="bg-white dark:bg-gray-700 rounded-lg p-4 mb-6 shadow-sm">
+                <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Allocation Timeline</h4>
+                <div class="relative h-32 bg-gray-100 dark:bg-gray-600 rounded overflow-hidden">
+                    ${createTimelineVisualization(allocations)}
+                </div>
+                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                    Visual representation of memory allocations over time
+                </div>
+            </div>
+
+            <!-- Memory Usage by Type - Treemap Style -->
+            <div class="bg-white dark:bg-gray-700 rounded-lg p-4 mb-6 shadow-sm">
+                <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Usage by Type</h4>
+                <div class="h-48 relative">
+                    ${createTreemapVisualization(allocations)}
+                </div>
+            </div>
+
+            <!-- Memory Fragmentation Analysis -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm">
+                    <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Fragmentation Analysis</h4>
+                    <div class="space-y-3">
+                        ${createFragmentationBar('Tiny (0-64B)', sizeDistribution.tiny, allocations.length, '#27ae60')}
+                        ${createFragmentationBar('Small (65B-1KB)', sizeDistribution.small, allocations.length, '#f39c12')}
+                        ${createFragmentationBar('Medium (1KB-64KB)', sizeDistribution.medium, allocations.length, '#e74c3c')}
+                        ${createFragmentationBar('Large (>64KB)', sizeDistribution.large, allocations.length, '#8e44ad')}
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm">
+                    <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Growth Trends</h4>
+                    <div class="h-32 relative bg-gray-50 dark:bg-gray-600 rounded">
+                        ${createGrowthTrendVisualization(allocations)}
+                    </div>
+                    <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                        <div class="flex justify-between">
+                            <span>Peak Usage:</span>
+                            <span class="font-semibold">${formatBytes(totalMemory)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Fragmentation Score:</span>
+                            <span class="font-semibold">${fragmentation.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create metric card with circular progress indicator
+function createMetricCard(title, value, percentage, color, status) {
+    const circumference = 2 * Math.PI * 25;
+    const strokeDasharray = circumference;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+    
+    const statusColors = {
+        'OPTIMAL': '#27ae60',
+        'MEDIUM': '#f39c12', 
+        'HIGH': '#e74c3c'
+    };
+    
+    return `
+        <div class="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">${title}</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">${value}</p>
+                    <div class="flex items-center mt-1">
+                        <div class="w-2 h-2 rounded-full mr-2" style="background-color: ${statusColors[status]}"></div>
+                        <span class="text-xs font-semibold" style="color: ${statusColors[status]}">${status}</span>
+                    </div>
+                </div>
+                <div class="relative w-12 h-12">
+                    <svg class="w-12 h-12 transform -rotate-90" viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="25" stroke="#e5e7eb" stroke-width="6" fill="none" class="dark:stroke-gray-600"/>
+                        <circle cx="30" cy="30" r="25" stroke="${color}" stroke-width="6" fill="none" 
+                                stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}"
+                                stroke-linecap="round" class="transition-all duration-500"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-xs font-bold" style="color: ${color}">${Math.round(percentage)}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create timeline visualization
+function createTimelineVisualization(allocations) {
+    if (allocations.length === 0) return '<div class="flex items-center justify-center h-full text-gray-400">No timeline data</div>';
+    
+    const sortedAllocs = allocations.sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+    const minTime = sortedAllocs[0]?.timestamp_alloc || 0;
+    const maxTime = sortedAllocs[sortedAllocs.length - 1]?.timestamp_alloc || minTime + 1;
+    const timeRange = maxTime - minTime || 1;
+    
+    return sortedAllocs.slice(0, 20).map((alloc, index) => {
+        const position = ((alloc.timestamp_alloc - minTime) / timeRange) * 100;
+        const height = Math.min(80, Math.max(4, (alloc.size / 1024) * 20));
+        const color = alloc.var_name && alloc.var_name !== 'unknown' ? '#3498db' : '#95a5a6';
+        
+        return `
+            <div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" 
+                 style="left: ${position}%; width: 4px; height: ${height}%; background-color: ${color};"
+                 title="${alloc.var_name || 'System'}: ${formatBytes(alloc.size)}">
+            </div>
+        `;
+    }).join('');
+}
+
+// Create treemap-style visualization
+function createTreemapVisualization(allocations) {
+    const typeGroups = {};
+    allocations.forEach(alloc => {
+        const type = alloc.type_name || 'System';
+        if (!typeGroups[type]) {
+            typeGroups[type] = { count: 0, size: 0 };
+        }
+        typeGroups[type].count++;
+        typeGroups[type].size += alloc.size || 0;
+    });
+    
+    const sortedTypes = Object.entries(typeGroups)
+        .sort(([,a], [,b]) => b.size - a.size)
+        .slice(0, 8);
+    
+    const totalSize = sortedTypes.reduce((sum, [, data]) => sum + data.size, 0);
+    
+    let currentX = 0;
+    return sortedTypes.map(([type, data], index) => {
+        const width = totalSize > 0 ? (data.size / totalSize) * 100 : 12.5;
+        const color = getTypeColor(type, index);
+        const result = `
+            <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer rounded" 
+                 style="left: ${currentX}%; width: ${width}%; background-color: ${color};"
+                 title="${type}: ${formatBytes(data.size)} (${data.count} allocs)">
+                <div class="p-2 h-full flex flex-col justify-center text-white text-xs font-semibold text-center">
+                    <div class="truncate">${type.length > 10 ? type.substring(0, 8) + '...' : type}</div>
+                    <div class="text-xs opacity-90">${formatBytes(data.size)}</div>
+                </div>
+            </div>
+        `;
+        currentX += width;
+        return result;
+    }).join('');
+}
+
+// Create fragmentation bar
+function createFragmentationBar(label, count, total, color) {
+    const percentage = total > 0 ? (count / total) * 100 : 0;
+    return `
+        <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-24">${label}</span>
+            <div class="flex-1 mx-3">
+                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
+                    <div class="h-4 rounded-full transition-all duration-500" 
+                         style="width: ${percentage}%; background-color: ${color}"></div>
+                </div>
+            </div>
+            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right">${count}</span>
+        </div>
+    `;
+}
+
+// Create growth trend visualization
+function createGrowthTrendVisualization(allocations) {
+    if (allocations.length < 2) return '<div class="flex items-center justify-center h-full text-gray-400">Insufficient data</div>';
+    
+    const sortedAllocs = allocations.sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+    const points = [];
+    let cumulativeSize = 0;
+    
+    sortedAllocs.forEach((alloc, index) => {
+        cumulativeSize += alloc.size || 0;
+        if (index % Math.max(1, Math.floor(sortedAllocs.length / 10)) === 0) {
+            points.push(cumulativeSize);
+        }
+    });
+    
+    const maxSize = Math.max(...points);
+    
+    return points.map((size, index) => {
+        const x = (index / (points.length - 1)) * 100;
+        const y = 100 - (size / maxSize) * 80;
+        
+        return `
+            <div class="absolute w-2 h-2 bg-green-500 rounded-full transform -translate-x-1 -translate-y-1" 
+                 style="left: ${x}%; top: ${y}%"
+                 title="Memory: ${formatBytes(size)}">
+            </div>
+            ${index > 0 ? `
+                <div class="absolute h-0.5 bg-green-500" 
+                     style="left: ${((index-1) / (points.length - 1)) * 100}%; 
+                            top: ${100 - (points[index-1] / maxSize) * 80}%; 
+                            width: ${(100 / (points.length - 1))}%;
+                            transform: rotate(${Math.atan2(y - (100 - (points[index-1] / maxSize) * 80), 100 / (points.length - 1)) * 180 / Math.PI}deg);
+                            transform-origin: left center;">
+                </div>
+            ` : ''}
+        `;
+    }).join('');
+}
+
+// Get color for type visualization
+function getTypeColor(type, index) {
+    const colors = [
+        '#3498db', '#e74c3c', '#2ecc71', '#f39c12', 
+        '#9b59b6', '#1abc9c', '#e67e22', '#95a5a6'
+    ];
+    
+    if (type.toLowerCase().includes('vec')) return '#3498db';
+    if (type.toLowerCase().includes('string')) return '#f39c12';
+    if (type.toLowerCase().includes('hash')) return '#e74c3c';
+    if (type.toLowerCase().includes('btree')) return '#2ecc71';
+    
+    return colors[index % colors.length];
 }
 
 // Initialize allocations table with improved collapsible functionality
@@ -944,7 +1140,7 @@ function renderLifetimeVisualization(variableGroups) {
     console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization`);
 }
 
-// Initialize FFI visualization with enhanced dashboard style
+// Initialize FFI visualization with enhanced SVG-style dashboard
 function initFFIVisualization() {
     console.log('🔄 Initializing FFI visualization...');
 
@@ -953,18 +1149,7 @@ function initFFIVisualization() {
 
     const ffiData = window.analysisData.unsafe_ffi;
     if (!ffiData || !ffiData.enhanced_ffi_data || ffiData.enhanced_ffi_data.length === 0) {
-        container.innerHTML = `
-            <div class="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-xl p-6 card-shadow border border-green-200 dark:border-green-700">
-                <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
-                    <i class="fa fa-shield text-green-500 mr-2"></i>Unsafe/FFI Analysis
-                </h2>
-                <div class="text-center py-8 text-green-600 dark:text-green-300">
-                    <i class="fa fa-shield text-4xl mb-4"></i>
-                    <h3 class="text-lg font-semibold mb-2">No Unsafe/FFI Operations Detected</h3>
-                    <p class="text-sm">This is generally good for memory safety!</p>
-                </div>
-            </div>
-        `;
+        container.innerHTML = createFFIEmptyState();
         return;
     }
 
@@ -977,134 +1162,238 @@ function initFFIVisualization() {
     const safetyViolations = enhancedData.reduce((sum, item) => sum + (item.safety_violations || 0), 0);
     const unsafeMemory = enhancedData.reduce((sum, item) => sum + (item.size || 0), 0);
 
-    // Create dashboard inspired by SVG style
-    container.innerHTML = `
-        <div class="bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black rounded-xl p-6 text-white shadow-2xl">
-            <h2 class="text-2xl font-bold mb-6 text-center text-white">
-                Unsafe Rust & FFI Memory Analysis Dashboard
+    container.innerHTML = createFFIDashboardSVG(
+        unsafeAllocations, ffiAllocations, boundaryEvents.length, 
+        safetyViolations, unsafeMemory, enhancedData, 
+        boundaryEvents, []
+    );
+}
+
+// Create FFI empty state
+function createFFIEmptyState() {
+    return `
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+            <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                <i class="fa fa-shield text-primary mr-2"></i>Unsafe FFI Analysis
             </h2>
-            
-            <!-- Key Metrics Row - inspired by SVG -->
+            <div class="text-center py-8">
+                <div class="mb-4">
+                    <svg class="w-16 h-16 mx-auto text-green-400 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                </div>
+                <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Memory Safety Verified</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">No unsafe FFI operations detected in this analysis</p>
+                <p class="text-xs mt-2 text-gray-500 dark:text-gray-500">Your code appears to be using safe Rust patterns</p>
+            </div>
+        </div>
+    `;
+}
+
+// Create comprehensive FFI dashboard with SVG-style visualization
+function createFFIDashboardSVG(unsafeAllocs, ffiAllocs, boundaryCrossings, safetyViolations, unsafeMemory, enhancedData, boundaryEvents, violations) {
+    return `
+        <div class="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 text-white shadow-2xl">
+            <!-- Header -->
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold mb-2 flex items-center justify-center">
+                    <i class="fa fa-shield mr-3 text-red-400"></i>
+                    Unsafe Rust & FFI Memory Analysis Dashboard
+                </h2>
+            </div>
+
+            <!-- Key Metrics Row -->
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-                <div class="bg-red-500 bg-opacity-20 border-2 border-red-500 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-red-400">${unsafeAllocations}</div>
-                    <div class="text-xs text-gray-300 uppercase tracking-wide">Unsafe Allocations</div>
-                </div>
-                <div class="bg-blue-500 bg-opacity-20 border-2 border-blue-500 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-blue-400">${ffiAllocations}</div>
-                    <div class="text-xs text-gray-300 uppercase tracking-wide">FFI Allocations</div>
-                </div>
-                <div class="bg-yellow-500 bg-opacity-20 border-2 border-yellow-500 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-yellow-400">${boundaryEvents.length}</div>
-                    <div class="text-xs text-gray-300 uppercase tracking-wide">Boundary Crossings</div>
-                </div>
-                <div class="bg-orange-500 bg-opacity-20 border-2 border-orange-500 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-orange-400">${safetyViolations}</div>
-                    <div class="text-xs text-gray-300 uppercase tracking-wide">Safety Violations</div>
-                </div>
-                <div class="bg-purple-500 bg-opacity-20 border-2 border-purple-500 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-purple-400">${formatBytes(unsafeMemory)}</div>
-                    <div class="text-xs text-gray-300 uppercase tracking-wide">Unsafe Memory</div>
-                </div>
+                ${createFFIMetricCard('Unsafe Allocations', unsafeAllocs, '#e74c3c', 'fa-exclamation-triangle')}
+                ${createFFIMetricCard('FFI Allocations', ffiAllocs, '#3498db', 'fa-exchange')}
+                ${createFFIMetricCard('Boundary Crossings', boundaryCrossings, '#f39c12', 'fa-arrows-h')}
+                ${createFFIMetricCard('Safety Violations', safetyViolations, '#e67e22', 'fa-warning')}
+                ${createFFIMetricCard('Unsafe Memory', formatBytes(unsafeMemory), '#9b59b6', 'fa-memory')}
             </div>
-            
-            <!-- Memory Safety Status -->
-            ${safetyViolations > 0 ? `
-            <div class="bg-red-500 bg-opacity-20 border-2 border-red-500 rounded-lg p-6 mb-6">
-                <h3 class="text-lg font-bold text-red-400 mb-4 text-center">
-                    ${safetyViolations} Safety Violations Detected
-                </h3>
-                <div class="text-red-300 text-sm space-y-1">
-                    ${enhancedData.filter(item => (item.safety_violations || 0) > 0).map(item =>
-        `<div>• Pointer ${item.ptr}: ${item.safety_violations} violations</div>`
-    ).join('')}
-                </div>
-            </div>
-            ` : `
-            <div class="bg-green-500 bg-opacity-20 border-2 border-green-500 rounded-lg p-6 mb-6">
-                <h3 class="text-lg font-bold text-green-400 text-center">
-                    No Safety Violations Detected
-                </h3>
-            </div>
-            `}
-            
-            <!-- Cross-Language Memory Flow -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div class="bg-gray-700 bg-opacity-50 rounded-lg p-4">
-                    <h4 class="text-lg font-semibold mb-3 text-center">Memory Allocation Sources</h4>
-                    <div class="flex justify-center items-end space-x-8 h-32">
-                        <div class="flex flex-col items-center">
-                            <div class="bg-red-500 rounded" style="width: 40px; height: ${Math.max(16, unsafeAllocations * 4)}px; margin-bottom: 8px;"></div>
-                            <div class="text-red-400 font-bold text-sm">${unsafeAllocations}</div>
-                            <div class="text-gray-300 text-xs">Unsafe Rust</div>
-                        </div>
-                        <div class="flex flex-col items-center">
-                            <div class="bg-blue-500 rounded" style="width: 40px; height: ${Math.max(16, ffiAllocations * 4)}px; margin-bottom: 8px;"></div>
-                            <div class="text-blue-400 font-bold text-sm">${ffiAllocations}</div>
-                            <div class="text-gray-300 text-xs">FFI</div>
-                        </div>
+
+            <!-- Main Dashboard Content -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Memory Allocation Sources -->
+                <div class="bg-gray-700/50 rounded-lg p-4 backdrop-blur-sm">
+                    <h3 class="text-lg font-semibold mb-4 text-white">Memory Allocation Sources</h3>
+                    <div class="space-y-4">
+                        ${createAllocationSourceBar('Unsafe Rust', unsafeAllocs, Math.max(unsafeAllocs, ffiAllocs), '#e74c3c')}
+                        ${createAllocationSourceBar('FFI', ffiAllocs, Math.max(unsafeAllocs, ffiAllocs), '#3498db')}
                     </div>
                 </div>
-                
-                <div class="bg-gray-700 bg-opacity-50 rounded-lg p-4">
-                    <h4 class="text-lg font-semibold mb-3 text-center">Unsafe Memory Hotspots</h4>
-                    <div class="space-y-2 max-h-32 overflow-y-auto">
-                        ${enhancedData.slice(0, 6).map(item => `
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="font-mono text-xs">${item.ptr}</span>
-                                <span class="px-2 py-1 rounded text-xs ${item.ffi_tracked ? 'bg-blue-500' : 'bg-red-500'} text-white">
-                                    ${formatBytes(item.size || 0)}
-                                </span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Detailed FFI Operations Table -->
-            <div class="bg-gray-700 bg-opacity-50 rounded-lg p-4">
-                <h4 class="text-lg font-semibold mb-3">FFI Operations Details</h4>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="border-b border-gray-600">
-                                <th class="text-left py-2">Pointer</th>
-                                <th class="text-left py-2">Size</th>
-                                <th class="text-left py-2">Type</th>
-                                <th class="text-left py-2">Safety</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${enhancedData.map(item => `
-                                <tr class="border-b border-gray-700 hover:bg-gray-600 hover:bg-opacity-30">
-                                    <td class="py-2 font-mono text-xs">${item.ptr}</td>
-                                    <td class="py-2">${formatBytes(item.size || 0)}</td>
-                                    <td class="py-2">
-                                        <span class="px-2 py-1 rounded text-xs ${item.ffi_tracked ? 'bg-blue-500' : 'bg-red-500'} text-white">
-                                            ${item.ffi_tracked ? 'FFI' : 'Unsafe'}
-                                        </span>
-                                    </td>
-                                    <td class="py-2">
-                                        <span class="px-2 py-1 rounded text-xs ${(item.safety_violations || 0) === 0 ? 'bg-green-500' : 'bg-red-500'} text-white">
-                                            ${(item.safety_violations || 0) === 0 ? 'Safe' : `${item.safety_violations} violations`}
-                                        </span>
-                                    </td>
-                                </tr>
+
+                <!-- Memory Safety Status -->
+                <div class="bg-gray-700/50 rounded-lg p-4 backdrop-blur-sm">
+                    <h3 class="text-lg font-semibold mb-4 text-white">Memory Safety Status</h3>
+                    ${safetyViolations > 0 ? `
+                        <div class="bg-red-900/30 border border-red-500/50 rounded-lg p-4">
+                            <h4 class="text-red-300 font-semibold mb-2 flex items-center">
+                                <i class="fa fa-exclamation-triangle mr-2"></i>
+                                ${safetyViolations} Safety Violations Detected
+                            </h4>
+                            ${enhancedData.filter(item => (item.safety_violations || 0) > 0).slice(0, 2).map(item => `
+                                <div class="text-red-400 text-sm flex items-center mb-1">
+                                    <i class="fa fa-dot-circle-o mr-2 text-xs"></i>
+                                    Pointer ${item.ptr}: ${item.safety_violations} violations
+                                </div>
                             `).join('')}
-                        </tbody>
-                    </table>
+                        </div>
+                    ` : `
+                        <div class="bg-green-900/30 border border-green-500/50 rounded-lg p-4">
+                            <h4 class="text-green-300 font-semibold flex items-center mb-2">
+                                <i class="fa fa-check-circle mr-2"></i>
+                                No Safety Violations Detected
+                            </h4>
+                            <p class="text-green-400 text-sm">All unsafe operations appear to be handled correctly</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+
+            <!-- Cross-Language Memory Flow -->
+            <div class="bg-gray-700/50 rounded-lg p-6 mb-6 backdrop-blur-sm">
+                <h3 class="text-lg font-semibold mb-6 text-white text-center">Cross-Language Memory Flow</h3>
+                <div class="flex items-center justify-center space-x-8">
+                    <!-- Rust Side -->
+                    <div class="bg-green-800/30 border-2 border-green-400/50 rounded-lg p-6 text-center backdrop-blur-sm">
+                        <div class="text-green-300 font-bold text-xl mb-2">RUST</div>
+                        <div class="text-green-400 text-sm">${unsafeAllocs} allocations</div>
+                        <div class="w-16 h-16 mx-auto mt-3 bg-green-500/20 rounded-full flex items-center justify-center">
+                            <i class="fa fa-rust text-green-400 text-2xl"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Flow Arrows -->
+                    <div class="flex flex-col items-center space-y-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="flex items-center space-x-1">
+                                <div class="w-8 h-0.5 bg-red-400"></div>
+                                <div class="w-0 h-0 border-l-4 border-l-red-400 border-t-2 border-t-transparent border-b-2 border-b-transparent"></div>
+                            </div>
+                            <span class="text-red-400 text-sm font-bold bg-red-900/30 px-2 py-1 rounded">
+                                ${boundaryEvents.filter(e => e.event_type === 'RustToFfi').length}
+                            </span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-orange-400 text-sm font-bold bg-orange-900/30 px-2 py-1 rounded">
+                                ${boundaryEvents.filter(e => e.event_type === 'FfiToRust').length}
+                            </span>
+                            <div class="flex items-center space-x-1">
+                                <div class="w-0 h-0 border-r-4 border-r-orange-400 border-t-2 border-t-transparent border-b-2 border-b-transparent"></div>
+                                <div class="w-8 h-0.5 bg-orange-400"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- FFI/C Side -->
+                    <div class="bg-blue-800/30 border-2 border-blue-400/50 rounded-lg p-6 text-center backdrop-blur-sm">
+                        <div class="text-blue-300 font-bold text-xl mb-2">FFI / C</div>
+                        <div class="text-blue-400 text-sm">${ffiAllocs} allocations</div>
+                        <div class="w-16 h-16 mx-auto mt-3 bg-blue-500/20 rounded-full flex items-center justify-center">
+                            <i class="fa fa-code text-blue-400 text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unsafe Memory Hotspots -->
+            <div class="bg-gray-700/50 rounded-lg p-4 backdrop-blur-sm">
+                <h3 class="text-lg font-semibold mb-4 text-white">Unsafe Memory Hotspots</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    ${enhancedData.slice(0, 12).map(item => createMemoryHotspot(item)).join('')}
+                </div>
+                ${enhancedData.length === 0 ? `
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fa fa-shield-alt text-4xl mb-2"></i>
+                        <p>No unsafe memory hotspots detected</p>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Create FFI metric card
+function createFFIMetricCard(title, value, color, icon) {
+    return `
+        <div class="bg-gray-700/30 border border-gray-600/50 rounded-lg p-4 text-center backdrop-blur-sm hover:bg-gray-600/30 transition-all">
+            <div class="flex items-center justify-center mb-2">
+                <i class="fa ${icon} text-2xl" style="color: ${color}"></i>
+            </div>
+            <div class="text-2xl font-bold mb-1" style="color: ${color}">${value}</div>
+            <div class="text-xs text-gray-300 uppercase tracking-wide">${title}</div>
+        </div>
+    `;
+}
+
+// Create allocation source bar
+function createAllocationSourceBar(label, count, maxCount, color) {
+    const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+    const barHeight = Math.max(20, (count / maxCount) * 80);
+    
+    return `
+        <div class="flex items-end space-x-4">
+            <div class="flex-1">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium text-gray-300">${label}</span>
+                    <span class="text-lg font-bold text-white">${count}</span>
+                </div>
+                <div class="w-full bg-gray-600 rounded-full h-6 overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-500 flex items-center justify-center text-white text-xs font-bold" 
+                         style="width: ${percentage}%; background-color: ${color};">
+                        ${count > 0 ? count : ''}
+                    </div>
                 </div>
             </div>
         </div>
     `;
 }
 
-// Initialize memory fragmentation analysis
+// Create memory hotspot visualization
+function createMemoryHotspot(item) {
+    const size = item.size || 0;
+    const isUnsafe = !item.ffi_tracked;
+    const radius = Math.min(30, Math.max(12, Math.sqrt(size / 50)));
+    const color = isUnsafe ? '#e74c3c' : '#3498db';
+    const bgColor = isUnsafe ? 'bg-red-900/20' : 'bg-blue-900/20';
+    const borderColor = isUnsafe ? 'border-red-500/50' : 'border-blue-500/50';
+    
+    return `
+        <div class="flex flex-col items-center p-3 ${bgColor} border ${borderColor} rounded-lg backdrop-blur-sm hover:scale-105 transition-transform">
+            <div class="relative mb-2">
+                <div class="rounded-full border-2 flex items-center justify-center text-white text-xs font-bold shadow-lg"
+                     style="width: ${radius * 2}px; height: ${radius * 2}px; background-color: ${color}; border-color: ${color};">
+                    ${size > 1024 ? Math.round(size/1024) + 'K' : size + 'B'}
+                </div>
+                ${(item.safety_violations || 0) > 0 ? `
+                    <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                        <i class="fa fa-exclamation text-white text-xs"></i>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="text-xs text-center">
+                <div class="font-semibold" style="color: ${color}">
+                    ${isUnsafe ? 'UNSAFE' : 'FFI'}
+                </div>
+                <div class="text-gray-400 text-xs">
+                    ${formatBytes(size)}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Initialize memory fragmentation analysis with enhanced SVG-style visualization
 function initMemoryFragmentation() {
     const container = document.getElementById('memoryFragmentation');
     if (!container) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
+
+    if (allocations.length === 0) {
+        container.innerHTML = createFragmentationEmptyState();
+        return;
+    }
 
     // Analyze memory fragmentation
     const sortedAllocs = allocations
@@ -1116,6 +1405,7 @@ function initMemoryFragmentation() {
         }))
         .sort((a, b) => a.address - b.address);
 
+    // Calculate fragmentation metrics
     let gaps = 0;
     let totalGapSize = 0;
     let maxGap = 0;
@@ -1135,67 +1425,212 @@ function initMemoryFragmentation() {
     const totalMemory = sortedAllocs.reduce((sum, alloc) => sum + alloc.size, 0);
     const fragmentationRatio = totalMemory > 0 ? (totalGapSize / (totalMemory + totalGapSize) * 100) : 0;
 
-    container.innerHTML = `
+    // Size distribution analysis (inspired by SVG)
+    const sizeDistribution = {
+        tiny: sortedAllocs.filter(a => a.size < 64).length,
+        small: sortedAllocs.filter(a => a.size >= 64 && a.size < 1024).length,
+        medium: sortedAllocs.filter(a => a.size >= 1024 && a.size < 65536).length,
+        large: sortedAllocs.filter(a => a.size >= 65536).length
+    };
+
+    container.innerHTML = createFragmentationAnalysisSVG(
+        fragmentationRatio, gaps, maxGap, sortedAllocs.length, 
+        totalMemory, sizeDistribution, sortedAllocs
+    );
+}
+
+// Create fragmentation empty state
+function createFragmentationEmptyState() {
+    return `
         <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
-            <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
+            <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                <i class="fa fa-puzzle-piece text-orange-500 mr-2"></i>Memory Fragmentation Analysis
+            </h2>
+            <div class="text-center py-8">
+                <div class="mb-4">
+                    <svg class="w-16 h-16 mx-auto text-gray-400 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">No Memory Data for Analysis</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Memory fragmentation analysis requires allocation data</p>
+            </div>
+        </div>
+    `;
+}
+
+// Create comprehensive fragmentation analysis with SVG-style visualization
+function createFragmentationAnalysisSVG(fragmentationRatio, gaps, maxGap, blockCount, totalMemory, sizeDistribution, sortedAllocs) {
+    return `
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+            <h2 class="text-xl font-semibold mb-6 flex items-center text-heading">
                 <i class="fa fa-puzzle-piece text-orange-500 mr-2"></i>Memory Fragmentation Analysis
             </h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-orange-100 dark:bg-orange-900 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-400">${fragmentationRatio.toFixed(1)}%</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300">Fragmentation Ratio</div>
+            <!-- Key Metrics Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                ${createFragmentationMetricCard('Fragmentation', fragmentationRatio.toFixed(1) + '%', fragmentationRatio, '#f39c12')}
+                ${createFragmentationMetricCard('Memory Gaps', gaps, 100, '#3498db')}
+                ${createFragmentationMetricCard('Largest Gap', formatBytes(maxGap), 100, '#27ae60')}
+                ${createFragmentationMetricCard('Memory Blocks', blockCount, 100, '#9b59b6')}
+            </div>
+
+            <!-- Main Analysis Content -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Fragmentation Assessment -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Fragmentation Assessment</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Overall Health</span>
+                                <span class="text-sm font-bold ${getFragmentationColor(fragmentationRatio)}">${fragmentationRatio.toFixed(1)}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
+                                <div class="h-4 rounded-full transition-all duration-500 ${getFragmentationBgColor(fragmentationRatio)}" 
+                                     style="width: ${Math.min(fragmentationRatio, 100)}%"></div>
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-600 dark:text-gray-300">
+                            ${getFragmentationAssessment(fragmentationRatio)}
+                        </div>
+                    </div>
                 </div>
-                <div class="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${gaps}</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300">Memory Gaps</div>
-                </div>
-                <div class="bg-green-100 dark:bg-green-900 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-green-600 dark:text-green-400">${formatBytes(maxGap)}</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300">Largest Gap</div>
-                </div>
-                <div class="bg-purple-100 dark:bg-purple-900 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">${sortedAllocs.length}</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300">Memory Blocks</div>
+
+                <!-- Size Distribution (inspired by SVG bar chart) -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Size Distribution</h4>
+                    <div class="space-y-3">
+                        ${createSizeDistributionBar('Tiny (0-64B)', sizeDistribution.tiny, blockCount, '#27ae60')}
+                        ${createSizeDistributionBar('Small (64B-1KB)', sizeDistribution.small, blockCount, '#f39c12')}
+                        ${createSizeDistributionBar('Medium (1KB-64KB)', sizeDistribution.medium, blockCount, '#e74c3c')}
+                        ${createSizeDistributionBar('Large (>64KB)', sizeDistribution.large, blockCount, '#8e44ad')}
+                    </div>
                 </div>
             </div>
-            
-            <div class="mb-4">
-                <h4 class="font-semibold mb-2 dark:text-white">Fragmentation Assessment</h4>
-                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
-                    <div class="h-4 rounded-full transition-all duration-500 ${fragmentationRatio < 10 ? 'bg-green-500' :
-            fragmentationRatio < 25 ? 'bg-yellow-500' :
-                fragmentationRatio < 50 ? 'bg-orange-500' : 'bg-red-500'
-        }" style="width: ${Math.min(fragmentationRatio, 100)}%"></div>
-                </div>
-                <div class="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                    ${fragmentationRatio < 10 ? 'Excellent memory layout with minimal fragmentation.' :
-            fragmentationRatio < 25 ? 'Good memory layout with low fragmentation.' :
-                fragmentationRatio < 50 ? 'Moderate fragmentation detected. Consider memory pool allocation.' :
-                    'High fragmentation detected. Memory layout optimization recommended.'}
-                </div>
-            </div>
-            
+
+            <!-- Memory Layout Visualization -->
             <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <h4 class="font-semibold mb-2 dark:text-white">Memory Layout Visualization</h4>
-                <div class="h-8 bg-gray-200 dark:bg-gray-600 rounded relative overflow-hidden">
-                    ${sortedAllocs.slice(0, 20).map((alloc, index) => {
-                        const width = Math.max(2, (alloc.size / totalMemory) * 100);
-                        const left = (index / 20) * 100;
-                        return `<div class="absolute h-full bg-blue-500 opacity-70" 
-                                     style="left: ${left}%; width: ${width}%;" 
-                                     title="${alloc.type}: ${formatBytes(alloc.size)}"></div>`;
-                    }).join('')}
-                </div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Showing first 20 allocations. Each block represents a memory allocation.
+                <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Memory Layout Visualization</h4>
+                <div class="relative">
+                    <!-- Memory blocks visualization -->
+                    <div class="h-16 bg-gray-200 dark:bg-gray-600 rounded relative overflow-hidden mb-4">
+                        ${createMemoryLayoutVisualization(sortedAllocs, totalMemory)}
+                    </div>
+                    
+                    <!-- Memory address timeline -->
+                    <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        <span>Low Address</span>
+                        <span>Memory Layout</span>
+                        <span>High Address</span>
+                    </div>
+                    
+                    <!-- Legend -->
+                    <div class="flex flex-wrap gap-4 text-xs">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-blue-500 rounded mr-2"></div>
+                            <span class="text-gray-600 dark:text-gray-300">User Allocations</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-gray-400 rounded mr-2"></div>
+                            <span class="text-gray-600 dark:text-gray-300">System Allocations</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-red-300 rounded mr-2"></div>
+                            <span class="text-gray-600 dark:text-gray-300">Memory Gaps</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     `;
 }
 
-// Initialize memory growth trends
+// Create fragmentation metric card with circular progress
+function createFragmentationMetricCard(title, value, percentage, color) {
+    const normalizedPercentage = Math.min(100, Math.max(0, percentage));
+    const circumference = 2 * Math.PI * 20;
+    const strokeDashoffset = circumference - (normalizedPercentage / 100) * circumference;
+    
+    return `
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">${title}</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">${value}</p>
+                </div>
+                <div class="relative w-10 h-10">
+                    <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 50 50">
+                        <circle cx="25" cy="25" r="20" stroke="#e5e7eb" stroke-width="4" fill="none" class="dark:stroke-gray-600"/>
+                        <circle cx="25" cy="25" r="20" stroke="${color}" stroke-width="4" fill="none" 
+                                stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}"
+                                stroke-linecap="round" class="transition-all duration-500"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create size distribution bar
+function createSizeDistributionBar(label, count, total, color) {
+    const percentage = total > 0 ? (count / total) * 100 : 0;
+    return `
+        <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-28">${label}</span>
+            <div class="flex-1 mx-3">
+                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
+                    <div class="h-4 rounded-full transition-all duration-500" 
+                         style="width: ${percentage}%; background-color: ${color}"></div>
+                </div>
+            </div>
+            <span class="text-sm font-bold text-gray-900 dark:text-white w-8 text-right">${count}</span>
+        </div>
+    `;
+}
+
+// Create memory layout visualization
+function createMemoryLayoutVisualization(sortedAllocs, totalMemory) {
+    if (sortedAllocs.length === 0) return '<div class="flex items-center justify-center h-full text-gray-400">No memory layout data</div>';
+    
+    return sortedAllocs.slice(0, 30).map((alloc, index) => {
+        const width = Math.max(1, (alloc.size / totalMemory) * 100);
+        const left = (index / 30) * 100;
+        const isUserAlloc = alloc.type !== 'System Allocation';
+        const color = isUserAlloc ? '#3498db' : '#95a5a6';
+        
+        return `
+            <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer" 
+                 style="left: ${left}%; width: ${width}%; background-color: ${color}; opacity: 0.8;"
+                 title="${alloc.type}: ${formatBytes(alloc.size)} at ${alloc.address.toString(16)}">
+            </div>
+        `;
+    }).join('');
+}
+
+// Helper functions for fragmentation analysis
+function getFragmentationColor(ratio) {
+    if (ratio < 10) return 'text-green-600 dark:text-green-400';
+    if (ratio < 25) return 'text-yellow-600 dark:text-yellow-400';
+    if (ratio < 50) return 'text-orange-600 dark:text-orange-400';
+    return 'text-red-600 dark:text-red-400';
+}
+
+function getFragmentationBgColor(ratio) {
+    if (ratio < 10) return 'bg-green-500';
+    if (ratio < 25) return 'bg-yellow-500';
+    if (ratio < 50) return 'bg-orange-500';
+    return 'bg-red-500';
+}
+
+function getFragmentationAssessment(ratio) {
+    if (ratio < 10) return 'Excellent memory layout with minimal fragmentation. Memory is well-organized.';
+    if (ratio < 25) return 'Good memory layout with low fragmentation. No immediate concerns.';
+    if (ratio < 50) return 'Moderate fragmentation detected. Consider memory pool allocation strategies.';
+    return 'High fragmentation detected. Memory layout optimization strongly recommended.';
+}
+
+// Initialize memory growth trends with enhanced SVG-style visualization
 function initMemoryGrowthTrends() {
     const container = document.getElementById('memoryGrowthTrends');
     if (!container) return;
@@ -1208,17 +1643,7 @@ function initMemoryGrowthTrends() {
         .sort((a, b) => a.timestamp_alloc - b.timestamp_alloc);
 
     if (sortedAllocs.length === 0) {
-        container.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
-                <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
-                    <i class="fa fa-line-chart text-green-500 mr-2"></i>Memory Growth Trends
-                </h2>
-                <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                    <i class="fa fa-info-circle text-2xl mb-2"></i>
-                    <p>No timestamp data available for growth analysis</p>
-                </div>
-            </div>
-        `;
+        container.innerHTML = createGrowthTrendsEmptyState();
         return;
     }
 
@@ -1235,7 +1660,8 @@ function initMemoryGrowthTrends() {
             timePoints.push({
                 timestamp: alloc.timestamp_alloc,
                 memory: cumulativeMemory,
-                index: index
+                index: index,
+                allocCount: index + 1
             });
         }
     });
@@ -1245,57 +1671,218 @@ function initMemoryGrowthTrends() {
     const growthRate = startMemory > 0 ? ((endMemory - startMemory) / startMemory * 100) : 0;
     const averageMemory = timePoints.reduce((sum, point) => sum + point.memory, 0) / timePoints.length;
 
-    container.innerHTML = `
+    container.innerHTML = createMemoryGrowthTrendsSVG(
+        peakMemory, averageMemory, growthRate, timePoints, sortedAllocs.length
+    );
+}
+
+// Create growth trends empty state
+function createGrowthTrendsEmptyState() {
+    return `
         <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
-            <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
+            <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                <i class="fa fa-line-chart text-green-500 mr-2"></i>Memory Growth Trends
+            </h2>
+            <div class="text-center py-8">
+                <div class="mb-4">
+                    <svg class="w-16 h-16 mx-auto text-gray-400 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">No Timeline Data Available</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Memory growth analysis requires timestamp data</p>
+            </div>
+        </div>
+    `;
+}
+
+// Create comprehensive memory growth trends visualization
+function createMemoryGrowthTrendsSVG(peakMemory, averageMemory, growthRate, timePoints, totalAllocs) {
+    return `
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+            <h2 class="text-xl font-semibold mb-6 flex items-center text-heading">
                 <i class="fa fa-line-chart text-green-500 mr-2"></i>Memory Growth Trends
             </h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div class="bg-red-100 dark:bg-red-900 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">${formatBytes(peakMemory)}</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300">Peak Memory Usage</div>
-                </div>
-                <div class="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${formatBytes(averageMemory)}</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300">Average Memory Usage</div>
-                </div>
-                <div class="bg-green-100 dark:bg-green-900 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold ${growthRate > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${growthRate > 0 ? '+' : ''}${growthRate.toFixed(1)}%</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300">Growth Rate</div>
+            <!-- Key Metrics Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                ${createGrowthMetricCard('Peak Memory', formatBytes(peakMemory), 100, '#e74c3c')}
+                ${createGrowthMetricCard('Average Memory', formatBytes(averageMemory), Math.round((averageMemory / peakMemory) * 100), '#3498db')}
+                ${createGrowthMetricCard('Growth Rate', (growthRate > 0 ? '+' : '') + growthRate.toFixed(1) + '%', Math.abs(growthRate), getGrowthRateColor(growthRate))}
+                ${createGrowthMetricCard('Total Allocations', totalAllocs, 100, '#9b59b6')}
+            </div>
+
+            <!-- Main Growth Chart -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-6">
+                <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Memory Usage Over Time</h4>
+                <div class="relative">
+                    <!-- Chart Container -->
+                    <div class="h-48 relative bg-white dark:bg-gray-600 rounded border dark:border-gray-500 overflow-hidden">
+                        ${createMemoryGrowthChart(timePoints, peakMemory)}
+                    </div>
+                    
+                    <!-- Chart Labels -->
+                    <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        <span>Start</span>
+                        <span>Memory Usage Timeline</span>
+                        <span>End</span>
+                    </div>
+                    
+                    <!-- Peak Memory Line -->
+                    <div class="absolute top-2 right-2 text-xs text-red-500 dark:text-red-400 bg-white dark:bg-gray-800 px-2 py-1 rounded shadow">
+                        Peak: ${formatBytes(peakMemory)}
+                    </div>
                 </div>
             </div>
-            
-            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <h4 class="font-semibold mb-2 dark:text-white">Memory Usage Over Time</h4>
-                <div class="h-32 relative bg-white dark:bg-gray-600 rounded border dark:border-gray-500">
-                    <svg class="w-full h-full" viewBox="0 0 400 120">
-                        <polyline
-                            fill="none"
-                            stroke="#3b82f6"
-                            stroke-width="2"
-                            points="${timePoints.map((point, index) => {
-        const x = (index / (timePoints.length - 1)) * 380 + 10;
-        const y = 110 - ((point.memory / peakMemory) * 100);
-        return `${x},${y}`;
-    }).join(' ')}"
-                        />
-                        ${timePoints.map((point, index) => {
-        const x = (index / (timePoints.length - 1)) * 380 + 10;
-        const y = 110 - ((point.memory / peakMemory) * 100);
-        return `<circle cx="${x}" cy="${y}" r="3" fill="#3b82f6" />`;
-    }).join('')}
-                    </svg>
+
+            <!-- Growth Analysis -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Growth Assessment -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Growth Assessment</h4>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600 dark:text-gray-300">Memory Efficiency</span>
+                            <span class="text-sm font-bold ${getEfficiencyColor(averageMemory, peakMemory)}">${((averageMemory / peakMemory) * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                            <div class="h-2 rounded-full transition-all duration-500 ${getEfficiencyBgColor(averageMemory, peakMemory)}" 
+                                 style="width: ${(averageMemory / peakMemory) * 100}%"></div>
+                        </div>
+                        <div class="text-sm text-gray-600 dark:text-gray-300">
+                            ${getGrowthAssessment(growthRate)}
+                        </div>
+                    </div>
                 </div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    ${growthRate > 50 ? 'High memory growth detected - investigate for potential leaks.' :
-            growthRate > 10 ? 'Moderate memory growth - monitor for potential issues.' :
-                growthRate > -10 ? 'Stable memory usage with minimal growth.' :
-                    'Memory usage is decreasing - good memory management.'}
+
+                <!-- Memory Allocation Timeline -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Allocation Timeline</h4>
+                    <div class="space-y-2 max-h-32 overflow-y-auto">
+                        ${timePoints.slice(-6).map((point, index) => `
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-600 dark:text-gray-300">Alloc #${point.allocCount}</span>
+                                <span class="font-mono text-xs font-bold text-gray-900 dark:text-white">${formatBytes(point.memory)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Showing latest allocation points
+                    </div>
                 </div>
             </div>
         </div>
     `;
+}
+
+// Create growth metric card
+function createGrowthMetricCard(title, value, percentage, color) {
+    const normalizedPercentage = Math.min(100, Math.max(0, percentage));
+    
+    return `
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
+            <div class="mb-2">
+                <div class="text-2xl font-bold" style="color: ${color}">${value}</div>
+                <div class="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide">${title}</div>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                <div class="h-2 rounded-full transition-all duration-500" 
+                     style="width: ${normalizedPercentage}%; background-color: ${color}"></div>
+            </div>
+        </div>
+    `;
+}
+
+// Create memory growth chart
+function createMemoryGrowthChart(timePoints, peakMemory) {
+    if (timePoints.length < 2) return '<div class="flex items-center justify-center h-full text-gray-400">Insufficient data points</div>';
+    
+    const chartHeight = 180;
+    const chartWidth = 100; // percentage
+    
+    // Create SVG path for the growth line
+    const pathPoints = timePoints.map((point, index) => {
+        const x = (index / (timePoints.length - 1)) * chartWidth;
+        const y = chartHeight - ((point.memory / peakMemory) * (chartHeight - 20));
+        return `${x}% ${y}px`;
+    });
+    
+    return `
+        <!-- Background Grid -->
+        <div class="absolute inset-0">
+            ${[0, 25, 50, 75, 100].map(y => `
+                <div class="absolute w-full border-t border-gray-200 dark:border-gray-500 opacity-30" 
+                     style="top: ${y}%"></div>
+            `).join('')}
+        </div>
+        
+        <!-- Growth Line -->
+        <svg class="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+            <polyline
+                fill="none"
+                stroke="#27ae60"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                points="${timePoints.map((point, index) => {
+                    const x = (index / (timePoints.length - 1)) * 100;
+                    const y = 100 - ((point.memory / peakMemory) * 90);
+                    return `${x}% ${y}%`;
+                }).join(', ')}"
+                class="drop-shadow-sm"
+            />
+        </svg>
+        
+        <!-- Data Points -->
+        ${timePoints.map((point, index) => {
+            const x = (index / (timePoints.length - 1)) * 100;
+            const y = 100 - ((point.memory / peakMemory) * 90);
+            return `
+                <div class="absolute w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-600 shadow-sm transform -translate-x-1/2 -translate-y-1/2 hover:scale-125 transition-transform cursor-pointer" 
+                     style="left: ${x}%; top: ${y}%"
+                     title="Memory: ${formatBytes(point.memory)} at allocation #${point.allocCount}">
+                </div>
+            `;
+        }).join('')}
+        
+        <!-- Peak Memory Indicator -->
+        <div class="absolute w-full border-t-2 border-red-500 border-dashed opacity-60" style="top: 10%">
+            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded">
+                Peak
+            </div>
+        </div>
+    `;
+}
+
+// Helper functions for growth analysis
+function getGrowthRateColor(rate) {
+    if (rate < -10) return '#27ae60'; // Green for decreasing
+    if (rate < 10) return '#3498db';  // Blue for stable
+    if (rate < 50) return '#f39c12'; // Orange for moderate growth
+    return '#e74c3c'; // Red for high growth
+}
+
+function getEfficiencyColor(avg, peak) {
+    const efficiency = (avg / peak) * 100;
+    if (efficiency > 80) return 'text-red-600 dark:text-red-400';
+    if (efficiency > 60) return 'text-orange-600 dark:text-orange-400';
+    if (efficiency > 40) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-green-600 dark:text-green-400';
+}
+
+function getEfficiencyBgColor(avg, peak) {
+    const efficiency = (avg / peak) * 100;
+    if (efficiency > 80) return 'bg-red-500';
+    if (efficiency > 60) return 'bg-orange-500';
+    if (efficiency > 40) return 'bg-yellow-500';
+    return 'bg-green-500';
+}
+
+function getGrowthAssessment(rate) {
+    if (rate < -10) return 'Excellent: Memory usage is decreasing, indicating good cleanup.';
+    if (rate < 10) return 'Good: Stable memory usage with minimal growth.';
+    if (rate < 50) return 'Moderate: Some memory growth detected, monitor for trends.';
+    return 'Concerning: High memory growth detected, investigate for potential leaks.';
 }
 
 // Node Detail Panel for Variable Relationship Graph
