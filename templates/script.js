@@ -76,6 +76,12 @@ function applyTheme(isDark) {
     
     // Apply theme to all modules that need explicit dark mode support
     applyThemeToAllModules(isDark);
+    
+    // Reinitialize charts to apply theme changes
+    setTimeout(() => {
+        initCharts();
+        initFFIRiskChart();
+    }, 100);
 }
 
 // Apply theme to specific modules
@@ -158,6 +164,9 @@ function initCharts() {
     
     // Initialize performance chart
     initPerformanceChart();
+    
+    // Initialize complex type analysis chart
+    initComplexTypeAnalysisChart();
 }
 
 // Initialize complexity chart
@@ -1581,13 +1590,17 @@ function initFFIRiskChart() {
         'High Risk': ffiData.filter(item => (item.safety_violations || 0) > 2).length
     };
     
+    const isDark = document.documentElement.classList.contains('dark');
+    
     new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: Object.keys(riskLevels),
             datasets: [{
                 data: Object.values(riskLevels),
-                backgroundColor: ['#10b981', '#f59e0b', '#ef4444']
+                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                borderColor: isDark ? '#374151' : '#ffffff',
+                borderWidth: 2
             }]
         },
         options: {
@@ -1596,7 +1609,118 @@ function initFFIRiskChart() {
             plugins: {
                 legend: {
                     labels: {
-                        color: document.documentElement.classList.contains('dark') ? '#ffffff' : '#374151'
+                        color: isDark ? '#f9fafb' : '#374151',
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                    titleColor: isDark ? '#f9fafb' : '#374151',
+                    bodyColor: isDark ? '#f9fafb' : '#374151',
+                    borderColor: isDark ? '#374151' : '#e5e7eb',
+                    borderWidth: 1
+                }
+            }
+        }
+    });
+}
+
+// Initialize complex type analysis chart
+function initComplexTypeAnalysisChart() {
+    const ctx = document.getElementById('complex-type-analysis-chart');
+    if (!ctx) return;
+    
+    const complexTypeAnalysis = window.analysisData.complex_types?.complex_type_analysis || [];
+    
+    if (complexTypeAnalysis.length === 0) {
+        // Show empty state
+        const container = ctx.parentElement;
+        container.innerHTML = `
+            <div class="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                <div class="text-center">
+                    <i class="fa fa-chart-bar text-4xl mb-4"></i>
+                    <p class="text-lg font-semibold mb-2">No Complex Type Data</p>
+                    <p class="text-sm">No complex type analysis data available</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    const isDark = document.documentElement.classList.contains('dark');
+    
+    new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Type Complexity vs Memory Efficiency',
+                data: complexTypeAnalysis.map(analysis => ({
+                    x: analysis.complexity_score || 0,
+                    y: analysis.memory_efficiency || 0,
+                    typeName: analysis.type_name
+                })),
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Complexity Score',
+                        color: isDark ? '#f9fafb' : '#374151'
+                    },
+                    ticks: {
+                        color: isDark ? '#d1d5db' : '#6b7280'
+                    },
+                    grid: {
+                        color: isDark ? '#374151' : '#e5e7eb'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Memory Efficiency (%)',
+                        color: isDark ? '#f9fafb' : '#374151'
+                    },
+                    ticks: {
+                        color: isDark ? '#d1d5db' : '#6b7280'
+                    },
+                    grid: {
+                        color: isDark ? '#374151' : '#e5e7eb'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: isDark ? '#f9fafb' : '#374151'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                    titleColor: isDark ? '#f9fafb' : '#374151',
+                    bodyColor: isDark ? '#f9fafb' : '#374151',
+                    borderColor: isDark ? '#374151' : '#e5e7eb',
+                    borderWidth: 1,
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].raw.typeName || 'Unknown Type';
+                        },
+                        label: function(context) {
+                            return [
+                                `Complexity: ${context.parsed.x}`,
+                                `Efficiency: ${context.parsed.y}%`
+                            ];
+                        }
                     }
                 }
             }
