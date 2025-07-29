@@ -1,289 +1,17 @@
-// MemScope Dashboard JavaScript - Simplified version
-// This file contains only the essential functions for the existing dashboard
+// MemScope Dashboard JavaScript - Complete version with theme support
+// This file contains comprehensive functions for memory analysis dashboard
 
 // Global data store - will be populated by HTML template
 window.analysisData = window.analysisData || {};
-
-// Initialize lifetime visualization from JSON data
-function initLifetimeVisualization() {
-    console.log('🔄 Initializing lifetime visualization...');
-
-    // Get lifetime data from the global data store
-    const lifetimeData = window.analysisData.lifetime;
-    if (!lifetimeData || !lifetimeData.lifecycle_events) {
-        console.warn('⚠️ No lifetime data found');
-        console.log('Available data keys:', Object.keys(window.analysisData || {}));
-        showEmptyLifetimeState();
-        return;
-    }
-
-    console.log(`📊 Total lifecycle events: ${lifetimeData.lifecycle_events.length}`);
-
-    // Check if we have Rust-preprocessed data
-    if (lifetimeData.visualization_ready && lifetimeData.variable_groups) {
-        console.log(`📊 Using Rust-preprocessed data with ${lifetimeData.variable_groups.length} variable groups`);
-        renderLifetimeVisualizationFromRust(lifetimeData.variable_groups);
-        return;
-    }
-
-    // Filter for user-defined variables (non-unknown var_name and type_name)
-    const userVariables = lifetimeData.lifecycle_events.filter(event =>
-        event.var_name && event.var_name !== 'unknown' &&
-        event.type_name && event.type_name !== 'unknown'
-    );
-
-    console.log(`📊 Found ${userVariables.length} user-defined variables in lifetime data`);
-
-    // Debug: Show some examples of what we found
-    if (userVariables.length > 0) {
-        console.log('📊 Sample user variables:', userVariables.slice(0, 3));
-    } else {
-        // Show some examples of unknown variables for debugging
-        const unknownSamples = lifetimeData.lifecycle_events.slice(0, 3);
-        console.log('📊 Sample unknown variables:', unknownSamples);
-    }
-
-    if (userVariables.length === 0) {
-        showEmptyLifetimeState();
-        return;
-    }
-
-    // Group by variable name to get allocation/deallocation pairs
-    const variableGroups = groupVariablesByName(userVariables);
-
-    // Render the lifetime visualization
-    renderLifetimeVisualization(variableGroups);
-}
-
-// Group variables by name to track their lifecycle
-function groupVariablesByName(events) {
-    const groups = {};
-
-    events.forEach(event => {
-        const varName = event.var_name;
-        if (!groups[varName]) {
-            groups[varName] = {
-                var_name: varName,
-                type_name: event.type_name,
-                events: []
-            };
-        }
-        groups[varName].events.push(event);
-    });
-
-    return Object.values(groups);
-}
-
-// Render lifetime visualization from Rust-preprocessed data
-function renderLifetimeVisualizationFromRust(variableGroups) {
-    console.log(`📊 Rendering ${variableGroups.length} Rust-preprocessed variable groups`);
-
-    const container = document.getElementById('lifetimeVisualization');
-    if (!container) return;
-
-    // Clear loading state
-    container.innerHTML = '';
-
-    if (!variableGroups || variableGroups.length === 0) {
-        showEmptyLifetimeState();
-        return;
-    }
-
-    // Calculate timeline bounds from preprocessed data
-    const allTimestamps = variableGroups.flatMap(group =>
-        group.events ? group.events.map(e => e.timestamp) : [group.start_time, group.end_time].filter(t => t !== undefined)
-    );
-
-    const minTime = Math.min(...allTimestamps);
-    const maxTime = Math.max(...allTimestamps);
-    const timeRange = maxTime - minTime || 1;
-
-    console.log(`📊 Rust data timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
-
-    // Color palette for different data types and visualizations
-    const COLOR_PALETTE = {
-        progress: [
-            '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57',
-            '#ff9ff3', '#54a0ff', '#5f27cd', '#00d2d3', '#ff9f43'
-        ]
-    };
-
-    // Render each variable with colorful progress bars
-    variableGroups.forEach((group, index) => {
-        const varDiv = document.createElement('div');
-        varDiv.className = 'flex items-center py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors';
-
-        // Get color from palette (cycle through colors)
-        const colorIndex = index % COLOR_PALETTE.progress.length;
-        const progressColor = COLOR_PALETTE.progress[colorIndex];
-
-        // Use preprocessed timing data or fallback to events
-        const startTime = group.start_time || (group.events && group.events[0] ? group.events[0].timestamp : minTime);
-        const endTime = group.end_time || (group.events && group.events[group.events.length - 1] ? group.events[group.events.length - 1].timestamp : maxTime);
-
-        const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
-        const duration = endTime - startTime;
-        const widthPercent = timeRange > 0 ? Math.max(5, (duration / timeRange) * 100) : 40;
-
-        // Format type name for display
-        const displayTypeName = formatTypeName(group.type_name);
-
-        // Create gradient background for more visual appeal
-        const gradientStyle = `background: linear-gradient(90deg, ${progressColor}, ${progressColor}dd);`;
-
-        varDiv.innerHTML = `
-            <div class="w-48 flex-shrink-0 pr-4">
-                <div class="text-sm font-semibold text-gray-800">${group.var_name}</div>
-                <div class="text-xs text-gray-500">${displayTypeName}</div>
-            </div>
-            <div class="flex-grow relative bg-gray-200 rounded-full h-6 overflow-hidden">
-                <div class="absolute inset-0 rounded-full" 
-                     style="${gradientStyle} width: ${widthPercent}%; margin-left: ${startPercent}%; 
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-                            transition: all 0.3s ease;"
-                     title="Variable: ${group.var_name}, Type: ${displayTypeName}">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-xs font-bold text-white drop-shadow-sm">
-                            ${Math.round(widthPercent)}%
-                        </span>
-                    </div>
-                </div>
-                <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                    Duration: ${formatTimestamp(duration, 0)}
-                </div>
-            </div>
-            <div class="w-20 flex-shrink-0 pl-4 text-right">
-                <div class="text-xs text-gray-600">
-                    ${formatBytes(group.size || (group.events && group.events[0] ? group.events[0].size : 0) || 0)}
-                </div>
-            </div>
-        `;
-
-        container.appendChild(varDiv);
-    });
-
-    console.log(`✅ Rendered ${variableGroups.length} Rust-preprocessed variables in lifetime visualization`);
-}
-
-// Render the lifetime visualization
-function renderLifetimeVisualization(variableGroups) {
-    const container = document.getElementById('lifetimeVisualization');
-    if (!container) return;
-
-    // Clear loading state
-    container.innerHTML = '';
-
-    // Get color scheme for different types
-    const typeColors = {
-        'Vec': { bg: 'bg-blue-500', border: 'border-blue-500' },
-        'Box': { bg: 'bg-purple-500', border: 'border-purple-500' },
-        'Rc': { bg: 'bg-yellow-500', border: 'border-yellow-500' },
-        'Arc': { bg: 'bg-green-500', border: 'border-green-500' },
-        'String': { bg: 'bg-pink-500', border: 'border-pink-500' },
-        'default': { bg: 'bg-gray-500', border: 'border-gray-500' }
-    };
-
-    // Calculate timeline bounds
-    const allTimestamps = variableGroups.flatMap(group =>
-        group.events.map(e => e.timestamp)
-    );
-    const minTime = Math.min(...allTimestamps);
-    const maxTime = Math.max(...allTimestamps);
-    const timeRange = maxTime - minTime;
-
-    console.log(`📊 Timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
-
-    // Render each variable
-    variableGroups.forEach((group) => {
-        const varDiv = document.createElement('div');
-        varDiv.className = 'flex items-end py-3 border-b border-gray-100';
-
-        // Determine color based on type
-        const typeKey = Object.keys(typeColors).find(key =>
-            group.type_name.includes(key)
-        ) || 'default';
-        const colors = typeColors[typeKey];
-
-        // Calculate position and width based on timestamps
-        const firstEvent = group.events[0];
-        const startTime = firstEvent.timestamp;
-        const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
-
-        // For now, assume a fixed width since we don't have deallocation events
-        // In a real implementation, you'd track deallocation events too
-        const widthPercent = 60; // Default width
-
-        // Format type name for display
-        const displayTypeName = formatTypeName(group.type_name);
-
-        varDiv.innerHTML = `
-            <div class="w-40 flex-shrink-0 text-sm font-medium">
-                ${group.var_name} (${displayTypeName})
-            </div>
-            <div class="flex-grow relative">
-                <div class="lifespan-indicator ${colors.bg}" 
-                     style="width: ${widthPercent}%; margin-left: ${startPercent}%;" 
-                     title="Variable: ${group.var_name}, Type: ${displayTypeName}">
-                    <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
-                        Allocated: ${formatTimestamp(startTime, minTime)}
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.appendChild(varDiv);
-    });
-
-    console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization`);
-}
-
-// Format type name for better display
-function formatTypeName(typeName) {
-    // Simplify complex type names
-    return typeName
-        .replace(/alloc::/g, '')
-        .replace(/std::/g, '')
-        .replace(/::Vec/g, 'Vec')
-        .replace(/::Box/g, 'Box')
-        .replace(/::Rc/g, 'Rc')
-        .replace(/::Arc/g, 'Arc')
-        .replace(/::String/g, 'String');
-}
-
-// Format timestamp relative to start time
-function formatTimestamp(timestamp, minTime) {
-    const relativeMs = Math.round((timestamp - minTime) / 1000000); // Convert nanoseconds to milliseconds
-    return `${relativeMs}ms`;
-}
-
-// Utility function to format bytes
-function formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-}
-
-// Show empty state when no user variables found
-function showEmptyLifetimeState() {
-    const container = document.getElementById('lifetimeVisualization');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div class="text-center py-8 text-gray-500">
-            <i class="fa fa-info-circle text-2xl mb-2"></i>
-            <p>No user-defined variables found in lifetime data</p>
-            <p class="text-sm mt-1">Use track_var! macro to track variable lifetimes</p>
-        </div>
-    `;
-}
 
 // Initialize all dashboard components
 function initializeDashboard() {
     console.log('🚀 Initializing MemScope dashboard...');
     console.log('📊 Available data:', Object.keys(window.analysisData || {}));
-    
+
+    // Initialize theme system
+    initThemeToggle();
+
     // Initialize all components
     initSummaryStats();
     initCharts();
@@ -298,6 +26,31 @@ function initializeDashboard() {
     initComplexTypeAnalysis();
     initMemoryOptimizationRecommendations();
     initFFIRiskChart();
+}
+
+// Initialize theme toggle functionality
+function initThemeToggle() {
+    const themeToggle = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+    
+    // Check for saved theme preference or default to light mode
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    
+    if (savedTheme === 'dark') {
+        html.classList.add('dark');
+    }
+    
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            
+            // Save theme preference
+            const isDark = html.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            
+            console.log(`🎨 Theme switched to: ${isDark ? 'dark' : 'light'} mode`);
+        });
+    }
 }
 
 // Initialize summary statistics
@@ -386,7 +139,7 @@ function initMemoryDistributionChart() {
     const typeDistribution = {};
     
     allocations.forEach(alloc => {
-        const type = alloc.type_name || 'Unknown';
+        const type = alloc.type_name || 'System Allocation';
         typeDistribution[type] = (typeDistribution[type] || 0) + alloc.size;
     });
     
@@ -498,108 +251,555 @@ function initPerformanceChart() {
     });
 }
 
-// Initialize memory usage analysis
+// Initialize memory usage analysis with enhanced data processing
 function initMemoryUsageAnalysis() {
     const container = document.getElementById('memory-usage-analysis');
     if (!container) return;
     
-    container.innerHTML = `
-        <div class="text-center py-8">
-            <h4 class="text-lg font-semibold mb-4">Memory Usage Overview</h4>
-            <p class="text-gray-600">Memory usage analysis visualization will be implemented here</p>
-        </div>
-    `;
-}
-
-// Initialize FFI visualization
-function initFFIVisualization() {
-    console.log('🔄 Initializing FFI visualization...');
+    const allocations = window.analysisData.memory_analysis?.allocations || [];
     
-    const container = document.getElementById('ffiVisualization');
-    if (!container) return;
-    
-    const ffiData = window.analysisData.unsafe_ffi;
-    if (!ffiData || !ffiData.enhanced_ffi_data || ffiData.enhanced_ffi_data.length === 0) {
+    if (allocations.length === 0) {
         container.innerHTML = `
-            <div class="bg-white rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
-                    <i class="fa fa-shield text-green-500 mr-2"></i>Unsafe/FFI Analysis
-                </h2>
-                <div class="text-center py-8 text-gray-500">
-                    <i class="fa fa-shield text-2xl mb-2"></i>
-                    <p>No unsafe/FFI operations detected</p>
-                    <p class="text-sm mt-1">This is generally good for memory safety!</p>
+            <div class="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                <div class="text-center">
+                    <i class="fa fa-info-circle text-4xl mb-4"></i>
+                    <h4 class="text-lg font-semibold mb-2">No Memory Data Available</h4>
+                    <p class="text-sm">No memory allocation data found for analysis</p>
                 </div>
             </div>
         `;
         return;
     }
     
-    const enhancedData = ffiData.enhanced_ffi_data || [];
-    const boundaryEvents = ffiData.boundary_events || [];
+    const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+    const userAllocations = allocations.filter(alloc => 
+        alloc.var_name && alloc.var_name !== 'unknown' && 
+        alloc.type_name && alloc.type_name !== 'unknown'
+    );
+    const systemAllocations = allocations.filter(alloc => 
+        !alloc.var_name || alloc.var_name === 'unknown' || 
+        !alloc.type_name || alloc.type_name === 'unknown'
+    );
+    
+    const userMemory = userAllocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+    const systemMemory = systemAllocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+    
+    const userPercentage = totalMemory > 0 ? (userMemory / totalMemory * 100) : 0;
+    const systemPercentage = totalMemory > 0 ? (systemMemory / totalMemory * 100) : 0;
     
     container.innerHTML = `
-        <div class="bg-white rounded-xl p-6 card-shadow">
-            <h2 class="text-xl font-semibold mb-4 flex items-center">
-                <i class="fa fa-exclamation-triangle text-red-500 mr-2"></i>Unsafe/FFI Analysis
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div class="bg-red-100 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-red-600">${enhancedData.length}</div>
-                    <div class="text-sm text-gray-600">Unsafe Operations</div>
+        <div class="h-full flex flex-col">
+            <h4 class="text-lg font-semibold mb-4 text-center dark:text-white">Memory Usage Distribution</h4>
+            <div class="flex-grow flex items-center justify-center">
+                <div class="w-full max-w-md">
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-blue-600 dark:text-blue-400">User Allocations</span>
+                            <span class="text-sm text-gray-600 dark:text-gray-300">${formatBytes(userMemory)} (${userPercentage.toFixed(1)}%)</span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
+                            <div class="bg-blue-500 h-4 rounded-full transition-all duration-500" style="width: ${userPercentage}%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">System Allocations</span>
+                            <span class="text-sm text-gray-600 dark:text-gray-300">${formatBytes(systemMemory)} (${systemPercentage.toFixed(1)}%)</span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
+                            <div class="bg-gray-500 h-4 rounded-full transition-all duration-500" style="width: ${systemPercentage}%"></div>
+                        </div>
+                    </div>
+                    <div class="text-center pt-4 border-t dark:border-gray-600">
+                        <div class="text-lg font-semibold dark:text-white">Total: ${formatBytes(totalMemory)}</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">${allocations.length} allocations</div>
+                    </div>
                 </div>
-                <div class="bg-blue-100 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-blue-600">${boundaryEvents.length}</div>
-                    <div class="text-sm text-gray-600">Boundary Events</div>
-                </div>
-                <div class="bg-yellow-100 rounded-lg p-4 text-center">
-                    <div class="text-2xl font-bold text-yellow-600">${enhancedData.reduce((sum, item) => sum + (item.safety_violations || 0), 0)}</div>
-                    <div class="text-sm text-gray-600">Safety Violations</div>
-                </div>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="text-left py-2">Pointer</th>
-                            <th class="text-left py-2">Size</th>
-                            <th class="text-left py-2">FFI Tracked</th>
-                            <th class="text-left py-2">Safety Violations</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${enhancedData.map(item => `
-                            <tr class="border-b">
-                                <td class="py-2 font-mono text-xs">${item.ptr}</td>
-                                <td class="py-2">${formatBytes(item.size || 0)}</td>
-                                <td class="py-2">
-                                    <span class="px-2 py-1 rounded text-xs ${item.ffi_tracked ? 'bg-blue-500' : 'bg-red-500'} text-white">
-                                        ${item.ffi_tracked ? 'Yes' : 'No'}
-                                    </span>
-                                </td>
-                                <td class="py-2">${item.safety_violations || 0}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
             </div>
         </div>
     `;
 }
 
-// Initialize memory fragmentation
+//Initialize lifetime visualization from JSON data
+function initLifetimeVisualization() {
+    console.log('🔄 Initializing lifetime visualization...');
+
+    // Get lifetime data from the global data store
+    const lifetimeData = window.analysisData.lifetime;
+    if (!lifetimeData || !lifetimeData.lifecycle_events) {
+        console.warn('⚠️ No lifetime data found');
+        console.log('Available data keys:', Object.keys(window.analysisData || {}));
+        showEmptyLifetimeState();
+        return;
+    }
+
+    console.log(`📊 Total lifecycle events: ${lifetimeData.lifecycle_events.length}`);
+
+    // Check if we have Rust-preprocessed data
+    if (lifetimeData.visualization_ready && lifetimeData.variable_groups) {
+        console.log(`📊 Using Rust-preprocessed data with ${lifetimeData.variable_groups.length} variable groups`);
+        renderLifetimeVisualizationFromRust(lifetimeData.variable_groups);
+        return;
+    }
+
+    // Filter for user-defined variables (non-unknown var_name and type_name)
+    const userVariables = lifetimeData.lifecycle_events.filter(event =>
+        event.var_name && event.var_name !== 'unknown' &&
+        event.type_name && event.type_name !== 'unknown'
+    );
+
+    console.log(`📊 Found ${userVariables.length} user-defined variables in lifetime data`);
+
+    // Debug: Show some examples of what we found
+    if (userVariables.length > 0) {
+        console.log('📊 Sample user variables:', userVariables.slice(0, 3));
+    } else {
+        // Show some examples of unknown variables for debugging
+        const unknownSamples = lifetimeData.lifecycle_events.slice(0, 3);
+        console.log('📊 Sample unknown variables:', unknownSamples);
+    }
+
+    if (userVariables.length === 0) {
+        showEmptyLifetimeState();
+        return;
+    }
+
+    // Group by variable name to get allocation/deallocation pairs
+    const variableGroups = groupVariablesByName(userVariables);
+
+    // Render the lifetime visualization
+    renderLifetimeVisualization(variableGroups);
+}
+
+// Group variables by name to track their lifecycle
+function groupVariablesByName(events) {
+    const groups = {};
+
+    events.forEach(event => {
+        const varName = event.var_name;
+        if (!groups[varName]) {
+            groups[varName] = {
+                var_name: varName,
+                type_name: event.type_name,
+                events: []
+            };
+        }
+        groups[varName].events.push(event);
+    });
+
+    return Object.values(groups);
+}
+
+// Render lifetime visualization from Rust-preprocessed data
+function renderLifetimeVisualizationFromRust(variableGroups) {
+    console.log(`📊 Rendering ${variableGroups.length} Rust-preprocessed variable groups`);
+
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+
+    // Clear loading state
+    container.innerHTML = '';
+
+    if (!variableGroups || variableGroups.length === 0) {
+        showEmptyLifetimeState();
+        return;
+    }
+
+    // Calculate timeline bounds from preprocessed data
+    const allTimestamps = variableGroups.flatMap(group =>
+        group.events ? group.events.map(e => e.timestamp) : [group.start_time, group.end_time].filter(t => t !== undefined)
+    );
+
+    const minTime = Math.min(...allTimestamps);
+    const maxTime = Math.max(...allTimestamps);
+    const timeRange = maxTime - minTime || 1;
+
+    console.log(`📊 Rust data timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
+
+    // Color palette for different data types and visualizations
+    const COLOR_PALETTE = {
+        progress: [
+            '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57',
+            '#ff9ff3', '#54a0ff', '#5f27cd', '#00d2d3', '#ff9f43'
+        ]
+    };
+
+    // Render each variable with colorful progress bars
+    variableGroups.forEach((group, index) => {
+        const varDiv = document.createElement('div');
+        varDiv.className = 'flex items-center py-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
+
+        // Get color from palette (cycle through colors)
+        const colorIndex = index % COLOR_PALETTE.progress.length;
+        const progressColor = COLOR_PALETTE.progress[colorIndex];
+
+        // Use preprocessed timing data or fallback to events
+        const startTime = group.start_time || (group.events && group.events[0] ? group.events[0].timestamp : minTime);
+        const endTime = group.end_time || (group.events && group.events[group.events.length - 1] ? group.events[group.events.length - 1].timestamp : maxTime);
+
+        const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
+        const duration = endTime - startTime;
+        const widthPercent = timeRange > 0 ? Math.max(5, (duration / timeRange) * 100) : 40;
+
+        // Format type name for display
+        const displayTypeName = formatTypeName(group.type_name);
+
+        // Create gradient background for more visual appeal
+        const gradientStyle = `background: linear-gradient(90deg, ${progressColor}, ${progressColor}dd);`;
+
+        varDiv.innerHTML = `
+            <div class="w-48 flex-shrink-0 pr-4">
+                <div class="text-sm font-semibold text-gray-800 dark:text-gray-200">${group.var_name}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">${displayTypeName}</div>
+            </div>
+            <div class="flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden">
+                <div class="absolute inset-0 rounded-full" 
+                     style="${gradientStyle} width: ${widthPercent}%; margin-left: ${startPercent}%; 
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+                            transition: all 0.3s ease;"
+                     title="Variable: ${group.var_name}, Type: ${displayTypeName}">
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-xs font-bold text-white drop-shadow-sm">
+                            ${Math.round(widthPercent)}%
+                        </span>
+                    </div>
+                </div>
+                <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
+                    Duration: ${formatTimestamp(duration, 0)}
+                </div>
+            </div>
+            <div class="w-20 flex-shrink-0 pl-4 text-right">
+                <div class="text-xs text-gray-600 dark:text-gray-400">
+                    ${formatBytes(group.size || (group.events && group.events[0] ? group.events[0].size : 0) || 0)}
+                </div>
+            </div>
+        `;
+
+        container.appendChild(varDiv);
+    });
+
+    console.log(`✅ Rendered ${variableGroups.length} Rust-preprocessed variables in lifetime visualization`);
+}
+
+// Render the lifetime visualization
+function renderLifetimeVisualization(variableGroups) {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+
+    // Clear loading state
+    container.innerHTML = '';
+
+    // Get color scheme for different types
+    const typeColors = {
+        'Vec': { bg: 'bg-blue-500', border: 'border-blue-500' },
+        'Box': { bg: 'bg-purple-500', border: 'border-purple-500' },
+        'Rc': { bg: 'bg-yellow-500', border: 'border-yellow-500' },
+        'Arc': { bg: 'bg-green-500', border: 'border-green-500' },
+        'String': { bg: 'bg-pink-500', border: 'border-pink-500' },
+        'default': { bg: 'bg-gray-500', border: 'border-gray-500' }
+    };
+
+    // Calculate timeline bounds
+    const allTimestamps = variableGroups.flatMap(group =>
+        group.events.map(e => e.timestamp)
+    );
+    const minTime = Math.min(...allTimestamps);
+    const maxTime = Math.max(...allTimestamps);
+    const timeRange = maxTime - minTime;
+
+    console.log(`📊 Timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
+
+    // Render each variable
+    variableGroups.forEach((group) => {
+        const varDiv = document.createElement('div');
+        varDiv.className = 'flex items-end py-3 border-b border-gray-100 dark:border-gray-700';
+
+        // Determine color based on type
+        const typeKey = Object.keys(typeColors).find(key =>
+            group.type_name.includes(key)
+        ) || 'default';
+        const colors = typeColors[typeKey];
+
+        // Calculate position and width based on timestamps
+        const firstEvent = group.events[0];
+        const startTime = firstEvent.timestamp;
+        const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
+
+        // For now, assume a fixed width since we don't have deallocation events
+        // In a real implementation, you'd track deallocation events too
+        const widthPercent = 60; // Default width
+
+        // Format type name for display
+        const displayTypeName = formatTypeName(group.type_name);
+
+        varDiv.innerHTML = `
+            <div class="w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200">
+                ${group.var_name} (${displayTypeName})
+            </div>
+            <div class="flex-grow relative">
+                <div class="lifespan-indicator ${colors.bg}" 
+                     style="width: ${widthPercent}%; margin-left: ${startPercent}%;" 
+                     title="Variable: ${group.var_name}, Type: ${displayTypeName}">
+                    <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
+                        Allocated: ${formatTimestamp(startTime, minTime)}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(varDiv);
+    });
+
+    console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization`);
+}
+
+// Initialize FFI visualization with enhanced dashboard style
+function initFFIVisualization() {
+    console.log('🔄 Initializing FFI visualization...');
+
+    const container = document.getElementById('ffiVisualization');
+    if (!container) return;
+
+    const ffiData = window.analysisData.unsafe_ffi;
+    if (!ffiData || !ffiData.enhanced_ffi_data || ffiData.enhanced_ffi_data.length === 0) {
+        container.innerHTML = `
+            <div class="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-xl p-6 card-shadow border border-green-200 dark:border-green-700">
+                <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
+                    <i class="fa fa-shield text-green-500 mr-2"></i>Unsafe/FFI Analysis
+                </h2>
+                <div class="text-center py-8 text-green-600 dark:text-green-300">
+                    <i class="fa fa-shield text-4xl mb-4"></i>
+                    <h3 class="text-lg font-semibold mb-2">No Unsafe/FFI Operations Detected</h3>
+                    <p class="text-sm">This is generally good for memory safety!</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    const enhancedData = ffiData.enhanced_ffi_data || [];
+    const boundaryEvents = ffiData.boundary_events || [];
+    
+    // Calculate statistics
+    const unsafeAllocations = enhancedData.filter(item => !item.ffi_tracked).length;
+    const ffiAllocations = enhancedData.filter(item => item.ffi_tracked).length;
+    const safetyViolations = enhancedData.reduce((sum, item) => sum + (item.safety_violations || 0), 0);
+    const unsafeMemory = enhancedData.reduce((sum, item) => sum + (item.size || 0), 0);
+
+    // Create dashboard inspired by SVG style
+    container.innerHTML = `
+        <div class="bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black rounded-xl p-6 text-white shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-center text-white">
+                Unsafe Rust & FFI Memory Analysis Dashboard
+            </h2>
+            
+            <!-- Key Metrics Row - inspired by SVG -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                <div class="bg-red-500 bg-opacity-20 border-2 border-red-500 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-red-400">${unsafeAllocations}</div>
+                    <div class="text-xs text-gray-300 uppercase tracking-wide">Unsafe Allocations</div>
+                </div>
+                <div class="bg-blue-500 bg-opacity-20 border-2 border-blue-500 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-400">${ffiAllocations}</div>
+                    <div class="text-xs text-gray-300 uppercase tracking-wide">FFI Allocations</div>
+                </div>
+                <div class="bg-yellow-500 bg-opacity-20 border-2 border-yellow-500 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-yellow-400">${boundaryEvents.length}</div>
+                    <div class="text-xs text-gray-300 uppercase tracking-wide">Boundary Crossings</div>
+                </div>
+                <div class="bg-orange-500 bg-opacity-20 border-2 border-orange-500 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-orange-400">${safetyViolations}</div>
+                    <div class="text-xs text-gray-300 uppercase tracking-wide">Safety Violations</div>
+                </div>
+                <div class="bg-purple-500 bg-opacity-20 border-2 border-purple-500 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-purple-400">${formatBytes(unsafeMemory)}</div>
+                    <div class="text-xs text-gray-300 uppercase tracking-wide">Unsafe Memory</div>
+                </div>
+            </div>
+            
+            <!-- Memory Safety Status -->
+            ${safetyViolations > 0 ? `
+            <div class="bg-red-500 bg-opacity-20 border-2 border-red-500 rounded-lg p-6 mb-6">
+                <h3 class="text-lg font-bold text-red-400 mb-4 text-center">
+                    ${safetyViolations} Safety Violations Detected
+                </h3>
+                <div class="text-red-300 text-sm space-y-1">
+                    ${enhancedData.filter(item => (item.safety_violations || 0) > 0).map(item => 
+                        `<div>• Pointer ${item.ptr}: ${item.safety_violations} violations</div>`
+                    ).join('')}
+                </div>
+            </div>
+            ` : `
+            <div class="bg-green-500 bg-opacity-20 border-2 border-green-500 rounded-lg p-6 mb-6">
+                <h3 class="text-lg font-bold text-green-400 text-center">
+                    No Safety Violations Detected
+                </h3>
+            </div>
+            `}
+            
+            <!-- Cross-Language Memory Flow -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-gray-700 bg-opacity-50 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold mb-3 text-center">Memory Allocation Sources</h4>
+                    <div class="flex justify-center items-end space-x-8 h-32">
+                        <div class="flex flex-col items-center">
+                            <div class="bg-red-500 rounded" style="width: 40px; height: ${Math.max(16, unsafeAllocations * 4)}px; margin-bottom: 8px;"></div>
+                            <div class="text-red-400 font-bold text-sm">${unsafeAllocations}</div>
+                            <div class="text-gray-300 text-xs">Unsafe Rust</div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="bg-blue-500 rounded" style="width: 40px; height: ${Math.max(16, ffiAllocations * 4)}px; margin-bottom: 8px;"></div>
+                            <div class="text-blue-400 font-bold text-sm">${ffiAllocations}</div>
+                            <div class="text-gray-300 text-xs">FFI</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-700 bg-opacity-50 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold mb-3 text-center">Unsafe Memory Hotspots</h4>
+                    <div class="space-y-2 max-h-32 overflow-y-auto">
+                        ${enhancedData.slice(0, 6).map(item => `
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="font-mono text-xs">${item.ptr}</span>
+                                <span class="px-2 py-1 rounded text-xs ${item.ffi_tracked ? 'bg-blue-500' : 'bg-red-500'} text-white">
+                                    ${formatBytes(item.size || 0)}
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Detailed FFI Operations Table -->
+            <div class="bg-gray-700 bg-opacity-50 rounded-lg p-4">
+                <h4 class="text-lg font-semibold mb-3">FFI Operations Details</h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-600">
+                                <th class="text-left py-2">Pointer</th>
+                                <th class="text-left py-2">Size</th>
+                                <th class="text-left py-2">Type</th>
+                                <th class="text-left py-2">Safety</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${enhancedData.map(item => `
+                                <tr class="border-b border-gray-700 hover:bg-gray-600 hover:bg-opacity-30">
+                                    <td class="py-2 font-mono text-xs">${item.ptr}</td>
+                                    <td class="py-2">${formatBytes(item.size || 0)}</td>
+                                    <td class="py-2">
+                                        <span class="px-2 py-1 rounded text-xs ${item.ffi_tracked ? 'bg-blue-500' : 'bg-red-500'} text-white">
+                                            ${item.ffi_tracked ? 'FFI' : 'Unsafe'}
+                                        </span>
+                                    </td>
+                                    <td class="py-2">
+                                        <span class="px-2 py-1 rounded text-xs ${(item.safety_violations || 0) === 0 ? 'bg-green-500' : 'bg-red-500'} text-white">
+                                            ${(item.safety_violations || 0) === 0 ? 'Safe' : `${item.safety_violations} violations`}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+//Initialize memory fragmentation analysis
 function initMemoryFragmentation() {
     const container = document.getElementById('memoryFragmentation');
     if (!container) return;
     
+    const allocations = window.analysisData.memory_analysis?.allocations || [];
+    
+    // Analyze memory fragmentation
+    const sortedAllocs = allocations
+        .filter(alloc => alloc.ptr && alloc.size)
+        .map(alloc => ({
+            address: parseInt(alloc.ptr.replace('0x', ''), 16),
+            size: alloc.size,
+            type: alloc.type_name || 'System Allocation'
+        }))
+        .sort((a, b) => a.address - b.address);
+    
+    let gaps = 0;
+    let totalGapSize = 0;
+    let maxGap = 0;
+    
+    for (let i = 1; i < sortedAllocs.length; i++) {
+        const prevEnd = sortedAllocs[i - 1].address + sortedAllocs[i - 1].size;
+        const currentStart = sortedAllocs[i].address;
+        
+        if (currentStart > prevEnd) {
+            const gapSize = currentStart - prevEnd;
+            gaps++;
+            totalGapSize += gapSize;
+            maxGap = Math.max(maxGap, gapSize);
+        }
+    }
+    
+    const totalMemory = sortedAllocs.reduce((sum, alloc) => sum + alloc.size, 0);
+    const fragmentationRatio = totalMemory > 0 ? (totalGapSize / (totalMemory + totalGapSize) * 100) : 0;
+    
     container.innerHTML = `
-        <div class="bg-white rounded-xl p-6 card-shadow">
-            <h2 class="text-xl font-semibold mb-4 flex items-center">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+            <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
                 <i class="fa fa-puzzle-piece text-orange-500 mr-2"></i>Memory Fragmentation Analysis
             </h2>
-            <div class="text-center py-8 text-gray-500">
-                <i class="fa fa-info-circle text-2xl mb-2"></i>
-                <p>Memory fragmentation analysis will be implemented here</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-orange-100 dark:bg-orange-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-400">${fragmentationRatio.toFixed(1)}%</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">Fragmentation Ratio</div>
+                </div>
+                <div class="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${gaps}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">Memory Gaps</div>
+                </div>
+                <div class="bg-green-100 dark:bg-green-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600 dark:text-green-400">${formatBytes(maxGap)}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">Largest Gap</div>
+                </div>
+                <div class="bg-purple-100 dark:bg-purple-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">${sortedAllocs.length}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">Memory Blocks</div>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h4 class="font-semibold mb-2 dark:text-white">Fragmentation Assessment</h4>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
+                    <div class="h-4 rounded-full transition-all duration-500 ${
+                        fragmentationRatio < 10 ? 'bg-green-500' : 
+                        fragmentationRatio < 25 ? 'bg-yellow-500' : 
+                        fragmentationRatio < 50 ? 'bg-orange-500' : 'bg-red-500'
+                    }" style="width: ${Math.min(fragmentationRatio, 100)}%"></div>
+                </div>
+                <div class="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                    ${fragmentationRatio < 10 ? 'Excellent memory layout with minimal fragmentation.' :
+                      fragmentationRatio < 25 ? 'Good memory layout with low fragmentation.' :
+                      fragmentationRatio < 50 ? 'Moderate fragmentation detected. Consider memory pool allocation.' :
+                      'High fragmentation detected. Memory layout optimization recommended.'}
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 class="font-semibold mb-2 dark:text-white">Memory Layout Visualization</h4>
+                <div class="h-8 bg-gray-200 dark:bg-gray-600 rounded relative overflow-hidden">
+                    ${sortedAllocs.slice(0, 20).map((alloc, index) => {
+                        const width = Math.max(2, (alloc.size / totalMemory) * 100);
+                        const left = (index / 20) * 100;
+                        return `<div class="absolute h-full bg-blue-500 opacity-70" 
+                                     style="left: ${left}%; width: ${width}%;" 
+                                     title="${alloc.type}: ${formatBytes(alloc.size)}"></div>`;
+                    }).join('')}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Showing first 20 allocations. Each block represents a memory allocation.
+                </div>
             </div>
         </div>
     `;
@@ -610,42 +810,258 @@ function initMemoryGrowthTrends() {
     const container = document.getElementById('memoryGrowthTrends');
     if (!container) return;
     
+    const allocations = window.analysisData.memory_analysis?.allocations || [];
+    
+    // Sort allocations by timestamp
+    const sortedAllocs = allocations
+        .filter(alloc => alloc.timestamp_alloc)
+        .sort((a, b) => a.timestamp_alloc - b.timestamp_alloc);
+    
+    if (sortedAllocs.length === 0) {
+        container.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+                <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
+                    <i class="fa fa-line-chart text-green-500 mr-2"></i>Memory Growth Trends
+                </h2>
+                <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <i class="fa fa-info-circle text-2xl mb-2"></i>
+                    <p>No timestamp data available for growth analysis</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Calculate cumulative memory usage over time
+    let cumulativeMemory = 0;
+    let peakMemory = 0;
+    const timePoints = [];
+    
+    sortedAllocs.forEach((alloc, index) => {
+        cumulativeMemory += alloc.size || 0;
+        peakMemory = Math.max(peakMemory, cumulativeMemory);
+        
+        if (index % Math.max(1, Math.floor(sortedAllocs.length / 20)) === 0) {
+            timePoints.push({
+                timestamp: alloc.timestamp_alloc,
+                memory: cumulativeMemory,
+                index: index
+            });
+        }
+    });
+    
+    const startMemory = timePoints[0]?.memory || 0;
+    const endMemory = timePoints[timePoints.length - 1]?.memory || 0;
+    const growthRate = startMemory > 0 ? ((endMemory - startMemory) / startMemory * 100) : 0;
+    const averageMemory = timePoints.reduce((sum, point) => sum + point.memory, 0) / timePoints.length;
+    
     container.innerHTML = `
-        <div class="bg-white rounded-xl p-6 card-shadow">
-            <h2 class="text-xl font-semibold mb-4 flex items-center">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+            <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
                 <i class="fa fa-line-chart text-green-500 mr-2"></i>Memory Growth Trends
             </h2>
-            <div class="text-center py-8 text-gray-500">
-                <i class="fa fa-info-circle text-2xl mb-2"></i>
-                <p>Memory growth trends analysis will be implemented here</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-red-100 dark:bg-red-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">${formatBytes(peakMemory)}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">Peak Memory Usage</div>
+                </div>
+                <div class="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${formatBytes(averageMemory)}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">Average Memory Usage</div>
+                </div>
+                <div class="bg-green-100 dark:bg-green-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold ${growthRate > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${growthRate > 0 ? '+' : ''}${growthRate.toFixed(1)}%</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">Growth Rate</div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 class="font-semibold mb-2 dark:text-white">Memory Usage Over Time</h4>
+                <div class="h-32 relative bg-white dark:bg-gray-600 rounded border dark:border-gray-500">
+                    <svg class="w-full h-full" viewBox="0 0 400 120">
+                        <polyline
+                            fill="none"
+                            stroke="#3b82f6"
+                            stroke-width="2"
+                            points="${timePoints.map((point, index) => {
+                                const x = (index / (timePoints.length - 1)) * 380 + 10;
+                                const y = 110 - ((point.memory / peakMemory) * 100);
+                                return `${x},${y}`;
+                            }).join(' ')}"
+                        />
+                        ${timePoints.map((point, index) => {
+                            const x = (index / (timePoints.length - 1)) * 380 + 10;
+                            const y = 110 - ((point.memory / peakMemory) * 100);
+                            return `<circle cx="${x}" cy="${y}" r="3" fill="#3b82f6" />`;
+                        }).join('')}
+                    </svg>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    ${growthRate > 50 ? 'High memory growth detected - investigate for potential leaks.' :
+                      growthRate > 10 ? 'Moderate memory growth - monitor for potential issues.' :
+                      growthRate > -10 ? 'Stable memory usage with minimal growth.' :
+                      'Memory usage is decreasing - good memory management.'}
+                </div>
             </div>
         </div>
     `;
 }
 
-// Initialize allocations table
+// Initialize allocations table with collapsible functionality
 function initAllocationsTable() {
     const tbody = document.getElementById('allocations-table');
+    const toggleButton = document.getElementById('toggle-allocations');
+    
     if (!tbody) return;
     
     const allocations = window.analysisData.memory_analysis?.allocations || [];
     
     if (allocations.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No allocations found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
         return;
     }
     
-    // Show first 50 allocations
-    const displayAllocations = allocations.slice(0, 50);
+    let isExpanded = false;
+    const maxInitialRows = 5;
     
-    tbody.innerHTML = displayAllocations.map(alloc => `
-        <tr>
-            <td class="px-4 py-2">${alloc.var_name || 'Unknown'}</td>
-            <td class="px-4 py-2">${formatTypeName(alloc.type_name || 'Unknown')}</td>
-            <td class="px-4 py-2 text-right">${formatBytes(alloc.size || 0)}</td>
-            <td class="px-4 py-2 text-right">${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}</td>
-        </tr>
-    `).join('');
+    function renderTable(showAll = false) {
+        const displayAllocations = showAll ? allocations : allocations.slice(0, maxInitialRows);
+        
+        tbody.innerHTML = displayAllocations.map(alloc => `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
+                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
+                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}</td>
+            </tr>
+        `).join('');
+        
+        if (!showAll && allocations.length > maxInitialRows) {
+            tbody.innerHTML += `
+                <tr class="bg-gray-50 dark:bg-gray-700">
+                    <td colspan="4" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">
+                        ... and ${allocations.length - maxInitialRows} more allocations
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    // Initial render
+    renderTable(false);
+    
+    // Toggle functionality
+    if (toggleButton && allocations.length > maxInitialRows) {
+        toggleButton.addEventListener('click', () => {
+            isExpanded = !isExpanded;
+            renderTable(isExpanded);
+            
+            const icon = toggleButton.querySelector('i');
+            const text = toggleButton.querySelector('span');
+            
+            if (isExpanded) {
+                icon.className = 'fa fa-chevron-up mr-1';
+                text.textContent = 'Show Less';
+            } else {
+                icon.className = 'fa fa-chevron-down mr-1';
+                text.textContent = 'Show All';
+            }
+        });
+    } else if (toggleButton) {
+        // Hide button if not needed
+        toggleButton.style.display = 'none';
+    }
+}
+
+// Initialize variable relationship graph
+function initVariableGraph() {
+    const container = document.getElementById('variable-graph-container');
+    if (!container) return;
+    
+    const allocations = window.analysisData.memory_analysis?.allocations || [];
+    const userAllocations = allocations.filter(alloc => 
+        alloc.var_name && alloc.var_name !== 'unknown' && 
+        alloc.type_name && alloc.type_name !== 'unknown'
+    );
+    
+    if (userAllocations.length === 0) {
+        container.innerHTML = `
+            <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                <div class="text-center">
+                    <i class="fa fa-sitemap text-4xl mb-4"></i>
+                    <p class="text-lg font-semibold mb-2">No User Variables Found</p>
+                    <p class="text-sm">Use track_var! macro to track variable relationships</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Create a simple network visualization
+    const nodes = userAllocations.map((alloc, index) => ({
+        id: alloc.var_name,
+        type: alloc.type_name,
+        size: alloc.size || 0,
+        x: 100 + (index % 5) * 100,
+        y: 100 + Math.floor(index / 5) * 100
+    }));
+    
+    // Find relationships based on similar types
+    const edges = [];
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            if (nodes[i].type === nodes[j].type) {
+                edges.push({
+                    source: nodes[i].id,
+                    target: nodes[j].id,
+                    type: 'similar_type'
+                });
+            }
+        }
+    }
+    
+    container.innerHTML = `
+        <svg class="w-full h-full" viewBox="0 0 600 400">
+            <!-- Edges -->
+            ${edges.map(edge => {
+                const sourceNode = nodes.find(n => n.id === edge.source);
+                const targetNode = nodes.find(n => n.id === edge.target);
+                return `<line x1="${sourceNode.x}" y1="${sourceNode.y}" 
+                             x2="${targetNode.x}" y2="${targetNode.y}" 
+                             stroke="#94a3b8" stroke-width="1" opacity="0.6" />`;
+            }).join('')}
+            
+            <!-- Nodes -->
+            ${nodes.map(node => {
+                const radius = Math.max(8, Math.min(30, Math.sqrt(node.size) / 10));
+                const color = getTypeColor(node.type);
+                return `
+                    <g>
+                        <circle cx="${node.x}" cy="${node.y}" r="${radius}" 
+                                fill="${color}" stroke="#fff" stroke-width="2" 
+                                opacity="0.8" class="hover:opacity-100 cursor-pointer" />
+                        <text x="${node.x}" y="${node.y - radius - 5}" 
+                              text-anchor="middle" font-size="10" fill="#374151" 
+                              font-weight="bold">${node.id}</text>
+                        <text x="${node.x}" y="${node.y + radius + 15}" 
+                              text-anchor="middle" font-size="8" fill="#6b7280">
+                              ${formatTypeName(node.type)}
+                        </text>
+                    </g>
+                `;
+            }).join('')}
+        </svg>
+    `;
+}
+
+// Get color for variable type
+function getTypeColor(typeName) {
+    if (typeName.includes('Vec')) return '#3b82f6';
+    if (typeName.includes('Box')) return '#8b5cf6';
+    if (typeName.includes('Rc') || typeName.includes('Arc')) return '#10b981';
+    if (typeName.includes('String')) return '#f59e0b';
+    return '#6b7280';
 }
 
 // Initialize generic types table
@@ -656,17 +1072,17 @@ function initGenericTypesTable() {
     const genericTypes = window.analysisData.complex_types?.categorized_types?.generic_types || [];
     
     if (genericTypes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No generic types found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No generic types found</td></tr>';
         return;
     }
     
     tbody.innerHTML = genericTypes.map(type => `
-        <tr>
-            <td class="px-6 py-4">${type.var_name || 'Unknown'}</td>
-            <td class="px-6 py-4">${formatTypeName(type.type_name || 'Unknown')}</td>
-            <td class="px-6 py-4 font-mono text-xs">${type.ptr}</td>
-            <td class="px-6 py-4">${formatBytes(type.size || 0)}</td>
-            <td class="px-6 py-4">N/A</td>
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${type.var_name || 'System Allocation'}</td>
+            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${formatTypeName(type.type_name || 'System Allocation')}</td>
+            <td class="px-6 py-4 font-mono text-xs text-gray-900 dark:text-gray-100">${type.ptr}</td>
+            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${formatBytes(type.size || 0)}</td>
+            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">N/A</td>
             <td class="px-6 py-4">
                 <span class="px-2 py-1 rounded text-xs ${getComplexityColor(type.complexity_score)} text-white">
                     ${type.complexity_score || 0}
@@ -674,21 +1090,6 @@ function initGenericTypesTable() {
             </td>
         </tr>
     `).join('');
-}
-
-// Initialize variable graph
-function initVariableGraph() {
-    const container = document.getElementById('variable-graph-container');
-    if (!container) return;
-    
-    container.innerHTML = `
-        <div class="flex items-center justify-center h-full text-gray-500">
-            <div class="text-center">
-                <i class="fa fa-sitemap text-4xl mb-4"></i>
-                <p>Variable relationship graph will be implemented here</p>
-            </div>
-        </div>
-    `;
 }
 
 // Initialize complex type analysis
@@ -699,13 +1100,13 @@ function initComplexTypeAnalysis() {
     const complexTypeAnalysis = window.analysisData.complex_types?.complex_type_analysis || [];
     
     if (complexTypeAnalysis.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No complex type analysis available</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No complex type analysis available</td></tr>';
         return;
     }
     
     tbody.innerHTML = complexTypeAnalysis.map(analysis => `
-        <tr>
-            <td class="px-6 py-4">${formatTypeName(analysis.type_name)}</td>
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${formatTypeName(analysis.type_name)}</td>
             <td class="px-6 py-4 text-center">
                 <span class="px-2 py-1 rounded text-xs ${getComplexityColor(analysis.complexity_score)} text-white">
                     ${analysis.complexity_score}
@@ -716,9 +1117,9 @@ function initComplexTypeAnalysis() {
                     ${analysis.memory_efficiency}%
                 </span>
             </td>
-            <td class="px-6 py-4 text-center">${analysis.allocation_count}</td>
-            <td class="px-6 py-4 text-center">${formatBytes(analysis.total_size)}</td>
-            <td class="px-6 py-4">${analysis.optimization_suggestions?.join(', ') || 'None'}</td>
+            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${analysis.allocation_count}</td>
+            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${formatBytes(analysis.total_size)}</td>
+            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${analysis.optimization_suggestions?.join(', ') || 'None'}</td>
         </tr>
     `).join('');
 }
@@ -731,14 +1132,14 @@ function initMemoryOptimizationRecommendations() {
     const recommendations = window.analysisData.complex_types?.optimization_recommendations || [];
     
     if (recommendations.length === 0) {
-        container.innerHTML = '<li class="text-gray-500">No specific recommendations available</li>';
+        container.innerHTML = '<li class="text-gray-500 dark:text-gray-400">No specific recommendations available</li>';
         return;
     }
     
     container.innerHTML = recommendations.map(rec => `
         <li class="flex items-start">
             <i class="fa fa-lightbulb-o text-yellow-500 mr-2 mt-1"></i>
-            <span>${rec}</span>
+            <span class="dark:text-gray-200">${rec}</span>
         </li>
     `).join('');
 }
@@ -770,6 +1171,49 @@ function initFFIRiskChart() {
             maintainAspectRatio: false
         }
     });
+}
+
+// Format type name for better display
+function formatTypeName(typeName) {
+    if (!typeName || typeName === 'unknown') return 'System Allocation';
+    // Simplify complex type names
+    return typeName
+        .replace(/alloc::/g, '')
+        .replace(/std::/g, '')
+        .replace(/::Vec/g, 'Vec')
+        .replace(/::Box/g, 'Box')
+        .replace(/::Rc/g, 'Rc')
+        .replace(/::Arc/g, 'Arc')
+        .replace(/::String/g, 'String');
+}
+
+// Format timestamp relative to start time
+function formatTimestamp(timestamp, minTime) {
+    const relativeMs = Math.round((timestamp - minTime) / 1000000); // Convert nanoseconds to milliseconds
+    return `${relativeMs}ms`;
+}
+
+// Utility function to format bytes
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// Show empty state when no user variables found
+function showEmptyLifetimeState() {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+            <i class="fa fa-info-circle text-2xl mb-2"></i>
+            <p>No user-defined variables found in lifetime data</p>
+            <p class="text-sm mt-1">Use track_var! macro to track variable lifetimes</p>
+        </div>
+    `;
 }
 
 // Utility functions
