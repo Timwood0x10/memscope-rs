@@ -1307,10 +1307,13 @@ class NodeDetailPanel {
     }
 
     show(nodeData, position) {
+        console.log('Showing panel for:', nodeData.id);
         this.hide(); // Close existing panel
         this.panel = this.createPanel(nodeData);
+        console.log('Panel created:', this.panel);
         this.positionPanel(position);
         this.container.appendChild(this.panel);
+        console.log('Panel added to container');
         this.currentNode = nodeData;
     }
 
@@ -1324,66 +1327,98 @@ class NodeDetailPanel {
 
     createPanel(nodeData) {
         const panel = document.createElement('div');
-        panel.className = 'absolute bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 min-w-64 max-w-80';
-        panel.style.cssText = 'background: var(--detail-panel-bg); box-shadow: var(--detail-panel-shadow);';
+        panel.className = 'node-detail-panel';
 
         // Find related allocation data
         const allocations = window.analysisData.memory_analysis?.allocations || [];
         const allocation = allocations.find(alloc => alloc.var_name === nodeData.id);
+        
+        // Calculate relationships
+        const sameTypeCount = allocations.filter(alloc => 
+            alloc.type_name === nodeData.type && alloc.var_name !== nodeData.id
+        ).length;
+        
+        const sameCategoryCount = allocations.filter(alloc => 
+            getTypeCategory(alloc.type_name || '') === (nodeData.category || 'primitive') && alloc.var_name !== nodeData.id
+        ).length;
 
         panel.innerHTML = `
-            <div class="flex justify-between items-start mb-3">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Variable Details</h3>
-                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick="this.closest('.absolute').remove()">
-                    <i class="fa fa-times"></i>
-                </button>
+            <div class="flex justify-between items-center mb-3">
+                <h3>Variable Details</h3>
+                <button class="close-button text-xl leading-none">&times;</button>
             </div>
             
             <div class="space-y-3">
                 <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Variable Name</label>
-                    <p class="text-gray-900 dark:text-white font-mono">${nodeData.id}</p>
+                    <label>Variable Name</label>
+                    <p class="font-mono">${nodeData.id}</p>
                 </div>
                 
                 <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Type</label>
-                    <p class="text-gray-900 dark:text-white font-mono">${nodeData.type}</p>
+                    <label>Type</label>
+                    <p class="font-mono">${nodeData.type}</p>
+                    <div class="flex items-center mt-1">
+                        <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${getEnhancedTypeColor(nodeData.type, nodeData.category || 'primitive')}"></div>
+                        <span class="text-xs capitalize">${(nodeData.category || 'primitive').replace('_', ' ')}</span>
+                    </div>
                 </div>
                 
                 <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Size</label>
-                    <p class="text-gray-900 dark:text-white">${formatBytes(nodeData.size)}</p>
+                    <label>Memory Size</label>
+                    <p>${formatBytes(nodeData.size)}</p>
+                </div>
+                
+                <div>
+                    <label>Complexity Score</label>
+                    <div class="flex items-center mb-2">
+                        <div class="w-5 h-5 rounded-full mr-2 flex items-center justify-center text-white font-bold text-xs" style="background-color: ${getComplexityColor(nodeData.complexity || 2)}">${nodeData.complexity || 2}</div>
+                        <span class="font-semibold">${nodeData.complexity || 2}/10 - ${getComplexityLevel(nodeData.complexity || 2)}</span>
+                    </div>
+                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                        ${getComplexityExplanation(nodeData.complexity || 2)}
+                    </div>
                 </div>
                 
                 ${allocation ? `
                     <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Memory Address</label>
-                        <p class="text-gray-900 dark:text-white font-mono">${allocation.ptr || 'N/A'}</p>
+                        <label>Memory Address</label>
+                        <p class="font-mono text-xs">${allocation.ptr}</p>
                     </div>
                     
                     <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Scope</label>
-                        <p class="text-gray-900 dark:text-white">${allocation.scope || 'global'}</p>
-                    </div>
-                    
-                    <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Status</label>
-                        <p class="text-gray-900 dark:text-white">
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${allocation.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}">
-                                ${allocation.is_active ? 'Active' : 'Deallocated'}
-                            </span>
-                        </p>
+                        <label>Allocated At</label>
+                        <p class="text-sm">${new Date(allocation.timestamp_alloc / 1000000).toLocaleString()}</p>
                     </div>
                 ` : ''}
                 
                 <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Relationships</label>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">
-                        Connected to variables of the same type: <strong>${nodeData.type}</strong>
-                    </p>
+                    <label>Relationships</label>
+                    <div class="text-sm space-y-1">
+                        <div class="flex justify-between">
+                            <span>Same type:</span>
+                            <span class="font-semibold">${sameTypeCount}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Same category:</span>
+                            <span class="font-semibold">${sameCategoryCount}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label>Type Analysis</label>
+                    <div class="text-xs space-y-1">
+                        ${getTypeAnalysis(nodeData.type, nodeData.size)}
+                    </div>
                 </div>
             </div>
         `;
+
+        // Add close button functionality
+        const closeButton = panel.querySelector('.close-button');
+        closeButton.addEventListener('click', () => {
+            this.hide();
+        });
 
         return panel;
     }
@@ -1391,26 +1426,17 @@ class NodeDetailPanel {
     positionPanel(position) {
         if (!this.panel) return;
 
-        const containerRect = this.container.getBoundingClientRect();
-        const panelRect = this.panel.getBoundingClientRect();
-
-        let left = position.x - containerRect.left + 10;
-        let top = position.y - containerRect.top + 10;
-
-        // Adjust if panel would go outside container
-        if (left + panelRect.width > containerRect.width) {
-            left = position.x - containerRect.left - panelRect.width - 10;
-        }
-        if (top + panelRect.height > containerRect.height) {
-            top = position.y - containerRect.top - panelRect.height - 10;
-        }
-
-        this.panel.style.left = `${Math.max(0, left)}px`;
-        this.panel.style.top = `${Math.max(0, top)}px`;
+        // Simple positioning - place panel at a fixed position relative to container
+        this.panel.style.position = 'absolute';
+        this.panel.style.left = '20px';
+        this.panel.style.top = '20px';
+        this.panel.style.zIndex = '1000';
+        
+        console.log('Panel positioned at:', this.panel.style.left, this.panel.style.top);
     }
 }
 
-// Initialize variable relationship graph
+// Initialize variable relationship graph with enhanced D3.js force simulation
 function initVariableGraph() {
     const container = document.getElementById('variable-graph-container');
     if (!container) return;
@@ -1434,92 +1460,263 @@ function initVariableGraph() {
         return;
     }
 
-    // Create a simple network visualization
+    // Clear container
+    container.innerHTML = '';
+
+    // Set up dimensions
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // Create SVG
+    const svg = d3.select(container)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'transparent');
+
+    // Create zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+        });
+
+    svg.call(zoom);
+
+    // Create main group for zooming/panning
+    const g = svg.append('g');
+
+    // Prepare nodes data
     const nodes = userAllocations.map((alloc, index) => ({
         id: alloc.var_name,
         type: alloc.type_name,
         size: alloc.size || 0,
-        x: 100 + (index % 5) * 100,
-        y: 100 + Math.floor(index / 5) * 100
+        complexity: getComplexityFromType(alloc.type_name),
+        category: getTypeCategory(alloc.type_name),
+        allocation: alloc
     }));
 
-    // Find relationships based on similar types
-    const edges = [];
+    // Create more sophisticated relationships
+    const links = [];
+    
+    // Type similarity relationships
     for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
-            if (nodes[i].type === nodes[j].type) {
-                edges.push({
-                    source: nodes[i].id,
-                    target: nodes[j].id,
-                    type: 'similar_type'
+            const node1 = nodes[i];
+            const node2 = nodes[j];
+            
+            // Same type relationship
+            if (node1.type === node2.type) {
+                links.push({
+                    source: node1.id,
+                    target: node2.id,
+                    type: 'same_type',
+                    strength: 1.0
+                });
+            }
+            // Similar category relationship
+            else if (node1.category === node2.category && node1.category !== 'primitive') {
+                links.push({
+                    source: node1.id,
+                    target: node2.id,
+                    type: 'similar_category',
+                    strength: 0.6
+                });
+            }
+            // Generic type relationship (Vec<T>, Box<T>, etc.)
+            else if (getGenericBase(node1.type) === getGenericBase(node2.type)) {
+                links.push({
+                    source: node1.id,
+                    target: node2.id,
+                    type: 'generic_family',
+                    strength: 0.8
                 });
             }
         }
     }
 
-    container.innerHTML = `
-        <div class="relative">
-            <svg class="w-full h-full" viewBox="0 0 600 400">
-                <!-- Edges -->
-                ${edges.map(edge => {
-        const sourceNode = nodes.find(n => n.id === edge.source);
-        const targetNode = nodes.find(n => n.id === edge.target);
-        return `<line x1="${sourceNode.x}" y1="${sourceNode.y}" 
-                                 x2="${targetNode.x}" y2="${targetNode.y}" 
-                                 stroke="var(--graph-link-color)" stroke-width="1" opacity="0.6" />`;
-    }).join('')}
-                
-                <!-- Nodes -->
-                ${nodes.map(node => {
-        const radius = Math.max(8, Math.min(30, Math.sqrt(node.size) / 10));
-        const color = getTypeColor(node.type);
-        return `
-                        <g class="graph-node cursor-pointer" data-node-id="${node.id}">
-                            <circle cx="${node.x}" cy="${node.y}" r="${radius}" 
-                                    fill="${color}" stroke="var(--graph-node-border)" stroke-width="2" 
-                                    opacity="0.8" class="hover:opacity-100 transition-opacity" />
-                            <text x="${node.x}" y="${node.y - radius - 5}" 
-                                  text-anchor="middle" font-size="10" fill="var(--text-primary)" 
-                                  font-weight="bold">${node.id}</text>
-                            <text x="${node.x}" y="${node.y + radius + 15}" 
-                                  text-anchor="middle" font-size="8" fill="var(--text-secondary)">
-                                  ${formatTypeName(node.type)}
-                            </text>
-                        </g>
-                    `;
-    }).join('')}
-            </svg>
+    // Create force simulation
+    const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links)
+            .id(d => d.id)
+            .distance(d => 80 + (1 - d.strength) * 40)
+            .strength(d => d.strength * 0.7)
+        )
+        .force('charge', d3.forceManyBody()
+            .strength(d => -200 - (d.size / 100))
+        )
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide()
+            .radius(d => Math.max(15, Math.sqrt(d.size) / 8) + 5)
+        );
+
+    // Create link elements
+    const link = g.append('g')
+        .attr('class', 'links')
+        .selectAll('line')
+        .data(links)
+        .enter().append('line')
+        .attr('stroke', d => getLinkColor(d.type))
+        .attr('stroke-opacity', d => 0.3 + d.strength * 0.4)
+        .attr('stroke-width', d => 1 + d.strength * 2)
+        .attr('stroke-dasharray', d => d.type === 'similar_category' ? '5,5' : null);
+
+    // Create node groups
+    const node = g.append('g')
+        .attr('class', 'nodes')
+        .selectAll('g')
+        .data(nodes)
+        .enter().append('g')
+        .attr('class', 'graph-node')
+        .style('cursor', 'pointer')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended)
+        );
+
+    // Add circles to nodes
+    node.append('circle')
+        .attr('r', d => Math.max(12, Math.sqrt(d.size) / 8))
+        .attr('fill', d => getEnhancedTypeColor(d.type, d.category))
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2)
+        .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))')
+        .on('mouseover', function(event, d) {
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('r', Math.max(15, Math.sqrt(d.size) / 6))
+                .style('filter', 'drop-shadow(0px 4px 8px rgba(0,0,0,0.3))');
             
-            <!-- Instructions -->
-            <div class="absolute top-2 right-2 text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-2 py-1 rounded border">
-                Click nodes for details
-            </div>
-        </div>
-    `;
-
-    // Setup click interactions
-    const detailPanel = new NodeDetailPanel('variable-graph-container');
-    const svgContainer = container.querySelector('svg');
-
-    if (svgContainer) {
-        svgContainer.addEventListener('click', (event) => {
-            const nodeElement = event.target.closest('.graph-node');
-            if (nodeElement) {
-                const nodeId = nodeElement.dataset.nodeId;
-                const nodeData = nodes.find(n => n.id === nodeId);
-                if (nodeData) {
-                    const position = {
-                        x: event.clientX,
-                        y: event.clientY
-                    };
-                    detailPanel.show(nodeData, position);
-                }
-                event.stopPropagation();
-            } else {
-                // Click on empty space - hide panel
-                detailPanel.hide();
-            }
+            // Highlight connected links
+            link.style('stroke-opacity', l => 
+                (l.source.id === d.id || l.target.id === d.id) ? 0.8 : 0.1
+            );
+        })
+        .on('mouseout', function(event, d) {
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('r', Math.max(12, Math.sqrt(d.size) / 8))
+                .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))');
+            
+            // Reset link opacity
+            link.style('stroke-opacity', l => 0.3 + l.strength * 0.4);
         });
+
+    // Add complexity indicators (small circles with numbers)
+    const complexityGroup = node.append('g')
+        .attr('class', 'complexity-indicator');
+    
+    complexityGroup.append('circle')
+        .attr('r', 8)
+        .attr('cx', d => Math.max(12, Math.sqrt(d.size) / 8) + 8)
+        .attr('cy', d => -Math.max(12, Math.sqrt(d.size) / 8) - 8)
+        .attr('fill', d => getComplexityColor(d.complexity))
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+    
+    // Add complexity score text
+    complexityGroup.append('text')
+        .text(d => d.complexity || 2)
+        .attr('x', d => Math.max(12, Math.sqrt(d.size) / 8) + 8)
+        .attr('y', d => -Math.max(12, Math.sqrt(d.size) / 8) - 8 + 3)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '10px')
+        .style('font-weight', 'bold')
+        .style('fill', '#fff')
+        .style('pointer-events', 'none');
+
+    // Add variable names
+    node.append('text')
+        .text(d => d.id)
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => Math.max(12, Math.sqrt(d.size) / 8) + 15)
+        .style('font-size', '11px')
+        .style('font-weight', 'bold')
+        .style('fill', 'var(--text-primary)')
+        .style('pointer-events', 'none');
+
+    // Add type labels
+    node.append('text')
+        .text(d => formatTypeName(d.type))
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => Math.max(12, Math.sqrt(d.size) / 8) + 28)
+        .style('font-size', '9px')
+        .style('fill', 'var(--text-secondary)')
+        .style('pointer-events', 'none');
+
+    // Add click interaction
+    const detailPanel = new NodeDetailPanel('variable-graph-container');
+    
+    node.on('click', function(event, d) {
+        event.stopPropagation();
+        console.log('Node clicked:', d.id, d);
+        const position = {
+            x: event.pageX,
+            y: event.pageY
+        };
+        detailPanel.show(d, position);
+    });
+
+    // Click on empty space to hide panel
+    svg.on('click', function(event) {
+        if (event.target === this) {
+            detailPanel.hide();
+        }
+    });
+
+    // Update positions on simulation tick
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        node
+            .attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+
+    // Add control buttons
+    const controls = d3.select(container)
+        .append('div')
+        .attr('class', 'absolute top-2 right-2 flex space-x-2');
+
+    controls.append('button')
+        .attr('class', 'px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors')
+        .text('Reset View')
+        .on('click', () => {
+            svg.transition().duration(750).call(
+                zoom.transform,
+                d3.zoomIdentity
+            );
+        });
+
+    controls.append('button')
+        .attr('class', 'px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors')
+        .text('Reheat')
+        .on('click', () => {
+            simulation.alpha(0.3).restart();
+        });
+
+    // Drag functions
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
     }
 }
 
@@ -1530,6 +1727,297 @@ function getTypeColor(typeName) {
     if (typeName.includes('Rc') || typeName.includes('Arc')) return '#10b981';
     if (typeName.includes('String')) return '#f59e0b';
     return '#6b7280';
+}
+
+// Enhanced type color with comprehensive type mapping
+function getEnhancedTypeColor(typeName, category) {
+    // Comprehensive color mapping for specific types
+    const typeColorMap = {
+        // Smart Pointers - Purple/Violet family
+        'Box': '#8b5cf6',           // Purple
+        'Rc': '#a855f7',            // Purple-500
+        'Arc': '#9333ea',           // Violet-600
+        'RefCell': '#7c3aed',       // Violet-700
+        'Cell': '#6d28d9',          // Violet-800
+        'Weak': '#5b21b6',          // Violet-900
+        
+        // Collections - Blue family
+        'Vec': '#3b82f6',           // Blue-500
+        'VecDeque': '#2563eb',      // Blue-600
+        'LinkedList': '#1d4ed8',    // Blue-700
+        'HashMap': '#1e40af',       // Blue-800
+        'BTreeMap': '#1e3a8a',      // Blue-900
+        'HashSet': '#60a5fa',       // Blue-400
+        'BTreeSet': '#93c5fd',      // Blue-300
+        
+        // String types - Orange/Amber family
+        'String': '#f59e0b',        // Amber-500
+        'str': '#d97706',           // Amber-600
+        'OsString': '#b45309',      // Amber-700
+        'OsStr': '#92400e',         // Amber-800
+        'CString': '#78350f',       // Amber-900
+        'CStr': '#fbbf24',          // Amber-400
+        
+        // Numeric types - Green family
+        'i8': '#10b981',            // Emerald-500
+        'i16': '#059669',           // Emerald-600
+        'i32': '#047857',           // Emerald-700
+        'i64': '#065f46',           // Emerald-800
+        'i128': '#064e3b',          // Emerald-900
+        'u8': '#34d399',            // Emerald-400
+        'u16': '#6ee7b7',           // Emerald-300
+        'u32': '#a7f3d0',           // Emerald-200
+        'u64': '#d1fae5',           // Emerald-100
+        'u128': '#ecfdf5',          // Emerald-50
+        'f32': '#14b8a6',           // Teal-500
+        'f64': '#0d9488',           // Teal-600
+        'usize': '#0f766e',         // Teal-700
+        'isize': '#115e59',         // Teal-800
+        
+        // Boolean and char - Pink family
+        'bool': '#ec4899',          // Pink-500
+        'char': '#db2777',          // Pink-600
+        
+        // Option and Result - Indigo family
+        'Option': '#6366f1',        // Indigo-500
+        'Result': '#4f46e5',        // Indigo-600
+        'Some': '#4338ca',          // Indigo-700
+        'None': '#3730a3',          // Indigo-800
+        'Ok': '#312e81',            // Indigo-900
+        'Err': '#6366f1',           // Indigo-500
+        
+        // Synchronization types - Red family
+        'Mutex': '#ef4444',         // Red-500
+        'RwLock': '#dc2626',        // Red-600
+        'Condvar': '#b91c1c',       // Red-700
+        'Barrier': '#991b1b',       // Red-800
+        'Once': '#7f1d1d',          // Red-900
+        
+        // Channel types - Cyan family
+        'Sender': '#06b6d4',        // Cyan-500
+        'Receiver': '#0891b2',      // Cyan-600
+        'mpsc': '#0e7490',          // Cyan-700
+        
+        // Path types - Lime family
+        'Path': '#84cc16',          // Lime-500
+        'PathBuf': '#65a30d',       // Lime-600
+        
+        // Time types - Yellow family
+        'Duration': '#eab308',      // Yellow-500
+        'Instant': '#ca8a04',       // Yellow-600
+        'SystemTime': '#a16207',    // Yellow-700
+        
+        // IO types - Stone family
+        'File': '#78716c',          // Stone-500
+        'BufReader': '#57534e',     // Stone-600
+        'BufWriter': '#44403c',     // Stone-700
+        
+        // Thread types - Rose family
+        'Thread': '#f43f5e',        // Rose-500
+        'JoinHandle': '#e11d48',    // Rose-600
+        
+        // Custom/Unknown types - Gray family
+        'unknown': '#6b7280',       // Gray-500
+        'custom': '#4b5563',        // Gray-600
+    };
+
+    // First, try exact type name match
+    if (typeColorMap[typeName]) {
+        return typeColorMap[typeName];
+    }
+
+    // Then try to match by type name contains
+    for (const [type, color] of Object.entries(typeColorMap)) {
+        if (typeName.includes(type)) {
+            return color;
+        }
+    }
+
+    // Extract generic base type and try to match
+    const genericBase = getGenericBase(typeName);
+    if (typeColorMap[genericBase]) {
+        return typeColorMap[genericBase];
+    }
+
+    // Fall back to category-based colors
+    switch (category) {
+        case 'smart_pointer': return '#8b5cf6';  // Purple
+        case 'collection': return '#3b82f6';     // Blue
+        case 'string': return '#f59e0b';         // Amber
+        case 'numeric': return '#10b981';        // Emerald
+        case 'sync': return '#ef4444';           // Red
+        case 'channel': return '#06b6d4';        // Cyan
+        case 'path': return '#84cc16';           // Lime
+        case 'time': return '#eab308';           // Yellow
+        case 'io': return '#78716c';             // Stone
+        case 'thread': return '#f43f5e';         // Rose
+        default: return '#6b7280';               // Gray
+    }
+}
+
+// Get type category for grouping with comprehensive type recognition
+function getTypeCategory(typeName) {
+    // Smart pointers
+    if (typeName.includes('Box') || typeName.includes('Rc') || typeName.includes('Arc') || 
+        typeName.includes('RefCell') || typeName.includes('Cell') || typeName.includes('Weak')) {
+        return 'smart_pointer';
+    }
+    
+    // Collections
+    if (typeName.includes('Vec') || typeName.includes('HashMap') || typeName.includes('BTreeMap') || 
+        typeName.includes('HashSet') || typeName.includes('BTreeSet') || typeName.includes('VecDeque') ||
+        typeName.includes('LinkedList')) {
+        return 'collection';
+    }
+    
+    // String types
+    if (typeName.includes('String') || typeName.includes('str') || typeName.includes('OsString') ||
+        typeName.includes('OsStr') || typeName.includes('CString') || typeName.includes('CStr')) {
+        return 'string';
+    }
+    
+    // Numeric types
+    if (typeName.match(/^[iuf]\d+$/) || typeName === 'usize' || typeName === 'isize' || 
+        typeName === 'bool' || typeName === 'char') {
+        return 'numeric';
+    }
+    
+    // Synchronization types
+    if (typeName.includes('Mutex') || typeName.includes('RwLock') || typeName.includes('Condvar') ||
+        typeName.includes('Barrier') || typeName.includes('Once')) {
+        return 'sync';
+    }
+    
+    // Channel types
+    if (typeName.includes('Sender') || typeName.includes('Receiver') || typeName.includes('mpsc')) {
+        return 'channel';
+    }
+    
+    // Path types
+    if (typeName.includes('Path') || typeName.includes('PathBuf')) {
+        return 'path';
+    }
+    
+    // Time types
+    if (typeName.includes('Duration') || typeName.includes('Instant') || typeName.includes('SystemTime')) {
+        return 'time';
+    }
+    
+    // IO types
+    if (typeName.includes('File') || typeName.includes('BufReader') || typeName.includes('BufWriter')) {
+        return 'io';
+    }
+    
+    // Thread types
+    if (typeName.includes('Thread') || typeName.includes('JoinHandle')) {
+        return 'thread';
+    }
+    
+    // Option and Result
+    if (typeName.includes('Option') || typeName.includes('Result')) {
+        return 'option_result';
+    }
+    
+    return 'primitive';
+}
+
+// Get generic base type (Vec<T> -> Vec, Box<T> -> Box)
+function getGenericBase(typeName) {
+    const match = typeName.match(/^([^<]+)/);
+    return match ? match[1] : typeName;
+}
+
+// Get complexity score from type with comprehensive scoring
+function getComplexityFromType(typeName) {
+    // Very high complexity (9-10)
+    if (typeName.includes('HashMap') || typeName.includes('BTreeMap') || 
+        typeName.includes('BTreeSet') || typeName.includes('LinkedList')) return 9;
+    
+    // High complexity (7-8)
+    if (typeName.includes('Arc') || typeName.includes('Mutex') || typeName.includes('RwLock') ||
+        typeName.includes('Condvar') || typeName.includes('Barrier')) return 8;
+    if (typeName.includes('Rc') || typeName.includes('RefCell') || typeName.includes('HashSet') ||
+        typeName.includes('VecDeque')) return 7;
+    
+    // Medium complexity (5-6)
+    if (typeName.includes('Vec') || typeName.includes('Box') || typeName.includes('Option') ||
+        typeName.includes('Result')) return 6;
+    if (typeName.includes('String') || typeName.includes('PathBuf') || typeName.includes('OsString') ||
+        typeName.includes('CString')) return 5;
+    
+    // Low complexity (3-4)
+    if (typeName.includes('str') || typeName.includes('Path') || typeName.includes('OsStr') ||
+        typeName.includes('CStr') || typeName.includes('Duration') || typeName.includes('Instant')) return 4;
+    if (typeName.includes('Sender') || typeName.includes('Receiver') || typeName.includes('File') ||
+        typeName.includes('Thread') || typeName.includes('JoinHandle')) return 3;
+    
+    // Very low complexity (1-2)
+    if (typeName.match(/^[iuf]\d+$/) || typeName === 'usize' || typeName === 'isize' || 
+        typeName === 'bool' || typeName === 'char') return 1;
+    
+    // Default for unknown types
+    return 2;
+}
+
+// Get link color based on relationship type
+function getLinkColor(linkType) {
+    switch (linkType) {
+        case 'same_type': return '#ef4444';
+        case 'similar_category': return '#3b82f6';
+        case 'generic_family': return '#10b981';
+        default: return '#6b7280';
+    }
+}
+
+// Get complexity level description
+function getComplexityLevel(score) {
+    if (score <= 2) return 'Simple';
+    if (score <= 5) return 'Medium';
+    if (score <= 8) return 'Complex';
+    return 'Very Complex';
+}
+
+// Get complexity explanation
+function getComplexityExplanation(score) {
+    if (score <= 2) return 'Basic types with minimal performance overhead and simple memory usage';
+    if (score <= 5) return 'Medium complexity with some memory management overhead';
+    if (score <= 8) return 'Complex types involving heap allocation and smart pointers, performance considerations needed';
+    return 'Very complex types with significant performance overhead, optimization recommended';
+}
+
+// Get type analysis information
+function getTypeAnalysis(typeName, size) {
+    const analysis = [];
+    
+    if (typeName.includes('Vec')) {
+        analysis.push('• Dynamic array with heap allocation');
+        analysis.push('• Grows automatically as needed');
+        if (size > 1000) analysis.push('• Large allocation - consider capacity optimization');
+    } else if (typeName.includes('Box')) {
+        analysis.push('• Single heap allocation');
+        analysis.push('• Unique ownership semantics');
+    } else if (typeName.includes('Rc')) {
+        analysis.push('• Reference counted smart pointer');
+        analysis.push('• Shared ownership with runtime checks');
+    } else if (typeName.includes('Arc')) {
+        analysis.push('• Atomic reference counted pointer');
+        analysis.push('• Thread-safe shared ownership');
+    } else if (typeName.includes('String')) {
+        analysis.push('• Growable UTF-8 string');
+        analysis.push('• Heap allocated with capacity buffer');
+    } else {
+        analysis.push('• Basic type allocation');
+    }
+    
+    if (size === 0) {
+        analysis.push('• Zero-sized type (ZST)');
+    } else if (size < 64) {
+        analysis.push('• Small allocation - good for performance');
+    } else if (size > 1024) {
+        analysis.push('• Large allocation - monitor memory usage');
+    }
+    
+    return analysis.join('<br>');
 }
 
 // Initialize generic types table
@@ -1825,10 +2313,10 @@ function updateElement(id, value) {
 }
 
 function getComplexityColor(score) {
-    if (score <= 2) return 'bg-green-500';
-    if (score <= 5) return 'bg-yellow-500';
-    if (score <= 8) return 'bg-orange-500';
-    return 'bg-red-500';
+    if (score <= 2) return '#10b981';  // Green - Low complexity
+    if (score <= 5) return '#eab308';  // Yellow - Medium complexity  
+    if (score <= 8) return '#f97316';  // Orange - High complexity
+    return '#ef4444';                  // Red - Very high complexity
 }
 
 function getEfficiencyColor(efficiency) {

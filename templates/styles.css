@@ -132,7 +132,7 @@
 }
 
 .graph-node circle {
-    fill: var(--graph-node-bg);
+    /* Don't set fill here - let D3.js control the color */
     stroke: var(--graph-node-border);
     transition: all 0.2s ease;
 }
