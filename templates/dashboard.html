@@ -1,11 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Memory & FFI Snapshot Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -22,8 +27,8 @@
     <!-- Data injection script -->
     <script>
         // Global data store - populated by Rust template
-        window.analysisData = {{ json_data }};
-        window.embeddedJsonData = {{ json_data }};
+        window.analysisData = {{json_data}};
+        window.embeddedJsonData = {{json_data}};
     </script>
 
     <style type="text/tailwindcss">
@@ -200,7 +205,7 @@
     </style>
 </head>
 
-<body class="bg-gray-50 font-sans text-neutral">
+<body class="bg-gray-50 dark:bg-gray-900 font-sans text-neutral dark:text-gray-100 transition-colors">
     <header class="bg-white shadow-sm sticky top-0 z-10 dark:bg-gray-800 transition-colors">
         <div class="container mx-auto px-4 py-6">
             <div class="flex justify-between items-center">
@@ -221,38 +226,38 @@
     <main class="container mx-auto px-4 py-8">
         <!-- Summary Section -->
         <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+                <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
                     <i class="fa fa-bar-chart text-primary mr-2"></i>Analysis Summary
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="bg-neutral-light rounded-lg p-4 hover-lift">
-                        <p class="text-gray-500 text-sm">Total Complex Types</p>
-                        <p class="text-3xl font-bold" id="total-complex-types">5</p>
+                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-gray-500 dark:text-gray-300 text-sm">Total Complex Types</p>
+                        <p class="text-3xl font-bold dark:text-white" id="total-complex-types">5</p>
                     </div>
-                    <div class="bg-neutral-light rounded-lg p-4 hover-lift">
-                        <p class="text-gray-500 text-sm">Allocations Analyzed</p>
-                        <p class="text-3xl font-bold" id="total-allocations">639</p>
+                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-gray-500 dark:text-gray-300 text-sm">Allocations Analyzed</p>
+                        <p class="text-3xl font-bold dark:text-white" id="total-allocations">639</p>
                     </div>
-                    <div class="bg-neutral-light rounded-lg p-4 hover-lift">
-                        <p class="text-gray-500 text-sm">Generic Types</p>
-                        <p class="text-3xl font-bold" id="generic-type-count">6</p>
+                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-gray-500 dark:text-gray-300 text-sm">Generic Types</p>
+                        <p class="text-3xl font-bold dark:text-white" id="generic-type-count">6</p>
                     </div>
-                    <div class="bg-neutral-light rounded-lg p-4 hover-lift border-l-4 border-ffi-red">
-                        <p class="text-gray-500 text-sm">Unsafe FFI Entries</p>
-                        <p class="text-3xl font-bold" id="unsafe-ffi-count">2</p>
+                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift border-l-4 border-red-500 transition-colors">
+                        <p class="text-gray-500 dark:text-gray-300 text-sm">Unsafe FFI Entries</p>
+                        <p class="text-3xl font-bold dark:text-white" id="unsafe-ffi-count">2</p>
                     </div>
                 </div>
 
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <h3 class="text-lg font-medium mb-3">Complexity Distribution</h3>
+                        <h3 class="text-lg font-medium mb-3 dark:text-white">Complexity Distribution</h3>
                         <div class="h-64">
                             <canvas id="complexity-chart"></canvas>
                         </div>
                     </div>
                     <div>
-                        <h3 class="text-lg font-medium mb-3">Memory Distribution by Type</h3>
+                        <h3 class="text-lg font-medium mb-3 dark:text-white">Memory Distribution by Type</h3>
                         <div class="h-64">
                             <canvas id="memory-distribution-chart"></canvas>
                         </div>
@@ -261,13 +266,13 @@
 
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <h3 class="text-lg font-medium mb-3">Allocation Size Distribution</h3>
+                        <h3 class="text-lg font-medium mb-3 dark:text-white">Allocation Size Distribution</h3>
                         <div class="h-64">
                             <canvas id="allocation-size-chart"></canvas>
                         </div>
                     </div>
                     <div>
-                        <h3 class="text-lg font-medium mb-3">Performance Metrics</h3>
+                        <h3 class="text-lg font-medium mb-3 dark:text-white">Performance Metrics</h3>
                         <div class="h-64">
                             <canvas id="performance-chart"></canvas>
                         </div>
@@ -653,7 +658,7 @@
 
     <!-- Inline JavaScript -->
     <script>
-        { { JS_CONTENT } }
+        {{JS_CONTENT}}
     </script>
 </body>
 

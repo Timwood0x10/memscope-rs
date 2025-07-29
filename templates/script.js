@@ -1,4 +1,4 @@
-// MemScope Dashboard JavaScript - Complete version with theme support
+// MemScope Dashboard JavaScript - Complete version with theme support and collapsible tables
 // This file contains comprehensive functions for memory analysis dashboard
 
 // Global data store - will be populated by HTML template
@@ -9,7 +9,7 @@ function initializeDashboard() {
     console.log('🚀 Initializing MemScope dashboard...');
     console.log('📊 Available data:', Object.keys(window.analysisData || {}));
 
-    // Initialize theme system
+    // Initialize theme system first
     initThemeToggle();
 
     // Initialize all components
@@ -34,22 +34,38 @@ function initThemeToggle() {
     const html = document.documentElement;
     
     // Check for saved theme preference or default to light mode
-    const savedTheme = localStorage.getItem('theme') || 'light';
+    const savedTheme = localStorage.getItem('memscope-theme') || 'light';
+    
+    console.log('🎨 Initializing theme system, saved theme:', savedTheme);
     
     if (savedTheme === 'dark') {
+        html.classList.remove('light');
         html.classList.add('dark');
+    } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
     }
     
     if (themeToggle) {
         themeToggle.addEventListener('click', () => {
-            html.classList.toggle('dark');
-            
-            // Save theme preference
             const isDark = html.classList.contains('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
             
-            console.log(`🎨 Theme switched to: ${isDark ? 'dark' : 'light'} mode`);
+            if (isDark) {
+                html.classList.remove('dark');
+                html.classList.add('light');
+                localStorage.setItem('memscope-theme', 'light');
+                console.log('🎨 Theme switched to: light mode');
+            } else {
+                html.classList.remove('light');
+                html.classList.add('dark');
+                localStorage.setItem('memscope-theme', 'dark');
+                console.log('🎨 Theme switched to: dark mode');
+            }
         });
+        
+        console.log('✅ Theme toggle initialized successfully');
+    } else {
+        console.warn('⚠️ Theme toggle button not found');
     }
 }
 
@@ -125,7 +141,14 @@ function initComplexityChart() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: document.documentElement.classList.contains('dark') ? '#ffffff' : '#374151'
+                    }
+                }
+            }
         }
     });
 }
@@ -147,6 +170,8 @@ function initMemoryDistributionChart() {
         .sort(([,a], [,b]) => b - a)
         .slice(0, 10);
     
+    const isDark = document.documentElement.classList.contains('dark');
+    
     new Chart(ctx, {
         type: 'bar',
         data: {
@@ -160,13 +185,32 @@ function initMemoryDistributionChart() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: isDark ? '#ffffff' : '#374151'
+                    }
+                }
+            },
             scales: {
+                x: {
+                    ticks: {
+                        color: isDark ? '#d1d5db' : '#6b7280'
+                    },
+                    grid: {
+                        color: isDark ? '#374151' : '#e5e7eb'
+                    }
+                },
                 y: {
                     beginAtZero: true,
                     ticks: {
+                        color: isDark ? '#d1d5db' : '#6b7280',
                         callback: function(value) {
                             return formatBytes(value);
                         }
+                    },
+                    grid: {
+                        color: isDark ? '#374151' : '#e5e7eb'
                     }
                 }
             }
@@ -208,7 +252,14 @@ function initAllocationSizeChart() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: document.documentElement.classList.contains('dark') ? '#ffffff' : '#374151'
+                    }
+                }
+            }
         }
     });
 }
@@ -219,6 +270,7 @@ function initPerformanceChart() {
     if (!ctx) return;
     
     const performance = window.analysisData.performance?.memory_performance || {};
+    const isDark = document.documentElement.classList.contains('dark');
     
     new Chart(ctx, {
         type: 'bar',
@@ -237,13 +289,32 @@ function initPerformanceChart() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: isDark ? '#ffffff' : '#374151'
+                    }
+                }
+            },
             scales: {
+                x: {
+                    ticks: {
+                        color: isDark ? '#d1d5db' : '#6b7280'
+                    },
+                    grid: {
+                        color: isDark ? '#374151' : '#e5e7eb'
+                    }
+                },
                 y: {
                     beginAtZero: true,
                     ticks: {
+                        color: isDark ? '#d1d5db' : '#6b7280',
                         callback: function(value) {
                             return formatBytes(value);
                         }
+                    },
+                    grid: {
+                        color: isDark ? '#374151' : '#e5e7eb'
                     }
                 }
             }
@@ -320,7 +391,97 @@ function initMemoryUsageAnalysis() {
     `;
 }
 
-//Initialize lifetime visualization from JSON data
+// Initialize allocations table with improved collapsible functionality
+function initAllocationsTable() {
+    console.log('📊 Initializing allocations table...');
+    
+    const tbody = document.getElementById('allocations-table');
+    const toggleButton = document.getElementById('toggle-allocations');
+    
+    if (!tbody) {
+        console.warn('⚠️ Allocations table body not found');
+        return;
+    }
+    
+    const allocations = window.analysisData.memory_analysis?.allocations || [];
+    
+    if (allocations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
+        if (toggleButton) {
+            toggleButton.style.display = 'none';
+        }
+        return;
+    }
+    
+    let isExpanded = false;
+    const maxInitialRows = 5;
+    
+    function renderTable(showAll = false) {
+        console.log(`📊 Rendering table, showAll: ${showAll}, total allocations: ${allocations.length}`);
+        
+        const displayAllocations = showAll ? allocations : allocations.slice(0, maxInitialRows);
+        
+        tbody.innerHTML = displayAllocations.map(alloc => `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
+                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
+                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}</td>
+            </tr>
+        `).join('');
+        
+        if (!showAll && allocations.length > maxInitialRows) {
+            tbody.innerHTML += `
+                <tr class="bg-gray-50 dark:bg-gray-700">
+                    <td colspan="4" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">
+                        ... and ${allocations.length - maxInitialRows} more allocations
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    // Initial render
+    renderTable(false);
+    
+    // Toggle functionality
+    if (toggleButton && allocations.length > maxInitialRows) {
+        console.log('📊 Setting up toggle button for', allocations.length, 'allocations');
+        
+        // Remove any existing event listeners
+        const newToggleButton = toggleButton.cloneNode(true);
+        toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
+        
+        newToggleButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('📊 Toggle button clicked, current state:', isExpanded);
+            
+            isExpanded = !isExpanded;
+            renderTable(isExpanded);
+            
+            const icon = newToggleButton.querySelector('i');
+            const text = newToggleButton.querySelector('span');
+            
+            if (isExpanded) {
+                icon.className = 'fa fa-chevron-up mr-1';
+                text.textContent = 'Show Less';
+                console.log('📊 Expanded table to show all allocations');
+            } else {
+                icon.className = 'fa fa-chevron-down mr-1';
+                text.textContent = 'Show All';
+                console.log('📊 Collapsed table to show first', maxInitialRows, 'allocations');
+            }
+        });
+        
+        console.log('✅ Toggle button initialized successfully');
+    } else if (toggleButton) {
+        // Hide button if not needed
+        toggleButton.style.display = 'none';
+        console.log('📊 Toggle button hidden (not enough data)');
+    }
+}
+
+// Initialize lifetime visualization from JSON data
 function initLifetimeVisualization() {
     console.log('🔄 Initializing lifetime visualization...');
 
@@ -708,7 +869,7 @@ function initFFIVisualization() {
     `;
 }
 
-//Initialize memory fragmentation analysis
+// Initialize memory fragmentation analysis
 function initMemoryFragmentation() {
     const container = document.getElementById('memoryFragmentation');
     if (!container) return;
@@ -908,72 +1069,6 @@ function initMemoryGrowthTrends() {
     `;
 }
 
-// Initialize allocations table with collapsible functionality
-function initAllocationsTable() {
-    const tbody = document.getElementById('allocations-table');
-    const toggleButton = document.getElementById('toggle-allocations');
-    
-    if (!tbody) return;
-    
-    const allocations = window.analysisData.memory_analysis?.allocations || [];
-    
-    if (allocations.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
-        return;
-    }
-    
-    let isExpanded = false;
-    const maxInitialRows = 5;
-    
-    function renderTable(showAll = false) {
-        const displayAllocations = showAll ? allocations : allocations.slice(0, maxInitialRows);
-        
-        tbody.innerHTML = displayAllocations.map(alloc => `
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
-                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
-                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
-                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}</td>
-            </tr>
-        `).join('');
-        
-        if (!showAll && allocations.length > maxInitialRows) {
-            tbody.innerHTML += `
-                <tr class="bg-gray-50 dark:bg-gray-700">
-                    <td colspan="4" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">
-                        ... and ${allocations.length - maxInitialRows} more allocations
-                    </td>
-                </tr>
-            `;
-        }
-    }
-    
-    // Initial render
-    renderTable(false);
-    
-    // Toggle functionality
-    if (toggleButton && allocations.length > maxInitialRows) {
-        toggleButton.addEventListener('click', () => {
-            isExpanded = !isExpanded;
-            renderTable(isExpanded);
-            
-            const icon = toggleButton.querySelector('i');
-            const text = toggleButton.querySelector('span');
-            
-            if (isExpanded) {
-                icon.className = 'fa fa-chevron-up mr-1';
-                text.textContent = 'Show Less';
-            } else {
-                icon.className = 'fa fa-chevron-down mr-1';
-                text.textContent = 'Show All';
-            }
-        });
-    } else if (toggleButton) {
-        // Hide button if not needed
-        toggleButton.style.display = 'none';
-    }
-}
-
 // Initialize variable relationship graph
 function initVariableGraph() {
     const container = document.getElementById('variable-graph-container');
@@ -1168,7 +1263,14 @@ function initFFIRiskChart() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: document.documentElement.classList.contains('dark') ? '#ffffff' : '#374151'
+                    }
+                }
+            }
         }
     });
 }
