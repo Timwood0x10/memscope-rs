@@ -562,16 +562,17 @@ function createEnhancedEmptyState() {
     `;
 }
 
-// Create SVG-style memory analysis visualization inspired by the memoryAnalysis.svg
+// Create comprehensive SVG-style memory analysis visualization inspired by the memoryAnalysis.svg
 function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, totalMemory) {
     const userPercentage = totalMemory > 0 ? (userMemory / totalMemory * 100) : 0;
     const systemPercentage = totalMemory > 0 ? (systemMemory / totalMemory * 100) : 0;
-    
-    // Calculate efficiency metrics
+
+    // Calculate comprehensive efficiency metrics
     const efficiency = totalMemory > 0 ? Math.min(100, (userMemory / totalMemory * 100)) : 0;
-    const fragmentation = Math.min(100, (allocations.length / (totalMemory / 1024)) * 10); // Rough fragmentation estimate
-    
-    // Size distribution analysis
+    const reclamationRate = allocations.length > 0 ? Math.min(100, ((allocations.filter(a => a.timestamp_dealloc).length / allocations.length) * 100)) : 0;
+    const fragmentation = Math.min(100, (allocations.length / Math.max(1, totalMemory / 1024)) * 10);
+
+    // Advanced size distribution analysis
     const sizeDistribution = {
         tiny: allocations.filter(a => a.size < 64).length,
         small: allocations.filter(a => a.size >= 64 && a.size < 1024).length,
@@ -579,67 +580,122 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
         large: allocations.filter(a => a.size >= 65536).length
     };
 
+    // Calculate median and P95 sizes
+    const sizes = allocations.map(a => a.size || 0).sort((a, b) => a - b);
+    const medianSize = sizes.length > 0 ? sizes[Math.floor(sizes.length / 2)] : 0;
+    const p95Size = sizes.length > 0 ? sizes[Math.floor(sizes.length * 0.95)] : 0;
+
     return `
-        <div class="h-full bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 overflow-auto">
-            <!-- Header -->
-            <div class="text-center mb-6">
-                <h3 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Rust Memory Usage Analysis</h3>
-                <p class="text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wider">Key Performance Metrics</p>
-            </div>
-
-            <!-- Key Metrics Cards -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                ${createMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', 'MEDIUM')}
-                ${createMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', 'HIGH')}
-                ${createMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', 'HIGH')}
-                ${createMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM')}
-            </div>
-
-            <!-- Memory Allocation Timeline -->
-            <div class="bg-white dark:bg-gray-700 rounded-lg p-4 mb-6 shadow-sm">
-                <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Allocation Timeline</h4>
-                <div class="relative h-32 bg-gray-100 dark:bg-gray-600 rounded overflow-hidden">
-                    ${createTimelineVisualization(allocations)}
-                </div>
-                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-                    Visual representation of memory allocations over time
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+            <!-- Header with gradient background -->
+            <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold mb-2">Rust Memory Usage Analysis</h2>
+                    <p class="text-blue-100 uppercase tracking-wider text-sm">Key Performance Metrics</p>
                 </div>
             </div>
 
-            <!-- Memory Usage by Type - Treemap Style -->
-            <div class="bg-white dark:bg-gray-700 rounded-lg p-4 mb-6 shadow-sm">
-                <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Usage by Type</h4>
-                <div class="h-48 relative">
-                    ${createTreemapVisualization(allocations)}
+            <div class="p-6">
+                <!-- Key Performance Metrics Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
+                    ${createAdvancedMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', 'MEDIUM')}
+                    ${createAdvancedMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', 'HIGH')}
+                    ${createAdvancedMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', 'HIGH')}
+                    ${createAdvancedMetricCard('Reclamation', reclamationRate.toFixed(1) + '%', Math.round(reclamationRate), '#f39c12', reclamationRate > 70 ? 'OPTIMAL' : 'MEDIUM')}
+                    ${createAdvancedMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM')}
+                    ${createAdvancedMetricCard('Median Size', formatBytes(medianSize), Math.min(100, medianSize / 1024), '#1abc9c', medianSize < 100 ? 'OPTIMAL' : 'MEDIUM')}
+                    ${createAdvancedMetricCard('P95 Size', formatBytes(p95Size), Math.min(100, p95Size / 1024), '#e67e22', p95Size < 1024 ? 'OPTIMAL' : 'MEDIUM')}
+                    ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : 'MEDIUM')}
                 </div>
-            </div>
 
-            <!-- Memory Fragmentation Analysis -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm">
-                    <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Fragmentation Analysis</h4>
-                    <div class="space-y-3">
-                        ${createFragmentationBar('Tiny (0-64B)', sizeDistribution.tiny, allocations.length, '#27ae60')}
-                        ${createFragmentationBar('Small (65B-1KB)', sizeDistribution.small, allocations.length, '#f39c12')}
-                        ${createFragmentationBar('Medium (1KB-64KB)', sizeDistribution.medium, allocations.length, '#e74c3c')}
-                        ${createFragmentationBar('Large (>64KB)', sizeDistribution.large, allocations.length, '#8e44ad')}
+                <!-- Memory Allocation Timeline -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 border border-gray-200 dark:border-gray-600">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Allocation Timeline</h3>
+                    <div class="relative h-40 bg-white dark:bg-gray-600 rounded border overflow-hidden">
+                        ${createAdvancedTimelineVisualization(allocations, totalMemory)}
+                    </div>
+                    <div class="mt-4 grid grid-cols-4 gap-4 text-center text-sm">
+                        <div><span class="text-gray-600 dark:text-gray-400">0ms</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">0.25ms</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">0.5ms</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">1ms</span></div>
+                    </div>
+                    <div class="text-center mt-2">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Execution Time (milliseconds)</span>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm">
-                    <h4 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Growth Trends</h4>
-                    <div class="h-32 relative bg-gray-50 dark:bg-gray-600 rounded">
-                        ${createGrowthTrendVisualization(allocations)}
+                <!-- Memory Usage by Type - Enhanced Treemap -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 border border-gray-200 dark:border-gray-600">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Usage by Type - Treemap Visualization</h3>
+                    <div class="bg-gray-100 dark:bg-gray-600 rounded-lg p-4 h-64 relative overflow-hidden">
+                        ${createAdvancedTreemapVisualization(allocations, totalMemory)}
                     </div>
-                    <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                        <div class="flex justify-between">
-                            <span>Peak Usage:</span>
-                            <span class="font-semibold">${formatBytes(totalMemory)}</span>
+                    <div class="mt-4 grid grid-cols-3 gap-4 text-xs">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-blue-500 rounded mr-2"></div>
+                            <span class="text-gray-600 dark:text-gray-300">Collections</span>
                         </div>
-                        <div class="flex justify-between">
-                            <span>Fragmentation Score:</span>
-                            <span class="font-semibold">${fragmentation.toFixed(1)}%</span>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-green-500 rounded mr-2"></div>
+                            <span class="text-gray-600 dark:text-gray-300">Basic Types</span>
                         </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-gray-500 rounded mr-2"></div>
+                            <span class="text-gray-600 dark:text-gray-300">System</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Analysis Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Memory Fragmentation Analysis -->
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Fragmentation Analysis</h3>
+                        <div class="space-y-4">
+                            ${createAdvancedFragmentationBar('Tiny (0-64B)', sizeDistribution.tiny, allocations.length, '#27ae60')}
+                            ${createAdvancedFragmentationBar('Small (65B-1KB)', sizeDistribution.small, allocations.length, '#f39c12')}
+                            ${createAdvancedFragmentationBar('Medium (1KB-64KB)', sizeDistribution.medium, allocations.length, '#e74c3c')}
+                            ${createAdvancedFragmentationBar('Large (>64KB)', sizeDistribution.large, allocations.length, '#8e44ad')}
+                        </div>
+                    </div>
+
+                    <!-- Call Stack Analysis -->
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Call Stack Analysis</h3>
+                        <div class="space-y-3 max-h-64 overflow-y-auto">
+                            ${createCallStackAnalysis(allocations)}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Memory Growth Trends -->
+                <div class="mt-8 bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Growth Trends</h3>
+                    <div class="h-48 relative bg-white dark:bg-gray-600 rounded border overflow-hidden">
+                        ${createAdvancedGrowthTrendVisualization(allocations, totalMemory)}
+                    </div>
+                    <div class="mt-4 grid grid-cols-3 gap-4 text-sm text-center">
+                        <div>
+                            <span class="text-gray-600 dark:text-gray-400">Peak Memory:</span>
+                            <span class="font-semibold text-red-600 dark:text-red-400 ml-2">${formatBytes(totalMemory)}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600 dark:text-gray-400">Fragmentation:</span>
+                            <span class="font-semibold text-orange-600 dark:text-orange-400 ml-2">${fragmentation.toFixed(1)}%</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600 dark:text-gray-400">Efficiency:</span>
+                            <span class="font-semibold text-purple-600 dark:text-purple-400 ml-2">${efficiency.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Variable Allocation Timeline -->
+                <div class="mt-8 bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Variable Allocation Timeline</h3>
+                    <div class="space-y-3 max-h-64 overflow-y-auto">
+                        ${createVariableAllocationTimeline(allocations)}
                     </div>
                 </div>
             </div>
@@ -652,13 +708,13 @@ function createMetricCard(title, value, percentage, color, status) {
     const circumference = 2 * Math.PI * 25;
     const strokeDasharray = circumference;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
-    
+
     const statusColors = {
         'OPTIMAL': '#27ae60',
-        'MEDIUM': '#f39c12', 
+        'MEDIUM': '#f39c12',
         'HIGH': '#e74c3c'
     };
-    
+
     return `
         <div class="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between">
@@ -689,17 +745,17 @@ function createMetricCard(title, value, percentage, color, status) {
 // Create timeline visualization
 function createTimelineVisualization(allocations) {
     if (allocations.length === 0) return '<div class="flex items-center justify-center h-full text-gray-400">No timeline data</div>';
-    
+
     const sortedAllocs = allocations.sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
     const minTime = sortedAllocs[0]?.timestamp_alloc || 0;
     const maxTime = sortedAllocs[sortedAllocs.length - 1]?.timestamp_alloc || minTime + 1;
     const timeRange = maxTime - minTime || 1;
-    
+
     return sortedAllocs.slice(0, 20).map((alloc, index) => {
         const position = ((alloc.timestamp_alloc - minTime) / timeRange) * 100;
         const height = Math.min(80, Math.max(4, (alloc.size / 1024) * 20));
         const color = alloc.var_name && alloc.var_name !== 'unknown' ? '#3498db' : '#95a5a6';
-        
+
         return `
             <div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" 
                  style="left: ${position}%; width: 4px; height: ${height}%; background-color: ${color};"
@@ -720,13 +776,13 @@ function createTreemapVisualization(allocations) {
         typeGroups[type].count++;
         typeGroups[type].size += alloc.size || 0;
     });
-    
+
     const sortedTypes = Object.entries(typeGroups)
-        .sort(([,a], [,b]) => b.size - a.size)
+        .sort(([, a], [, b]) => b.size - a.size)
         .slice(0, 8);
-    
+
     const totalSize = sortedTypes.reduce((sum, [, data]) => sum + data.size, 0);
-    
+
     let currentX = 0;
     return sortedTypes.map(([type, data], index) => {
         const width = totalSize > 0 ? (data.size / totalSize) * 100 : 12.5;
@@ -766,24 +822,24 @@ function createFragmentationBar(label, count, total, color) {
 // Create growth trend visualization
 function createGrowthTrendVisualization(allocations) {
     if (allocations.length < 2) return '<div class="flex items-center justify-center h-full text-gray-400">Insufficient data</div>';
-    
+
     const sortedAllocs = allocations.sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
     const points = [];
     let cumulativeSize = 0;
-    
+
     sortedAllocs.forEach((alloc, index) => {
         cumulativeSize += alloc.size || 0;
         if (index % Math.max(1, Math.floor(sortedAllocs.length / 10)) === 0) {
             points.push(cumulativeSize);
         }
     });
-    
+
     const maxSize = Math.max(...points);
-    
+
     return points.map((size, index) => {
         const x = (index / (points.length - 1)) * 100;
         const y = 100 - (size / maxSize) * 80;
-        
+
         return `
             <div class="absolute w-2 h-2 bg-green-500 rounded-full transform -translate-x-1 -translate-y-1" 
                  style="left: ${x}%; top: ${y}%"
@@ -791,10 +847,10 @@ function createGrowthTrendVisualization(allocations) {
             </div>
             ${index > 0 ? `
                 <div class="absolute h-0.5 bg-green-500" 
-                     style="left: ${((index-1) / (points.length - 1)) * 100}%; 
-                            top: ${100 - (points[index-1] / maxSize) * 80}%; 
+                     style="left: ${((index - 1) / (points.length - 1)) * 100}%; 
+                            top: ${100 - (points[index - 1] / maxSize) * 80}%; 
                             width: ${(100 / (points.length - 1))}%;
-                            transform: rotate(${Math.atan2(y - (100 - (points[index-1] / maxSize) * 80), 100 / (points.length - 1)) * 180 / Math.PI}deg);
+                            transform: rotate(${Math.atan2(y - (100 - (points[index - 1] / maxSize) * 80), 100 / (points.length - 1)) * 180 / Math.PI}deg);
                             transform-origin: left center;">
                 </div>
             ` : ''}
@@ -805,16 +861,304 @@ function createGrowthTrendVisualization(allocations) {
 // Get color for type visualization
 function getTypeColor(type, index) {
     const colors = [
-        '#3498db', '#e74c3c', '#2ecc71', '#f39c12', 
+        '#3498db', '#e74c3c', '#2ecc71', '#f39c12',
         '#9b59b6', '#1abc9c', '#e67e22', '#95a5a6'
     ];
-    
+
     if (type.toLowerCase().includes('vec')) return '#3498db';
     if (type.toLowerCase().includes('string')) return '#f39c12';
     if (type.toLowerCase().includes('hash')) return '#e74c3c';
     if (type.toLowerCase().includes('btree')) return '#2ecc71';
-    
+
     return colors[index % colors.length];
+}
+
+// Create advanced metric card with enhanced styling
+function createAdvancedMetricCard(title, value, percentage, color, status) {
+    const circumference = 2 * Math.PI * 20;
+    const strokeDasharray = circumference;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+    const statusColors = {
+        'OPTIMAL': '#27ae60',
+        'MEDIUM': '#f39c12',
+        'HIGH': '#e74c3c'
+    };
+
+    return `
+        <div class="bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-all border border-gray-200 dark:border-gray-600">
+            <div class="flex flex-col items-center">
+                <div class="relative w-10 h-10 mb-2">
+                    <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 50 50">
+                        <circle cx="25" cy="25" r="20" stroke="#e5e7eb" stroke-width="4" fill="none" class="dark:stroke-gray-600"/>
+                        <circle cx="25" cy="25" r="20" stroke="${color}" stroke-width="4" fill="none" 
+                                stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}"
+                                stroke-linecap="round" class="transition-all duration-500"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-xs font-bold" style="color: ${color}">${Math.round(percentage)}%</span>
+                    </div>
+                </div>
+                <p class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase text-center">${title}</p>
+                <p class="text-sm font-bold text-gray-900 dark:text-white text-center">${value}</p>
+                <div class="flex items-center mt-1">
+                    <div class="w-1.5 h-1.5 rounded-full mr-1" style="background-color: ${statusColors[status]}"></div>
+                    <span class="text-xs font-semibold" style="color: ${statusColors[status]}">${status}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create advanced timeline visualization
+function createAdvancedTimelineVisualization(allocations, totalMemory) {
+    if (allocations.length === 0) return '<div class="flex items-center justify-center h-full text-gray-400">No timeline data</div>';
+
+    const sortedAllocs = allocations.sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+    const minTime = sortedAllocs[0]?.timestamp_alloc || 0;
+    const maxTime = sortedAllocs[sortedAllocs.length - 1]?.timestamp_alloc || minTime + 1;
+    const timeRange = maxTime - minTime || 1;
+
+    // Group allocations by scope/type for better visualization
+    const scopeGroups = {};
+    sortedAllocs.forEach(alloc => {
+        const scope = alloc.scope_name || (alloc.var_name ? 'User Variables' : 'System');
+        if (!scopeGroups[scope]) scopeGroups[scope] = [];
+        scopeGroups[scope].push(alloc);
+    });
+
+    const scopeColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+    let scopeIndex = 0;
+
+    return Object.entries(scopeGroups).map(([scope, allocs]) => {
+        const color = scopeColors[scopeIndex % scopeColors.length];
+        scopeIndex++;
+        const yOffset = scopeIndex * 25;
+
+        return `
+            <div class="absolute" style="top: ${yOffset}px; left: 0; right: 0; height: 20px;">
+                <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1" style="color: ${color}">
+                    ${scope} (${allocs.length} allocs)
+                </div>
+                ${allocs.slice(0, 20).map(alloc => {
+            const position = ((alloc.timestamp_alloc - minTime) / timeRange) * 100;
+            const width = Math.max(2, (alloc.size / totalMemory) * 100);
+
+            return `
+                        <div class="absolute h-4 rounded opacity-80 hover:opacity-100 transition-opacity cursor-pointer" 
+                             style="left: ${position}%; width: ${Math.max(4, width)}px; background-color: ${color};"
+                             title="${alloc.var_name || 'System'}: ${formatBytes(alloc.size)}">
+                        </div>
+                    `;
+        }).join('')}
+            </div>
+        `;
+    }).join('');
+}
+
+// Create advanced treemap visualization
+function createAdvancedTreemapVisualization(allocations, totalMemory) {
+    const typeGroups = {};
+    allocations.forEach(alloc => {
+        const type = alloc.type_name || 'System';
+        if (!typeGroups[type]) {
+            typeGroups[type] = { count: 0, size: 0, category: getTypeCategory(type) };
+        }
+        typeGroups[type].count++;
+        typeGroups[type].size += alloc.size || 0;
+    });
+
+    const sortedTypes = Object.entries(typeGroups)
+        .sort(([, a], [, b]) => b.size - a.size)
+        .slice(0, 12);
+
+    let currentX = 0;
+    let currentY = 0;
+    let rowHeight = 0;
+    const containerWidth = 100;
+
+    return sortedTypes.map(([type, data], index) => {
+        const width = Math.max(8, Math.min(25, (data.size / totalMemory) * 100));
+        const height = Math.max(20, Math.min(40, (data.count / allocations.length) * 100));
+
+        if (currentX + width > containerWidth) {
+            currentX = 0;
+            currentY += rowHeight + 5;
+            rowHeight = 0;
+        }
+
+        const color = getCategoryColor(data.category);
+        const result = `
+            <div class="absolute transition-all hover:brightness-110 cursor-pointer rounded shadow-sm" 
+                 style="left: ${currentX}%; top: ${currentY}%; width: ${width}%; height: ${height}px; background-color: ${color};"
+                 title="${type}: ${formatBytes(data.size)} (${data.count} allocs)">
+                <div class="p-1 h-full flex flex-col justify-center text-white text-xs font-semibold">
+                    <div class="truncate">${type.length > 8 ? type.substring(0, 6) + '..' : type}</div>
+                    <div class="text-xs opacity-90">${formatBytes(data.size)}</div>
+                </div>
+            </div>
+        `;
+
+        currentX += width + 2;
+        rowHeight = Math.max(rowHeight, height);
+        return result;
+    }).join('');
+}
+
+// Create advanced fragmentation bar
+function createAdvancedFragmentationBar(label, count, total, color) {
+    const percentage = total > 0 ? (count / total) * 100 : 0;
+    const barHeight = Math.max(8, (count / total) * 60);
+
+    return `
+        <div class="flex items-center justify-between">
+            <div class="flex items-center w-32">
+                <div class="w-4 rounded mr-3 border border-gray-300 dark:border-gray-500" 
+                     style="height: ${barHeight}px; background-color: ${color}"></div>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${label}</span>
+            </div>
+            <div class="flex-1 mx-3">
+                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                    <div class="h-3 rounded-full transition-all duration-500" 
+                         style="width: ${percentage}%; background-color: ${color}"></div>
+                </div>
+            </div>
+            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right">${count}</span>
+        </div>
+    `;
+}
+
+// Create call stack analysis
+function createCallStackAnalysis(allocations) {
+    const userAllocs = allocations.filter(a => a.var_name && a.var_name !== 'unknown');
+    const systemAllocs = allocations.filter(a => !a.var_name || a.var_name === 'unknown');
+
+    const topAllocations = [...userAllocs, ...systemAllocs.slice(0, 3)]
+        .sort((a, b) => (b.size || 0) - (a.size || 0))
+        .slice(0, 10);
+
+    return topAllocations.map(alloc => {
+        const isSystem = !alloc.var_name || alloc.var_name === 'unknown';
+        const color = isSystem ? '#e74c3c' : getTypeColor(alloc.type_name || '', 0);
+        const radius = Math.min(8, Math.max(3, Math.sqrt((alloc.size || 0) / 100)));
+
+        return `
+            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border">
+                <div class="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-500" 
+                     style="background-color: ${color}"></div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        ${alloc.var_name || 'System/Runtime allocations'}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        ${alloc.type_name || 'no type info'} • ${formatBytes(alloc.size || 0)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Create advanced growth trend visualization
+function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
+    if (allocations.length < 2) return '<div class="flex items-center justify-center h-full text-gray-400">Insufficient data</div>';
+
+    const sortedAllocs = allocations.sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+    const points = [];
+    let cumulativeSize = 0;
+
+    sortedAllocs.forEach((alloc, index) => {
+        cumulativeSize += alloc.size || 0;
+        if (index % Math.max(1, Math.floor(sortedAllocs.length / 15)) === 0) {
+            points.push({
+                x: (index / sortedAllocs.length) * 100,
+                y: 100 - (cumulativeSize / totalMemory) * 80,
+                size: cumulativeSize
+            });
+        }
+    });
+
+    return `
+        <!-- Background Grid -->
+        <div class="absolute inset-0">
+            ${[20, 40, 60, 80].map(y => `
+                <div class="absolute w-full border-t border-gray-200 dark:border-gray-500 opacity-30" 
+                     style="top: ${y}%"></div>
+            `).join('')}
+        </div>
+        
+        <!-- Growth Line -->
+        <svg class="absolute inset-0 w-full h-full">
+            <polyline
+                fill="none"
+                stroke="#27ae60"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                points="${points.map(p => `${p.x}% ${p.y}%`).join(', ')}"
+                class="drop-shadow-sm"
+            />
+        </svg>
+        
+        <!-- Data Points -->
+        ${points.map(point => `
+            <div class="absolute w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-600 transform -translate-x-1/2 -translate-y-1/2 hover:scale-150 transition-transform cursor-pointer" 
+                 style="left: ${point.x}%; top: ${point.y}%"
+                 title="Memory: ${formatBytes(point.size)}">
+            </div>
+        `).join('')}
+        
+        <!-- Peak Memory Line -->
+        <div class="absolute w-full border-t-2 border-red-500 border-dashed opacity-60" style="top: 20%">
+            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded">
+                Peak: ${formatBytes(totalMemory)}
+            </div>
+        </div>
+    `;
+}
+
+// Create variable allocation timeline
+function createVariableAllocationTimeline(allocations) {
+    const userAllocs = allocations.filter(a => a.var_name && a.var_name !== 'unknown')
+        .sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0))
+        .slice(0, 10);
+
+    return userAllocs.map((alloc, index) => {
+        const color = getTypeColor(alloc.type_name || '', index);
+
+        return `
+            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border">
+                <div class="w-3 h-3 rounded-full" style="background-color: ${color}"></div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white">
+                        ${alloc.var_name}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        ${alloc.type_name || 'unknown'} • ${formatBytes(alloc.size || 0)}
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                    ${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Helper functions
+function getTypeCategory(type) {
+    if (!type || type === 'System') return 'system';
+    if (type.toLowerCase().includes('vec') || type.toLowerCase().includes('hash') || type.toLowerCase().includes('btree')) return 'collections';
+    return 'basic';
+}
+
+function getCategoryColor(category) {
+    const colors = {
+        'collections': '#3498db',
+        'basic': '#2ecc71',
+        'system': '#95a5a6'
+    };
+    return colors[category] || '#95a5a6';
 }
 
 // Initialize allocations table with improved collapsible functionality
@@ -1163,8 +1507,8 @@ function initFFIVisualization() {
     const unsafeMemory = enhancedData.reduce((sum, item) => sum + (item.size || 0), 0);
 
     container.innerHTML = createFFIDashboardSVG(
-        unsafeAllocations, ffiAllocations, boundaryEvents.length, 
-        safetyViolations, unsafeMemory, enhancedData, 
+        unsafeAllocations, ffiAllocations, boundaryEvents.length,
+        safetyViolations, unsafeMemory, enhancedData,
         boundaryEvents, []
     );
 }
@@ -1330,7 +1674,7 @@ function createFFIMetricCard(title, value, color, icon) {
 function createAllocationSourceBar(label, count, maxCount, color) {
     const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
     const barHeight = Math.max(20, (count / maxCount) * 80);
-    
+
     return `
         <div class="flex items-end space-x-4">
             <div class="flex-1">
@@ -1357,13 +1701,13 @@ function createMemoryHotspot(item) {
     const color = isUnsafe ? '#e74c3c' : '#3498db';
     const bgColor = isUnsafe ? 'bg-red-900/20' : 'bg-blue-900/20';
     const borderColor = isUnsafe ? 'border-red-500/50' : 'border-blue-500/50';
-    
+
     return `
         <div class="flex flex-col items-center p-3 ${bgColor} border ${borderColor} rounded-lg backdrop-blur-sm hover:scale-105 transition-transform">
             <div class="relative mb-2">
                 <div class="rounded-full border-2 flex items-center justify-center text-white text-xs font-bold shadow-lg"
                      style="width: ${radius * 2}px; height: ${radius * 2}px; background-color: ${color}; border-color: ${color};">
-                    ${size > 1024 ? Math.round(size/1024) + 'K' : size + 'B'}
+                    ${size > 1024 ? Math.round(size / 1024) + 'K' : size + 'B'}
                 </div>
                 ${(item.safety_violations || 0) > 0 ? `
                     <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
@@ -1434,7 +1778,7 @@ function initMemoryFragmentation() {
     };
 
     container.innerHTML = createFragmentationAnalysisSVG(
-        fragmentationRatio, gaps, maxGap, sortedAllocs.length, 
+        fragmentationRatio, gaps, maxGap, sortedAllocs.length,
         totalMemory, sizeDistribution, sortedAllocs
     );
 }
@@ -1551,7 +1895,7 @@ function createFragmentationMetricCard(title, value, percentage, color) {
     const normalizedPercentage = Math.min(100, Math.max(0, percentage));
     const circumference = 2 * Math.PI * 20;
     const strokeDashoffset = circumference - (normalizedPercentage / 100) * circumference;
-    
+
     return `
         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between">
@@ -1592,13 +1936,13 @@ function createSizeDistributionBar(label, count, total, color) {
 // Create memory layout visualization
 function createMemoryLayoutVisualization(sortedAllocs, totalMemory) {
     if (sortedAllocs.length === 0) return '<div class="flex items-center justify-center h-full text-gray-400">No memory layout data</div>';
-    
+
     return sortedAllocs.slice(0, 30).map((alloc, index) => {
         const width = Math.max(1, (alloc.size / totalMemory) * 100);
         const left = (index / 30) * 100;
         const isUserAlloc = alloc.type !== 'System Allocation';
         const color = isUserAlloc ? '#3498db' : '#95a5a6';
-        
+
         return `
             <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer" 
                  style="left: ${left}%; width: ${width}%; background-color: ${color}; opacity: 0.8;"
@@ -1778,7 +2122,7 @@ function createMemoryGrowthTrendsSVG(peakMemory, averageMemory, growthRate, time
 // Create growth metric card
 function createGrowthMetricCard(title, value, percentage, color) {
     const normalizedPercentage = Math.min(100, Math.max(0, percentage));
-    
+
     return `
         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
             <div class="mb-2">
@@ -1796,17 +2140,17 @@ function createGrowthMetricCard(title, value, percentage, color) {
 // Create memory growth chart
 function createMemoryGrowthChart(timePoints, peakMemory) {
     if (timePoints.length < 2) return '<div class="flex items-center justify-center h-full text-gray-400">Insufficient data points</div>';
-    
+
     const chartHeight = 180;
     const chartWidth = 100; // percentage
-    
+
     // Create SVG path for the growth line
     const pathPoints = timePoints.map((point, index) => {
         const x = (index / (timePoints.length - 1)) * chartWidth;
         const y = chartHeight - ((point.memory / peakMemory) * (chartHeight - 20));
         return `${x}% ${y}px`;
     });
-    
+
     return `
         <!-- Background Grid -->
         <div class="absolute inset-0">
@@ -1825,25 +2169,25 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 points="${timePoints.map((point, index) => {
-                    const x = (index / (timePoints.length - 1)) * 100;
-                    const y = 100 - ((point.memory / peakMemory) * 90);
-                    return `${x}% ${y}%`;
-                }).join(', ')}"
+        const x = (index / (timePoints.length - 1)) * 100;
+        const y = 100 - ((point.memory / peakMemory) * 90);
+        return `${x}% ${y}%`;
+    }).join(', ')}"
                 class="drop-shadow-sm"
             />
         </svg>
         
         <!-- Data Points -->
         ${timePoints.map((point, index) => {
-            const x = (index / (timePoints.length - 1)) * 100;
-            const y = 100 - ((point.memory / peakMemory) * 90);
-            return `
+        const x = (index / (timePoints.length - 1)) * 100;
+        const y = 100 - ((point.memory / peakMemory) * 90);
+        return `
                 <div class="absolute w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-600 shadow-sm transform -translate-x-1/2 -translate-y-1/2 hover:scale-125 transition-transform cursor-pointer" 
                      style="left: ${x}%; top: ${y}%"
                      title="Memory: ${formatBytes(point.memory)} at allocation #${point.allocCount}">
                 </div>
             `;
-        }).join('')}
+    }).join('')}
         
         <!-- Peak Memory Indicator -->
         <div class="absolute w-full border-t-2 border-red-500 border-dashed opacity-60" style="top: 10%">
@@ -1919,13 +2263,13 @@ class NodeDetailPanel {
         // Find related allocation data
         const allocations = window.analysisData.memory_analysis?.allocations || [];
         const allocation = allocations.find(alloc => alloc.var_name === nodeData.id);
-        
+
         // Calculate relationships
-        const sameTypeCount = allocations.filter(alloc => 
+        const sameTypeCount = allocations.filter(alloc =>
             alloc.type_name === nodeData.type && alloc.var_name !== nodeData.id
         ).length;
-        
-        const sameCategoryCount = allocations.filter(alloc => 
+
+        const sameCategoryCount = allocations.filter(alloc =>
             getTypeCategory(alloc.type_name || '') === (nodeData.category || 'primitive') && alloc.var_name !== nodeData.id
         ).length;
 
@@ -2018,7 +2362,7 @@ class NodeDetailPanel {
         this.panel.style.left = '20px';
         this.panel.style.top = '20px';
         this.panel.style.zIndex = '1000';
-        
+
         console.log('Panel positioned at:', this.panel.style.left, this.panel.style.top);
     }
 }
@@ -2085,13 +2429,13 @@ function initVariableGraph() {
 
     // Create more sophisticated relationships
     const links = [];
-    
+
     // Type similarity relationships
     for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
             const node1 = nodes[i];
             const node2 = nodes[j];
-            
+
             // Same type relationship
             if (node1.type === node2.type) {
                 links.push({
@@ -2169,25 +2513,25 @@ function initVariableGraph() {
         .attr('stroke', '#fff')
         .attr('stroke-width', 2)
         .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))')
-        .on('mouseover', function(event, d) {
+        .on('mouseover', function (event, d) {
             d3.select(this)
                 .transition()
                 .duration(200)
                 .attr('r', Math.max(15, Math.sqrt(d.size) / 6))
                 .style('filter', 'drop-shadow(0px 4px 8px rgba(0,0,0,0.3))');
-            
+
             // Highlight connected links
-            link.style('stroke-opacity', l => 
+            link.style('stroke-opacity', l =>
                 (l.source.id === d.id || l.target.id === d.id) ? 0.8 : 0.1
             );
         })
-        .on('mouseout', function(event, d) {
+        .on('mouseout', function (event, d) {
             d3.select(this)
                 .transition()
                 .duration(200)
                 .attr('r', Math.max(12, Math.sqrt(d.size) / 8))
                 .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))');
-            
+
             // Reset link opacity
             link.style('stroke-opacity', l => 0.3 + l.strength * 0.4);
         });
@@ -2195,7 +2539,7 @@ function initVariableGraph() {
     // Add complexity indicators (small circles with numbers)
     const complexityGroup = node.append('g')
         .attr('class', 'complexity-indicator');
-    
+
     complexityGroup.append('circle')
         .attr('r', 8)
         .attr('cx', d => Math.max(12, Math.sqrt(d.size) / 8) + 8)
@@ -2203,7 +2547,7 @@ function initVariableGraph() {
         .attr('fill', d => getComplexityColor(d.complexity))
         .attr('stroke', '#fff')
         .attr('stroke-width', 2);
-    
+
     // Add complexity score text
     complexityGroup.append('text')
         .text(d => d.complexity || 2)
@@ -2236,8 +2580,8 @@ function initVariableGraph() {
 
     // Add click interaction
     const detailPanel = new NodeDetailPanel('variable-graph-container');
-    
-    node.on('click', function(event, d) {
+
+    node.on('click', function (event, d) {
         event.stopPropagation();
         console.log('Node clicked:', d.id, d);
         const position = {
@@ -2248,7 +2592,7 @@ function initVariableGraph() {
     });
 
     // Click on empty space to hide panel
-    svg.on('click', function(event) {
+    svg.on('click', function (event) {
         if (event.target === this) {
             detailPanel.hide();
         }
@@ -2327,7 +2671,7 @@ function getEnhancedTypeColor(typeName, category) {
         'RefCell': '#7c3aed',       // Violet-700
         'Cell': '#6d28d9',          // Violet-800
         'Weak': '#5b21b6',          // Violet-900
-        
+
         // Collections - Blue family
         'Vec': '#3b82f6',           // Blue-500
         'VecDeque': '#2563eb',      // Blue-600
@@ -2336,7 +2680,7 @@ function getEnhancedTypeColor(typeName, category) {
         'BTreeMap': '#1e3a8a',      // Blue-900
         'HashSet': '#60a5fa',       // Blue-400
         'BTreeSet': '#93c5fd',      // Blue-300
-        
+
         // String types - Orange/Amber family
         'String': '#f59e0b',        // Amber-500
         'str': '#d97706',           // Amber-600
@@ -2344,7 +2688,7 @@ function getEnhancedTypeColor(typeName, category) {
         'OsStr': '#92400e',         // Amber-800
         'CString': '#78350f',       // Amber-900
         'CStr': '#fbbf24',          // Amber-400
-        
+
         // Numeric types - Green family
         'i8': '#10b981',            // Emerald-500
         'i16': '#059669',           // Emerald-600
@@ -2360,11 +2704,11 @@ function getEnhancedTypeColor(typeName, category) {
         'f64': '#0d9488',           // Teal-600
         'usize': '#0f766e',         // Teal-700
         'isize': '#115e59',         // Teal-800
-        
+
         // Boolean and char - Pink family
         'bool': '#ec4899',          // Pink-500
         'char': '#db2777',          // Pink-600
-        
+
         // Option and Result - Indigo family
         'Option': '#6366f1',        // Indigo-500
         'Result': '#4f46e5',        // Indigo-600
@@ -2372,37 +2716,37 @@ function getEnhancedTypeColor(typeName, category) {
         'None': '#3730a3',          // Indigo-800
         'Ok': '#312e81',            // Indigo-900
         'Err': '#6366f1',           // Indigo-500
-        
+
         // Synchronization types - Red family
         'Mutex': '#ef4444',         // Red-500
         'RwLock': '#dc2626',        // Red-600
         'Condvar': '#b91c1c',       // Red-700
         'Barrier': '#991b1b',       // Red-800
         'Once': '#7f1d1d',          // Red-900
-        
+
         // Channel types - Cyan family
         'Sender': '#06b6d4',        // Cyan-500
         'Receiver': '#0891b2',      // Cyan-600
         'mpsc': '#0e7490',          // Cyan-700
-        
+
         // Path types - Lime family
         'Path': '#84cc16',          // Lime-500
         'PathBuf': '#65a30d',       // Lime-600
-        
+
         // Time types - Yellow family
         'Duration': '#eab308',      // Yellow-500
         'Instant': '#ca8a04',       // Yellow-600
         'SystemTime': '#a16207',    // Yellow-700
-        
+
         // IO types - Stone family
         'File': '#78716c',          // Stone-500
         'BufReader': '#57534e',     // Stone-600
         'BufWriter': '#44403c',     // Stone-700
-        
+
         // Thread types - Rose family
         'Thread': '#f43f5e',        // Rose-500
         'JoinHandle': '#e11d48',    // Rose-600
-        
+
         // Custom/Unknown types - Gray family
         'unknown': '#6b7280',       // Gray-500
         'custom': '#4b5563',        // Gray-600
@@ -2445,66 +2789,66 @@ function getEnhancedTypeColor(typeName, category) {
 // Get type category for grouping with comprehensive type recognition
 function getTypeCategory(typeName) {
     // Smart pointers
-    if (typeName.includes('Box') || typeName.includes('Rc') || typeName.includes('Arc') || 
+    if (typeName.includes('Box') || typeName.includes('Rc') || typeName.includes('Arc') ||
         typeName.includes('RefCell') || typeName.includes('Cell') || typeName.includes('Weak')) {
         return 'smart_pointer';
     }
-    
+
     // Collections
-    if (typeName.includes('Vec') || typeName.includes('HashMap') || typeName.includes('BTreeMap') || 
+    if (typeName.includes('Vec') || typeName.includes('HashMap') || typeName.includes('BTreeMap') ||
         typeName.includes('HashSet') || typeName.includes('BTreeSet') || typeName.includes('VecDeque') ||
         typeName.includes('LinkedList')) {
         return 'collection';
     }
-    
+
     // String types
     if (typeName.includes('String') || typeName.includes('str') || typeName.includes('OsString') ||
         typeName.includes('OsStr') || typeName.includes('CString') || typeName.includes('CStr')) {
         return 'string';
     }
-    
+
     // Numeric types
-    if (typeName.match(/^[iuf]\d+$/) || typeName === 'usize' || typeName === 'isize' || 
+    if (typeName.match(/^[iuf]\d+$/) || typeName === 'usize' || typeName === 'isize' ||
         typeName === 'bool' || typeName === 'char') {
         return 'numeric';
     }
-    
+
     // Synchronization types
     if (typeName.includes('Mutex') || typeName.includes('RwLock') || typeName.includes('Condvar') ||
         typeName.includes('Barrier') || typeName.includes('Once')) {
         return 'sync';
     }
-    
+
     // Channel types
     if (typeName.includes('Sender') || typeName.includes('Receiver') || typeName.includes('mpsc')) {
         return 'channel';
     }
-    
+
     // Path types
     if (typeName.includes('Path') || typeName.includes('PathBuf')) {
         return 'path';
     }
-    
+
     // Time types
     if (typeName.includes('Duration') || typeName.includes('Instant') || typeName.includes('SystemTime')) {
         return 'time';
     }
-    
+
     // IO types
     if (typeName.includes('File') || typeName.includes('BufReader') || typeName.includes('BufWriter')) {
         return 'io';
     }
-    
+
     // Thread types
     if (typeName.includes('Thread') || typeName.includes('JoinHandle')) {
         return 'thread';
     }
-    
+
     // Option and Result
     if (typeName.includes('Option') || typeName.includes('Result')) {
         return 'option_result';
     }
-    
+
     return 'primitive';
 }
 
@@ -2517,31 +2861,31 @@ function getGenericBase(typeName) {
 // Get complexity score from type with comprehensive scoring
 function getComplexityFromType(typeName) {
     // Very high complexity (9-10)
-    if (typeName.includes('HashMap') || typeName.includes('BTreeMap') || 
+    if (typeName.includes('HashMap') || typeName.includes('BTreeMap') ||
         typeName.includes('BTreeSet') || typeName.includes('LinkedList')) return 9;
-    
+
     // High complexity (7-8)
     if (typeName.includes('Arc') || typeName.includes('Mutex') || typeName.includes('RwLock') ||
         typeName.includes('Condvar') || typeName.includes('Barrier')) return 8;
     if (typeName.includes('Rc') || typeName.includes('RefCell') || typeName.includes('HashSet') ||
         typeName.includes('VecDeque')) return 7;
-    
+
     // Medium complexity (5-6)
     if (typeName.includes('Vec') || typeName.includes('Box') || typeName.includes('Option') ||
         typeName.includes('Result')) return 6;
     if (typeName.includes('String') || typeName.includes('PathBuf') || typeName.includes('OsString') ||
         typeName.includes('CString')) return 5;
-    
+
     // Low complexity (3-4)
     if (typeName.includes('str') || typeName.includes('Path') || typeName.includes('OsStr') ||
         typeName.includes('CStr') || typeName.includes('Duration') || typeName.includes('Instant')) return 4;
     if (typeName.includes('Sender') || typeName.includes('Receiver') || typeName.includes('File') ||
         typeName.includes('Thread') || typeName.includes('JoinHandle')) return 3;
-    
+
     // Very low complexity (1-2)
-    if (typeName.match(/^[iuf]\d+$/) || typeName === 'usize' || typeName === 'isize' || 
+    if (typeName.match(/^[iuf]\d+$/) || typeName === 'usize' || typeName === 'isize' ||
         typeName === 'bool' || typeName === 'char') return 1;
-    
+
     // Default for unknown types
     return 2;
 }
@@ -2575,7 +2919,7 @@ function getComplexityExplanation(score) {
 // Get type analysis information
 function getTypeAnalysis(typeName, size) {
     const analysis = [];
-    
+
     if (typeName.includes('Vec')) {
         analysis.push('• Dynamic array with heap allocation');
         analysis.push('• Grows automatically as needed');
@@ -2595,7 +2939,7 @@ function getTypeAnalysis(typeName, size) {
     } else {
         analysis.push('• Basic type allocation');
     }
-    
+
     if (size === 0) {
         analysis.push('• Zero-sized type (ZST)');
     } else if (size < 64) {
@@ -2603,7 +2947,7 @@ function getTypeAnalysis(typeName, size) {
     } else if (size > 1024) {
         analysis.push('• Large allocation - monitor memory usage');
     }
-    
+
     return analysis.join('<br>');
 }
 
