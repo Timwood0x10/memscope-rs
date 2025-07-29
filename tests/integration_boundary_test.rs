@@ -35,8 +35,11 @@ fn test_mixed_allocation_patterns() {
         "Should track multiple allocations"
     );
 
-    // Test export with mixed data
-    let export_result = tracker.export_to_json("mixed_patterns.json");
+    // Test export with mixed data - using fast mode
+    let fast_options = memscope_rs::export::optimized_json_export::OptimizedExportOptions::with_optimization_level(
+        memscope_rs::export::optimized_json_export::OptimizationLevel::Low
+    ).fast_export_mode(true);
+    let export_result = tracker.export_to_json_with_optimized_options("mixed_patterns.json", fast_options);
     assert!(
         export_result.is_ok(),
         "Should export mixed allocation patterns"
@@ -286,8 +289,11 @@ fn test_comprehensive_export_integration() {
         .track_unsafe_allocation(0x6000, 64, "integration_test".to_string())
         .expect("Should track unsafe allocation");
 
-    // Test all export formats
-    let json_result = tracker.export_to_json("comprehensive_test.json");
+    // Test all export formats - using fast mode
+    let fast_options = memscope_rs::export::optimized_json_export::OptimizedExportOptions::with_optimization_level(
+        memscope_rs::export::optimized_json_export::OptimizationLevel::Low
+    ).fast_export_mode(true);
+    let json_result = tracker.export_to_json_with_optimized_options("comprehensive_test.json", fast_options);
     assert!(json_result.is_ok(), "JSON export should succeed");
 
     let svg_result = tracker.export_memory_analysis("comprehensive_test.svg");
