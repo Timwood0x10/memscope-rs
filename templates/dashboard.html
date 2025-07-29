@@ -251,32 +251,18 @@
                     </div>
                 </div>
 
+                <!-- Key Charts Grid - Simplified -->
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <h3 class="text-lg font-medium mb-3 text-heading">Complexity Distribution</h3>
-                        <div class="h-64">
-                            <canvas id="complexity-chart"></canvas>
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-medium mb-3 dark:text-white">Memory Distribution by Type</h3>
+                        <h3 class="text-lg font-medium mb-3 text-heading">Memory Distribution by Type</h3>
                         <div class="h-64">
                             <canvas id="memory-distribution-chart"></canvas>
                         </div>
                     </div>
-                </div>
-
-                <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <h3 class="text-lg font-medium mb-3 dark:text-white">Allocation Size Distribution</h3>
                         <div class="h-64">
                             <canvas id="allocation-size-chart"></canvas>
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-medium mb-3 dark:text-white">Performance Metrics</h3>
-                        <div class="h-64">
-                            <canvas id="performance-chart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -402,44 +388,7 @@
             </div>
         </section>
 
-        <!-- Generic Types Table -->
-        <section class="mb-12">
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-table text-primary mr-2"></i>Generic Types Details
-                </h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead class="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Variable Name</th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Type</th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Pointer</th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Size (bytes)</th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Lifetime (ms)</th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Complexity</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                            id="generic-types-table-body">
-                            <!-- Will be populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
+
 
         <!-- Variable Relationship Graph -->
         <section class="mb-12">
@@ -480,128 +429,22 @@
                     </div>
                 </div>
 
-                <!-- Legend -->
-                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Simplified Legend -->
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="legend-bg rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2 text-heading">Node Size</h4>
-                        <p class="legend-text text-xs">Size represents memory allocation size</p>
-                        <p class="legend-text text-xs mt-1">Small circle = complexity score</p>
-                    </div>
-                    <div class="legend-bg rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2 text-heading">Smart Pointers</h4>
-                        <div class="space-y-1">
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #8b5cf6;"></div>
-                                <span class="legend-text">Box&lt;T&gt;</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #a855f7;"></div>
-                                <span class="legend-text">Rc&lt;T&gt;</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #9333ea;"></div>
-                                <span class="legend-text">Arc&lt;T&gt;</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #7c3aed;"></div>
-                                <span class="legend-text">RefCell&lt;T&gt;</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="legend-bg rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2 text-heading">Collections</h4>
-                        <div class="space-y-1">
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #3b82f6;"></div>
-                                <span class="legend-text">Vec&lt;T&gt;</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #1e40af;"></div>
-                                <span class="legend-text">HashMap</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #1e3a8a;"></div>
-                                <span class="legend-text">BTreeMap</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #60a5fa;"></div>
-                                <span class="legend-text">HashSet</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="legend-bg rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2 text-heading">Other Types</h4>
-                        <div class="space-y-1">
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #f59e0b;"></div>
-                                <span class="legend-text">String</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #10b981;"></div>
-                                <span class="legend-text">Numeric</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #ef4444;"></div>
-                                <span class="legend-text">Sync Types</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-3 h-3 rounded-full mr-2" style="background-color: #6b7280;"></div>
-                                <span class="legend-text">Other</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Relationship Legend -->
-                <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="legend-bg rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2 text-heading">Connection Types</h4>
-                        <div class="space-y-1">
-                            <div class="flex items-center text-xs">
-                                <div class="w-4 h-0.5 mr-2" style="background-color: #ef4444;"></div>
-                                <span class="legend-text">Same Type</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-4 h-0.5 mr-2" style="background-color: #3b82f6; border-top: 1px dashed #3b82f6;"></div>
-                                <span class="legend-text">Same Category</span>
-                            </div>
-                            <div class="flex items-center text-xs">
-                                <div class="w-4 h-0.5 mr-2" style="background-color: #10b981;"></div>
-                                <span class="legend-text">Generic Family</span>
-                            </div>
+                        <h4 class="font-semibold text-sm mb-2 text-heading">Type Colors</h4>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="flex items-center"><div class="w-3 h-3 rounded-full mr-2 bg-blue-500"></div><span class="legend-text">Collections</span></div>
+                            <div class="flex items-center"><div class="w-3 h-3 rounded-full mr-2 bg-purple-500"></div><span class="legend-text">Smart Pointers</span></div>
+                            <div class="flex items-center"><div class="w-3 h-3 rounded-full mr-2 bg-yellow-500"></div><span class="legend-text">Strings</span></div>
+                            <div class="flex items-center"><div class="w-3 h-3 rounded-full mr-2 bg-gray-500"></div><span class="legend-text">Other</span></div>
                         </div>
                     </div>
                     <div class="legend-bg rounded-lg p-3">
                         <h4 class="font-semibold text-sm mb-2 text-heading">Interactions</h4>
-                        <div class="space-y-1">
-                            <div class="legend-text text-xs">• Click nodes for details</div>
-                            <div class="legend-text text-xs">• Drag nodes to reposition</div>
-                            <div class="legend-text text-xs">• Scroll to zoom in/out</div>
-                            <div class="legend-text text-xs">• Hover to highlight connections</div>
-                        </div>
-                    </div>
-                    <div class="legend-bg rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2 text-heading">Complexity Indicators</h4>
-                        <div class="space-y-1 text-xs">
-                            <div class="flex items-center">
-                                <div class="w-4 h-4 rounded-full mr-2 flex items-center justify-center text-white font-bold text-xs" style="background-color: #10b981;">1</div>
-                                <span class="legend-text">Simple (1-2): Basic types</span>
-                            </div>
-                            <div class="flex items-center">
-                                <div class="w-4 h-4 rounded-full mr-2 flex items-center justify-center text-white font-bold text-xs" style="background-color: #eab308;">4</div>
-                                <span class="legend-text">Medium (3-5): String, etc</span>
-                            </div>
-                            <div class="flex items-center">
-                                <div class="w-4 h-4 rounded-full mr-2 flex items-center justify-center text-white font-bold text-xs" style="background-color: #f97316;">6</div>
-                                <span class="legend-text">Complex (6-8): Vec, Box, etc</span>
-                            </div>
-                            <div class="flex items-center">
-                                <div class="w-4 h-4 rounded-full mr-2 flex items-center justify-center text-white font-bold text-xs" style="background-color: #ef4444;">9</div>
-                                <span class="legend-text">Very Complex (9-10): HashMap, etc</span>
-                            </div>
-                        </div>
-                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            Higher numbers indicate more complex types with greater performance overhead
+                        <div class="space-y-1 text-xs legend-text">
+                            <div>• Click nodes for details • Drag to reposition</div>
+                            <div>• Scroll to zoom • Hover to highlight</div>
                         </div>
                     </div>
                 </div>
@@ -645,90 +488,7 @@
             </div>
         </section>
 
-        <!-- Complex Type Analysis -->
-        <section class="mb-12">
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-cogs text-primary mr-2"></i>Complex Type Analysis
-                </h2>
 
-                <!-- Analysis Chart -->
-                <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Complexity vs Memory Efficiency</h3>
-                    <div class="h-64">
-                        <canvas id="complex-type-analysis-chart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Analysis Table -->
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead class="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Type</th>
-                                <th
-                                    class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Complexity</th>
-                                <th
-                                    class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Efficiency</th>
-                                <th
-                                    class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Allocations</th>
-                                <th
-                                    class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Total Size</th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Suggestions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                            id="complex-type-analysis-table">
-                            <tr>
-                                <td colspan="6" class="px-6 py-8 text-center text-gray-500">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- FFI Data Section -->
-        <section class="mb-12">
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-exclamation-triangle text-ffi-red mr-2"></i>Unsafe FFI Data
-                </h2>
-
-                <!-- FFI Risk Chart -->
-                <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Risk Assessment</h3>
-                    <div class="h-64">
-                        <canvas id="ffi-risk-chart"></canvas>
-                    </div>
-                </div>
-
-                <!-- FFI Data Details -->
-                <div id="ffi-data-render" class="space-y-4">
-                    <!-- Will be populated by JavaScript -->
-                </div>
-            </div>
-        </section>
-
-        <!-- Memory Optimization Recommendations -->
-        <section class="mb-12">
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-lightbulb-o text-primary mr-2"></i>Memory Optimization Recommendations
-                </h2>
-                <ul id="memory-optimization-recommendations" class="space-y-2">
-                    <!-- Will be populated by JavaScript -->
-                </ul>
-            </div>
-        </section>
     </main>
 
     <footer class="bg-white border-t mt-12">

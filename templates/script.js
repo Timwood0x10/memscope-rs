@@ -21,11 +21,7 @@ function initializeDashboard() {
     initMemoryFragmentation();
     initMemoryGrowthTrends();
     initAllocationsTable();
-    initGenericTypesTable();
     initVariableGraph();
-    initComplexTypeAnalysis();
-    initMemoryOptimizationRecommendations();
-    initFFIRiskChart();
 }
 
 // Initialize theme toggle functionality
@@ -165,65 +161,18 @@ function initSummaryStats() {
     updateElement('primitives-count', primitivesCount);
 }
 
-// Initialize charts
+// Initialize charts - simplified
 function initCharts() {
     console.log('📊 Initializing charts...');
-
-    // Initialize complexity chart
-    initComplexityChart();
 
     // Initialize memory distribution chart
     initMemoryDistributionChart();
 
     // Initialize allocation size chart
     initAllocationSizeChart();
-
-    // Initialize performance chart
-    initPerformanceChart();
-
-    // Initialize complex type analysis chart
-    initComplexTypeAnalysisChart();
 }
 
-// Initialize complexity chart
-function initComplexityChart() {
-    const ctx = document.getElementById('complexity-chart');
-    if (!ctx) return;
 
-    const complexTypes = window.analysisData.complex_types?.summary?.complexity_distribution || {};
-
-    // Destroy existing chart if it exists
-    if (window.chartInstances['complexity-chart']) {
-        window.chartInstances['complexity-chart'].destroy();
-    }
-
-    window.chartInstances['complexity-chart'] = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Low', 'Medium', 'High', 'Very High'],
-            datasets: [{
-                data: [
-                    complexTypes.low_complexity || 0,
-                    complexTypes.medium_complexity || 0,
-                    complexTypes.high_complexity || 0,
-                    complexTypes.very_high_complexity || 0
-                ],
-                backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#7c2d12']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    labels: {
-                        color: document.documentElement.classList.contains('dark') ? '#ffffff' : '#374151'
-                    }
-                }
-            }
-        }
-    });
-}
 
 // Initialize memory distribution chart
 function initMemoryDistributionChart() {
@@ -346,68 +295,7 @@ function initAllocationSizeChart() {
     });
 }
 
-// Initialize performance chart
-function initPerformanceChart() {
-    const ctx = document.getElementById('performance-chart');
-    if (!ctx) return;
 
-    const performance = window.analysisData.performance?.memory_performance || {};
-    const isDark = document.documentElement.classList.contains('dark');
-
-    // Destroy existing chart if it exists
-    if (window.chartInstances['performance-chart']) {
-        window.chartInstances['performance-chart'].destroy();
-    }
-
-    window.chartInstances['performance-chart'] = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Active Memory', 'Peak Memory', 'Total Allocated'],
-            datasets: [{
-                label: 'Memory (bytes)',
-                data: [
-                    performance.active_memory || 0,
-                    performance.peak_memory || 0,
-                    performance.total_allocated || 0
-                ],
-                backgroundColor: ['#10b981', '#f59e0b', '#ef4444']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    labels: {
-                        color: isDark ? '#ffffff' : '#374151'
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    ticks: {
-                        color: isDark ? '#d1d5db' : '#6b7280'
-                    },
-                    grid: {
-                        color: isDark ? '#374151' : '#e5e7eb'
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        color: isDark ? '#d1d5db' : '#6b7280',
-                        callback: function (value) {
-                            return formatBytes(value);
-                        }
-                    },
-                    grid: {
-                        color: isDark ? '#374151' : '#e5e7eb'
-                    }
-                }
-            }
-        }
-    });
-}
 
 // Process memory analysis data with validation and fallback
 function processMemoryAnalysisData(rawData) {
