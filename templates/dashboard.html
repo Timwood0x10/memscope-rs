@@ -27,8 +27,8 @@
     <!-- Data injection script -->
     <script>
         // Global data store - populated by Rust template
-        window.analysisData = {{json_data}};
-        window.embeddedJsonData = {{json_data}};
+        window.analysisData = {{ json_data }};
+        window.embeddedJsonData = {{ json_data }};
     </script>
 
     <style type="text/tailwindcss">
@@ -213,9 +213,11 @@
                     <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral dark:text-white">
                         <i class="fa fa-microchip text-primary mr-3"></i>Memory & FFI Snapshot Analysis
                     </h1>
-                    <p class="text-gray-500 mt-1 dark:text-gray-300">Complex Types, Lifetimes, Relationships & Unsafe Operations</p>
+                    <p class="text-gray-500 mt-1 dark:text-gray-300">Complex Types, Lifetimes, Relationships & Unsafe
+                        Operations</p>
                 </div>
-                <button id="theme-toggle" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
+                <button id="theme-toggle"
+                    class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
                     <i class="fa fa-moon-o dark:hidden"></i>
                     <i class="fa fa-sun-o hidden dark:inline"></i>
                 </button>
@@ -227,31 +229,31 @@
         <!-- Summary Section -->
         <section class="mb-12">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
-                <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
                     <i class="fa fa-bar-chart text-primary mr-2"></i>Analysis Summary
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-gray-500 dark:text-gray-300 text-sm">Total Complex Types</p>
-                        <p class="text-3xl font-bold dark:text-white" id="total-complex-types">5</p>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Total Complex Types</p>
+                        <p class="text-3xl font-bold text-heading" id="total-complex-types">5</p>
                     </div>
-                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-gray-500 dark:text-gray-300 text-sm">Allocations Analyzed</p>
-                        <p class="text-3xl font-bold dark:text-white" id="total-allocations">639</p>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Allocations Analyzed</p>
+                        <p class="text-3xl font-bold text-heading" id="total-allocations">639</p>
                     </div>
-                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-gray-500 dark:text-gray-300 text-sm">Generic Types</p>
-                        <p class="text-3xl font-bold dark:text-white" id="generic-type-count">6</p>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Generic Types</p>
+                        <p class="text-3xl font-bold text-heading" id="generic-type-count">6</p>
                     </div>
-                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 hover-lift border-l-4 border-red-500 transition-colors">
-                        <p class="text-gray-500 dark:text-gray-300 text-sm">Unsafe FFI Entries</p>
-                        <p class="text-3xl font-bold dark:text-white" id="unsafe-ffi-count">2</p>
+                    <div class="status-card-red rounded-lg p-4 hover-lift transition-colors">
+                        <p class="status-title text-sm">Unsafe FFI Entries</p>
+                        <p class="text-3xl font-bold status-value" id="unsafe-ffi-count">2</p>
                     </div>
                 </div>
 
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <h3 class="text-lg font-medium mb-3 dark:text-white">Complexity Distribution</h3>
+                        <h3 class="text-lg font-medium mb-3 text-heading">Complexity Distribution</h3>
                         <div class="h-64">
                             <canvas id="complexity-chart"></canvas>
                         </div>
@@ -281,7 +283,7 @@
 
                 <!-- Memory Usage Analysis - SVG Style -->
                 <div class="mt-8">
-                    <h3 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">Memory Usage Analysis</h3>
+                    <h3 class="text-lg font-medium mb-3 text-heading">Memory Usage Analysis</h3>
                     <div id="memory-usage-analysis"
                         class="bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg p-6 h-80">
                         <!-- Will be populated by JavaScript -->
@@ -293,7 +295,7 @@
         <!-- Variable Lifecycle Timeline -->
         <section class="mb-12">
             <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
-                <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
                     <i class="fa fa-clock-o text-primary mr-2"></i>Variable Lifecycle Timeline
                 </h2>
                 <div class="overflow-x-auto">
@@ -302,7 +304,8 @@
                             <!-- Timeline header with time markers -->
                             <div class="w-40 flex-shrink-0 font-medium dark:text-gray-200">Variable</div>
                             <div class="flex-grow flex border-t border-gray-300 dark:border-gray-600 relative">
-                                <div class="absolute top-0 left-0 w-full flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                                <div
+                                    class="absolute top-0 left-0 w-full flex justify-between text-xs text-gray-500 dark:text-gray-400">
                                     <span>0ms</span>
                                     <span>250ms</span>
                                     <span>500ms</span>
@@ -343,10 +346,11 @@
             <h2 class="text-2xl font-bold mb-6 text-center dark:text-white">
                 <i class="fa fa-memory text-primary mr-2"></i>Memory Analysis
             </h2>
-            
+
             <!-- Memory Usage Analysis -->
             <div class="mb-8">
-                <div id="memory-usage-analysis" class="bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg p-6 h-80">
+                <div id="memory-usage-analysis"
+                    class="bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg p-6 h-80">
                     <!-- Will be populated by JavaScript -->
                 </div>
             </div>
@@ -364,10 +368,11 @@
             <!-- Memory Allocations Table with Collapsible Feature -->
             <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold flex items-center dark:text-white">
+                    <h3 class="text-xl font-semibold flex items-center text-heading">
                         <i class="fa fa-table text-primary mr-2"></i>Memory Allocations
                     </h3>
-                    <button id="toggle-allocations" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                    <button id="toggle-allocations"
+                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
                         <i class="fa fa-chevron-down mr-1"></i>
                         <span>Show All</span>
                     </button>
@@ -376,15 +381,25 @@
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead>
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variable</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Allocated At</th>
+                                <th
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Variable</th>
+                                <th
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Type</th>
+                                <th
+                                    class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Size</th>
+                                <th
+                                    class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Allocated At</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="allocations-table">
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                            id="allocations-table">
                             <tr>
-                                <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Loading...</td>
+                                <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    Loading...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -405,7 +420,7 @@
         <!-- Generic Types Table -->
         <section class="mb-12">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
                     <i class="fa fa-table text-primary mr-2"></i>Generic Types Details
                 </h2>
                 <div class="overflow-x-auto">
@@ -432,7 +447,8 @@
                                     Complexity</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="generic-types-table-body">
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                            id="generic-types-table-body">
                             <!-- Will be populated by JavaScript -->
                         </tbody>
                     </table>
@@ -443,7 +459,7 @@
         <!-- Variable Relationship Graph -->
         <section class="mb-12">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
                     <i class="fa fa-sitemap text-primary mr-2"></i>Variable Relationship Graph
                 </h2>
 
@@ -453,9 +469,11 @@
                         <div class="text-sm text-gray-600 dark:text-gray-400">Click on a node to view details</div>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button id="reset-zoom" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-900 dark:text-white">Reset
+                        <button id="reset-zoom"
+                            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-900 dark:text-white">Reset
                             View</button>
-                        <button id="auto-layout" class="px-3 py-1 bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-sm text-blue-900 dark:text-blue-100">Auto
+                        <button id="auto-layout"
+                            class="px-3 py-1 bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-sm text-blue-900 dark:text-blue-100">Auto
                             Layout</button>
                     </div>
                 </div>
@@ -466,10 +484,12 @@
                     <div id="variable-graph-container" class="w-full h-full"></div>
 
                     <!-- Node Details Panel -->
-                    <div id="node-details" class="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 w-64 hidden border border-gray-200 dark:border-gray-600">
+                    <div id="node-details"
+                        class="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 w-64 hidden border border-gray-200 dark:border-gray-600">
                         <div class="flex justify-between items-center mb-2">
                             <h4 class="font-semibold text-gray-800 dark:text-white">Node Details</h4>
-                            <button id="close-details" class="text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-100">&times;</button>
+                            <button id="close-details"
+                                class="text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-100">&times;</button>
                         </div>
                         <div id="node-details-content" class="text-gray-900 dark:text-gray-100"></div>
                     </div>
@@ -477,82 +497,82 @@
 
                 <!-- Legend -->
                 <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-gray-50 rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2">Node Size</h4>
-                        <p class="text-xs text-gray-600">Size represents complexity score</p>
+                    <div class="legend-bg rounded-lg p-3">
+                        <h4 class="font-semibold text-sm mb-2 text-heading">Node Size</h4>
+                        <p class="legend-text">Size represents complexity score</p>
                     </div>
-                    <div class="bg-gray-50 rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2">Node Colors</h4>
+                    <div class="legend-bg rounded-lg p-3">
+                        <h4 class="font-semibold text-sm mb-2 text-heading">Node Colors</h4>
                         <div class="space-y-1">
                             <div class="flex items-center text-xs">
                                 <div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                                <span>Smart Pointers</span>
+                                <span class="legend-text">Smart Pointers</span>
                             </div>
                             <div class="flex items-center text-xs">
                                 <div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                                <span>Collections</span>
+                                <span class="legend-text">Collections</span>
                             </div>
                             <div class="flex items-center text-xs">
                                 <div class="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
-                                <span>Primitives</span>
+                                <span class="legend-text">Primitives</span>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-gray-50 rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2">Edge Types</h4>
+                    <div class="legend-bg rounded-lg p-3">
+                        <h4 class="font-semibold text-sm mb-2 text-heading">Edge Types</h4>
                         <div class="space-y-1">
                             <div class="flex items-center text-xs">
                                 <div class="w-4 h-0.5 bg-gray-600 mr-2"></div>
-                                <span>Clone</span>
+                                <span class="legend-text">Clone</span>
                             </div>
                             <div class="flex items-center text-xs">
                                 <div class="w-4 h-0.5 bg-blue-600 mr-2"></div>
-                                <span>Similar Type</span>
+                                <span class="legend-text">Similar Type</span>
                             </div>
                             <div class="flex items-center text-xs">
                                 <div class="w-4 h-0.5 bg-red-600 mr-2"></div>
-                                <span>Contains</span>
+                                <span class="legend-text">Contains</span>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-gray-50 rounded-lg p-3">
-                        <h4 class="font-semibold text-sm mb-2">Relationship Types</h4>
+                    <div class="legend-bg rounded-lg p-3">
+                        <h4 class="font-semibold text-sm mb-2 text-heading">Relationship Types</h4>
                         <div class="space-y-1">
-                            <div class="text-xs">Clone Relationship</div>
-                            <div class="text-xs">Type Similarity</div>
+                            <div class="legend-text">Clone Relationship</div>
+                            <div class="legend-text">Type Similarity</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Variable Categories Summary -->
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
+                    <div class="status-card-blue rounded-lg p-4">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h4 class="font-semibold text-blue-800">Smart Pointers</h4>
-                                <p class="text-2xl font-bold text-blue-600" id="smart-pointers-count">5</p>
+                                <h4 class="font-semibold status-title">Smart Pointers</h4>
+                                <p class="text-2xl font-bold status-value" id="smart-pointers-count">5</p>
                             </div>
                             <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
                                 <i class="fa fa-share-alt text-white"></i>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-green-50 rounded-lg p-4 border-l-4 border-green-500">
+                    <div class="status-card-green rounded-lg p-4">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h4 class="font-semibold text-green-800">Collections</h4>
-                                <p class="text-2xl font-bold text-green-600" id="collections-count">1</p>
+                                <h4 class="font-semibold status-title">Collections</h4>
+                                <p class="text-2xl font-bold status-value" id="collections-count">1</p>
                             </div>
                             <div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
                                 <i class="fa fa-list text-white"></i>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-orange-50 rounded-lg p-4 border-l-4 border-orange-500">
+                    <div class="status-card-orange rounded-lg p-4">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h4 class="font-semibold text-orange-800">Primitives</h4>
-                                <p class="text-2xl font-bold text-orange-600" id="primitives-count">0</p>
+                                <h4 class="font-semibold status-title">Primitives</h4>
+                                <p class="text-2xl font-bold status-value" id="primitives-count">0</p>
                             </div>
                             <div class="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
                                 <i class="fa fa-cube text-white"></i>
@@ -566,13 +586,13 @@
         <!-- Complex Type Analysis -->
         <section class="mb-12">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
                     <i class="fa fa-cogs text-primary mr-2"></i>Complex Type Analysis
                 </h2>
 
                 <!-- Analysis Chart -->
                 <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">Complexity vs Memory Efficiency</h3>
+                    <h3 class="text-lg font-medium mb-3 text-heading">Complexity vs Memory Efficiency</h3>
                     <div class="h-64">
                         <canvas id="complex-type-analysis-chart"></canvas>
                     </div>
@@ -603,7 +623,8 @@
                                     Suggestions</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="complex-type-analysis-table">
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                            id="complex-type-analysis-table">
                             <tr>
                                 <td colspan="6" class="px-6 py-8 text-center text-gray-500">Loading...</td>
                             </tr>
@@ -616,13 +637,13 @@
         <!-- FFI Data Section -->
         <section class="mb-12">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
                     <i class="fa fa-exclamation-triangle text-ffi-red mr-2"></i>Unsafe FFI Data
                 </h2>
 
                 <!-- FFI Risk Chart -->
                 <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">Risk Assessment</h3>
+                    <h3 class="text-lg font-medium mb-3 text-heading">Risk Assessment</h3>
                     <div class="h-64">
                         <canvas id="ffi-risk-chart"></canvas>
                     </div>
@@ -638,7 +659,7 @@
         <!-- Memory Optimization Recommendations -->
         <section class="mb-12">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
                     <i class="fa fa-lightbulb-o text-primary mr-2"></i>Memory Optimization Recommendations
                 </h2>
                 <ul id="memory-optimization-recommendations" class="space-y-2">

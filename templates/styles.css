@@ -6,10 +6,38 @@
     --graph-link-color: #6b7280;
     --detail-panel-bg: #ffffff;
     --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    
+    /* Text colors */
     --text-primary: #374151;
     --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --text-heading: #111827;
+    
+    /* Background colors */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-tertiary: #f3f4f6;
     --module-bg-secondary: #f9fafb;
     --module-border-secondary: #e5e7eb;
+    
+    /* Card colors */
+    --card-bg: #ffffff;
+    --card-border: #e5e7eb;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    
+    /* Status colors - light mode */
+    --status-blue-bg: #eff6ff;
+    --status-blue-text: #1e40af;
+    --status-blue-accent: #3b82f6;
+    --status-green-bg: #f0fdf4;
+    --status-green-text: #166534;
+    --status-green-accent: #22c55e;
+    --status-orange-bg: #fff7ed;
+    --status-orange-text: #c2410c;
+    --status-orange-accent: #f97316;
+    --status-red-bg: #fef2f2;
+    --status-red-text: #dc2626;
+    --status-red-accent: #ef4444;
 }
 
 .dark {
@@ -19,10 +47,38 @@
     --graph-link-color: #9ca3af;
     --detail-panel-bg: #1f2937;
     --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    
+    /* Text colors */
     --text-primary: #f9fafb;
-    --text-secondary: #9ca3af;
+    --text-secondary: #d1d5db;
+    --text-muted: #9ca3af;
+    --text-heading: #ffffff;
+    
+    /* Background colors */
+    --bg-primary: #1f2937;
+    --bg-secondary: #374151;
+    --bg-tertiary: #4b5563;
     --module-bg-secondary: #1f2937;
     --module-border-secondary: #374151;
+    
+    /* Card colors */
+    --card-bg: #1f2937;
+    --card-border: #374151;
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    
+    /* Status colors - dark mode */
+    --status-blue-bg: rgba(59, 130, 246, 0.1);
+    --status-blue-text: #93c5fd;
+    --status-blue-accent: #60a5fa;
+    --status-green-bg: rgba(34, 197, 94, 0.1);
+    --status-green-text: #86efac;
+    --status-green-accent: #4ade80;
+    --status-orange-bg: rgba(249, 115, 22, 0.1);
+    --status-orange-text: #fdba74;
+    --status-orange-accent: #fb923c;
+    --status-red-bg: rgba(239, 68, 68, 0.1);
+    --status-red-text: #fca5a5;
+    --status-red-accent: #f87171;
 }
 
 /* Detail Panel Styles */
@@ -164,6 +220,112 @@
     .memory-stats-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+}
+
+/* Unified text color classes */
+.text-primary {
+    color: var(--text-primary);
+}
+
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-heading {
+    color: var(--text-heading);
+}
+
+/* Unified background classes */
+.bg-primary {
+    background-color: var(--bg-primary);
+}
+
+.bg-secondary {
+    background-color: var(--bg-secondary);
+}
+
+.bg-tertiary {
+    background-color: var(--bg-tertiary);
+}
+
+/* Unified card classes */
+.card-bg {
+    background-color: var(--card-bg);
+}
+
+.card-border {
+    border-color: var(--card-border);
+}
+
+.card-shadow {
+    box-shadow: var(--card-shadow);
+}
+
+/* Status card classes */
+.status-card-blue {
+    background-color: var(--status-blue-bg);
+    border-left: 4px solid var(--status-blue-accent);
+}
+
+.status-card-blue .status-title {
+    color: var(--status-blue-text);
+}
+
+.status-card-blue .status-value {
+    color: var(--status-blue-accent);
+}
+
+.status-card-green {
+    background-color: var(--status-green-bg);
+    border-left: 4px solid var(--status-green-accent);
+}
+
+.status-card-green .status-title {
+    color: var(--status-green-text);
+}
+
+.status-card-green .status-value {
+    color: var(--status-green-accent);
+}
+
+.status-card-orange {
+    background-color: var(--status-orange-bg);
+    border-left: 4px solid var(--status-orange-accent);
+}
+
+.status-card-orange .status-title {
+    color: var(--status-orange-text);
+}
+
+.status-card-orange .status-value {
+    color: var(--status-orange-accent);
+}
+
+.status-card-red {
+    background-color: var(--status-red-bg);
+    border-left: 4px solid var(--status-red-accent);
+}
+
+.status-card-red .status-title {
+    color: var(--status-red-text);
+}
+
+.status-card-red .status-value {
+    color: var(--status-red-accent);
+}
+
+/* Legend and small text classes */
+.legend-text {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.legend-bg {
+    background-color: var(--bg-secondary);
 }
 
 /* Animation for theme transitions */

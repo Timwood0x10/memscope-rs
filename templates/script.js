@@ -32,19 +32,19 @@ function initializeDashboard() {
 function initThemeToggle() {
     const themeToggle = document.getElementById('theme-toggle');
     const html = document.documentElement;
-    
+
     // Check for saved theme preference or default to light mode
     const savedTheme = localStorage.getItem('memscope-theme') || 'light';
-    
+
     console.log('🎨 Initializing theme system, saved theme:', savedTheme);
-    
+
     // Apply initial theme
     applyTheme(savedTheme === 'dark');
-    
+
     if (themeToggle) {
         themeToggle.addEventListener('click', () => {
             const isDark = html.classList.contains('dark');
-            
+
             if (isDark) {
                 applyTheme(false);
                 localStorage.setItem('memscope-theme', 'light');
@@ -55,7 +55,7 @@ function initThemeToggle() {
                 console.log('🎨 Theme switched to: dark mode');
             }
         });
-        
+
         console.log('✅ Theme toggle initialized successfully');
     } else {
         console.warn('⚠️ Theme toggle button not found');
@@ -65,7 +65,7 @@ function initThemeToggle() {
 // Apply theme to all modules
 function applyTheme(isDark) {
     const html = document.documentElement;
-    
+
     if (isDark) {
         html.classList.remove('light');
         html.classList.add('dark');
@@ -73,10 +73,13 @@ function applyTheme(isDark) {
         html.classList.remove('dark');
         html.classList.add('light');
     }
-    
+
     // Apply theme to all modules that need explicit dark mode support
     applyThemeToAllModules(isDark);
-    
+
+    // Destroy existing charts before reinitializing
+    destroyAllCharts();
+
     // Reinitialize charts to apply theme changes
     setTimeout(() => {
         initCharts();
@@ -84,30 +87,43 @@ function applyTheme(isDark) {
     }, 100);
 }
 
+// Global chart instances storage
+window.chartInstances = {};
+
+// Destroy all existing charts
+function destroyAllCharts() {
+    Object.keys(window.chartInstances).forEach(chartId => {
+        if (window.chartInstances[chartId]) {
+            window.chartInstances[chartId].destroy();
+            delete window.chartInstances[chartId];
+        }
+    });
+}
+
 // Apply theme to specific modules
 function applyThemeToAllModules(isDark) {
     const modules = [
         'memory-usage-analysis',
-        'generic-types-details', 
+        'generic-types-details',
         'variable-relationship-graph',
         'complex-type-analysis',
         'memory-optimization-recommendations',
         'unsafe-ffi-data'
     ];
-    
+
     modules.forEach(moduleId => {
         const module = document.getElementById(moduleId);
         if (module) {
             module.classList.toggle('dark', isDark);
         }
     });
-    
+
     // Also apply to any table elements that might need it
     const tables = document.querySelectorAll('table');
     tables.forEach(table => {
         table.classList.toggle('dark', isDark);
     });
-    
+
     // Apply to any chart containers
     const chartContainers = document.querySelectorAll('canvas');
     chartContainers.forEach(container => {
@@ -120,30 +136,30 @@ function applyThemeToAllModules(isDark) {
 // Initialize summary statistics
 function initSummaryStats() {
     console.log('📊 Initializing summary stats...');
-    
+
     const data = window.analysisData;
-    
+
     // Update complex types count
     const complexTypesCount = data.complex_types?.summary?.total_complex_types || 0;
     updateElement('total-complex-types', complexTypesCount);
-    
+
     // Update total allocations
     const totalAllocations = data.memory_analysis?.allocations?.length || 0;
     updateElement('total-allocations', totalAllocations);
-    
+
     // Update generic types count
     const genericTypeCount = data.complex_types?.summary?.generic_type_count || 0;
     updateElement('generic-type-count', genericTypeCount);
-    
+
     // Update unsafe FFI count
     const unsafeFFICount = data.unsafe_ffi?.enhanced_ffi_data?.length || 0;
     updateElement('unsafe-ffi-count', unsafeFFICount);
-    
+
     // Update category counts
     const smartPointersCount = data.complex_types?.categorized_types?.smart_pointers?.length || 0;
     const collectionsCount = data.complex_types?.categorized_types?.collections?.length || 0;
     const primitivesCount = 0; // Calculate from data if available
-    
+
     updateElement('smart-pointers-count', smartPointersCount);
     updateElement('collections-count', collectionsCount);
     updateElement('primitives-count', primitivesCount);
@@ -152,19 +168,19 @@ function initSummaryStats() {
 // Initialize charts
 function initCharts() {
     console.log('📊 Initializing charts...');
-    
+
     // Initialize complexity chart
     initComplexityChart();
-    
+
     // Initialize memory distribution chart
     initMemoryDistributionChart();
-    
+
     // Initialize allocation size chart
     initAllocationSizeChart();
-    
+
     // Initialize performance chart
     initPerformanceChart();
-    
+
     // Initialize complex type analysis chart
     initComplexTypeAnalysisChart();
 }
@@ -173,10 +189,15 @@ function initCharts() {
 function initComplexityChart() {
     const ctx = document.getElementById('complexity-chart');
     if (!ctx) return;
-    
+
     const complexTypes = window.analysisData.complex_types?.summary?.complexity_distribution || {};
-    
-    new Chart(ctx, {
+
+    // Destroy existing chart if it exists
+    if (window.chartInstances['complexity-chart']) {
+        window.chartInstances['complexity-chart'].destroy();
+    }
+
+    window.chartInstances['complexity-chart'] = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Low', 'Medium', 'High', 'Very High'],
@@ -208,28 +229,33 @@ function initComplexityChart() {
 function initMemoryDistributionChart() {
     const ctx = document.getElementById('memory-distribution-chart');
     if (!ctx) return;
-    
+
     const allocations = window.analysisData.memory_analysis?.allocations || [];
     const typeDistribution = {};
-    
+
     allocations.forEach(alloc => {
         const type = alloc.type_name || 'System Allocation';
         typeDistribution[type] = (typeDistribution[type] || 0) + alloc.size;
     });
-    
+
     const sortedTypes = Object.entries(typeDistribution)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([, a], [, b]) => b - a)
         .slice(0, 10);
-    
+
     const isDark = document.documentElement.classList.contains('dark');
-    
-    new Chart(ctx, {
+
+    // Destroy existing chart if it exists
+    if (window.chartInstances['memory-distribution-chart']) {
+        window.chartInstances['memory-distribution-chart'].destroy();
+    }
+
+    window.chartInstances['memory-distribution-chart'] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: sortedTypes.map(([type]) => formatTypeName(type)),
             datasets: [{
                 label: 'Memory Usage (bytes)',
-                data: sortedTypes.map(([,size]) => size),
+                data: sortedTypes.map(([, size]) => size),
                 backgroundColor: '#3b82f6'
             }]
         },
@@ -256,7 +282,7 @@ function initMemoryDistributionChart() {
                     beginAtZero: true,
                     ticks: {
                         color: isDark ? '#d1d5db' : '#6b7280',
-                        callback: function(value) {
+                        callback: function (value) {
                             return formatBytes(value);
                         }
                     },
@@ -273,7 +299,7 @@ function initMemoryDistributionChart() {
 function initAllocationSizeChart() {
     const ctx = document.getElementById('allocation-size-chart');
     if (!ctx) return;
-    
+
     const allocations = window.analysisData.memory_analysis?.allocations || [];
     const sizeDistribution = {
         'Tiny (< 64B)': 0,
@@ -282,7 +308,7 @@ function initAllocationSizeChart() {
         'Large (64KB - 1MB)': 0,
         'Huge (> 1MB)': 0
     };
-    
+
     allocations.forEach(alloc => {
         const size = alloc.size || 0;
         if (size < 64) sizeDistribution['Tiny (< 64B)']++;
@@ -291,8 +317,13 @@ function initAllocationSizeChart() {
         else if (size < 1048576) sizeDistribution['Large (64KB - 1MB)']++;
         else sizeDistribution['Huge (> 1MB)']++;
     });
-    
-    new Chart(ctx, {
+
+    // Destroy existing chart if it exists
+    if (window.chartInstances['allocation-size-chart']) {
+        window.chartInstances['allocation-size-chart'].destroy();
+    }
+
+    window.chartInstances['allocation-size-chart'] = new Chart(ctx, {
         type: 'pie',
         data: {
             labels: Object.keys(sizeDistribution),
@@ -319,11 +350,16 @@ function initAllocationSizeChart() {
 function initPerformanceChart() {
     const ctx = document.getElementById('performance-chart');
     if (!ctx) return;
-    
+
     const performance = window.analysisData.performance?.memory_performance || {};
     const isDark = document.documentElement.classList.contains('dark');
-    
-    new Chart(ctx, {
+
+    // Destroy existing chart if it exists
+    if (window.chartInstances['performance-chart']) {
+        window.chartInstances['performance-chart'].destroy();
+    }
+
+    window.chartInstances['performance-chart'] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: ['Active Memory', 'Peak Memory', 'Total Allocated'],
@@ -360,7 +396,7 @@ function initPerformanceChart() {
                     beginAtZero: true,
                     ticks: {
                         color: isDark ? '#d1d5db' : '#6b7280',
-                        callback: function(value) {
+                        callback: function (value) {
                             return formatBytes(value);
                         }
                     },
@@ -379,7 +415,7 @@ function processMemoryAnalysisData(rawData) {
         console.warn('⚠️ No memory analysis data found, generating fallback data');
         return generateFallbackMemoryData();
     }
-    
+
     const memoryData = rawData.memory_analysis;
     const processedData = {
         stats: {
@@ -395,7 +431,7 @@ function processMemoryAnalysisData(rawData) {
             fragmentation_score: memoryData.fragmentation_score || 0
         }
     };
-    
+
     // Calculate additional metrics if not present
     if (processedData.allocations.length > 0) {
         const totalSize = processedData.allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
@@ -406,7 +442,7 @@ function processMemoryAnalysisData(rawData) {
             processedData.stats.total_allocations = processedData.allocations.length;
         }
     }
-    
+
     console.log('✅ Processed memory analysis data:', processedData);
     return processedData;
 }
@@ -414,7 +450,7 @@ function processMemoryAnalysisData(rawData) {
 // Generate fallback memory data when real data is unavailable
 function generateFallbackMemoryData() {
     console.log('🔄 Generating fallback memory data');
-    
+
     return {
         stats: {
             total_allocations: 0,
@@ -435,10 +471,10 @@ function generateFallbackMemoryData() {
 // Validate memory data structure
 function validateMemoryData(data) {
     if (!data) return false;
-    
+
     const hasStats = data.stats && typeof data.stats === 'object';
     const hasAllocations = Array.isArray(data.allocations);
-    
+
     return hasStats && hasAllocations;
 }
 
@@ -453,18 +489,18 @@ function calculateMemoryStatistics(allocations) {
             systemAllocations: 0
         };
     }
-    
+
     const totalSize = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
     const averageSize = totalSize / allocations.length;
     const largestAllocation = Math.max(...allocations.map(alloc => alloc.size || 0));
-    
-    const userAllocations = allocations.filter(alloc => 
-        alloc.var_name && alloc.var_name !== 'unknown' && 
+
+    const userAllocations = allocations.filter(alloc =>
+        alloc.var_name && alloc.var_name !== 'unknown' &&
         alloc.type_name && alloc.type_name !== 'unknown'
     ).length;
-    
+
     const systemAllocations = allocations.length - userAllocations;
-    
+
     return {
         totalSize,
         averageSize,
@@ -478,47 +514,47 @@ function calculateMemoryStatistics(allocations) {
 function initMemoryUsageAnalysis() {
     const container = document.getElementById('memory-usage-analysis');
     if (!container) return;
-    
+
     // Process memory data with validation
     const memoryData = processMemoryAnalysisData(window.analysisData);
     const allocations = memoryData.allocations;
-    
+
     if (allocations.length === 0 || memoryData.isFallback) {
         container.innerHTML = `
-            <div class="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+            <div class="h-full flex items-center justify-center text-muted">
                 <div class="text-center">
                     <i class="fa fa-info-circle text-4xl mb-4"></i>
-                    <h4 class="text-lg font-semibold mb-2">No Memory Data Available</h4>
-                    <p class="text-sm">No memory allocation data found for analysis</p>
-                    <p class="text-xs mt-2">Use memory tracking features to collect data</p>
+                    <h4 class="text-lg font-semibold mb-2 text-heading">No Memory Data Available</h4>
+                    <p class="text-sm text-secondary">No memory allocation data found for analysis</p>
+                    <p class="text-xs mt-2 text-muted">Use memory tracking features to collect data</p>
                 </div>
             </div>
         `;
         return;
     }
-    
+
     // Calculate comprehensive statistics
     const stats = calculateMemoryStatistics(allocations);
     const totalMemory = stats.totalSize;
-    
-    const userAllocations = allocations.filter(alloc => 
-        alloc.var_name && alloc.var_name !== 'unknown' && 
+
+    const userAllocations = allocations.filter(alloc =>
+        alloc.var_name && alloc.var_name !== 'unknown' &&
         alloc.type_name && alloc.type_name !== 'unknown'
     );
-    const systemAllocations = allocations.filter(alloc => 
-        !alloc.var_name || alloc.var_name === 'unknown' || 
+    const systemAllocations = allocations.filter(alloc =>
+        !alloc.var_name || alloc.var_name === 'unknown' ||
         !alloc.type_name || alloc.type_name === 'unknown'
     );
-    
+
     const userMemory = userAllocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
     const systemMemory = systemAllocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
-    
+
     const userPercentage = totalMemory > 0 ? (userMemory / totalMemory * 100) : 0;
     const systemPercentage = totalMemory > 0 ? (systemMemory / totalMemory * 100) : 0;
-    
+
     container.innerHTML = `
         <div class="h-full flex flex-col">
-            <h4 class="text-lg font-semibold mb-4 text-center text-gray-900 dark:text-white">Memory Usage Analysis</h4>
+            <h4 class="text-lg font-semibold mb-4 text-center text-heading">Memory Usage Analysis</h4>
             
             <!-- Statistics Grid -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -588,17 +624,17 @@ function initMemoryUsageAnalysis() {
 // Initialize allocations table with improved collapsible functionality
 function initAllocationsTable() {
     console.log('📊 Initializing allocations table...');
-    
+
     const tbody = document.getElementById('allocations-table');
     const toggleButton = document.getElementById('toggle-allocations');
-    
+
     if (!tbody) {
         console.warn('⚠️ Allocations table body not found');
         return;
     }
-    
+
     const allocations = window.analysisData.memory_analysis?.allocations || [];
-    
+
     if (allocations.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
         if (toggleButton) {
@@ -606,15 +642,15 @@ function initAllocationsTable() {
         }
         return;
     }
-    
+
     let isExpanded = false;
     const maxInitialRows = 5;
-    
+
     function renderTable(showAll = false) {
         console.log(`📊 Rendering table, showAll: ${showAll}, total allocations: ${allocations.length}`);
-        
+
         const displayAllocations = showAll ? allocations : allocations.slice(0, maxInitialRows);
-        
+
         tbody.innerHTML = displayAllocations.map(alloc => `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
@@ -623,7 +659,7 @@ function initAllocationsTable() {
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}</td>
             </tr>
         `).join('');
-        
+
         if (!showAll && allocations.length > maxInitialRows) {
             tbody.innerHTML += `
                 <tr class="bg-gray-50 dark:bg-gray-700">
@@ -634,28 +670,28 @@ function initAllocationsTable() {
             `;
         }
     }
-    
+
     // Initial render
     renderTable(false);
-    
+
     // Toggle functionality
     if (toggleButton && allocations.length > maxInitialRows) {
         console.log('📊 Setting up toggle button for', allocations.length, 'allocations');
-        
+
         // Remove any existing event listeners
         const newToggleButton = toggleButton.cloneNode(true);
         toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
-        
-        newToggleButton.addEventListener('click', function(e) {
+
+        newToggleButton.addEventListener('click', function (e) {
             e.preventDefault();
             console.log('📊 Toggle button clicked, current state:', isExpanded);
-            
+
             isExpanded = !isExpanded;
             renderTable(isExpanded);
-            
+
             const icon = newToggleButton.querySelector('i');
             const text = newToggleButton.querySelector('span');
-            
+
             if (isExpanded) {
                 icon.className = 'fa fa-chevron-up mr-1';
                 text.textContent = 'Show Less';
@@ -666,7 +702,7 @@ function initAllocationsTable() {
                 console.log('📊 Collapsed table to show first', maxInitialRows, 'allocations');
             }
         });
-        
+
         console.log('✅ Toggle button initialized successfully');
     } else if (toggleButton) {
         // Hide button if not needed
@@ -934,7 +970,7 @@ function initFFIVisualization() {
 
     const enhancedData = ffiData.enhanced_ffi_data || [];
     const boundaryEvents = ffiData.boundary_events || [];
-    
+
     // Calculate statistics
     const unsafeAllocations = enhancedData.filter(item => !item.ffi_tracked).length;
     const ffiAllocations = enhancedData.filter(item => item.ffi_tracked).length;
@@ -979,9 +1015,9 @@ function initFFIVisualization() {
                     ${safetyViolations} Safety Violations Detected
                 </h3>
                 <div class="text-red-300 text-sm space-y-1">
-                    ${enhancedData.filter(item => (item.safety_violations || 0) > 0).map(item => 
-                        `<div>• Pointer ${item.ptr}: ${item.safety_violations} violations</div>`
-                    ).join('')}
+                    ${enhancedData.filter(item => (item.safety_violations || 0) > 0).map(item =>
+        `<div>• Pointer ${item.ptr}: ${item.safety_violations} violations</div>`
+    ).join('')}
                 </div>
             </div>
             ` : `
@@ -1067,9 +1103,9 @@ function initFFIVisualization() {
 function initMemoryFragmentation() {
     const container = document.getElementById('memoryFragmentation');
     if (!container) return;
-    
+
     const allocations = window.analysisData.memory_analysis?.allocations || [];
-    
+
     // Analyze memory fragmentation
     const sortedAllocs = allocations
         .filter(alloc => alloc.ptr && alloc.size)
@@ -1079,15 +1115,15 @@ function initMemoryFragmentation() {
             type: alloc.type_name || 'System Allocation'
         }))
         .sort((a, b) => a.address - b.address);
-    
+
     let gaps = 0;
     let totalGapSize = 0;
     let maxGap = 0;
-    
+
     for (let i = 1; i < sortedAllocs.length; i++) {
         const prevEnd = sortedAllocs[i - 1].address + sortedAllocs[i - 1].size;
         const currentStart = sortedAllocs[i].address;
-        
+
         if (currentStart > prevEnd) {
             const gapSize = currentStart - prevEnd;
             gaps++;
@@ -1095,10 +1131,10 @@ function initMemoryFragmentation() {
             maxGap = Math.max(maxGap, gapSize);
         }
     }
-    
+
     const totalMemory = sortedAllocs.reduce((sum, alloc) => sum + alloc.size, 0);
     const fragmentationRatio = totalMemory > 0 ? (totalGapSize / (totalMemory + totalGapSize) * 100) : 0;
-    
+
     container.innerHTML = `
         <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
             <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
@@ -1127,17 +1163,16 @@ function initMemoryFragmentation() {
             <div class="mb-4">
                 <h4 class="font-semibold mb-2 dark:text-white">Fragmentation Assessment</h4>
                 <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
-                    <div class="h-4 rounded-full transition-all duration-500 ${
-                        fragmentationRatio < 10 ? 'bg-green-500' : 
-                        fragmentationRatio < 25 ? 'bg-yellow-500' : 
-                        fragmentationRatio < 50 ? 'bg-orange-500' : 'bg-red-500'
-                    }" style="width: ${Math.min(fragmentationRatio, 100)}%"></div>
+                    <div class="h-4 rounded-full transition-all duration-500 ${fragmentationRatio < 10 ? 'bg-green-500' :
+            fragmentationRatio < 25 ? 'bg-yellow-500' :
+                fragmentationRatio < 50 ? 'bg-orange-500' : 'bg-red-500'
+        }" style="width: ${Math.min(fragmentationRatio, 100)}%"></div>
                 </div>
                 <div class="text-sm text-gray-600 dark:text-gray-300 mt-2">
                     ${fragmentationRatio < 10 ? 'Excellent memory layout with minimal fragmentation.' :
-                      fragmentationRatio < 25 ? 'Good memory layout with low fragmentation.' :
-                      fragmentationRatio < 50 ? 'Moderate fragmentation detected. Consider memory pool allocation.' :
-                      'High fragmentation detected. Memory layout optimization recommended.'}
+            fragmentationRatio < 25 ? 'Good memory layout with low fragmentation.' :
+                fragmentationRatio < 50 ? 'Moderate fragmentation detected. Consider memory pool allocation.' :
+                    'High fragmentation detected. Memory layout optimization recommended.'}
                 </div>
             </div>
             
@@ -1164,14 +1199,14 @@ function initMemoryFragmentation() {
 function initMemoryGrowthTrends() {
     const container = document.getElementById('memoryGrowthTrends');
     if (!container) return;
-    
+
     const allocations = window.analysisData.memory_analysis?.allocations || [];
-    
+
     // Sort allocations by timestamp
     const sortedAllocs = allocations
         .filter(alloc => alloc.timestamp_alloc)
         .sort((a, b) => a.timestamp_alloc - b.timestamp_alloc);
-    
+
     if (sortedAllocs.length === 0) {
         container.innerHTML = `
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
@@ -1186,16 +1221,16 @@ function initMemoryGrowthTrends() {
         `;
         return;
     }
-    
+
     // Calculate cumulative memory usage over time
     let cumulativeMemory = 0;
     let peakMemory = 0;
     const timePoints = [];
-    
+
     sortedAllocs.forEach((alloc, index) => {
         cumulativeMemory += alloc.size || 0;
         peakMemory = Math.max(peakMemory, cumulativeMemory);
-        
+
         if (index % Math.max(1, Math.floor(sortedAllocs.length / 20)) === 0) {
             timePoints.push({
                 timestamp: alloc.timestamp_alloc,
@@ -1204,12 +1239,12 @@ function initMemoryGrowthTrends() {
             });
         }
     });
-    
+
     const startMemory = timePoints[0]?.memory || 0;
     const endMemory = timePoints[timePoints.length - 1]?.memory || 0;
     const growthRate = startMemory > 0 ? ((endMemory - startMemory) / startMemory * 100) : 0;
     const averageMemory = timePoints.reduce((sum, point) => sum + point.memory, 0) / timePoints.length;
-    
+
     container.innerHTML = `
         <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
             <h2 class="text-xl font-semibold mb-4 flex items-center dark:text-white">
@@ -1240,23 +1275,23 @@ function initMemoryGrowthTrends() {
                             stroke="#3b82f6"
                             stroke-width="2"
                             points="${timePoints.map((point, index) => {
-                                const x = (index / (timePoints.length - 1)) * 380 + 10;
-                                const y = 110 - ((point.memory / peakMemory) * 100);
-                                return `${x},${y}`;
-                            }).join(' ')}"
+        const x = (index / (timePoints.length - 1)) * 380 + 10;
+        const y = 110 - ((point.memory / peakMemory) * 100);
+        return `${x},${y}`;
+    }).join(' ')}"
                         />
                         ${timePoints.map((point, index) => {
-                            const x = (index / (timePoints.length - 1)) * 380 + 10;
-                            const y = 110 - ((point.memory / peakMemory) * 100);
-                            return `<circle cx="${x}" cy="${y}" r="3" fill="#3b82f6" />`;
-                        }).join('')}
+        const x = (index / (timePoints.length - 1)) * 380 + 10;
+        const y = 110 - ((point.memory / peakMemory) * 100);
+        return `<circle cx="${x}" cy="${y}" r="3" fill="#3b82f6" />`;
+    }).join('')}
                     </svg>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     ${growthRate > 50 ? 'High memory growth detected - investigate for potential leaks.' :
-                      growthRate > 10 ? 'Moderate memory growth - monitor for potential issues.' :
-                      growthRate > -10 ? 'Stable memory usage with minimal growth.' :
-                      'Memory usage is decreasing - good memory management.'}
+            growthRate > 10 ? 'Moderate memory growth - monitor for potential issues.' :
+                growthRate > -10 ? 'Stable memory usage with minimal growth.' :
+                    'Memory usage is decreasing - good memory management.'}
                 </div>
             </div>
         </div>
@@ -1270,7 +1305,7 @@ class NodeDetailPanel {
         this.panel = null;
         this.currentNode = null;
     }
-    
+
     show(nodeData, position) {
         this.hide(); // Close existing panel
         this.panel = this.createPanel(nodeData);
@@ -1278,7 +1313,7 @@ class NodeDetailPanel {
         this.container.appendChild(this.panel);
         this.currentNode = nodeData;
     }
-    
+
     hide() {
         if (this.panel) {
             this.panel.remove();
@@ -1286,16 +1321,16 @@ class NodeDetailPanel {
             this.currentNode = null;
         }
     }
-    
+
     createPanel(nodeData) {
         const panel = document.createElement('div');
         panel.className = 'absolute bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 min-w-64 max-w-80';
         panel.style.cssText = 'background: var(--detail-panel-bg); box-shadow: var(--detail-panel-shadow);';
-        
+
         // Find related allocation data
         const allocations = window.analysisData.memory_analysis?.allocations || [];
         const allocation = allocations.find(alloc => alloc.var_name === nodeData.id);
-        
+
         panel.innerHTML = `
             <div class="flex justify-between items-start mb-3">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Variable Details</h3>
@@ -1349,19 +1384,19 @@ class NodeDetailPanel {
                 </div>
             </div>
         `;
-        
+
         return panel;
     }
-    
+
     positionPanel(position) {
         if (!this.panel) return;
-        
+
         const containerRect = this.container.getBoundingClientRect();
         const panelRect = this.panel.getBoundingClientRect();
-        
+
         let left = position.x - containerRect.left + 10;
         let top = position.y - containerRect.top + 10;
-        
+
         // Adjust if panel would go outside container
         if (left + panelRect.width > containerRect.width) {
             left = position.x - containerRect.left - panelRect.width - 10;
@@ -1369,7 +1404,7 @@ class NodeDetailPanel {
         if (top + panelRect.height > containerRect.height) {
             top = position.y - containerRect.top - panelRect.height - 10;
         }
-        
+
         this.panel.style.left = `${Math.max(0, left)}px`;
         this.panel.style.top = `${Math.max(0, top)}px`;
     }
@@ -1379,13 +1414,13 @@ class NodeDetailPanel {
 function initVariableGraph() {
     const container = document.getElementById('variable-graph-container');
     if (!container) return;
-    
+
     const allocations = window.analysisData.memory_analysis?.allocations || [];
-    const userAllocations = allocations.filter(alloc => 
-        alloc.var_name && alloc.var_name !== 'unknown' && 
+    const userAllocations = allocations.filter(alloc =>
+        alloc.var_name && alloc.var_name !== 'unknown' &&
         alloc.type_name && alloc.type_name !== 'unknown'
     );
-    
+
     if (userAllocations.length === 0) {
         container.innerHTML = `
             <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
@@ -1398,7 +1433,7 @@ function initVariableGraph() {
         `;
         return;
     }
-    
+
     // Create a simple network visualization
     const nodes = userAllocations.map((alloc, index) => ({
         id: alloc.var_name,
@@ -1407,7 +1442,7 @@ function initVariableGraph() {
         x: 100 + (index % 5) * 100,
         y: 100 + Math.floor(index / 5) * 100
     }));
-    
+
     // Find relationships based on similar types
     const edges = [];
     for (let i = 0; i < nodes.length; i++) {
@@ -1421,24 +1456,24 @@ function initVariableGraph() {
             }
         }
     }
-    
+
     container.innerHTML = `
         <div class="relative">
             <svg class="w-full h-full" viewBox="0 0 600 400">
                 <!-- Edges -->
                 ${edges.map(edge => {
-                    const sourceNode = nodes.find(n => n.id === edge.source);
-                    const targetNode = nodes.find(n => n.id === edge.target);
-                    return `<line x1="${sourceNode.x}" y1="${sourceNode.y}" 
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        return `<line x1="${sourceNode.x}" y1="${sourceNode.y}" 
                                  x2="${targetNode.x}" y2="${targetNode.y}" 
                                  stroke="var(--graph-link-color)" stroke-width="1" opacity="0.6" />`;
-                }).join('')}
+    }).join('')}
                 
                 <!-- Nodes -->
                 ${nodes.map(node => {
-                    const radius = Math.max(8, Math.min(30, Math.sqrt(node.size) / 10));
-                    const color = getTypeColor(node.type);
-                    return `
+        const radius = Math.max(8, Math.min(30, Math.sqrt(node.size) / 10));
+        const color = getTypeColor(node.type);
+        return `
                         <g class="graph-node cursor-pointer" data-node-id="${node.id}">
                             <circle cx="${node.x}" cy="${node.y}" r="${radius}" 
                                     fill="${color}" stroke="var(--graph-node-border)" stroke-width="2" 
@@ -1452,7 +1487,7 @@ function initVariableGraph() {
                             </text>
                         </g>
                     `;
-                }).join('')}
+    }).join('')}
             </svg>
             
             <!-- Instructions -->
@@ -1461,11 +1496,11 @@ function initVariableGraph() {
             </div>
         </div>
     `;
-    
+
     // Setup click interactions
     const detailPanel = new NodeDetailPanel('variable-graph-container');
     const svgContainer = container.querySelector('svg');
-    
+
     if (svgContainer) {
         svgContainer.addEventListener('click', (event) => {
             const nodeElement = event.target.closest('.graph-node');
@@ -1501,14 +1536,14 @@ function getTypeColor(typeName) {
 function initGenericTypesTable() {
     const tbody = document.getElementById('generic-types-table-body');
     if (!tbody) return;
-    
+
     const genericTypes = window.analysisData.complex_types?.categorized_types?.generic_types || [];
-    
+
     if (genericTypes.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No generic types found</td></tr>';
         return;
     }
-    
+
     tbody.innerHTML = genericTypes.map(type => `
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${type.var_name || 'System Allocation'}</td>
@@ -1529,14 +1564,14 @@ function initGenericTypesTable() {
 function initComplexTypeAnalysis() {
     const tbody = document.getElementById('complex-type-analysis-table');
     if (!tbody) return;
-    
+
     const complexTypeAnalysis = window.analysisData.complex_types?.complex_type_analysis || [];
-    
+
     if (complexTypeAnalysis.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No complex type analysis available</td></tr>';
         return;
     }
-    
+
     tbody.innerHTML = complexTypeAnalysis.map(analysis => `
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${formatTypeName(analysis.type_name)}</td>
@@ -1561,14 +1596,14 @@ function initComplexTypeAnalysis() {
 function initMemoryOptimizationRecommendations() {
     const container = document.getElementById('memory-optimization-recommendations');
     if (!container) return;
-    
+
     const recommendations = window.analysisData.complex_types?.optimization_recommendations || [];
-    
+
     if (recommendations.length === 0) {
         container.innerHTML = '<li class="text-gray-500 dark:text-gray-400">No specific recommendations available</li>';
         return;
     }
-    
+
     container.innerHTML = recommendations.map(rec => `
         <li class="flex items-start">
             <i class="fa fa-lightbulb-o text-yellow-500 mr-2 mt-1"></i>
@@ -1581,18 +1616,23 @@ function initMemoryOptimizationRecommendations() {
 function initFFIRiskChart() {
     const ctx = document.getElementById('ffi-risk-chart');
     if (!ctx) return;
-    
+
     const ffiData = window.analysisData.unsafe_ffi?.enhanced_ffi_data || [];
-    
+
     const riskLevels = {
         'Low Risk': ffiData.filter(item => (item.safety_violations || 0) === 0).length,
         'Medium Risk': ffiData.filter(item => (item.safety_violations || 0) > 0 && (item.safety_violations || 0) <= 2).length,
         'High Risk': ffiData.filter(item => (item.safety_violations || 0) > 2).length
     };
-    
+
     const isDark = document.documentElement.classList.contains('dark');
-    
-    new Chart(ctx, {
+
+    // Destroy existing chart if it exists
+    if (window.chartInstances['ffi-risk-chart']) {
+        window.chartInstances['ffi-risk-chart'].destroy();
+    }
+
+    window.chartInstances['ffi-risk-chart'] = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: Object.keys(riskLevels),
@@ -1631,9 +1671,9 @@ function initFFIRiskChart() {
 function initComplexTypeAnalysisChart() {
     const ctx = document.getElementById('complex-type-analysis-chart');
     if (!ctx) return;
-    
+
     const complexTypeAnalysis = window.analysisData.complex_types?.complex_type_analysis || [];
-    
+
     if (complexTypeAnalysis.length === 0) {
         // Show empty state
         const container = ctx.parentElement;
@@ -1648,10 +1688,15 @@ function initComplexTypeAnalysisChart() {
         `;
         return;
     }
-    
+
     const isDark = document.documentElement.classList.contains('dark');
-    
-    new Chart(ctx, {
+
+    // Destroy existing chart if it exists
+    if (window.chartInstances['complex-type-analysis-chart']) {
+        window.chartInstances['complex-type-analysis-chart'].destroy();
+    }
+
+    window.chartInstances['complex-type-analysis-chart'] = new Chart(ctx, {
         type: 'scatter',
         data: {
             datasets: [{
@@ -1712,10 +1757,10 @@ function initComplexTypeAnalysisChart() {
                     borderColor: isDark ? '#374151' : '#e5e7eb',
                     borderWidth: 1,
                     callbacks: {
-                        title: function(context) {
+                        title: function (context) {
                             return context[0].raw.typeName || 'Unknown Type';
                         },
-                        label: function(context) {
+                        label: function (context) {
                             return [
                                 `Complexity: ${context.parsed.x}`,
                                 `Efficiency: ${context.parsed.y}%`
@@ -1761,7 +1806,7 @@ function formatBytes(bytes) {
 function showEmptyLifetimeState() {
     const container = document.getElementById('lifetimeVisualization');
     if (!container) return;
-    
+
     container.innerHTML = `
         <div class="text-center py-8 text-gray-500 dark:text-gray-400">
             <i class="fa fa-info-circle text-2xl mb-2"></i>
