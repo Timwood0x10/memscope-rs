@@ -404,12 +404,12 @@
 
         <!-- Generic Types Table -->
         <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
                     <i class="fa fa-table text-primary mr-2"></i>Generic Types Details
                 </h2>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead>
                             <tr>
                                 <th
@@ -442,20 +442,20 @@
 
         <!-- Variable Relationship Graph -->
         <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
                     <i class="fa fa-sitemap text-primary mr-2"></i>Variable Relationship Graph
                 </h2>
 
                 <!-- Graph Controls -->
                 <div class="mb-4 flex justify-between items-center">
                     <div class="flex items-center space-x-4 flex-wrap">
-                        <div class="text-sm text-gray-600">Click on a node to view details</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">Click on a node to view details</div>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button id="reset-zoom" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm">Reset
+                        <button id="reset-zoom" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-900 dark:text-white">Reset
                             View</button>
-                        <button id="auto-layout" class="px-3 py-1 bg-blue-100 hover:bg-blue-200 rounded text-sm">Auto
+                        <button id="auto-layout" class="px-3 py-1 bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-sm text-blue-900 dark:text-blue-100">Auto
                             Layout</button>
                     </div>
                 </div>
@@ -565,14 +565,14 @@
 
         <!-- Complex Type Analysis -->
         <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
                     <i class="fa fa-cogs text-primary mr-2"></i>Complex Type Analysis
                 </h2>
 
                 <!-- Analysis Chart -->
                 <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-3">Complexity vs Memory Efficiency</h3>
+                    <h3 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">Complexity vs Memory Efficiency</h3>
                     <div class="h-64">
                         <canvas id="complex-type-analysis-chart"></canvas>
                     </div>
@@ -613,28 +613,16 @@
             </div>
         </section>
 
-        <!-- Memory Optimization Recommendations -->
-        <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
-                    <i class="fa fa-lightbulb-o text-primary mr-2"></i>Memory Optimization Recommendations
-                </h2>
-                <ul id="memory-optimization-recommendations" class="space-y-2">
-                    <!-- Will be populated by JavaScript -->
-                </ul>
-            </div>
-        </section>
-
         <!-- FFI Data Section -->
         <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
                     <i class="fa fa-exclamation-triangle text-ffi-red mr-2"></i>Unsafe FFI Data
                 </h2>
 
                 <!-- FFI Risk Chart -->
                 <div class="mb-8">
-                    <h3 class="text-lg font-medium mb-3">Risk Assessment</h3>
+                    <h3 class="text-lg font-medium mb-3 text-gray-900 dark:text-white">Risk Assessment</h3>
                     <div class="h-64">
                         <canvas id="ffi-risk-chart"></canvas>
                     </div>
@@ -644,6 +632,18 @@
                 <div id="ffi-data-render" class="space-y-4">
                     <!-- Will be populated by JavaScript -->
                 </div>
+            </div>
+        </section>
+
+        <!-- Memory Optimization Recommendations -->
+        <section class="mb-12">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
+                    <i class="fa fa-lightbulb-o text-primary mr-2"></i>Memory Optimization Recommendations
+                </h2>
+                <ul id="memory-optimization-recommendations" class="space-y-2">
+                    <!-- Will be populated by JavaScript -->
+                </ul>
             </div>
         </section>
     </main>

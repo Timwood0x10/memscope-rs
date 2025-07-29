@@ -1,3 +1,194 @@
+/* CSS Variables for theming */
+:root {
+    /* Graph and detail panel variables */
+    --graph-node-bg: #ffffff;
+    --graph-node-border: #e5e7eb;
+    --graph-link-color: #6b7280;
+    --detail-panel-bg: #ffffff;
+    --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    --text-primary: #374151;
+    --text-secondary: #6b7280;
+    --module-bg-secondary: #f9fafb;
+    --module-border-secondary: #e5e7eb;
+}
+
+.dark {
+    /* Dark mode overrides */
+    --graph-node-bg: #374151;
+    --graph-node-border: #4b5563;
+    --graph-link-color: #9ca3af;
+    --detail-panel-bg: #1f2937;
+    --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --module-bg-secondary: #1f2937;
+    --module-border-secondary: #374151;
+}
+
+/* Detail Panel Styles */
+.node-detail-panel {
+    background: var(--detail-panel-bg);
+    box-shadow: var(--detail-panel-shadow);
+    border: 1px solid var(--module-border-secondary);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    z-index: 50;
+    min-width: 16rem;
+    max-width: 20rem;
+    position: absolute;
+}
+
+.node-detail-panel h3 {
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.node-detail-panel label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.node-detail-panel p {
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+
+.node-detail-panel .close-button {
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.node-detail-panel .close-button:hover {
+    color: var(--text-primary);
+}
+
+/* Graph Node Styles */
+.graph-node {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.graph-node:hover {
+    opacity: 1 !important;
+}
+
+.graph-node circle {
+    fill: var(--graph-node-bg);
+    stroke: var(--graph-node-border);
+    transition: all 0.2s ease;
+}
+
+.graph-node:hover circle {
+    stroke-width: 3;
+    filter: brightness(1.1);
+}
+
+.graph-node text {
+    fill: var(--text-primary);
+    pointer-events: none;
+}
+
+/* Memory Analysis Statistics Grid */
+.memory-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.memory-stat-card {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.memory-stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.memory-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.memory-stat-label {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+/* Progress Bars */
+.memory-progress-bar {
+    width: 100%;
+    height: 0.75rem;
+    background-color: var(--module-bg-secondary);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.memory-progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.5s ease;
+}
+
+/* Dark mode specific adjustments */
+.dark .memory-stats-grid .bg-blue-50 {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.dark .memory-stats-grid .bg-green-50 {
+    background-color: rgba(34, 197, 94, 0.1);
+}
+
+.dark .memory-stats-grid .bg-purple-50 {
+    background-color: rgba(168, 85, 247, 0.1);
+}
+
+.dark .memory-stats-grid .bg-orange-50 {
+    background-color: rgba(249, 115, 22, 0.1);
+}
+
+/* Responsive design for detail panels */
+@media (max-width: 768px) {
+    .node-detail-panel {
+        min-width: 12rem;
+        max-width: 16rem;
+        font-size: 0.875rem;
+    }
+    
+    .memory-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Animation for theme transitions */
+* {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Ensure proper contrast in dark mode */
+.dark table {
+    color: var(--text-primary);
+}
+
+.dark table th {
+    color: var(--text-secondary);
+    border-color: var(--module-border-secondary);
+}
+
+.dark table td {
+    border-color: var(--module-border-secondary);
+}
+
+.dark .card-shadow {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
 /* Basic CSS styles for MemScope dashboard */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

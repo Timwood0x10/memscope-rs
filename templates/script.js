@@ -38,26 +38,19 @@ function initThemeToggle() {
     
     console.log('🎨 Initializing theme system, saved theme:', savedTheme);
     
-    if (savedTheme === 'dark') {
-        html.classList.remove('light');
-        html.classList.add('dark');
-    } else {
-        html.classList.remove('dark');
-        html.classList.add('light');
-    }
+    // Apply initial theme
+    applyTheme(savedTheme === 'dark');
     
     if (themeToggle) {
         themeToggle.addEventListener('click', () => {
             const isDark = html.classList.contains('dark');
             
             if (isDark) {
-                html.classList.remove('dark');
-                html.classList.add('light');
+                applyTheme(false);
                 localStorage.setItem('memscope-theme', 'light');
                 console.log('🎨 Theme switched to: light mode');
             } else {
-                html.classList.remove('light');
-                html.classList.add('dark');
+                applyTheme(true);
                 localStorage.setItem('memscope-theme', 'dark');
                 console.log('🎨 Theme switched to: dark mode');
             }
@@ -67,6 +60,55 @@ function initThemeToggle() {
     } else {
         console.warn('⚠️ Theme toggle button not found');
     }
+}
+
+// Apply theme to all modules
+function applyTheme(isDark) {
+    const html = document.documentElement;
+    
+    if (isDark) {
+        html.classList.remove('light');
+        html.classList.add('dark');
+    } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+    }
+    
+    // Apply theme to all modules that need explicit dark mode support
+    applyThemeToAllModules(isDark);
+}
+
+// Apply theme to specific modules
+function applyThemeToAllModules(isDark) {
+    const modules = [
+        'memory-usage-analysis',
+        'generic-types-details', 
+        'variable-relationship-graph',
+        'complex-type-analysis',
+        'memory-optimization-recommendations',
+        'unsafe-ffi-data'
+    ];
+    
+    modules.forEach(moduleId => {
+        const module = document.getElementById(moduleId);
+        if (module) {
+            module.classList.toggle('dark', isDark);
+        }
+    });
+    
+    // Also apply to any table elements that might need it
+    const tables = document.querySelectorAll('table');
+    tables.forEach(table => {
+        table.classList.toggle('dark', isDark);
+    });
+    
+    // Apply to any chart containers
+    const chartContainers = document.querySelectorAll('canvas');
+    chartContainers.forEach(container => {
+        if (container.parentElement) {
+            container.parentElement.classList.toggle('dark', isDark);
+        }
+    });
 }
 
 // Initialize summary statistics
@@ -322,27 +364,134 @@ function initPerformanceChart() {
     });
 }
 
+// Process memory analysis data with validation and fallback
+function processMemoryAnalysisData(rawData) {
+    if (!rawData || !rawData.memory_analysis) {
+        console.warn('⚠️ No memory analysis data found, generating fallback data');
+        return generateFallbackMemoryData();
+    }
+    
+    const memoryData = rawData.memory_analysis;
+    const processedData = {
+        stats: {
+            total_allocations: memoryData.stats?.total_allocations || 0,
+            active_allocations: memoryData.stats?.active_allocations || 0,
+            total_memory: memoryData.stats?.total_memory || 0,
+            active_memory: memoryData.stats?.active_memory || 0
+        },
+        allocations: memoryData.allocations || [],
+        trends: {
+            peak_memory: memoryData.peak_memory || 0,
+            growth_rate: memoryData.growth_rate || 0,
+            fragmentation_score: memoryData.fragmentation_score || 0
+        }
+    };
+    
+    // Calculate additional metrics if not present
+    if (processedData.allocations.length > 0) {
+        const totalSize = processedData.allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+        if (!processedData.stats.total_memory) {
+            processedData.stats.total_memory = totalSize;
+        }
+        if (!processedData.stats.total_allocations) {
+            processedData.stats.total_allocations = processedData.allocations.length;
+        }
+    }
+    
+    console.log('✅ Processed memory analysis data:', processedData);
+    return processedData;
+}
+
+// Generate fallback memory data when real data is unavailable
+function generateFallbackMemoryData() {
+    console.log('🔄 Generating fallback memory data');
+    
+    return {
+        stats: {
+            total_allocations: 0,
+            active_allocations: 0,
+            total_memory: 0,
+            active_memory: 0
+        },
+        allocations: [],
+        trends: {
+            peak_memory: 0,
+            growth_rate: 0,
+            fragmentation_score: 0
+        },
+        isFallback: true
+    };
+}
+
+// Validate memory data structure
+function validateMemoryData(data) {
+    if (!data) return false;
+    
+    const hasStats = data.stats && typeof data.stats === 'object';
+    const hasAllocations = Array.isArray(data.allocations);
+    
+    return hasStats && hasAllocations;
+}
+
+// Calculate memory statistics from allocations
+function calculateMemoryStatistics(allocations) {
+    if (!Array.isArray(allocations) || allocations.length === 0) {
+        return {
+            totalSize: 0,
+            averageSize: 0,
+            largestAllocation: 0,
+            userAllocations: 0,
+            systemAllocations: 0
+        };
+    }
+    
+    const totalSize = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+    const averageSize = totalSize / allocations.length;
+    const largestAllocation = Math.max(...allocations.map(alloc => alloc.size || 0));
+    
+    const userAllocations = allocations.filter(alloc => 
+        alloc.var_name && alloc.var_name !== 'unknown' && 
+        alloc.type_name && alloc.type_name !== 'unknown'
+    ).length;
+    
+    const systemAllocations = allocations.length - userAllocations;
+    
+    return {
+        totalSize,
+        averageSize,
+        largestAllocation,
+        userAllocations,
+        systemAllocations
+    };
+}
+
 // Initialize memory usage analysis with enhanced data processing
 function initMemoryUsageAnalysis() {
     const container = document.getElementById('memory-usage-analysis');
     if (!container) return;
     
-    const allocations = window.analysisData.memory_analysis?.allocations || [];
+    // Process memory data with validation
+    const memoryData = processMemoryAnalysisData(window.analysisData);
+    const allocations = memoryData.allocations;
     
-    if (allocations.length === 0) {
+    if (allocations.length === 0 || memoryData.isFallback) {
         container.innerHTML = `
             <div class="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
                 <div class="text-center">
                     <i class="fa fa-info-circle text-4xl mb-4"></i>
                     <h4 class="text-lg font-semibold mb-2">No Memory Data Available</h4>
                     <p class="text-sm">No memory allocation data found for analysis</p>
+                    <p class="text-xs mt-2">Use memory tracking features to collect data</p>
                 </div>
             </div>
         `;
         return;
     }
     
-    const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+    // Calculate comprehensive statistics
+    const stats = calculateMemoryStatistics(allocations);
+    const totalMemory = stats.totalSize;
+    
     const userAllocations = allocations.filter(alloc => 
         alloc.var_name && alloc.var_name !== 'unknown' && 
         alloc.type_name && alloc.type_name !== 'unknown'
@@ -360,32 +509,68 @@ function initMemoryUsageAnalysis() {
     
     container.innerHTML = `
         <div class="h-full flex flex-col">
-            <h4 class="text-lg font-semibold mb-4 text-center dark:text-white">Memory Usage Distribution</h4>
-            <div class="flex-grow flex items-center justify-center">
-                <div class="w-full max-w-md">
-                    <div class="mb-6">
+            <h4 class="text-lg font-semibold mb-4 text-center text-gray-900 dark:text-white">Memory Usage Analysis</h4>
+            
+            <!-- Statistics Grid -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${allocations.length}</div>
+                    <div class="text-xs text-blue-600 dark:text-blue-400">Total Allocations</div>
+                </div>
+                <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-green-600 dark:text-green-400">${formatBytes(totalMemory)}</div>
+                    <div class="text-xs text-green-600 dark:text-green-400">Total Memory</div>
+                </div>
+                <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">${formatBytes(stats.averageSize)}</div>
+                    <div class="text-xs text-purple-600 dark:text-purple-400">Average Size</div>
+                </div>
+                <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-400">${formatBytes(stats.largestAllocation)}</div>
+                    <div class="text-xs text-orange-600 dark:text-orange-400">Largest Block</div>
+                </div>
+            </div>
+            
+            <!-- Memory Distribution -->
+            <div class="flex-grow">
+                <h5 class="text-md font-medium mb-3 text-gray-900 dark:text-white">Memory Distribution</h5>
+                <div class="space-y-4">
+                    <div>
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-medium text-blue-600 dark:text-blue-400">User Allocations</span>
+                            <span class="text-sm font-medium text-blue-600 dark:text-blue-400">User Allocations (${stats.userAllocations})</span>
                             <span class="text-sm text-gray-600 dark:text-gray-300">${formatBytes(userMemory)} (${userPercentage.toFixed(1)}%)</span>
                         </div>
-                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
-                            <div class="bg-blue-500 h-4 rounded-full transition-all duration-500" style="width: ${userPercentage}%"></div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                            <div class="bg-blue-500 h-3 rounded-full transition-all duration-500" style="width: ${userPercentage}%"></div>
                         </div>
                     </div>
-                    <div class="mb-6">
+                    <div>
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">System Allocations</span>
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">System Allocations (${stats.systemAllocations})</span>
                             <span class="text-sm text-gray-600 dark:text-gray-300">${formatBytes(systemMemory)} (${systemPercentage.toFixed(1)}%)</span>
                         </div>
-                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
-                            <div class="bg-gray-500 h-4 rounded-full transition-all duration-500" style="width: ${systemPercentage}%"></div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                            <div class="bg-gray-500 h-3 rounded-full transition-all duration-500" style="width: ${systemPercentage}%"></div>
                         </div>
                     </div>
-                    <div class="text-center pt-4 border-t dark:border-gray-600">
-                        <div class="text-lg font-semibold dark:text-white">Total: ${formatBytes(totalMemory)}</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">${allocations.length} allocations</div>
-                    </div>
                 </div>
+                
+                <!-- Memory Trends -->
+                ${memoryData.trends && (memoryData.trends.peak_memory > 0 || memoryData.trends.growth_rate !== 0) ? `
+                    <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                        <h5 class="text-md font-medium mb-3 text-gray-900 dark:text-white">Memory Trends</h5>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-600 dark:text-gray-400">Peak Memory:</span>
+                                <span class="font-medium text-gray-900 dark:text-white ml-2">${formatBytes(memoryData.trends.peak_memory)}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600 dark:text-gray-400">Growth Rate:</span>
+                                <span class="font-medium text-gray-900 dark:text-white ml-2">${memoryData.trends.growth_rate}%</span>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         </div>
     `;
@@ -1069,6 +1254,118 @@ function initMemoryGrowthTrends() {
     `;
 }
 
+// Node Detail Panel for Variable Relationship Graph
+class NodeDetailPanel {
+    constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.panel = null;
+        this.currentNode = null;
+    }
+    
+    show(nodeData, position) {
+        this.hide(); // Close existing panel
+        this.panel = this.createPanel(nodeData);
+        this.positionPanel(position);
+        this.container.appendChild(this.panel);
+        this.currentNode = nodeData;
+    }
+    
+    hide() {
+        if (this.panel) {
+            this.panel.remove();
+            this.panel = null;
+            this.currentNode = null;
+        }
+    }
+    
+    createPanel(nodeData) {
+        const panel = document.createElement('div');
+        panel.className = 'absolute bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 min-w-64 max-w-80';
+        panel.style.cssText = 'background: var(--detail-panel-bg); box-shadow: var(--detail-panel-shadow);';
+        
+        // Find related allocation data
+        const allocations = window.analysisData.memory_analysis?.allocations || [];
+        const allocation = allocations.find(alloc => alloc.var_name === nodeData.id);
+        
+        panel.innerHTML = `
+            <div class="flex justify-between items-start mb-3">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Variable Details</h3>
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick="this.closest('.absolute').remove()">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Variable Name</label>
+                    <p class="text-gray-900 dark:text-white font-mono">${nodeData.id}</p>
+                </div>
+                
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Type</label>
+                    <p class="text-gray-900 dark:text-white font-mono">${nodeData.type}</p>
+                </div>
+                
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Size</label>
+                    <p class="text-gray-900 dark:text-white">${formatBytes(nodeData.size)}</p>
+                </div>
+                
+                ${allocation ? `
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Memory Address</label>
+                        <p class="text-gray-900 dark:text-white font-mono">${allocation.ptr || 'N/A'}</p>
+                    </div>
+                    
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Scope</label>
+                        <p class="text-gray-900 dark:text-white">${allocation.scope || 'global'}</p>
+                    </div>
+                    
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Status</label>
+                        <p class="text-gray-900 dark:text-white">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${allocation.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}">
+                                ${allocation.is_active ? 'Active' : 'Deallocated'}
+                            </span>
+                        </p>
+                    </div>
+                ` : ''}
+                
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Relationships</label>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Connected to variables of the same type: <strong>${nodeData.type}</strong>
+                    </p>
+                </div>
+            </div>
+        `;
+        
+        return panel;
+    }
+    
+    positionPanel(position) {
+        if (!this.panel) return;
+        
+        const containerRect = this.container.getBoundingClientRect();
+        const panelRect = this.panel.getBoundingClientRect();
+        
+        let left = position.x - containerRect.left + 10;
+        let top = position.y - containerRect.top + 10;
+        
+        // Adjust if panel would go outside container
+        if (left + panelRect.width > containerRect.width) {
+            left = position.x - containerRect.left - panelRect.width - 10;
+        }
+        if (top + panelRect.height > containerRect.height) {
+            top = position.y - containerRect.top - panelRect.height - 10;
+        }
+        
+        this.panel.style.left = `${Math.max(0, left)}px`;
+        this.panel.style.top = `${Math.max(0, top)}px`;
+    }
+}
+
 // Initialize variable relationship graph
 function initVariableGraph() {
     const container = document.getElementById('variable-graph-container');
@@ -1117,37 +1414,69 @@ function initVariableGraph() {
     }
     
     container.innerHTML = `
-        <svg class="w-full h-full" viewBox="0 0 600 400">
-            <!-- Edges -->
-            ${edges.map(edge => {
-                const sourceNode = nodes.find(n => n.id === edge.source);
-                const targetNode = nodes.find(n => n.id === edge.target);
-                return `<line x1="${sourceNode.x}" y1="${sourceNode.y}" 
-                             x2="${targetNode.x}" y2="${targetNode.y}" 
-                             stroke="#94a3b8" stroke-width="1" opacity="0.6" />`;
-            }).join('')}
+        <div class="relative">
+            <svg class="w-full h-full" viewBox="0 0 600 400">
+                <!-- Edges -->
+                ${edges.map(edge => {
+                    const sourceNode = nodes.find(n => n.id === edge.source);
+                    const targetNode = nodes.find(n => n.id === edge.target);
+                    return `<line x1="${sourceNode.x}" y1="${sourceNode.y}" 
+                                 x2="${targetNode.x}" y2="${targetNode.y}" 
+                                 stroke="var(--graph-link-color)" stroke-width="1" opacity="0.6" />`;
+                }).join('')}
+                
+                <!-- Nodes -->
+                ${nodes.map(node => {
+                    const radius = Math.max(8, Math.min(30, Math.sqrt(node.size) / 10));
+                    const color = getTypeColor(node.type);
+                    return `
+                        <g class="graph-node cursor-pointer" data-node-id="${node.id}">
+                            <circle cx="${node.x}" cy="${node.y}" r="${radius}" 
+                                    fill="${color}" stroke="var(--graph-node-border)" stroke-width="2" 
+                                    opacity="0.8" class="hover:opacity-100 transition-opacity" />
+                            <text x="${node.x}" y="${node.y - radius - 5}" 
+                                  text-anchor="middle" font-size="10" fill="var(--text-primary)" 
+                                  font-weight="bold">${node.id}</text>
+                            <text x="${node.x}" y="${node.y + radius + 15}" 
+                                  text-anchor="middle" font-size="8" fill="var(--text-secondary)">
+                                  ${formatTypeName(node.type)}
+                            </text>
+                        </g>
+                    `;
+                }).join('')}
+            </svg>
             
-            <!-- Nodes -->
-            ${nodes.map(node => {
-                const radius = Math.max(8, Math.min(30, Math.sqrt(node.size) / 10));
-                const color = getTypeColor(node.type);
-                return `
-                    <g>
-                        <circle cx="${node.x}" cy="${node.y}" r="${radius}" 
-                                fill="${color}" stroke="#fff" stroke-width="2" 
-                                opacity="0.8" class="hover:opacity-100 cursor-pointer" />
-                        <text x="${node.x}" y="${node.y - radius - 5}" 
-                              text-anchor="middle" font-size="10" fill="#374151" 
-                              font-weight="bold">${node.id}</text>
-                        <text x="${node.x}" y="${node.y + radius + 15}" 
-                              text-anchor="middle" font-size="8" fill="#6b7280">
-                              ${formatTypeName(node.type)}
-                        </text>
-                    </g>
-                `;
-            }).join('')}
-        </svg>
+            <!-- Instructions -->
+            <div class="absolute top-2 right-2 text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-2 py-1 rounded border">
+                Click nodes for details
+            </div>
+        </div>
     `;
+    
+    // Setup click interactions
+    const detailPanel = new NodeDetailPanel('variable-graph-container');
+    const svgContainer = container.querySelector('svg');
+    
+    if (svgContainer) {
+        svgContainer.addEventListener('click', (event) => {
+            const nodeElement = event.target.closest('.graph-node');
+            if (nodeElement) {
+                const nodeId = nodeElement.dataset.nodeId;
+                const nodeData = nodes.find(n => n.id === nodeId);
+                if (nodeData) {
+                    const position = {
+                        x: event.clientX,
+                        y: event.clientY
+                    };
+                    detailPanel.show(nodeData, position);
+                }
+                event.stopPropagation();
+            } else {
+                // Click on empty space - hide panel
+                detailPanel.hide();
+            }
+        });
+    }
 }
 
 // Get color for variable type
