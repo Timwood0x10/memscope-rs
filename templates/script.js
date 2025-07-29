@@ -844,53 +844,120 @@ function createAdvancedTimelineVisualization(allocations, totalMemory) {
     }).join('');
 }
 
-// Create advanced treemap visualization
+// Create advanced treemap visualization inspired by SVG design
 function createAdvancedTreemapVisualization(allocations, totalMemory) {
+    if (allocations.length === 0) return '<div class="flex items-center justify-center h-full text-gray-400">No allocation data</div>';
+
+    // Group allocations by type and category
     const typeGroups = {};
+    const categoryGroups = {
+        'Collections': { types: {}, totalSize: 0, color: '#3498db' },
+        'Basic Types': { types: {}, totalSize: 0, color: '#27ae60' },
+        'Smart Pointers': { types: {}, totalSize: 0, color: '#9b59b6' },
+        'System': { types: {}, totalSize: 0, color: '#95a5a6' }
+    };
+
     allocations.forEach(alloc => {
         const type = alloc.type_name || 'System';
+        const category = getTypeCategory(type);
+        const categoryName = getCategoryName(category);
+        
         if (!typeGroups[type]) {
-            typeGroups[type] = { count: 0, size: 0, category: getTypeCategory(type) };
+            typeGroups[type] = { count: 0, size: 0, category: categoryName };
         }
         typeGroups[type].count++;
         typeGroups[type].size += alloc.size || 0;
+        
+        // Add to category groups
+        if (!categoryGroups[categoryName].types[type]) {
+            categoryGroups[categoryName].types[type] = { count: 0, size: 0 };
+        }
+        categoryGroups[categoryName].types[type].count++;
+        categoryGroups[categoryName].types[type].size += alloc.size || 0;
+        categoryGroups[categoryName].totalSize += alloc.size || 0;
     });
 
-    const sortedTypes = Object.entries(typeGroups)
-        .sort(([, a], [, b]) => b.size - a.size)
-        .slice(0, 12);
+    // Sort categories by size
+    const sortedCategories = Object.entries(categoryGroups)
+        .filter(([, data]) => data.totalSize > 0)
+        .sort(([, a], [, b]) => b.totalSize - a.totalSize);
 
-    let currentX = 0;
+    let html = '';
     let currentY = 0;
-    let rowHeight = 0;
-    const containerWidth = 100;
+    const containerHeight = 240;
+    const padding = 8;
 
-    return sortedTypes.map(([type, data], index) => {
-        const width = Math.max(8, Math.min(25, (data.size / totalMemory) * 100));
-        const height = Math.max(20, Math.min(40, (data.count / allocations.length) * 100));
-
-        if (currentX + width > containerWidth) {
-            currentX = 0;
-            currentY += rowHeight + 5;
-            rowHeight = 0;
-        }
-
-        const color = getCategoryColor(data.category);
-        const result = `
-            <div class="absolute transition-all hover:brightness-110 cursor-pointer rounded shadow-sm" 
-                 style="left: ${currentX}%; top: ${currentY}%; width: ${width}%; height: ${height}px; background-color: ${color};"
-                 title="${type}: ${formatBytes(data.size)} (${data.count} allocs)">
-                <div class="p-1 h-full flex flex-col justify-center text-white text-xs font-semibold">
-                    <div class="truncate">${type.length > 8 ? type.substring(0, 6) + '..' : type}</div>
-                    <div class="text-xs opacity-90">${formatBytes(data.size)}</div>
-                </div>
+    sortedCategories.forEach(([categoryName, categoryData], categoryIndex) => {
+        const categoryPercentage = (categoryData.totalSize / totalMemory) * 100;
+        const categoryHeight = Math.max(40, (categoryPercentage / 100) * containerHeight * 0.8);
+        
+        // Category container with background
+        html += `
+            <div class="absolute w-full rounded-lg border-2 border-white shadow-sm transition-all hover:shadow-md" 
+                 style="top: ${currentY}px; height: ${categoryHeight}px; background-color: ${categoryData.color}; opacity: 0.15;">
             </div>
         `;
 
-        currentX += width + 2;
-        rowHeight = Math.max(rowHeight, height);
-        return result;
-    }).join('');
+        // Category label
+        html += `
+            <div class="absolute left-2 font-bold text-sm z-10" 
+                 style="top: ${currentY + 8}px; color: ${categoryData.color};">
+                ${categoryName} (${categoryPercentage.toFixed(1)}%)
+            </div>
+        `;
+
+        // Sort types within category
+        const sortedTypes = Object.entries(categoryData.types)
+            .sort(([, a], [, b]) => b.size - a.size)
+            .slice(0, 6); // Limit to top 6 types per category
+
+        let currentX = 20;
+        const typeY = currentY + 25;
+        const availableWidth = 95; // Leave some margin
+
+        sortedTypes.forEach(([type, typeData], typeIndex) => {
+            const typePercentage = (typeData.size / categoryData.totalSize) * 100;
+            const typeWidth = Math.max(60, (typePercentage / 100) * availableWidth);
+            const typeHeight = Math.max(20, categoryHeight - 35);
+
+            // Type rectangle with enhanced styling
+            html += `
+                <div class="absolute rounded-md border border-white shadow-sm cursor-pointer transition-all hover:brightness-110 hover:scale-105 hover:z-20" 
+                     style="left: ${currentX}px; top: ${typeY}px; width: ${typeWidth}px; height: ${typeHeight}px; 
+                            background-color: ${categoryData.color}; opacity: 0.9;"
+                     title="${type}: ${formatBytes(typeData.size)} (${typeData.count} allocs, ${typePercentage.toFixed(1)}% of ${categoryName})">
+                    <div class="p-1 h-full flex flex-col justify-center text-white text-xs font-bold text-center">
+                        <div class="truncate text-shadow" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">
+                            ${type.length > 12 ? type.substring(0, 10) + '..' : type}
+                        </div>
+                        <div class="text-xs opacity-90 font-semibold" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.6);">
+                            ${formatBytes(typeData.size)}
+                        </div>
+                        <div class="text-xs opacity-75" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.6);">
+                            (${typePercentage.toFixed(1)}%)
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            currentX += typeWidth + 4;
+        });
+
+        currentY += categoryHeight + padding;
+    });
+
+    return html;
+}
+
+// Helper function to get category name
+function getCategoryName(category) {
+    const categoryMap = {
+        'collections': 'Collections',
+        'basic': 'Basic Types',
+        'smart_pointers': 'Smart Pointers',
+        'system': 'System'
+    };
+    return categoryMap[category] || 'System';
 }
 
 // Create advanced fragmentation bar
@@ -1033,18 +1100,34 @@ function createVariableAllocationTimeline(allocations) {
     }).join('');
 }
 
-// Helper functions
+// Helper functions for type categorization
 function getTypeCategory(type) {
-    if (!type || type === 'System') return 'system';
-    if (type.toLowerCase().includes('vec') || type.toLowerCase().includes('hash') || type.toLowerCase().includes('btree')) return 'collections';
+    if (!type || type === 'System' || type === 'unknown') return 'system';
+    
+    const typeLower = type.toLowerCase();
+    
+    // Collections
+    if (typeLower.includes('vec') || typeLower.includes('hash') || typeLower.includes('btree') || 
+        typeLower.includes('deque') || typeLower.includes('set') || typeLower.includes('map')) {
+        return 'collections';
+    }
+    
+    // Smart Pointers
+    if (typeLower.includes('box') || typeLower.includes('rc') || typeLower.includes('arc') || 
+        typeLower.includes('refcell') || typeLower.includes('cell') || typeLower.includes('weak')) {
+        return 'smart_pointers';
+    }
+    
+    // Basic types (String, primitives, etc.)
     return 'basic';
 }
 
 function getCategoryColor(category) {
     const colors = {
-        'collections': '#3498db',
-        'basic': '#2ecc71',
-        'system': '#95a5a6'
+        'collections': '#3498db',      // Bright blue
+        'basic': '#27ae60',           // Bright green  
+        'smart_pointers': '#9b59b6',  // Purple
+        'system': '#95a5a6'           // Gray
     };
     return colors[category] || '#95a5a6';
 }
