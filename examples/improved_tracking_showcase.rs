@@ -9,7 +9,7 @@
 //! - Performance improvements from removing auto-export
 
 use memscope_rs::{
-    get_global_tracker, get_global_unsafe_ffi_tracker, track_var, Trackable,
+    get_global_tracker, get_global_unsafe_ffi_tracker, track_var, track_var_owned, Trackable,
     TrackingResult,
 };
 use std::ffi::{CStr, CString};
@@ -376,8 +376,8 @@ fn main() -> TrackingResult<()> {
     let persistent_data2 = ComplexData::new(101, "persistent_var2", 1024);
     let persistent_data3 = ComplexData::new(102, "persistent_var3", 256);
     
-    track_var!(persistent_data1);
-    track_var!(persistent_data2);
+    let _tracked_persistent1 = track_var_owned!(persistent_data1);
+    let _tracked_persistent2 = track_var_owned!(persistent_data2);
     track_var!(persistent_data3); // Test both tracking methods
     
     println!("📊 Created persistent tracked variables for export testing");
