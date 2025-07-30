@@ -189,21 +189,13 @@ Available features:
 After running programs, you'll find analysis results in the `MemoryAnalysis/` directory:
 
 ```
-MemoryAnalysis/
-├── basic_usage/
-│   ├── basic_usage_snapshot.json      # JSON memory data (the raw truth)
-│   ├── basic_usage_graph.svg          # SVG memory usage chart (the pretty version)
-│   ├── memory_timeline.svg            # Memory timeline graph
-│   └── dashboard.html                 # 🎯 Interactive dashboard (click all the things!)
-├── complex_lifecycle/
-│   ├── allocations.json               # Allocation details
-│   ├── lifecycle_analysis.json        # Lifecycle analysis
-│   ├── performance_metrics.json       # Performance metrics
-│   └── security_violations.json       # Security issue reports (hopefully empty)
-└── benchmark_results/
-    ├── benchmark_results.json         # Benchmark results
-    ├── performance_report.md          # Performance report
-    └── comparison_charts.svg          # Comparison charts
+├── complex_lifecycle_snapshot_complex_types.json  // complex types info
+├── complex_lifecycle_snapshot_lifetime.json // varable lifetiem infos
+├── complex_lifecycle_snapshot_memory_analysis.json  // all things 
+├── complex_lifecycle_snapshot_performance.json   // performances 
+├── complex_lifecycle_snapshot_security_violations.json  // security violations
+├── complex_lifecycle_snapshot_unsafe_ffi.json  // unsafe && ffi infos
+└── improved_tracking_final_v3.html // output html
 ```
 
 ### 🌟 Interactive HTML Dashboard Features
@@ -219,6 +211,9 @@ The generated `dashboard.html` provides a rich, interactive experience:
 
 **To view the dashboard:**
 ```bash
+# output html 
+make html DIR=YOUR_JSON_DIR BASE=complex_lifecycle OUTPUT=improved_tracking_final.html
+
 # After running your tracked program
 open MemoryAnalysis/your_analysis_name/dashboard.html
 # Or simply double-click the HTML file in your file manager
