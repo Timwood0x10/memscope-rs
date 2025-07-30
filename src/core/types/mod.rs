@@ -609,11 +609,11 @@ pub struct FragmentationAnalysis {
 }
 
 /// System library usage statistics for tracking external memory usage
-/// 
+///
 /// This structure provides insights into memory allocations made by system libraries
 /// and external dependencies, helping identify memory usage patterns outside of
 /// user code and potential optimization opportunities in library usage.
-/// 
+///
 /// # Binary Export Support
 /// Fully supports binary serialization and deserialization for efficient export
 /// and import operations. The structure is optimized for MessagePack encoding.
@@ -643,11 +643,11 @@ pub struct SystemLibraryStats {
 
 /// Library usage information
 /// Library usage statistics for tracking external dependency memory patterns
-/// 
+///
 /// This structure tracks memory allocation patterns for specific libraries
 /// or system components, providing insights into external memory usage
 /// and potential optimization opportunities.
-/// 
+///
 /// # Usage Tracking
 /// Monitors allocation frequency, memory consumption, and performance
 /// characteristics for library-specific memory operations.
@@ -668,11 +668,11 @@ pub struct LibraryUsage {
 }
 
 /// Concurrency analysis for multi-threaded memory operations
-/// 
+///
 /// This structure analyzes memory allocation patterns across multiple threads,
 /// identifying potential race conditions, contention points, and opportunities
 /// for optimization in concurrent memory usage scenarios.
-/// 
+///
 /// # Thread Safety
 /// All fields are designed to be safely serialized and deserialized across
 /// thread boundaries while maintaining data integrity and consistency.
@@ -720,11 +720,11 @@ pub struct ScopeAnalysis {
 }
 
 /// Scope lifecycle metrics for tracking variable lifetime patterns
-/// 
+///
 /// This structure provides detailed analysis of how variables behave within
 /// different scopes, including lifetime patterns, memory efficiency, and
 /// optimization opportunities for scope-based memory management.
-/// 
+///
 /// # Lifecycle Analysis
 /// Tracks comprehensive metrics about variable creation, usage, and destruction
 /// patterns within specific scopes, enabling detailed performance analysis.
@@ -829,7 +829,16 @@ pub struct ScopeHierarchy {
 }
 
 /// Risk distribution analysis for memory allocations
-#[derive(Debug, Clone, Default, serde::Serialize)]
+/// Risk distribution analysis for memory safety assessment
+///
+/// This structure analyzes the distribution of memory-related risks across
+/// different categories, helping identify potential safety issues and
+/// optimization opportunities in memory management patterns.
+///
+/// # Risk Categories
+/// Tracks various types of memory risks including leaks, use-after-free
+/// potential, buffer overflows, and other memory safety concerns.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct RiskDistribution {
     /// Low Risk
     pub low_risk: usize,
@@ -842,7 +851,17 @@ pub struct RiskDistribution {
 }
 
 /// Type-specific lifecycle pattern analysis
-#[derive(Debug, Clone, serde::Serialize)]
+/// Type lifecycle pattern analysis for memory management optimization
+///
+/// This structure tracks how specific types behave throughout their lifecycle,
+/// including allocation patterns, usage frequency, and deallocation timing.
+/// This information helps identify optimization opportunities and potential
+/// memory management issues for specific data types.
+///
+/// # Pattern Recognition
+/// Analyzes allocation frequency, lifetime distribution, and usage patterns
+/// to provide insights into type-specific memory behavior and optimization potential.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TypeLifecyclePattern {
     /// Type Name
     pub type_name: String,

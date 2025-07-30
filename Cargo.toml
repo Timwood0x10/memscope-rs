@@ -31,7 +31,7 @@ memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.
 # Binary export dependencies
 rmp-serde = "1.1"  # MessagePack serialization
 zstd = "0.13"      # Zstd compression
-bincode = "1.3"    # Alternative binary format
+bincode = "2.0.1"    # Alternative binary format
 
 
 [lib]

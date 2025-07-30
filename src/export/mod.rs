@@ -1,7 +1,6 @@
 pub mod adaptive_performance;
 pub mod batch_processor;
-pub mod binary_export;  // New binary export module
-pub mod simple_binary_export;  // Simplified binary export for proof of concept
+pub mod binary_export; // New binary export module
 pub mod complex_type_export;
 pub mod config_optimizer;
 pub mod data_localizer;
@@ -20,6 +19,7 @@ pub mod performance_testing;
 pub mod progress_monitor;
 pub mod quality_validator;
 pub mod schema_validator;
+pub mod simple_binary_export; // Simplified binary export for proof of concept
 pub mod streaming_json_writer;
 pub mod system_optimizer;
 pub mod visualization;

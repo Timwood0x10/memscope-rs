@@ -86,7 +86,7 @@ enum ExportMode {
 }
 
 use crate::core::types::{
-    AllocationInfo, MemoryStats, MemoryTypeInfo, TrackingResult, TrackingError, TypeMemoryUsage,
+    AllocationInfo, MemoryStats, MemoryTypeInfo, TrackingResult, TypeMemoryUsage,
 };
 use crate::core::types::{
     AllocatorStateInfo, CachePerformanceInfo, CpuUsageInfo, MemoryPressureInfo,
@@ -134,13 +134,13 @@ pub fn get_global_tracker() -> Arc<MemoryTracker> {
 /// provides statistics, and supports exporting data in various formats.
 pub struct MemoryTracker {
     /// Active allocations (ptr -> allocation info)
-    active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
+    pub active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
     /// Complete allocation history (for analysis)
-    allocation_history: Mutex<Vec<AllocationInfo>>,
+    pub allocation_history: Mutex<Vec<AllocationInfo>>,
     /// Memory usage statistics
-    stats: Mutex<MemoryStats>,
+    pub stats: Mutex<MemoryStats>,
     /// Fast mode flag for testing (reduces overhead)
-    fast_mode: std::sync::atomic::AtomicBool,
+    pub fast_mode: std::sync::atomic::AtomicBool,
 }
 
 impl MemoryTracker {
@@ -168,14 +168,14 @@ impl MemoryTracker {
     }
 
     /// Get current memory statistics for analysis and export
-    /// 
+    ///
     /// Returns a snapshot of the current memory usage statistics including
     /// allocation counts, memory totals, and performance metrics. This method
     /// provides safe access to internal statistics without exposing implementation details.
-    /// 
+    ///
     /// # Returns
     /// A cloned copy of the current MemoryStats structure
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// let tracker = get_global_tracker();
@@ -183,26 +183,29 @@ impl MemoryTracker {
     /// println!("Active memory: {} bytes", stats.active_memory);
     /// ```
     pub fn get_memory_stats(&self) -> MemoryStats {
-        self.stats.lock().unwrap_or_else(|poisoned| {
-            // Handle poisoned mutex by taking the data anyway
-            poisoned.into_inner()
-        }).clone()
+        self.stats
+            .lock()
+            .unwrap_or_else(|poisoned| {
+                // Handle poisoned mutex by taking the data anyway
+                poisoned.into_inner()
+            })
+            .clone()
     }
 
     /// Get all active allocations for analysis and export
-    /// 
+    ///
     /// Returns a vector containing information about all currently active
     /// memory allocations. This method provides safe access to allocation
     /// data without exposing internal HashMap structure.
-    /// 
+    ///
     /// # Returns
     /// A vector of AllocationInfo structures for all active allocations
-    /// 
+    ///
     /// # Performance Note
     /// This method creates a copy of all allocation data, which may be
     /// expensive for large numbers of allocations. Consider using pagination
     /// or filtering for production use with many allocations.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// let tracker = get_global_tracker();
@@ -210,25 +213,30 @@ impl MemoryTracker {
     /// println!("Found {} active allocations", allocations.len());
     /// ```
     pub fn get_all_active_allocations(&self) -> Vec<AllocationInfo> {
-        self.active_allocations.lock().unwrap_or_else(|poisoned| {
-            // Handle poisoned mutex by taking the data anyway
-            poisoned.into_inner()
-        }).values().cloned().collect()
+        self.active_allocations
+            .lock()
+            .unwrap_or_else(|poisoned| {
+                // Handle poisoned mutex by taking the data anyway
+                poisoned.into_inner()
+            })
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// Get complete allocation history for comprehensive analysis
-    /// 
+    ///
     /// Returns all allocations that have been tracked, including both active
     /// and deallocated allocations. This provides the complete picture of
     /// memory usage patterns throughout the program's execution.
-    /// 
+    ///
     /// # Returns
     /// A vector containing all tracked allocations (active and historical)
-    /// 
+    ///
     /// # Memory Usage
     /// This method returns a copy of the entire allocation history, which
     /// can be memory-intensive for long-running programs with many allocations.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// let tracker = get_global_tracker();
@@ -237,45 +245,48 @@ impl MemoryTracker {
     /// println!("Found {} potential memory leaks", leaked);
     /// ```
     pub fn get_complete_allocation_history(&self) -> Vec<AllocationInfo> {
-        self.allocation_history.lock().unwrap_or_else(|poisoned| {
-            // Handle poisoned mutex by taking the data anyway
-            poisoned.into_inner()
-        }).clone()
+        self.allocation_history
+            .lock()
+            .unwrap_or_else(|poisoned| {
+                // Handle poisoned mutex by taking the data anyway
+                poisoned.into_inner()
+            })
+            .clone()
     }
 
     /// Export memory data to binary format with comprehensive options
-    /// 
+    ///
     /// This method provides high-performance binary export using MessagePack serialization
     /// and Zstd compression. It offers significant advantages over JSON export including
     /// faster serialization, smaller file sizes, and selective loading capabilities.
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Output file path for the binary export
     /// * `options` - Binary export configuration options
-    /// 
+    ///
     /// # Returns
     /// Export statistics including timing and compression metrics
-    /// 
+    ///
     /// # Performance Benefits
     /// - 5-10x faster serialization compared to JSON
     /// - 20-50% smaller file sizes with MessagePack
     /// - 60-80% smaller with compression enabled
     /// - Selective loading support for large datasets
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use memscope_rs::export::binary_export::BinaryExportOptions;
-    /// 
+    ///
     /// let tracker = get_global_tracker();
-    /// 
+    ///
     /// // Fast export for real-time monitoring
     /// let fast_options = BinaryExportOptions::fast();
     /// let stats = tracker.export_to_binary("snapshot.msgpack", fast_options)?;
-    /// 
+    ///
     /// // Compact export for archival storage
     /// let compact_options = BinaryExportOptions::compact();
     /// let stats = tracker.export_to_binary("archive.msgpack", compact_options)?;
-    /// 
+    ///
     /// println!("Export completed in {:?}", stats.export_time);
     /// println!("Compression ratio: {:.1}%", stats.compression_ratio * 100.0);
     /// ```
@@ -284,96 +295,21 @@ impl MemoryTracker {
         path: P,
         options: crate::export::binary_export::BinaryExportOptions,
     ) -> TrackingResult<crate::export::binary_export::BinaryExportStats> {
-        // Import the binary export functionality
-        use crate::export::binary_export::*;
-        
-        let start_time = std::time::SystemTime::now();
-        let path = path.as_ref();
-        
-        // Ensure output directory exists
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        // Collect comprehensive data from tracker using public methods
-        let stats = self.get_memory_stats();
-        let active_allocations = self.get_all_active_allocations();
-        let allocation_history = self.get_complete_allocation_history();
-        
-        // Combine active and historical allocations for complete export
-        let mut all_allocations = allocation_history;
-        for active_alloc in active_allocations {
-            // Only add if not already in history (avoid duplicates)
-            if !all_allocations.iter().any(|h| h.ptr == active_alloc.ptr) {
-                all_allocations.push(active_alloc);
-            }
-        }
-        let allocations = all_allocations;
-        
-        // Create index if requested
-        let index = if options.include_index {
-            Some(create_data_index(&allocations))
-        } else {
-            None
-        };
-
-        // Create header
-        let header = BinaryFileHeader {
-            version: 1,
-            created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
-            allocation_count: allocations.len(),
-            total_memory: stats.total_allocated,
-            compression_format: if options.use_messagepack {
-                "messagepack+zstd".to_string()
-            } else {
-                "bincode+zstd".to_string()
-            },
-            is_chunked: options.enable_chunking,
-            chunks: Vec::new(),
-            index,
-        };
-
-        // Create export data
-        let export_data = BinaryExportData {
-            header,
-            stats,
-            allocations,
-            analysis_data: None,
-        };
-
-        // Export based on options
-        let export_stats = if options.enable_chunking {
-            export_chunked_binary(&export_data, path, &options)?
-        } else {
-            export_single_binary(&export_data, path, &options)?
-        };
-
-        let duration = start_time.elapsed().unwrap_or_default();
-        
-        Ok(BinaryExportStats {
-            export_time: duration,
-            original_size: estimate_json_size(&export_data),
-            compressed_size: export_stats.compressed_size,
-            compression_ratio: export_stats.compression_ratio,
-            allocation_count: export_data.allocations.len(),
-            chunks_created: export_stats.chunks_created,
-        })
+        // Delegate to the binary export implementation
+        crate::export::binary_export::export_memory_to_binary(self, path, options)
     }
 
     /// Load binary export data with selective filtering
-    /// 
+    ///
     /// This method loads binary export files created with export_to_binary,
     /// with optional filtering to load only specific data subsets.
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Path to the binary export file
-    /// 
+    ///
     /// # Returns
     /// The loaded binary export data structure
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// // Load all data
@@ -383,43 +319,31 @@ impl MemoryTracker {
     pub fn load_from_binary<P: AsRef<std::path::Path>>(
         path: P,
     ) -> TrackingResult<crate::export::binary_export::BinaryExportData> {
-        use crate::export::binary_export::*;
-        
-        let path = path.as_ref();
-        let compressed_data = std::fs::read(path)?;
-
-        // Decompress data
-        let decompressed_data = zstd::decode_all(&compressed_data[..])?;
-
-        // Deserialize based on format (detect from header)
-        let export_data: BinaryExportData = rmp_serde::from_slice(&decompressed_data)
-            .map_err(|e| TrackingError::SerializationError(format!("MessagePack error: {}", e)))?;
-
-        Ok(export_data)
+        crate::export::binary_export::load_binary_export_data(path)
     }
 
     /// Load selective binary data with filtering criteria
-    /// 
+    ///
     /// This method enables efficient loading of specific data subsets from
     /// binary export files, significantly reducing memory usage and loading time
     /// for large datasets when only specific data is needed.
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Path to the binary export file
     /// * `criteria` - Selection criteria for filtering data
-    /// 
+    ///
     /// # Returns
     /// Vector of filtered allocation information
-    /// 
+    ///
     /// # Performance Optimization
     /// When an index is available in the binary file, this method can skip
     /// loading unnecessary data entirely, providing substantial performance
     /// improvements for large datasets.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use memscope_rs::export::binary_export::SelectionCriteria;
-    /// 
+    ///
     /// // Load only Vec<i32> allocations
     /// let criteria = SelectionCriteria {
     ///     type_names: Some(vec!["Vec<i32>".to_string()]),
@@ -433,7 +357,7 @@ impl MemoryTracker {
         path: P,
         criteria: crate::export::binary_export::SelectionCriteria,
     ) -> TrackingResult<Vec<AllocationInfo>> {
-        crate::export::binary_export::MemoryTracker::load_selective_binary(path, criteria)
+        crate::export::binary_export::load_selective_binary_data(path, criteria)
     }
 
     /// Fast track allocation for testing (minimal overhead)
