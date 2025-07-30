@@ -794,13 +794,18 @@ impl<T: Trackable> TrackedVariable<T> {
         let is_smart_pointer = smart_pointer_type != smart_pointer_utils::SmartPointerType::None;
 
         // For smart pointers, use a unique synthetic pointer based on the TrackedVariable instance
+        // For other types, use their heap pointer or generate a synthetic one if none exists
         let ptr = if is_smart_pointer {
             Some(smart_pointer_utils::generate_synthetic_pointer(
                 smart_pointer_type,
                 unique_id,
             ))
         } else {
-            value.get_heap_ptr()
+            // For non-smart pointer types, use heap pointer or generate synthetic pointer
+            value.get_heap_ptr().or_else(|| {
+                // Generate synthetic pointer for types without heap allocation
+                Some(0x8000_0000 + unique_id)
+            })
         };
 
         // Track creation
@@ -839,31 +844,50 @@ impl<T: Trackable> TrackedVariable<T> {
                     data_ptr
                 );
             } else {
-                // For regular types, check if already tracked to prevent duplicates
-                if let Ok(active_allocations) = tracker.get_active_allocations() {
-                    let already_tracked =
-                        active_allocations.iter().any(|alloc| alloc.ptr == ptr_val);
-                    if !already_tracked {
-                        let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
-                    } else {
-                        // Just update the existing allocation with variable info
-                        let _ = tracker.update_allocation_info(
-                            ptr_val,
-                            var_name.clone(),
-                            type_name.clone(),
-                        );
-                    }
+                // For regular types, create a synthetic allocation if using synthetic pointer
+                if ptr_val >= 0x8000_0000 {
+                    // This is a synthetic pointer we generated, create a synthetic allocation
+                    let _ = tracker.create_synthetic_allocation(
+                        ptr_val,
+                        value.get_size_estimate(),
+                        var_name.clone(),
+                        type_name.clone(),
+                        creation_time,
+                    );
+                    
+                    tracing::debug!(
+                        "🎯 Created synthetic allocation for '{}' at ptr 0x{:x} (id={})",
+                        var_name,
+                        ptr_val,
+                        unique_id
+                    );
                 } else {
-                    // Fallback: try to associate anyway
-                    let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
+                    // For real heap pointers, check if already tracked to prevent duplicates
+                    if let Ok(active_allocations) = tracker.get_active_allocations() {
+                        let already_tracked =
+                            active_allocations.iter().any(|alloc| alloc.ptr == ptr_val);
+                        if !already_tracked {
+                            let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
+                        } else {
+                            // Just update the existing allocation with variable info
+                            let _ = tracker.update_allocation_info(
+                                ptr_val,
+                                var_name.clone(),
+                                type_name.clone(),
+                            );
+                        }
+                    } else {
+                        // Fallback: try to associate anyway
+                        let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
+                    }
                 }
-
-                tracing::debug!(
-                    "🎯 Created tracked variable '{}' at ptr 0x{:x}",
-                    var_name,
-                    ptr_val
-                );
             }
+
+            tracing::debug!(
+                "🎯 Created tracked variable '{}' at ptr 0x{:x}",
+                var_name,
+                ptr_val
+            );
         }
 
         Self {
@@ -1100,13 +1124,34 @@ impl<T: Trackable + Clone> Clone for TrackedVariable<T> {
 /// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
 #[doc(hidden)]
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
-    if let Some(ptr) = var.get_heap_ptr() {
-        let tracker = get_global_tracker();
-        let type_name = var.get_type_name().to_string();
+    let tracker = get_global_tracker();
+    let type_name = var.get_type_name().to_string();
+    let smart_pointer_type = smart_pointer_utils::detect_smart_pointer_type(&type_name);
+    let is_smart_pointer = smart_pointer_type != smart_pointer_utils::SmartPointerType::None;
+
+    // Get or generate pointer (consistent with TrackedVariable::new logic)
+    let ptr = if is_smart_pointer {
+        // For smart pointers, generate a unique synthetic pointer
+        let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Some(smart_pointer_utils::generate_synthetic_pointer(smart_pointer_type, unique_id))
+    } else {
+        // For non-smart pointer types, use heap pointer or generate synthetic pointer
+        var.get_heap_ptr().or_else(|| {
+            // Generate synthetic pointer for types without heap allocation
+            let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Some(0x8000_0000 + unique_id)
+        })
+    };
+
+    if let Some(ptr_val) = ptr {
+        let creation_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
 
         // 1. Register variable in HashMap registry (lightweight and fast)
         let _ = crate::variable_registry::VariableRegistry::register_variable(
-            ptr,
+            ptr_val,
             var_name.to_string(),
             type_name.clone(),
             var.get_size_estimate(),
@@ -1116,18 +1161,57 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         let scope_tracker = crate::core::scope_tracker::get_global_scope_tracker();
         let _ = scope_tracker.associate_variable(var_name.to_string(), var.get_size_estimate());
 
-        // 3. Original tracking logic remains unchanged
-        tracing::debug!(
-            "Tracking variable '{}' of type '{}' at ptr 0x{:x}",
-            var_name,
-            type_name,
-            ptr
-        );
+        // 3. Create appropriate allocation based on type
+        if is_smart_pointer {
+            // For smart pointers, create specialized allocation
+            let ref_count = var.get_ref_count();
+            let data_ptr = var.get_data_ptr();
 
-        tracker.associate_var(ptr, var_name.to_string(), type_name)?;
+            let _ = tracker.create_smart_pointer_allocation(
+                ptr_val,
+                var.get_size_estimate(),
+                var_name.to_string(),
+                type_name.clone(),
+                creation_time,
+                ref_count,
+                data_ptr,
+            );
+
+            tracing::debug!(
+                "🎯 Created smart pointer tracking for '{}' at ptr 0x{:x}, ref_count={}",
+                var_name,
+                ptr_val,
+                ref_count
+            );
+        } else if ptr_val >= 0x8000_0000 {
+            // For synthetic pointers, create synthetic allocation
+            let _ = tracker.create_synthetic_allocation(
+                ptr_val,
+                var.get_size_estimate(),
+                var_name.to_string(),
+                type_name.clone(),
+                creation_time,
+            );
+
+            tracing::debug!(
+                "🎯 Created synthetic tracking for '{}' at ptr 0x{:x}",
+                var_name,
+                ptr_val
+            );
+        } else {
+            // For real heap pointers, use association
+            tracker.associate_var(ptr_val, var_name.to_string(), type_name.clone())?;
+
+            tracing::debug!(
+                "🎯 Associated variable '{}' of type '{}' at ptr 0x{:x}",
+                var_name,
+                type_name,
+                ptr_val
+            );
+        }
     } else {
-        // Variable doesn't have a heap allocation (e.g., empty Vec)
-        tracing::debug!("Variable '{}' has no heap allocation to track", var_name);
+        // This should not happen with our new logic, but keep as fallback
+        tracing::debug!("Variable '{}' could not be tracked (no pointer generated)", var_name);
     }
     Ok(())
 }
