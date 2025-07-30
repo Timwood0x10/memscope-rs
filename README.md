@@ -59,22 +59,6 @@ cargo run --example speed_test
 cargo run --example unsafe_ffi_demo
 ```
 
-### Performance Benchmarks
-```bash
-# Run comprehensive performance benchmarks
-cargo run --bin run_benchmark
-
-# Simple benchmark (for when you don't have all day)
-cargo run --bin simple_benchmark
-
-# Core performance test
-cargo run --bin core_performance_test
-
-# Performance-only benchmark (no frills, just numbers)
-cargo run --bin performance_only_benchmark
-```
-
-
 ## Usage Examples
 
 ### Basic Usage
