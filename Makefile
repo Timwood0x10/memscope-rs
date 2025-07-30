@@ -33,13 +33,15 @@ help:
 	@echo "  clean          - Clean build artifacts"
 	@echo ""
 	@echo "$(GREEN)Testing:$(NC)"
-	@echo "  test           - Run all tests"
+	@echo "  test           - Run all tests (with reduced logging)"
 	@echo "  test-unit      - Run unit tests only"
 	@echo "  test-integration - Run integration tests only"
 	@echo "  test-stress    - Run stress tests"
 	@echo "  test-safety    - Run safety tests"
 	@echo "  test-performance - Run performance tests"
 	@echo "  test-edge      - Run edge case tests"
+	@echo "  test-fast      - Run fast tests (unit tests in release mode)"
+	@echo "  test-quiet     - Run all tests quietly (no logs)"
 	@echo "  test-verbose   - Run tests with verbose output"
 	@echo ""
 	@echo "$(GREEN)Quality Assurance:$(NC)"
@@ -56,10 +58,37 @@ help:
 	@echo ""
 	@echo "$(GREEN)Examples:$(NC)"
 	@echo "  run-basic      - Run basic usage example"
+	@echo "  run-ownership  - Run ownership patterns demo"
+	@echo "  run-unsafe-ffi - Run unsafe/FFI safety demonstration"
+	@echo "  run-improved-tracking - Run improved tracking showcase"
+	@echo "  run-speed-test - Run speed test example"
 	@echo "  run-lifecycle  - Run lifecycle example"
 	@echo "  run-main       - Run main application"
 	@echo "  run-memory-stress - Run memory stress test example"
 	@echo "  run-complex-lifecycle-showcase - Run complex lifecycle showcase example"
+	@echo ""
+	@echo "$(GREEN)Binary Tools:$(NC)"
+	@echo "  run-benchmark  - Run comprehensive performance benchmarks"
+	@echo "  run-simple-benchmark - Run simple benchmark testing"
+	@echo "  run-core-performance - Run core performance evaluation"
+	@echo "  run-performance-only - Run performance-only benchmark"
+	@echo "  run-lifecycle-analysis - Run lifecycle analysis tool"
+	@echo "  run-allocation-diagnostic - Run allocation count diagnostics"
+	@echo "  run-large-allocations - Run large active allocations analysis"
+	@echo "  run-test-validation - Run test mode validation"
+	@echo ""
+	@echo "$(GREEN)HTML Reports (Enhanced):$(NC)"
+	@echo "  html           - Generate HTML report"
+	@echo "                   Usage: make html [DIR=path] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]"
+	@echo "  html-only      - Generate HTML report only"
+	@echo "                   Usage: make html-only [DIR=path] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]"
+	@echo "  html-clean     - Clean generated HTML files"
+	@echo "  html-help      - Show detailed HTML command usage and examples"
+	@echo ""
+	@echo "$(GREEN)Demonstrations:$(NC)"
+	@echo "  demo           - Quick demonstration workflow (build + basic example + HTML)"
+	@echo "  demo-all       - Comprehensive feature demonstration"
+	@echo "  perf-demo      - Performance evaluation workflow"
 	@echo ""
 	@echo "$(GREEN)CI/CD:$(NC)"
 	@echo "  ci             - Run full CI pipeline locally"
@@ -81,7 +110,7 @@ build:
 .PHONY: release
 release:
 	@echo "$(BLUE)Building $(PROJECT_NAME) in release mode...$(NC)"
-	$(CARGO) build --release
+	$(CARGO) build --release --bin memscope-rs
 
 .PHONY: check
 check:
@@ -100,53 +129,63 @@ clean:
 .PHONY: test
 test:
 	@echo "$(BLUE)Running all tests...$(NC)"
-	$(CARGO) test --all
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --all --features test
 
 .PHONY: test-unit
 test-unit:
 	@echo "$(BLUE)Running unit tests...$(NC)"
-	$(CARGO) test --lib
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --lib --features test
 
 .PHONY: test-integration
 test-integration:
 	@echo "$(BLUE)Running integration tests...$(NC)"
-	$(CARGO) test --test comprehensive_integration_test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test
 
 .PHONY: test-stress
 test-stress:
 	@echo "$(BLUE)Running stress tests...$(NC)"
-	$(CARGO) test --test stress_test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test stress_test --features test
 
 .PHONY: test-safety
 test-safety:
 	@echo "$(BLUE)Running safety tests...$(NC)"
-	$(CARGO) test --test safety_test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test safety_test --features test
 
 .PHONY: test-performance
 test-performance:
 	@echo "$(BLUE)Running performance tests...$(NC)"
-	$(CARGO) test --test performance_test --release
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test performance_test --release --features test
 
 .PHONY: test-edge
 test-edge:
 	@echo "$(BLUE)Running edge case tests...$(NC)"
-	$(CARGO) test --test edge_cases_test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test edge_cases_test --features test
 
 .PHONY: test-comprehensive
 test-comprehensive:
 	@echo "$(BLUE)Running comprehensive integration tests...$(NC)"
-	$(CARGO) test --test comprehensive_integration_test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test
 
 .PHONY: test-verbose
 test-verbose:
 	@echo "$(BLUE)Running all tests with verbose output...$(NC)"
-	$(CARGO) test --all --verbose
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=debug $(CARGO) test --all --verbose --features test
+
+.PHONY: test-fast
+test-fast:
+	@echo "$(BLUE)Running fast tests (unit tests only)...$(NC)"
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --lib --release --features test
+
+.PHONY: test-quiet
+test-quiet:
+	@echo "$(BLUE)Running all tests quietly...$(NC)"
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --all --quiet --features test
 
 # Quality assurance targets
 .PHONY: fmt
 fmt:
 	@echo "$(BLUE)Formatting code...$(NC)"
-	$(CARGO) fmt
+	$(CARGO) fmt --all
 
 .PHONY: fmt-check
 fmt-check:
@@ -190,6 +229,26 @@ run-basic:
 	@echo "$(BLUE)Running basic usage example...$(NC)"
 	$(CARGO) run --example basic_usage
 
+.PHONY: run-ownership
+run-ownership:
+	@echo "$(BLUE)Running ownership patterns demo...$(NC)"
+	$(CARGO) run --example ownership_demo
+
+.PHONY: run-unsafe-ffi
+run-unsafe-ffi:
+	@echo "$(BLUE)Running unsafe/FFI safety demonstration...$(NC)"
+	$(CARGO) run --example unsafe_ffi_demo
+
+.PHONY: run-improved-tracking
+run-improved-tracking:
+	@echo "$(BLUE)Running improved tracking showcase...$(NC)"
+	$(CARGO) run --example improved_tracking_showcase
+
+.PHONY: run-speed-test
+run-speed-test:
+	@echo "$(BLUE)Running speed test example...$(NC)"
+	$(CARGO) run --example speed_test
+
 .PHONY: run-memory-stress
 run-memory-stress:
 	@echo "$(BLUE)Running memory stress test example...$(NC)"
@@ -209,6 +268,47 @@ run-main:
 run-complex-lifecycle-showcase:
 	@echo "$(BLUE)Running complex lifecycle showcase example...$(NC)"
 	$(CARGO) run --example complex_lifecycle_showcase
+
+# Binary tools targets
+.PHONY: run-benchmark
+run-benchmark:
+	@echo "$(BLUE)Running comprehensive performance benchmarks...$(NC)"
+	$(CARGO) run --bin run_benchmark
+
+.PHONY: run-simple-benchmark
+run-simple-benchmark:
+	@echo "$(BLUE)Running simple benchmark testing...$(NC)"
+	$(CARGO) run --bin simple_benchmark
+
+.PHONY: run-core-performance
+run-core-performance:
+	@echo "$(BLUE)Running core performance evaluation...$(NC)"
+	$(CARGO) run --bin core_performance_test
+
+.PHONY: run-performance-only
+run-performance-only:
+	@echo "$(BLUE)Running performance-only benchmark...$(NC)"
+	$(CARGO) run --bin performance_only_benchmark
+
+.PHONY: run-lifecycle-analysis
+run-lifecycle-analysis:
+	@echo "$(BLUE)Running lifecycle analysis tool...$(NC)"
+	$(CARGO) run --bin lifecycle_analysis
+
+.PHONY: run-allocation-diagnostic
+run-allocation-diagnostic:
+	@echo "$(BLUE)Running allocation count diagnostics...$(NC)"
+	$(CARGO) run --bin allocation_count_diagnostic
+
+.PHONY: run-large-allocations
+run-large-allocations:
+	@echo "$(BLUE)Running large active allocations analysis...$(NC)"
+	$(CARGO) run --bin large_active_allocations
+
+.PHONY: run-test-validation
+run-test-validation:
+	@echo "$(BLUE)Running test mode validation...$(NC)"
+	$(CARGO) run --bin test_mode_specific_validation
 
 # CI/CD targets
 .PHONY: ci
@@ -311,13 +411,221 @@ info:
 	@echo "  Target directory: $(TARGET_DIR)"
 	@echo "  Documentation: $(DOCS_DIR)"
 
+# HTML Report Generation
+# Usage: make html [DIR=path/to/json/files] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]
+.PHONY: html
+html: release
+	$(eval INPUT_DIR := $(or $(DIR),MemoryAnalysis/basic_usage))
+	$(eval OUTPUT_FILE := $(or $(OUTPUT),memory_report.html))
+	$(eval BASE_NAME := $(or $(BASE),snapshot))
+	$(eval VERBOSE_FLAG := $(if $(VERBOSE),--verbose,))
+	$(eval DEBUG_FLAG := $(if $(DEBUG),--debug,))
+	$(eval PERFORMANCE_FLAG := $(if $(PERFORMANCE),--performance,))
+	@echo "$(BLUE)Generating HTML report (Enhanced)...$(NC)"
+	@echo "$(BLUE)Input directory: $(INPUT_DIR)$(NC)"
+	@echo "$(BLUE)Output file: $(OUTPUT_FILE)$(NC)"
+	@echo "$(BLUE)Base name: $(BASE_NAME)$(NC)"
+	@if [ -n "$(VERBOSE)" ]; then echo "$(BLUE)Verbose mode: enabled$(NC)"; fi
+	@if [ -n "$(DEBUG)" ]; then echo "$(BLUE)Debug mode: enabled$(NC)"; fi
+	@if [ -n "$(PERFORMANCE)" ]; then echo "$(BLUE)Performance mode: enabled$(NC)"; fi
+	@if [ ! -d "$(INPUT_DIR)" ]; then \
+		echo "$(YELLOW)Directory $(INPUT_DIR) not found...$(NC)"; \
+		if [ "$(INPUT_DIR)" = "MemoryAnalysis/basic_usage" ] || [ "$(INPUT_DIR)" = "MemoryAnalysis" ]; then \
+			echo "$(YELLOW)Running basic example to generate data...$(NC)"; \
+			$(CARGO) run --example basic_usage; \
+		else \
+			echo "$(RED)Error: Directory $(INPUT_DIR) does not exist!$(NC)"; \
+			echo "$(YELLOW)Please create the directory or run: make html DIR=existing_directory$(NC)"; \
+			exit 1; \
+		fi \
+	fi
+	@echo "$(GREEN)Scanning $(INPUT_DIR) for JSON files...$(NC)"
+	@json_count=$$(find "$(INPUT_DIR)" -name "*.json" -type f | wc -l); \
+	if [ $$json_count -eq 0 ]; then \
+		echo "$(YELLOW)No JSON files found in $(INPUT_DIR)$(NC)"; \
+		if [ "$(INPUT_DIR)" = "MemoryAnalysis" ]; then \
+			echo "$(YELLOW)Running basic example to generate data...$(NC)"; \
+			$(CARGO) run --example basic_usage; \
+		else \
+			echo "$(RED)Error: No JSON files found in $(INPUT_DIR)!$(NC)"; \
+			exit 1; \
+		fi \
+	else \
+		echo "$(GREEN)Found $$json_count JSON files in $(INPUT_DIR)$(NC)"; \
+	fi
+	@echo "$(GREEN)Generating HTML report from $(INPUT_DIR)/ directory...$(NC)"
+	./target/release/memscope-rs html-from-json --input-dir "$(INPUT_DIR)" --output "$(OUTPUT_FILE)" --base-name "$(BASE_NAME)" $(VERBOSE_FLAG) $(DEBUG_FLAG) $(PERFORMANCE_FLAG)
+	@echo "$(GREEN)✅ HTML report generated: $(OUTPUT_FILE)$(NC)"
+
+# Usage: make html-only [DIR=path/to/json/files] [OUTPUT=report.html] [BASE=snapshot] [VERBOSE=1] [DEBUG=1] [PERFORMANCE=1]
+.PHONY: html-only
+html-only: release
+	$(eval INPUT_DIR := $(or $(DIR),MemoryAnalysis/basic_usage))
+	$(eval OUTPUT_FILE := $(or $(OUTPUT),memory_report.html))
+	$(eval BASE_NAME := $(or $(BASE),snapshot))
+	$(eval VERBOSE_FLAG := $(if $(VERBOSE),--verbose,))
+	$(eval DEBUG_FLAG := $(if $(DEBUG),--debug,))
+	$(eval PERFORMANCE_FLAG := $(if $(PERFORMANCE),--performance,))
+	@echo "$(BLUE)Generating HTML report (Enhanced)...$(NC)"
+	@echo "$(BLUE)Input directory: $(INPUT_DIR)$(NC)"
+	@echo "$(BLUE)Output file: $(OUTPUT_FILE)$(NC)"
+	@echo "$(BLUE)Base name: $(BASE_NAME)$(NC)"
+	@if [ -n "$(VERBOSE)" ]; then echo "$(BLUE)Verbose mode: enabled$(NC)"; fi
+	@if [ -n "$(DEBUG)" ]; then echo "$(BLUE)Debug mode: enabled$(NC)"; fi
+	@if [ -n "$(PERFORMANCE)" ]; then echo "$(BLUE)Performance mode: enabled$(NC)"; fi
+	@if [ ! -d "$(INPUT_DIR)" ]; then \
+		echo "$(YELLOW)Directory $(INPUT_DIR) not found...$(NC)"; \
+		if [ "$(INPUT_DIR)" = "MemoryAnalysis/basic_usage" ] || [ "$(INPUT_DIR)" = "MemoryAnalysis" ]; then \
+			echo "$(YELLOW)Running basic example to generate data...$(NC)"; \
+			$(CARGO) run --example basic_usage; \
+		else \
+			echo "$(RED)Error: Directory $(INPUT_DIR) does not exist!$(NC)"; \
+			echo "$(YELLOW)Please create the directory or run: make html-only DIR=existing_directory$(NC)"; \
+			exit 1; \
+		fi \
+	fi
+	@echo "$(GREEN)Scanning $(INPUT_DIR) for JSON files...$(NC)"
+	@json_count=$$(find "$(INPUT_DIR)" -name "*.json" -type f | wc -l); \
+	if [ $$json_count -eq 0 ]; then \
+		echo "$(YELLOW)No JSON files found in $(INPUT_DIR)$(NC)"; \
+		if [ "$(INPUT_DIR)" = "MemoryAnalysis" ]; then \
+			echo "$(YELLOW)Running basic example to generate data...$(NC)"; \
+			$(CARGO) run --example basic_usage; \
+		else \
+			echo "$(RED)Error: No JSON files found in $(INPUT_DIR)!$(NC)"; \
+			exit 1; \
+		fi \
+	else \
+		echo "$(GREEN)Found $$json_count JSON files in $(INPUT_DIR)$(NC)"; \
+	fi
+	./target/release/memscope-rs html-from-json --input-dir "$(INPUT_DIR)" --output "$(OUTPUT_FILE)" --base-name "$(BASE_NAME)" $(VERBOSE_FLAG) $(DEBUG_FLAG) $(PERFORMANCE_FLAG)
+	@echo "$(GREEN)✅ HTML report generated: $(OUTPUT_FILE)$(NC)"
+	@echo "$(BLUE)Open $(OUTPUT_FILE) in your browser to view the interactive report$(NC)"
+
+# Enhanced HTML generation shortcuts
+.PHONY: html-verbose html-debug html-performance html-validate
+html-verbose: release
+	@echo "$(BLUE)Generating HTML report with verbose output...$(NC)"
+	$(MAKE) html VERBOSE=1
+
+html-debug: release
+	@echo "$(BLUE)Generating HTML report with debug information...$(NC)"
+	$(MAKE) html DEBUG=1
+
+html-performance: release
+	@echo "$(BLUE)Generating HTML report with performance analysis...$(NC)"
+	$(MAKE) html PERFORMANCE=1
+
+html-validate: release
+	@echo "$(BLUE)Validating JSON files only (no HTML generation)...$(NC)"
+	$(eval INPUT_DIR := $(or $(DIR),MemoryAnalysis/basic_usage))
+	$(eval BASE_NAME := $(or $(BASE),snapshot))
+	$(eval VERBOSE_FLAG := $(if $(VERBOSE),--verbose,))
+	$(eval DEBUG_FLAG := $(if $(DEBUG),--debug,))
+	$(eval PERFORMANCE_FLAG := $(if $(PERFORMANCE),--performance,))
+	@echo "$(BLUE)Input directory: $(INPUT_DIR)$(NC)"
+	@echo "$(BLUE)Base name: $(BASE_NAME)$(NC)"
+	@if [ -n "$(VERBOSE)" ]; then echo "$(BLUE)Verbose mode: enabled$(NC)"; fi
+	@if [ -n "$(DEBUG)" ]; then echo "$(BLUE)Debug mode: enabled$(NC)"; fi
+	@if [ -n "$(PERFORMANCE)" ]; then echo "$(BLUE)Performance mode: enabled$(NC)"; fi
+	./target/release/memscope-rs html-from-json --input-dir "$(INPUT_DIR)" --base-name "$(BASE_NAME)" --validate-only $(VERBOSE_FLAG) $(DEBUG_FLAG) $(PERFORMANCE_FLAG)
+
+.PHONY: html-clean
+html-clean:
+	@echo "$(YELLOW)Cleaning generated HTML files...$(NC)"
+	rm -f memory_report.html debug_report.html test_report.html *.html
+	@echo "$(GREEN)HTML files cleaned$(NC)"
+
+.PHONY: html-help
+html-help:
+	@echo "$(BLUE)HTML Report Generation Help (Enhanced)$(NC)"
+	@echo "======================================="
+	@echo ""
+	@echo "$(GREEN)Basic Usage:$(NC)"
+	@echo "  make html                    # Use default MemoryAnalysis/basic_usage/ directory"
+	@echo "  make html-only               # Generate HTML only, no server"
+	@echo ""
+	@echo "$(GREEN)Custom Directory:$(NC)"
+	@echo "  make html DIR=my_data/       # Use custom directory"
+	@echo "  make html DIR=/path/to/json/ # Use absolute path"
+	@echo ""
+	@echo "$(GREEN)Custom Output:$(NC)"
+	@echo "  make html OUTPUT=my_report.html              # Custom output filename"
+	@echo "  make html DIR=data/ OUTPUT=custom_report.html # Custom dir and output"
+	@echo ""
+	@echo "$(GREEN)Custom Base Name:$(NC)"
+	@echo "  make html BASE=my_snapshot   # Use custom base name for JSON files"
+	@echo "  make html BASE=test_data     # Look for test_data_*.json files"
+	@echo ""
+	@echo ""
+	@echo "$(GREEN)Debug and Performance Options:$(NC)"
+	@echo "  make html VERBOSE=1          # Enable verbose output with progress info"
+	@echo "  make html DEBUG=1            # Enable debug mode with detailed logging"
+	@echo "  make html PERFORMANCE=1      # Enable performance analysis with timing"
+	@echo "  make html DEBUG=1 PERFORMANCE=1  # Combine debug and performance modes"
+	@echo ""
+	@echo "$(GREEN)Combined Examples:$(NC)"
+	@echo "  make html DIR=test_data/ OUTPUT=test.html BASE=test VERBOSE=1"
+	@echo "  make html-only DIR=../results/ OUTPUT=analysis.html DEBUG=1 PERFORMANCE=1"
+	@echo "  make html DIR=MemoryAnalysis/snapshot_memory_analysis BASE=snapshot_memory_analysis VERBOSE=1"
+	@echo ""
+	@echo "$(GREEN)Requirements:$(NC)"
+	@echo "  - Directory must exist and contain .json files"
+	@echo "  - JSON files should follow naming pattern: {BASE}_{type}.json"
+	@echo ""
+	@echo "$(GREEN)Examples of valid directory structures:$(NC)"
+	@echo "  my_data/ (with BASE=snapshot)"
+	@echo "  ├── snapshot_memory_analysis.json"
+	@echo "  ├── snapshot_lifetime.json"
+	@echo "  ├── snapshot_unsafe_ffi.json"
+	@echo "  ├── snapshot_performance.json"
+	@echo "  └── snapshot_complex_types.json"
+	@echo ""
+	@echo "  custom_data/ (with BASE=my_test)"
+	@echo "  ├── my_test_memory_analysis.json"
+	@echo "  ├── my_test_lifetime.json"
+	@echo "  └── my_test_performance.json"
+
+# Quick demonstration workflow
+.PHONY: demo
+demo: clean build run-basic html
+	@echo "$(GREEN)🎉 Demo completed successfully!$(NC)"
+	@echo "$(GREEN)✅ Build: PASS$(NC)"
+	@echo "$(GREEN)✅ Basic Example: PASS$(NC)"
+	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
+	@echo "$(BLUE)Check memory_report.html to view the analysis results!$(NC)"
+
+# Comprehensive feature demonstration
+.PHONY: demo-all
+demo-all: clean build run-basic run-ownership run-unsafe-ffi run-improved-tracking html
+	@echo "$(GREEN)🎉 Comprehensive demo completed successfully!$(NC)"
+	@echo "$(GREEN)✅ Build: PASS$(NC)"
+	@echo "$(GREEN)✅ Basic Usage: PASS$(NC)"
+	@echo "$(GREEN)✅ Ownership Patterns: PASS$(NC)"
+	@echo "$(GREEN)✅ Unsafe/FFI Analysis: PASS$(NC)"
+	@echo "$(GREEN)✅ Improved Tracking: PASS$(NC)"
+	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
+	@echo "$(BLUE)All features demonstrated! Check the generated HTML reports.$(NC)"
+
+# Performance evaluation workflow
+.PHONY: perf-demo
+perf-demo: clean build run-benchmark run-simple-benchmark run-core-performance html
+	@echo "$(GREEN)🎉 Performance demo completed successfully!$(NC)"
+	@echo "$(GREEN)✅ Build: PASS$(NC)"
+	@echo "$(GREEN)✅ Comprehensive Benchmark: PASS$(NC)"
+	@echo "$(GREEN)✅ Simple Benchmark: PASS$(NC)"
+	@echo "$(GREEN)✅ Core Performance: PASS$(NC)"
+	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
+	@echo "$(BLUE)Performance analysis completed! Check benchmark_results/ directory.$(NC)"
+
 # Validate all is working
 .PHONY: validate
-validate: ci run-basic run-lifecycle
+validate: ci run-basic run-lifecycle html
 	@echo "$(GREEN)🎉 Full validation completed successfully!$(NC)"
 	@echo "$(GREEN)✅ Build: PASS$(NC)"
 	@echo "$(GREEN)✅ Tests: PASS$(NC)"
 	@echo "$(GREEN)✅ Linting: PASS$(NC)"
 	@echo "$(GREEN)✅ Documentation: PASS$(NC)"
 	@echo "$(GREEN)✅ Examples: PASS$(NC)"
-	@echo "$(BLUE)trace_tools is ready for production use!$(NC)"
+	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
+	@echo "$(BLUE)memscope-rs is ready for use!$(NC)"

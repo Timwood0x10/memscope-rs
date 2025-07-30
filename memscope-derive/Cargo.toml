@@ -1,0 +1,18 @@
+[package]
+name = "memscope-derive"
+version = "0.1.0"
+edition = "2021"
+authors = ["TimWood"]
+license = "MIT OR Apache-2.0"
+description = "Procedural macros for memscope-rs memory tracking"
+homepage = "https://github.com/TimWood0x10/memscope-rs"
+repository = "https://github.com/TimWood0x10/memscope-rs"
+documentation = "https://docs.rs/memscope-derive"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full", "derive"] }

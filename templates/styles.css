@@ -1,0 +1,607 @@
+/* CSS Variables for theming */
+:root {
+    /* Graph and detail panel variables */
+    --graph-node-bg: #ffffff;
+    --graph-node-border: #e5e7eb;
+    --graph-link-color: #6b7280;
+    --detail-panel-bg: #ffffff;
+    --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    
+    /* Text colors */
+    --text-primary: #374151;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --text-heading: #111827;
+    
+    /* Background colors */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-tertiary: #f3f4f6;
+    --module-bg-secondary: #f9fafb;
+    --module-border-secondary: #e5e7eb;
+    
+    /* Card colors */
+    --card-bg: #ffffff;
+    --card-border: #e5e7eb;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    
+    /* Status colors - light mode */
+    --status-blue-bg: #eff6ff;
+    --status-blue-text: #1e40af;
+    --status-blue-accent: #3b82f6;
+    --status-green-bg: #f0fdf4;
+    --status-green-text: #166534;
+    --status-green-accent: #22c55e;
+    --status-orange-bg: #fff7ed;
+    --status-orange-text: #c2410c;
+    --status-orange-accent: #f97316;
+    --status-red-bg: #fef2f2;
+    --status-red-text: #dc2626;
+    --status-red-accent: #ef4444;
+}
+
+.dark {
+    /* Dark mode overrides */
+    --graph-node-bg: #374151;
+    --graph-node-border: #4b5563;
+    --graph-link-color: #9ca3af;
+    --detail-panel-bg: #1f2937;
+    --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    
+    /* Text colors */
+    --text-primary: #f9fafb;
+    --text-secondary: #d1d5db;
+    --text-muted: #9ca3af;
+    --text-heading: #ffffff;
+    
+    /* Background colors */
+    --bg-primary: #1f2937;
+    --bg-secondary: #374151;
+    --bg-tertiary: #4b5563;
+    --module-bg-secondary: #1f2937;
+    --module-border-secondary: #374151;
+    
+    /* Card colors */
+    --card-bg: #1f2937;
+    --card-border: #374151;
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    
+    /* Status colors - dark mode */
+    --status-blue-bg: rgba(59, 130, 246, 0.1);
+    --status-blue-text: #93c5fd;
+    --status-blue-accent: #60a5fa;
+    --status-green-bg: rgba(34, 197, 94, 0.1);
+    --status-green-text: #86efac;
+    --status-green-accent: #4ade80;
+    --status-orange-bg: rgba(249, 115, 22, 0.1);
+    --status-orange-text: #fdba74;
+    --status-orange-accent: #fb923c;
+    --status-red-bg: rgba(239, 68, 68, 0.1);
+    --status-red-text: #fca5a5;
+    --status-red-accent: #f87171;
+}
+
+/* Detail Panel Styles */
+.node-detail-panel {
+    background: var(--detail-panel-bg);
+    box-shadow: var(--detail-panel-shadow);
+    border: 1px solid var(--module-border-secondary);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    z-index: 50;
+    min-width: 16rem;
+    max-width: 20rem;
+    position: absolute;
+}
+
+.node-detail-panel h3 {
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.node-detail-panel label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.node-detail-panel p {
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+
+.node-detail-panel .close-button {
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.node-detail-panel .close-button:hover {
+    color: var(--text-primary);
+}
+
+/* Graph Node Styles */
+.graph-node {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.graph-node:hover {
+    opacity: 1 !important;
+}
+
+.graph-node circle {
+    /* Don't set fill here - let D3.js control the color */
+    stroke: var(--graph-node-border);
+    transition: all 0.2s ease;
+}
+
+.graph-node:hover circle {
+    stroke-width: 3;
+    filter: brightness(1.1);
+}
+
+.graph-node text {
+    fill: var(--text-primary);
+    pointer-events: none;
+}
+
+/* Memory Analysis Statistics Grid */
+.memory-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.memory-stat-card {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.memory-stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.memory-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.memory-stat-label {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+/* Progress Bars */
+.memory-progress-bar {
+    width: 100%;
+    height: 0.75rem;
+    background-color: var(--module-bg-secondary);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.memory-progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.5s ease;
+}
+
+/* Dark mode specific adjustments */
+.dark .memory-stats-grid .bg-blue-50 {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.dark .memory-stats-grid .bg-green-50 {
+    background-color: rgba(34, 197, 94, 0.1);
+}
+
+.dark .memory-stats-grid .bg-purple-50 {
+    background-color: rgba(168, 85, 247, 0.1);
+}
+
+.dark .memory-stats-grid .bg-orange-50 {
+    background-color: rgba(249, 115, 22, 0.1);
+}
+
+/* Responsive design for detail panels */
+@media (max-width: 768px) {
+    .node-detail-panel {
+        min-width: 12rem;
+        max-width: 16rem;
+        font-size: 0.875rem;
+    }
+    
+    .memory-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Unified text color classes */
+.text-primary {
+    color: var(--text-primary);
+}
+
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-heading {
+    color: var(--text-heading);
+}
+
+/* Unified background classes */
+.bg-primary {
+    background-color: var(--bg-primary);
+}
+
+.bg-secondary {
+    background-color: var(--bg-secondary);
+}
+
+.bg-tertiary {
+    background-color: var(--bg-tertiary);
+}
+
+/* Unified card classes */
+.card-bg {
+    background-color: var(--card-bg);
+}
+
+.card-border {
+    border-color: var(--card-border);
+}
+
+.card-shadow {
+    box-shadow: var(--card-shadow);
+}
+
+/* Status card classes */
+.status-card-blue {
+    background-color: var(--status-blue-bg);
+    border-left: 4px solid var(--status-blue-accent);
+}
+
+.status-card-blue .status-title {
+    color: var(--status-blue-text);
+}
+
+.status-card-blue .status-value {
+    color: var(--status-blue-accent);
+}
+
+.status-card-green {
+    background-color: var(--status-green-bg);
+    border-left: 4px solid var(--status-green-accent);
+}
+
+.status-card-green .status-title {
+    color: var(--status-green-text);
+}
+
+.status-card-green .status-value {
+    color: var(--status-green-accent);
+}
+
+.status-card-orange {
+    background-color: var(--status-orange-bg);
+    border-left: 4px solid var(--status-orange-accent);
+}
+
+.status-card-orange .status-title {
+    color: var(--status-orange-text);
+}
+
+.status-card-orange .status-value {
+    color: var(--status-orange-accent);
+}
+
+.status-card-red {
+    background-color: var(--status-red-bg);
+    border-left: 4px solid var(--status-red-accent);
+}
+
+.status-card-red .status-title {
+    color: var(--status-red-text);
+}
+
+.status-card-red .status-value {
+    color: var(--status-red-accent);
+}
+
+/* Legend and small text classes */
+.legend-text {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.legend-bg {
+    background-color: var(--bg-secondary);
+}
+
+/* Animation for theme transitions */
+* {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Ensure proper contrast in dark mode */
+.dark table {
+    color: var(--text-primary);
+}
+
+.dark table th {
+    color: var(--text-secondary);
+    border-color: var(--module-border-secondary);
+}
+
+.dark table td {
+    border-color: var(--module-border-secondary);
+}
+
+.dark .card-shadow {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* Basic CSS styles for MemScope dashboard */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #eee;
+}
+
+.header h1 {
+    color: #2c3e50;
+    margin: 0;
+    font-size: 2.5em;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.stat-card {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    border-left: 4px solid #3498db;
+}
+
+.stat-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: #2c3e50;
+    display: block;
+}
+
+.stat-label {
+    color: #7f8c8d;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+}
+
+.error {
+    background: #e74c3c;
+    color: white;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 10px 0;
+}
+
+.success {
+    background: #27ae60;
+    color: white;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 10px 0;
+}
+
+.data-section {
+    margin: 30px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.data-section h2 {
+    color: #2c3e50;
+    margin-top: 0;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #3498db;
+    color: white;
+    font-weight: 600;
+}
+
+tr:hover {
+    background-color: #f5f5f5;
+}
+
+.btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn:hover {
+    background: #2980b9;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #ecf0f1;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #3498db;
+    transition: width 0.3s ease;
+}
+/* Mode
+rn Variable Graph Styles */
+.graph-container {
+    position: relative;
+    overflow: hidden;
+}
+
+#variable-graph-container {
+    width: 100%;
+    height: 100%;
+}
+
+#node-details {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.node {
+    transition: all 0.3s ease;
+}
+
+.node:hover circle {
+    stroke-width: 3;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+}
+
+/* Unsafe FFI Dashboard Styles */
+.ffi-dashboard {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
+}
+
+.metric-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.hotspot-circle {
+    transition: all 0.3s ease;
+}
+
+.hotspot-circle:hover {
+    transform: scale(1.1);
+    filter: brightness(1.2);
+}
+
+/* Graph Legend Styles */
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.legend-line {
+    height: 2px;
+    margin-right: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #node-details {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        max-width: 300px;
+        z-index: 1000;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .metric-card {
+        padding: 12px;
+    }
+}
+
+/* Animation classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}

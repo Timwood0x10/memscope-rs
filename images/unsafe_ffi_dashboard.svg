@@ -1,0 +1,141 @@
+<svg height="1000" style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); font-family: &apos;Segoe UI&apos;, Arial, sans-serif;" viewBox="0 0 1400 1000" width="1400" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="arrowhead" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5">
+<polygon fill="#e74c3c" points="0 0, 10 3.5, 0 7"/>
+</marker>
+</defs>
+<text fill="#ecf0f1" font-size="24" font-weight="bold" text-anchor="middle" x="700" y="40">
+Unsafe Rust &amp; FFI Memory Analysis Dashboard
+</text>
+<rect fill="#e74c3c" fill-opacity="0.2" height="50" rx="8" stroke="#e74c3c" stroke-width="2" width="120" x="40" y="55"/>
+<text fill="#e74c3c" font-size="16" font-weight="bold" text-anchor="middle" x="100" y="75">
+4
+</text>
+<text fill="#bdc3c7" font-size="10" text-anchor="middle" x="100" y="95">
+Unsafe Allocations
+</text>
+<rect fill="#3498db" fill-opacity="0.2" height="50" rx="8" stroke="#3498db" stroke-width="2" width="120" x="290" y="55"/>
+<text fill="#3498db" font-size="16" font-weight="bold" text-anchor="middle" x="350" y="75">
+20
+</text>
+<text fill="#bdc3c7" font-size="10" text-anchor="middle" x="350" y="95">
+FFI Allocations
+</text>
+<rect fill="#f39c12" fill-opacity="0.2" height="50" rx="8" stroke="#f39c12" stroke-width="2" width="120" x="540" y="55"/>
+<text fill="#f39c12" font-size="16" font-weight="bold" text-anchor="middle" x="600" y="75">
+19
+</text>
+<text fill="#bdc3c7" font-size="10" text-anchor="middle" x="600" y="95">
+Boundary Crossings
+</text>
+<rect fill="#e67e22" fill-opacity="0.2" height="50" rx="8" stroke="#e67e22" stroke-width="2" width="120" x="790" y="55"/>
+<text fill="#e67e22" font-size="16" font-weight="bold" text-anchor="middle" x="850" y="75">
+2
+</text>
+<text fill="#bdc3c7" font-size="10" text-anchor="middle" x="850" y="95">
+Safety Violations
+</text>
+<rect fill="#9b59b6" fill-opacity="0.2" height="50" rx="8" stroke="#9b59b6" stroke-width="2" width="120" x="1040" y="55"/>
+<text fill="#9b59b6" font-size="16" font-weight="bold" text-anchor="middle" x="1100" y="75">
+8.2MB
+</text>
+<text fill="#bdc3c7" font-size="10" text-anchor="middle" x="1100" y="95">
+Unsafe Memory
+</text>
+<text fill="#ecf0f1" font-size="18" font-weight="bold" text-anchor="middle" x="350" y="140">
+Memory Allocation Sources
+</text>
+<rect fill="rgba(52, 73, 94, 0.3)" height="300" rx="10" stroke="#34495e" stroke-width="2" width="600" x="50" y="150"/>
+<rect fill="#e74c3c" height="16" width="40" x="220" y="334"/>
+<text fill="#e74c3c" font-size="12" font-weight="bold" text-anchor="middle" x="240" y="329">
+4
+</text>
+<text fill="#ecf0f1" font-size="10" text-anchor="middle" x="240" y="370">
+Unsafe Rust
+</text>
+<rect fill="#3498db" height="83" width="40" x="340" y="267"/>
+<text fill="#3498db" font-size="12" font-weight="bold" text-anchor="middle" x="360" y="262">
+20
+</text>
+<text fill="#ecf0f1" font-size="10" text-anchor="middle" x="360" y="370">
+FFI
+</text>
+<text fill="#ecf0f1" font-size="18" font-weight="bold" text-anchor="middle" x="1050" y="140">
+Memory Safety Status
+</text>
+<rect fill="#e74c3c20" height="300" rx="10" stroke="#e74c3c" stroke-width="2" width="600" x="750" y="150"/>
+<text fill="#e74c3c" font-size="16" font-weight="bold" text-anchor="middle" x="1050" y="270">
+2 Safety Violations Detected
+</text>
+<text fill="#e74c3c" font-size="12" x="780" y="310">
+• Double Free
+</text>
+<text fill="#e74c3c" font-size="12" x="780" y="330">
+• Invalid Free
+</text>
+<text fill="#ecf0f1" font-size="18" font-weight="bold" text-anchor="middle" x="350" y="490">
+Cross-Language Memory Flow
+</text>
+<rect fill="rgba(52, 73, 94, 0.3)" height="200" rx="10" stroke="#34495e" stroke-width="2" width="600" x="50" y="500"/>
+<rect fill="#2ecc71" fill-opacity="0.2" height="100" rx="8" stroke="#2ecc71" stroke-width="2" width="200" x="100" y="550"/>
+<text fill="#2ecc71" font-size="14" font-weight="bold" text-anchor="middle" x="200" y="610">
+RUST
+</text>
+<rect fill="#3498db" fill-opacity="0.2" height="100" rx="8" stroke="#3498db" stroke-width="2" width="200" x="400" y="550"/>
+<text fill="#3498db" font-size="14" font-weight="bold" text-anchor="middle" x="500" y="610">
+FFI / C
+</text>
+<line marker-end="url(#arrowhead)" stroke="#e74c3c" stroke-width="3" x1="300" x2="400" y1="580" y2="580"/>
+<text fill="#e74c3c" font-size="12" font-weight="bold" text-anchor="middle" x="350" y="575">
+11
+</text>
+<text fill="#f39c12" font-size="12" font-weight="bold" text-anchor="middle" x="350" y="635">
+8
+</text>
+<text fill="#ecf0f1" font-size="18" font-weight="bold" text-anchor="middle" x="1050" y="490">
+Unsafe Memory Hotspots
+</text>
+<rect fill="rgba(52, 73, 94, 0.3)" height="200" rx="10" stroke="#34495e" stroke-width="2" width="600" x="750" y="500"/>
+<circle cx="830" cy="580" fill="#3498db" fill-opacity="0.7" r="9" stroke="#3498db" stroke-width="2"/>
+<text fill="#ffffff" font-size="8" font-weight="bold" text-anchor="middle" x="830" y="584">
+288B
+</text>
+<text fill="#3498db" font-size="10" text-anchor="middle" x="830" y="615">
+FFI
+</text>
+<circle cx="1010" cy="580" fill="#3498db" fill-opacity="0.7" r="20" stroke="#3498db" stroke-width="2"/>
+<text fill="#ffffff" font-size="8" font-weight="bold" text-anchor="middle" x="1010" y="584">
+2.7MB
+</text>
+<text fill="#3498db" font-size="10" text-anchor="middle" x="1010" y="615">
+FFI
+</text>
+<circle cx="1190" cy="580" fill="#3498db" fill-opacity="0.7" r="7" stroke="#3498db" stroke-width="2"/>
+<text fill="#ffffff" font-size="8" font-weight="bold" text-anchor="middle" x="1190" y="584">
+160B
+</text>
+<text fill="#3498db" font-size="10" text-anchor="middle" x="1190" y="615">
+FFI
+</text>
+<circle cx="830" cy="650" fill="#3498db" fill-opacity="0.7" r="20" stroke="#3498db" stroke-width="2"/>
+<text fill="#ffffff" font-size="8" font-weight="bold" text-anchor="middle" x="830" y="654">
+1.0KB
+</text>
+<text fill="#3498db" font-size="10" text-anchor="middle" x="830" y="685">
+FFI
+</text>
+<circle cx="1010" cy="650" fill="#e74c3c" fill-opacity="0.7" r="8" stroke="#e74c3c" stroke-width="2"/>
+<text fill="#ffffff" font-size="8" font-weight="bold" text-anchor="middle" x="1010" y="654">
+256B
+</text>
+<text fill="#e74c3c" font-size="10" text-anchor="middle" x="1010" y="685">
+UNSAFE
+</text>
+<circle cx="1190" cy="650" fill="#3498db" fill-opacity="0.7" r="12" stroke="#3498db" stroke-width="2"/>
+<text fill="#ffffff" font-size="8" font-weight="bold" text-anchor="middle" x="1190" y="654">
+512B
+</text>
+<text fill="#3498db" font-size="10" text-anchor="middle" x="1190" y="685">
+FFI
+</text>
+</svg>

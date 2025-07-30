@@ -13,36 +13,36 @@ fn main() {
     println!("\nAllocating and tracking variables...");
 
     let numbers_vec = vec![1, 2, 3, 4, 5];
-    track_var!(numbers_vec).expect("Failed to track numbers_vec");
+    track_var!(numbers_vec);
     println!("Tracked 'numbers_vec'");
 
     let text_string = String::from("Hello, Trace Tools!");
-    track_var!(text_string).expect("Failed to track text_string");
+    track_var!(text_string);
     println!("Tracked 'text_string'");
 
     let boxed_value = Box::new(100i32);
-    track_var!(boxed_value).expect("Failed to track boxed_value");
+    track_var!(boxed_value);
     println!("Tracked 'boxed_value'");
 
     let boxed_value2 = Box::new(200i32);
-    track_var!(boxed_value2).expect("Failed to track boxed_value2");
+    track_var!(boxed_value2);
     println!("Tracked 'boxed_value2'");
 
     // Track reference-counted types
     let rc_data = Rc::new(vec![10, 20, 30]);
-    track_var!(rc_data).expect("Failed to track rc_data");
+    track_var!(rc_data);
     println!("Tracked 'rc_data'");
 
     let arc_data = Arc::new(String::from("Shared data"));
-    track_var!(arc_data).expect("Failed to track arc_data");
+    track_var!(arc_data);
     println!("Tracked 'arc_data'");
 
     // Clone Rc to show shared ownership
     let rc_data_clone = Rc::clone(&rc_data);
-    track_var!(rc_data_clone).expect("Failed to track rc_data_clone");
+    track_var!(rc_data_clone);
     println!("Tracked 'rc_data_clone' (shares allocation with 'rc_data')");
 
-    // Perform some operations
+    // Perform some operations (variables remain fully usable)
     let sum_of_vec = numbers_vec.iter().sum::<i32>();
     println!("\nSum of 'numbers_vec': {sum_of_vec}");
     println!("Length of 'text_string': {}", text_string.len());
@@ -61,20 +61,20 @@ fn main() {
         println!("  Peak memory: {} bytes", stats.peak_memory);
     }
 
-    // Export memory snapshot to JSON
-    println!("\nExporting memory snapshot to basic_usage_snapshot.json...");
-    if let Err(e) = tracker.export_to_json("basic_usage_snapshot.json") {
+    // Export memory snapshot to JSON (will be saved to MemoryAnalysis/basic_usage/ directory)
+    println!("\nExporting memory snapshot to MemoryAnalysis/basic_usage/...");
+    if let Err(e) = tracker.export_to_json("basic_usage_snapshot") {
         eprintln!("Failed to export JSON: {e}");
     } else {
-        println!("Successfully exported JSON.");
+        println!("Successfully exported JSON to MemoryAnalysis/basic_usage/");
     }
 
-    // Export memory usage visualization to SVG
-    println!("\nExporting memory usage visualization to basic_usage_graph.svg...");
+    // Export memory usage visualization to SVG (will be saved to MemoryAnalysis/basic_usage/ directory)
+    println!("\nExporting memory usage visualization to MemoryAnalysis/basic_usage/...");
     if let Err(e) = tracker.export_memory_analysis("basic_usage_graph.svg") {
         eprintln!("Failed to export SVG: {e}");
     } else {
-        println!("Successfully exported SVG.");
+        println!("Successfully exported SVG to MemoryAnalysis/basic_usage/");
     }
 
     println!("\nExample finished. Check 'basic_usage_snapshot.json' and 'basic_usage_graph.svg'.");

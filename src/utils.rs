@@ -132,7 +132,7 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         }
     } else {
         // For simple type names without namespace
-        if clean_type.len() > 0 {
+        if !clean_type.is_empty() {
             (clean_type.to_string(), "Custom Types".to_string())
         } else {
             ("Unknown Type".to_string(), "Unknown".to_string())
@@ -265,7 +265,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "HashMap".to_string()
             } else {
-                format!("HashMap<{}>", inner)
+                format!("HashMap<{inner}>")
             },
         }
     } else if type_name.contains("BTreeMap") || type_name.contains("btree::map") {
@@ -277,7 +277,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "BTreeMap".to_string()
             } else {
-                format!("BTreeMap<{}>", inner)
+                format!("BTreeMap<{inner}>")
             },
         }
     } else if type_name.contains("HashSet") || type_name.contains("hash::set") {
@@ -289,7 +289,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "HashSet".to_string()
             } else {
-                format!("HashSet<{}>", inner)
+                format!("HashSet<{inner}>")
             },
         }
     } else if type_name.contains("Vec") && !type_name.contains("VecDeque") {
@@ -301,7 +301,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Vec".to_string()
             } else {
-                format!("Vec<{}>", inner)
+                format!("Vec<{inner}>")
             },
         }
     } else if type_name.contains("VecDeque") {
@@ -313,7 +313,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "VecDeque".to_string()
             } else {
-                format!("VecDeque<{}>", inner)
+                format!("VecDeque<{inner}>")
             },
         }
     }
@@ -343,7 +343,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Box".to_string()
             } else {
-                format!("Box<{}>", inner)
+                format!("Box<{inner}>")
             },
         }
     } else if type_name.contains("Rc<") {
@@ -355,7 +355,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Rc".to_string()
             } else {
-                format!("Rc<{}>", inner)
+                format!("Rc<{inner}>")
             },
         }
     } else if type_name.contains("Arc<") {
@@ -367,7 +367,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
             full_type: if inner.is_empty() {
                 "Arc".to_string()
             } else {
-                format!("Arc<{}>", inner)
+                format!("Arc<{inner}>")
             },
         }
     }
@@ -404,7 +404,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
 
 /// Extract generic parameters from type names (enhanced version)
 pub fn extract_generic_params(type_name: &str, container: &str) -> String {
-    if let Some(start) = type_name.find(&format!("{}<", container)) {
+    if let Some(start) = type_name.find(&format!("{container}<")) {
         let start = start + container.len() + 1;
         if let Some(end) = find_matching_bracket(type_name, start - 1) {
             let inner = &type_name[start..end];
@@ -486,5 +486,60 @@ pub fn extract_std_module(type_name: &str) -> String {
         }
     } else {
         "Other".to_string()
+    }
+}
+
+// ============================================================================
+// Thread Utilities (merged from thread_utils.rs)
+// ============================================================================
+
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread;
+use std::time::Duration;
+
+/// Extension trait for JoinHandle to add timeout functionality
+pub trait JoinHandleExt<T> {
+    /// Join with a timeout, returning an error if the timeout is exceeded
+    fn join_timeout(self, timeout: Duration) -> Result<T, Box<dyn std::any::Any + Send + 'static>>;
+}
+
+impl<T: Send + 'static> JoinHandleExt<T> for thread::JoinHandle<T> {
+    fn join_timeout(self, timeout: Duration) -> Result<T, Box<dyn std::any::Any + Send + 'static>> {
+        // If the thread is already finished, just join it
+        if self.is_finished() {
+            return self.join().map_err(|e| Box::new(e) as _);
+        }
+
+        // Create a flag to track if the thread completed
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_clone = completed.clone();
+
+        // Spawn a thread that will wait for the original thread
+        let handle = thread::spawn(move || {
+            let result = self.join();
+            completed_clone.store(true, Ordering::SeqCst);
+            result
+        });
+
+        // Wait for the timeout or until the thread completes
+        let start = std::time::Instant::now();
+        while !completed.load(Ordering::SeqCst) && start.elapsed() < timeout {
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        if completed.load(Ordering::SeqCst) {
+            // Thread completed within timeout
+            match handle.join() {
+                Ok(result) => result.map_err(|e| Box::new(e) as _),
+                Err(_) => Err(Box::new("Watcher thread panicked") as _),
+            }
+        } else {
+            // Timeout reached and thread is still running
+            // Return an error indicating timeout
+            Err(Box::new("Thread join timed out") as _)
+        }
     }
 }

@@ -8,6 +8,7 @@
 
 # IDE files
 .vscode/
+.kiro/*
 .idea/
 *.swp
 *.swo
@@ -28,9 +29,25 @@ Thumbs.db
 # Ignore all SVG files
 *.svg
 
+
+MemoryAnalysis/
+
+test_data/
+
+core_performance_results/
+performance_only_results/
+
+*.sh
+
+*.txt
+
 # But keep these specific SVG files
 !images/*.svg
 !images/*.json
+
+aim/**
+
+docs/**
 
 memory_*.json
 memory_*.svg
@@ -39,6 +56,10 @@ memory_*.svg
 *_analysis.json
 *_visualization.svg
 
+*.html
+*.json
+
+! templates/*.html
 # Coverage reports
 /target/coverage/
 cobertura.xml
@@ -58,6 +79,7 @@ temp_*
 # Documentation build
 /target/doc/
 
+memscope-derive/target/
 # Local configuration
 .env
 .env.local
