@@ -3,7 +3,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/memscope-rs.svg)](https://crates.io/crates/memscope-rs)
-[![Build Status](https://img.shields.io/github/workflow/status/TimWood0x10/memscope-rs/CI)](https://github.com/TimWood0x10/memscope-rs/actions)
+
 
 ## What is this thing?
 
@@ -74,20 +74,6 @@ cargo run --bin core_performance_test
 cargo run --bin performance_only_benchmark
 ```
 
-### Analysis Tools
-```bash
-# Lifecycle analysis
-cargo run --bin lifecycle_analysis
-
-# Allocation count diagnostics
-cargo run --bin allocation_count_diagnostic
-
-# Large active allocations analysis
-cargo run --bin large_active_allocations
-
-# Test mode validation
-cargo run --bin test_mode_specific_validation
-```
 
 ## Usage Examples
 
@@ -168,13 +154,27 @@ git clone https://github.com/TimWood0x10/memscope-rs.git
 cd memscope-rs
 
 # Build the project (grab a coffee, this might take a moment)
-cargo build --release
+make build 
 
 # Run tests (cross your fingers)
 cargo test
 
 # Try an example
-cargo run --example basic_usage
+make run complex_lifecycle_showcase
+├── complex_lifecycle_snapshot_complex_types.json
+├── complex_lifecycle_snapshot_lifetime.json
+├── complex_lifecycle_snapshot_memory_analysis.json
+├── complex_lifecycle_snapshot_performance.json
+├── complex_lifecycle_snapshot_security_violations.json
+├── complex_lifecycle_snapshot_unsafe_ffi.json
+
+
+# export to html
+make html DIR=MemoryAnalysis/complex_lifecycle BASE=complex_lifecycle OUTPUT=improved_tracking_final_v3.html
+
+open improved_tracking_final_v3.html
+
+# You can view the HTML interface I output in ./imsges/*.html
 ```
 
 ### From Crates.io
@@ -184,13 +184,13 @@ cargo add memscope-rs
 
 # Or manually add to Cargo.toml
 [dependencies]
-memscope-rs = "0.1.2"
+memscope-rs = "0.1.3"
 ```
 
 ### Feature Flags
 ```toml
 [dependencies]
-memscope-rs = { version = "0.1.2", features = ["backtrace", "derive"] }
+memscope-rs = { version = "0.1.3" }
 ```
 
 Available features:
@@ -198,20 +198,7 @@ Available features:
 - `derive` - Enable derive macro support (experimental, use at your own risk)
 - `tracking-allocator` - Custom allocator support (enabled by default)
 
-### Development Setup
-```bash
-# Install development dependencies
-cargo install cargo-watch cargo-tarpaulin
 
-# Enable debug logging (prepare for information overload)
-export RUST_LOG=memscope_rs=debug
-
-# Run continuous testing (for the paranoid developer)
-cargo watch -x test
-
-# Generate code coverage report (because metrics matter)
-cargo tarpaulin --out Html
-```
 
 ## Output File Structure & Interactive Dashboard
 
@@ -394,23 +381,6 @@ The project uses a modular design:
 - **cli/**: Command-line tools and user interface
 - **bin/**: Executable analysis tools
 
-## Testing
-
-```bash
-# Run basic tests
-cargo test
-
-# Run with specific features
-cargo test --features backtrace
-
-# Run performance tests
-cargo test --release performance
-
-# Run examples as integration tests
-cargo run --example basic_usage
-cargo run --example ownership_demo
-```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -449,8 +419,9 @@ This is experimental software, but we welcome contributions! Please:
 # Development workflow
 git clone https://github.com/TimWood0x10/memscope-rs
 cd memscope-rs
-cargo test
-cargo run --example basic_usage
+
+make build
+make run-basic
 ```
 
 ## License
