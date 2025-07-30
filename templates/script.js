@@ -1222,7 +1222,7 @@ function initAllocationsTable() {
     }
 }
 
-// Initialize lifetime visualization from JSON data
+// Initialize lifetime visualization from JSON data with collapsible functionality
 function initLifetimeVisualization() {
     console.log('🔄 Initializing lifetime visualization...');
 
@@ -1240,7 +1240,7 @@ function initLifetimeVisualization() {
     // Check if we have Rust-preprocessed data
     if (lifetimeData.visualization_ready && lifetimeData.variable_groups) {
         console.log(`📊 Using Rust-preprocessed data with ${lifetimeData.variable_groups.length} variable groups`);
-        renderLifetimeVisualizationFromRust(lifetimeData.variable_groups);
+        renderLifetimeVisualizationFromRustWithCollapse(lifetimeData.variable_groups);
         return;
     }
 
@@ -1269,8 +1269,8 @@ function initLifetimeVisualization() {
     // Group by variable name to get allocation/deallocation pairs
     const variableGroups = groupVariablesByName(userVariables);
 
-    // Render the lifetime visualization
-    renderLifetimeVisualization(variableGroups);
+    // Render the lifetime visualization with collapse functionality
+    renderLifetimeVisualizationWithCollapse(variableGroups);
 }
 
 // Group variables by name to track their lifecycle
@@ -1292,11 +1292,13 @@ function groupVariablesByName(events) {
     return Object.values(groups);
 }
 
-// Render lifetime visualization from Rust-preprocessed data
-function renderLifetimeVisualizationFromRust(variableGroups) {
-    console.log(`📊 Rendering ${variableGroups.length} Rust-preprocessed variable groups`);
+// Render lifetime visualization from Rust-preprocessed data with collapsible functionality
+function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
+    console.log(`📊 Rendering ${variableGroups.length} Rust-preprocessed variable groups with collapse functionality`);
 
     const container = document.getElementById('lifetimeVisualization');
+    const toggleButton = document.getElementById('toggle-lifecycle');
+    
     if (!container) return;
 
     // Clear loading state
@@ -1304,8 +1306,14 @@ function renderLifetimeVisualizationFromRust(variableGroups) {
 
     if (!variableGroups || variableGroups.length === 0) {
         showEmptyLifetimeState();
+        if (toggleButton) {
+            toggleButton.style.display = 'none';
+        }
         return;
     }
+
+    let isExpanded = false;
+    const maxInitialRows = 5;
 
     // Calculate timeline bounds from preprocessed data
     const allTimestamps = variableGroups.flatMap(group =>
@@ -1326,70 +1334,142 @@ function renderLifetimeVisualizationFromRust(variableGroups) {
         ]
     };
 
-    // Render each variable with colorful progress bars
-    variableGroups.forEach((group, index) => {
-        const varDiv = document.createElement('div');
-        varDiv.className = 'flex items-center py-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
+    function renderLifetimeRows(showAll = false) {
+        console.log(`📊 Rendering lifecycle rows, showAll: ${showAll}, total groups: ${variableGroups.length}`);
+        
+        container.innerHTML = '';
+        
+        const displayGroups = showAll ? variableGroups : variableGroups.slice(0, maxInitialRows);
 
-        // Get color from palette (cycle through colors)
-        const colorIndex = index % COLOR_PALETTE.progress.length;
-        const progressColor = COLOR_PALETTE.progress[colorIndex];
+        // Render each variable with colorful progress bars
+        displayGroups.forEach((group, index) => {
+            const varDiv = document.createElement('div');
+            varDiv.className = 'flex items-center py-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
 
-        // Use preprocessed timing data or fallback to events
-        const startTime = group.start_time || (group.events && group.events[0] ? group.events[0].timestamp : minTime);
-        const endTime = group.end_time || (group.events && group.events[group.events.length - 1] ? group.events[group.events.length - 1].timestamp : maxTime);
+            // Get color from palette (cycle through colors)
+            const colorIndex = index % COLOR_PALETTE.progress.length;
+            const progressColor = COLOR_PALETTE.progress[colorIndex];
 
-        const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
-        const duration = endTime - startTime;
-        const widthPercent = timeRange > 0 ? Math.max(5, (duration / timeRange) * 100) : 40;
+            // Use preprocessed timing data or fallback to events
+            const startTime = group.start_time || (group.events && group.events[0] ? group.events[0].timestamp : minTime);
+            const endTime = group.end_time || (group.events && group.events[group.events.length - 1] ? group.events[group.events.length - 1].timestamp : maxTime);
 
-        // Format type name for display
-        const displayTypeName = formatTypeName(group.type_name);
+            const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
+            const duration = endTime - startTime;
+            const widthPercent = timeRange > 0 ? Math.max(5, (duration / timeRange) * 100) : 40;
 
-        // Create gradient background for more visual appeal
-        const gradientStyle = `background: linear-gradient(90deg, ${progressColor}, ${progressColor}dd);`;
+            // Format type name for display
+            const displayTypeName = formatTypeName(group.type_name);
 
-        varDiv.innerHTML = `
-            <div class="w-48 flex-shrink-0 pr-4">
-                <div class="text-sm font-semibold text-gray-800 dark:text-gray-200">${group.var_name}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">${displayTypeName}</div>
-            </div>
-            <div class="flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden">
-                <div class="absolute inset-0 rounded-full" 
-                     style="${gradientStyle} width: ${widthPercent}%; margin-left: ${startPercent}%; 
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-                            transition: all 0.3s ease;"
-                     title="Variable: ${group.var_name}, Type: ${displayTypeName}">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-xs font-bold text-white drop-shadow-sm">
-                            ${Math.round(widthPercent)}%
-                        </span>
+            // Create gradient background for more visual appeal
+            const gradientStyle = `background: linear-gradient(90deg, ${progressColor}, ${progressColor}dd);`;
+
+            varDiv.innerHTML = `
+                <div class="w-48 flex-shrink-0 pr-4">
+                    <div class="text-sm font-semibold text-gray-800 dark:text-gray-200">${group.var_name}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">${displayTypeName}</div>
+                </div>
+                <div class="flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden">
+                    <div class="absolute inset-0 rounded-full" 
+                         style="${gradientStyle} width: ${widthPercent}%; margin-left: ${startPercent}%; 
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+                                transition: all 0.3s ease;"
+                         title="Variable: ${group.var_name}, Type: ${displayTypeName}">
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-xs font-bold text-white drop-shadow-sm">
+                                ${Math.round(widthPercent)}%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
+                        Duration: ${formatTimestamp(duration, 0)}
                     </div>
                 </div>
-                <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                    Duration: ${formatTimestamp(duration, 0)}
+                <div class="w-20 flex-shrink-0 pl-4 text-right">
+                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                        ${formatBytes(group.size || (group.events && group.events[0] ? group.events[0].size : 0) || 0)}
+                    </div>
                 </div>
-            </div>
-            <div class="w-20 flex-shrink-0 pl-4 text-right">
-                <div class="text-xs text-gray-600 dark:text-gray-400">
-                    ${formatBytes(group.size || (group.events && group.events[0] ? group.events[0].size : 0) || 0)}
+            `;
+
+            container.appendChild(varDiv);
+        });
+
+        // Add "show more" indicator if collapsed
+        if (!showAll && variableGroups.length > maxInitialRows) {
+            const moreDiv = document.createElement('div');
+            moreDiv.className = 'flex items-center py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600';
+            moreDiv.innerHTML = `
+                <div class="w-full text-center text-gray-500 dark:text-gray-400 text-sm">
+                    ... and ${variableGroups.length - maxInitialRows} more variables
                 </div>
-            </div>
-        `;
+            `;
+            container.appendChild(moreDiv);
+        }
+    }
 
-        container.appendChild(varDiv);
-    });
+    // Initial render
+    renderLifetimeRows(false);
 
-    console.log(`✅ Rendered ${variableGroups.length} Rust-preprocessed variables in lifetime visualization`);
+    // Toggle functionality
+    if (toggleButton && variableGroups.length > maxInitialRows) {
+        console.log('📊 Setting up lifecycle toggle button for', variableGroups.length, 'variables');
+
+        // Remove any existing event listeners
+        const newToggleButton = toggleButton.cloneNode(true);
+        toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
+
+        newToggleButton.addEventListener('click', function (e) {
+            e.preventDefault();
+            console.log('📊 Lifecycle toggle button clicked, current state:', isExpanded);
+
+            isExpanded = !isExpanded;
+            renderLifetimeRows(isExpanded);
+
+            const icon = newToggleButton.querySelector('i');
+            const text = newToggleButton.querySelector('span');
+
+            if (isExpanded) {
+                icon.className = 'fa fa-chevron-up mr-1';
+                text.textContent = 'Show Less';
+                console.log('📊 Expanded lifecycle to show all variables');
+            } else {
+                icon.className = 'fa fa-chevron-down mr-1';
+                text.textContent = 'Show All';
+                console.log('📊 Collapsed lifecycle to show first', maxInitialRows, 'variables');
+            }
+        });
+
+        console.log('✅ Lifecycle toggle button initialized successfully');
+    } else if (toggleButton) {
+        // Hide button if not needed
+        toggleButton.style.display = 'none';
+        console.log('📊 Lifecycle toggle button hidden (not enough data)');
+    }
+
+    console.log(`✅ Rendered ${variableGroups.length} Rust-preprocessed variables in lifetime visualization with collapse functionality`);
 }
 
-// Render the lifetime visualization
-function renderLifetimeVisualization(variableGroups) {
+// Render the lifetime visualization with collapsible functionality
+function renderLifetimeVisualizationWithCollapse(variableGroups) {
     const container = document.getElementById('lifetimeVisualization');
+    const toggleButton = document.getElementById('toggle-lifecycle');
+    
     if (!container) return;
 
     // Clear loading state
     container.innerHTML = '';
+
+    if (!variableGroups || variableGroups.length === 0) {
+        showEmptyLifetimeState();
+        if (toggleButton) {
+            toggleButton.style.display = 'none';
+        }
+        return;
+    }
+
+    let isExpanded = false;
+    const maxInitialRows = 5;
 
     // Get color scheme for different types
     const typeColors = {
@@ -1411,48 +1491,107 @@ function renderLifetimeVisualization(variableGroups) {
 
     console.log(`📊 Timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
 
-    // Render each variable
-    variableGroups.forEach((group) => {
-        const varDiv = document.createElement('div');
-        varDiv.className = 'flex items-end py-3 border-b border-gray-100 dark:border-gray-700';
+    function renderLifetimeRows(showAll = false) {
+        console.log(`📊 Rendering lifecycle rows, showAll: ${showAll}, total groups: ${variableGroups.length}`);
+        
+        container.innerHTML = '';
+        
+        const displayGroups = showAll ? variableGroups : variableGroups.slice(0, maxInitialRows);
 
-        // Determine color based on type
-        const typeKey = Object.keys(typeColors).find(key =>
-            group.type_name.includes(key)
-        ) || 'default';
-        const colors = typeColors[typeKey];
+        // Render each variable
+        displayGroups.forEach((group) => {
+            const varDiv = document.createElement('div');
+            varDiv.className = 'flex items-end py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
 
-        // Calculate position and width based on timestamps
-        const firstEvent = group.events[0];
-        const startTime = firstEvent.timestamp;
-        const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
+            // Determine color based on type
+            const typeKey = Object.keys(typeColors).find(key =>
+                group.type_name.includes(key)
+            ) || 'default';
+            const colors = typeColors[typeKey];
 
-        // For now, assume a fixed width since we don't have deallocation events
-        // In a real implementation, you'd track deallocation events too
-        const widthPercent = 60; // Default width
+            // Calculate position and width based on timestamps
+            const firstEvent = group.events[0];
+            const startTime = firstEvent.timestamp;
+            const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
 
-        // Format type name for display
-        const displayTypeName = formatTypeName(group.type_name);
+            // For now, assume a fixed width since we don't have deallocation events
+            // In a real implementation, you'd track deallocation events too
+            const widthPercent = 60; // Default width
 
-        varDiv.innerHTML = `
-            <div class="w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200">
-                ${group.var_name} (${displayTypeName})
-            </div>
-            <div class="flex-grow relative">
-                <div class="lifespan-indicator ${colors.bg}" 
-                     style="width: ${widthPercent}%; margin-left: ${startPercent}%;" 
-                     title="Variable: ${group.var_name}, Type: ${displayTypeName}">
-                    <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
-                        Allocated: ${formatTimestamp(startTime, minTime)}
+            // Format type name for display
+            const displayTypeName = formatTypeName(group.type_name);
+
+            varDiv.innerHTML = `
+                <div class="w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200">
+                    ${group.var_name} (${displayTypeName})
+                </div>
+                <div class="flex-grow relative">
+                    <div class="lifespan-indicator ${colors.bg}" 
+                         style="width: ${widthPercent}%; margin-left: ${startPercent}%;" 
+                         title="Variable: ${group.var_name}, Type: ${displayTypeName}">
+                        <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
+                            Allocated: ${formatTimestamp(startTime, minTime)}
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
 
-        container.appendChild(varDiv);
-    });
+            container.appendChild(varDiv);
+        });
 
-    console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization`);
+        // Add "show more" indicator if collapsed
+        if (!showAll && variableGroups.length > maxInitialRows) {
+            const moreDiv = document.createElement('div');
+            moreDiv.className = 'flex items-center py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600';
+            moreDiv.innerHTML = `
+                <div class="w-full text-center text-gray-500 dark:text-gray-400 text-sm">
+                    ... and ${variableGroups.length - maxInitialRows} more variables
+                </div>
+            `;
+            container.appendChild(moreDiv);
+        }
+    }
+
+    // Initial render
+    renderLifetimeRows(false);
+
+    // Toggle functionality
+    if (toggleButton && variableGroups.length > maxInitialRows) {
+        console.log('📊 Setting up lifecycle toggle button for', variableGroups.length, 'variables');
+
+        // Remove any existing event listeners
+        const newToggleButton = toggleButton.cloneNode(true);
+        toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
+
+        newToggleButton.addEventListener('click', function (e) {
+            e.preventDefault();
+            console.log('📊 Lifecycle toggle button clicked, current state:', isExpanded);
+
+            isExpanded = !isExpanded;
+            renderLifetimeRows(isExpanded);
+
+            const icon = newToggleButton.querySelector('i');
+            const text = newToggleButton.querySelector('span');
+
+            if (isExpanded) {
+                icon.className = 'fa fa-chevron-up mr-1';
+                text.textContent = 'Show Less';
+                console.log('📊 Expanded lifecycle to show all variables');
+            } else {
+                icon.className = 'fa fa-chevron-down mr-1';
+                text.textContent = 'Show All';
+                console.log('📊 Collapsed lifecycle to show first', maxInitialRows, 'variables');
+            }
+        });
+
+        console.log('✅ Lifecycle toggle button initialized successfully');
+    } else if (toggleButton) {
+        // Hide button if not needed
+        toggleButton.style.display = 'none';
+        console.log('📊 Lifecycle toggle button hidden (not enough data)');
+    }
+
+    console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization with collapse functionality`);
 }
 
 // Initialize FFI visualization with enhanced SVG-style dashboard

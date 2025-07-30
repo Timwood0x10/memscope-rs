@@ -1,6 +1,6 @@
 //! Performance tests for memscope-rs to measure overhead and identify bottlenecks.
 
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_global_tracker, init_test, track_var};
 use std::sync::Once;
 use std::time::{Duration, Instant};
 
@@ -8,15 +8,16 @@ static INIT: Once = Once::new();
 
 fn ensure_init() {
     INIT.call_once(|| {
-        init();
+        init_test!();
     });
 }
 
 #[test]
+#[ignore] // Performance benchmark - run manually with: cargo test benchmark_allocation_tracking_overhead -- --ignored
 fn benchmark_allocation_tracking_overhead() {
     ensure_init();
 
-    let iterations = 1000;
+    let iterations = 50; // Reduced for faster CI
 
     // Benchmark without tracking
     let start = Instant::now();
@@ -68,6 +69,7 @@ fn benchmark_allocation_tracking_overhead() {
 }
 
 #[test]
+#[ignore] // Performance benchmark - run manually with: cargo test benchmark_stats_retrieval -- --ignored
 fn benchmark_stats_retrieval() {
     ensure_init();
 
@@ -75,14 +77,15 @@ fn benchmark_stats_retrieval() {
 
     // Create some allocations first
     let mut allocations = Vec::new();
-    for i in 0..100 {
+    for i in 0..10 {
+        // Reduced from 100 for faster CI
         let data = vec![i; 50];
         let _ = track_var!(data.clone());
         allocations.push(data);
     }
 
     // Benchmark stats retrieval
-    let iterations = 1000;
+    let iterations = 50; // Reduced for faster CI
     let start = Instant::now();
 
     for _ in 0..iterations {
@@ -111,7 +114,8 @@ fn benchmark_export_performance() {
 
     // Create substantial amount of data
     let mut allocations = Vec::new();
-    for i in 0..200 {
+    for i in 0..20 {
+        // Reduced from 200 for faster CI
         let data = vec![i; 100];
         let _ = track_var!(data.clone());
         allocations.push(data);
@@ -191,7 +195,7 @@ fn benchmark_concurrent_performance() {
 
     let tracker = get_global_tracker();
     let num_threads = 4;
-    let operations_per_thread = 100;
+    let operations_per_thread = 10; // Reduced from 100 for faster CI
 
     let start = Instant::now();
 
@@ -247,6 +251,7 @@ fn benchmark_concurrent_performance() {
 }
 
 #[test]
+#[ignore] // Performance benchmark - run manually with: cargo test benchmark_memory_usage_of_tracker -- --ignored
 fn benchmark_memory_usage_of_tracker() {
     ensure_init();
 

@@ -656,7 +656,9 @@ impl PerformanceBenchmark {
         if perf.consistency_score > 80.0 {
             report.push_str("✅ **Excellent Consistency**: Fast export system performs stably with high result consistency.\n\n");
         } else if perf.consistency_score > 60.0 {
-            report.push_str("✅ **Good Consistency**: Fast export system performs relatively stable.\n\n");
+            report.push_str(
+                "✅ **Good Consistency**: Fast export system performs relatively stable.\n\n",
+            );
         } else {
             report
                 .push_str("⚠️ **Consistency Needs Improvement**: Fast export system results fluctuate significantly, stability optimization recommended.\n\n");

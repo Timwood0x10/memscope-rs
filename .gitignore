@@ -45,9 +45,9 @@ performance_only_results/
 !images/*.svg
 !images/*.json
 
-aim/*
+aim/**
 
-docs/*
+docs/**
 
 memory_*.json
 memory_*.svg

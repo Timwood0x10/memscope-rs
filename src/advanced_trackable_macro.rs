@@ -7,7 +7,7 @@
 #[macro_export]
 macro_rules! impl_advanced_trackable {
     ($type:ty, $offset:expr) => {
-        impl<T> crate::Trackable for $type {
+        impl<T> $crate::Trackable for $type {
             fn get_heap_ptr(&self) -> Option<usize> {
                 // Use unique offset for this type category
                 let instance_ptr = self as *const _ as usize;
@@ -68,7 +68,7 @@ macro_rules! impl_advanced_trackable {
 
     // Variant for types without generics
     ($type:ty, $offset:expr, no_generics) => {
-        impl crate::Trackable for $type {
+        impl $crate::Trackable for $type {
             fn get_heap_ptr(&self) -> Option<usize> {
                 let instance_ptr = self as *const _ as usize;
                 Some($offset + (instance_ptr % 0x0FFF_FFFF))

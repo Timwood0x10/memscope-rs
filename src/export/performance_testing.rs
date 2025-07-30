@@ -258,7 +258,10 @@ impl PerformanceBenchmark {
 
         println!("\nTraditional Export:");
         println!("  Time: {} ms", result.traditional_export.export_time_ms);
-        println!("  Memory: {:.2} MB", result.traditional_export.peak_memory_mb);
+        println!(
+            "  Memory: {:.2} MB",
+            result.traditional_export.peak_memory_mb
+        );
         println!(
             "  File size: {} bytes ({:.2} KB)",
             result.traditional_export.output_file_size_bytes,
@@ -297,13 +300,22 @@ impl PerformanceBenchmark {
                 result.time_improvement_factor,
                 (1.0 - 1.0 / result.time_improvement_factor) * 100.0
             );
-            println!("  Memory optimization: {:.2}x", result.memory_improvement_factor);
+            println!(
+                "  Memory optimization: {:.2}x",
+                result.memory_improvement_factor
+            );
 
             let target_improvement = 2.0; // Target: reduce 60-80% export time (2-5x improvement)
             if result.time_improvement_factor >= target_improvement {
-                println!("  🎯 Achieved expected performance improvement target (>{}x)!", target_improvement);
+                println!(
+                    "  🎯 Achieved expected performance improvement target (>{}x)!",
+                    target_improvement
+                );
             } else {
-                println!("  ⚠️ Did not achieve expected performance improvement target (>{}x)", target_improvement);
+                println!(
+                    "  ⚠️ Did not achieve expected performance improvement target (>{}x)",
+                    target_improvement
+                );
             }
 
             // Verify memory limits

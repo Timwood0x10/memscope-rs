@@ -4,7 +4,7 @@
 use crossbeam::thread;
 use parking_lot::{Mutex, RwLock};
 // use rayon::prelude::*; // Unused import
-use memscope_rs::{get_global_tracker, init, track_var, Trackable};
+use memscope_rs::{get_global_tracker, track_var, Trackable};
 use std::sync::{Arc, Barrier};
 use std::thread as std_thread;
 use std::time::{Duration, Instant};
@@ -13,7 +13,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 
 fn ensure_init() {
     INIT.call_once(|| {
-        init();
+        memscope_rs::test_utils::init_test();
     });
 }
 

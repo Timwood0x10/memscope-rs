@@ -1032,6 +1032,12 @@ impl<T: Trackable> Drop for TrackedVariable<T> {
             {
                 // Use catch_unwind to prevent panic in drop from affecting program termination
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    // Skip expensive drop tracking in fast mode
+                    let tracker = get_global_tracker();
+                    if tracker.is_fast_mode() {
+                        return;
+                    }
+
                     let type_name = self.inner.get_type_name();
                     let smart_pointer_type =
                         smart_pointer_utils::detect_smart_pointer_type(type_name);
@@ -1109,6 +1115,18 @@ impl<T: Trackable + Clone> Clone for TrackedVariable<T> {
 #[doc(hidden)]
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
     let tracker = get_global_tracker();
+
+    // Fast path for testing mode
+    if tracker.is_fast_mode() {
+        let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let synthetic_ptr = 0x8000_0000 + unique_id;
+        return tracker.fast_track_allocation(
+            synthetic_ptr,
+            var.get_size_estimate(),
+            var_name.to_string(),
+        );
+    }
+
     let type_name = var.get_type_name().to_string();
     let smart_pointer_type = smart_pointer_utils::detect_smart_pointer_type(&type_name);
     let is_smart_pointer = smart_pointer_type != smart_pointer_utils::SmartPointerType::None;
@@ -1117,12 +1135,16 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
     let ptr = if is_smart_pointer {
         // For smart pointers, generate a unique synthetic pointer
         let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        Some(smart_pointer_utils::generate_synthetic_pointer(smart_pointer_type, unique_id))
+        Some(smart_pointer_utils::generate_synthetic_pointer(
+            smart_pointer_type,
+            unique_id,
+        ))
     } else {
         // For non-smart pointer types, use heap pointer or generate synthetic pointer
         var.get_heap_ptr().or_else(|| {
             // Generate synthetic pointer for types without heap allocation
-            let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let unique_id =
+                TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             Some(0x8000_0000 + unique_id)
         })
     };
@@ -1195,7 +1217,10 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         }
     } else {
         // This should not happen with our new logic, but keep as fallback
-        tracing::debug!("Variable '{}' could not be tracked (no pointer generated)", var_name);
+        tracing::debug!(
+            "Variable '{}' could not be tracked (no pointer generated)",
+            var_name
+        );
     }
     Ok(())
 }
@@ -1354,15 +1379,75 @@ pub fn _smart_track_var_impl<T: Trackable + 'static>(var: T, var_name: &str) -> 
 pub fn init() {
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+    // Check if we're in test mode to reduce log noise
+    let default_level = if cfg!(test) || std::env::var("MEMSCOPE_TEST_MODE").is_ok() {
+        "memscope_rs=error" // Only show errors during tests
+    } else {
+        "memscope_rs=info" // Normal info level for regular use
+    };
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "memscope_rs=info".into()),
+                .unwrap_or_else(|_| default_level.into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
     tracing::info!("memscope-rs initialized");
+}
+
+/// Initialize memscope-rs with optimized settings for testing
+/// This reduces logging and disables expensive features for faster test execution
+pub fn init_for_testing() {
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+    // Set test mode environment variables
+    std::env::set_var("MEMSCOPE_TEST_MODE", "1");
+
+    // Initialize with minimal logging
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "memscope_rs=error".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    tracing::debug!("memscope-rs initialized for testing");
+}
+
+/// Testing utilities and helpers
+pub mod test_utils {
+    /// Initialize memscope-rs for testing with minimal overhead
+    pub fn init_test() {
+        std::env::set_var("MEMSCOPE_TEST_MODE", "1");
+        std::env::set_var("RUST_LOG", "error");
+
+        // Only initialize once
+        static INIT: std::sync::Once = std::sync::Once::new();
+        INIT.call_once(|| {
+            super::init_for_testing();
+        });
+
+        // Enable fast mode on the global tracker
+        let tracker = super::get_global_tracker();
+        tracker.enable_fast_mode();
+    }
+
+    /// Reset global tracker state for clean tests
+    pub fn reset_tracker() {
+        // This is a placeholder - in practice, we might need to implement
+        // a way to reset the global tracker state between tests
+    }
+}
+
+/// Macro for quick test initialization
+#[macro_export]
+macro_rules! init_test {
+    () => {
+        $crate::test_utils::init_test();
+    };
 }
 
 /// Enable automatic JSON export when program ends

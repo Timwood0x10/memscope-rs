@@ -771,12 +771,18 @@ impl PerformanceComparator {
             "  Stability improvement: {:.1}%",
             stability.stability_improvement * 100.0
         );
-        println!("  Consistency score: {:.1}/100", stability.consistency_score);
+        println!(
+            "  Consistency score: {:.1}/100",
+            stability.consistency_score
+        );
 
         println!("\n📈 Scalability analysis:");
         let scalability = &report.comparison_analysis.scalability_analysis;
         println!("  Data scalability: {:.2}", scalability.data_scalability);
-        println!("  Scalability score: {:.1}/100", scalability.scalability_score);
+        println!(
+            "  Scalability score: {:.1}/100",
+            scalability.scalability_score
+        );
 
         println!("\n📋 Detailed comparison:");
         for comparison in &report.detailed_comparisons {

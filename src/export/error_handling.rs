@@ -849,7 +849,6 @@ pub struct ResourceMonitor {
     disk_limit: usize,
     /// CPU usage limit (percentage)
     cpu_limit: f64,
-
 }
 
 impl ResourceMonitor {

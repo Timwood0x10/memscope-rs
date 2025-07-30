@@ -279,9 +279,16 @@
         <!-- Variable Lifecycle Timeline -->
         <section class="mb-12">
             <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-clock-o text-primary mr-2"></i>Variable Lifecycle Timeline
-                </h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold flex items-center text-heading">
+                        <i class="fa fa-clock-o text-primary mr-2"></i>Variable Lifecycle Timeline
+                    </h2>
+                    <button id="toggle-lifecycle"
+                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                        <i class="fa fa-chevron-down mr-1"></i>
+                        <span>Show All</span>
+                    </button>
+                </div>
                 <div class="overflow-x-auto">
                     <div class="min-w-[800px]">
                         <div class="flex items-end">

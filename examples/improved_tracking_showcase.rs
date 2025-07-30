@@ -368,20 +368,20 @@ fn main() -> TrackingResult<()> {
 
     // Enable verbose logging for demonstration
     std::env::set_var("MEMSCOPE_VERBOSE", "1");
-    
+
     println!("🔧 DEBUG: Starting main function");
 
     // Create some persistent tracked variables that will remain active during export
     let persistent_data1 = ComplexData::new(100, "persistent_var1", 512);
     let persistent_data2 = ComplexData::new(101, "persistent_var2", 1024);
     let persistent_data3 = ComplexData::new(102, "persistent_var3", 256);
-    
+
     let _tracked_persistent1 = track_var_owned!(persistent_data1);
     let _tracked_persistent2 = track_var_owned!(persistent_data2);
     track_var!(persistent_data3); // Test both tracking methods
-    
+
     println!("📊 Created persistent tracked variables for export testing");
-    
+
     // Check current allocation count
     let tracker = get_global_tracker();
     if let Ok(allocations) = tracker.get_active_allocations() {
@@ -394,12 +394,17 @@ fn main() -> TrackingResult<()> {
             }
             if alloc.var_name.is_some() {
                 named_count += 1;
-                println!("  📝 Named allocation: {} -> {:?}", 
-                         format!("0x{:x}", alloc.ptr), 
-                         alloc.var_name.as_ref().unwrap());
+                println!(
+                    "  📝 Named allocation: {} -> {:?}",
+                    format!("0x{:x}", alloc.ptr),
+                    alloc.var_name.as_ref().unwrap()
+                );
             }
         }
-        println!("📊 Synthetic allocations: {}, Named allocations: {}", synthetic_count, named_count);
+        println!(
+            "📊 Synthetic allocations: {}, Named allocations: {}",
+            synthetic_count, named_count
+        );
     }
     println!();
 

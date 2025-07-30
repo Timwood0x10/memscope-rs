@@ -70,7 +70,8 @@ pub fn derive_trackable(input: TokenStream) -> TokenStream {
         }
         Data::Enum(data_enum) => {
             let size_estimate_impl = generate_enum_size_estimate_impl(&data_enum.variants);
-            let internal_allocations_impl = generate_enum_internal_allocations_impl(&data_enum.variants);
+            let internal_allocations_impl =
+                generate_enum_internal_allocations_impl(&data_enum.variants);
 
             quote! {
                 impl #impl_generics memscope_rs::Trackable for #name #ty_generics #where_clause {
@@ -97,7 +98,7 @@ pub fn derive_trackable(input: TokenStream) -> TokenStream {
             // Unions are not supported for safety reasons
             return syn::Error::new_spanned(
                 &input,
-                "Trackable cannot be derived for unions due to safety concerns"
+                "Trackable cannot be derived for unions due to safety concerns",
             )
             .to_compile_error()
             .into();
@@ -113,7 +114,7 @@ fn generate_heap_ptr_impl(fields: &Fields) -> proc_macro2::TokenStream {
         Fields::Named(_) | Fields::Unnamed(_) => {
             // Check if any field has heap allocations
             let has_heap_fields = has_potential_heap_allocations(fields);
-            
+
             if has_heap_fields {
                 quote! {
                     // Use the struct's address as the primary identifier
@@ -220,7 +221,9 @@ fn generate_internal_allocations_impl(fields: &Fields) -> proc_macro2::TokenStre
 }
 
 /// Generate size estimate for enums
-fn generate_enum_size_estimate_impl(variants: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>) -> proc_macro2::TokenStream {
+fn generate_enum_size_estimate_impl(
+    variants: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>,
+) -> proc_macro2::TokenStream {
     let variant_arms = variants.iter().map(|variant| {
         let variant_name = &variant.ident;
         match &variant.fields {
@@ -232,7 +235,7 @@ fn generate_enum_size_estimate_impl(variants: &syn::punctuated::Punctuated<syn::
                         total_size += memscope_rs::Trackable::get_size_estimate(#field_name);
                     }
                 });
-                
+
                 quote! {
                     Self::#variant_name { #(#field_names),* } => {
                         let mut total_size = std::mem::size_of::<Self>();
@@ -243,14 +246,16 @@ fn generate_enum_size_estimate_impl(variants: &syn::punctuated::Punctuated<syn::
             }
             Fields::Unnamed(fields) => {
                 let field_patterns: Vec<_> = (0..fields.unnamed.len())
-                    .map(|i| syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site()))
+                    .map(|i| {
+                        syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site())
+                    })
                     .collect();
                 let field_sizes = field_patterns.iter().map(|field_name| {
                     quote! {
                         total_size += memscope_rs::Trackable::get_size_estimate(#field_name);
                     }
                 });
-                
+
                 quote! {
                     Self::#variant_name(#(#field_patterns),*) => {
                         let mut total_size = std::mem::size_of::<Self>();
@@ -275,11 +280,12 @@ fn generate_enum_size_estimate_impl(variants: &syn::punctuated::Punctuated<syn::
 }
 
 /// Generate internal allocations for enums
-fn generate_enum_internal_allocations_impl(variants: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>) -> proc_macro2::TokenStream {
+fn generate_enum_internal_allocations_impl(
+    variants: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>,
+) -> proc_macro2::TokenStream {
     let variant_arms = variants.iter().map(|variant| {
         let variant_name = &variant.ident;
         let variant_name_str = variant_name.to_string();
-        
         match &variant.fields {
             Fields::Named(fields) => {
                 let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
@@ -292,7 +298,6 @@ fn generate_enum_internal_allocations_impl(variants: &syn::punctuated::Punctuate
                         }
                     }
                 });
-                
                 quote! {
                     Self::#variant_name { #(#field_names),* } => {
                         let mut allocations = Vec::new();
@@ -312,7 +317,6 @@ fn generate_enum_internal_allocations_impl(variants: &syn::punctuated::Punctuate
                         }
                     }
                 });
-                
                 quote! {
                     Self::#variant_name(#(#field_patterns),*) => {
                         let mut allocations = Vec::new();
@@ -339,12 +343,14 @@ fn generate_enum_internal_allocations_impl(variants: &syn::punctuated::Punctuate
 /// Check if fields potentially contain heap allocations
 fn has_potential_heap_allocations(fields: &Fields) -> bool {
     match fields {
-        Fields::Named(fields_named) => {
-            fields_named.named.iter().any(|field| is_potentially_heap_allocated(&field.ty))
-        }
-        Fields::Unnamed(fields_unnamed) => {
-            fields_unnamed.unnamed.iter().any(|field| is_potentially_heap_allocated(&field.ty))
-        }
+        Fields::Named(fields_named) => fields_named
+            .named
+            .iter()
+            .any(|field| is_potentially_heap_allocated(&field.ty)),
+        Fields::Unnamed(fields_unnamed) => fields_unnamed
+            .unnamed
+            .iter()
+            .any(|field| is_potentially_heap_allocated(&field.ty)),
         Fields::Unit => false,
     }
 }
@@ -355,9 +361,20 @@ fn is_potentially_heap_allocated(ty: &Type) -> bool {
         Type::Path(type_path) => {
             if let Some(segment) = type_path.path.segments.last() {
                 let type_name = segment.ident.to_string();
-                matches!(type_name.as_str(), 
-                    "String" | "Vec" | "HashMap" | "BTreeMap" | "HashSet" | "BTreeSet" | 
-                    "VecDeque" | "LinkedList" | "BinaryHeap" | "Box" | "Rc" | "Arc"
+                matches!(
+                    type_name.as_str(),
+                    "String"
+                        | "Vec"
+                        | "HashMap"
+                        | "BTreeMap"
+                        | "HashSet"
+                        | "BTreeSet"
+                        | "VecDeque"
+                        | "LinkedList"
+                        | "BinaryHeap"
+                        | "Box"
+                        | "Rc"
+                        | "Arc"
                 )
             } else {
                 false
