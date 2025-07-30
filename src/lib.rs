@@ -607,6 +607,8 @@ macro_rules! track_var {
 ///
 /// This macro creates a tracking wrapper that takes ownership of the variable
 /// and provides automatic lifecycle tracking with precise timing measurements.
+/// The wrapper includes robust drop protection to prevent duplicate tracking
+/// and enhanced smart pointer detection for accurate analysis.
 ///
 /// ## ✅ Use this when:
 /// - You need precise lifecycle tracking with automatic cleanup detection
@@ -614,12 +616,19 @@ macro_rules! track_var {
 /// - You're doing advanced memory analysis or debugging
 /// - You're tracking variables that will be consumed/moved anyway
 /// - You need the wrapper's additional methods (get(), get_mut(), into_inner())
+/// - You're working with smart pointers (Rc, Arc, Box) that need special handling
 ///
 /// ## ❌ Don't use this when:
 /// - You need to continue using the original variable (use `track_var!` instead)
 /// - Performance is critical and you don't need lifecycle timing
 /// - You're tracking many variables (clone overhead)
 /// - You're doing basic memory profiling
+///
+/// ## 🛡️ Safety Features:
+/// - **Drop Protection**: Prevents duplicate destruction tracking even if `into_inner()` is used
+/// - **Smart Pointer Detection**: Automatically detects and handles Rc, Arc, and Box types
+/// - **Error Resilience**: Uses panic-safe error handling to prevent drop failures
+/// - **Atomic Protection**: Thread-safe duplicate tracking prevention
 ///
 /// ## ⚠️ Performance Note:
 /// This macro takes ownership of the variable. If you need the original variable
@@ -628,12 +637,19 @@ macro_rules! track_var {
 /// # Example
 /// ```rust
 /// use memscope_rs::track_var_owned;
+/// use std::rc::Rc;
 ///
+/// // Regular type tracking
 /// let my_vec = vec![1, 2, 3, 4, 5];
 /// let tracked_vec = track_var_owned!(my_vec); // Takes ownership
 /// // tracked_vec behaves like my_vec but with automatic lifecycle tracking
 /// println!("Length: {}", tracked_vec.len()); // Transparent access via Deref
 /// let original = tracked_vec.into_inner(); // Get original back if needed
+///
+/// // Smart pointer tracking with enhanced detection
+/// let smart_ptr = Rc::new(vec![1, 2, 3]);
+/// let tracked_smart = track_var_owned!(smart_ptr); // Automatically detects Rc
+/// println!("Ref count: {}", Rc::strong_count(&tracked_smart)); // Works transparently
 /// ```
 #[macro_export]
 macro_rules! track_var_owned {
@@ -688,18 +704,80 @@ macro_rules! track_var_smart {
 static TRACKED_VARIABLE_COUNTER: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(1);
 
+/// Smart pointer detection and analysis utilities.
+///
+/// This module provides centralized logic for detecting and handling different types
+/// of smart pointers (Rc, Arc, Box) in a consistent and maintainable way.
+/// It replaces scattered string-matching logic with type-safe detection methods.
+pub mod smart_pointer_utils {
+    /// Smart pointer type information
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum SmartPointerType {
+        /// Reference counted pointer (std::rc::Rc)
+        Rc,
+        /// Atomically reference counted pointer (std::sync::Arc)
+        Arc,
+        /// Heap allocated box (std::boxed::Box)
+        Box,
+        /// Not a smart pointer
+        None,
+    }
+
+    /// Detect smart pointer type from type name
+    pub fn detect_smart_pointer_type(type_name: &str) -> SmartPointerType {
+        if type_name.contains("::Rc<") || type_name.contains("std::rc::Rc<") {
+            SmartPointerType::Rc
+        } else if type_name.contains("::Arc<") || type_name.contains("std::sync::Arc<") {
+            SmartPointerType::Arc
+        } else if type_name.contains("::Box<") || type_name.contains("std::boxed::Box<") {
+            SmartPointerType::Box
+        } else {
+            SmartPointerType::None
+        }
+    }
+
+    /// Check if a type is a smart pointer
+    pub fn is_smart_pointer(type_name: &str) -> bool {
+        detect_smart_pointer_type(type_name) != SmartPointerType::None
+    }
+
+    /// Generate unique synthetic pointer for smart pointer tracking
+    pub fn generate_synthetic_pointer(
+        smart_pointer_type: SmartPointerType,
+        unique_id: usize,
+    ) -> usize {
+        match smart_pointer_type {
+            SmartPointerType::Rc => 0x5000_0000 + unique_id,
+            SmartPointerType::Arc => 0x6000_0000 + unique_id,
+            SmartPointerType::Box => 0x7000_0000 + unique_id,
+            SmartPointerType::None => unique_id, // Fallback, shouldn't be used
+        }
+    }
+}
+
 /// A wrapper that provides automatic lifecycle tracking for variables.
 ///
 /// This struct wraps any `Trackable` type and automatically handles:
 /// - Creation tracking when constructed
-/// - Destruction tracking when dropped
-/// - Transparent access to the wrapped value
+/// - Destruction tracking when dropped with duplicate protection
+/// - Transparent access to the wrapped value via Deref/DerefMut
+/// - Smart pointer detection and specialized handling for Rc, Arc, and Box
+/// - Thread-safe drop protection using atomic flags
+/// - Panic-safe error handling in drop logic
+///
+/// ## Key Features:
+/// - **Drop Protection**: Prevents duplicate destruction tracking
+/// - **Smart Pointer Support**: Automatic detection and handling of reference-counted types
+/// - **Error Resilience**: Robust error handling that won't crash on tracking failures
+/// - **Thread Safety**: Uses atomic operations for safe concurrent access
+/// - **Zero-Cost Abstraction**: Transparent access to wrapped value with minimal overhead
 pub struct TrackedVariable<T: Trackable> {
     inner: T,
     var_name: String,
     ptr: Option<usize>,
     creation_time: u64,
     unique_id: usize, // Unique identifier for this TrackedVariable instance
+    destruction_tracked: std::sync::atomic::AtomicBool, // Protection against duplicate drop tracking
 }
 
 impl<T: Trackable> TrackedVariable<T> {
@@ -712,16 +790,15 @@ impl<T: Trackable> TrackedVariable<T> {
 
         let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let type_name = value.get_type_name().to_string();
-        let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
+        let smart_pointer_type = smart_pointer_utils::detect_smart_pointer_type(&type_name);
+        let is_smart_pointer = smart_pointer_type != smart_pointer_utils::SmartPointerType::None;
 
         // For smart pointers, use a unique synthetic pointer based on the TrackedVariable instance
         let ptr = if is_smart_pointer {
-            // Generate a unique pointer for this TrackedVariable instance
-            if type_name.contains("::Rc<") {
-                Some(0x5000_0000 + unique_id)
-            } else {
-                Some(0x6000_0000 + unique_id)
-            }
+            Some(smart_pointer_utils::generate_synthetic_pointer(
+                smart_pointer_type,
+                unique_id,
+            ))
         } else {
             value.get_heap_ptr()
         };
@@ -795,6 +872,7 @@ impl<T: Trackable> TrackedVariable<T> {
             ptr,
             creation_time,
             unique_id,
+            destruction_tracked: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -809,20 +887,65 @@ impl<T: Trackable> TrackedVariable<T> {
     }
 
     /// Consume the wrapper and return the inner value.
+    ///
+    /// This method safely extracts the wrapped value while ensuring that
+    /// destruction tracking occurs exactly once. It uses atomic protection
+    /// to prevent duplicate tracking even if the Drop trait would normally
+    /// execute afterwards.
+    ///
+    /// ## Safety Features:
+    /// - Uses `ManuallyDrop` to prevent automatic Drop execution
+    /// - Atomic flag prevents duplicate destruction tracking
+    /// - Proper error handling for tracking failures
+    /// - Smart pointer detection for specialized handling
     pub fn into_inner(self) -> T {
-        // Manually trigger drop logic before consuming
-        if let Some(ptr_val) = self.ptr {
-            Self::track_destruction(&self.var_name, ptr_val, self.creation_time);
+        // Use ManuallyDrop to prevent automatic Drop execution
+        let mut manual_drop_self = std::mem::ManuallyDrop::new(self);
+
+        // Manually trigger drop logic if not already tracked
+        if let Some(ptr_val) = manual_drop_self.ptr.take() {
+            // Check if destruction was already tracked to prevent duplicates
+            if !manual_drop_self
+                .destruction_tracked
+                .swap(true, std::sync::atomic::Ordering::Relaxed)
+            {
+                let type_name = manual_drop_self.inner.get_type_name();
+                let smart_pointer_type = smart_pointer_utils::detect_smart_pointer_type(type_name);
+                let is_smart_pointer =
+                    smart_pointer_type != smart_pointer_utils::SmartPointerType::None;
+
+                if is_smart_pointer {
+                    let final_ref_count = manual_drop_self.inner.get_ref_count();
+                    if let Err(e) = Self::track_smart_pointer_destruction(
+                        &manual_drop_self.var_name,
+                        ptr_val,
+                        manual_drop_self.creation_time,
+                        final_ref_count,
+                    ) {
+                        tracing::warn!(
+                            "Failed to track smart pointer destruction in into_inner(): {}",
+                            e
+                        );
+                    }
+                } else {
+                    if let Err(e) = Self::track_destruction(
+                        &manual_drop_self.var_name,
+                        ptr_val,
+                        manual_drop_self.creation_time,
+                    ) {
+                        tracing::warn!("Failed to track destruction in into_inner(): {}", e);
+                    }
+                }
+            }
         }
 
-        // Safe ownership transfer using ManuallyDrop
-        let manual_drop_self = std::mem::ManuallyDrop::new(self);
+        // Safe ownership transfer
         // SAFETY: We're taking ownership of the inner value and preventing Drop from running
         unsafe { std::ptr::read(&manual_drop_self.inner) }
     }
 
     /// Internal method to track variable destruction.
-    fn track_destruction(var_name: &str, ptr: usize, creation_time: u64) {
+    fn track_destruction(var_name: &str, ptr: usize, creation_time: u64) -> TrackingResult<()> {
         let destruction_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -831,21 +954,25 @@ impl<T: Trackable> TrackedVariable<T> {
         let lifetime_ms = (destruction_time.saturating_sub(creation_time)) / 1_000_000;
 
         // Update variable registry with destruction info
-        let _ = crate::variable_registry::VariableRegistry::mark_variable_destroyed(
+        if let Err(e) = crate::variable_registry::VariableRegistry::mark_variable_destroyed(
             ptr,
             destruction_time,
-        );
+        ) {
+            tracing::warn!("Failed to mark variable destroyed in registry: {}", e);
+        }
 
         // Track deallocation with precise lifetime in memory tracker
         let tracker = get_global_tracker();
-        let _ = tracker.track_deallocation_with_lifetime(ptr, lifetime_ms);
+        tracker.track_deallocation_with_lifetime(ptr, lifetime_ms)?;
 
         tracing::debug!(
-            "💀 Destroyed tracked variable '{}' at ptr 0x{:x}, lifetime: {}ms",
+            "Destroyed tracked variable '{}' at ptr 0x{:x}, lifetime: {}ms",
             var_name,
             ptr,
             lifetime_ms
         );
+
+        Ok(())
     }
 
     /// Internal method to track smart pointer destruction with enhanced metadata.
@@ -854,7 +981,7 @@ impl<T: Trackable> TrackedVariable<T> {
         ptr: usize,
         creation_time: u64,
         final_ref_count: usize,
-    ) {
+    ) -> TrackingResult<()> {
         let destruction_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -863,43 +990,69 @@ impl<T: Trackable> TrackedVariable<T> {
         let lifetime_ms = (destruction_time.saturating_sub(creation_time)) / 1_000_000;
 
         // Update variable registry with destruction info
-        let _ = crate::variable_registry::VariableRegistry::mark_variable_destroyed(
+        if let Err(e) = crate::variable_registry::VariableRegistry::mark_variable_destroyed(
             ptr,
             destruction_time,
-        );
+        ) {
+            tracing::warn!("Failed to mark smart pointer destroyed in registry: {}", e);
+        }
 
         // Track smart pointer deallocation with enhanced metadata
         let tracker = get_global_tracker();
-        let _ = tracker.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count);
+        tracker.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count)?;
 
         tracing::debug!(
-            "💀 Destroyed smart pointer '{}' at ptr 0x{:x}, lifetime: {}ms, final_ref_count: {}",
+            "Destroyed smart pointer '{}' at ptr 0x{:x}, lifetime: {}ms, final_ref_count: {}",
             var_name,
             ptr,
             lifetime_ms,
             final_ref_count
         );
+
+        Ok(())
     }
 }
 
 impl<T: Trackable> Drop for TrackedVariable<T> {
     fn drop(&mut self) {
-        if let Some(ptr_val) = self.ptr {
-            let type_name = self.inner.get_type_name();
-            let is_smart_pointer = type_name.contains("::Rc<") || type_name.contains("::Arc<");
+        // Only execute drop logic if ptr exists and destruction hasn't been tracked yet
+        if let Some(ptr_val) = self.ptr.take() {
+            // Check if destruction was already tracked to prevent duplicates
+            if !self
+                .destruction_tracked
+                .swap(true, std::sync::atomic::Ordering::Relaxed)
+            {
+                // Use catch_unwind to prevent panic in drop from affecting program termination
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let type_name = self.inner.get_type_name();
+                    let smart_pointer_type =
+                        smart_pointer_utils::detect_smart_pointer_type(type_name);
+                    let is_smart_pointer =
+                        smart_pointer_type != smart_pointer_utils::SmartPointerType::None;
 
-            if is_smart_pointer {
-                // For smart pointers, get the final reference count before destruction
-                let final_ref_count = self.inner.get_ref_count();
-                Self::track_smart_pointer_destruction(
-                    &self.var_name,
-                    ptr_val,
-                    self.creation_time,
-                    final_ref_count,
-                );
-            } else {
-                // For regular types, use standard destruction tracking
-                Self::track_destruction(&self.var_name, ptr_val, self.creation_time);
+                    if is_smart_pointer {
+                        // For smart pointers, get the final reference count before destruction
+                        let final_ref_count = self.inner.get_ref_count();
+                        if let Err(e) = Self::track_smart_pointer_destruction(
+                            &self.var_name,
+                            ptr_val,
+                            self.creation_time,
+                            final_ref_count,
+                        ) {
+                            tracing::error!(
+                                "Failed to track smart pointer destruction in drop: {}",
+                                e
+                            );
+                        }
+                    } else {
+                        // For regular types, use standard destruction tracking
+                        if let Err(e) =
+                            Self::track_destruction(&self.var_name, ptr_val, self.creation_time)
+                        {
+                            tracing::error!("Failed to track destruction in drop: {}", e);
+                        }
+                    }
+                }));
             }
         }
     }

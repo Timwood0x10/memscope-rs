@@ -4495,58 +4495,9 @@ pub fn exit_scope(scope_id: crate::core::scope_tracker::ScopeId) -> TrackingResu
 
 impl Drop for MemoryTracker {
     fn drop(&mut self) {
-        // Auto-export JSON before cleanup if enabled
-        if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
-            let export_format =
-                std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
-            let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
-                .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
-
-            println!("🔄 Auto-exporting final memory snapshot...");
-
-            // Export based on format
-            match export_format.as_str() {
-                "json" => {
-                    let json_path = format!("{}.json", export_path);
-                    if let Err(e) = self.export_to_json(&json_path) {
-                        eprintln!("❌ Failed to auto-export JSON: {}", e);
-                    } else {
-                        println!("✅ JSON exported to: {}", json_path);
-                    }
-                }
-                "html" => {
-                    let html_path = format!("{}.html", export_path);
-                    if let Err(e) = self.export_interactive_dashboard(&html_path) {
-                        eprintln!("❌ Failed to auto-export HTML: {}", e);
-                    } else {
-                        println!("✅ HTML dashboard exported to: {}", html_path);
-                    }
-                }
-                "both" => {
-                    let json_path = format!("{}.json", export_path);
-                    let html_path = format!("{}.html", export_path);
-
-                    if let Err(e) = self.export_to_json(&json_path) {
-                        eprintln!("❌ Failed to auto-export JSON: {}", e);
-                    } else {
-                        println!("✅ JSON exported to: {}", json_path);
-                    }
-
-                    if let Err(e) = self.export_interactive_dashboard(&html_path) {
-                        eprintln!("❌ Failed to auto-export HTML: {}", e);
-                    } else {
-                        println!("✅ HTML dashboard exported to: {}", html_path);
-                    }
-                }
-                _ => {
-                    let json_path = format!("{}.json", export_path);
-                    if let Err(e) = self.export_to_json(&json_path) {
-                        eprintln!("❌ Failed to auto-export JSON: {}", e);
-                    } else {
-                        println!("✅ Final memory snapshot exported to: {}", json_path);
-                    }
-                }
-            }
+        // Optional verbose tip for users
+        if std::env::var("MEMSCOPE_VERBOSE").is_ok() {
+            println!("💡 Tip: Use tracker.export_to_json() or tracker.export_interactive_dashboard() before drop to save analysis results");
         }
 
         // Clean up any remaining allocations
