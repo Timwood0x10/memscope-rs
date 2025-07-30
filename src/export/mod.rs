@@ -1,5 +1,7 @@
 pub mod adaptive_performance;
 pub mod batch_processor;
+pub mod binary_export;  // New binary export module
+pub mod simple_binary_export;  // Simplified binary export for proof of concept
 pub mod complex_type_export;
 pub mod config_optimizer;
 pub mod data_localizer;

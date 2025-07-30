@@ -470,7 +470,7 @@ impl AllocationInfo {
 }
 
 /// Memory statistics
-#[derive(Debug, Clone, Default, serde::Serialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct MemoryStats {
     /// Total number of allocations made
     pub total_allocations: usize,
@@ -608,8 +608,16 @@ pub struct FragmentationAnalysis {
     pub internal_fragmentation: f64,
 }
 
-/// System library usage statistics
-#[derive(Debug, Clone, Default, serde::Serialize)]
+/// System library usage statistics for tracking external memory usage
+/// 
+/// This structure provides insights into memory allocations made by system libraries
+/// and external dependencies, helping identify memory usage patterns outside of
+/// user code and potential optimization opportunities in library usage.
+/// 
+/// # Binary Export Support
+/// Fully supports binary serialization and deserialization for efficient export
+/// and import operations. The structure is optimized for MessagePack encoding.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct SystemLibraryStats {
     /// Usage statistics for standard collections
     pub std_collections: LibraryUsage,
@@ -634,7 +642,16 @@ pub struct SystemLibraryStats {
 }
 
 /// Library usage information
-#[derive(Debug, Clone, Default, serde::Serialize)]
+/// Library usage statistics for tracking external dependency memory patterns
+/// 
+/// This structure tracks memory allocation patterns for specific libraries
+/// or system components, providing insights into external memory usage
+/// and potential optimization opportunities.
+/// 
+/// # Usage Tracking
+/// Monitors allocation frequency, memory consumption, and performance
+/// characteristics for library-specific memory operations.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct LibraryUsage {
     /// Number of allocations
     pub allocation_count: usize,
@@ -650,8 +667,16 @@ pub struct LibraryUsage {
     pub hotspot_functions: Vec<String>,
 }
 
-/// Concurrency safety analysis
-#[derive(Debug, Clone, Default, serde::Serialize)]
+/// Concurrency analysis for multi-threaded memory operations
+/// 
+/// This structure analyzes memory allocation patterns across multiple threads,
+/// identifying potential race conditions, contention points, and opportunities
+/// for optimization in concurrent memory usage scenarios.
+/// 
+/// # Thread Safety
+/// All fields are designed to be safely serialized and deserialized across
+/// thread boundaries while maintaining data integrity and consistency.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ConcurrencyAnalysis {
     /// Thread Safety Allocations
     pub thread_safety_allocations: usize,
@@ -694,8 +719,16 @@ pub struct ScopeAnalysis {
     pub cross_scope_references: Vec<String>,
 }
 
-/// Scope lifecycle metrics
-#[derive(Debug, Clone, Default, serde::Serialize)]
+/// Scope lifecycle metrics for tracking variable lifetime patterns
+/// 
+/// This structure provides detailed analysis of how variables behave within
+/// different scopes, including lifetime patterns, memory efficiency, and
+/// optimization opportunities for scope-based memory management.
+/// 
+/// # Lifecycle Analysis
+/// Tracks comprehensive metrics about variable creation, usage, and destruction
+/// patterns within specific scopes, enabling detailed performance analysis.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScopeLifecycleMetrics {
     /// Name of the scope
     pub scope_name: String,
