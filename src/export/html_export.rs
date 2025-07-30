@@ -187,9 +187,9 @@ fn prepare_comprehensive_json_data(
         .unwrap_or_default()
         .as_secs();
 
-    // 预处理数据，减少前端计算负担
+    // Preprocess data to reduce frontend computation burden
     let processed_allocations = if allocations.len() > 1000 {
-        // 大数据集：智能采样 + 代表性样本
+        // Large dataset: intelligent sampling + representative samples
         let mut sampled = sample_allocations(allocations, 500);
         sampled.extend(get_representative_allocations(allocations, 100));
         sampled
@@ -197,40 +197,40 @@ fn prepare_comprehensive_json_data(
         allocations.to_vec()
     };
 
-    // 预计算类型分布和性能指标
+    // Pre-calculate type distribution and performance metrics
     let type_distribution = precompute_type_distribution(&processed_allocations);
     let performance_metrics = precompute_performance_metrics(stats, &processed_allocations);
 
-    // 转换分配数据为与JSON导出一致的格式
+    // Convert allocation data to format consistent with JSON export
     let formatted_allocations: Vec<serde_json::Value> = processed_allocations
         .iter()
         .map(|alloc| {
             json!({
-                "ptr": format!("0x{:x}", alloc.ptr),  // 格式化为十六进制字符串，与JSON一致
+                "ptr": format!("0x{:x}", alloc.ptr),  // format as hex string, consistent with JSON
                 "size": alloc.size,
-                "timestamp_alloc": alloc.timestamp_alloc,  // 使用正确的字段名
-                "timestamp_dealloc": alloc.timestamp_dealloc,  // 添加释放时间戳
-                "var_name": alloc.var_name,  // 保持原始值，包括null
-                "type_name": alloc.type_name,  // 保持原始值，包括null
-                "scope_name": alloc.scope_name,  // 添加作用域名称
-                "stack_trace": alloc.stack_trace,  // 使用正确的字段名
-                "borrow_count": alloc.borrow_count,  // 添加借用计数
-                "is_leaked": alloc.is_leaked,  // 添加泄漏标记
-                "lifetime_ms": alloc.lifetime_ms,  // 添加生命周期
-                "smart_pointer_info": alloc.smart_pointer_info,  // 添加智能指针信息
-                "memory_layout": alloc.memory_layout,  // 添加内存布局
-                "generic_info": alloc.generic_info,  // 添加泛型信息
-                "dynamic_type_info": alloc.dynamic_type_info,  // 添加动态类型信息
-                "runtime_state": alloc.runtime_state,  // 添加运行时状态
-                "stack_allocation": alloc.stack_allocation,  // 添加栈分配信息
-                "temporary_object": alloc.temporary_object,  // 添加临时对象信息
-                "fragmentation_analysis": alloc.fragmentation_analysis,  // 添加碎片分析
-                "generic_instantiation": alloc.generic_instantiation,  // 添加泛型实例化
-                "type_relationships": alloc.type_relationships,  // 添加类型关系
-                "type_usage": alloc.type_usage,  // 添加类型使用
-                "function_call_tracking": alloc.function_call_tracking,  // 添加函数调用跟踪
-                "lifecycle_tracking": alloc.lifecycle_tracking,  // 添加生命周期跟踪
-                "access_tracking": alloc.access_tracking  // 添加访问跟踪
+                "timestamp_alloc": alloc.timestamp_alloc,  // use correct field name
+                "timestamp_dealloc": alloc.timestamp_dealloc,  // add deallocation timestamp
+                "var_name": alloc.var_name,  // keep original value, including null
+                "type_name": alloc.type_name,  // keep original value, including null
+                "scope_name": alloc.scope_name,  // add scope name
+                "stack_trace": alloc.stack_trace,  // use correct field name
+                "borrow_count": alloc.borrow_count,  // add borrow count
+                "is_leaked": alloc.is_leaked,  // add leak marker
+                "lifetime_ms": alloc.lifetime_ms,  // add lifetime
+                "smart_pointer_info": alloc.smart_pointer_info,  // add smart pointer info
+                "memory_layout": alloc.memory_layout,  // add memory layout
+                "generic_info": alloc.generic_info,  // add generic info
+                "dynamic_type_info": alloc.dynamic_type_info,  // add dynamic type info
+                "runtime_state": alloc.runtime_state,  // add runtime state
+                "stack_allocation": alloc.stack_allocation,  // add stack allocation info
+                "temporary_object": alloc.temporary_object,  // add temporary object info
+                "fragmentation_analysis": alloc.fragmentation_analysis,  // add fragmentation analysis
+                "generic_instantiation": alloc.generic_instantiation,  // add generic instantiation
+                "type_relationships": alloc.type_relationships,  // add type relationships
+                "type_usage": alloc.type_usage,  // add type usage
+                "function_call_tracking": alloc.function_call_tracking,  // add function call tracking
+                "lifecycle_tracking": alloc.lifecycle_tracking,  // add lifecycle tracking
+                "access_tracking": alloc.access_tracking  // add access tracking
             })
         })
         .collect();
@@ -249,7 +249,7 @@ fn prepare_comprehensive_json_data(
         }),
         "timestamp": timestamp,
         "version": env!("CARGO_PKG_VERSION"),
-        // 预处理的数据，前端直接使用，减少计算时间
+        // Preprocessed data for direct frontend use, reducing computation time
         "precomputed": {
             "type_distribution": type_distribution,
             "performance_metrics": performance_metrics,
@@ -265,7 +265,7 @@ fn prepare_comprehensive_json_data(
                 "load_time_estimate": if allocations.len() > 1000 { "Fast" } else { "Instant" }
             }
         },
-        // 新增：复杂类型分析数据（模拟结构，实际应从tracker获取）
+        // New: complex type analysis data (simulated structure, should be obtained from tracker)
         "complex_types": {
             "categorized_types": {
                 "collections": [],
@@ -284,13 +284,13 @@ fn prepare_comprehensive_json_data(
                 }
             }
         },
-        // 新增：生命周期事件数据（模拟结构，实际应从tracker获取）
+        // New: lifecycle event data (simulated structure, should be obtained from tracker)
         "lifecycle": {
             "lifecycle_events": [],
             "scope_analysis": {},
             "variable_lifetimes": {}
         },
-        // 新增：变量关系数据（模拟结构，实际应从tracker获取）
+        // New: variable relationship data (simulated structure, should be obtained from tracker)
         "variable_relationships": {
             "relationships": [],
             "dependency_graph": {},
@@ -437,18 +437,18 @@ fn generate_html_template(
     </div>
 
     <script>
-        // 嵌入的数据作为回退
+        // Embedded data as fallback
         const EMBEDDED_DATA = {json_data};
         
-        // 全局变量
+        // Global variables
         let globalDataLoader;
         let globalVisualizer;
         
-        // 初始化函数将在JS文件中定义
+        // Initialization functions will be defined in JS file
         
         {JS_CONTENT}
         
-        // 页面加载完成后初始化
+        // Initialize after page load
         document.addEventListener('DOMContentLoaded', function() {{
             initializeMemScopeApp();
         }});
@@ -460,7 +460,7 @@ fn generate_html_template(
     Ok(html)
 }
 
-/// 智能采样算法 - 保持数据代表性
+/// Intelligent sampling algorithm - maintain data representativeness
 fn sample_allocations(allocations: &[AllocationInfo], max_count: usize) -> Vec<AllocationInfo> {
     if allocations.len() <= max_count {
         return allocations.to_vec();
@@ -478,7 +478,7 @@ fn sample_allocations(allocations: &[AllocationInfo], max_count: usize) -> Vec<A
     sampled
 }
 
-/// 获取代表性分配（最大、最小、中位数等）
+/// Get representative allocations (max, min, median, etc.)
 fn get_representative_allocations(
     allocations: &[AllocationInfo],
     count: usize,
@@ -498,7 +498,7 @@ fn get_representative_allocations(
     representatives
 }
 
-/// 预计算类型分布
+/// Precompute type distribution
 fn precompute_type_distribution(allocations: &[AllocationInfo]) -> serde_json::Value {
     use std::collections::HashMap;
 
@@ -506,7 +506,7 @@ fn precompute_type_distribution(allocations: &[AllocationInfo]) -> serde_json::V
 
     for alloc in allocations {
         let type_name = alloc.type_name.clone().unwrap_or_else(|| {
-            // 智能类型推断
+            // Intelligent type inference
             if alloc.size <= 8 {
                 "Small Primitive".to_string()
             } else if alloc.size <= 32 {
@@ -525,12 +525,12 @@ fn precompute_type_distribution(allocations: &[AllocationInfo]) -> serde_json::V
 
     let mut sorted_types: Vec<_> = type_map.into_iter().collect();
     sorted_types.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
-    sorted_types.truncate(10); // 只保留前10个类型
+    sorted_types.truncate(10); // keep only top 10 types
 
     serde_json::json!(sorted_types)
 }
 
-/// 预计算性能指标
+/// Precompute performance metrics
 fn precompute_performance_metrics(
     stats: &MemoryStats,
     allocations: &[AllocationInfo],

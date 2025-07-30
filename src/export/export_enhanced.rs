@@ -2227,7 +2227,7 @@ pub fn add_fragmentation_analysis(
 ) -> TrackingResult<Document> {
     let chart_x = 950;
     let chart_y = 320; // Fix: adjust position to avoid overlap with header
-    let chart_width = 750; // 修复：适应新的1600px宽度
+    let chart_width = 750; // Fix: adapt to new 1600px width
     let chart_height = 300;
 
     // Chart background
@@ -2350,7 +2350,7 @@ pub fn add_callstack_analysis(
 ) -> TrackingResult<Document> {
     let chart_x = 950;
     let chart_y = 680; // Fix: adjust position to avoid overlap
-    let chart_width = 750; // 修复：适应新的1600px宽度
+    let chart_width = 750; // Fix: adapt to new 1600px width
     let chart_height = 300;
 
     // Chart background

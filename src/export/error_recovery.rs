@@ -68,7 +68,7 @@ impl Default for RecoveryConfig {
 
             enable_graceful_degradation: true,
             degradation_threshold: 10.0, // 10% error rate triggers degradation
-            recovery_threshold: 2.0,     // 2% error rate恢复正常
+            recovery_threshold: 2.0,     // 2% error rate to recover to normal
 
             enable_partial_save: true,
             partial_save_directory: PathBuf::from("./partial_exports"),
@@ -838,18 +838,28 @@ pub struct ErrorContext {
     pub current_stats: Option<CompleteExportStats>,
 }
 
-/// recovery report
+/// Recovery report containing statistics and current status
 #[derive(Debug, Clone)]
 pub struct RecoveryReport {
+    /// Total number of errors encountered
     pub total_errors: usize,
+    /// Number of successful recovery attempts
     pub successful_recoveries: usize,
+    /// Number of failed recovery attempts
     pub failed_recoveries: usize,
+    /// Success rate as percentage (0.0-1.0)
     pub success_rate: f64,
+    /// Total number of retry attempts
     pub total_retries: usize,
+    /// Number of times system entered degraded mode
     pub degradation_count: usize,
+    /// Number of partial saves performed
     pub partial_saves: usize,
+    /// Average recovery time in milliseconds
     pub avg_recovery_time_ms: f64,
+    /// Current degradation level
     pub current_degradation_level: DegradationLevel,
+    /// Whether system is currently in degraded mode
     pub is_currently_degraded: bool,
 }
 
@@ -916,7 +926,7 @@ mod tests {
         let error = ExportError::ParallelProcessingError {
             shard_index: 5,
             thread_id: "thread-1".to_string(),
-            error_message: "测试错误".to_string(),
+            error_message: "Test error".to_string(),
             partial_results: None,
         };
         let context = create_test_context();

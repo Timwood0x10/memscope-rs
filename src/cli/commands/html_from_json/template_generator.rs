@@ -542,11 +542,11 @@ impl TemplateGenerator {
     /// Add enhanced JavaScript features
     fn add_enhanced_js_features(&self, js: &str) -> Result<String, TemplateError> {
         let enhanced_js = r#"
-// 🎯 MemScope可视化器 - 清理后的统一实现
+// 🎯 MemScope Visualizer - Unified Implementation
 class MemScopeVisualizer {
     constructor(data) {
         this.data = data;
-        console.log('📊 MemScope初始化，数据:', data);
+        console.log('📊 MemScope initialized with data:', data);
         this.init();
     }
 
@@ -622,19 +622,19 @@ class MemScopeVisualizer {
         element.innerHTML = `
             <div class="stats-grid">
                 <div class="stat-item">
-                    <span class="stat-label">活跃内存:</span>
+                    <span class="stat-label">Active Memory:</span>
                     <span class="stat-value">${this.formatBytes(stats.active_memory || 0)}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">峰值内存:</span>
+                    <span class="stat-label">Peak Memory:</span>
                     <span class="stat-value">${this.formatBytes(stats.peak_memory || 0)}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">总分配:</span>
+                    <span class="stat-label">Total Allocations:</span>
                     <span class="stat-value">${(stats.total_allocations || 0).toLocaleString()}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">活跃分配:</span>
+                    <span class="stat-label">Active Allocations:</span>
                     <span class="stat-value">${(stats.active_allocations || 0).toLocaleString()}</span>
                 </div>
             </div>
@@ -645,12 +645,12 @@ class MemScopeVisualizer {
         const element = document.getElementById('typeDistribution');
         if (!element) return;
         
-        // 兼容test_data中的字段名
+        // Compatible with field names in test_data
         const allocations = this.data.allocations || [];
         const typeMap = {};
         
         allocations.forEach(alloc => {
-            const typeName = alloc.type_name || alloc.type || '未知类型';
+            const typeName = alloc.type_name || alloc.type || 'Unknown Type';
             if (!typeMap[typeName]) {
                 typeMap[typeName] = { count: 0, totalSize: 0 };
             }
@@ -663,7 +663,7 @@ class MemScopeVisualizer {
             .slice(0, 10);
 
         if (sortedTypes.length === 0) {
-            element.innerHTML = '<p>暂无类型分布数据</p>';
+            element.innerHTML = '<p>No type distribution data available</p>';
             return;
         }
 

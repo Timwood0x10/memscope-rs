@@ -210,7 +210,7 @@ impl FastExportCoordinator {
     /// Create a new fast export coordinator for fast mode (no validation)
     pub fn new_fast_mode() -> Self {
         let mut config = FastExportConfig::default();
-        // 快速模式：禁用验证以获得最大性能
+        // Fast mode: disable validation for maximum performance
         config.validation_config.enable_json_validation = false;
         config.validation_config.enable_encoding_validation = false;
         config.validation_config.enable_integrity_validation = false;
@@ -221,7 +221,7 @@ impl FastExportCoordinator {
     /// Create a new fast export coordinator for normal mode (with validation capability)
     pub fn new_normal_mode() -> Self {
         let mut config = FastExportConfig::default();
-        // 正常模式：保持验证能力，但不在导出过程中执行
+        // Normal mode: maintain validation capability, but don't execute during export
         config.validation_config.enable_json_validation = true;
         config.validation_config.enable_encoding_validation = true;
         config.validation_config.enable_integrity_validation = true;
@@ -499,7 +499,7 @@ impl FastExportCoordinator {
 
         // Create progress monitor
         let mut progress_monitor = if self.config.progress_config.enabled {
-            Some(ProgressMonitor::new(1000)) // 预估分配数量，后续会更新
+            Some(ProgressMonitor::new(1000)) // estimated allocation count, will be updated later
         } else {
             None
         };

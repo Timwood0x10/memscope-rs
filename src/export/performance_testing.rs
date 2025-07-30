@@ -92,33 +92,33 @@ impl PerformanceBenchmark {
         Ok(())
     }
 
-    /// 运行 complex_lifecycle_showcase.rs 基准测试
+    /// Run complex_lifecycle_showcase.rs benchmark
     pub fn run_complex_lifecycle_benchmark() -> TrackingResult<ComplexLifecycleBenchmarkResult> {
         println!("🎯 Running complex_lifecycle_showcase.rs benchmark");
         println!("==============================================");
 
         let mut benchmark_result = ComplexLifecycleBenchmarkResult::default();
 
-        // 测试传统导出性能
+        // Test traditional export performance
         println!("📊 Testing traditional export performance...");
         let traditional_result = Self::benchmark_traditional_export()?;
         benchmark_result.traditional_export = traditional_result;
 
-        // 测试快速导出性能
+        // Test fast export performance
         println!("⚡ Testing fast export performance...");
         let fast_result = Self::benchmark_fast_export()?;
         benchmark_result.fast_export = fast_result;
 
-        // 计算性能提升
+        // Calculate performance improvements
         benchmark_result.calculate_improvements();
 
-        // 打印详细结果
+        // Print detailed results
         Self::print_complex_benchmark_results(&benchmark_result);
 
         Ok(benchmark_result)
     }
 
-    /// 基准测试传统导出
+    /// Benchmark traditional export
     fn benchmark_traditional_export() -> TrackingResult<ExportBenchmarkResult> {
         use std::process::Command;
         use std::time::Instant;
@@ -126,7 +126,7 @@ impl PerformanceBenchmark {
         let start_time = Instant::now();
         let start_memory = Self::get_current_memory_usage();
 
-        // 运行 complex_lifecycle_showcase 示例
+        // Run complex_lifecycle_showcase example
         let output = Command::new("cargo")
             .args(&["run", "--example", "complex_lifecycle_showcase"])
             .output()
@@ -135,7 +135,7 @@ impl PerformanceBenchmark {
         let export_time = start_time.elapsed();
         let peak_memory = Self::get_current_memory_usage() - start_memory;
 
-        // 检查输出文件大小
+        // Check output file size
         let file_size = Self::get_complex_lifecycle_file_size();
 
         let success = output.status.success();
@@ -155,14 +155,14 @@ impl PerformanceBenchmark {
         })
     }
 
-    /// 基准测试快速导出
+    /// Benchmark fast export
     fn benchmark_fast_export() -> TrackingResult<ExportBenchmarkResult> {
         use std::time::Instant;
 
         let start_time = Instant::now();
         let start_memory = Self::get_current_memory_usage();
 
-        // 使用快速导出协调器
+        // Use fast export coordinator
         let config = FastExportConfigBuilder::new()
             .shard_size(1000)
             .max_threads(Some(4))
@@ -204,7 +204,7 @@ impl PerformanceBenchmark {
         }
     }
 
-    /// 获取 complex_lifecycle 文件大小
+    /// Get complex_lifecycle file size
     fn get_complex_lifecycle_file_size() -> usize {
         let paths = [
             "MemoryAnalysis/complex_lifecycle/complex_lifecycle_memory_analysis.json",
@@ -221,124 +221,124 @@ impl PerformanceBenchmark {
         0
     }
 
-    /// 获取当前内存使用量
+    /// Get current memory usage
     fn get_current_memory_usage() -> f64 {
-        // 简化的内存使用估算 - 在实际实现中可以使用更精确的方法
+        // Simplified memory usage estimation - more precise methods can be used in actual implementation
         use std::process;
         let pid = process::id();
 
-        // 尝试读取 /proc/self/status (Linux) 或使用其他方法
+        // Try to read /proc/self/status (Linux) or use other methods
         if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
             for line in status.lines() {
                 if line.starts_with("VmRSS:") {
                     if let Some(kb_str) = line.split_whitespace().nth(1) {
                         if let Ok(kb) = kb_str.parse::<f64>() {
-                            return kb / 1024.0; // 转换为 MB
+                            return kb / 1024.0; // convert to MB
                         }
                     }
                 }
             }
         }
 
-        // 回退到简单估算
+        // Fall back to simple estimation
         (pid as f64 * 0.001).min(100.0)
     }
 
-    /// 静态方法获取文件大小
+    /// Static method to get file size
     fn get_file_size_static(path: &str) -> usize {
         std::fs::metadata(path)
             .map(|metadata| metadata.len() as usize)
             .unwrap_or(0)
     }
 
-    /// 打印复杂基准测试结果
+    /// Print complex benchmark results
     fn print_complex_benchmark_results(result: &ComplexLifecycleBenchmarkResult) {
-        println!("\n📊 Complex Lifecycle Showcase 基准测试结果");
+        println!("\n📊 Complex Lifecycle Showcase Benchmark Results");
         println!("==========================================");
 
-        println!("\n传统导出:");
-        println!("  时间: {} ms", result.traditional_export.export_time_ms);
-        println!("  内存: {:.2} MB", result.traditional_export.peak_memory_mb);
+        println!("\nTraditional Export:");
+        println!("  Time: {} ms", result.traditional_export.export_time_ms);
+        println!("  Memory: {:.2} MB", result.traditional_export.peak_memory_mb);
         println!(
-            "  文件大小: {} bytes ({:.2} KB)",
+            "  File size: {} bytes ({:.2} KB)",
             result.traditional_export.output_file_size_bytes,
             result.traditional_export.output_file_size_bytes as f64 / 1024.0
         );
         println!(
-            "  状态: {}",
+            "  Status: {}",
             if result.traditional_export.success {
-                "✅ 成功"
+                "✅ Success"
             } else {
-                "❌ 失败"
+                "❌ Failed"
             }
         );
 
-        println!("\n快速导出:");
-        println!("  时间: {} ms", result.fast_export.export_time_ms);
-        println!("  内存: {:.2} MB", result.fast_export.peak_memory_mb);
+        println!("\nFast Export:");
+        println!("  Time: {} ms", result.fast_export.export_time_ms);
+        println!("  Memory: {:.2} MB", result.fast_export.peak_memory_mb);
         println!(
-            "  文件大小: {} bytes ({:.2} KB)",
+            "  File size: {} bytes ({:.2} KB)",
             result.fast_export.output_file_size_bytes,
             result.fast_export.output_file_size_bytes as f64 / 1024.0
         );
         println!(
-            "  状态: {}",
+            "  Status: {}",
             if result.fast_export.success {
-                "✅ 成功"
+                "✅ Success"
             } else {
-                "❌ 失败"
+                "❌ Failed"
             }
         );
 
         if result.traditional_export.success && result.fast_export.success {
-            println!("\n🚀 性能提升:");
+            println!("\n🚀 Performance Improvements:");
             println!(
-                "  时间提升: {:.2}x ({:.1}% 减少)",
+                "  Time improvement: {:.2}x ({:.1}% reduction)",
                 result.time_improvement_factor,
                 (1.0 - 1.0 / result.time_improvement_factor) * 100.0
             );
-            println!("  内存优化: {:.2}x", result.memory_improvement_factor);
+            println!("  Memory optimization: {:.2}x", result.memory_improvement_factor);
 
-            let target_improvement = 2.0; // 目标：减少 60-80% 导出时间 (2-5x 提升)
+            let target_improvement = 2.0; // Target: reduce 60-80% export time (2-5x improvement)
             if result.time_improvement_factor >= target_improvement {
-                println!("  🎯 达到预期性能提升目标 (>{}x)!", target_improvement);
+                println!("  🎯 Achieved expected performance improvement target (>{}x)!", target_improvement);
             } else {
-                println!("  ⚠️ 未达到预期性能提升目标 (>{}x)", target_improvement);
+                println!("  ⚠️ Did not achieve expected performance improvement target (>{}x)", target_improvement);
             }
 
-            // 验证内存限制
-            let memory_limit = 64.0; // 64MB 限制
+            // Verify memory limits
+            let memory_limit = 64.0; // 64MB limit
             if result.fast_export.peak_memory_mb <= memory_limit {
                 println!(
-                    "  ✅ 内存使用在限制范围内 ({:.2} MB <= {} MB)",
+                    "  ✅ Memory usage within limits ({:.2} MB <= {} MB)",
                     result.fast_export.peak_memory_mb, memory_limit
                 );
             } else {
                 println!(
-                    "  ⚠️ 内存使用超过限制 ({:.2} MB > {} MB)",
+                    "  ⚠️ Memory usage exceeds limit ({:.2} MB > {} MB)",
                     result.fast_export.peak_memory_mb, memory_limit
                 );
             }
         }
 
         if let Some(ref error) = result.traditional_export.error_message {
-            println!("\n❌ 传统导出错误: {}", error);
+            println!("\n❌ Traditional export error: {}", error);
         }
         if let Some(ref error) = result.fast_export.error_message {
-            println!("\n❌ 快速导出错误: {}", error);
+            println!("\n❌ Fast export error: {}", error);
         }
     }
 
     /// Run complete benchmark
     pub fn run_comprehensive_benchmark() -> TrackingResult<PerformanceTestReport> {
-        println!("🚀 运行完整性能基准测试");
+        println!("🚀 Running comprehensive performance benchmark");
         println!("========================");
 
         let config = PerformanceTestConfig::default();
         let mut test_suite = PerformanceTestSuite::new(config);
         let report = test_suite.run_full_test_suite()?;
 
-        // 打印详细报告
+        // Print detailed report
         Self::print_detailed_report(&report);
 
         Ok(report)
@@ -346,33 +346,33 @@ impl PerformanceBenchmark {
 
     /// Print detailed report
     fn print_detailed_report(report: &PerformanceTestReport) {
-        println!("\n📊 性能测试报告");
+        println!("\n📊 Performance Test Report");
         println!("================");
-        println!("总测试数: {}", report.test_summary.total_tests);
-        println!("成功测试: {}", report.test_summary.successful_tests);
-        println!("失败测试: {}", report.test_summary.failed_tests);
+        println!("Total tests: {}", report.test_summary.total_tests);
+        println!("Successful tests: {}", report.test_summary.successful_tests);
+        println!("Failed tests: {}", report.test_summary.failed_tests);
         println!(
-            "成功率: {:.1}%",
+            "Success rate: {:.1}%",
             report.test_summary.successful_tests as f64 / report.test_summary.total_tests as f64
                 * 100.0
         );
 
-        println!("\n📈 性能分析");
+        println!("\n📈 Performance Analysis");
         println!(
-            "平均导出时间: {:.2} ms",
+            "Average export time: {:.2} ms",
             report.performance_analysis.average_export_time_ms
         );
         println!(
-            "平均内存使用: {:.2} MB",
+            "Average memory usage: {:.2} MB",
             report.performance_analysis.average_memory_usage_mb
         );
         println!(
-            "平均吞吐量: {:.0} 分配/秒",
+            "Average throughput: {:.0} allocs/sec",
             report.performance_analysis.average_throughput
         );
 
         if !report.optimization_recommendations.is_empty() {
-            println!("\n💡 优化建议");
+            println!("\n💡 Optimization Recommendations");
             for rec in &report.optimization_recommendations {
                 println!(
                     "• [{}] {}: {}",
@@ -383,7 +383,7 @@ impl PerformanceBenchmark {
     }
 }
 
-/// 性能测试套件
+/// Performance test suite
 pub struct PerformanceTestSuite {
     config: PerformanceTestConfig,
     results: Vec<PerformanceTestResult>,
@@ -400,20 +400,20 @@ impl PerformanceTestSuite {
 
     /// Run basic tests
     pub fn run_basic_tests(&mut self) -> TrackingResult<PerformanceTestReport> {
-        println!("📊 运行基本性能测试");
+        println!("📊 Running basic performance tests");
 
         for &dataset_size in &self.config.dataset_sizes {
-            println!("测试数据集大小: {}", dataset_size);
+            println!("Testing dataset size: {}", dataset_size);
 
-            // 测试传统导出
+            // Test traditional export
             let traditional_result = self.test_traditional_export(dataset_size)?;
             self.results.push(traditional_result);
 
-            // 测试快速导出
+            // Test fast export
             let fast_result = self.test_fast_export(dataset_size)?;
             self.results.push(fast_result);
 
-            println!("  ✅ 完成数据集大小 {} 的测试", dataset_size);
+            println!("  ✅ Completed testing dataset size {}", dataset_size);
         }
 
         Ok(self.generate_performance_report())
@@ -421,34 +421,34 @@ impl PerformanceTestSuite {
 
     /// Run complete test suite
     pub fn run_full_test_suite(&mut self) -> TrackingResult<PerformanceTestReport> {
-        println!("🚀 开始运行完整性能测试套件");
+        println!("🚀 Starting comprehensive performance test suite");
 
-        // 1. 基本性能测试
+        // 1. Basic performance tests
         self.run_basic_tests()?;
 
-        // 2. 分片大小优化测试
+        // 2. Shard size optimization tests
         self.run_shard_size_tests()?;
 
-        // 3. 多线程扩展性测试
+        // 3. Multi-thread scalability tests
         self.run_thread_scalability_tests()?;
 
-        // 4. 内存使用测试
+        // 4. Memory usage tests
         self.run_memory_tests()?;
 
-        println!("✅ 性能测试套件完成");
+        println!("✅ Performance test suite completed");
         Ok(self.generate_performance_report())
     }
 
     /// Run benchmark performance tests
     pub fn run_baseline_performance_tests(&mut self) -> TrackingResult<()> {
-        println!("📊 运行基准性能测试");
+        println!("📊 Running baseline performance tests");
 
         for &dataset_size in &self.config.dataset_sizes {
-            // 测试传统导出
+            // Test traditional export
             let traditional_result = self.test_traditional_export(dataset_size)?;
             self.results.push(traditional_result);
 
-            // 测试快速导出
+            // Test fast export
             let fast_result = self.test_fast_export(dataset_size)?;
             self.results.push(fast_result);
         }
@@ -458,7 +458,7 @@ impl PerformanceTestSuite {
 
     /// Run shard size optimization tests
     pub fn run_shard_size_optimization_tests(&mut self) -> TrackingResult<()> {
-        println!("⚡ 分片大小优化测试");
+        println!("⚡ Shard size optimization tests");
 
         let dataset_size = 10000;
         for &shard_size in &self.config.shard_sizes {
@@ -471,14 +471,14 @@ impl PerformanceTestSuite {
 
     /// Run memory usage tests
     pub fn run_memory_usage_tests(&mut self) -> TrackingResult<()> {
-        println!("💾 内存使用测试");
+        println!("💾 Memory usage tests");
 
         for &dataset_size in &self.config.dataset_sizes {
             let result = self.test_memory_usage(dataset_size)?;
 
             if result.peak_memory_mb > self.config.memory_limit_mb as f64 {
                 println!(
-                    "  ⚠️ 内存使用超过限制: {:.2} MB > {} MB",
+                    "  ⚠️ Memory usage exceeds limit: {:.2} MB > {} MB",
                     result.peak_memory_mb, self.config.memory_limit_mb
                 );
             }
@@ -491,17 +491,17 @@ impl PerformanceTestSuite {
 
     /// Run before/after optimization comparison tests
     pub fn run_before_after_comparison_tests(&mut self) -> TrackingResult<()> {
-        println!("🔄 优化前后对比测试");
+        println!("🔄 Before/after optimization comparison tests");
 
         let dataset_size = 10000;
 
-        // 传统导出（优化前）
+        // Traditional export (before optimization)
         let traditional_result = self.test_traditional_export(dataset_size)?;
         let mut traditional_result = traditional_result;
         traditional_result.test_name = "traditional_export".to_string();
         self.results.push(traditional_result);
 
-        // 优化导出（优化后）
+        // Optimized export (after optimization)
         let optimized_result = self.test_fast_export(dataset_size)?;
         let mut optimized_result = optimized_result;
         optimized_result.test_name = "optimized_export".to_string();
@@ -510,9 +510,9 @@ impl PerformanceTestSuite {
         Ok(())
     }
 
-    /// 分片大小测试
+    /// Shard size tests
     fn run_shard_size_tests(&mut self) -> TrackingResult<()> {
-        println!("\n⚡ 分片大小优化测试");
+        println!("\n⚡ Shard size optimization tests");
 
         let dataset_size = 10000;
         for &shard_size in &self.config.shard_sizes {
@@ -523,9 +523,9 @@ impl PerformanceTestSuite {
         Ok(())
     }
 
-    /// 多线程扩展性测试
+    /// Multi-thread scalability tests
     pub fn run_thread_scalability_tests(&mut self) -> TrackingResult<()> {
-        println!("\n🔄 多线程扩展性测试");
+        println!("\n🔄 Multi-thread scalability tests");
 
         let dataset_size = 20000;
         for &thread_count in &self.config.thread_counts {
@@ -536,16 +536,16 @@ impl PerformanceTestSuite {
         Ok(())
     }
 
-    /// 内存使用测试
+    /// Memory usage tests
     fn run_memory_tests(&mut self) -> TrackingResult<()> {
-        println!("\n💾 内存使用测试");
+        println!("\n💾 Memory usage tests");
 
         for &dataset_size in &self.config.dataset_sizes {
             let result = self.test_memory_usage(dataset_size)?;
 
             if result.peak_memory_mb > self.config.memory_limit_mb as f64 {
                 println!(
-                    "  ⚠️ 内存使用超过限制: {:.2} MB > {} MB",
+                    "  ⚠️ Memory usage exceeds limit: {:.2} MB > {} MB",
                     result.peak_memory_mb, self.config.memory_limit_mb
                 );
             }
@@ -556,7 +556,7 @@ impl PerformanceTestSuite {
         Ok(())
     }
 
-    /// 测试传统导出性能
+    /// Test traditional export performance
     fn test_traditional_export(
         &self,
         dataset_size: usize,
@@ -614,7 +614,7 @@ impl PerformanceTestSuite {
         Ok(result)
     }
 
-    /// 测试快速导出性能
+    /// Test fast export performance
     fn test_fast_export(&self, dataset_size: usize) -> TrackingResult<PerformanceTestResult> {
         let start_time = Instant::now();
         let start_memory = self.get_memory_usage();
@@ -666,7 +666,7 @@ impl PerformanceTestSuite {
         Ok(result)
     }
 
-    /// 测试分片大小性能
+    /// Test shard size performance
     fn test_shard_size_performance(
         &self,
         dataset_size: usize,
@@ -725,7 +725,7 @@ impl PerformanceTestSuite {
         Ok(result)
     }
 
-    /// 测试线程扩展性
+    /// Test thread scalability
     fn test_thread_scalability(
         &self,
         dataset_size: usize,
@@ -784,15 +784,15 @@ impl PerformanceTestSuite {
         Ok(result)
     }
 
-    /// 测试内存使用
+    /// Test memory usage
     fn test_memory_usage(&self, dataset_size: usize) -> TrackingResult<PerformanceTestResult> {
         let start_time = Instant::now();
         let start_memory = self.get_memory_usage();
 
         let config = FastExportConfigBuilder::new()
-            .shard_size(500) // 较小的分片以减少内存使用
-            .max_threads(Some(2)) // 较少的线程以减少内存使用
-            .buffer_size(64 * 1024) // 较小的缓冲区
+            .shard_size(500) // smaller shards to reduce memory usage
+            .max_threads(Some(2)) // fewer threads to reduce memory usage
+            .buffer_size(64 * 1024) // smaller buffer
             .performance_monitoring(true)
             .build();
 
@@ -842,26 +842,26 @@ impl PerformanceTestSuite {
         Ok(result)
     }
 
-    /// 获取当前内存使用量 (MB)
+    /// Get current memory usage (MB)
     fn get_memory_usage(&self) -> f64 {
-        // 简化的内存使用估算
+        // Simplified memory usage estimation
         let estimated_mb = std::process::id() as f64 * 0.001;
         estimated_mb.min(100.0)
     }
 
-    /// 获取文件大小
+    /// Get file size
     fn get_file_size(&self, path: &str) -> usize {
         Self::get_file_size_static(path)
     }
 
-    /// 静态方法获取文件大小
+    /// Static method to get file size
     fn get_file_size_static(path: &str) -> usize {
         std::fs::metadata(path)
             .map(|metadata| metadata.len() as usize)
             .unwrap_or(0)
     }
 
-    /// 生成性能测试报告
+    /// Generate performance test report
     pub fn generate_performance_report(&self) -> PerformanceTestReport {
         let successful_results: Vec<_> = self.results.iter().filter(|r| r.success).collect();
 
@@ -916,52 +916,52 @@ impl PerformanceTestSuite {
     }
 }
 
-/// 性能测试报告
+/// Performance test report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceTestReport {
-    /// 测试摘要
+    /// Test summary
     pub test_summary: TestSummary,
-    /// 性能分析
+    /// Performance analysis
     pub performance_analysis: PerformanceAnalysis,
     /// Optimization suggestions
     pub optimization_recommendations: Vec<OptimizationRecommendation>,
-    /// 详细结果
+    /// Detailed results
     pub detailed_results: Vec<PerformanceTestResult>,
 }
 
-/// 测试摘要
+/// Test summary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestSummary {
-    /// 总测试数
+    /// Total number of tests
     pub total_tests: usize,
-    /// 成功测试数
+    /// Number of successful tests
     pub successful_tests: usize,
-    /// 失败测试数
+    /// Number of failed tests
     pub failed_tests: usize,
-    /// 总测试时间
+    /// Total test time
     pub total_test_time_ms: u64,
 }
 
-/// 性能分析
+/// Performance analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceAnalysis {
-    /// 最佳性能配置
+    /// Best performance configuration
     pub best_performance_config: HashMap<String, String>,
-    /// 最佳内存配置
+    /// Best memory configuration
     pub best_memory_config: HashMap<String, String>,
-    /// 最佳吞吐量配置
+    /// Best throughput configuration
     pub best_throughput_config: HashMap<String, String>,
-    /// 平均导出时间
+    /// Average export time
     pub average_export_time_ms: f64,
-    /// 平均内存使用
+    /// Average memory usage
     pub average_memory_usage_mb: f64,
-    /// 平均吞吐量
+    /// Average throughput
     pub average_throughput: f64,
-    /// 分片大小影响
+    /// Shard size impact
     pub shard_size_impact: HashMap<String, f64>,
-    /// 线程数影响
+    /// Thread count impact
     pub thread_count_impact: HashMap<String, f64>,
-    /// 内存效率分数
+    /// Memory efficiency score
     pub memory_efficiency_score: f64,
 }
 
@@ -984,20 +984,18 @@ impl Default for PerformanceAnalysis {
 /// Optimization suggestions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationRecommendation {
-    /// 类别
+    /// Category
     pub category: String,
-    /// 建议
+    /// Recommendation
     pub recommendation: String,
-    /// 影响程度
+    /// Impact level
     pub impact: String,
-    /// 原因
+    /// Reason
     pub reason: String,
 }
 
-/// 配置优化器
-pub struct ConfigurationOptimizer {
-    test_results: Vec<PerformanceTestResult>,
-}
+/// Configuration optimizer
+pub struct ConfigurationOptimizer {}
 
 impl Default for ConfigurationOptimizer {
     fn default() -> Self {
@@ -1006,20 +1004,18 @@ impl Default for ConfigurationOptimizer {
 }
 
 impl ConfigurationOptimizer {
-    /// 创建新的配置优化器
+    /// Create new configuration optimizer
     pub fn new() -> Self {
-        Self {
-            test_results: Vec::new(),
-        }
+        Self {}
     }
 
-    /// 基于测试结果推荐最佳配置
+    /// Recommend best configuration based on test results
     pub fn recommend_optimal_config(&self, target: OptimizationTarget) -> FastExportConfigBuilder {
         let mut builder = FastExportConfigBuilder::new();
 
         match target {
             OptimizationTarget::Speed => {
-                // 优化速度：大分片，多线程，大缓冲区
+                // Optimize speed: large shards, multiple threads, large buffer
                 builder = builder
                     .shard_size(2000)
                     .max_threads(Some(
@@ -1030,14 +1026,14 @@ impl ConfigurationOptimizer {
                     .buffer_size(512 * 1024);
             }
             OptimizationTarget::Memory => {
-                // 优化内存：小分片，少线程，小缓冲区
+                // Optimize memory: small shards, fewer threads, small buffer
                 builder = builder
                     .shard_size(500)
                     .max_threads(Some(2))
                     .buffer_size(64 * 1024);
             }
             OptimizationTarget::Balanced => {
-                // 平衡配置
+                // Balanced configuration
                 builder = builder
                     .shard_size(1000)
                     .max_threads(Some(
@@ -1056,38 +1052,38 @@ impl ConfigurationOptimizer {
 /// Optimization target
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum OptimizationTarget {
-    /// 优化速度
+    /// Optimize speed
     Speed,
-    /// 优化内存使用
+    /// Optimize memory usage
     Memory,
-    /// 平衡配置
+    /// Balanced configuration
     Balanced,
 }
 
-/// Complex Lifecycle Showcase 基准测试结果
+/// Complex Lifecycle Showcase benchmark results
 #[derive(Debug, Clone, Default)]
 pub struct ComplexLifecycleBenchmarkResult {
-    /// 传统导出结果
+    /// Traditional export results
     pub traditional_export: ExportBenchmarkResult,
-    /// 快速导出结果
+    /// Fast export results
     pub fast_export: ExportBenchmarkResult,
-    /// 时间提升倍数
+    /// Time improvement factor
     pub time_improvement_factor: f64,
-    /// 内存提升倍数
+    /// Memory improvement factor
     pub memory_improvement_factor: f64,
 }
 
 impl ComplexLifecycleBenchmarkResult {
-    /// 计算性能提升
+    /// Calculate performance improvements
     pub fn calculate_improvements(&mut self) {
         if self.traditional_export.success && self.fast_export.success {
-            // 计算时间提升
+            // Calculate time improvement
             if self.fast_export.export_time_ms > 0 {
                 self.time_improvement_factor = self.traditional_export.export_time_ms as f64
                     / self.fast_export.export_time_ms as f64;
             }
 
-            // 计算内存提升（传统方法使用更多内存时为正值）
+            // Calculate memory improvement (positive when traditional method uses more memory)
             if self.fast_export.peak_memory_mb > 0.0 {
                 self.memory_improvement_factor =
                     self.traditional_export.peak_memory_mb / self.fast_export.peak_memory_mb;
@@ -1096,20 +1092,20 @@ impl ComplexLifecycleBenchmarkResult {
     }
 }
 
-/// 导出基准测试结果
+/// Export benchmark result
 #[derive(Debug, Clone, Default)]
 pub struct ExportBenchmarkResult {
     /// Export time (milliseconds)
     pub export_time_ms: u64,
     /// Peak memory usage (MB)
     pub peak_memory_mb: f64,
-    /// 输出文件大小 (字节)
+    /// Output file size (bytes)
     pub output_file_size_bytes: usize,
     /// Success
     pub success: bool,
     /// Error message
     pub error_message: Option<String>,
-    /// 标准输出
+    /// Standard output
     pub stdout: String,
 }
 

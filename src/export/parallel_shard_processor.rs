@@ -187,7 +187,7 @@ impl ParallelShardProcessor {
         // Use serde_json's efficient API to serialize directly to byte vector
         // This is more reliable than manual formatting and performs well
         serde_json::to_writer(&mut output_buffer, shard).map_err(|e| {
-            TrackingError::ExportError(format!("分片 {} 序列化失败: {}", shard_index, e))
+            TrackingError::ExportError(format!("Shard {} serialization failed: {}", shard_index, e))
         })?;
 
         let processing_time = shard_start.elapsed();

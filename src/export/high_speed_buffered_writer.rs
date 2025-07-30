@@ -28,7 +28,7 @@ pub struct HighSpeedWriterConfig {
 impl Default for HighSpeedWriterConfig {
     fn default() -> Self {
         Self {
-            buffer_size: 2 * 1024 * 1024, // 2MB 缓冲区
+            buffer_size: 2 * 1024 * 1024, // 2MB buffer
             enable_monitoring: true,
             estimated_total_size: None,
             enable_compression: false,
@@ -485,7 +485,7 @@ mod tests {
         assert!(final_stats.is_ok());
 
         let stats = final_stats.unwrap();
-        // In fast tests, time may be 0, so check >= 0
-        assert!(stats.total_write_time_ms >= 0);
+        // Stats should be valid after successful write
+        assert!(stats.total_bytes_written > 0);
     }
 }

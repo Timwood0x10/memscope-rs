@@ -849,8 +849,7 @@ pub struct ResourceMonitor {
     disk_limit: usize,
     /// CPU usage limit (percentage)
     cpu_limit: f64,
-    /// monitoring interval
-    monitoring_interval: Duration,
+
 }
 
 impl ResourceMonitor {
@@ -860,7 +859,6 @@ impl ResourceMonitor {
             memory_limit: memory_limit_mb * 1024 * 1024,
             disk_limit: disk_limit_mb * 1024 * 1024,
             cpu_limit: cpu_limit_percent,
-            monitoring_interval: Duration::from_millis(100),
         }
     }
 
@@ -935,11 +933,17 @@ impl ResourceMonitor {
 /// resource usage
 #[derive(Debug, Clone)]
 pub struct ResourceUsage {
+    /// Current memory usage in bytes
     pub memory_usage: usize,
+    /// Current disk usage in bytes
     pub disk_usage: usize,
+    /// Current CPU usage as percentage (0.0-100.0)
     pub cpu_usage: f64,
+    /// Memory limit in bytes
     pub memory_limit: usize,
+    /// Disk limit in bytes
     pub disk_limit: usize,
+    /// CPU limit as percentage (0.0-100.0)
     pub cpu_limit: f64,
 }
 

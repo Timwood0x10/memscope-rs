@@ -79,56 +79,56 @@ pub struct PerformanceDiagnosis {
 /// System resource status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemResourceStatus {
-    /// CPU 使用率
+    /// CPU usage percentage
     pub cpu_usage_percent: f64,
-    /// 内存使用率
+    /// Memory usage percentage
     pub memory_usage_percent: f64,
-    /// 磁盘使用率
+    /// Disk usage percentage
     pub disk_usage_percent: f64,
-    /// System load状态
+    /// System load status
     pub load_status: LoadStatus,
 }
 
-/// 负载状态
+/// Load status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LoadStatus {
-    /// 低负载
+    /// Low load
     Low,
-    /// 中等负载
+    /// Medium load
     Medium,
-    /// 高负载
+    /// High load
     High,
-    /// 过载
+    /// Overloaded
     Overloaded,
 }
 
 /// Performance bottlenecks
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceBottleneck {
-    /// 瓶颈类型
+    /// Bottleneck type
     pub bottleneck_type: BottleneckType,
-    /// 严重程度 (1-10)
+    /// Severity level (1-10)
     pub severity: u8,
-    /// 描述
+    /// Description
     pub description: String,
-    /// 影响
+    /// Impact
     pub impact: String,
-    /// 建议解决方案
+    /// Suggested solutions
     pub suggested_solutions: Vec<String>,
 }
 
-/// 瓶颈类型
+/// Bottleneck type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BottleneckType {
-    /// CPU 瓶颈
+    /// CPU bottleneck
     Cpu,
-    /// 内存瓶颈
+    /// Memory bottleneck
     Memory,
-    /// I/O 瓶颈
+    /// I/O bottleneck
     Io,
-    /// 网络瓶颈
+    /// Network bottleneck
     Network,
-    /// 配置瓶颈
+    /// Configuration bottleneck
     Configuration,
 }
 

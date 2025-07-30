@@ -782,13 +782,13 @@ impl PerformanceComparator {
         for comparison in &report.detailed_comparisons {
             println!("  Dataset size: {}", comparison.dataset_size);
             println!(
-                "    Baseline performance: {:.1}ms, {:.2}MB, {:.0} 分配/秒",
+                "    Baseline performance: {:.1}ms, {:.2}MB, {:.0} allocs/sec",
                 comparison.baseline_performance.avg_export_time_ms,
                 comparison.baseline_performance.avg_memory_usage_mb,
                 comparison.baseline_performance.avg_throughput
             );
             println!(
-                "    Optimized performance: {:.1}ms, {:.2}MB, {:.0} 分配/秒",
+                "    Optimized performance: {:.1}ms, {:.2}MB, {:.0} allocs/sec",
                 comparison.optimized_performance.avg_export_time_ms,
                 comparison.optimized_performance.avg_memory_usage_mb,
                 comparison.optimized_performance.avg_throughput
@@ -833,7 +833,7 @@ impl Default for EnvironmentInfo {
     fn default() -> Self {
         Self {
             cpu_info: format!("{} cores", num_cpus::get()),
-            memory_size_mb: 8192, // 假设 8GB
+            memory_size_mb: 8192, // assume 8GB
             os_info: std::env::consts::OS.to_string(),
             rust_version: "1.70+".to_string(),
         }

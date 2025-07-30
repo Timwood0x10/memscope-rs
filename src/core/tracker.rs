@@ -2968,22 +2968,7 @@ impl MemoryTracker {
         }
     }
 
-    /// Fast type name inference based on allocation size patterns
-    fn fast_infer_type_name(&self, size: usize) -> String {
-        match size {
-            1 => "u8".to_string(),
-            2 => "u16".to_string(),
-            4 => "u32".to_string(),
-            8 => "u64".to_string(),
-            16 => "u128".to_string(),
-            24 => "Vec<T>".to_string(),
-            32 => "HashMap".to_string(),
-            48 => "Box<T>".to_string(),
-            _ if size < 64 => format!("struct[{}B]", size),
-            _ if size < 1024 => format!("buffer[{}B]", size),
-            _ => format!("large[{}KB]", size / 1024),
-        }
-    }
+
 }
 
 impl Default for MemoryTracker {

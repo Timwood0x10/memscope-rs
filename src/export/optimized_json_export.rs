@@ -1482,22 +1482,22 @@ impl MemoryTracker {
             allocations.len()
         );
 
-        // 1. Memory Analysis JSON (标准文件1)
+        // 1. Memory Analysis JSON (standard file 1)
         let memory_path = parent_dir.join(format!("{}_memory_analysis.json", base_name));
         let memory_data = create_optimized_memory_analysis(&allocations, &stats, &options)?;
         write_json_optimized(&memory_path, &memory_data, &options)?;
 
-        // 2. Lifetime Analysis JSON (标准文件2)
+        // 2. Lifetime Analysis JSON (standard file 2)
         let lifetime_path = parent_dir.join(format!("{}_lifetime.json", base_name));
         let lifetime_data = create_optimized_lifetime_analysis(&allocations, &options)?;
         write_json_optimized(&lifetime_path, &lifetime_data, &options)?;
 
-        // 3. Unsafe FFI Analysis JSON (标准文件3)
+        // 3. Unsafe FFI Analysis JSON (standard file 3)
         let unsafe_path = parent_dir.join(format!("{}_unsafe_ffi.json", base_name));
         let unsafe_data = create_optimized_unsafe_ffi_analysis(&allocations, &options)?;
         write_json_optimized(&unsafe_path, &unsafe_data, &options)?;
 
-        // 4. Performance Analysis JSON (标准文件4)
+        // 4. Performance Analysis JSON (standard file 4)
         let perf_path = parent_dir.join(format!("{}_performance.json", base_name));
         let perf_data =
             create_optimized_performance_analysis(&allocations, &stats, start_time, &options)?;
@@ -1514,7 +1514,7 @@ impl MemoryTracker {
         println!("   3. {}_unsafe_ffi.json", base_name);
         println!("   4. {}_performance.json", base_name);
 
-        // 显示优化效果
+        // Show optimization effects
         if options.parallel_processing {
             println!("💡 Applied parallel processing optimization");
         }
@@ -1652,7 +1652,7 @@ fn create_optimized_lifetime_analysis(
     allocations: &[AllocationInfo],
     _options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
-    // 生命周期分析：按作用域分组分析
+    // Lifetime analysis: group analysis by scope
     let mut scope_analysis: HashMap<String, (usize, usize, Vec<usize>)> = HashMap::new();
 
     for alloc in allocations {
@@ -1660,12 +1660,12 @@ fn create_optimized_lifetime_analysis(
         let entry = scope_analysis
             .entry(scope.to_string())
             .or_insert((0, 0, Vec::new()));
-        entry.0 += alloc.size; // 总大小
-        entry.1 += 1; // 分配数量
-        entry.2.push(alloc.size); // 大小列表用于统计
+        entry.0 += alloc.size; // total size
+        entry.1 += 1; // allocation count
+        entry.2.push(alloc.size); // size list for statistics
     }
 
-    // 转换为JSON格式
+    // Convert to JSON format
     let mut scope_stats: Vec<_> = scope_analysis
         .into_iter()
         .map(|(scope, (total_size, count, sizes))| {
@@ -1684,7 +1684,7 @@ fn create_optimized_lifetime_analysis(
         })
         .collect();
 
-    // 按总大小排序
+    // Sort by total size
     scope_stats.sort_by(|a, b| {
         b["total_size"]
             .as_u64()
@@ -1795,10 +1795,10 @@ fn create_optimized_performance_analysis(
     let allocations_per_second = if processing_time.as_secs() > 0 {
         allocations.len() as f64 / processing_time.as_secs_f64()
     } else {
-        allocations.len() as f64 / 0.001 // 假设最少1ms
+        allocations.len() as f64 / 0.001 // assume minimum 1ms
     };
 
-    // 分析分配大小分布
+    // Analyze allocation size distribution
     let mut size_distribution = HashMap::new();
     for alloc in allocations {
         let category = match alloc.size {
@@ -2484,7 +2484,7 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
             entry.allocation_count += 1;
             entry.max_size = entry.max_size.max(alloc.size);
 
-            // 分类收集
+            // Categorized collection
             let type_info = serde_json::json!({
                 "ptr": format!("0x{:x}", alloc.ptr),
                 "type_name": type_name,

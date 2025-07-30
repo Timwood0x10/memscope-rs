@@ -2089,16 +2089,24 @@ impl ExportArgs {
     }
 }
 
-/// Validation report
+/// Validation report containing statistics and results
 #[derive(Debug, Clone)]
 pub struct ValidationReport {
+    /// Total number of validations performed
     pub total_validations: usize,
+    /// Number of successful validations
     pub successful_validations: usize,
+    /// Number of failed validations
     pub failed_validations: usize,
+    /// Success rate as percentage (0.0-1.0)
     pub success_rate: f64,
+    /// Average validation time in milliseconds
     pub avg_validation_time_ms: f64,
+    /// Total number of issues found during validation
     pub total_issues_found: usize,
+    /// Total number of issues that were fixed
     pub total_issues_fixed: usize,
+    /// Breakdown of validation statistics by type
     pub validation_type_breakdown: HashMap<ValidationType, ValidationTypeStats>,
 }
 
