@@ -7,6 +7,7 @@ pub mod optimized_json_export;
 pub mod binary_export;
 pub mod simple_binary_export;
 pub mod html_export;
+pub mod svg;
 pub mod visualization;
 
 // Re-export format types

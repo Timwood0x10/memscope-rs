@@ -3019,3 +3019,22 @@ pub enum MemoryOptimizationType {
 // pub mod allocation;
 // pub mod visualization;
 // pub mod analysis;
+
+/// Timeline event for memory visualization (simple version)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TimelineEvent {
+    pub timestamp: u64,
+    pub event_type: String,
+    pub ptr: usize,
+    pub size: usize,
+    pub var_name: Option<String>,
+    pub type_name: Option<String>,
+}
+
+/// Timeline data structure for visualization (simple version)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SimpleTimelineData {
+    pub events: Vec<TimelineEvent>,
+    pub start_time: u64,
+    pub end_time: u64,
+}

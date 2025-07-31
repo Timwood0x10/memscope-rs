@@ -74,18 +74,29 @@ impl MemoryTracker {
         self.get_memory_stats()
     }
 
-    /// Get memory usage by type (placeholder implementation)
-    pub fn get_memory_by_type(&self) -> std::collections::HashMap<String, usize> {
-        let allocations = self.get_all_active_allocations().unwrap_or_default();
-        let mut by_type = std::collections::HashMap::new();
+    /// Get memory usage by type (complete implementation)
+    pub fn get_memory_by_type(&self) -> TrackingResult<Vec<crate::core::types::TypeMemoryUsage>> {
+        let allocations = self.get_all_active_allocations()?;
+        let mut type_usage = std::collections::HashMap::new();
         
-        for allocation in allocations {
-            if let Some(type_name) = &allocation.type_name {
-                *by_type.entry(type_name.clone()).or_insert(0) += allocation.size;
-            }
+        for allocation in &allocations {
+            let type_name = allocation.type_name.as_ref()
+                .unwrap_or(&"Unknown".to_string())
+                .clone();
+            
+            let entry = type_usage.entry(type_name.clone()).or_insert(crate::core::types::TypeMemoryUsage {
+                type_name,
+                total_size: 0,
+                allocation_count: 0,
+            });
+            
+            entry.total_size += allocation.size;
+            entry.allocation_count += 1;
         }
         
-        by_type
+        let mut result: Vec<_> = type_usage.into_values().collect();
+        result.sort_by(|a, b| b.total_size.cmp(&a.total_size));
+        Ok(result)
     }
 
     /// Get allocation history (legacy method name)
@@ -127,8 +138,122 @@ impl MemoryTracker {
     }
 
     /// Export interactive dashboard (placeholder)
-    pub fn export_interactive_dashboard(&self, _path: &std::path::Path) -> TrackingResult<()> {
-        // TODO: Implement interactive dashboard export
+    pub fn export_interactive_dashboard<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        // Basic HTML dashboard implementation
+        let allocations = self.get_all_active_allocations()?;
+        let stats = self.get_memory_stats()?;
+        
+        let html_content = format!(
+            r#"<!DOCTYPE html>
+<html>
+<head><title>Memory Dashboard</title></head>
+<body>
+    <h1>Memory Tracking Dashboard</h1>
+    <p>Active Allocations: {}</p>
+    <p>Total Memory: {} bytes</p>
+    <p>Peak Memory: {} bytes</p>
+</body>
+</html>"#,
+            allocations.len(),
+            stats.active_memory,
+            stats.peak_memory
+        );
+        
+        std::fs::write(path, html_content)
+            .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
         Ok(())
+    }
+
+    /// Export memory analysis visualization
+    pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        crate::export::formats::svg::export_memory_analysis(self, path)
+    }
+
+    /// Export lifecycle timeline visualization
+    pub fn export_lifecycle_timeline<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        _start_time: Option<u64>,
+        _end_time: Option<u64>,
+    ) -> TrackingResult<()> {
+        crate::export::formats::svg::export_lifecycle_timeline(self, path)
+    }
+
+    /// Export to SVG format
+    pub fn export_to_svg<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        // Basic SVG export implementation
+        let allocations = self.get_all_active_allocations()?;
+        let svg_content = format!(
+            r#"<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+                <text x="10" y="30" font-family="Arial" font-size="16">Memory Allocations: {}</text>
+                <text x="10" y="60" font-family="Arial" font-size="14">Total Active Memory: {} bytes</text>
+            </svg>"#,
+            allocations.len(),
+            allocations.iter().map(|a| a.size).sum::<usize>()
+        );
+        
+        std::fs::write(path, svg_content)
+            .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Export enhanced JSON with detailed analysis
+    pub fn export_enhanced_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        // Enhanced JSON export with analysis
+        let allocations = self.get_all_active_allocations()?;
+        let stats = self.get_memory_stats()?;
+        let type_usage = self.get_memory_by_type()?;
+        
+        let enhanced_data = serde_json::json!({
+            "allocations": allocations,
+            "statistics": stats,
+            "type_usage": type_usage,
+            "export_timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        });
+        
+        let json = serde_json::to_string_pretty(&enhanced_data)
+            .map_err(|e| crate::core::types::TrackingError::SerializationError(e.to_string()))?;
+        
+        std::fs::write(path, json)
+            .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Generate timeline data for visualization
+    pub fn generate_timeline_data(&self, allocation_history: &[AllocationInfo], _active_allocations: &[AllocationInfo]) -> crate::core::types::SimpleTimelineData {
+        let mut events = Vec::new();
+        
+        for allocation in allocation_history {
+            events.push(crate::core::types::TimelineEvent {
+                timestamp: allocation.timestamp_alloc,
+                event_type: "allocation".to_string(),
+                ptr: allocation.ptr,
+                size: allocation.size,
+                var_name: allocation.var_name.clone(),
+                type_name: allocation.type_name.clone(),
+            });
+            
+            if let Some(dealloc_time) = allocation.timestamp_dealloc {
+                events.push(crate::core::types::TimelineEvent {
+                    timestamp: dealloc_time,
+                    event_type: "deallocation".to_string(),
+                    ptr: allocation.ptr,
+                    size: allocation.size,
+                    var_name: allocation.var_name.clone(),
+                    type_name: allocation.type_name.clone(),
+                });
+            }
+        }
+        
+        events.sort_by_key(|e| e.timestamp);
+        
+        crate::core::types::SimpleTimelineData {
+            events,
+            start_time: events.first().map(|e| e.timestamp).unwrap_or(0),
+            end_time: events.last().map(|e| e.timestamp).unwrap_or(0),
+        }
     }
 }

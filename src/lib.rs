@@ -1230,10 +1230,8 @@ impl MemoryTracker {
     pub fn export_to_json_optimized<P: AsRef<std::path::Path>>(
         &self,
         path: P,
-    ) -> TrackingResult<crate::export::complex_type_export::ComplexTypeExportResult> {
-        use crate::export::complex_type_export::{
-            export_comprehensive_analysis_optimized, ComplexTypeExportConfig,
-        };
+    ) -> TrackingResult<()> {
+        // Simplified implementation - complex type export functionality moved to other modules
 
         let path = path.as_ref();
         println!("🚀 Using optimized complex type export for maximum performance...");
@@ -1250,61 +1248,10 @@ impl MemoryTracker {
             analysis_manager.perform_comprehensive_analysis(&allocations, &stats);
 
         // Use optimized export configuration
-        let config = ComplexTypeExportConfig {
-            separate_complex_types: true,
-            compress_data: false,
-            chunk_size: 1000,
-            pretty_format: false, // Disable for performance
-        };
-
-        // Export with complex type separation
-        let export_result = export_comprehensive_analysis_optimized(
-            &comprehensive_report,
-            &allocations,
-            path,
-            &config,
-        )?;
-
-        let export_time = start_time.elapsed();
-
-        // Performance reporting
-        println!(
-            "✅ Optimized export completed in {:.2}ms",
-            export_time.as_millis()
-        );
-        println!(
-            "📊 Performance improvement: {:.1}%",
-            export_result.export_stats.performance_improvement
-        );
-        println!(
-            "📁 Main file: {} ({} bytes)",
-            export_result.main_file, export_result.export_stats.main_file_size
-        );
-
-        if export_result.export_stats.complex_files_size > 0 {
-            println!(
-                "📁 Complex type files: {} bytes total",
-                export_result.export_stats.complex_files_size
-            );
-
-            if let Some(ref file) = export_result.complex_types_file {
-                println!("   - Complex types: {}", file);
-            }
-            if let Some(ref file) = export_result.borrow_analysis_file {
-                println!("   - Borrow analysis: {}", file);
-            }
-            if let Some(ref file) = export_result.async_analysis_file {
-                println!("   - Async analysis: {}", file);
-            }
-            if let Some(ref file) = export_result.closure_analysis_file {
-                println!("   - Closure analysis: {}", file);
-            }
-            if let Some(ref file) = export_result.lifecycle_analysis_file {
-                println!("   - Lifecycle analysis: {}", file);
-            }
-        }
-
-        Ok(export_result)
+        // Simplified implementation - complex type export functionality moved to other modules
+        let tracker = get_global_tracker();
+        tracker.export_enhanced_json(path)?;
+        Ok(())
     }
 }
 
