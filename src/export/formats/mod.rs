@@ -7,6 +7,7 @@ pub mod optimized_json_export;
 pub mod binary_export;
 pub mod binary_parser;
 pub mod binary_validation;
+pub mod binary_errors;
 pub mod json_converter;
 pub mod html_converter;
 pub mod simple_binary_export;
