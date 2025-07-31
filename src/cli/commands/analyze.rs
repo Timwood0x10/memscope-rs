@@ -23,17 +23,35 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .get_one::<String>("output")
         .map(|s| s.as_str())
         .unwrap_or("memory_analysis");
+    let compression = matches
+        .get_one::<String>("compression")
+        .map(|s| s.as_str())
+        .unwrap_or("zstd");
+    let compression_level = matches
+        .get_one::<String>("compression-level")
+        .map(|s| s.parse::<i32>().unwrap_or(6))
+        .unwrap_or(6);
 
     println!("🔍 Starting memory analysis...");
-    println!("Command: {:?}", command_args);
-    println!("Export format: {}", export_format);
-    println!("Output path: {}", output_path);
+    println!("Command: {command_args:?}");
+    println!("Export format: {export_format}");
+    println!("Output path: {output_path}");
+    
+    if export_format == "binary" {
+        println!("Compression: {compression}");
+        println!("Compression level: {compression_level}");
+    }
 
     // Initialize memory tracking
     crate::init();
 
     // Execute the command with memory tracking
     execute_with_tracking(&command_args, &[])?;
+
+    // After execution, export the data if binary format is requested
+    if export_format == "binary" {
+        export_binary_data(output_path, compression, compression_level)?;
+    }
 
     Ok(())
 }
@@ -449,6 +467,96 @@ fn analyze_json_output(json_path: &str) {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Export memory data to binary format after analysis
+fn export_binary_data(output_path: &str, compression: &str, compression_level: i32) -> Result<(), Box<dyn Error>> {
+    use crate::export::formats::binary_export::{BinaryExportOptions, export_memory_to_binary};
+    use crate::core::tracker::MemoryTracker;
+
+    println!("📦 Exporting memory data to binary format...");
+
+    // Get the global memory tracker instance
+    // Note: This is a simplified approach - in a real implementation,
+    // we would need to properly access the tracker instance used during analysis
+    let tracker = MemoryTracker::new();
+
+    // Configure binary export options based on parameters
+    let mut options = BinaryExportOptions::balanced(); // Start with balanced defaults
+    
+    // Set compression settings
+    options.compression_enabled = compression != "none";
+    options.compression_level = compression_level.clamp(1, 22); // Ensure valid range
+    options.include_metadata = true; // Always include metadata for better compatibility
+    
+    // Adjust other settings based on compression choice
+    if compression == "none" {
+        options = BinaryExportOptions::fast();
+        options.include_metadata = true; // Override to keep metadata
+    } else {
+        // Use compression-specific settings
+        match compression_level {
+            1..=3 => {
+                options = BinaryExportOptions::fast();
+                options.compression_enabled = true;
+                options.compression_level = compression_level;
+                options.include_metadata = true;
+            }
+            4..=10 => {
+                options = BinaryExportOptions::balanced();
+                options.compression_level = compression_level;
+            }
+            11..=22 => {
+                options = BinaryExportOptions::compact();
+                options.compression_level = compression_level;
+            }
+            _ => {
+                // Invalid level, use default
+                options.compression_level = 6;
+            }
+        }
+    }
+
+    // Create output file path with .ms extension
+    let binary_output_path = if output_path.ends_with(".ms") {
+        output_path.to_string()
+    } else {
+        format!("{}.ms", output_path)
+    };
+
+    println!("📋 Binary export configuration:");
+    println!("   Compression: {}", if options.compression_enabled { compression } else { "none" });
+    println!("   Compression level: {}", options.compression_level);
+    println!("   Include metadata: {}", options.include_metadata);
+    println!("   Include index: {}", options.include_index);
+    println!("   Output file: {}", binary_output_path);
+
+    // Perform the binary export
+    match export_memory_to_binary(&tracker, &binary_output_path, options) {
+        Ok(stats) => {
+            println!("\n🎉 Binary export completed successfully!");
+            println!("📊 Export Statistics:");
+            println!("   Export time: {:?}", stats.export_time);
+            println!("   File size: {} bytes", stats.file_size);
+            println!("   Original size: {} bytes", stats.original_size);
+            println!("   Compression ratio: {:.1}%", stats.compression_ratio * 100.0);
+            println!("   Allocations exported: {}", stats.allocation_count);
+            println!("   Total memory tracked: {} bytes", stats.total_memory);
+            println!("📁 Binary file saved: {}", binary_output_path);
+            
+            // Provide usage hint
+            println!("\n💡 Usage hint:");
+            println!("   Convert to JSON: memscope export -i {} -f json -o output.json", binary_output_path);
+            println!("   Convert to HTML: memscope export -i {} -f html -o report.html", binary_output_path);
+            println!("   Validate file: memscope export -i {} --validate-only", binary_output_path);
+            
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("❌ Binary export failed: {e}");
+            Err(format!("Binary export failed: {e}").into())
         }
     }
 }

@@ -25,7 +25,7 @@ fn main() {
                         .short('e')
                         .long("export")
                         .value_name("FORMAT")
-                        .help("Export format (json, svg, html)")
+                        .help("Export format (json, svg, html, binary)")
                         .default_value("html"),
                 )
                 .arg(
@@ -35,6 +35,20 @@ fn main() {
                         .value_name("FILE")
                         .help("Output file path")
                         .default_value("memory_analysis"),
+                )
+                .arg(
+                    Arg::new("compression")
+                        .long("compression")
+                        .value_name("ALGORITHM")
+                        .help("Compression algorithm for binary export (zstd, none)")
+                        .default_value("zstd"),
+                )
+                .arg(
+                    Arg::new("compression-level")
+                        .long("compression-level")
+                        .value_name("LEVEL")
+                        .help("Compression level (1-22, higher = better compression)")
+                        .default_value("6"),
                 ),
         )
         .subcommand(
@@ -120,6 +134,46 @@ fn main() {
                 ),
         )
         .subcommand(
+            Command::new("export")
+                .about("Convert binary memory analysis files to other formats")
+                .arg(
+                    Arg::new("input")
+                        .short('i')
+                        .long("input")
+                        .value_name("FILE")
+                        .help("Input binary file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("output")
+                        .short('o')
+                        .long("output")
+                        .value_name("FILE")
+                        .help("Output file path")
+                        .required_unless_present("validate-only"),
+                )
+                .arg(
+                    Arg::new("format")
+                        .short('f')
+                        .long("format")
+                        .value_name("FORMAT")
+                        .help("Output format (json, html)")
+                        .default_value("json"),
+                )
+                .arg(
+                    Arg::new("streaming")
+                        .long("streaming")
+                        .help("Enable streaming mode for large files")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("validate-only")
+                        .long("validate-only")
+                        .help("Only validate binary file without conversion")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
             Command::new("test").about("Run enhanced memory tests").arg(
                 Arg::new("output")
                     .short('o')
@@ -134,25 +188,31 @@ fn main() {
     match matches.subcommand() {
         Some(("analyze", sub_matches)) => {
             if let Err(e) = run_analyze_command(sub_matches) {
-                eprintln!("Error running analyze command: {}", e);
+                eprintln!("Error running analyze command: {e}");
+                process::exit(1);
+            }
+        }
+        Some(("export", sub_matches)) => {
+            if let Err(e) = run_export_command(sub_matches) {
+                eprintln!("Error running export command: {e}");
                 process::exit(1);
             }
         }
         Some(("report", sub_matches)) => {
             if let Err(e) = run_report_command(sub_matches) {
-                eprintln!("Error running report command: {}", e);
+                eprintln!("Error running report command: {e}");
                 process::exit(1);
             }
         }
         Some(("html-from-json", sub_matches)) => {
             if let Err(e) = run_html_from_json_command(sub_matches) {
-                eprintln!("Error running html-from-json command: {}", e);
+                eprintln!("Error running html-from-json command: {e}");
                 process::exit(1);
             }
         }
         Some(("test", sub_matches)) => {
             if let Err(e) = run_test_command(sub_matches) {
-                eprintln!("Error running test command: {}", e);
+                eprintln!("Error running test command: {e}");
                 process::exit(1);
             }
         }
@@ -166,6 +226,11 @@ fn main() {
 fn run_analyze_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::analyze::run_analyze;
     run_analyze(matches)
+}
+
+fn run_export_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::export::run_export;
+    run_export(matches)
 }
 
 fn run_report_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
