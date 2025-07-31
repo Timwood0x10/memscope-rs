@@ -60,6 +60,8 @@ memory_*.svg
 *.json
 
 ! templates/*.html
+! images/*.html
+
 # Coverage reports
 /target/coverage/
 cobertura.xml

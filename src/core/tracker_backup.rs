@@ -1,10 +1,10 @@
 //! Memory allocation tracking functionality.
+//! 
+//! This module has been refactored into smaller, more manageable modules.
+//! The main functionality is now organized in the `tracker` submodule.
 
-// use crate::closure_analysis::OptimizationLevel;
-use crate::export::optimized_json_export::OptimizedExportOptions;
-/// Export options for JSON export - user-controllable settings
-#[derive(Debug, Clone)]
-pub struct ExportOptions {
+// Re-export everything from the new modular structure
+pub use crate::core::tracker::*;
     /// Include system allocations in full enrichment (default: false)
     ///
     /// **⚠️ Performance Impact**: Setting this to `true` can make export 5-10x slower!
