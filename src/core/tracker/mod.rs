@@ -8,6 +8,7 @@ pub mod export_options;
 pub mod memory_tracker;
 pub mod allocation_tracking;
 pub mod export_methods;
+pub mod missing_methods;
 
 // Re-export main types for convenience
 pub use export_options::{ExportOptions, ExportMode};

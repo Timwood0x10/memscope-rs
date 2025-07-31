@@ -68,17 +68,17 @@ impl MemoryTracker {
     /// # Example
     /// ```rust
     /// let tracker = get_global_tracker();
-    /// let stats = tracker.get_memory_stats();
+    /// let stats = tracker.get_memory_stats()?;
     /// println!("Active memory: {} bytes", stats.active_memory);
     /// ```
-    pub fn get_memory_stats(&self) -> MemoryStats {
-        self.stats
+    pub fn get_memory_stats(&self) -> TrackingResult<MemoryStats> {
+        Ok(self.stats
             .lock()
             .unwrap_or_else(|poisoned| {
                 // Handle poisoned mutex by taking the data anyway
                 poisoned.into_inner()
             })
-            .clone()
+            .clone())
     }
 
     /// Get all active allocations for analysis and export
@@ -98,11 +98,11 @@ impl MemoryTracker {
     /// # Example
     /// ```rust
     /// let tracker = get_global_tracker();
-    /// let allocations = tracker.get_all_active_allocations();
+    /// let allocations = tracker.get_all_active_allocations()?;
     /// println!("Found {} active allocations", allocations.len());
     /// ```
-    pub fn get_all_active_allocations(&self) -> Vec<AllocationInfo> {
-        self.active_allocations
+    pub fn get_all_active_allocations(&self) -> TrackingResult<Vec<AllocationInfo>> {
+        Ok(self.active_allocations
             .lock()
             .unwrap_or_else(|poisoned| {
                 // Handle poisoned mutex by taking the data anyway
@@ -110,7 +110,7 @@ impl MemoryTracker {
             })
             .values()
             .cloned()
-            .collect()
+            .collect())
     }
 
     /// Get complete allocation history for comprehensive analysis
@@ -129,18 +129,18 @@ impl MemoryTracker {
     /// # Example
     /// ```rust
     /// let tracker = get_global_tracker();
-    /// let history = tracker.get_complete_allocation_history();
+    /// let history = tracker.get_complete_allocation_history()?;
     /// let leaked = history.iter().filter(|a| a.is_leaked).count();
     /// println!("Found {} potential memory leaks", leaked);
     /// ```
-    pub fn get_complete_allocation_history(&self) -> Vec<AllocationInfo> {
-        self.allocation_history
+    pub fn get_complete_allocation_history(&self) -> TrackingResult<Vec<AllocationInfo>> {
+        Ok(self.allocation_history
             .lock()
             .unwrap_or_else(|poisoned| {
                 // Handle poisoned mutex by taking the data anyway
                 poisoned.into_inner()
             })
-            .clone()
+            .clone())
     }
 }
 

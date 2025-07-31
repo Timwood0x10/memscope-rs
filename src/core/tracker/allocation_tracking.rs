@@ -35,42 +35,7 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Create synthetic allocation for testing purposes
-    pub fn create_synthetic_allocation(
-        &self,
-        ptr: usize,
-        size: usize,
-        var_name: String,
-        type_name: String,
-        line_number: u32,
-    ) -> TrackingResult<()> {
-        let mut allocation = AllocationInfo::new(ptr, size);
-        allocation.var_name = Some(var_name);
-        allocation.type_name = Some(type_name);
-        // allocation.line_number = Some(line_number); // TODO: Add line_number field to AllocationInfo
-
-        // Update active allocations
-        if let Ok(mut active) = self.active_allocations.try_lock() {
-            active.insert(ptr, allocation.clone());
-        }
-
-        // Update statistics
-        if let Ok(mut stats) = self.stats.try_lock() {
-            stats.total_allocations = stats.total_allocations.saturating_add(1);
-            stats.active_allocations = stats.active_allocations.saturating_add(1);
-            stats.active_memory = stats.active_memory.saturating_add(size);
-            if stats.active_memory > stats.peak_memory {
-                stats.peak_memory = stats.active_memory;
-            }
-        }
-
-        // Add to history
-        if let Ok(mut history) = self.allocation_history.try_lock() {
-            history.push(allocation);
-        }
-
-        Ok(())
-    }
+    // create_synthetic_allocation moved to missing_methods.rs to avoid duplication
 
     /// Track a memory allocation
     pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {

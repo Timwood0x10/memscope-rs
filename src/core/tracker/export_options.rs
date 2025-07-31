@@ -1,7 +1,5 @@
 //! Export options for memory tracking data.
 
-use crate::export::optimized_json_export::OptimizedExportOptions;
-
 /// Export options for JSON export - user-controllable settings
 #[derive(Debug, Clone)]
 pub struct ExportOptions {
