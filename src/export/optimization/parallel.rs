@@ -11,7 +11,7 @@
 pub use super::parallel_shard_processor::*;
 pub use super::fast_export_coordinator::*;
 pub use super::performance_benchmark::*;
-pub use super::performance_comparison::*;
+// pub use super::performance_comparison::*; // Unused and ambiguous import
 
 /// Unified parallel processing interface
 pub struct ParallelOptimizer {

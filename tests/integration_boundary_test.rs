@@ -309,7 +309,7 @@ fn test_comprehensive_export_integration() {
     let svg_result = tracker.export_memory_analysis("comprehensive_test.svg");
     assert!(svg_result.is_ok(), "SVG export should succeed");
 
-    let timeline_result = tracker.export_lifecycle_timeline("comprehensive_timeline.svg");
+    let timeline_result = tracker.export_lifecycle_timeline("comprehensive_timeline.svg", None, None);
     assert!(timeline_result.is_ok(), "Timeline export should succeed");
 
     let dashboard_result = tracker.export_interactive_dashboard("comprehensive_dashboard.html");

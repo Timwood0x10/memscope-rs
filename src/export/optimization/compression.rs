@@ -22,7 +22,7 @@ impl CompressionOptimizer {
     }
     
     /// Optimize compression settings based on data characteristics
-    pub fn optimize_for_data(&self, data_size: usize, data_type: &str) -> CompressionConfig {
+    pub fn optimize_for_data(&self, _data_size: usize, _data_type: &str) -> CompressionConfig {
         // TODO: Consolidate adaptive compression logic
         CompressionConfig::default()
     }

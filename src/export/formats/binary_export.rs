@@ -24,6 +24,14 @@ impl BinaryExportOptions {
             include_index: true,
         }
     }
+
+    /// Selective export configuration for filtered data
+    pub fn selective() -> Self {
+        Self {
+            compression_enabled: false,
+            include_index: true,
+        }
+    }
 }
 
 /// Binary export statistics

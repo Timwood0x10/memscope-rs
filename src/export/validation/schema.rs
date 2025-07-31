@@ -18,7 +18,7 @@ impl SchemaValidator {
     }
     
     /// Validate export data against schema
-    pub fn validate_export_data(&self, data: &[crate::core::types::AllocationInfo]) -> ValidationResult {
+    pub fn validate_export_data(&self, _data: &[crate::core::types::AllocationInfo]) -> ValidationResult {
         // TODO: Consolidate schema validation logic
         ValidationResult {
             is_valid: true,
@@ -28,7 +28,7 @@ impl SchemaValidator {
     }
     
     /// Validate JSON schema
-    pub fn validate_json_schema(&self, json_data: &str) -> ValidationResult {
+    pub fn validate_json_schema(&self, _json_data: &str) -> ValidationResult {
         // TODO: Move JSON schema validation here
         ValidationResult::default()
     }

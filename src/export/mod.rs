@@ -8,6 +8,8 @@
 pub mod formats;
 pub mod optimization;
 pub mod validation;
+pub mod progress_monitor;
+pub mod export_modes;
 
 // Re-export main types for convenience
 pub use formats::*;

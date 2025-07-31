@@ -2,6 +2,21 @@
 
 use crate::core::types::TrackingResult;
 
+/// Configuration for parallel shard processing
+#[derive(Debug, Clone)]
+pub struct ParallelShardConfig {
+    /// Number of shards to process in parallel
+    pub shard_count: usize,
+}
+
+impl Default for ParallelShardConfig {
+    fn default() -> Self {
+        Self {
+            shard_count: num_cpus::get(),
+        }
+    }
+}
+
 /// Parallel shard processor for large datasets
 pub struct ParallelShardProcessor {
     shard_count: usize,

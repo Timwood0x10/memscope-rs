@@ -17,8 +17,8 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Export memory tracking data to JSON with options (legacy method)
-    pub fn export_to_json_with_options<P: AsRef<std::path::Path>>(
+    /// Export memory tracking data to JSON with legacy options (legacy method)
+    pub fn export_to_json_with_legacy_options<P: AsRef<std::path::Path>>(
         &self,
         path: P,
         _options: crate::core::tracker::ExportOptions,
@@ -88,6 +88,10 @@ impl MemoryTracker {
                 type_name,
                 total_size: 0,
                 allocation_count: 0,
+                average_size: 0,
+                current_size: 0,
+                efficiency_score: 0.0,
+                peak_size: 0,
             });
             
             entry.total_size += allocation.size;
@@ -250,10 +254,13 @@ impl MemoryTracker {
         
         events.sort_by_key(|e| e.timestamp);
         
+        let start_time = events.first().map(|e| e.timestamp).unwrap_or(0);
+        let end_time = events.last().map(|e| e.timestamp).unwrap_or(0);
+        
         crate::core::types::SimpleTimelineData {
             events,
-            start_time: events.first().map(|e| e.timestamp).unwrap_or(0),
-            end_time: events.last().map(|e| e.timestamp).unwrap_or(0),
+            start_time,
+            end_time,
         }
     }
 }

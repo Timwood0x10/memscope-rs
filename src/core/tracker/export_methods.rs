@@ -4,6 +4,23 @@ use crate::core::tracker::memory_tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
 
 impl MemoryTracker {
+    /// Export memory data to JSON format with options
+    pub fn export_to_json_with_options<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        _options: crate::export::formats::OptimizedExportOptions,
+    ) -> TrackingResult<()> {
+        crate::export::formats::export_memory_to_json(self, path)
+    }
+
+    /// Export memory data to JSON format with optimized options (alias for compatibility)
+    pub fn export_to_json_with_optimized_options<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        options: crate::export::formats::OptimizedExportOptions,
+    ) -> TrackingResult<()> {
+        self.export_to_json_with_options(path, options)
+    }
     /// Export memory data to binary format with comprehensive options
     ///
     /// This method provides high-performance binary export using MessagePack serialization

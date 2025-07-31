@@ -3,7 +3,6 @@
 
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, MemoryStats, TrackingError, TrackingResult};
-use std::fs::File;
 use std::path::Path;
 
 /// Export memory analysis visualization showing variable names, types, and usage
@@ -208,8 +207,8 @@ fn generate_variable_legend(allocations: &[AllocationInfo], x: i32, y: i32, widt
     let mut legend = String::new();
     let cols = 3;
     let rows = (allocations.len().min(15) + cols - 1) / cols;
-    let col_width = width / cols;
-    let row_height = height / rows.max(1);
+    let col_width = width / cols as i32;
+    let row_height = height / rows.max(1) as i32;
     
     for (i, allocation) in allocations.iter().take(15).enumerate() {
         let col = i % cols;

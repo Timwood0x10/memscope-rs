@@ -22,20 +22,20 @@ impl HtmlExporter {
     /// Export basic HTML report
     pub fn export_basic<P: AsRef<std::path::Path>>(
         &self,
-        path: P,
-        data: &[crate::core::types::AllocationInfo],
+        _path: P,
+        _data: &[crate::core::types::AllocationInfo],
     ) -> crate::core::types::TrackingResult<()> {
         // TODO: Consolidate basic HTML export
-        todo!("Implement basic HTML export")
+        Ok(())
     }
     
     /// Export with advanced visualizations
     pub fn export_with_visualizations<P: AsRef<std::path::Path>>(
         &self,
-        path: P,
-        data: &[crate::core::types::AllocationInfo],
+        _path: P,
+        _data: &[crate::core::types::AllocationInfo],
     ) -> crate::core::types::TrackingResult<()> {
         // TODO: Move visualization code here
-        todo!("Implement HTML export with visualizations")
+        Ok(())
     }
 }

@@ -571,7 +571,7 @@ pub struct MemoryTypeInfo {
 }
 
 /// Type memory usage information
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TypeMemoryUsage {
     /// Name of the type
     pub type_name: String,
@@ -579,14 +579,14 @@ pub struct TypeMemoryUsage {
     pub total_size: usize,
     /// Number of allocations for this type
     pub allocation_count: usize,
-    /// Average allocation size for this type
-    pub average_size: f64,
-    /// Peak memory usage for this type
-    pub peak_size: usize,
-    /// Current memory usage for this type
+    /// Average allocation size
+    pub average_size: usize,
+    /// Current size in memory
     pub current_size: usize,
-    /// Memory efficiency score for this type
+    /// Memory efficiency score
     pub efficiency_score: f64,
+    /// Peak memory usage
+    pub peak_size: usize,
 }
 
 /// Fragmentation analysis

@@ -692,7 +692,7 @@ fn generate_final_analysis() {
         println!("✅ Memory analysis exported to: MemoryAnalysis/complex_memory_analysis/");
     }
 
-    if let Err(e) = tracker.export_lifecycle_timeline("complex_lifecycle_timeline.svg") {
+    if let Err(e) = tracker.export_lifecycle_timeline("complex_lifecycle_timeline.svg", None, None) {
         println!("❌ Lifecycle timeline export failed: {e}");
     } else {
         println!("✅ Enhanced lifecycle timeline exported to: MemoryAnalysis/complex_lifecycle_timeline/");

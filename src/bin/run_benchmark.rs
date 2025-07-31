@@ -22,13 +22,7 @@ fn main() {
     };
 
     // 创建基准测试器
-    let mut benchmark = match PerformanceBenchmark::new(config) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("❌ 创建基准测试器失败: {}", e);
-            process::exit(1);
-        }
-    };
+    let mut benchmark = PerformanceBenchmark::new(config);
 
     // 运行完整的基准测试
     match benchmark.run_full_benchmark() {

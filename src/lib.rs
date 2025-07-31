@@ -217,16 +217,16 @@ impl<T> Trackable for std::rc::Rc<T> {
         std::rc::Rc::as_ptr(self) as usize
     }
 
-    fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
+    fn track_clone_relationship(&self, clone_ptr: usize, _source_ptr: usize) {
         let tracker = crate::core::tracker::get_global_tracker();
-        let data_ptr = self.get_data_ptr();
+        let _data_ptr = self.get_data_ptr();
         let strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
 
         if let Err(e) = tracker.track_smart_pointer_clone(
             clone_ptr,
-            source_ptr,
-            data_ptr,
+            std::mem::size_of::<T>(),
+            std::any::type_name::<T>().to_string(),
             strong_count,
             weak_count,
         ) {
@@ -275,16 +275,16 @@ impl<T> Trackable for std::sync::Arc<T> {
         std::sync::Arc::as_ptr(self) as usize
     }
 
-    fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
+    fn track_clone_relationship(&self, clone_ptr: usize, _source_ptr: usize) {
         let tracker = crate::core::tracker::get_global_tracker();
-        let data_ptr = self.get_data_ptr();
+        let _data_ptr = self.get_data_ptr();
         let strong_count = std::sync::Arc::strong_count(self);
         let weak_count = std::sync::Arc::weak_count(self);
 
         if let Err(e) = tracker.track_smart_pointer_clone(
             clone_ptr,
-            source_ptr,
-            data_ptr,
+            std::mem::size_of::<T>(),
+            std::any::type_name::<T>().to_string(),
             strong_count,
             weak_count,
         ) {
@@ -828,16 +828,15 @@ impl<T: Trackable> TrackedVariable<T> {
             if is_smart_pointer {
                 // For smart pointers, create specialized allocation
                 let ref_count = value.get_ref_count();
-                let data_ptr = value.get_data_ptr();
+                let _data_ptr = value.get_data_ptr();
 
                 let _ = tracker.create_smart_pointer_allocation(
                     ptr_val,
                     value.get_size_estimate(),
-                    var_name.clone(),
                     type_name.clone(),
-                    creation_time,
                     ref_count,
-                    data_ptr,
+                    0, // weak_count
+                    creation_time,
                 );
 
                 tracing::debug!(
@@ -853,7 +852,7 @@ impl<T: Trackable> TrackedVariable<T> {
                     value.get_size_estimate(),
                     var_name.clone(),
                     type_name.clone(),
-                    creation_time,
+                    0, // line_number placeholder
                 );
 
                 tracing::debug!(
@@ -1171,16 +1170,15 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         if is_smart_pointer {
             // For smart pointers, create specialized allocation
             let ref_count = var.get_ref_count();
-            let data_ptr = var.get_data_ptr();
+            let _data_ptr = var.get_data_ptr();
 
             let _ = tracker.create_smart_pointer_allocation(
                 ptr_val,
                 var.get_size_estimate(),
-                var_name.to_string(),
                 type_name.clone(),
-                creation_time,
                 ref_count,
-                data_ptr,
+                0, // weak_count
+                creation_time,
             );
 
             tracing::debug!(
@@ -1196,7 +1194,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
                 var.get_size_estimate(),
                 var_name.to_string(),
                 type_name.clone(),
-                creation_time,
+                0, // line_number placeholder
             );
 
             tracing::debug!(
@@ -1236,7 +1234,7 @@ impl MemoryTracker {
         let path = path.as_ref();
         println!("🚀 Using optimized complex type export for maximum performance...");
 
-        let start_time = std::time::Instant::now();
+        let _start_time = std::time::Instant::now();
 
         // Get all necessary data
         let allocations = self.get_active_allocations()?;
@@ -1244,7 +1242,7 @@ impl MemoryTracker {
 
         // Perform comprehensive analysis
         let analysis_manager = crate::analysis::AnalysisManager::new();
-        let comprehensive_report =
+        let _comprehensive_report =
             analysis_manager.perform_comprehensive_analysis(&allocations, &stats);
 
         // Use optimized export configuration

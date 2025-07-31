@@ -215,6 +215,7 @@ fn collect_real_tracking_data(tracker: &MemoryTracker) -> TestExportData {
     
     // Convert real allocations to test format
     let test_allocations: Vec<TestAllocationInfo> = active_allocations
+        .unwrap_or_default()
         .into_iter()
         .map(|alloc| TestAllocationInfo {
             ptr: alloc.ptr,
@@ -242,11 +243,11 @@ fn collect_real_tracking_data(tracker: &MemoryTracker) -> TestExportData {
         },
         allocations: test_allocations,
         summary: TestSummary {
-            total_allocations: stats.total_allocations,
-            total_allocated: stats.total_allocated,
-            active_allocations: stats.active_allocations,
-            active_memory: stats.active_memory,
-            peak_memory: stats.peak_memory,
+            total_allocations: stats.as_ref().map(|s| s.total_allocations).unwrap_or(0),
+            total_allocated: stats.as_ref().map(|s| s.total_allocated).unwrap_or(0),
+            active_allocations: stats.as_ref().map(|s| s.active_allocations).unwrap_or(0),
+            active_memory: stats.as_ref().map(|s| s.active_memory).unwrap_or(0),
+            peak_memory: stats.as_ref().map(|s| s.peak_memory).unwrap_or(0),
             suspected_leaks,
         },
     }

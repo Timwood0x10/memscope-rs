@@ -22,7 +22,7 @@ impl IntegrityValidator {
     }
     
     /// Validate data integrity
-    pub fn validate_integrity(&self, data: &[crate::core::types::AllocationInfo]) -> IntegrityResult {
+    pub fn validate_integrity(&self, _data: &[crate::core::types::AllocationInfo]) -> IntegrityResult {
         // TODO: Consolidate integrity validation logic
         IntegrityResult {
             is_valid: true,
@@ -33,7 +33,7 @@ impl IntegrityValidator {
     }
     
     /// Recover from export errors
-    pub fn recover_from_error(&self, error: &crate::core::types::TrackingError) -> RecoveryAction {
+    pub fn recover_from_error(&self, _error: &crate::core::types::TrackingError) -> RecoveryAction {
         // TODO: Move error recovery logic here
         RecoveryAction::Retry
     }
