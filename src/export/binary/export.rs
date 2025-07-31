@@ -10,7 +10,7 @@ use std::path::Path;
 use std::time::Instant;
 use serde::{Serialize, Deserialize};
 
-use crate::tracker::MemoryTracker;
+use crate::core::tracker::MemoryTracker;
 use super::core::UnifiedData;
 use super::data::DataCollector;
 use super::error::{BinaryExportError, ErrorRecovery};
@@ -401,7 +401,7 @@ impl From<ExportConfig> for crate::export::binary::data::CollectionConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tracker::MemoryTracker;
+    use crate::core::tracker::MemoryTracker;
     use tempfile::NamedTempFile;
 
     #[test]

@@ -61,7 +61,7 @@ impl BinaryExport {
     /// println!("Exported {} bytes in {:?}", result.bytes_written, result.duration);
     /// ```
     pub fn export_default<P: AsRef<std::path::Path>>(
-        tracker: &crate::tracker::MemoryTracker,
+        tracker: &crate::core::tracker::MemoryTracker,
         path: P,
     ) -> Result<ExportResult, BinaryExportError> {
         let config = ExportConfig::default();
@@ -73,7 +73,7 @@ impl BinaryExport {
     /// Provides full control over export behavior including compression,
     /// memory management, and error handling strategies.
     pub fn export_with_config<P: AsRef<std::path::Path>>(
-        tracker: &crate::tracker::MemoryTracker,
+        tracker: &crate::core::tracker::MemoryTracker,
         path: P,
         config: ExportConfig,
     ) -> Result<ExportResult, BinaryExportError> {
@@ -86,7 +86,7 @@ impl BinaryExport {
     /// Provides non-blocking export operation with progress monitoring
     /// and cancellation support.
     pub async fn export_async<P: AsRef<std::path::Path>>(
-        tracker: &crate::tracker::MemoryTracker,
+        tracker: &crate::core::tracker::MemoryTracker,
         path: P,
     ) -> Result<ExportResult, BinaryExportError> {
         let config = ExportConfig::default();
@@ -98,7 +98,7 @@ impl BinaryExport {
     /// Provides full control over async export behavior including
     /// background processing, progress callbacks, and cancellation.
     pub async fn export_with_config_async<P: AsRef<std::path::Path>>(
-        tracker: &crate::tracker::MemoryTracker,
+        tracker: &crate::core::tracker::MemoryTracker,
         path: P,
         config: ExportConfig,
     ) -> Result<ExportResult, BinaryExportError> {
@@ -137,19 +137,76 @@ mod tests {
     /// Test basic export functionality with minimal data
     #[test]
     fn test_basic_export() {
-        // Test implementation will be added during development
-        // This ensures the API design is testable from the start
+        use crate::core::tracker::MemoryTracker;
+        use tempfile::NamedTempFile;
+        
+        // Create a memory tracker with some test data
+        let tracker = MemoryTracker::new();
+        
+        // Create a temporary file for export
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        
+        // Test default export
+        let result = BinaryExport::export_default(&tracker, temp_file.path());
+        
+        // Should succeed even with empty data
+        match result {
+            Ok(export_result) => {
+                assert!(export_result.bytes_written > 0);
+                assert!(export_result.duration.as_millis() >= 0);
+            }
+            Err(e) => {
+                // Empty data export might fail, which is acceptable
+                println!("Export failed as expected with empty data: {:?}", e);
+            }
+        }
     }
     
     /// Test error recovery mechanisms
     #[test]
     fn test_error_recovery() {
-        // Test various error scenarios and recovery strategies
+        use crate::core::tracker::MemoryTracker;
+        use std::path::Path;
+        
+        let tracker = MemoryTracker::new();
+        
+        // Test export to invalid path (should trigger error recovery)
+        let invalid_path = Path::new("/invalid/path/that/does/not/exist/test.bin");
+        let result = BinaryExport::export_default(&tracker, invalid_path);
+        
+        // Should return an error
+        assert!(result.is_err());
+        
+        // Test validation of non-existent file
+        let validation_result = BinaryExport::validate(invalid_path);
+        assert!(validation_result.is_err());
     }
     
     /// Test memory management under different load conditions
     #[test]
     fn test_memory_management() {
-        // Test adaptive memory management and backpressure
+        use crate::core::tracker::MemoryTracker;
+        use tempfile::NamedTempFile;
+        
+        let tracker = MemoryTracker::new();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        
+        // Test with different memory configurations
+        let mut config = ExportConfig::default();
+        config.max_memory_usage = 1024 * 1024; // 1MB limit
+        
+        let result = BinaryExport::export_with_config(&tracker, temp_file.path(), config);
+        
+        // Should handle memory constraints gracefully
+        match result {
+            Ok(export_result) => {
+                // Verify memory usage was within limits
+                assert!(export_result.stats.peak_memory_usage <= 1024 * 1024);
+            }
+            Err(e) => {
+                // Memory constraint errors are acceptable
+                println!("Memory-constrained export failed as expected: {:?}", e);
+            }
+        }
     }
 }

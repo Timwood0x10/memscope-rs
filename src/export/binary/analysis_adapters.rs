@@ -3,7 +3,7 @@
 //! This module provides adapter functions to integrate with existing analysis
 //! modules and convert their results to the unified data format.
 
-use crate::tracker::MemoryTracker;
+use crate::core::tracker::MemoryTracker;
 use crate::core::types::TrackingResult;
 use std::collections::HashMap;
 use std::time::Duration;

@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use crate::tracker::MemoryTracker;
+use crate::core::tracker::MemoryTracker;
 use super::core::*;
 use super::error::BinaryExportError;
 use super::memory::{MemoryManager, SmartBuffer};

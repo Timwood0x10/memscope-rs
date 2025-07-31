@@ -7,7 +7,6 @@
 //! - Detailed logging and progress reporting
 
 use crate::core::types::{AllocationInfo, MemoryStats, TrackingResult};
-use std::borrow::Cow;
 use std::time::{Duration, Instant};
 
 /// Configuration options for binary export operations
@@ -528,7 +527,7 @@ fn collect_allocations_batched(
     let start_time = Instant::now();
     
     // Try to collect in smaller chunks to reduce lock time
-    let mut all_allocations: Vec<AllocationInfo> = Vec::new();
+    let _all_allocations: Vec<AllocationInfo> = Vec::new();
     let mut attempt = 0;
     let max_attempts = 3;
     
