@@ -16,6 +16,7 @@ pub mod export;
 pub mod memory;
 pub mod error;
 pub mod validation;
+pub mod compression;
 
 // Re-export main public API
 pub use export::{BinaryExporter, ExportConfig, ExportResult};
@@ -24,6 +25,7 @@ pub use data::DataCollector;
 pub use error::{BinaryExportError, RecoveryStrategy, ErrorRecovery};
 pub use memory::{MemoryManager, ZeroCopyView, SmartBuffer};
 pub use validation::ValidationReport;
+pub use compression::{CompressionManager, CompressionConfig, CompressionAlgorithm, CompressionStats};
 
 // Export format version for compatibility tracking
 pub const BINARY_FORMAT_VERSION: u32 = 2;
