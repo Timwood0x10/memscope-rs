@@ -13,6 +13,9 @@ use super::core::*;
 use super::error::BinaryExportError;
 use super::memory::{MemoryManager, SmartBuffer};
 
+// Analysis module adapters for data collection
+mod analysis_adapters;
+
 // Import data types from separate module
 mod data_types;
 pub use data_types::*;
@@ -504,37 +507,282 @@ impl DataCollector {
         Ok(HashMap::new()) // Placeholder
     }
     
-    // Analysis collection method stubs
+    // Analysis collection method implementations
     fn collect_lifecycle_analysis(&self, tracker: &MemoryTracker) -> Result<Option<LifecycleAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        use crate::analysis::lifecycle_analysis;
+        
+        // Check if cancellation was requested
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        // Try to run lifecycle analysis
+        match analysis_adapters::analyze_memory_lifecycle(tracker) {
+            Ok(analysis_result) => {
+                // Convert analysis result to our data format
+                let lifecycle_data = LifecycleAnalysis {
+                    allocation_patterns: analysis_result.patterns.unwrap_or_default(),
+                    lifetime_statistics: analysis_result.lifetime_stats.unwrap_or_default(),
+                };
+                Ok(Some(lifecycle_data))
+            }
+            Err(e) => {
+                // Log error but don't fail the entire collection
+                eprintln!("Warning: Lifecycle analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_leak_analysis(&self, tracker: &MemoryTracker) -> Result<Option<LeakAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        use crate::analysis::enhanced_memory_analysis;
+        
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        // Use enhanced memory analysis for leak detection
+        match analysis_adapters::detect_potential_leaks(tracker) {
+            Ok(leak_candidates) => {
+                let mut potential_leaks = Vec::new();
+                let mut confidence_scores = HashMap::new();
+                
+                for candidate in leak_candidates {
+                    let leak_candidate = LeakCandidate {
+                        allocation_id: candidate.allocation_id,
+                        size: candidate.size,
+                        age: candidate.age,
+                        confidence: candidate.confidence,
+                    };
+                    confidence_scores.insert(candidate.allocation_id, candidate.confidence);
+                    potential_leaks.push(leak_candidate);
+                }
+                
+                let leak_analysis = LeakAnalysis {
+                    potential_leaks,
+                    leak_confidence_scores: confidence_scores,
+                };
+                Ok(Some(leak_analysis))
+            }
+            Err(e) => {
+                eprintln!("Warning: Leak analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_performance_analysis(&self, tracker: &MemoryTracker) -> Result<Option<PerformanceAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        // Collect performance metrics from tracker
+        match tracker.get_performance_metrics() {
+            Ok(metrics) => {
+                let performance_analysis = PerformanceAnalysis {
+                    allocation_hotspots: metrics.hotspots.unwrap_or_default(),
+                    memory_fragmentation: metrics.fragmentation_ratio.unwrap_or(0.0),
+                    allocation_frequency: metrics.frequency_map.unwrap_or_default(),
+                };
+                Ok(Some(performance_analysis))
+            }
+            Err(e) => {
+                eprintln!("Warning: Performance analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_unsafe_analysis(&self, tracker: &MemoryTracker) -> Result<Option<UnsafeAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        use crate::analysis::unsafe_ffi_tracker;
+        
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        match analysis_adapters::analyze_unsafe_operations(tracker) {
+            Ok(unsafe_ops) => {
+                let mut operations = Vec::new();
+                let mut risk_assessment = HashMap::new();
+                
+                for op in unsafe_ops {
+                    let unsafe_operation = UnsafeOperation {
+                        operation_type: op.operation_type,
+                        location: op.location,
+                        risk_level: match op.risk_level.as_str() {
+                            "low" => RiskLevel::Low,
+                            "medium" => RiskLevel::Medium,
+                            "high" => RiskLevel::High,
+                            "critical" => RiskLevel::Critical,
+                            _ => RiskLevel::Medium,
+                        },
+                    };
+                    risk_assessment.insert(op.location.clone(), unsafe_operation.risk_level.clone());
+                    operations.push(unsafe_operation);
+                }
+                
+                let unsafe_analysis = UnsafeAnalysis {
+                    unsafe_operations: operations,
+                    risk_assessment,
+                };
+                Ok(Some(unsafe_analysis))
+            }
+            Err(e) => {
+                eprintln!("Warning: Unsafe analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_circular_reference_analysis(&self, tracker: &MemoryTracker) -> Result<Option<CircularReferenceAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        use crate::analysis::circular_reference;
+        
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        match analysis_adapters::detect_circular_references(tracker) {
+            Ok(circular_refs) => {
+                let mut circular_references = Vec::new();
+                let mut reference_graph = HashMap::new();
+                
+                for cycle in circular_refs.cycles {
+                    let circular_ref = CircularReference {
+                        cycle_nodes: cycle.nodes,
+                        cycle_length: cycle.length,
+                    };
+                    circular_references.push(circular_ref);
+                }
+                
+                // Build reference graph
+                for (node, refs) in circular_refs.reference_graph {
+                    reference_graph.insert(node, refs);
+                }
+                
+                let circular_analysis = CircularReferenceAnalysis {
+                    circular_references,
+                    reference_graph,
+                };
+                Ok(Some(circular_analysis))
+            }
+            Err(e) => {
+                eprintln!("Warning: Circular reference analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_generic_analysis(&self, tracker: &MemoryTracker) -> Result<Option<GenericAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        use crate::analysis::generic_analysis;
+        
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        match analysis_adapters::analyze_generic_usage(tracker) {
+            Ok(generic_data) => {
+                let generic_analysis = GenericAnalysis {
+                    generic_instantiations: generic_data.instantiations,
+                    monomorphization_impact: generic_data.monomorphization_impact,
+                };
+                Ok(Some(generic_analysis))
+            }
+            Err(e) => {
+                eprintln!("Warning: Generic analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_async_analysis(&self, tracker: &MemoryTracker) -> Result<Option<AsyncAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        use crate::analysis::async_analysis;
+        
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        match analysis_adapters::analyze_async_patterns(tracker) {
+            Ok(async_data) => {
+                let mut async_allocations = Vec::new();
+                let mut future_memory_usage = HashMap::new();
+                
+                for alloc in async_data.async_allocations {
+                    let async_allocation = AsyncAllocation {
+                        future_id: alloc.future_id,
+                        allocation_size: alloc.size,
+                        state: match alloc.state.as_str() {
+                            "pending" => AsyncState::Pending,
+                            "running" => AsyncState::Running,
+                            "completed" => AsyncState::Completed,
+                            "cancelled" => AsyncState::Cancelled,
+                            _ => AsyncState::Pending,
+                        },
+                    };
+                    async_allocations.push(async_allocation);
+                }
+                
+                future_memory_usage = async_data.future_memory_usage;
+                
+                let async_analysis = AsyncAnalysis {
+                    async_allocations,
+                    future_memory_usage,
+                };
+                Ok(Some(async_analysis))
+            }
+            Err(e) => {
+                eprintln!("Warning: Async analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_borrow_analysis(&self, tracker: &MemoryTracker) -> Result<Option<BorrowAnalysis>, BinaryExportError> {
-        Ok(None) // Placeholder
+        use crate::analysis::borrow_analysis;
+        
+        if self.is_cancellation_requested() {
+            return Err(BinaryExportError::Cancelled);
+        }
+        
+        match analysis_adapters::analyze_borrow_patterns(tracker) {
+            Ok(borrow_data) => {
+                let mut borrow_violations = Vec::new();
+                let mut lifetime_conflicts = HashMap::new();
+                
+                for violation in borrow_data.violations {
+                    let borrow_violation = BorrowViolation {
+                        violation_type: violation.violation_type,
+                        location: violation.location,
+                        severity: match violation.severity.as_str() {
+                            "warning" => ViolationSeverity::Warning,
+                            "error" => ViolationSeverity::Error,
+                            "critical" => ViolationSeverity::Critical,
+                            _ => ViolationSeverity::Warning,
+                        },
+                    };
+                    borrow_violations.push(borrow_violation);
+                }
+                
+                lifetime_conflicts = borrow_data.lifetime_conflicts;
+                
+                let borrow_analysis = BorrowAnalysis {
+                    borrow_violations,
+                    lifetime_conflicts,
+                };
+                Ok(Some(borrow_analysis))
+            }
+            Err(e) => {
+                eprintln!("Warning: Borrow analysis failed: {}", e);
+                self.collection_stats.errors_encountered += 1;
+                Ok(None)
+            }
+        }
     }
     
     fn collect_performance_data(&self, tracker: &MemoryTracker, unified_data: &mut UnifiedData) -> Result<(), BinaryExportError> {

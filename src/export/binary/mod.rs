@@ -79,6 +79,31 @@ impl BinaryExport {
         exporter.export(tracker, path)
     }
     
+    /// Export asynchronously with default settings
+    /// 
+    /// Provides non-blocking export operation with progress monitoring
+    /// and cancellation support.
+    pub async fn export_async<P: AsRef<std::path::Path>>(
+        tracker: &crate::tracker::MemoryTracker,
+        path: P,
+    ) -> Result<ExportResult, BinaryExportError> {
+        let config = ExportConfig::default();
+        Self::export_with_config_async(tracker, path, config).await
+    }
+    
+    /// Export asynchronously with custom configuration
+    /// 
+    /// Provides full control over async export behavior including
+    /// background processing, progress callbacks, and cancellation.
+    pub async fn export_with_config_async<P: AsRef<std::path::Path>>(
+        tracker: &crate::tracker::MemoryTracker,
+        path: P,
+        config: ExportConfig,
+    ) -> Result<ExportResult, BinaryExportError> {
+        let exporter = BinaryExporter::new(config);
+        exporter.export_async(tracker, path).await
+    }
+    
     /// Load and validate binary data
     /// 
     /// Reads binary export file and performs integrity validation.

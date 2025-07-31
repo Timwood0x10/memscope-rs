@@ -207,7 +207,7 @@ impl BinaryExporter {
         
         // Read file data
         let file_data = std::fs::read(path)
-            .map_err(|e| BinaryExportError::IoError(e))?;
+            .map_err(|e| BinaryExportError::IoError(e.kind()))?;
         
         // Decompress if needed
         let data = if self.is_compressed(&file_data)? {
@@ -275,6 +275,77 @@ impl BinaryExporter {
         Ok(data.len() as u64)
     }
 
+    /// Export memory tracking data asynchronously
+    pub async fn export_async<P: AsRef<Path>>(
+        &self,
+        tracker: &MemoryTracker,
+        path: P,
+    ) -> Result<ExportResult, BinaryExportError> {
+        let start_time = Instant::now();
+        let path = path.as_ref();
+        
+        // Validate input parameters
+        self.validate_export_params(tracker, path)?;
+        
+        // Collect data from tracker asynchronously
+        let collection_start = Instant::now();
+        let data = self.collect_data_async(tracker).await?;
+        let collection_time = collection_start.elapsed();
+        
+        // Serialize data in background task
+        let serialization_start = Instant::now();
+        let serialized_data = tokio::task::spawn_blocking({
+            let data = data.clone();
+            move || bincode::serialize(&data)
+        }).await
+        .map_err(|e| BinaryExportError::InternalError(e.to_string()))?
+        .map_err(|e| BinaryExportError::SerializationError(e.to_string()))?;
+        let serialization_time = serialization_start.elapsed();
+        
+        // Compress data if enabled (in background)
+        let (final_data, compression_time, compression_ratio) = if self.config.compression_enabled {
+            let compression_start = Instant::now();
+            let compressed = tokio::task::spawn_blocking({
+                let data = serialized_data.clone();
+                let level = self.config.compression_level;
+                move || zstd::bulk::compress(&data, level)
+            }).await
+            .map_err(|e| BinaryExportError::InternalError(e.to_string()))?
+            .map_err(|e| BinaryExportError::CompressionError(e.to_string()))?;
+            
+            let compression_time = compression_start.elapsed();
+            let ratio = compressed.len() as f64 / serialized_data.len() as f64;
+            (compressed, Some(compression_time), Some(ratio))
+        } else {
+            (serialized_data, None, None)
+        };
+        
+        // Write to file asynchronously
+        let write_start = Instant::now();
+        let bytes_written = self.write_to_file_async(&final_data, path).await?;
+        let write_time = write_start.elapsed();
+        
+        let total_duration = start_time.elapsed();
+        
+        // Build result
+        Ok(ExportResult {
+            bytes_written,
+            duration: total_duration,
+            compression_ratio,
+            allocation_count: data.allocations.allocations.len(),
+            warnings: Vec::new(),
+            stats: ExportStats {
+                collection_time,
+                serialization_time,
+                compression_time,
+                write_time,
+                original_size: serialized_data.len() as u64,
+                final_size: bytes_written,
+                peak_memory_usage: self.memory_manager.peak_usage(),
+            },
+        })
+    }
+
     /// Check if data is compressed
     fn is_compressed(&self, data: &[u8]) -> Result<bool, BinaryExportError> {
         // Simple heuristic: check for zstd magic number
@@ -291,6 +362,25 @@ impl BinaryExporter {
     fn deserialize_data(&self, data: &[u8]) -> Result<UnifiedData, BinaryExportError> {
         bincode::deserialize(data)
             .map_err(|e| BinaryExportError::SerializationError(e.to_string()))
+    }
+    
+    /// Collect data from memory tracker asynchronously
+    async fn collect_data_async(&self, tracker: &MemoryTracker) -> Result<UnifiedData, BinaryExportError> {
+        // Run data collection in a background task to avoid blocking
+        let collector = crate::export::binary::data::DataCollector::new(self.config.clone().into());
+        
+        tokio::task::spawn_blocking(move || {
+            collector.collect_from_tracker(tracker)
+        }).await
+        .map_err(|e| BinaryExportError::InternalError(e.to_string()))?
+    }
+    
+    /// Write data to file asynchronously
+    async fn write_to_file_async(&self, data: &[u8], path: &Path) -> Result<u64, BinaryExportError> {
+        tokio::fs::write(path, data).await
+            .map_err(|e| BinaryExportError::IoError(e.kind()))?;
+        
+        Ok(data.len() as u64)
     }
 }
 
