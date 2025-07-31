@@ -8,6 +8,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::thread;
+use std::time::Duration;
 
 /// Result type for tracking operations
 pub type TrackingResult<T> = Result<T, TrackingError>;
@@ -71,6 +72,10 @@ pub enum TrackingError {
     InvalidOperation(String),
     /// Validation error
     ValidationError(String),
+    /// Operation was cancelled by user
+    OperationCancelled,
+    /// Collection operation timed out
+    CollectionTimeout { timeout: Duration },
 }
 
 impl Clone for TrackingError {
@@ -106,6 +111,8 @@ impl Clone for TrackingError {
             TrackingError::NotImplemented(s) => TrackingError::NotImplemented(s.clone()),
             TrackingError::ValidationError(s) => TrackingError::ValidationError(s.clone()),
             TrackingError::InvalidOperation(s) => TrackingError::InvalidOperation(s.clone()),
+            TrackingError::OperationCancelled => TrackingError::OperationCancelled,
+            TrackingError::CollectionTimeout { timeout } => TrackingError::CollectionTimeout { timeout: *timeout },
         }
     }
 }
@@ -143,6 +150,8 @@ impl std::fmt::Display for TrackingError {
             TrackingError::NotImplemented(msg) => write!(f, "Not implemented: {msg}"),
             TrackingError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
             TrackingError::InvalidOperation(msg) => write!(f, "Invalid operation: {msg}"),
+            TrackingError::OperationCancelled => write!(f, "Operation was cancelled"),
+            TrackingError::CollectionTimeout { timeout } => write!(f, "Collection timeout after {:?}", timeout),
         }
     }
 }
