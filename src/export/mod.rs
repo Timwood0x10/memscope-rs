@@ -2,6 +2,7 @@ pub mod adaptive_performance;
 pub mod batch_processor;
 pub mod binary_exporter;
 pub mod binary_format;
+pub mod binary_parser;
 pub mod complex_type_export;
 pub mod config_optimizer;
 pub mod data_localizer;
