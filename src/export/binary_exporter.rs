@@ -18,8 +18,8 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-/// Binary export options configuration
-#[derive(Debug, Clone)]
+/// Binary export options configuration with comprehensive settings
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BinaryExportOptions {
     /// Compression type to use
     pub compression: CompressionType,
@@ -43,6 +43,155 @@ pub struct BinaryExportOptions {
     pub compression_threshold: usize,
     /// Enable security violation analysis
     pub enable_security_analysis: bool,
+    /// Section selection configuration
+    pub section_selection: SectionSelectionConfig,
+    /// Validation settings
+    pub validation: ValidationConfig,
+    /// Performance tuning settings
+    pub performance: PerformanceConfig,
+    /// Compatibility settings
+    pub compatibility: CompatibilityConfig,
+}
+
+/// Section selection configuration for fine-grained control
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SectionSelectionConfig {
+    /// Include memory statistics section
+    pub include_memory_stats: bool,
+    /// Include active allocations section
+    pub include_active_allocations: bool,
+    /// Include allocation history section
+    pub include_allocation_history: bool,
+    /// Include type memory usage section
+    pub include_type_memory_usage: bool,
+    /// Include FFI analysis section
+    pub include_ffi_analysis: bool,
+    /// Include lifecycle analysis section
+    pub include_lifecycle_analysis: bool,
+    /// Include performance data section
+    pub include_performance_data: bool,
+    /// Include variable registry section
+    pub include_variable_registry: bool,
+    /// Include security violations section
+    pub include_security_violations: bool,
+    /// Include memory passports section
+    pub include_memory_passports: bool,
+}
+
+/// Validation configuration
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidationConfig {
+    /// Enable checksum validation
+    pub enable_checksums: bool,
+    /// Enable data integrity checks
+    pub enable_integrity_checks: bool,
+    /// Enable schema validation
+    pub enable_schema_validation: bool,
+    /// Validation level (strict, normal, lenient)
+    pub validation_level: ValidationLevel,
+}
+
+/// Performance configuration
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PerformanceConfig {
+    /// Use memory mapping for large files
+    pub use_memory_mapping: bool,
+    /// Enable zero-copy optimizations
+    pub enable_zero_copy: bool,
+    /// Enable SIMD optimizations
+    pub enable_simd: bool,
+    /// Cache size for frequently accessed data
+    pub cache_size: usize,
+    /// Batch size for processing
+    pub batch_size: usize,
+}
+
+/// Compatibility configuration
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CompatibilityConfig {
+    /// Target format version
+    pub target_version: (u16, u16), // (major, minor)
+    /// Enable backward compatibility mode
+    pub backward_compatibility: bool,
+    /// Enable forward compatibility features
+    pub forward_compatibility: bool,
+    /// Compatibility level
+    pub compatibility_level: CompatibilityLevel,
+}
+
+/// Validation levels
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ValidationLevel {
+    /// Strict validation - all checks enabled
+    Strict,
+    /// Normal validation - standard checks
+    Normal,
+    /// Lenient validation - minimal checks for performance
+    Lenient,
+    /// No validation - maximum performance
+    None,
+}
+
+/// Compatibility levels
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum CompatibilityLevel {
+    /// Maximum compatibility - works with all versions
+    Maximum,
+    /// Standard compatibility - works with recent versions
+    Standard,
+    /// Minimal compatibility - latest features only
+    Minimal,
+}
+
+impl Default for SectionSelectionConfig {
+    fn default() -> Self {
+        Self {
+            include_memory_stats: true,
+            include_active_allocations: true,
+            include_allocation_history: true,
+            include_type_memory_usage: true,
+            include_ffi_analysis: true,
+            include_lifecycle_analysis: false, // Optional by default
+            include_performance_data: true,
+            include_variable_registry: true,
+            include_security_violations: false, // Optional by default
+            include_memory_passports: false,   // Optional by default
+        }
+    }
+}
+
+impl Default for ValidationConfig {
+    fn default() -> Self {
+        Self {
+            enable_checksums: true,
+            enable_integrity_checks: true,
+            enable_schema_validation: false, // Disabled for performance
+            validation_level: ValidationLevel::Normal,
+        }
+    }
+}
+
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            use_memory_mapping: false, // Disabled by default for compatibility
+            enable_zero_copy: true,
+            enable_simd: false, // Disabled by default for compatibility
+            cache_size: 64 * 1024, // 64KB cache
+            batch_size: 1000,
+        }
+    }
+}
+
+impl Default for CompatibilityConfig {
+    fn default() -> Self {
+        Self {
+            target_version: (1, 0), // Current version
+            backward_compatibility: true,
+            forward_compatibility: false,
+            compatibility_level: CompatibilityLevel::Standard,
+        }
+    }
 }
 
 impl Default for BinaryExportOptions {
@@ -59,6 +208,10 @@ impl Default for BinaryExportOptions {
             auto_compression: true,
             compression_threshold: 1024, // 1KB
             enable_security_analysis: false,
+            section_selection: SectionSelectionConfig::default(),
+            validation: ValidationConfig::default(),
+            performance: PerformanceConfig::default(),
+            compatibility: CompatibilityConfig::default(),
         }
     }
 }
@@ -74,18 +227,63 @@ impl BinaryExportOptions {
 
     /// Create fast export options (minimal compression, parallel processing)
     pub fn fast() -> Self {
+        let mut section_selection = SectionSelectionConfig::default();
+        section_selection.include_allocation_history = false;
+        section_selection.include_lifecycle_analysis = false;
+        section_selection.include_security_violations = false;
+        section_selection.include_memory_passports = false;
+
+        let validation = ValidationConfig {
+            enable_checksums: false,
+            enable_integrity_checks: false,
+            enable_schema_validation: false,
+            validation_level: ValidationLevel::None,
+        };
+
+        let performance = PerformanceConfig {
+            use_memory_mapping: true,
+            enable_zero_copy: true,
+            enable_simd: true,
+            cache_size: 128 * 1024, // Larger cache for speed
+            batch_size: 2000,       // Larger batches
+        };
+
         Self {
             compression: CompressionType::Lz4,
             include_history: false,
             include_ffi_analysis: false,
             enable_parallel_encoding: true,
             auto_compression: false,
+            enable_security_analysis: false,
+            section_selection,
+            validation,
+            performance,
             ..Default::default()
         }
     }
 
     /// Create comprehensive export options (maximum data, best compression)
     pub fn comprehensive() -> Self {
+        let section_selection = SectionSelectionConfig {
+            include_memory_stats: true,
+            include_active_allocations: true,
+            include_allocation_history: true,
+            include_type_memory_usage: true,
+            include_ffi_analysis: true,
+            include_lifecycle_analysis: true,
+            include_performance_data: true,
+            include_variable_registry: true,
+            include_security_violations: true,
+            include_memory_passports: true,
+        };
+
+        let validation = ValidationConfig {
+            enable_checksums: true,
+            enable_integrity_checks: true,
+            enable_schema_validation: true,
+            validation_level: ValidationLevel::Strict,
+        };
+
         Self {
             compression: CompressionType::Zstd,
             include_history: true,
@@ -93,9 +291,46 @@ impl BinaryExportOptions {
             enable_parallel_encoding: true,
             auto_compression: true,
             enable_security_analysis: true,
+            section_selection,
+            validation,
             ..Default::default()
         }
     }
+
+    /// Create options optimized for production use
+    pub fn production() -> Self {
+        let mut section_selection = SectionSelectionConfig::default();
+        section_selection.include_security_violations = true; // Important for production
+
+        let validation = ValidationConfig {
+            enable_checksums: true,
+            enable_integrity_checks: true,
+            enable_schema_validation: false, // Skip for performance
+            validation_level: ValidationLevel::Normal,
+        };
+
+        let performance = PerformanceConfig {
+            use_memory_mapping: true,
+            enable_zero_copy: true,
+            enable_simd: false, // Conservative for compatibility
+            cache_size: 256 * 1024, // Larger cache
+            batch_size: 1500,
+        };
+
+        Self {
+            compression: CompressionType::Lz4,
+            enable_parallel_encoding: true,
+            enable_progress_reporting: true, // Useful in production
+            section_selection,
+            validation,
+            performance,
+            ..Default::default()
+        }
+    }
+
+    // ============================================================================
+    // Configuration Builder Methods
+    // ============================================================================
 
     /// Set compression type
     pub fn compression(mut self, compression: CompressionType) -> Self {
@@ -106,12 +341,14 @@ impl BinaryExportOptions {
     /// Set whether to include history
     pub fn include_history(mut self, include: bool) -> Self {
         self.include_history = include;
+        self.section_selection.include_allocation_history = include;
         self
     }
 
     /// Set whether to include FFI analysis
     pub fn include_ffi_analysis(mut self, include: bool) -> Self {
         self.include_ffi_analysis = include;
+        self.section_selection.include_ffi_analysis = include;
         self
     }
 
@@ -143,6 +380,286 @@ impl BinaryExportOptions {
     pub fn auto_compression(mut self, enabled: bool) -> Self {
         self.auto_compression = enabled;
         self
+    }
+
+    /// Set section selection configuration
+    pub fn section_selection(mut self, config: SectionSelectionConfig) -> Self {
+        self.section_selection = config;
+        self
+    }
+
+    /// Set validation configuration
+    pub fn validation(mut self, config: ValidationConfig) -> Self {
+        self.validation = config;
+        self
+    }
+
+    /// Set performance configuration
+    pub fn performance(mut self, config: PerformanceConfig) -> Self {
+        self.performance = config;
+        self
+    }
+
+    /// Set compatibility configuration
+    pub fn compatibility(mut self, config: CompatibilityConfig) -> Self {
+        self.compatibility = config;
+        self
+    }
+
+    /// Enable progress reporting
+    pub fn progress_reporting(mut self, enabled: bool) -> Self {
+        self.enable_progress_reporting = enabled;
+        self
+    }
+
+    /// Enable security analysis
+    pub fn security_analysis(mut self, enabled: bool) -> Self {
+        self.enable_security_analysis = enabled;
+        self.section_selection.include_security_violations = enabled;
+        self
+    }
+
+    // ============================================================================
+    // Configuration Validation and Conversion
+    // ============================================================================
+
+    /// Validate the configuration and return any issues
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+
+        // Validate buffer size
+        if self.buffer_size < 1024 {
+            errors.push("Buffer size must be at least 1KB".to_string());
+        }
+        if self.buffer_size > 100 * 1024 * 1024 {
+            errors.push("Buffer size should not exceed 100MB".to_string());
+        }
+
+        // Validate thread count
+        if let Some(count) = self.thread_count {
+            if count == 0 {
+                errors.push("Thread count must be greater than 0".to_string());
+            }
+            if count > 64 {
+                errors.push("Thread count should not exceed 64".to_string());
+            }
+        }
+
+        // Validate memory limit
+        if self.memory_limit > 0 && self.memory_limit < 10 * 1024 * 1024 {
+            errors.push("Memory limit should be at least 10MB if specified".to_string());
+        }
+
+        // Validate compression threshold
+        if self.compression_threshold > 100 * 1024 * 1024 {
+            errors.push("Compression threshold should not exceed 100MB".to_string());
+        }
+
+        // Validate performance settings
+        if self.performance.cache_size < 1024 {
+            errors.push("Cache size must be at least 1KB".to_string());
+        }
+        if self.performance.batch_size == 0 {
+            errors.push("Batch size must be greater than 0".to_string());
+        }
+
+        // Check for conflicting settings
+        if self.compression == CompressionType::None && self.auto_compression {
+            errors.push("Auto compression cannot be enabled with no compression".to_string());
+        }
+
+        if self.validation.validation_level == ValidationLevel::None 
+            && (self.validation.enable_checksums || self.validation.enable_integrity_checks) {
+            errors.push("Cannot enable specific validations with validation level None".to_string());
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Convert from OptimizedExportOptions for backward compatibility
+    pub fn from_optimized_export_options(
+        options: &crate::export::optimized_json_export::OptimizedExportOptions,
+    ) -> Self {
+        let mut binary_options = Self::default();
+
+        // Map buffer size
+        binary_options.buffer_size = options.buffer_size;
+
+        // Map parallel processing
+        binary_options.enable_parallel_encoding = options.parallel_processing;
+
+        // Map thread count if available
+        if let Some(thread_count) = options.thread_count {
+            binary_options.thread_count = Some(thread_count);
+        }
+
+        // Map compression based on compact format setting
+        if let Some(use_compact) = options.use_compact_format {
+            if use_compact {
+                binary_options.compression = CompressionType::Zstd;
+                binary_options.auto_compression = true;
+            } else {
+                binary_options.compression = CompressionType::Lz4;
+            }
+        }
+
+        // Map validation settings
+        binary_options.validation.enable_schema_validation = options.enable_schema_validation;
+
+        // Map security analysis
+        binary_options.enable_security_analysis = options.enable_security_analysis;
+        binary_options.section_selection.include_security_violations = options.enable_security_analysis;
+
+        // Map FFI analysis
+        binary_options.include_ffi_analysis = options.enable_enhanced_ffi_analysis;
+        binary_options.section_selection.include_ffi_analysis = options.enable_enhanced_ffi_analysis;
+
+        // Map memory passport tracking
+        binary_options.section_selection.include_memory_passports = 
+            options.enable_memory_passport_tracking;
+
+        // Map batch size
+        binary_options.performance.batch_size = options.batch_size;
+
+        binary_options
+    }
+
+    /// Convert to OptimizedExportOptions for integration
+    pub fn to_optimized_export_options(&self) -> crate::export::optimized_json_export::OptimizedExportOptions {
+        use crate::export::optimized_json_export::{OptimizationLevel, OptimizedExportOptions};
+
+        let mut json_options = OptimizedExportOptions::default();
+
+        // Map buffer size
+        json_options.buffer_size = self.buffer_size;
+
+        // Map parallel processing
+        json_options.parallel_processing = self.enable_parallel_encoding;
+
+        // Map thread count
+        json_options.thread_count = self.thread_count;
+
+        // Map compression to compact format
+        json_options.use_compact_format = Some(match self.compression {
+            CompressionType::None => false,
+            CompressionType::Lz4 => true,
+            CompressionType::Zstd => true,
+        });
+
+        // Map optimization level based on validation and performance settings
+        json_options.optimization_level = match self.validation.validation_level {
+            ValidationLevel::None => OptimizationLevel::Maximum,
+            ValidationLevel::Lenient => OptimizationLevel::High,
+            ValidationLevel::Normal => OptimizationLevel::Medium,
+            ValidationLevel::Strict => OptimizationLevel::Low,
+        };
+
+        // Map validation settings
+        json_options.enable_schema_validation = self.validation.enable_schema_validation;
+
+        // Map security analysis
+        json_options.enable_security_analysis = self.enable_security_analysis;
+
+        // Map FFI analysis
+        json_options.enable_enhanced_ffi_analysis = self.include_ffi_analysis;
+
+        // Map memory passport tracking
+        json_options.enable_memory_passport_tracking = 
+            self.section_selection.include_memory_passports;
+
+        // Map batch size
+        json_options.batch_size = self.performance.batch_size;
+
+        json_options
+    }
+
+    /// Save configuration to file
+    pub fn save_to_file<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        let json = serde_json::to_string_pretty(self).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to serialize configuration: {}",
+                e
+            ))
+        })?;
+
+        std::fs::write(path, json).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to write configuration file: {}",
+                e
+            ))
+        })?;
+
+        Ok(())
+    }
+
+    /// Load configuration from file
+    pub fn load_from_file<P: AsRef<std::path::Path>>(path: P) -> TrackingResult<Self> {
+        let json = std::fs::read_to_string(path).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to read configuration file: {}",
+                e
+            ))
+        })?;
+
+        let options: Self = serde_json::from_str(&json).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to parse configuration: {}",
+                e
+            ))
+        })?;
+
+        // Validate the loaded configuration
+        if let Err(errors) = options.validate() {
+            return Err(crate::core::types::TrackingError::ExportError(format!(
+                "Invalid configuration: {}",
+                errors.join(", ")
+            )));
+        }
+
+        Ok(options)
+    }
+
+    /// Get a summary of the current configuration
+    pub fn summary(&self) -> String {
+        format!(
+            "BinaryExportOptions Summary:\n\
+             - Compression: {:?}\n\
+             - Buffer Size: {} KB\n\
+             - Parallel Encoding: {}\n\
+             - Thread Count: {:?}\n\
+             - Memory Limit: {} MB\n\
+             - Validation Level: {:?}\n\
+             - Sections: {} enabled\n\
+             - Performance Optimizations: {}",
+            self.compression,
+            self.buffer_size / 1024,
+            self.enable_parallel_encoding,
+            self.thread_count,
+            if self.memory_limit > 0 { self.memory_limit / 1024 / 1024 } else { 0 },
+            self.validation.validation_level,
+            self.count_enabled_sections(),
+            if self.performance.enable_simd { "SIMD enabled" } else { "Standard" }
+        )
+    }
+
+    /// Count the number of enabled sections
+    fn count_enabled_sections(&self) -> usize {
+        let mut count = 0;
+        if self.section_selection.include_memory_stats { count += 1; }
+        if self.section_selection.include_active_allocations { count += 1; }
+        if self.section_selection.include_allocation_history { count += 1; }
+        if self.section_selection.include_type_memory_usage { count += 1; }
+        if self.section_selection.include_ffi_analysis { count += 1; }
+        if self.section_selection.include_lifecycle_analysis { count += 1; }
+        if self.section_selection.include_performance_data { count += 1; }
+        if self.section_selection.include_variable_registry { count += 1; }
+        if self.section_selection.include_security_violations { count += 1; }
+        if self.section_selection.include_memory_passports { count += 1; }
+        count
     }
 }
 
