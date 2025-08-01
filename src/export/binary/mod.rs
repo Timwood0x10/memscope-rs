@@ -18,6 +18,12 @@ pub mod error;
 pub mod validation;
 pub mod compression;
 pub mod processor;
+pub mod format;
+pub mod parallel;
+pub mod integration;
+
+#[cfg(test)]
+pub mod tests;
 
 // Re-export main public API
 pub use export::{BinaryExporter, ExportConfig, ExportResult};
@@ -28,6 +34,9 @@ pub use memory::{MemoryManager, ZeroCopyView, SmartBuffer};
 pub use validation::ValidationReport;
 pub use compression::{CompressionManager, CompressionConfig, CompressionAlgorithm, CompressionStats};
 pub use processor::{DataProcessor, ProcessingConfig, ProcessStats, ProcessedData};
+pub use format::{FormatManager, OutputFormat, FormatWriter, FormatDetector};
+pub use parallel::{ParallelProcessor, ParallelConfig, ParallelStats, LoadBalancingStrategy};
+pub use integration::{IntegratedBinaryExporter, IntegratedConfig, IntegratedExportResult};
 
 // Export format version for compatibility tracking
 pub const BINARY_FORMAT_VERSION: u32 = 2;

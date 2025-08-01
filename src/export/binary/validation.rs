@@ -48,12 +48,629 @@ pub struct CompressionInfo {
     pub is_compressed: bool,
     /// Compression algorithm (if known)
     pub algorithm: Option<String>,
-    /// Compression ratio (compressed/original)
-    pub ratio: Option<f64>,
+    /// Compression ratio
+    pub compression_ratio: Option<f64>,
     /// Original size before compression
     pub original_size: Option<u64>,
-    /// Compressed size
-    pub compressed_size: Option<u64>,
+}
+
+/// Validation error details
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationError {
+    /// Error type
+    pub error_type: ValidationErrorType,
+    /// Error message
+    pub message: String,
+    /// Location in file where error occurred (if applicable)
+    pub file_offset: Option<u64>,
+    /// Severity level
+    pub severity: ValidationSeverity,
+}
+
+/// Types of validation errors
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ValidationErrorType {
+    /// Invalid file format
+    InvalidFormat,
+    /// Unsupported version
+    UnsupportedVersion,
+    /// Checksum mismatch
+    ChecksumMismatch,
+    /// Data corruption detected
+    DataCorruption,
+    /// Missing required data
+    MissingData,
+    /// Invalid data structure
+    InvalidStructure,
+    /// Compression error
+    CompressionError,
+}
+
+/// Validation error severity levels
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum ValidationSeverity {
+    /// Information only
+    Info,
+    /// Warning - file may still be usable
+    Warning,
+    /// Error - file has issues but may be partially recoverable
+    Error,
+    /// Critical - file is unusable
+    Critical,
+}
+
+/// Validation statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationStats {
+    /// Total validation time
+    pub validation_time: std::time::Duration,
+    /// Number of bytes validated
+    pub bytes_validated: u64,
+    /// Number of data structures validated
+    pub structures_validated: u32,
+    /// Number of checksums verified
+    pub checksums_verified: u32,
+    /// Validation throughput (bytes/second)
+    pub throughput: f64,
+}
+
+/// Comprehensive data integrity checker
+pub struct IntegrityChecker {
+    /// Configuration for integrity checking
+    config: IntegrityConfig,
+    /// Checksum calculator
+    checksum_calculator: ChecksumCalculator,
+    /// Structure validator
+    structure_validator: StructureValidator,
+}
+
+/// Configuration for integrity checking
+#[derive(Debug, Clone)]
+pub struct IntegrityConfig {
+    /// Enable deep structure validation
+    pub deep_validation: bool,
+    /// Enable checksum verification
+    pub verify_checksums: bool,
+    /// Enable data consistency checks
+    pub consistency_checks: bool,
+    /// Maximum validation time (None = no limit)
+    pub max_validation_time: Option<std::time::Duration>,
+    /// Validation strictness level
+    pub strictness: ValidationStrictness,
+}
+
+/// Validation strictness levels
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationStrictness {
+    /// Minimal validation - only basic format checks
+    Minimal,
+    /// Standard validation - format and basic integrity
+    Standard,
+    /// Strict validation - comprehensive checks
+    Strict,
+    /// Paranoid validation - all possible checks
+    Paranoid,
+}
+
+impl Default for IntegrityConfig {
+    fn default() -> Self {
+        Self {
+            deep_validation: true,
+            verify_checksums: true,
+            consistency_checks: true,
+            max_validation_time: Some(std::time::Duration::from_secs(30)),
+            strictness: ValidationStrictness::Standard,
+        }
+    }
+}
+
+/// Checksum calculator for various algorithms
+struct ChecksumCalculator {
+    /// Supported checksum algorithms
+    algorithms: Vec<ChecksumAlgorithm>,
+}
+
+/// Supported checksum algorithms
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChecksumAlgorithm {
+    /// CRC32
+    Crc32,
+    /// SHA-256
+    Sha256,
+    /// Blake3
+    Blake3,
+    /// xxHash
+    XxHash,
+}
+
+/// Structure validator for data integrity
+struct StructureValidator {
+    /// Known data structure patterns
+    patterns: Vec<StructurePattern>,
+}
+
+/// Data structure validation patterns
+struct StructurePattern {
+    /// Pattern name
+    name: String,
+    /// Pattern validator function
+    validator: fn(&[u8]) -> bool,
+}
+
+impl IntegrityChecker {
+    /// Create a new integrity checker
+    pub fn new(config: IntegrityConfig) -> Self {
+        Self {
+            config,
+            checksum_calculator: ChecksumCalculator::new(),
+            structure_validator: StructureValidator::new(),
+        }
+    }
+
+    /// Perform comprehensive integrity check on data
+    pub fn check_integrity(&self, data: &[u8]) -> Result<IntegrityReport, BinaryExportError> {
+        let start_time = std::time::Instant::now();
+        let mut report = IntegrityReport::new();
+
+        // Check if validation should be time-limited
+        let deadline = self.config.max_validation_time.map(|duration| start_time + duration);
+
+        // Basic format validation
+        self.validate_format(data, &mut report)?;
+        if self.should_stop(&deadline) { return Ok(report); }
+
+        // Checksum validation
+        if self.config.verify_checksums {
+            self.validate_checksums(data, &mut report)?;
+            if self.should_stop(&deadline) { return Ok(report); }
+        }
+
+        // Structure validation
+        if self.config.deep_validation {
+            self.validate_structure(data, &mut report)?;
+            if self.should_stop(&deadline) { return Ok(report); }
+        }
+
+        // Consistency checks
+        if self.config.consistency_checks {
+            self.validate_consistency(data, &mut report)?;
+            if self.should_stop(&deadline) { return Ok(report); }
+        }
+
+        // Finalize report
+        report.validation_time = start_time.elapsed();
+        report.overall_score = self.calculate_integrity_score(&report);
+
+        Ok(report)
+    }
+
+    /// Validate basic format structure
+    fn validate_format(&self, data: &[u8], report: &mut IntegrityReport) -> Result<(), BinaryExportError> {
+        if data.len() < 16 {
+            report.add_error(IntegrityError {
+                error_type: IntegrityErrorType::InvalidFormat,
+                message: "File too small to contain valid binary data".to_string(),
+                location: Some(0),
+                severity: ValidationSeverity::Critical,
+            });
+            return Ok(());
+        }
+
+        // Check magic bytes
+        let expected_magic = b"MEMBIN";
+        if !data.starts_with(expected_magic) {
+            report.add_error(IntegrityError {
+                error_type: IntegrityErrorType::InvalidFormat,
+                message: "Invalid magic bytes - not a valid binary export file".to_string(),
+                location: Some(0),
+                severity: ValidationSeverity::Critical,
+            });
+        }
+
+        // Check version
+        if data.len() >= 10 {
+            let version = u32::from_le_bytes([data[6], data[7], data[8], data[9]]);
+            report.format_version = Some(version);
+            
+            if version > BINARY_FORMAT_VERSION {
+                report.add_error(IntegrityError {
+                    error_type: IntegrityErrorType::UnsupportedVersion,
+                    message: format!("Unsupported version: {} (max supported: {})", version, BINARY_FORMAT_VERSION),
+                    location: Some(6),
+                    severity: ValidationSeverity::Error,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate checksums throughout the data
+    fn validate_checksums(&self, data: &[u8], report: &mut IntegrityReport) -> Result<(), BinaryExportError> {
+        // Look for embedded checksums and validate them
+        let mut offset = 0;
+        let mut checksums_found = 0;
+
+        while offset + 8 < data.len() {
+            // Look for checksum markers
+            if self.is_checksum_marker(&data[offset..offset + 4]) {
+                let checksum_start = offset + 4;
+                let checksum_end = checksum_start + 4;
+                
+                if checksum_end < data.len() {
+                    let stored_checksum = u32::from_le_bytes([
+                        data[checksum_start],
+                        data[checksum_start + 1],
+                        data[checksum_start + 2],
+                        data[checksum_start + 3],
+                    ]);
+                    
+                    // Find the data this checksum covers
+                    if let Some(data_range) = self.find_checksum_data_range(data, offset) {
+                        let calculated_checksum = crc32fast::hash(&data[data_range.clone()]);
+                        
+                        if stored_checksum != calculated_checksum {
+                            report.add_error(IntegrityError {
+                                error_type: IntegrityErrorType::ChecksumMismatch,
+                                message: format!("Checksum mismatch at offset {}: expected {}, got {}", 
+                                    offset, stored_checksum, calculated_checksum),
+                                location: Some(offset as u64),
+                                severity: ValidationSeverity::Error,
+                            });
+                        } else {
+                            checksums_found += 1;
+                        }
+                    }
+                }
+            }
+            offset += 1;
+        }
+
+        report.checksums_verified = checksums_found;
+        Ok(())
+    }
+
+    /// Validate data structure integrity
+    fn validate_structure(&self, data: &[u8], report: &mut IntegrityReport) -> Result<(), BinaryExportError> {
+        // Try to deserialize as UnifiedData to check structure
+        match bincode::deserialize::<UnifiedData>(data) {
+            Ok(unified_data) => {
+                // Validate the deserialized data structure
+                self.validate_unified_data(&unified_data, report)?;
+            }
+            Err(e) => {
+                report.add_error(IntegrityError {
+                    error_type: IntegrityErrorType::InvalidStructure,
+                    message: format!("Failed to deserialize data structure: {}", e),
+                    location: None,
+                    severity: ValidationSeverity::Error,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate consistency of the unified data
+    fn validate_consistency(&self, data: &[u8], report: &mut IntegrityReport) -> Result<(), BinaryExportError> {
+        if let Ok(unified_data) = bincode::deserialize::<UnifiedData>(data) {
+            // Check allocation consistency
+            self.check_allocation_consistency(&unified_data, report);
+            
+            // Check analysis data consistency
+            self.check_analysis_consistency(&unified_data, report);
+            
+            // Check metadata consistency
+            self.check_metadata_consistency(&unified_data, report);
+        }
+
+        Ok(())
+    }
+
+    /// Check allocation data consistency
+    fn check_allocation_consistency(&self, data: &UnifiedData, report: &mut IntegrityReport) {
+        let allocations = &data.allocations.allocations;
+        
+        // Check for duplicate allocation IDs
+        let mut seen_ids = std::collections::HashSet::new();
+        for allocation in allocations {
+            if !seen_ids.insert(allocation.id) {
+                report.add_error(IntegrityError {
+                    error_type: IntegrityErrorType::DataCorruption,
+                    message: format!("Duplicate allocation ID: {}", allocation.id),
+                    location: None,
+                    severity: ValidationSeverity::Warning,
+                });
+            }
+        }
+
+        // Check allocation size consistency
+        for allocation in allocations {
+            if allocation.size == 0 {
+                report.add_warning(format!("Zero-size allocation found: ID {}", allocation.id));
+            }
+            
+            if allocation.address == 0 {
+                report.add_warning(format!("Null address allocation found: ID {}", allocation.id));
+            }
+        }
+    }
+
+    /// Check analysis data consistency
+    fn check_analysis_consistency(&self, data: &UnifiedData, report: &mut IntegrityReport) {
+        // Check if analysis data is consistent with allocation data
+        let allocation_count = data.allocations.allocations.len();
+        
+        if let Some(ref lifecycle) = data.analysis.lifecycle {
+            if lifecycle.allocation_patterns.is_empty() && allocation_count > 0 {
+                report.add_warning("No lifecycle patterns found despite having allocations".to_string());
+            }
+        }
+
+        // Add more consistency checks as needed
+    }
+
+    /// Check metadata consistency
+    fn check_metadata_consistency(&self, data: &UnifiedData, report: &mut IntegrityReport) {
+        let metadata = &data.metadata;
+        
+        // Check timestamp validity
+        if let Ok(duration_since_epoch) = metadata.export_timestamp.duration_since(std::time::UNIX_EPOCH) {
+            let timestamp_secs = duration_since_epoch.as_secs();
+            let current_secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            
+            // Check if timestamp is in the future (with some tolerance)
+            if timestamp_secs > current_secs + 3600 { // 1 hour tolerance
+                report.add_warning("Export timestamp is in the future".to_string());
+            }
+            
+            // Check if timestamp is too old (more than 1 year)
+            if current_secs > timestamp_secs + 365 * 24 * 3600 {
+                report.add_warning("Export timestamp is more than 1 year old".to_string());
+            }
+        }
+
+        // Check format version
+        if metadata.format_version == 0 {
+            report.add_error(IntegrityError {
+                error_type: IntegrityErrorType::InvalidFormat,
+                message: "Invalid format version (0)".to_string(),
+                location: None,
+                severity: ValidationSeverity::Error,
+            });
+        }
+    }
+
+    /// Validate the unified data structure
+    fn validate_unified_data(&self, data: &UnifiedData, report: &mut IntegrityReport) -> Result<(), BinaryExportError> {
+        // Check required fields
+        if data.allocations.allocations.is_empty() {
+            report.add_warning("No allocation data found".to_string());
+        }
+
+        // Check data relationships
+        self.validate_data_relationships(data, report);
+
+        Ok(())
+    }
+
+    /// Validate relationships between different data sections
+    fn validate_data_relationships(&self, data: &UnifiedData, report: &mut IntegrityReport) {
+        // Check if call stacks reference valid allocations
+        for (stack_id, _stack) in &data.allocations.call_stacks {
+            // Verify that this stack ID is referenced by at least one allocation
+            let referenced = data.allocations.allocations.iter()
+                .any(|alloc| alloc.call_stack_id == Some(*stack_id));
+            
+            if !referenced {
+                report.add_warning(format!("Orphaned call stack: {}", stack_id));
+            }
+        }
+    }
+
+    /// Check if we should stop validation due to time limit
+    fn should_stop(&self, deadline: &Option<std::time::Instant>) -> bool {
+        if let Some(deadline) = deadline {
+            std::time::Instant::now() > *deadline
+        } else {
+            false
+        }
+    }
+
+    /// Check if bytes represent a checksum marker
+    fn is_checksum_marker(&self, bytes: &[u8]) -> bool {
+        bytes == b"CRC\x00" || bytes == b"SHA\x00" || bytes == b"CHK\x00"
+    }
+
+    /// Find the data range that a checksum covers
+    fn find_checksum_data_range(&self, _data: &[u8], _checksum_offset: usize) -> Option<std::ops::Range<usize>> {
+        // This would implement logic to find the data range for a checksum
+        // For now, return None as a placeholder
+        None
+    }
+
+    /// Calculate overall integrity score
+    fn calculate_integrity_score(&self, report: &IntegrityReport) -> f64 {
+        let total_issues = report.errors.len() + report.warnings.len();
+        
+        if total_issues == 0 {
+            return 1.0;
+        }
+
+        let error_weight = report.errors.iter()
+            .map(|e| match e.severity {
+                ValidationSeverity::Critical => 1.0,
+                ValidationSeverity::Error => 0.5,
+                ValidationSeverity::Warning => 0.1,
+                ValidationSeverity::Info => 0.01,
+            })
+            .sum::<f64>();
+
+        let warning_weight = report.warnings.len() as f64 * 0.05;
+        let total_weight = error_weight + warning_weight;
+
+        (1.0 - (total_weight / 10.0)).max(0.0)
+    }
+}
+
+/// Integrity validation report
+#[derive(Debug, Clone)]
+pub struct IntegrityReport {
+    /// Overall integrity score (0.0 to 1.0)
+    pub overall_score: f64,
+    /// Format version detected
+    pub format_version: Option<u32>,
+    /// Number of checksums verified
+    pub checksums_verified: u32,
+    /// Validation errors found
+    pub errors: Vec<IntegrityError>,
+    /// Validation warnings
+    pub warnings: Vec<String>,
+    /// Validation time taken
+    pub validation_time: std::time::Duration,
+}
+
+/// Integrity validation error
+#[derive(Debug, Clone)]
+pub struct IntegrityError {
+    /// Type of integrity error
+    pub error_type: IntegrityErrorType,
+    /// Error message
+    pub message: String,
+    /// Location in data where error occurred
+    pub location: Option<u64>,
+    /// Severity level
+    pub severity: ValidationSeverity,
+}
+
+/// Types of integrity errors
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegrityErrorType {
+    /// Invalid format
+    InvalidFormat,
+    /// Unsupported version
+    UnsupportedVersion,
+    /// Checksum mismatch
+    ChecksumMismatch,
+    /// Data corruption
+    DataCorruption,
+    /// Invalid structure
+    InvalidStructure,
+    /// Missing data
+    MissingData,
+}
+
+impl IntegrityReport {
+    fn new() -> Self {
+        Self {
+            overall_score: 0.0,
+            format_version: None,
+            checksums_verified: 0,
+            errors: Vec::new(),
+            warnings: Vec::new(),
+            validation_time: std::time::Duration::from_millis(0),
+        }
+    }
+
+    fn add_error(&mut self, error: IntegrityError) {
+        self.errors.push(error);
+    }
+
+    fn add_warning(&mut self, warning: String) {
+        self.warnings.push(warning);
+    }
+
+    /// Check if the data passed integrity validation
+    pub fn is_valid(&self) -> bool {
+        self.overall_score > 0.8 && !self.errors.iter().any(|e| e.severity == ValidationSeverity::Critical)
+    }
+}
+
+impl ChecksumCalculator {
+    fn new() -> Self {
+        Self {
+            algorithms: vec![
+                ChecksumAlgorithm::Crc32,
+                ChecksumAlgorithm::Sha256,
+                ChecksumAlgorithm::Blake3,
+                ChecksumAlgorithm::XxHash,
+            ],
+        }
+    }
+
+    /// Calculate checksum using the specified algorithm
+    fn calculate(&self, data: &[u8], algorithm: ChecksumAlgorithm) -> Vec<u8> {
+        match algorithm {
+            ChecksumAlgorithm::Crc32 => {
+                crc32fast::hash(data).to_le_bytes().to_vec()
+            }
+            ChecksumAlgorithm::Sha256 => {
+                let mut hasher = Sha256::new();
+                hasher.update(data);
+                hasher.finalize().to_vec()
+            }
+            ChecksumAlgorithm::Blake3 => {
+                // Placeholder - would use blake3 crate
+                crc32fast::hash(data).to_le_bytes().to_vec()
+            }
+            ChecksumAlgorithm::XxHash => {
+                // Placeholder - would use xxhash crate
+                crc32fast::hash(data).to_le_bytes().to_vec()
+            }
+        }
+    }
+}
+
+impl StructureValidator {
+    fn new() -> Self {
+        Self {
+            patterns: vec![
+                StructurePattern {
+                    name: "UnifiedData".to_string(),
+                    validator: Self::validate_unified_data_pattern,
+                },
+                StructurePattern {
+                    name: "AllocationRecord".to_string(),
+                    validator: Self::validate_allocation_pattern,
+                },
+            ],
+        }
+    }
+
+    fn validate_unified_data_pattern(data: &[u8]) -> bool {
+        // Try to deserialize as UnifiedData
+        bincode::deserialize::<UnifiedData>(data).is_ok()
+    }
+
+    fn validate_allocation_pattern(data: &[u8]) -> bool {
+        // Basic pattern validation for allocation records
+        data.len() >= 32 // Minimum size for allocation record
+    }
+}
+
+/// Enhanced validation function with comprehensive integrity checking
+pub fn validate_with_integrity<P: AsRef<Path>>(
+    path: P,
+    config: IntegrityConfig,
+) -> Result<(ValidationReport, IntegrityReport), BinaryExportError> {
+    let path = path.as_ref();
+    let start_time = std::time::Instant::now();
+
+    // Read file data
+    let data = std::fs::read(path)
+        .map_err(|e| BinaryExportError::IoError(e.kind()))?;
+
+    // Perform basic validation
+    let validation_report = validate_binary_file(path)?;
+
+    // Perform integrity checking
+    let integrity_checker = IntegrityChecker::new(config);
+    let integrity_report = integrity_checker.check_integrity(&data)?;
+
+    Ok((validation_report, integrity_report))
 }
 
 /// Validation error details
