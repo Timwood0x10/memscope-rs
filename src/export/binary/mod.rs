@@ -21,9 +21,14 @@ pub mod processor;
 pub mod format;
 pub mod parallel;
 pub mod integration;
+pub mod parser;
+pub mod optimization;
 
 #[cfg(test)]
 pub mod tests;
+
+#[cfg(test)]
+pub mod benchmarks;
 
 // Re-export main public API
 pub use export::{BinaryExporter, ExportConfig, ExportResult};
@@ -37,6 +42,8 @@ pub use processor::{DataProcessor, ProcessingConfig, ProcessStats, ProcessedData
 pub use format::{FormatManager, OutputFormat, FormatWriter, FormatDetector};
 pub use parallel::{ParallelProcessor, ParallelConfig, ParallelStats, LoadBalancingStrategy};
 pub use integration::{IntegratedBinaryExporter, IntegratedConfig, IntegratedExportResult};
+pub use parser::{BinaryDataParser, ParserConfig, ParseResult};
+pub use optimization::{PerformanceOptimizer, OptimizationResult, PerformanceSnapshot};
 
 // Export format version for compatibility tracking
 pub const BINARY_FORMAT_VERSION: u32 = 2;
