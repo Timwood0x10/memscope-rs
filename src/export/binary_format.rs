@@ -78,6 +78,10 @@ pub enum SectionType {
     PerformanceData = 7,
     /// Variable registry data
     VariableRegistry = 8,
+    /// Security violations and analysis
+    SecurityViolations = 9,
+    /// Memory passports for cross-boundary tracking
+    MemoryPassports = 10,
 }
 
 /// Section directory entry (16 bytes)
@@ -363,6 +367,8 @@ impl SectionEntry {
             6 => SectionType::LifecycleAnalysis,
             7 => SectionType::PerformanceData,
             8 => SectionType::VariableRegistry,
+            9 => SectionType::SecurityViolations,
+            10 => SectionType::MemoryPassports,
             other => return Err(BinaryFormatError::InvalidSectionType(other)),
         };
         offset += 1;
