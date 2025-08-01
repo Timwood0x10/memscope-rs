@@ -286,6 +286,84 @@ impl OptimizedExportOptions {
         self.thread_count = count;
         self
     }
+
+    /// Create fast export options (minimal features, maximum speed)
+    pub fn fast() -> Self {
+        Self {
+            parallel_processing: true,
+            buffer_size: 512 * 1024, // Larger buffer for speed
+            use_compact_format: Some(false), // Skip compression for speed
+            enable_type_cache: false, // Skip caching for speed
+            batch_size: 2000, // Larger batches
+            use_streaming_writer: true,
+            enable_schema_validation: false, // Skip validation
+            optimization_level: OptimizationLevel::Low,
+            enable_enhanced_ffi_analysis: false,
+            enable_boundary_event_processing: false,
+            enable_memory_passport_tracking: false,
+            enable_adaptive_optimization: false,
+            max_cache_size: 0, // No caching
+            target_batch_time_ms: 5, // Faster batches
+            enable_security_analysis: false,
+            include_low_severity_violations: false,
+            generate_integrity_hashes: false,
+            enable_fast_export_mode: true,
+            auto_fast_export_threshold: None,
+            thread_count: None, // Auto-detect
+        }
+    }
+
+    /// Create comprehensive export options (all features enabled)
+    pub fn comprehensive() -> Self {
+        Self {
+            parallel_processing: true,
+            buffer_size: 256 * 1024,
+            use_compact_format: Some(true), // Enable compression
+            enable_type_cache: true,
+            batch_size: 1000,
+            use_streaming_writer: true,
+            enable_schema_validation: true,
+            optimization_level: OptimizationLevel::Maximum,
+            enable_enhanced_ffi_analysis: true,
+            enable_boundary_event_processing: true,
+            enable_memory_passport_tracking: true,
+            enable_adaptive_optimization: true,
+            max_cache_size: 2000, // Large cache
+            target_batch_time_ms: 20, // More thorough processing
+            enable_security_analysis: true,
+            include_low_severity_violations: true,
+            generate_integrity_hashes: true,
+            enable_fast_export_mode: false,
+            auto_fast_export_threshold: Some(10000),
+            thread_count: None, // Auto-detect
+        }
+    }
+
+    /// Create production export options (balanced performance and features)
+    pub fn production() -> Self {
+        Self {
+            parallel_processing: true,
+            buffer_size: 256 * 1024,
+            use_compact_format: Some(true),
+            enable_type_cache: true,
+            batch_size: 1500,
+            use_streaming_writer: true,
+            enable_schema_validation: false, // Skip for performance
+            optimization_level: OptimizationLevel::High,
+            enable_enhanced_ffi_analysis: true,
+            enable_boundary_event_processing: false, // Skip for performance
+            enable_memory_passport_tracking: true,
+            enable_adaptive_optimization: true,
+            max_cache_size: 1000,
+            target_batch_time_ms: 10,
+            enable_security_analysis: true, // Important for production
+            include_low_severity_violations: false, // Only important violations
+            generate_integrity_hashes: true,
+            enable_fast_export_mode: false,
+            auto_fast_export_threshold: Some(5000),
+            thread_count: None, // Auto-detect
+        }
+    }
 }
 
 /// Type inference cache for performance optimization

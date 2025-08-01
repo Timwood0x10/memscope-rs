@@ -1941,6 +1941,16 @@ impl BinaryParser {
         self.parse_active_allocations()
     }
 
+    /// Load memory stats from parsed binary data
+    pub fn load_memory_stats(&mut self) -> TrackingResult<MemoryStats> {
+        self.parse_memory_stats()
+    }
+
+    /// Load type memory usage from parsed binary data
+    pub fn load_type_memory_usage(&mut self) -> TrackingResult<Vec<TypeMemoryUsage>> {
+        self.parse_type_memory_usage()
+    }
+
     /// Validate conversion by comparing with expected JSON output
     pub fn validate_conversion(
         &mut self,
