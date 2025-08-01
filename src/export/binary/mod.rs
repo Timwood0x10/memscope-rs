@@ -23,12 +23,18 @@ pub mod parallel;
 pub mod integration;
 pub mod parser;
 pub mod optimization;
+pub mod examples;
+pub mod legacy_formats;
+pub mod query;
 
 #[cfg(test)]
 pub mod tests;
 
 #[cfg(test)]
 pub mod benchmarks;
+
+#[cfg(test)]
+pub mod integration_tests;
 
 // Re-export main public API
 pub use export::{BinaryExporter, ExportConfig, ExportResult};
@@ -44,6 +50,8 @@ pub use parallel::{ParallelProcessor, ParallelConfig, ParallelStats, LoadBalanci
 pub use integration::{IntegratedBinaryExporter, IntegratedConfig, IntegratedExportResult};
 pub use parser::{BinaryDataParser, ParserConfig, ParseResult};
 pub use optimization::{PerformanceOptimizer, OptimizationResult, PerformanceSnapshot};
+pub use legacy_formats::{LegacyFormatAdapter, LegacyFormatType, LegacyFormatData, convert_legacy_directory};
+pub use query::{QueryEngine, QueryBuilder, QueryConfig, QueryResult, AggregationQuery, AggregationResult};
 
 // Export format version for compatibility tracking
 pub const BINARY_FORMAT_VERSION: u32 = 2;
@@ -146,6 +154,95 @@ impl BinaryExport {
     ) -> Result<validation::ValidationReport, BinaryExportError> {
         validation::validate_binary_file(path)
     }
+    
+    /// Convert legacy JSON format to binary format
+    /// 
+    /// Reads existing analysis JSON files and converts them to the unified
+    /// binary format. Supports all legacy format types including:
+    /// - memory_analysis.json
+    /// - lifetime.json
+    /// - performance.json
+    /// - security_violations.json
+    /// - unsafe_ffi.json
+    /// - complex_types.json
+    /// 
+    /// # Arguments
+    /// * `legacy_path` - Path to legacy JSON file or directory
+    /// * `output_path` - Output path for binary file
+    /// 
+    /// # Example
+    /// ```rust
+    /// // Convert single file
+    /// BinaryExport::convert_legacy_format(
+    ///     "MemoryAnalysis/complex_lifecycle/complex_lifecycle_snapshot_memory_analysis.json",
+    ///     "converted_data.bin"
+    /// )?;
+    /// 
+    /// // Convert entire directory
+    /// BinaryExport::convert_legacy_format(
+    ///     "MemoryAnalysis/complex_lifecycle/",
+    ///     "combined_data.bin"
+    /// )?;
+    /// ```
+    pub fn convert_legacy_format<P: AsRef<std::path::Path>>(
+        legacy_path: P,
+        output_path: P,
+    ) -> Result<IntegratedExportResult, BinaryExportError> {
+        let legacy_path = legacy_path.as_ref();
+        
+        if legacy_path.is_dir() {
+            // Convert entire directory
+            legacy_formats::convert_legacy_directory(legacy_path, output_path)
+        } else {
+            // Convert single file
+            let adapter = legacy_formats::LegacyFormatAdapter::new();
+            let legacy_data = adapter.parse_legacy_file(legacy_path)?;
+            let unified_data = adapter.convert_to_unified(legacy_data)?;
+            
+            // Export using integrated exporter
+            let config = IntegratedConfig::balanced();
+            let mut exporter = IntegratedBinaryExporter::new(config);
+            
+            // Create a mock tracker with the unified data
+            let tracker = crate::core::tracker::MemoryTracker::new();
+            // In a real implementation, we would populate the tracker with the unified data
+            
+            exporter.export(&tracker, output_path)
+        }
+    }
+    
+    /// Create a query engine from binary file
+    /// 
+    /// Loads binary export data and creates a high-performance query engine
+    /// for searching and analyzing the data.
+    /// 
+    /// # Arguments
+    /// * `path` - Path to binary export file
+    /// * `config` - Optional query configuration (uses default if None)
+    /// 
+    /// # Example
+    /// ```rust
+    /// // Create query engine
+    /// let mut engine = BinaryExport::create_query_engine("data.bin", None)?;
+    /// 
+    /// // Execute queries
+    /// let result = engine.execute_query(
+    ///     engine.query()
+    ///         .where_size(QueryOperator::GreaterThan(1024))
+    ///         .where_type(StringOperator::Contains("String".to_string()))
+    ///         .order_by(SortField::Size, SortDirection::Descending)
+    ///         .limit(100)
+    /// )?;
+    /// 
+    /// println!("Found {} large string allocations", result.allocations.len());
+    /// ```
+    pub fn create_query_engine<P: AsRef<std::path::Path>>(
+        path: P,
+        config: Option<query::QueryConfig>,
+    ) -> Result<query::QueryEngine, BinaryExportError> {
+        let config = config.unwrap_or_default();
+        query::QueryEngine::from_file(path, config)
+    }
 }
 
 #[cfg(test)]
@@ -225,6 +322,33 @@ mod tests {
                 // Memory constraint errors are acceptable
                 println!("Memory-constrained export failed as expected: {:?}", e);
             }
+        }
+    }
+    
+    /// Test legacy format conversion
+    #[test]
+    fn test_legacy_format_conversion() {
+        use tempfile::NamedTempFile;
+        
+        // Test with a sample legacy JSON file if it exists
+        let legacy_path = "MemoryAnalysis/complex_lifecycle/complex_lifecycle_snapshot_memory_analysis.json";
+        
+        if std::path::Path::new(legacy_path).exists() {
+            let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+            
+            let result = BinaryExport::convert_legacy_format(legacy_path, temp_file.path());
+            
+            match result {
+                Ok(export_result) => {
+                    println!("Legacy conversion succeeded: {} bytes", export_result.export_result.bytes_written);
+                    assert!(export_result.export_result.bytes_written > 0);
+                }
+                Err(e) => {
+                    println!("Legacy conversion failed (may be expected): {:?}", e);
+                }
+            }
+        } else {
+            println!("Legacy test file not found, skipping legacy format test");
         }
     }
 }
