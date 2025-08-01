@@ -8,7 +8,7 @@
 
 use clap::ArgMatches;
 use std::error::Error;
-use std::path::Path;
+
 use std::time::{Duration, Instant};
 
 /// Run the integration test command
@@ -198,7 +198,7 @@ fn run_compatibility_tests(output_dir: &str, verbose: bool) -> Result<(), Box<dy
 
 /// Generate test data for integration testing
 fn generate_integration_test_data(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
-    use crate::export::formats::binary_export::{BinaryExportOptions, BinaryExportData, BinaryMetadata};
+    use crate::export::formats::binary_export::{BinaryExportData, BinaryMetadata};
     use crate::core::types::{AllocationInfo, MemoryStats};
 
     if verbose { println!("   🔧 Creating synthetic test data..."); }
@@ -222,7 +222,7 @@ fn generate_integration_test_data(output_dir: &str, verbose: bool) -> Result<(),
             }
         );
         
-        allocation.timestamp_alloc = base_time + i * 1000000; // 1ms intervals
+        allocation.timestamp_alloc = base_time + (i as u64) * 1000000; // 1ms intervals
         allocation.var_name = Some(format!("test_var_{i}"));
         allocation.type_name = Some(match i % 5 {
             0 => "Vec<u8>".to_string(),
@@ -248,22 +248,22 @@ fn generate_integration_test_data(output_dir: &str, verbose: bool) -> Result<(),
     }
 
     // Create synthetic memory stats
-    let stats = MemoryStats {
-        total_allocations: allocations.len(),
-        total_allocated: allocations.iter().map(|a| a.size).sum(),
-        active_allocations: allocations.iter().filter(|a| a.timestamp_dealloc.is_none()).count(),
-        active_memory: allocations.iter()
-            .filter(|a| a.timestamp_dealloc.is_none())
-            .map(|a| a.size)
-            .sum(),
-        peak_allocations: allocations.len(),
-        peak_memory: allocations.iter().map(|a| a.size).sum::<usize>() + 50000,
-        leaked_allocations: allocations.iter().filter(|a| a.is_leaked).count(),
-        leaked_memory: allocations.iter()
-            .filter(|a| a.is_leaked)
-            .map(|a| a.size)
-            .sum(),
-    };
+    let mut stats = MemoryStats::new();
+    stats.total_allocations = allocations.len();
+    stats.total_allocated = allocations.iter().map(|a| a.size).sum();
+    stats.active_allocations = allocations.iter().filter(|a| a.timestamp_dealloc.is_none()).count();
+    stats.active_memory = allocations.iter()
+        .filter(|a| a.timestamp_dealloc.is_none())
+        .map(|a| a.size)
+        .sum();
+    stats.peak_allocations = allocations.len();
+    stats.peak_memory = allocations.iter().map(|a| a.size).sum::<usize>() + 50000;
+    stats.leaked_allocations = allocations.iter().filter(|a| a.is_leaked).count();
+    stats.leaked_memory = allocations.iter()
+        .filter(|a| a.is_leaked)
+        .map(|a| a.size)
+        .sum();
+    stats.allocations = allocations.clone();
 
     // Create metadata
     let metadata = BinaryMetadata {
@@ -293,22 +293,23 @@ fn generate_integration_test_data(output_dir: &str, verbose: bool) -> Result<(),
     let test_data_path = format!("{output_dir}/test_data.ms");
     
     // Export with different compression options
-    let options = BinaryExportOptions::balanced();
+    let compression_level = 6;
     let serialized = rmp_serde::to_vec(&test_data)
         .map_err(|e| format!("Failed to serialize test data: {e}"))?;
     
-    let compressed = zstd::bulk::compress(&serialized, options.compression_level)
+    let compressed = zstd::bulk::compress(&serialized, compression_level)
         .map_err(|e| format!("Failed to compress test data: {e}"))?;
     
+    let compressed_len = compressed.len();
     std::fs::write(&test_data_path, compressed)
         .map_err(|e| format!("Failed to write test data: {e}"))?;
 
     if verbose {
         println!("   ✅ Generated test data: {test_data_path}");
         println!("      - Allocations: {}", test_data.allocation_count);
-        println!("      - File size: {} bytes", compressed.len());
+        println!("      - File size: {} bytes", compressed_len);
         println!("      - Compression ratio: {:.1}%", 
-                 (compressed.len() as f64 / serialized.len() as f64) * 100.0);
+                 (compressed_len as f64 / serialized.len() as f64) * 100.0);
     }
 
     Ok(())
@@ -339,7 +340,7 @@ fn test_binary_file_creation(test_data_path: &str, verbose: bool) -> Result<(), 
 /// Test serialization/deserialization consistency
 fn test_serialization_consistency(test_data_path: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     use crate::export::formats::binary_parser::{BinaryParser, BinaryParseOptions};
-    use crate::export::formats::binary_export::BinaryExportOptions;
+
 
     // Parse the test data
     let parser = BinaryParser::new(BinaryParseOptions::safe());
@@ -394,7 +395,7 @@ fn test_compression_integrity(test_data_path: &str, verbose: bool) -> Result<(),
 }
 
 /// Test large dataset integrity
-fn test_large_dataset_integrity(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
+fn test_large_dataset_integrity(_output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     // This would test with larger datasets in a real implementation
     if verbose {
         println!("      ✅ Large dataset integrity test passed (simulated)");
@@ -405,7 +406,7 @@ fn test_large_dataset_integrity(output_dir: &str, verbose: bool) -> Result<(), B
 /// Benchmark binary vs JSON performance
 fn benchmark_binary_vs_json_performance(output_dir: &str, verbose: bool) -> Result<BenchmarkResult, Box<dyn Error>> {
     use crate::export::formats::binary_parser::{BinaryParser, BinaryParseOptions};
-    use crate::export::formats::json_converter::{JsonConverter, JsonConvertOptions};
+    use crate::export::formats::json_converter::JsonConverter;
 
     let test_data_path = format!("{output_dir}/test_data.ms");
     
@@ -447,7 +448,7 @@ fn benchmark_binary_vs_json_performance(output_dir: &str, verbose: bool) -> Resu
 }
 
 /// Benchmark compression performance
-fn benchmark_compression_performance(output_dir: &str, verbose: bool) -> Result<BenchmarkResult, Box<dyn Error>> {
+fn benchmark_compression_performance(_output_dir: &str, verbose: bool) -> Result<BenchmarkResult, Box<dyn Error>> {
     // This would benchmark different compression algorithms
     if verbose {
         println!("      ✅ Compression performance benchmark completed (simulated)");
@@ -464,7 +465,7 @@ fn benchmark_compression_performance(output_dir: &str, verbose: bool) -> Result<
 }
 
 /// Benchmark large dataset performance
-fn benchmark_large_dataset_performance(output_dir: &str, verbose: bool) -> Result<BenchmarkResult, Box<dyn Error>> {
+fn benchmark_large_dataset_performance(_output_dir: &str, verbose: bool) -> Result<BenchmarkResult, Box<dyn Error>> {
     // This would test with large datasets
     if verbose {
         println!("      ✅ Large dataset performance benchmark completed (simulated)");
@@ -481,7 +482,7 @@ fn benchmark_large_dataset_performance(output_dir: &str, verbose: bool) -> Resul
 }
 
 /// Benchmark memory usage
-fn benchmark_memory_usage(output_dir: &str, verbose: bool) -> Result<BenchmarkResult, Box<dyn Error>> {
+fn benchmark_memory_usage(_output_dir: &str, verbose: bool) -> Result<BenchmarkResult, Box<dyn Error>> {
     // This would measure memory usage during operations
     if verbose {
         println!("      ✅ Memory usage benchmark completed (simulated)");
@@ -498,7 +499,7 @@ fn benchmark_memory_usage(output_dir: &str, verbose: bool) -> Result<BenchmarkRe
 }
 
 /// Test backward compatibility
-fn test_backward_compatibility(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
+fn test_backward_compatibility(_output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     // This would test compatibility with previous format versions
     if verbose {
         println!("      ✅ Backward compatibility test passed (simulated)");
@@ -507,7 +508,7 @@ fn test_backward_compatibility(output_dir: &str, verbose: bool) -> Result<(), Bo
 }
 
 /// Test API stability
-fn test_api_stability(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
+fn test_api_stability(_output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     // This would test that public APIs haven't changed unexpectedly
     if verbose {
         println!("      ✅ API stability test passed (simulated)");
@@ -516,7 +517,7 @@ fn test_api_stability(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Err
 }
 
 /// Test format version compatibility
-fn test_format_version_compatibility(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
+fn test_format_version_compatibility(_output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     // This would test compatibility across format versions
     if verbose {
         println!("      ✅ Format version compatibility test passed (simulated)");
@@ -525,7 +526,7 @@ fn test_format_version_compatibility(output_dir: &str, verbose: bool) -> Result<
 }
 
 /// Test cross-platform compatibility
-fn test_cross_platform_compatibility(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
+fn test_cross_platform_compatibility(_output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     // This would test compatibility across different platforms
     if verbose {
         println!("      ✅ Cross-platform compatibility test passed (simulated)");
@@ -534,7 +535,7 @@ fn test_cross_platform_compatibility(output_dir: &str, verbose: bool) -> Result<
 }
 
 /// Test Rust version compatibility
-fn test_rust_version_compatibility(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
+fn test_rust_version_compatibility(_output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     // This would test compatibility with different Rust versions
     if verbose {
         println!("      ✅ Rust version compatibility test passed (simulated)");
@@ -543,7 +544,7 @@ fn test_rust_version_compatibility(output_dir: &str, verbose: bool) -> Result<()
 }
 
 /// Test external tool integration
-fn test_external_tool_integration(output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
+fn test_external_tool_integration(_output_dir: &str, verbose: bool) -> Result<(), Box<dyn Error>> {
     // This would test integration with external tools
     if verbose {
         println!("      ✅ External tool integration test passed (simulated)");

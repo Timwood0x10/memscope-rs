@@ -2,6 +2,9 @@
 
 use memscope_rs::{get_global_tracker, init, track_var};
 use memscope_rs::export::formats::binary_export::{BinaryExportOptions, export_memory_to_binary};
+use memscope_rs::export::formats::binary_parser::{BinaryParser, BinaryParseOptions};
+use memscope_rs::export::formats::json_converter::{JsonConverter, JsonConvertOptions};
+use memscope_rs::export::formats::html_converter::{HtmlConverter, HtmlConvertOptions};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -63,7 +66,7 @@ fn main() {
     }
 
     // Export memory snapshot to binary format (will be saved to MemoryAnalysis/basic_usage/ directory)
-    println!("\nExporting memory snapshot to binary format...");
+    println!("\n🔄 Starting comprehensive binary export workflow...");
     
     // Create output directory if it doesn't exist
     let output_dir = "MemoryAnalysis/basic_usage";
@@ -77,8 +80,9 @@ fn main() {
     // Configure binary export options
     let export_options = BinaryExportOptions::balanced(); // Use balanced compression and features
     
-    // Export to binary format
-    match export_memory_to_binary(&tracker, &binary_path, export_options) {
+    // Step 1: Export to binary format
+    println!("\n📦 Step 1: Exporting to binary format...");
+    let export_stats = match export_memory_to_binary(&tracker, &binary_path, export_options) {
         Ok(stats) => {
             println!("✅ Successfully exported binary to: {}", binary_path);
             println!("📊 Export Statistics:");
@@ -88,9 +92,70 @@ fn main() {
             println!("   - Compression ratio: {:.1}%", stats.compression_ratio * 100.0);
             println!("   - Allocations exported: {}", stats.allocation_count);
             println!("   - Total memory tracked: {} bytes", stats.total_memory);
+            stats
         }
         Err(e) => {
             eprintln!("❌ Failed to export binary: {e}");
+            return;
+        }
+    };
+
+    // Step 2: Parse the binary file back
+    println!("\n🔍 Step 2: Parsing binary file...");
+    let parser = BinaryParser::new(BinaryParseOptions::safe());
+    let binary_data = match parser.parse_file(&binary_path) {
+        Ok(data) => {
+            println!("✅ Successfully parsed binary file");
+            println!("📊 Parsed Data:");
+            println!("   - Allocations: {}", data.allocations.len());
+            println!("   - Total memory: {} bytes", data.total_memory);
+            println!("   - Version: {}", data.version);
+            data
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to parse binary file: {e}");
+            return;
+        }
+    };
+
+    // Step 3: Convert to JSON format
+    println!("\n📄 Step 3: Converting to JSON format...");
+    let json_path = format!("{}/basic_usage_snapshot.json", output_dir);
+    let json_converter = JsonConverter::with_compatible_settings();
+    match json_converter.convert_to_file(&binary_data, &json_path) {
+        Ok(stats) => {
+            println!("✅ Successfully converted to JSON: {}", json_path);
+            println!("📊 JSON Conversion Statistics:");
+            println!("   - Conversion time: {:?}", stats.conversion_time);
+            println!("   - Allocations converted: {}", stats.allocations_converted);
+            println!("   - JSON file size: {} bytes", stats.output_size);
+            println!("   - Chunks processed: {}", stats.chunks_processed);
+            if !stats.validation_errors.is_empty() {
+                println!("   - Validation errors: {}", stats.validation_errors.len());
+            }
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to convert to JSON: {e}");
+        }
+    }
+
+    // Step 4: Convert to HTML format
+    println!("\n🌐 Step 4: Converting to HTML format...");
+    let html_path = format!("{}/basic_usage_report.html", output_dir);
+    let mut html_converter = HtmlConverter::with_complete_settings();
+    match html_converter.convert_to_file(&binary_data, &html_path) {
+        Ok(stats) => {
+            println!("✅ Successfully converted to HTML: {}", html_path);
+            println!("📊 HTML Conversion Statistics:");
+            println!("   - Conversion time: {:?}", stats.conversion_time);
+            println!("   - Allocations processed: {}", stats.allocations_processed);
+            println!("   - HTML file size: {} bytes", stats.html_size);
+            println!("   - Charts generated: {}", stats.charts_generated);
+            println!("   - Table rows: {}", stats.table_rows_generated);
+            println!("   - Template processing time: {:?}", stats.template_processing_time);
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to convert to HTML: {e}");
         }
     }
 

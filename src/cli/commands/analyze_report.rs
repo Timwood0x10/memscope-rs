@@ -70,7 +70,7 @@ fn generate_analysis_report(
 ) -> Result<(), Box<dyn Error>> {
     use crate::export::formats::binary_parser::{BinaryParser, BinaryParseOptions};
     use crate::export::formats::analysis_report_generator::{
-        AnalysisReportGenerator, AnalysisReportOptions, ReportFormat, AnalysisDepth
+        AnalysisReportGenerator, AnalysisReportOptions, ReportFormat
     };
 
     println!("🔍 Parsing binary file...");
@@ -233,11 +233,11 @@ fn execute_query(
 }
 
 /// Parse and execute query against allocations
-fn parse_and_execute_query(
-    allocations: &[crate::core::types::AllocationInfo],
+fn parse_and_execute_query<'a>(
+    allocations: &'a [crate::core::types::AllocationInfo],
     query: &str,
     limit: usize,
-) -> Result<Vec<&crate::core::types::AllocationInfo>, Box<dyn Error>> {
+) -> Result<Vec<&'a crate::core::types::AllocationInfo>, Box<dyn Error>> {
     let mut results = Vec::new();
 
     // Simple query parsing - in a real implementation, this would be more sophisticated
