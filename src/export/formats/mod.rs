@@ -10,6 +10,7 @@ pub mod binary_validation;
 pub mod binary_errors;
 pub mod json_converter;
 pub mod html_converter;
+pub mod analysis_report_generator;
 pub mod simple_binary_export;
 pub mod html_export;
 pub mod svg;

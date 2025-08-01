@@ -174,6 +174,135 @@ fn main() {
                 ),
         )
         .subcommand(
+            Command::new("analyze-report")
+                .about("Generate comprehensive analysis reports from binary memory data")
+                .arg(
+                    Arg::new("input")
+                        .short('i')
+                        .long("input")
+                        .value_name("FILE")
+                        .help("Input binary file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("output")
+                        .short('o')
+                        .long("output")
+                        .value_name("FILE")
+                        .help("Output report file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("type")
+                        .short('t')
+                        .long("type")
+                        .value_name("TYPE")
+                        .help("Report type (quick, standard, comprehensive, security)")
+                        .default_value("standard"),
+                )
+                .arg(
+                    Arg::new("format")
+                        .short('f')
+                        .long("format")
+                        .value_name("FORMAT")
+                        .help("Output format (html, json, text, markdown)")
+                        .default_value("html"),
+                )
+                .arg(
+                    Arg::new("memory-trends")
+                        .long("memory-trends")
+                        .help("Include memory usage trend analysis")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("performance")
+                        .long("performance")
+                        .help("Include performance bottleneck analysis")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("security")
+                        .long("security")
+                        .help("Include security violation analysis")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("lifecycle")
+                        .long("lifecycle")
+                        .help("Include lifecycle analysis")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
+            Command::new("query")
+                .about("Query and filter binary memory data")
+                .arg(
+                    Arg::new("input")
+                        .short('i')
+                        .long("input")
+                        .value_name("FILE")
+                        .help("Input binary file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("query")
+                        .short('q')
+                        .long("query")
+                        .value_name("QUERY")
+                        .help("Query string (e.g., 'size > 1024', 'type = \"Vec\"', 'leaked', 'active')")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("format")
+                        .short('f')
+                        .long("format")
+                        .value_name("FORMAT")
+                        .help("Output format (table, json, csv)")
+                        .default_value("table"),
+                )
+                .arg(
+                    Arg::new("limit")
+                        .short('l')
+                        .long("limit")
+                        .value_name("NUMBER")
+                        .help("Maximum number of results to display")
+                        .default_value("100"),
+                ),
+        )
+        .subcommand(
+            Command::new("integration-test")
+                .about("Run comprehensive integration tests")
+                .arg(
+                    Arg::new("type")
+                        .short('t')
+                        .long("type")
+                        .value_name("TYPE")
+                        .help("Test type (all, integrity, performance, regression, compatibility)")
+                        .default_value("all"),
+                )
+                .arg(
+                    Arg::new("output-dir")
+                        .short('o')
+                        .long("output-dir")
+                        .value_name("DIR")
+                        .help("Output directory for test results")
+                        .default_value("test_results"),
+                )
+                .arg(
+                    Arg::new("verbose")
+                        .short('v')
+                        .long("verbose")
+                        .help("Enable verbose output")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("generate-test-data")
+                        .long("generate-test-data")
+                        .help("Generate test data before running tests")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
             Command::new("test").about("Run enhanced memory tests").arg(
                 Arg::new("output")
                     .short('o')
@@ -210,6 +339,24 @@ fn main() {
                 process::exit(1);
             }
         }
+        Some(("analyze-report", sub_matches)) => {
+            if let Err(e) = run_analyze_report_command(sub_matches) {
+                eprintln!("Error running analyze-report command: {e}");
+                process::exit(1);
+            }
+        }
+        Some(("query", sub_matches)) => {
+            if let Err(e) = run_query_command(sub_matches) {
+                eprintln!("Error running query command: {e}");
+                process::exit(1);
+            }
+        }
+        Some(("integration-test", sub_matches)) => {
+            if let Err(e) = run_integration_test_command(sub_matches) {
+                eprintln!("Error running integration-test command: {e}");
+                process::exit(1);
+            }
+        }
         Some(("test", sub_matches)) => {
             if let Err(e) = run_test_command(sub_matches) {
                 eprintln!("Error running test command: {e}");
@@ -243,6 +390,21 @@ fn run_html_from_json_command(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::html_from_json::run_html_from_json;
     run_html_from_json(matches)
+}
+
+fn run_analyze_report_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::analyze_report::run_analyze_report;
+    run_analyze_report(matches)
+}
+
+fn run_query_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::analyze_report::run_query;
+    run_query(matches)
+}
+
+fn run_integration_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::integration_test::run_integration_test;
+    run_integration_test(matches)
 }
 
 fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
