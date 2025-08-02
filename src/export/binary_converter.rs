@@ -90,11 +90,40 @@ impl ConversionOptions {
             validation_options: None,
         }
     }
+
+    /// Enable comprehensive validation with default options
+    pub fn with_comprehensive_validation(mut self) -> Self {
+        self.validate_output = true;
+        self.validation_options = Some(ValidationOptions::default());
+        self
+    }
+
+    /// Enable performance comparison in validation
+    pub fn with_performance_comparison(mut self) -> Self {
+        if let Some(ref mut validation_options) = self.validation_options {
+            validation_options.enable_performance_comparison = true;
+        } else {
+            let mut validation_options = ValidationOptions::default();
+            validation_options.enable_performance_comparison = true;
+            self.validation_options = Some(validation_options);
+        }
+        self.validate_output = true;
+        self
+    }
+
+    /// Set custom validation options
+    pub fn with_validation_options(mut self, validation_options: ValidationOptions) -> Self {
+        self.validation_options = Some(validation_options);
+        self.validate_output = true;
+        self
+    }
 }
 
 /// Conversion result with statistics
 #[derive(Debug, Clone)]
 pub struct ConversionResult {
+    /// Path to the input binary file
+    pub input_path: String,
     /// Path to the converted file
     pub output_path: String,
     /// Original binary file size
@@ -103,6 +132,14 @@ pub struct ConversionResult {
     pub output_size: usize,
     /// Conversion duration
     pub conversion_duration: std::time::Duration,
+    /// Peak memory usage during conversion (in bytes)
+    pub peak_memory_usage: Option<usize>,
+    /// Compression ratio if applicable
+    pub compression_ratio: Option<f64>,
+    /// Type of conversion performed
+    pub conversion_type: ConversionType,
+    /// Additional metadata
+    pub metadata: std::collections::HashMap<String, String>,
     /// Number of allocations converted
     pub allocations_converted: usize,
     /// Whether validation was performed and passed
@@ -111,6 +148,17 @@ pub struct ConversionResult {
     pub validation_result: Option<ValidationResult>,
     /// Conversion format
     pub output_format: String,
+}
+
+/// Types of conversions supported
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConversionType {
+    /// Binary to JSON conversion
+    BinaryToJson,
+    /// Binary to HTML conversion
+    BinaryToHtml,
+    /// JSON to Binary conversion
+    JsonToBinary,
 }
 
 impl ConversionResult {
@@ -131,6 +179,21 @@ impl ConversionResult {
         } else {
             0.0
         }
+    }
+
+    /// Get memory usage in MB if available
+    pub fn memory_usage_mb(&self) -> Option<f64> {
+        self.peak_memory_usage.map(|usage| usage as f64 / (1024.0 * 1024.0))
+    }
+
+    /// Get conversion duration
+    pub fn conversion_duration(&self) -> Duration {
+        self.conversion_duration
+    }
+
+    /// Get output size
+    pub fn output_size(&self) -> usize {
+        self.output_size
     }
 }
 
@@ -447,34 +510,7 @@ impl BatchConversionOptions {
     }
 }
 
-impl ConversionOptions {
-    /// Enable comprehensive validation with default options
-    pub fn with_comprehensive_validation(mut self) -> Self {
-        self.validate_output = true;
-        self.validation_options = Some(ValidationOptions::default());
-        self
-    }
 
-    /// Enable comprehensive validation with custom options
-    pub fn with_validation_options(mut self, validation_options: ValidationOptions) -> Self {
-        self.validate_output = true;
-        self.validation_options = Some(validation_options);
-        self
-    }
-
-    /// Enable performance comparison in validation
-    pub fn with_performance_comparison(mut self) -> Self {
-        if let Some(ref mut validation_options) = self.validation_options {
-            validation_options.enable_performance_comparison = true;
-        } else {
-            let mut validation_options = ValidationOptions::default();
-            validation_options.enable_performance_comparison = true;
-            self.validation_options = Some(validation_options);
-            self.validate_output = true;
-        }
-        self
-    }
-}
 
 /// Main binary converter struct
 pub struct BinaryConverter;
@@ -583,10 +619,15 @@ impl BinaryConverter {
                 // Perform comprehensive validation
                 let validator = ConversionValidator::with_options(validation_options.clone());
                 let temp_result = ConversionResult {
+                    input_path: binary_path.to_string_lossy().to_string(),
                     output_path: json_path.to_string_lossy().to_string(),
                     input_size,
                     output_size,
                     conversion_duration,
+                    peak_memory_usage: None,
+                    compression_ratio: None,
+                    conversion_type: ConversionType::BinaryToJson,
+                    metadata: std::collections::HashMap::new(),
                     allocations_converted: allocations.len(),
                     validation_passed: None,
                     validation_result: None,
@@ -612,10 +653,15 @@ impl BinaryConverter {
         };
 
         let result = ConversionResult {
+            input_path: binary_path.to_string_lossy().to_string(),
             output_path: json_path.to_string_lossy().to_string(),
             input_size,
             output_size,
             conversion_duration,
+            peak_memory_usage: None,
+            compression_ratio: None,
+            conversion_type: ConversionType::BinaryToJson,
+            metadata: std::collections::HashMap::new(),
             allocations_converted: allocations.len(),
             validation_passed,
             validation_result,
@@ -709,10 +755,15 @@ impl BinaryConverter {
                 // Perform comprehensive validation for HTML
                 let validator = ConversionValidator::with_options(validation_options.clone());
                 let temp_result = ConversionResult {
+                    input_path: binary_path.to_string_lossy().to_string(),
                     output_path: html_path.to_string_lossy().to_string(),
                     input_size,
                     output_size,
                     conversion_duration,
+                    peak_memory_usage: None,
+                    compression_ratio: None,
+                    conversion_type: ConversionType::BinaryToHtml,
+                    metadata: std::collections::HashMap::new(),
                     allocations_converted: allocations.len(),
                     validation_passed: None,
                     validation_result: None,
@@ -740,10 +791,15 @@ impl BinaryConverter {
         };
 
         let result = ConversionResult {
+            input_path: binary_path.to_string_lossy().to_string(),
             output_path: html_path.to_string_lossy().to_string(),
             input_size,
             output_size,
             conversion_duration,
+            peak_memory_usage: None,
+            compression_ratio: None,
+            conversion_type: ConversionType::BinaryToHtml,
+            metadata: std::collections::HashMap::new(),
             allocations_converted: allocations.len(),
             validation_passed,
             validation_result,
@@ -1501,7 +1557,7 @@ impl BinaryConverter {
     pub fn validate_batch_conversion(
         batch_report: &BatchConversionReport,
         validation_options: Option<ValidationOptions>,
-    ) -> TrackingResult<crate::export::conversion_validator::BatchValidationReport> {
+    ) -> TrackingResult<String> {
         let validator = if let Some(options) = validation_options {
             ConversionValidator::with_options(options)
         } else {
@@ -1526,28 +1582,7 @@ impl BinaryConverter {
         report.push('\n');
 
         // Summary
-        report.push_str(&format!(
-            "\nBATCH SUMMARY:\n\
-             Total Files: {}\n\
-             Successful: {} ({:.1}%)\n\
-             Failed: {}\n\
-             Overall Speed: {:.2} MB/s\n\
-             Overall Size Ratio: {:.2}x\n\
-             Batch Quality Score: {:.1}/100\n\
-             Performance Category: {:?}\n\
-             Total Duration: {:.2}s\n\
-             Files per Second: {:.2}\n",
-            batch_validation.total_files,
-            batch_validation.successful_validations,
-            batch_validation.overall_success_rate * 100.0,
-            batch_validation.failed_validations,
-            batch_validation.overall_speed_mbps,
-            batch_validation.overall_size_ratio,
-            batch_validation.batch_quality_score,
-            batch_validation.batch_performance_category,
-            batch_report.total_duration.as_secs_f64(),
-            batch_report.files_per_second
-        ));
+        report.push_str(&batch_validation);
 
         // Error breakdown
         if !batch_report.errors.is_empty() {
@@ -1696,10 +1731,15 @@ mod tests {
     #[test]
     fn test_conversion_result_calculations() {
         let result = ConversionResult {
+            input_path: "test.bin".to_string(),
             output_path: "test.json".to_string(),
             input_size: 1000,
             output_size: 2000,
             conversion_duration: Duration::from_secs(1),
+            peak_memory_usage: None,
+            compression_ratio: None,
+            conversion_type: ConversionType::BinaryToJson,
+            metadata: std::collections::HashMap::new(),
             allocations_converted: 100,
             validation_passed: Some(true),
             validation_result: None,
@@ -1849,3 +1889,4 @@ mod tests {
         assert!(summary.contains("IoError: 1 errors"));
     }
 }
+
