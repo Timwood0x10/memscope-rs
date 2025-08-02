@@ -25,7 +25,7 @@ fn main() {
                         .short('e')
                         .long("export")
                         .value_name("FORMAT")
-                        .help("Export format (json, svg, html)")
+                        .help("Export format (json, svg, html, binary)")
                         .default_value("html"),
                 )
                 .arg(
@@ -129,6 +129,116 @@ fn main() {
                     .default_value("enhanced_memory_test"),
             ),
         )
+        .subcommand(
+            Command::new("convert")
+                .about("Convert between different memory analysis formats")
+                .arg(
+                    Arg::new("input")
+                        .short('i')
+                        .long("input")
+                        .value_name("FILE")
+                        .help("Input file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("output")
+                        .short('o')
+                        .long("output")
+                        .value_name("FILE")
+                        .help("Output file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("from")
+                        .short('f')
+                        .long("from")
+                        .value_name("FORMAT")
+                        .help("Input format (binary, json)")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("to")
+                        .short('t')
+                        .long("to")
+                        .value_name("FORMAT")
+                        .help("Output format (json, html, binary)")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("validate")
+                        .long("validate")
+                        .help("Validate conversion result")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("verbose")
+                        .short('v')
+                        .long("verbose")
+                        .help("Enable verbose output")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
+            Command::new("binary-info")
+                .about("Display information about binary memory analysis files")
+                .arg(
+                    Arg::new("input")
+                        .help("Binary file path")
+                        .required(true)
+                        .value_name("FILE"),
+                )
+                .arg(
+                    Arg::new("detailed")
+                        .short('d')
+                        .long("detailed")
+                        .help("Show detailed information")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("sections")
+                        .short('s')
+                        .long("sections")
+                        .help("Show section information")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("stats")
+                        .long("stats")
+                        .help("Show statistics")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
+            Command::new("binary-validate")
+                .about("Validate binary memory analysis files")
+                .arg(
+                    Arg::new("input")
+                        .help("Binary file path")
+                        .required(true)
+                        .value_name("FILE"),
+                )
+                .arg(
+                    Arg::new("comprehensive")
+                        .short('c')
+                        .long("comprehensive")
+                        .help("Perform comprehensive validation")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("performance")
+                        .short('p')
+                        .long("performance")
+                        .help("Include performance analysis")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("report")
+                        .short('r')
+                        .long("report")
+                        .value_name("FILE")
+                        .help("Generate validation report to file"),
+                ),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -153,6 +263,24 @@ fn main() {
         Some(("test", sub_matches)) => {
             if let Err(e) = run_test_command(sub_matches) {
                 eprintln!("Error running test command: {}", e);
+                process::exit(1);
+            }
+        }
+        Some(("convert", sub_matches)) => {
+            if let Err(e) = run_convert_command(sub_matches) {
+                eprintln!("Error running convert command: {}", e);
+                process::exit(1);
+            }
+        }
+        Some(("binary-info", sub_matches)) => {
+            if let Err(e) = run_binary_info_command(sub_matches) {
+                eprintln!("Error running binary-info command: {}", e);
+                process::exit(1);
+            }
+        }
+        Some(("binary-validate", sub_matches)) => {
+            if let Err(e) = run_binary_validate_command(sub_matches) {
+                eprintln!("Error running binary-validate command: {}", e);
                 process::exit(1);
             }
         }
@@ -183,4 +311,19 @@ fn run_html_from_json_command(
 fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::test::run_test;
     run_test(matches)
+}
+
+fn run_convert_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::convert::run_convert;
+    run_convert(matches)
+}
+
+fn run_binary_info_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::binary_info::run_binary_info;
+    run_binary_info(matches)
+}
+
+fn run_binary_validate_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::cli::commands::binary_validate::run_binary_validate;
+    run_binary_validate(matches)
 }

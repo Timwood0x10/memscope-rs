@@ -140,11 +140,16 @@ pub struct QualityMetrics {
 /// Quality grades
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum QualityGrade {
-    A, // 90-100: Excellent
-    B, // 80-89: Good
-    C, // 70-79: Average
-    D, // 60-69: Below Average
-    F, // <60: Poor
+    ///90-100: Excellent
+    A, 
+    /// 80-89: Good
+    B,
+    /// 70-79: Average
+    C, 
+    /// 60-69: Below Average
+    D, 
+    /// <60: Poor
+    F, 
 }
 
 /// Validation error types

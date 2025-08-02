@@ -25,15 +25,63 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .unwrap_or("memory_analysis");
 
     println!("🔍 Starting memory analysis...");
-    println!("Command: {:?}", command_args);
-    println!("Export format: {}", export_format);
-    println!("Output path: {}", output_path);
+    println!("Command: {command_args:?}");
+    println!("Export format: {export_format}");
+    println!("Output path: {output_path}");
+
+    // Validate export format
+    match export_format {
+        "json" | "html" | "svg" | "binary" => {
+            // Valid formats
+        }
+        _ => {
+            return Err(format!("Unsupported export format: {export_format}. Supported formats: json, html, svg, binary").into());
+        }
+    }
 
     // Initialize memory tracking
     crate::init();
 
+    // Set up environment variables for the target process
+    let env_vars = vec![
+        ("MEMSCOPE_ENABLED", "1"),
+        ("MEMSCOPE_AUTO_EXPORT", "1"),
+        ("MEMSCOPE_EXPORT_FORMAT", export_format),
+        ("MEMSCOPE_EXPORT_PATH", output_path),
+    ];
+
     // Execute the command with memory tracking
-    execute_with_tracking(&command_args, &[])?;
+    execute_with_tracking(&command_args, &env_vars)?;
+
+    // Post-process based on format
+    match export_format {
+        "binary" => {
+            let binary_path = format!("{output_path}.bin");
+            if Path::new(&binary_path).exists() {
+                println!("✅ Binary analysis exported to: {binary_path}");
+                println!("💡 Use 'memscope binary-info {}' to view file information", binary_path);
+                println!("💡 Use 'memscope convert -f binary -t json -i {} -o {}.json' to convert to JSON", binary_path, output_path);
+            } else {
+                println!("⚠️  Binary file not found at expected location: {binary_path}");
+            }
+        }
+        "json" => {
+            let json_path = format!("{output_path}.json");
+            if Path::new(&json_path).exists() {
+                println!("✅ JSON analysis exported to: {json_path}");
+                analyze_json_output(&json_path);
+            }
+        }
+        "html" => {
+            let html_path = format!("{output_path}.html");
+            if Path::new(&html_path).exists() {
+                println!("✅ HTML dashboard exported to: {html_path}");
+            }
+        }
+        _ => {
+            println!("✅ Analysis completed with format: {export_format}");
+        }
+    }
 
     Ok(())
 }

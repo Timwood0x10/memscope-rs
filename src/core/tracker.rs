@@ -3093,7 +3093,7 @@ impl MemoryTracker {
     /// - Integrity checksums
     /// - Version compatibility headers
     pub fn export_to_binary<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        use crate::export::binary_exporter::{BinaryExporter, BinaryExportOptions};
+        use crate::export::binary_exporter::BinaryExportOptions;
 
         // Ensure output goes to MemoryAnalysis directory with .memscope extension
         let output_path = self.ensure_binary_analysis_path(path);
