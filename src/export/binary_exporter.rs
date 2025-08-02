@@ -1580,11 +1580,20 @@ impl BinaryExporter {
                 // Create section data using static methods
                 let section_data = match task {
                     SectionCreationTask::MemoryStats => Self::encode_memory_stats_static(stats),
-                    SectionCreationTask::ActiveAllocations => Self::encode_allocations_static(
-                        allocations,
-                        Arc::clone(&string_table),
-                        Arc::clone(&type_table),
-                    ),
+                    SectionCreationTask::ActiveAllocations => {
+                        // Use the standard encode_allocations method instead of static version
+                        // The static version has encoding format mismatches with the parser
+                        println!("DEBUG: Encoding {} allocations for ActiveAllocations section", allocations.len());
+                        let mut exporter = BinaryExporter::new();
+                        let result = exporter.encode_allocations(allocations);
+                        if let Ok(ref data) = result {
+                            println!("DEBUG: Encoded data size: {} bytes", data.len());
+                            if data.len() >= 8 {
+                                println!("DEBUG: First 8 bytes: {:?}", &data[0..8]);
+                            }
+                        }
+                        result
+                    },
                     SectionCreationTask::TypeMemoryUsage => Self::encode_type_memory_usage_static(
                         memory_by_type,
                         Arc::clone(&string_table),
@@ -2064,181 +2073,109 @@ impl BinaryExporter {
         // Write allocation count
         encoder.encode_u32(allocations.len() as u32);
 
-        // Process allocations in chunks for better parallel performance
-        let chunk_size = (allocations.len() / rayon::current_num_threads()).max(100);
-        let chunks: Vec<_> = allocations.chunks(chunk_size).collect();
+        // Process allocations sequentially to avoid data structure corruption
+        // Parallel processing was causing the allocation count to be overwritten
+        // by chunk data, leading to incorrect binary format
+        for allocation in allocations {
+            // Basic allocation info
+            encoder.encode_usize(allocation.ptr);
+            encoder.encode_usize(allocation.size);
 
-        let encoded_chunks: Result<Vec<_>, _> = chunks
-            .into_par_iter()
-            .map(|chunk| {
-                let mut chunk_encoder = BinaryEncoder::new();
-
-                for allocation in chunk {
-                    // Basic allocation info
-                    chunk_encoder.encode_usize(allocation.ptr);
-                    chunk_encoder.encode_usize(allocation.size);
-
-                    // Use shared string table for variable names
-                    if let Some(var_name) = &allocation.var_name {
-                        chunk_encoder.encode_u8(1);
-                        if let Ok(mut table) = string_table.lock() {
-                            let id = table.intern(var_name);
-                            chunk_encoder.encode_u32(id);
-                        }
-                    } else {
-                        chunk_encoder.encode_u8(0);
-                    }
-
-                    // Use shared type table for type names
-                    if let Some(type_name) = &allocation.type_name {
-                        chunk_encoder.encode_u8(1);
-                        if let Ok(mut table) = type_table.lock() {
-                            let id = table.get_or_intern_type_id(type_name);
-                            chunk_encoder.encode_u16(id);
-                        }
-                    } else {
-                        chunk_encoder.encode_u8(0);
-                    }
-
-                    // Scope name
-                    if let Some(scope_name) = &allocation.scope_name {
-                        chunk_encoder.encode_u8(1);
-                        if let Ok(mut table) = string_table.lock() {
-                            let id = table.intern(scope_name);
-                            chunk_encoder.encode_u32(id);
-                        }
-                    } else {
-                        chunk_encoder.encode_u8(0);
-                    }
-
-                    chunk_encoder.encode_u64(allocation.timestamp_alloc);
-
-                    // Optional timestamp_dealloc
-                    match allocation.timestamp_dealloc {
-                        Some(ts) => {
-                            chunk_encoder.encode_u8(1);
-                            chunk_encoder.encode_u64(ts);
-                        }
-                        None => {
-                            chunk_encoder.encode_u8(0);
-                        }
-                    }
-
-                    // Thread ID
-                    if let Ok(mut table) = string_table.lock() {
-                        let id = table.intern(&allocation.thread_id);
-                        chunk_encoder.encode_u32(id);
-                    }
-
-                    chunk_encoder.encode_usize(allocation.borrow_count);
-
-                    // Stack trace (simplified for parallel processing)
-                    if let Some(stack_trace) = &allocation.stack_trace {
-                        chunk_encoder.encode_u8(1);
-                        chunk_encoder.encode_u32(stack_trace.len() as u32);
-                        for frame in stack_trace {
-                            if let Ok(mut table) = string_table.lock() {
-                                let id = table.intern(frame);
-                                chunk_encoder.encode_u32(id);
-                            }
-                        }
-                    } else {
-                        chunk_encoder.encode_u8(0);
-                    }
-
-                    chunk_encoder.encode_u8(if allocation.is_leaked { 1 } else { 0 });
-
-                    // Optional lifetime_ms
-                    match allocation.lifetime_ms {
-                        Some(lifetime) => {
-                            chunk_encoder.encode_u8(1);
-                            chunk_encoder.encode_u64(lifetime);
-                        }
-                        None => {
-                            chunk_encoder.encode_u8(0);
-                        }
-                    }
-
-                    // Extended fields (simplified flags)
-                    chunk_encoder.encode_u8(if allocation.smart_pointer_info.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.memory_layout.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.generic_info.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.dynamic_type_info.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.runtime_state.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.stack_allocation.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.temporary_object.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.fragmentation_analysis.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.generic_instantiation.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.type_relationships.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.type_usage.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.function_call_tracking.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.lifecycle_tracking.is_some() {
-                        1
-                    } else {
-                        0
-                    });
-                    chunk_encoder.encode_u8(if allocation.access_tracking.is_some() {
-                        1
-                    } else {
-                        0
-                    });
+            // Use shared string table for variable names
+            if let Some(var_name) = &allocation.var_name {
+                encoder.encode_u8(1);
+                if let Ok(mut table) = string_table.lock() {
+                    let id = table.intern(var_name);
+                    encoder.encode_u32(id);
                 }
+            } else {
+                encoder.encode_u8(0);
+            }
 
-                Ok::<Vec<u8>, crate::core::types::TrackingError>(chunk_encoder.into_bytes())
-            })
-            .collect();
+            // Use shared type table for type names
+            if let Some(type_name) = &allocation.type_name {
+                encoder.encode_u8(1);
+                if let Ok(mut table) = type_table.lock() {
+                    let id = table.get_or_intern_type_id(type_name);
+                    encoder.encode_u16(id);
+                }
+            } else {
+                encoder.encode_u8(0);
+            }
 
-        // Combine all chunks
-        for chunk_data in encoded_chunks? {
-            encoder.encode_bytes(&chunk_data);
+            // Scope name
+            if let Some(scope_name) = &allocation.scope_name {
+                encoder.encode_u8(1);
+                if let Ok(mut table) = string_table.lock() {
+                    let id = table.intern(scope_name);
+                    encoder.encode_u32(id);
+                }
+            } else {
+                encoder.encode_u8(0);
+            }
+
+            encoder.encode_u64(allocation.timestamp_alloc);
+
+            // Optional timestamp_dealloc
+            match allocation.timestamp_dealloc {
+                Some(ts) => {
+                    encoder.encode_u8(1);
+                    encoder.encode_u64(ts);
+                }
+                None => {
+                    encoder.encode_u8(0);
+                }
+            }
+
+            // Thread ID
+            if let Ok(mut table) = string_table.lock() {
+                let id = table.intern(&allocation.thread_id);
+                encoder.encode_u32(id);
+            }
+
+            encoder.encode_usize(allocation.borrow_count);
+
+            // Stack trace
+            if let Some(stack_trace) = &allocation.stack_trace {
+                encoder.encode_u8(1);
+                encoder.encode_u32(stack_trace.len() as u32);
+                for frame in stack_trace {
+                    if let Ok(mut table) = string_table.lock() {
+                        let id = table.intern(frame);
+                        encoder.encode_u32(id);
+                    }
+                }
+            } else {
+                encoder.encode_u8(0);
+            }
+
+            encoder.encode_u8(if allocation.is_leaked { 1 } else { 0 });
+
+            // Optional lifetime_ms
+            match allocation.lifetime_ms {
+                Some(lifetime) => {
+                    encoder.encode_u8(1);
+                    encoder.encode_u64(lifetime);
+                }
+                None => {
+                    encoder.encode_u8(0);
+                }
+            }
+
+            // Extended fields (simplified flags)
+            encoder.encode_u8(if allocation.smart_pointer_info.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.memory_layout.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.generic_info.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.dynamic_type_info.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.runtime_state.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.stack_allocation.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.temporary_object.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.fragmentation_analysis.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.generic_instantiation.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.type_relationships.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.type_usage.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.function_call_tracking.is_some() { 1 } else { 0 });
+            encoder.encode_u8(if allocation.lifecycle_tracking.is_some() { 1 } else { 0 });
         }
 
         Ok(encoder.into_bytes())

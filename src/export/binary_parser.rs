@@ -1393,6 +1393,15 @@ impl BinaryParser {
 
     /// Parse active allocations from the ActiveAllocations section
     pub fn parse_active_allocations(&mut self) -> TrackingResult<Vec<AllocationInfo>> {
+        // Debug: Check if ActiveAllocations section exists
+        let available_sections = self.get_available_sections();
+        println!("Available sections: {:?}", available_sections);
+        
+        if !available_sections.contains(&SectionType::ActiveAllocations) {
+            println!("ActiveAllocations section not found in directory!");
+            return Ok(Vec::new());
+        }
+        
         self.load_section(SectionType::ActiveAllocations)?;
 
         let section_data = self
@@ -1402,6 +1411,16 @@ impl BinaryParser {
                     "ActiveAllocations section not loaded".to_string(),
                 )
             })?;
+            
+        println!("ActiveAllocations section data size: {} bytes", section_data.len());
+        
+        // Debug: Check the first few bytes of the section data
+        if section_data.len() >= 8 {
+            let first_bytes = &section_data[0..8];
+            println!("First 8 bytes of ActiveAllocations section: {:?}", first_bytes);
+            let allocation_count_raw = u32::from_le_bytes([first_bytes[0], first_bytes[1], first_bytes[2], first_bytes[3]]);
+            println!("Raw allocation count from first 4 bytes: {}", allocation_count_raw);
+        }
 
         let string_table = self.string_table.as_ref().unwrap().clone();
         let type_table = self.type_table.as_ref().unwrap().clone();
@@ -1413,6 +1432,8 @@ impl BinaryParser {
                 e
             ))
         })? as usize;
+        
+        println!("Decoded allocation count: {}", allocation_count);
 
         let mut allocations = Vec::with_capacity(allocation_count);
 
@@ -1526,6 +1547,7 @@ impl BinaryParser {
             };
 
             // Skip extended fields for now (they were encoded as flags)
+            // Must match exactly with the encoder's field list
             for field_name in &[
                 "smart_pointer_info",
                 "memory_layout",
@@ -1540,7 +1562,6 @@ impl BinaryParser {
                 "type_usage",
                 "function_call_tracking",
                 "lifecycle_tracking",
-                "access_tracking",
             ] {
                 let _flag = decoder.decode_u8().map_err(|e| {
                     crate::core::types::TrackingError::ExportError(format!(
@@ -2031,6 +2052,11 @@ impl BinaryParser {
     /// Load allocations directly into memory structures (for programmatic use)
     pub fn load_allocations(&mut self) -> TrackingResult<Vec<AllocationInfo>> {
         self.parse_active_allocations()
+    }
+
+    /// Get all allocations from the parsed data (alias for load_allocations)
+    pub fn get_allocations(&mut self) -> TrackingResult<Vec<AllocationInfo>> {
+        self.load_allocations()
     }
 
     /// Load memory stats from parsed binary data

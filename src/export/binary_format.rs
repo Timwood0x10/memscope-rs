@@ -1202,6 +1202,12 @@ impl BinaryEncoder {
         self.buffer.extend_from_slice(data);
     }
 
+    /// Append raw bytes without length prefix
+    /// Used for combining parallel-processed chunks
+    pub fn append_raw_bytes(&mut self, data: &[u8]) {
+        self.buffer.extend_from_slice(data);
+    }
+
     /// Get the encoded data as bytes
     pub fn into_bytes(self) -> Vec<u8> {
         self.buffer
@@ -1271,6 +1277,8 @@ impl<'a> BinaryDecoder<'a> {
     /// Decode a u32 value (Little Endian)
     pub fn decode_u32(&mut self) -> Result<u32, BinaryFormatError> {
         if self.position + 4 > self.data.len() {
+            tracing::warn!("Attempting to decode u32 at position {} but only {} bytes available", 
+                          self.position, self.data.len());
             return Err(BinaryFormatError::UnexpectedEndOfData);
         }
         let value = u32::from_le_bytes([
@@ -1304,12 +1312,25 @@ impl<'a> BinaryDecoder<'a> {
 
     /// Decode a usize value from u64 (Little Endian)
     pub fn decode_usize(&mut self) -> Result<usize, BinaryFormatError> {
+        // Check if we have enough data to read the usize
+        if self.position + 8 > self.data.len() {
+            tracing::warn!("Attempting to decode usize at position {} but only {} bytes available", 
+                          self.position, self.data.len());
+            return Err(BinaryFormatError::UnexpectedEndOfData);
+        }
         let value = self.decode_u64()?;
         Ok(value as usize)
     }
 
     /// Decode a string using the string table
     pub fn decode_string(&mut self) -> Result<String, BinaryFormatError> {
+        // Check if we have enough data to read the string ID
+        if self.position + 4 > self.data.len() {
+            tracing::warn!("Attempting to decode string ID at position {} but only {} bytes available", 
+                          self.position, self.data.len());
+            return Err(BinaryFormatError::UnexpectedEndOfData);
+        }
+        
         let id = self.decode_u32()?;
         Ok(self
             .string_table
@@ -1317,6 +1338,7 @@ impl<'a> BinaryDecoder<'a> {
             .map(|s| s.to_string())
             .unwrap_or_else(|| {
                 // Recovery mode: if string ID is invalid, return a placeholder
+                tracing::warn!("Invalid string ID {}, using placeholder", id);
                 format!("INVALID_STRING_ID_{}", id)
             }))
     }
@@ -1376,32 +1398,88 @@ impl<'a> BinaryDecoder<'a> {
 
     /// Decode a vector of strings
     pub fn decode_string_vec(&mut self) -> Result<Vec<String>, BinaryFormatError> {
+        // Check if we have enough data to read the count
+        if self.position + 4 > self.data.len() {
+            return Err(BinaryFormatError::UnexpectedEndOfData);
+        }
+        
         let count = self.decode_u32()?;
+        
+        // Sanity check: if count is unreasonably large, treat as corrupted data
+        if count > 10000 {
+            tracing::warn!("Unreasonably large string vector count {}, treating as empty", count);
+            return Ok(Vec::new());
+        }
+        
         let mut vec = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            vec.push(self.decode_string()?);
+        for i in 0..count {
+            // Check if we still have data before trying to decode each string
+            if self.position >= self.data.len() {
+                tracing::warn!("Unexpected end of data while decoding string {} of {}", i, count);
+                break;
+            }
+            match self.decode_string() {
+                Ok(s) => vec.push(s),
+                Err(e) => {
+                    tracing::warn!("Failed to decode string {} of {}: {:?}", i, count, e);
+                    break;
+                }
+            }
         }
         Ok(vec)
     }
 
     /// Decode an optional vector of strings
     pub fn decode_optional_string_vec(&mut self) -> Result<Option<Vec<String>>, BinaryFormatError> {
+        // Check if we have enough data to read the marker
+        if self.position >= self.data.len() {
+            return Err(BinaryFormatError::UnexpectedEndOfData);
+        }
+        
         let marker = self.decode_u8()?;
         match marker {
             0 => Ok(None),
-            1 => Ok(Some(self.decode_string_vec()?)),
-            _ => {
-                // Recovery mode: if we encounter an invalid marker, try to recover
-                // by treating it as None and moving back one position
-                if marker > 1 {
-                    // Move back one position to re-read this byte as part of the next field
-                    if self.position > 0 {
-                        self.position -= 1;
-                    }
-                    Ok(None)
-                } else {
-                    Err(BinaryFormatError::InvalidOptionMarker(marker))
+            1 => {
+                // Verify we have enough data for the vector count
+                if self.position + 4 > self.data.len() {
+                    return Err(BinaryFormatError::UnexpectedEndOfData);
                 }
+                Ok(Some(self.decode_string_vec()?))
+            },
+            _ => {
+                // Recovery mode: treat invalid markers as None
+                // Don't try to move back position as it can cause issues
+                tracing::warn!("Invalid option marker {} for optional string vec, treating as None", marker);
+                Ok(None)
+            }
+        }
+    }
+
+    /// Decode an optional u64 value
+    pub fn decode_optional_u64(&mut self) -> Result<Option<u64>, BinaryFormatError> {
+        // Check if we have enough data to read the marker
+        if self.position >= self.data.len() {
+            tracing::warn!("Attempting to decode optional u64 marker at position {} but only {} bytes available", 
+                          self.position, self.data.len());
+            return Err(BinaryFormatError::UnexpectedEndOfData);
+        }
+        
+        let marker = self.decode_u8()?;
+        match marker {
+            0 => Ok(None),
+            1 => {
+                // Check if we have enough data for the u64 value
+                if self.position + 8 > self.data.len() {
+                    tracing::warn!("Attempting to decode u64 value at position {} but only {} bytes available", 
+                                  self.position, self.data.len());
+                    return Err(BinaryFormatError::UnexpectedEndOfData);
+                }
+                Ok(Some(self.decode_u64()?))
+            },
+            _ => {
+                // Recovery mode: treat invalid markers as None
+                tracing::warn!("Invalid option marker {} for optional u64, treating as None", marker);
+                Ok(None)
             }
         }
     }
