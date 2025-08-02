@@ -294,6 +294,87 @@ impl BinaryHeader {
 
         Ok(header)
     }
+
+    /// Deserialize header from bytes with relaxed validation (for recovery mode)
+    pub fn from_bytes_relaxed(bytes: &[u8]) -> Result<Self, BinaryFormatError> {
+        if bytes.len() < HEADER_SIZE {
+            return Err(BinaryFormatError::InvalidHeaderSize {
+                expected: HEADER_SIZE,
+                found: bytes.len(),
+            });
+        }
+
+        let mut offset = 0;
+
+        // Magic number (8 bytes) - don't validate in relaxed mode
+        let mut magic = [0u8; 8];
+        magic.copy_from_slice(&bytes[offset..offset + 8]);
+        offset += 8;
+
+        // Version (4 bytes)
+        let version_major = u16::from_le_bytes([bytes[offset], bytes[offset + 1]]);
+        offset += 2;
+        let version_minor = u16::from_le_bytes([bytes[offset], bytes[offset + 1]]);
+        offset += 2;
+
+        // Compression type (4 bytes) - use None if invalid
+        let compression_raw = u32::from_le_bytes([
+            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+        ]);
+        let compression_type = match compression_raw {
+            0 => CompressionType::None,
+            1 => CompressionType::Lz4,
+            2 => CompressionType::Zstd,
+            _ => CompressionType::None, // Default to None in relaxed mode
+        };
+        offset += 4;
+
+        // Section count (4 bytes)
+        let section_count = u32::from_le_bytes([
+            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+        ]);
+        offset += 4;
+
+        // Total size (8 bytes)
+        let total_size = u64::from_le_bytes([
+            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
+            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+        ]);
+        offset += 8;
+
+        // Timestamp (8 bytes)
+        let timestamp = u64::from_le_bytes([
+            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
+            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+        ]);
+        offset += 8;
+
+        // Checksum (8 bytes)
+        let checksum = u64::from_le_bytes([
+            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
+            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+        ]);
+        offset += 8;
+
+        // Reserved (20 bytes)
+        let mut reserved = [0u8; 20];
+        reserved.copy_from_slice(&bytes[offset..offset + 20]);
+
+        let header = Self {
+            magic,
+            version_major,
+            version_minor,
+            compression_type,
+            section_count,
+            total_size,
+            timestamp,
+            checksum,
+            reserved,
+        };
+
+        // Don't validate in relaxed mode - just return the header
+        Ok(header)
+    }
 }
 
 impl SectionEntry {

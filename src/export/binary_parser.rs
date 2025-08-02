@@ -506,12 +506,12 @@ impl BinaryParser {
 
         // Read file data
         let file = File::open(path).map_err(|e| {
-            crate::core::types::TrackingError::ExportError(format!("Failed to open file: {}", e))
+            crate::core::types::TrackingError::IoError(format!("Failed to open file: {}", e))
         })?;
 
         let mut reader = BufReader::with_capacity(self.options.buffer_size, file);
         reader.read_to_end(&mut self.file_data).map_err(|e| {
-            crate::core::types::TrackingError::ExportError(format!("Failed to read file: {}", e))
+            crate::core::types::TrackingError::IoError(format!("Failed to read file: {}", e))
         })?;
 
         let file_size = self.file_data.len();
@@ -563,22 +563,42 @@ impl BinaryParser {
     /// Parse the file header
     fn parse_header(&mut self, progress: &mut ParseProgress) -> TrackingResult<()> {
         if self.file_data.len() < 64 {
-            return Err(crate::core::types::TrackingError::ExportError(
+            return Err(crate::core::types::TrackingError::ValidationError(
                 "File too small to contain header".to_string(),
             ));
         }
 
-        let header = BinaryHeader::from_bytes(&self.file_data[0..64]).map_err(|e| {
-            crate::core::types::TrackingError::ExportError(format!("Invalid header: {}", e))
-        })?;
+        let header = if self.options.enable_recovery {
+            // In recovery mode, try to parse header with relaxed validation
+            match BinaryHeader::from_bytes_relaxed(&self.file_data[0..64]) {
+                Ok(h) => h,
+                Err(e) => {
+                    tracing::warn!("Header parsing failed in recovery mode: {}, attempting reconstruction", e);
+                    // Try to reconstruct a minimal valid header
+                    self.reconstruct_header_from_data()?
+                }
+            }
+        } else {
+            BinaryHeader::from_bytes(&self.file_data[0..64]).map_err(|e| {
+                crate::core::types::TrackingError::ValidationError(format!("Invalid header: {}", e))
+            })?
+        };
 
-        // Validate header
-        header.validate().map_err(|e| {
-            crate::core::types::TrackingError::ExportError(format!(
-                "Header validation failed: {}",
-                e
-            ))
-        })?;
+        // Validate header (skip in recovery mode if header was reconstructed)
+        if !self.options.enable_recovery || header.magic == crate::export::binary_format::BINARY_MAGIC {
+            if let Err(e) = header.validate() {
+                if self.options.enable_recovery {
+                    tracing::warn!("Header validation failed in recovery mode: {}, continuing anyway", e);
+                } else {
+                    return Err(crate::core::types::TrackingError::ValidationError(format!(
+                        "Header validation failed: {}",
+                        e
+                    )));
+                }
+            }
+        } else {
+            tracing::info!("Skipping header validation in recovery mode due to reconstructed header");
+        }
 
         // Verify checksum if enabled
         if self.options.verify_checksums {
@@ -586,7 +606,7 @@ impl BinaryParser {
             header_copy.calculate_checksum();
             if header_copy.checksum != header.checksum {
                 if self.options.strict_validation {
-                    return Err(crate::core::types::TrackingError::ExportError(
+                    return Err(crate::core::types::TrackingError::ValidationError(
                         "Header checksum mismatch".to_string(),
                     ));
                 }
@@ -683,6 +703,65 @@ impl BinaryParser {
         }
 
         Ok(())
+    }
+
+    /// Attempt to reconstruct a valid header from corrupted data
+    fn reconstruct_header_from_data(&self) -> TrackingResult<BinaryHeader> {
+        tracing::info!("Attempting to reconstruct header from file data");
+        
+        let mut header = BinaryHeader::new();
+        
+        // Try to estimate file size
+        header.total_size = self.file_data.len() as u64;
+        
+        // Try to estimate section count by scanning for section-like patterns
+        header.section_count = self.estimate_section_count();
+        
+        // Use current timestamp
+        header.timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+            
+        // Set a dummy checksum
+        header.checksum = 0;
+        
+        tracing::info!("Reconstructed header with {} estimated sections", header.section_count);
+        Ok(header)
+    }
+
+    /// Estimate the number of sections by scanning file data
+    fn estimate_section_count(&self) -> u32 {
+        // Look for patterns that might indicate sections
+        // This is a heuristic approach for recovery
+        
+        if self.file_data.len() < 128 {
+            return 1; // Minimal file
+        }
+        
+        // Scan for potential section boundaries
+        let mut potential_sections = 0;
+        let scan_start = 64; // After header
+        let scan_end = std::cmp::min(self.file_data.len(), 1024); // Don't scan too far
+        
+        for i in (scan_start..scan_end).step_by(4) {
+            if i + 4 <= self.file_data.len() {
+                let value = u32::from_le_bytes([
+                    self.file_data[i],
+                    self.file_data[i + 1], 
+                    self.file_data[i + 2],
+                    self.file_data[i + 3]
+                ]);
+                
+                // Look for reasonable-looking size values
+                if value > 0 && value < self.file_data.len() as u32 {
+                    potential_sections += 1;
+                }
+            }
+        }
+        
+        // Return a reasonable estimate
+        std::cmp::max(1, std::cmp::min(potential_sections / 4, 10))
     }
 
     /// Parse the section directory
