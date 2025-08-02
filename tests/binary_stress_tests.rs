@@ -686,7 +686,7 @@ mod tests {
         
         println!("✅ Resource cleanup test passed");
     }
-}
+
 
 /// Extreme stress tests for edge cases
 #[cfg(test)]

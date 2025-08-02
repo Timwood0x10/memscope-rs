@@ -150,7 +150,7 @@ impl DataEquivalenceChecker {
             result.add_difference(path, format!("Number mismatch: {:?} != {:?}", binary_num, direct_num));
         }
     }
-}
+
 
 /// Result of data equivalence comparison
 #[derive(Debug, Clone)]
@@ -182,8 +182,9 @@ impl EquivalenceResult {
             }
         }
     }
-}/// Cr
-eate a test tracker with deterministic data for compatibility testing
+}
+
+/// Create a test tracker with deterministic data for compatibility testing
 fn create_deterministic_tracker() -> TrackingResult<MemoryTracker> {
     let mut tracker = MemoryTracker::new();
     
@@ -527,7 +528,7 @@ mod tests {
         
         println!("✅ Format validation passed");
     }
-}
+
 
 /// Integration tests that verify compatibility across different scenarios
 #[cfg(test)]
