@@ -59,7 +59,10 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             let binary_path = format!("{output_path}.bin");
             if Path::new(&binary_path).exists() {
                 println!("✅ Binary analysis exported to: {binary_path}");
-                println!("💡 Use 'memscope binary-info {}' to view file information", binary_path);
+                println!(
+                    "💡 Use 'memscope binary-info {}' to view file information",
+                    binary_path
+                );
                 println!("💡 Use 'memscope convert -f binary -t json -i {} -o {}.json' to convert to JSON", binary_path, output_path);
             } else {
                 println!("⚠️  Binary file not found at expected location: {binary_path}");

@@ -46,13 +46,20 @@ pub fn run_binary_info(matches: &ArgMatches) -> Result<(), Box<dyn std::error::E
 }
 
 /// Display basic file information
-fn display_basic_info(_parser: &BinaryParser, file_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn display_basic_info(
+    _parser: &BinaryParser,
+    file_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     let metadata = std::fs::metadata(file_path)?;
     let file_size = metadata.len();
 
     println!("\nBasic Information:");
-    println!("  File size: {} bytes ({:.2} MB)", file_size, file_size as f64 / (1024.0 * 1024.0));
-    
+    println!(
+        "  File size: {} bytes ({:.2} MB)",
+        file_size,
+        file_size as f64 / (1024.0 * 1024.0)
+    );
+
     // Basic file information - simplified since some methods don't exist yet
     println!("  Format: Binary memory analysis file");
     println!("  Status: Loaded successfully");
@@ -79,18 +86,24 @@ fn display_statistics(parser: &mut BinaryParser) -> Result<(), Box<dyn std::erro
             println!("    Total allocations: {}", stats.total_allocations);
             println!("    Active allocations: {}", stats.active_allocations);
             println!("    Peak allocations: {}", stats.peak_allocations);
-            println!("    Total allocated: {} bytes ({:.2} MB)", 
-                stats.total_allocated, 
-                stats.total_allocated as f64 / (1024.0 * 1024.0));
-            println!("    Peak memory: {} bytes ({:.2} MB)", 
-                stats.peak_memory, 
-                stats.peak_memory as f64 / (1024.0 * 1024.0));
-            
+            println!(
+                "    Total allocated: {} bytes ({:.2} MB)",
+                stats.total_allocated,
+                stats.total_allocated as f64 / (1024.0 * 1024.0)
+            );
+            println!(
+                "    Peak memory: {} bytes ({:.2} MB)",
+                stats.peak_memory,
+                stats.peak_memory as f64 / (1024.0 * 1024.0)
+            );
+
             if stats.leaked_allocations > 0 {
                 println!("    ⚠️  Leaked allocations: {}", stats.leaked_allocations);
-                println!("    ⚠️  Leaked memory: {} bytes ({:.2} MB)", 
-                    stats.leaked_memory, 
-                    stats.leaked_memory as f64 / (1024.0 * 1024.0));
+                println!(
+                    "    ⚠️  Leaked memory: {} bytes ({:.2} MB)",
+                    stats.leaked_memory,
+                    stats.leaked_memory as f64 / (1024.0 * 1024.0)
+                );
             }
         }
         Err(e) => {
@@ -103,7 +116,7 @@ fn display_statistics(parser: &mut BinaryParser) -> Result<(), Box<dyn std::erro
         Ok(allocations) => {
             println!("  Allocation Details:");
             println!("    Total allocation records: {}", allocations.len());
-            
+
             // Count allocations by type
             let mut type_counts = std::collections::HashMap::new();
             for alloc in &allocations {
@@ -116,7 +129,7 @@ fn display_statistics(parser: &mut BinaryParser) -> Result<(), Box<dyn std::erro
                 println!("    Top allocation types:");
                 let mut sorted_types: Vec<_> = type_counts.iter().collect();
                 sorted_types.sort_by(|a, b| b.1.cmp(a.1));
-                
+
                 for (type_name, count) in sorted_types.iter().take(5) {
                     println!("      {}: {} allocations", type_name, count);
                 }
@@ -175,7 +188,7 @@ mod tests {
     #[test]
     fn test_binary_info_command_validation() {
         // Test that the binary-info command validates input parameters correctly
-        
+
         // Test with nonexistent file
         let result = run_binary_info(&create_test_matches("nonexistent.bin", false, false, false));
         assert!(result.is_err());
@@ -183,7 +196,7 @@ mod tests {
 
     fn create_test_matches(input: &str, detailed: bool, sections: bool, stats: bool) -> ArgMatches {
         use clap::{Arg, Command};
-        
+
         let mut cmd = Command::new("test")
             .arg(Arg::new("input").required(true))
             .arg(Arg::new("detailed").action(clap::ArgAction::SetTrue))
@@ -191,9 +204,15 @@ mod tests {
             .arg(Arg::new("stats").action(clap::ArgAction::SetTrue));
 
         let mut args = vec!["test", input];
-        if detailed { args.push("--detailed"); }
-        if sections { args.push("--sections"); }
-        if stats { args.push("--stats"); }
+        if detailed {
+            args.push("--detailed");
+        }
+        if sections {
+            args.push("--sections");
+        }
+        if stats {
+            args.push("--stats");
+        }
 
         cmd.try_get_matches_from(args).unwrap()
     }

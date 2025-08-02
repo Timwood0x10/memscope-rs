@@ -1198,7 +1198,10 @@ impl MemoryTracker {
 
         // Use try_lock to avoid blocking during high allocation activity
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
-            (Ok(active), Ok(mut stats)) => {
+            (Ok(mut active), Ok(mut stats)) => {
+                // Add to active allocations - THIS WAS MISSING!
+                active.insert(ptr, allocation.clone());
+
                 // Update statistics with overflow protection
                 stats.total_allocations = stats.total_allocations.saturating_add(1);
                 stats.total_allocated = stats.total_allocated.saturating_add(size);
@@ -3076,10 +3079,10 @@ impl MemoryTracker {
     /// ## Convert back to JSON when needed
     /// ```rust
     /// use memscope::export::binary_parser::BinaryParser;
-    /// 
+    ///
     /// // Export to binary first (fast)
     /// tracker.export_to_binary("data")?;
-    /// 
+    ///
     /// // Convert to JSON when needed (on-demand)
     /// let mut parser = BinaryParser::new();
     /// parser.load_from_file("MemoryAnalysis/data.memscope")?;
@@ -3115,36 +3118,36 @@ impl MemoryTracker {
     /// ## Fast export for production monitoring
     /// ```rust
     /// use memscope::export::binary_exporter::{BinaryExportOptions, CompressionType};
-    /// 
+    ///
     /// let options = BinaryExportOptions::fast()
     ///     .compression(CompressionType::Lz4)
     ///     .parallel_encoding(true);
-    /// 
+    ///
     /// tracker.export_to_binary_with_options("prod_snapshot", options)?;
     /// ```
     ///
     /// ## Comprehensive export with maximum compression
     /// ```rust
     /// use memscope::export::binary_exporter::{BinaryExportOptions, CompressionType};
-    /// 
+    ///
     /// let options = BinaryExportOptions::comprehensive()
     ///     .compression(CompressionType::Zstd)
     ///     .include_ffi_analysis(true)
     ///     .include_history(true);
-    /// 
+    ///
     /// tracker.export_to_binary_with_options("full_analysis", options)?;
     /// ```
     ///
     /// ## Custom configuration
     /// ```rust
     /// use memscope::export::binary_exporter::{BinaryExportOptions, CompressionType};
-    /// 
+    ///
     /// let options = BinaryExportOptions::default()
     ///     .compression(CompressionType::Lz4)
     ///     .buffer_size(512 * 1024)  // 512KB buffer
     ///     .thread_count(Some(4))    // Use 4 threads
     ///     .memory_limit(100 * 1024 * 1024); // 100MB limit
-    /// 
+    ///
     /// tracker.export_to_binary_with_options("custom", options)?;
     /// ```
     pub fn export_to_binary_with_options<P: AsRef<std::path::Path>>(
@@ -3160,7 +3163,10 @@ impl MemoryTracker {
         println!("🚀 Starting high-performance binary export...");
         println!("📁 Output: {}", output_path.display());
         println!("🗜️  Compression: {:?}", options.compression);
-        println!("⚡ Parallel processing: {}", options.enable_parallel_encoding);
+        println!(
+            "⚡ Parallel processing: {}",
+            options.enable_parallel_encoding
+        );
 
         // Create binary exporter with options
         let mut exporter = BinaryExporter::with_options(options.clone());
@@ -3187,14 +3193,29 @@ impl MemoryTracker {
         println!("✅ Binary export completed in {:?}", export_time);
         println!("📁 File created: {}", result.file_path);
         println!("📊 Export statistics:");
-        println!("   - File size: {:.2} MB", result.file_size as f64 / 1024.0 / 1024.0);
-        println!("   - Original size: {:.2} MB", result.original_size as f64 / 1024.0 / 1024.0);
-        println!("   - Compression ratio: {:.1}%", result.compression_ratio * 100.0);
-        println!("   - Space savings: {:.1}%", result.space_savings_percentage());
+        println!(
+            "   - File size: {:.2} MB",
+            result.file_size as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   - Original size: {:.2} MB",
+            result.original_size as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   - Compression ratio: {:.1}%",
+            result.compression_ratio * 100.0
+        );
+        println!(
+            "   - Space savings: {:.1}%",
+            result.space_savings_percentage()
+        );
         println!("   - Export speed: {:.2} MB/s", result.export_speed_mbps());
         println!("   - Sections exported: {}", result.sections_exported);
         println!("   - Allocations exported: {}", result.allocations_exported);
-        println!("   - Parallel processing: {}", result.used_parallel_processing);
+        println!(
+            "   - Parallel processing: {}",
+            result.used_parallel_processing
+        );
 
         if result.space_savings_percentage() > 50.0 {
             println!("🎉 Excellent compression achieved!");
@@ -3253,7 +3274,10 @@ impl MemoryTracker {
     /// // Comprehensive export for detailed analysis
     /// tracker.export_to_binary_comprehensive("full_analysis")?;
     /// ```
-    pub fn export_to_binary_comprehensive<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+    pub fn export_to_binary_comprehensive<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> TrackingResult<()> {
         use crate::export::binary_exporter::BinaryExportOptions;
 
         let options = BinaryExportOptions::comprehensive();
@@ -3266,7 +3290,7 @@ impl MemoryTracker {
         path: P,
     ) -> std::path::PathBuf {
         let path = path.as_ref();
-        
+
         // If path is absolute or contains directory components, respect them
         if path.is_absolute() || path.parent().is_some() {
             // Get the base filename without extension
@@ -3274,14 +3298,14 @@ impl MemoryTracker {
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("export");
-            
+
             // Create parent directory if it doesn't exist
             if let Some(parent) = path.parent() {
                 if let Err(e) = std::fs::create_dir_all(parent) {
                     eprintln!("Warning: Could not create directory {:?}: {}", parent, e);
                 }
             }
-            
+
             // Return path with .memscope extension
             path.with_file_name(format!("{}.memscope", base_name))
         } else {
@@ -3293,7 +3317,7 @@ impl MemoryTracker {
 
             // Create MemoryAnalysis directory structure
             let memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
-            
+
             // Create directory if it doesn't exist
             if let Err(e) = std::fs::create_dir_all(&memory_analysis_dir) {
                 eprintln!("Warning: Could not create MemoryAnalysis directory: {}", e);
@@ -3303,7 +3327,6 @@ impl MemoryTracker {
             memory_analysis_dir.join(format!("{}.memscope", base_name))
         }
     }
-
 
     // ============================================================================
     // Automatic Format Selection
@@ -3337,7 +3360,7 @@ impl MemoryTracker {
     /// let preferences = FormatSelectionPreferences::new()
     ///     .prefer_binary_threshold(500)  // Use binary for >500 allocations
     ///     .force_json_for_small(true);   // Always use JSON for <100 allocations
-    /// 
+    ///
     /// tracker.export_auto_with_preferences("analysis", preferences)?;
     /// ```
     pub fn export_auto<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
@@ -3352,19 +3375,16 @@ impl MemoryTracker {
         preferences: FormatSelectionPreferences,
     ) -> TrackingResult<()> {
         let start_time = std::time::Instant::now();
-        
+
         // Analyze current data characteristics
         let data_analysis = self.analyze_export_data_characteristics()?;
-        
+
         // Predict performance for both formats
         let performance_prediction = self.predict_export_performance(&data_analysis)?;
-        
+
         // Select optimal format based on analysis and preferences
-        let format_decision = self.select_optimal_format(
-            &data_analysis,
-            &performance_prediction,
-            &preferences,
-        )?;
+        let format_decision =
+            self.select_optimal_format(&data_analysis, &performance_prediction, &preferences)?;
 
         // Log the decision
         self.log_format_selection(&format_decision, &data_analysis, &performance_prediction);
@@ -3402,11 +3422,15 @@ impl MemoryTracker {
 
         // Analyze data complexity
         let has_ffi_data = active_allocations.iter().any(|a| {
-            a.type_name.as_ref().map_or(false, |t| t.contains("ffi") || t.contains("extern"))
+            a.type_name
+                .as_ref()
+                .map_or(false, |t| t.contains("ffi") || t.contains("extern"))
         });
 
         let has_complex_types = memory_by_type.iter().any(|t| {
-            t.type_name.contains('<') || t.type_name.contains("HashMap") || t.type_name.contains("Vec")
+            t.type_name.contains('<')
+                || t.type_name.contains("HashMap")
+                || t.type_name.contains("Vec")
         });
 
         let average_allocation_size = if total_allocations > 0 {
@@ -3417,7 +3441,8 @@ impl MemoryTracker {
 
         // Estimate serialized sizes
         let estimated_json_size = self.estimate_json_size(&active_allocations, &allocation_history);
-        let estimated_binary_size = self.estimate_binary_size(&active_allocations, &allocation_history);
+        let estimated_binary_size =
+            self.estimate_binary_size(&active_allocations, &allocation_history);
 
         Ok(DataCharacteristics {
             total_allocations,
@@ -3453,7 +3478,11 @@ impl MemoryTracker {
             estimated_time_ms: self.predict_json_export_time(data),
             estimated_memory_usage: data.estimated_json_size * 2, // JSON needs more memory during serialization
             estimated_file_size: data.estimated_json_size,
-            cpu_utilization: if data.total_allocations > 5000 { 0.8 } else { 0.4 },
+            cpu_utilization: if data.total_allocations > 5000 {
+                0.8
+            } else {
+                0.4
+            },
         };
 
         // Predict binary export performance
@@ -3461,7 +3490,11 @@ impl MemoryTracker {
             estimated_time_ms: self.predict_binary_export_time(data, cpu_cores),
             estimated_memory_usage: data.estimated_binary_size + (1024 * 1024), // Binary needs less memory
             estimated_file_size: data.estimated_binary_size,
-            cpu_utilization: if data.total_allocations > 5000 { 0.6 } else { 0.3 },
+            cpu_utilization: if data.total_allocations > 5000 {
+                0.6
+            } else {
+                0.3
+            },
             compression_ratio: self.estimate_compression_ratio(data),
         };
 
@@ -3498,8 +3531,10 @@ impl MemoryTracker {
         if data.total_allocations < preferences.force_json_threshold {
             return Ok(FormatDecision {
                 selected_format: ExportFormat::Json,
-                reason: format!("Small dataset ({} allocations < {})", 
-                    data.total_allocations, preferences.force_json_threshold),
+                reason: format!(
+                    "Small dataset ({} allocations < {})",
+                    data.total_allocations, preferences.force_json_threshold
+                ),
                 confidence: 0.9,
                 binary_options: None,
             });
@@ -3508,8 +3543,10 @@ impl MemoryTracker {
         if data.total_allocations > preferences.force_binary_threshold {
             return Ok(FormatDecision {
                 selected_format: ExportFormat::Binary,
-                reason: format!("Large dataset ({} allocations > {})", 
-                    data.total_allocations, preferences.force_binary_threshold),
+                reason: format!(
+                    "Large dataset ({} allocations > {})",
+                    data.total_allocations, preferences.force_binary_threshold
+                ),
                 confidence: 0.9,
                 binary_options: Some(self.select_binary_options_for_data(data)),
             });
@@ -3517,21 +3554,26 @@ impl MemoryTracker {
 
         // Performance-based selection for medium datasets
         let json_score = self.calculate_format_score(&performance.json, data, preferences);
-        let binary_score = self.calculate_format_score_binary(&performance.binary, data, preferences);
+        let binary_score =
+            self.calculate_format_score_binary(&performance.binary, data, preferences);
 
         if binary_score > json_score {
             Ok(FormatDecision {
                 selected_format: ExportFormat::Binary,
-                reason: format!("Performance advantage (binary score: {:.2} vs json score: {:.2})", 
-                    binary_score, json_score),
+                reason: format!(
+                    "Performance advantage (binary score: {:.2} vs json score: {:.2})",
+                    binary_score, json_score
+                ),
                 confidence: (binary_score - json_score).min(1.0),
                 binary_options: Some(self.select_binary_options_for_data(data)),
             })
         } else {
             Ok(FormatDecision {
                 selected_format: ExportFormat::Json,
-                reason: format!("JSON preferred (json score: {:.2} vs binary score: {:.2})", 
-                    json_score, binary_score),
+                reason: format!(
+                    "JSON preferred (json score: {:.2} vs binary score: {:.2})",
+                    json_score, binary_score
+                ),
                 confidence: (json_score - binary_score).min(1.0),
                 binary_options: None,
             })
@@ -3539,7 +3581,10 @@ impl MemoryTracker {
     }
 
     /// Select appropriate binary options based on data characteristics
-    fn select_binary_options_for_data(&self, data: &DataCharacteristics) -> crate::export::binary_exporter::BinaryExportOptions {
+    fn select_binary_options_for_data(
+        &self,
+        data: &DataCharacteristics,
+    ) -> crate::export::binary_exporter::BinaryExportOptions {
         use crate::export::binary_exporter::BinaryExportOptions;
         use crate::export::binary_format::CompressionType;
 
@@ -3640,21 +3685,28 @@ impl MemoryTracker {
     ) {
         println!("📊 Format Selection Analysis:");
         println!("   - Total allocations: {}", data.total_allocations);
-        println!("   - Active memory: {:.2} MB", data.active_memory as f64 / 1024.0 / 1024.0);
+        println!(
+            "   - Active memory: {:.2} MB",
+            data.active_memory as f64 / 1024.0 / 1024.0
+        );
         println!("   - Unique types: {}", data.unique_types);
         println!("   - Complexity score: {:.2}", data.complexity_score);
         println!("   - Has FFI data: {}", data.has_ffi_data);
         println!("   - Has complex types: {}", data.has_complex_types);
         println!();
         println!("🔮 Performance Predictions:");
-        println!("   JSON:   {:.1}s, {:.1} MB file, {:.1} MB memory", 
+        println!(
+            "   JSON:   {:.1}s, {:.1} MB file, {:.1} MB memory",
             performance.json.estimated_time_ms as f64 / 1000.0,
             performance.json.estimated_file_size as f64 / 1024.0 / 1024.0,
-            performance.json.estimated_memory_usage as f64 / 1024.0 / 1024.0);
-        println!("   Binary: {:.1}s, {:.1} MB file, {:.1} MB memory", 
+            performance.json.estimated_memory_usage as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   Binary: {:.1}s, {:.1} MB file, {:.1} MB memory",
             performance.binary.estimated_time_ms as f64 / 1000.0,
             performance.binary.estimated_file_size as f64 / 1024.0 / 1024.0,
-            performance.binary.estimated_memory_usage as f64 / 1024.0 / 1024.0);
+            performance.binary.estimated_memory_usage as f64 / 1024.0 / 1024.0
+        );
         println!();
         println!("✅ Selected Format: {:?}", decision.selected_format);
         println!("   - Reason: {}", decision.reason);
@@ -3670,27 +3722,47 @@ impl MemoryTracker {
     ) {
         // In a real implementation, this would store performance data
         // for machine learning or statistical analysis of format selection
-        println!("📈 Performance recorded: {:?} format took {:?}, success: {}", 
-            decision.selected_format, actual_time, success);
+        println!(
+            "📈 Performance recorded: {:?} format took {:?}, success: {}",
+            decision.selected_format, actual_time, success
+        );
     }
 
     // Helper methods for estimation
 
-    fn estimate_json_size(&self, active: &[crate::core::types::AllocationInfo], history: &[crate::core::types::AllocationInfo]) -> usize {
+    fn estimate_json_size(
+        &self,
+        active: &[crate::core::types::AllocationInfo],
+        history: &[crate::core::types::AllocationInfo],
+    ) -> usize {
         // Rough estimation: each allocation ~200 bytes in JSON
         (active.len() + history.len()) * 200 + 10240 // 10KB overhead
     }
 
-    fn estimate_binary_size(&self, active: &[crate::core::types::AllocationInfo], history: &[crate::core::types::AllocationInfo]) -> usize {
+    fn estimate_binary_size(
+        &self,
+        active: &[crate::core::types::AllocationInfo],
+        history: &[crate::core::types::AllocationInfo],
+    ) -> usize {
         // Rough estimation: each allocation ~80 bytes in binary (compressed)
         (active.len() + history.len()) * 80 + 5120 // 5KB overhead
     }
 
-    fn calculate_complexity_score(&self, total_allocs: usize, unique_types: usize, has_ffi: bool, has_complex: bool) -> f64 {
+    fn calculate_complexity_score(
+        &self,
+        total_allocs: usize,
+        unique_types: usize,
+        has_ffi: bool,
+        has_complex: bool,
+    ) -> f64 {
         let mut score = (total_allocs as f64).log10() / 6.0; // 0-1 based on allocation count
         score += (unique_types as f64).log10() / 4.0; // 0-1 based on type diversity
-        if has_ffi { score += 0.2; }
-        if has_complex { score += 0.1; }
+        if has_ffi {
+            score += 0.2;
+        }
+        if has_complex {
+            score += 0.1;
+        }
         score.min(1.0)
     }
 
@@ -3705,12 +3777,13 @@ impl MemoryTracker {
         // Binary is faster, especially with parallel processing
         let base_time = 50; // 50ms base
         let per_allocation = if data.has_complex_types { 0.2 } else { 0.1 }; // ms per allocation
-        let parallel_factor = if data.total_allocations > 1000 && cpu_cores > 1 { 
+        let parallel_factor = if data.total_allocations > 1000 && cpu_cores > 1 {
             0.6 // 40% speedup with parallelization
-        } else { 
-            1.0 
+        } else {
+            1.0
         };
-        ((base_time as f64 + data.total_allocations as f64 * per_allocation) * parallel_factor) as u64
+        ((base_time as f64 + data.total_allocations as f64 * per_allocation) * parallel_factor)
+            as u64
     }
 
     fn estimate_available_memory(&self) -> usize {
@@ -3745,14 +3818,14 @@ impl MemoryTracker {
     /// // Export 5 snapshots with 1 second intervals
     /// let config = BatchExportConfig::default();
     /// let result = tracker.export_batch_snapshots(5, std::time::Duration::from_secs(1), config)?;
-    /// 
+    ///
     /// println!("Exported {} files successfully", result.successful_exports);
     /// ```
     ///
     /// ## Custom batch configuration
     /// ```rust
     /// use memscope::export::binary_exporter::BinaryExportOptions;
-    /// 
+    ///
     /// let config = BatchExportConfig {
     ///     output_directory: "analysis/time_series".into(),
     ///     naming_pattern: "snapshot_{timestamp}_run_{index}".to_string(),
@@ -3762,7 +3835,7 @@ impl MemoryTracker {
     ///     progress_reporting: true,
     ///     cleanup_old_exports: Some(20),
     /// };
-    /// 
+    ///
     /// let result = tracker.export_batch_snapshots(10, std::time::Duration::from_millis(500), config)?;
     /// ```
     pub fn export_batch_snapshots(
@@ -3772,7 +3845,7 @@ impl MemoryTracker {
         config: BatchExportConfig,
     ) -> TrackingResult<BatchExportResult> {
         let start_time = std::time::Instant::now();
-        
+
         // Create output directory
         std::fs::create_dir_all(&config.output_directory).map_err(|e| {
             crate::core::types::TrackingError::ExportError(format!(
@@ -3868,13 +3941,10 @@ impl MemoryTracker {
 
             // Perform export
             let result = match config.export_format {
-                ExportFormat::Json => {
-                    self.export_to_json(&file_path).map(|_| file_path)
-                }
-                ExportFormat::Binary => {
-                    self.export_to_binary_with_options(&file_path, config.binary_options.clone())
-                        .map(|_| file_path)
-                }
+                ExportFormat::Json => self.export_to_json(&file_path).map(|_| file_path),
+                ExportFormat::Binary => self
+                    .export_to_binary_with_options(&file_path, config.binary_options.clone())
+                    .map(|_| file_path),
             };
 
             results.push(result);
@@ -3923,10 +3993,9 @@ impl MemoryTracker {
                         ExportFormat::Json => {
                             self.export_to_json(file_path).map(|_| file_path.clone())
                         }
-                        ExportFormat::Binary => {
-                            self.export_to_binary_with_options(file_path, config.binary_options.clone())
-                                .map(|_| file_path.clone())
-                        }
+                        ExportFormat::Binary => self
+                            .export_to_binary_with_options(file_path, config.binary_options.clone())
+                            .map(|_| file_path.clone()),
                     }
                 })
                 .collect();
@@ -3951,7 +4020,8 @@ impl MemoryTracker {
 
         let extension = "memscope"; // Default extension for binary format
 
-        format!("{}.{}", 
+        format!(
+            "{}.{}",
             pattern
                 .replace("{timestamp}", &timestamp.to_string())
                 .replace("{index}", &format!("{:03}", index))
@@ -3992,7 +4062,11 @@ impl MemoryTracker {
         // Remove old files
         for (path, _) in files.into_iter().skip(keep_count) {
             if let Err(e) = std::fs::remove_file(&path) {
-                eprintln!("Warning: Failed to remove old export file {}: {}", path.display(), e);
+                eprintln!(
+                    "Warning: Failed to remove old export file {}: {}",
+                    path.display(),
+                    e
+                );
             }
         }
 
@@ -4006,12 +4080,16 @@ impl MemoryTracker {
         println!("   - Total exports: {}", result.total_exports);
         println!("   - Successful: {}", result.successful_exports);
         println!("   - Failed: {}", result.failed_exports);
-        println!("   - Success rate: {:.1}%", 
-            (result.successful_exports as f64 / result.total_exports as f64) * 100.0);
+        println!(
+            "   - Success rate: {:.1}%",
+            (result.successful_exports as f64 / result.total_exports as f64) * 100.0
+        );
         println!("   - Total duration: {:?}", result.total_duration);
         println!("   - Average per export: {:?}", result.average_export_time);
-        println!("   - Total file size: {:.2} MB", 
-            result.total_file_size as f64 / 1024.0 / 1024.0);
+        println!(
+            "   - Total file size: {:.2} MB",
+            result.total_file_size as f64 / 1024.0 / 1024.0
+        );
 
         if !result.errors.is_empty() {
             println!("❌ Errors encountered:");
@@ -4048,7 +4126,7 @@ impl MemoryTracker {
     /// ```rust
     /// // Add export to background queue
     /// let job_id = tracker.export_to_queue("analysis", ExportFormat::Binary, None)?;
-    /// 
+    ///
     /// // Check status later
     /// let status = tracker.get_queue_status();
     /// println!("Queue status: {:?}", status);
@@ -4057,7 +4135,7 @@ impl MemoryTracker {
     /// ## Priority export
     /// ```rust
     /// use memscope::export::binary_exporter::BinaryExportOptions;
-    /// 
+    ///
     /// let binary_options = BinaryExportOptions::comprehensive();
     /// let job_id = tracker.export_to_queue_with_priority(
     ///     "critical_analysis",
@@ -4083,11 +4161,14 @@ impl MemoryTracker {
         binary_options: Option<crate::export::binary_exporter::BinaryExportOptions>,
         priority: u8,
     ) -> TrackingResult<String> {
-        let job_id = format!("export_{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos());
-        
+        let job_id = format!(
+            "export_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
+
         let output_path = match format {
             ExportFormat::Json => self.ensure_memory_analysis_path(path),
             ExportFormat::Binary => self.ensure_binary_analysis_path(path),
@@ -4104,8 +4185,11 @@ impl MemoryTracker {
 
         // In a real implementation, this would add to a persistent queue
         // For now, we'll simulate immediate processing
-        println!("🔄 Added export job {} to queue (priority: {})", job_id, priority);
-        
+        println!(
+            "🔄 Added export job {} to queue (priority: {})",
+            job_id, priority
+        );
+
         // Simulate background processing
         let job_id_clone = job_id.clone();
         std::thread::spawn(move || {
@@ -4183,7 +4267,7 @@ impl Default for FormatSelectionPreferences {
     fn default() -> Self {
         Self {
             force_format: None,
-            force_json_threshold: 100,    // Use JSON for <100 allocations
+            force_json_threshold: 100,     // Use JSON for <100 allocations
             force_binary_threshold: 10000, // Use binary for >10K allocations
             json_preference_multiplier: 1.0,
             binary_preference_multiplier: 1.0,
@@ -4387,48 +4471,48 @@ pub struct BatchExportResult {
     pub errors: Vec<String>,
 }
 
-    /// Enrich lifecycle information
-    #[allow(dead_code)]
-    fn enrich_lifecycle_info(enriched: &mut crate::core::types::AllocationInfo) {
-        // Calculate lifetime if possible
-        if enriched.lifetime_ms.is_none() && enriched.timestamp_dealloc.is_some() {
-            let lifetime_ns = enriched.timestamp_dealloc.unwrap() - enriched.timestamp_alloc;
-            enriched.lifetime_ms = Some(lifetime_ns / 1_000_000);
-        }
-
-        // Add lifecycle status
-        if enriched.timestamp_dealloc.is_some() {
-            // This allocation has been deallocated
-        } else {
-            // This allocation is still active
-        }
+/// Enrich lifecycle information
+#[allow(dead_code)]
+fn enrich_lifecycle_info(enriched: &mut crate::core::types::AllocationInfo) {
+    // Calculate lifetime if possible
+    if enriched.lifetime_ms.is_none() && enriched.timestamp_dealloc.is_some() {
+        let lifetime_ns = enriched.timestamp_dealloc.unwrap() - enriched.timestamp_alloc;
+        enriched.lifetime_ms = Some(lifetime_ns / 1_000_000);
     }
 
-    /// Add memory pattern analysis
-    #[allow(dead_code)]
-    fn add_memory_pattern_info(enriched: &mut crate::core::types::AllocationInfo) {
-        // Analyze memory patterns
-        let ptr_value = enriched.ptr;
+    // Add lifecycle status
+    if enriched.timestamp_dealloc.is_some() {
+        // This allocation has been deallocated
+    } else {
+        // This allocation is still active
+    }
+}
 
-        // Check alignment
-        let alignment = if ptr_value % 8 == 0 {
-            8
-        } else if ptr_value % 4 == 0 {
-            4
-        } else if ptr_value % 2 == 0 {
-            2
-        } else {
-            1
-        };
+/// Add memory pattern analysis
+#[allow(dead_code)]
+fn add_memory_pattern_info(enriched: &mut crate::core::types::AllocationInfo) {
+    // Analyze memory patterns
+    let ptr_value = enriched.ptr;
 
-        // This could be stored in additional fields if the struct supports it
-        // For now, we can enhance the variable name with this info
-        if let Some(ref mut var_name) = enriched.var_name {
-            if alignment >= 8 {
-                *var_name = format!("{}_aligned", var_name);
-            }
+    // Check alignment
+    let alignment = if ptr_value % 8 == 0 {
+        8
+    } else if ptr_value % 4 == 0 {
+        4
+    } else if ptr_value % 2 == 0 {
+        2
+    } else {
+        1
+    };
+
+    // This could be stored in additional fields if the struct supports it
+    // For now, we can enhance the variable name with this info
+    if let Some(ref mut var_name) = enriched.var_name {
+        if alignment >= 8 {
+            *var_name = format!("{}_aligned", var_name);
         }
     }
+}
 
 impl Default for MemoryTracker {
     fn default() -> Self {

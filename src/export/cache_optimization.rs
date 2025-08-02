@@ -412,7 +412,8 @@ impl LocalityOptimizer {
 
     /// Get memory pool statistics
     pub fn pool_stats(&self) -> Result<MemoryPoolStats, CacheOptimizationError> {
-        Ok(self.pool
+        Ok(self
+            .pool
             .lock()
             .map_err(|_| CacheOptimizationError::LockError)?
             .stats()

@@ -4,7 +4,7 @@
 //! including data integrity checks, performance comparisons, and quality reporting.
 
 use crate::core::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage};
-use crate::export::binary_converter::{ConversionResult, BatchConversionReport};
+use crate::export::binary_converter::{BatchConversionReport, ConversionResult};
 use crate::export::binary_parser::BinaryParser;
 use crate::export::optimized_json_export::OptimizedExportOptions;
 use serde::{Deserialize, Serialize};
@@ -141,15 +141,15 @@ pub struct QualityMetrics {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum QualityGrade {
     ///90-100: Excellent
-    A, 
+    A,
     /// 80-89: Good
     B,
     /// 70-79: Average
-    C, 
+    C,
     /// 60-69: Below Average
-    D, 
+    D,
     /// <60: Poor
-    F, 
+    F,
 }
 
 /// Validation error types
@@ -266,7 +266,7 @@ impl Default for ValidationOptions {
         Self {
             enable_comprehensive_validation: true,
             enable_performance_comparison: false, // Expensive operation
-            validation_sample_size: 1000, // Validate 1000 allocations by default
+            validation_sample_size: 1000,         // Validate 1000 allocations by default
             performance_thresholds: PerformanceThresholds::default(),
             enable_checksum_validation: true,
             max_acceptable_error_rate: 0.01, // 1% error rate
@@ -357,8 +357,10 @@ impl ConversionValidator {
             &validation_warnings,
         );
 
-        let is_valid = validation_errors.is_empty() 
-            || validation_errors.iter().all(|e| e.severity >= ValidationSeverity::Minor);
+        let is_valid = validation_errors.is_empty()
+            || validation_errors
+                .iter()
+                .all(|e| e.severity >= ValidationSeverity::Minor);
 
         let validation_result = ValidationResult {
             is_valid,
@@ -374,7 +376,11 @@ impl ConversionValidator {
         if self.options.enable_detailed_logging {
             tracing::info!(
                 "Validation completed: {} (score: {:.1}, grade: {:?})",
-                if validation_result.is_valid { "PASSED" } else { "FAILED" },
+                if validation_result.is_valid {
+                    "PASSED"
+                } else {
+                    "FAILED"
+                },
                 validation_result.quality_metrics.overall_score,
                 validation_result.quality_metrics.quality_grade
             );
@@ -461,17 +467,20 @@ impl ConversionValidator {
         }
 
         // Validate memory statistics
-        let memory_stats_match = self.validate_memory_stats(&parsed, original_stats, validation_errors);
+        let memory_stats_match =
+            self.validate_memory_stats(&parsed, original_stats, validation_errors);
 
         // Validate sample of allocations
         let sample_size = if self.options.validation_sample_size == 0 {
             original_allocations.len()
         } else {
-            self.options.validation_sample_size.min(original_allocations.len())
+            self.options
+                .validation_sample_size
+                .min(original_allocations.len())
         };
 
-        let (sample_validation_passed, allocation_match_percentage, mismatched_allocations) = 
-            self.validate_allocation_sample(
+        let (sample_validation_passed, allocation_match_percentage, mismatched_allocations) = self
+            .validate_allocation_sample(
                 original_allocations,
                 json_allocations,
                 sample_size,
@@ -539,9 +548,13 @@ impl ConversionValidator {
 
         Ok(DataIntegrityResult {
             allocation_count_match: contains_allocation_count,
-            memory_stats_match: true, // Cannot validate from HTML
+            memory_stats_match: true,      // Cannot validate from HTML
             type_memory_usage_match: true, // Cannot validate from HTML
-            allocation_match_percentage: if contains_allocation_count { 100.0 } else { 0.0 },
+            allocation_match_percentage: if contains_allocation_count {
+                100.0
+            } else {
+                0.0
+            },
             mismatched_allocations: 0,
             sample_validation_passed: contains_allocation_count,
             sample_size: 0,
@@ -582,7 +595,9 @@ impl ConversionValidator {
 
             // Check peak memory usage
             if let Some(peak_memory) = stats_value.get("peak_memory_usage") {
-                if peak_memory.as_u64() != Some(original_stats.lifecycle_stats.peak_memory_usage as u64) {
+                if peak_memory.as_u64()
+                    != Some(original_stats.lifecycle_stats.peak_memory_usage as u64)
+                {
                     validation_errors.push(ValidationError {
                         error_type: ValidationErrorType::DataMismatch,
                         message: format!(
@@ -678,9 +693,7 @@ impl ConversionValidator {
                         error_type: ValidationErrorType::DataMismatch,
                         message: format!(
                             "Type name mismatch at allocation {}: expected '{}', found '{}'",
-                            i,
-                            original_type_name,
-                            json_type_name
+                            i, original_type_name, json_type_name
                         ),
                         severity: ValidationSeverity::Minor,
                         context: Some(format!("allocation[{}].type_name", i)),
@@ -702,7 +715,8 @@ impl ConversionValidator {
             100.0
         };
 
-        let sample_validation_passed = match_percentage >= (100.0 - self.options.max_acceptable_error_rate * 100.0);
+        let sample_validation_passed =
+            match_percentage >= (100.0 - self.options.max_acceptable_error_rate * 100.0);
 
         if !sample_validation_passed {
             validation_errors.push(ValidationError {
@@ -718,7 +732,11 @@ impl ConversionValidator {
             });
         }
 
-        Ok((sample_validation_passed, match_percentage, mismatched_allocations))
+        Ok((
+            sample_validation_passed,
+            match_percentage,
+            mismatched_allocations,
+        ))
     }
 
     /// Validate checksums
@@ -770,13 +788,20 @@ impl ConversionValidator {
         let size_ratio = conversion_result.size_ratio();
 
         // Check performance thresholds
-        if conversion_speed_mbps < self.options.performance_thresholds.min_conversion_speed_mbps {
+        if conversion_speed_mbps
+            < self
+                .options
+                .performance_thresholds
+                .min_conversion_speed_mbps
+        {
             validation_warnings.push(ValidationWarning {
                 warning_type: ValidationWarningType::SlowConversionSpeed,
                 message: format!(
                     "Conversion speed {:.2} MB/s is below threshold {:.2} MB/s",
                     conversion_speed_mbps,
-                    self.options.performance_thresholds.min_conversion_speed_mbps
+                    self.options
+                        .performance_thresholds
+                        .min_conversion_speed_mbps
                 ),
                 context: Some("conversion_speed".to_string()),
                 recommendation: Some("Consider optimizing conversion algorithms".to_string()),
@@ -788,21 +813,27 @@ impl ConversionValidator {
                 warning_type: ValidationWarningType::LargeFileSize,
                 message: format!(
                     "Size ratio {:.2} exceeds threshold {:.2}",
-                    size_ratio,
-                    self.options.performance_thresholds.max_size_ratio
+                    size_ratio, self.options.performance_thresholds.max_size_ratio
                 ),
                 context: Some("size_ratio".to_string()),
-                recommendation: Some("Consider using compression or optimizing output format".to_string()),
+                recommendation: Some(
+                    "Consider using compression or optimizing output format".to_string(),
+                ),
             });
         }
 
         // Determine performance category
         let performance_category = self.categorize_performance(conversion_speed_mbps, size_ratio);
-        let performance_rating = self.calculate_performance_rating(conversion_speed_mbps, size_ratio);
+        let performance_rating =
+            self.calculate_performance_rating(conversion_speed_mbps, size_ratio);
 
         // Optional: Compare with direct JSON export if enabled
         let json_export_comparison = if self.options.enable_performance_comparison {
-            self.compare_with_direct_json_export(binary_path, conversion_result, validation_warnings)?
+            self.compare_with_direct_json_export(
+                binary_path,
+                conversion_result,
+                validation_warnings,
+            )?
         } else {
             None
         };
@@ -815,11 +846,13 @@ impl ConversionValidator {
                         warning_type: ValidationWarningType::HighMemoryUsage,
                         message: format!(
                             "Memory usage {:.2} MB exceeds threshold {:.2} MB",
-                            memory_usage,
-                            max_memory
+                            memory_usage, max_memory
                         ),
                         context: Some("memory_usage".to_string()),
-                        recommendation: Some("Consider using streaming conversion or reducing buffer sizes".to_string()),
+                        recommendation: Some(
+                            "Consider using streaming conversion or reducing buffer sizes"
+                                .to_string(),
+                        ),
                     });
                 }
             }
@@ -851,7 +884,7 @@ impl ConversionValidator {
         // Create temporary JSON export for comparison
         let temp_json_path = binary_path.with_extension("temp_comparison.json");
         let direct_export_start = Instant::now();
-        
+
         // Simulate direct JSON export (in real implementation, this would use the actual JSON exporter)
         let json_data = serde_json::json!({
             "allocations": allocations,
@@ -864,13 +897,24 @@ impl ConversionValidator {
                     .as_secs()
             }
         });
-        
-        std::fs::write(&temp_json_path, serde_json::to_string_pretty(&json_data).unwrap())
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to write temp JSON: {e}")))?;
-        
+
+        std::fs::write(
+            &temp_json_path,
+            serde_json::to_string_pretty(&json_data).unwrap(),
+        )
+        .map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to write temp JSON: {e}"
+            ))
+        })?;
+
         let direct_json_export_time = direct_export_start.elapsed();
         let direct_json_size = std::fs::metadata(&temp_json_path)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to get temp JSON size: {e}")))?
+            .map_err(|e| {
+                crate::core::types::TrackingError::ExportError(format!(
+                    "Failed to get temp JSON size: {e}"
+                ))
+            })?
             .len() as usize;
 
         // Clean up temp file
@@ -888,13 +932,20 @@ impl ConversionValidator {
         let size_difference_ratio = binary_conversion_size as f64 / direct_json_size as f64;
 
         // Check if speed improvement meets threshold
-        if speed_improvement_factor < self.options.performance_thresholds.min_speed_improvement_factor {
+        if speed_improvement_factor
+            < self
+                .options
+                .performance_thresholds
+                .min_speed_improvement_factor
+        {
             validation_warnings.push(ValidationWarning {
                 warning_type: ValidationWarningType::PerformanceWarning,
                 message: format!(
                     "Speed improvement factor {:.2}x is below threshold {:.2}x",
                     speed_improvement_factor,
-                    self.options.performance_thresholds.min_speed_improvement_factor
+                    self.options
+                        .performance_thresholds
+                        .min_speed_improvement_factor
                 ),
                 context: Some("speed_improvement".to_string()),
                 recommendation: Some("Consider optimizing binary conversion pipeline".to_string()),
@@ -956,7 +1007,8 @@ impl ConversionValidator {
         let data_completeness_score = self.calculate_data_completeness_score(data_integrity);
         let data_accuracy_score = self.calculate_data_accuracy_score(data_integrity);
         let performance_score = self.calculate_performance_score(performance_comparison);
-        let reliability_score = self.calculate_reliability_score(validation_errors, validation_warnings);
+        let reliability_score =
+            self.calculate_reliability_score(validation_errors, validation_warnings);
 
         // Calculate overall score (weighted average)
         let overall_score = (data_completeness_score * 0.25)
@@ -1022,10 +1074,11 @@ impl ConversionValidator {
     /// Calculate data accuracy score
     fn calculate_data_accuracy_score(&self, data_integrity: &DataIntegrityResult) -> f64 {
         let base_score = data_integrity.allocation_match_percentage;
-        
+
         // Adjust based on mismatched allocations
         let mismatch_penalty = if data_integrity.sample_size > 0 {
-            (data_integrity.mismatched_allocations as f64 / data_integrity.sample_size as f64) * 20.0
+            (data_integrity.mismatched_allocations as f64 / data_integrity.sample_size as f64)
+                * 20.0
         } else {
             0.0
         };
@@ -1081,10 +1134,7 @@ impl ConversionValidator {
     }
 
     /// Generate a comprehensive quality report
-    pub fn generate_quality_report(
-        &self,
-        validation_result: &ValidationResult,
-    ) -> String {
+    pub fn generate_quality_report(&self, validation_result: &ValidationResult) -> String {
         format!(
             "Validation Report\n\
             =================\n\
@@ -1105,15 +1155,23 @@ impl ConversionValidator {
             Issues:\n\
             - Critical Errors: {}\n\
             - Warnings: {}\n",
-            if validation_result.is_valid { "PASSED" } else { "FAILED" },
+            if validation_result.is_valid {
+                "PASSED"
+            } else {
+                "FAILED"
+            },
             validation_result.quality_metrics.quality_grade,
             validation_result.quality_metrics.overall_score,
             validation_result.data_integrity.allocation_count_match,
             validation_result.data_integrity.memory_stats_match,
             validation_result.data_integrity.allocation_match_percentage,
-            validation_result.performance_comparison.conversion_speed_mbps,
+            validation_result
+                .performance_comparison
+                .conversion_speed_mbps,
             validation_result.performance_comparison.size_ratio,
-            validation_result.performance_comparison.performance_category,
+            validation_result
+                .performance_comparison
+                .performance_category,
             validation_result.quality_metrics.critical_issues,
             validation_result.quality_metrics.warnings
         )
@@ -1127,7 +1185,7 @@ impl ConversionValidator {
         let mut report = String::new();
         report.push_str("Batch Validation Report\n");
         report.push_str("=======================\n");
-        
+
         let total_conversions = batch_report.results.len() + batch_report.errors.len();
         let success_rate = if total_conversions > 0 {
             (batch_report.results.len() as f64 / total_conversions as f64) * 100.0
@@ -1139,7 +1197,7 @@ impl ConversionValidator {
         report.push_str(&format!("Successful: {}\n", batch_report.results.len()));
         report.push_str(&format!("Failed: {}\n", batch_report.errors.len()));
         report.push_str(&format!("Success Rate: {:.1}%\n", success_rate));
-        
+
         if success_rate >= 95.0 {
             report.push_str("Status: PASSED\n");
         } else {
@@ -1165,7 +1223,11 @@ impl ConversionValidator {
 
     /// Public wrapper for categorize_performance (for testing)
     #[doc(hidden)]
-    pub fn test_categorize_performance(&self, speed_mbps: f64, size_ratio: f64) -> PerformanceCategory {
+    pub fn test_categorize_performance(
+        &self,
+        speed_mbps: f64,
+        size_ratio: f64,
+    ) -> PerformanceCategory {
         self.categorize_performance(speed_mbps, size_ratio)
     }
 
@@ -1184,18 +1246,29 @@ impl ConversionValidator {
         validation_errors: &[ValidationError],
         validation_warnings: &[ValidationWarning],
     ) -> QualityMetrics {
-        self.calculate_quality_metrics(data_integrity, performance_comparison, validation_errors, validation_warnings)
+        self.calculate_quality_metrics(
+            data_integrity,
+            performance_comparison,
+            validation_errors,
+            validation_warnings,
+        )
     }
 
     /// Public wrapper for calculate_data_completeness_score (for testing)
     #[doc(hidden)]
-    pub fn test_calculate_data_completeness_score(&self, data_integrity: &DataIntegrityResult) -> f64 {
+    pub fn test_calculate_data_completeness_score(
+        &self,
+        data_integrity: &DataIntegrityResult,
+    ) -> f64 {
         self.calculate_data_completeness_score(data_integrity)
     }
 
     /// Public wrapper for calculate_performance_score (for testing)
     #[doc(hidden)]
-    pub fn test_calculate_performance_score(&self, performance: &PerformanceComparisonResult) -> f64 {
+    pub fn test_calculate_performance_score(
+        &self,
+        performance: &PerformanceComparisonResult,
+    ) -> f64 {
         self.calculate_performance_score(performance)
     }
 }
@@ -1217,27 +1290,27 @@ mod tests {
     #[test]
     fn test_performance_categorization() {
         let validator = ConversionValidator::new();
-        
+
         assert_eq!(
             validator.categorize_performance(60.0, 1.2),
             PerformanceCategory::Excellent
         );
-        
+
         assert_eq!(
             validator.categorize_performance(25.0, 1.8),
             PerformanceCategory::Good
         );
-        
+
         assert_eq!(
             validator.categorize_performance(8.0, 2.5),
             PerformanceCategory::Average
         );
-        
+
         assert_eq!(
             validator.categorize_performance(2.0, 4.0),
             PerformanceCategory::Poor
         );
-        
+
         assert_eq!(
             validator.categorize_performance(0.5, 6.0),
             PerformanceCategory::VeryPoor
@@ -1247,7 +1320,7 @@ mod tests {
     #[test]
     fn test_performance_rating() {
         let validator = ConversionValidator::new();
-        
+
         assert_eq!(validator.calculate_performance_rating(60.0, 1.2), 5);
         assert_eq!(validator.calculate_performance_rating(25.0, 1.8), 4);
         assert_eq!(validator.calculate_performance_rating(8.0, 2.5), 3);
@@ -1258,7 +1331,7 @@ mod tests {
     #[test]
     fn test_quality_grade_calculation() {
         let validator = ConversionValidator::new();
-        
+
         // Create mock data for testing
         let data_integrity = DataIntegrityResult {
             allocation_count_match: true,

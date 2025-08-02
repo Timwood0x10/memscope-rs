@@ -208,7 +208,7 @@ impl BinaryHeader {
         offset += 8;
 
         // Reserved (20 bytes) - already zeroed
-        
+
         bytes
     }
 
@@ -236,7 +236,10 @@ impl BinaryHeader {
 
         // Compression type (4 bytes)
         let compression_raw = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
         let compression_type = match compression_raw {
             0 => CompressionType::None,
@@ -248,28 +251,49 @@ impl BinaryHeader {
 
         // Section count (4 bytes)
         let section_count = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
         offset += 4;
 
         // Total size (8 bytes)
         let total_size = u64::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
-            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
         ]);
         offset += 8;
 
         // Timestamp (8 bytes)
         let timestamp = u64::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
-            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
         ]);
         offset += 8;
 
         // Checksum (8 bytes)
         let checksum = u64::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
-            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
         ]);
         offset += 8;
 
@@ -319,7 +343,10 @@ impl BinaryHeader {
 
         // Compression type (4 bytes) - use None if invalid
         let compression_raw = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
         let compression_type = match compression_raw {
             0 => CompressionType::None,
@@ -331,28 +358,49 @@ impl BinaryHeader {
 
         // Section count (4 bytes)
         let section_count = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
         offset += 4;
 
         // Total size (8 bytes)
         let total_size = u64::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
-            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
         ]);
         offset += 8;
 
         // Timestamp (8 bytes)
         let timestamp = u64::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
-            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
         ]);
         offset += 8;
 
         // Checksum (8 bytes)
         let checksum = u64::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
-            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
         ]);
         offset += 8;
 
@@ -469,20 +517,32 @@ impl SectionEntry {
 
         // Offset (8 bytes)
         let section_offset = u64::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
-            bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7],
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
         ]);
         offset += 8;
 
         // Compressed size (4 bytes)
         let compressed_size = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
         offset += 4;
 
         // Uncompressed size (4 bytes)
         let uncompressed_size = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
 
         Ok(Self {
@@ -522,7 +582,7 @@ impl SectionDirectory {
     /// Serialize directory to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(self.sections.len() * SECTION_ENTRY_SIZE);
-        
+
         // Sort sections by type for consistent output
         let mut sections: Vec<_> = self.sections.values().collect();
         sections.sort_by_key(|entry| entry.section_type as u8);
@@ -545,12 +605,12 @@ impl SectionDirectory {
         }
 
         let mut directory = Self::new();
-        
+
         for i in 0..section_count as usize {
             let start = i * SECTION_ENTRY_SIZE;
             let end = start + SECTION_ENTRY_SIZE;
             let entry_bytes = &bytes[start..end];
-            
+
             let entry = SectionEntry::from_bytes(entry_bytes)?;
             directory.add_section(entry);
         }
@@ -571,8 +631,13 @@ pub enum BinaryFormatError {
     #[error("Invalid magic number: expected {expected:?}, found {found:?}")]
     InvalidMagic { expected: [u8; 8], found: [u8; 8] },
 
-    #[error("Unsupported version: file version {file_version}, supported version {supported_version}")]
-    UnsupportedVersion { file_version: String, supported_version: String },
+    #[error(
+        "Unsupported version: file version {file_version}, supported version {supported_version}"
+    )]
+    UnsupportedVersion {
+        file_version: String,
+        supported_version: String,
+    },
 
     #[error("Invalid header size: expected {expected}, found {found}")]
     InvalidHeaderSize { expected: usize, found: usize },
@@ -700,14 +765,19 @@ impl StringTable {
     /// Deserialize string table from bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, BinaryFormatError> {
         if bytes.len() < 4 {
-            return Err(BinaryFormatError::InvalidStringTable("Too short".to_string()));
+            return Err(BinaryFormatError::InvalidStringTable(
+                "Too short".to_string(),
+            ));
         }
 
         let mut offset = 0;
 
         // Read string count
         let string_count = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
         offset += 4;
 
@@ -719,10 +789,15 @@ impl StringTable {
         let mut offsets = Vec::with_capacity(string_count as usize);
         for _ in 0..string_count {
             if offset + 4 > bytes.len() {
-                return Err(BinaryFormatError::InvalidStringTable("Incomplete offsets".to_string()));
+                return Err(BinaryFormatError::InvalidStringTable(
+                    "Incomplete offsets".to_string(),
+                ));
             }
             let string_offset = u32::from_le_bytes([
-                bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
             ]);
             offsets.push(string_offset);
             offset += 4;
@@ -736,13 +811,19 @@ impl StringTable {
         for (id, &string_offset) in offsets.iter().enumerate() {
             let start = string_data_start + string_offset as usize;
             if start >= bytes.len() {
-                return Err(BinaryFormatError::InvalidStringTable("Invalid offset".to_string()));
+                return Err(BinaryFormatError::InvalidStringTable(
+                    "Invalid offset".to_string(),
+                ));
             }
 
             // Find null terminator
-            let end = bytes[start..].iter().position(|&b| b == 0)
+            let end = bytes[start..]
+                .iter()
+                .position(|&b| b == 0)
                 .map(|pos| start + pos)
-                .ok_or_else(|| BinaryFormatError::InvalidStringTable("Missing null terminator".to_string()))?;
+                .ok_or_else(|| {
+                    BinaryFormatError::InvalidStringTable("Missing null terminator".to_string())
+                })?;
 
             let string = String::from_utf8(bytes[start..end].to_vec())
                 .map_err(|_| BinaryFormatError::InvalidStringTable("Invalid UTF-8".to_string()))?;
@@ -781,7 +862,7 @@ impl TypeTable {
     /// Create a new type table with predefined common types
     pub fn new() -> Self {
         let mut predefined = HashMap::new();
-        
+
         // Common Rust types with predefined IDs
         predefined.insert("i8", 1);
         predefined.insert("i16", 2);
@@ -913,7 +994,10 @@ impl TypeTable {
 
         // Read custom type count
         let custom_count = u32::from_le_bytes([
-            bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
         ]);
         offset += 4;
 
@@ -925,10 +1009,15 @@ impl TypeTable {
         let mut offsets = Vec::with_capacity(custom_count as usize);
         for _ in 0..custom_count {
             if offset + 4 > bytes.len() {
-                return Err(BinaryFormatError::InvalidTypeTable("Incomplete offsets".to_string()));
+                return Err(BinaryFormatError::InvalidTypeTable(
+                    "Incomplete offsets".to_string(),
+                ));
             }
             let type_offset = u32::from_le_bytes([
-                bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
             ]);
             offsets.push(type_offset);
             offset += 4;
@@ -939,13 +1028,19 @@ impl TypeTable {
         for &type_offset in &offsets {
             let start = string_data_start + type_offset as usize;
             if start >= bytes.len() {
-                return Err(BinaryFormatError::InvalidTypeTable("Invalid offset".to_string()));
+                return Err(BinaryFormatError::InvalidTypeTable(
+                    "Invalid offset".to_string(),
+                ));
             }
 
             // Find null terminator
-            let end = bytes[start..].iter().position(|&b| b == 0)
+            let end = bytes[start..]
+                .iter()
+                .position(|&b| b == 0)
                 .map(|pos| start + pos)
-                .ok_or_else(|| BinaryFormatError::InvalidTypeTable("Missing null terminator".to_string()))?;
+                .ok_or_else(|| {
+                    BinaryFormatError::InvalidTypeTable("Missing null terminator".to_string())
+                })?;
 
             let type_name = String::from_utf8(bytes[start..end].to_vec())
                 .map_err(|_| BinaryFormatError::InvalidTypeTable("Invalid UTF-8".to_string()))?;
@@ -1168,10 +1263,7 @@ impl<'a> BinaryDecoder<'a> {
         if self.position + 2 > self.data.len() {
             return Err(BinaryFormatError::UnexpectedEndOfData);
         }
-        let value = u16::from_le_bytes([
-            self.data[self.position],
-            self.data[self.position + 1],
-        ]);
+        let value = u16::from_le_bytes([self.data[self.position], self.data[self.position + 1]]);
         self.position += 2;
         Ok(value)
     }
@@ -1219,13 +1311,14 @@ impl<'a> BinaryDecoder<'a> {
     /// Decode a string using the string table
     pub fn decode_string(&mut self) -> Result<String, BinaryFormatError> {
         let id = self.decode_u32()?;
-        self.string_table.get(id)
+        Ok(self
+            .string_table
+            .get(id)
             .map(|s| s.to_string())
             .unwrap_or_else(|| {
                 // Recovery mode: if string ID is invalid, return a placeholder
                 format!("INVALID_STRING_ID_{}", id)
-            })
-            .into()
+            }))
     }
 
     /// Decode an optional string
@@ -1253,8 +1346,10 @@ impl<'a> BinaryDecoder<'a> {
     /// Decode a type name using the type table
     pub fn decode_type_name(&mut self) -> Result<String, BinaryFormatError> {
         let id = self.decode_u16()?;
-        self.type_table.get_type_name(id)
-            .ok_or(BinaryFormatError::InvalidTypeId(id))
+        Ok(self.type_table.get_type_name(id).unwrap_or_else(|| {
+            // Recovery mode: if type ID is invalid, return a placeholder
+            format!("INVALID_TYPE_ID_{}", id)
+        }))
     }
 
     /// Decode an optional type name
@@ -1328,7 +1423,10 @@ pub struct CompressionEngine;
 
 impl CompressionEngine {
     /// Compress data using the specified compression type
-    pub fn compress(data: &[u8], compression: CompressionType) -> Result<Vec<u8>, BinaryFormatError> {
+    pub fn compress(
+        data: &[u8],
+        compression: CompressionType,
+    ) -> Result<Vec<u8>, BinaryFormatError> {
         match compression {
             CompressionType::None => Ok(data.to_vec()),
             CompressionType::Lz4 => {
@@ -1345,7 +1443,10 @@ impl CompressionEngine {
     }
 
     /// Decompress data using the specified compression type
-    pub fn decompress(data: &[u8], compression: CompressionType) -> Result<Vec<u8>, BinaryFormatError> {
+    pub fn decompress(
+        data: &[u8],
+        compression: CompressionType,
+    ) -> Result<Vec<u8>, BinaryFormatError> {
         match compression {
             CompressionType::None => Ok(data.to_vec()),
             CompressionType::Lz4 => {
@@ -1431,7 +1532,7 @@ impl CompressionEngine {
 pub fn crc64_checksum(data: &[u8]) -> u64 {
     // Simple CRC64 implementation - in production, use a proper CRC64 library
     let mut crc = 0xFFFFFFFFFFFFFFFFu64;
-    
+
     for &byte in data {
         crc ^= byte as u64;
         for _ in 0..8 {
@@ -1442,7 +1543,7 @@ pub fn crc64_checksum(data: &[u8]) -> u64 {
             }
         }
     }
-    
+
     crc ^ 0xFFFFFFFFFFFFFFFFu64
 }
 
@@ -1491,7 +1592,7 @@ mod tests {
     #[test]
     fn test_section_directory() {
         let mut directory = SectionDirectory::new();
-        
+
         let entry1 = SectionEntry::new(
             SectionType::MemoryStats,
             CompressionType::None,
@@ -1499,7 +1600,7 @@ mod tests {
             256,
             256,
         );
-        
+
         let entry2 = SectionEntry::new(
             SectionType::ActiveAllocations,
             CompressionType::Lz4,
@@ -1516,7 +1617,9 @@ mod tests {
 
         assert_eq!(directory.sections.len(), deserialized.sections.len());
         assert!(deserialized.get_section(SectionType::MemoryStats).is_some());
-        assert!(deserialized.get_section(SectionType::ActiveAllocations).is_some());
+        assert!(deserialized
+            .get_section(SectionType::ActiveAllocations)
+            .is_some());
     }
 
     #[test]
@@ -1524,10 +1627,10 @@ mod tests {
         let data = b"Hello, World!";
         let checksum1 = crc64_checksum(data);
         let checksum2 = crc64_checksum(data);
-        
+
         // Same data should produce same checksum
         assert_eq!(checksum1, checksum2);
-        
+
         // Different data should produce different checksum
         let different_data = b"Hello, World?";
         let checksum3 = crc64_checksum(different_data);
@@ -1537,25 +1640,25 @@ mod tests {
     #[test]
     fn test_string_table() {
         let mut table = StringTable::new();
-        
+
         // Test interning strings
         let id1 = table.intern("hello");
         let id2 = table.intern("world");
         let id3 = table.intern("hello"); // Should return same ID as id1
-        
+
         assert_eq!(id1, 0);
         assert_eq!(id2, 1);
         assert_eq!(id3, 0); // Same as id1
-        
+
         // Test retrieval
         assert_eq!(table.get(id1), Some("hello"));
         assert_eq!(table.get(id2), Some("world"));
         assert_eq!(table.get(999), None);
-        
+
         // Test serialization
         let bytes = table.to_bytes();
         let deserialized = StringTable::from_bytes(&bytes).unwrap();
-        
+
         assert_eq!(table.len(), deserialized.len());
         assert_eq!(deserialized.get(0), Some("hello"));
         assert_eq!(deserialized.get(1), Some("world"));
@@ -1566,7 +1669,7 @@ mod tests {
         let table = StringTable::new();
         let bytes = table.to_bytes();
         let deserialized = StringTable::from_bytes(&bytes).unwrap();
-        
+
         assert!(deserialized.is_empty());
         assert_eq!(deserialized.len(), 0);
     }
@@ -1574,34 +1677,34 @@ mod tests {
     #[test]
     fn test_type_table() {
         let mut table = TypeTable::new();
-        
+
         // Test predefined types
         let id1 = table.get_or_intern_type_id("i32");
         let id2 = table.get_or_intern_type_id("String");
         assert_eq!(id1, 3); // i32 is predefined as ID 3
         assert_eq!(id2, 17); // String is predefined as ID 17
-        
+
         // Test custom types
         let id3 = table.get_or_intern_type_id("MyCustomType");
         let id4 = table.get_or_intern_type_id("AnotherType");
         let id5 = table.get_or_intern_type_id("MyCustomType"); // Should return same as id3
-        
+
         assert_eq!(id3, 1000); // First custom type
         assert_eq!(id4, 1001); // Second custom type
         assert_eq!(id5, 1000); // Same as id3
-        
+
         // Test retrieval
         assert_eq!(table.get_type_name(3), Some("i32".to_string()));
         assert_eq!(table.get_type_name(17), Some("String".to_string()));
         assert_eq!(table.get_type_name(1000), Some("MyCustomType".to_string()));
         assert_eq!(table.get_type_name(1001), Some("AnotherType".to_string()));
         assert_eq!(table.get_type_name(9999), None);
-        
+
         // Test predefined check
         assert!(table.is_predefined("i32"));
         assert!(table.is_predefined("String"));
         assert!(!table.is_predefined("MyCustomType"));
-        
+
         // Test counts
         assert_eq!(table.custom_type_count(), 2);
         assert!(table.total_types() > 2); // Should include predefined types
@@ -1610,22 +1713,31 @@ mod tests {
     #[test]
     fn test_type_table_serialization() {
         let mut table = TypeTable::new();
-        
+
         // Add some custom types
         table.get_or_intern_type_id("CustomType1");
         table.get_or_intern_type_id("CustomType2");
         table.get_or_intern_type_id("Vec<CustomType1>");
-        
+
         // Serialize and deserialize
         let bytes = table.to_bytes();
         let deserialized = TypeTable::from_bytes(&bytes).unwrap();
-        
+
         // Test that custom types are preserved
         assert_eq!(deserialized.custom_type_count(), 3);
-        assert_eq!(deserialized.get_type_name(1000), Some("CustomType1".to_string()));
-        assert_eq!(deserialized.get_type_name(1001), Some("CustomType2".to_string()));
-        assert_eq!(deserialized.get_type_name(1002), Some("Vec<CustomType1>".to_string()));
-        
+        assert_eq!(
+            deserialized.get_type_name(1000),
+            Some("CustomType1".to_string())
+        );
+        assert_eq!(
+            deserialized.get_type_name(1001),
+            Some("CustomType2".to_string())
+        );
+        assert_eq!(
+            deserialized.get_type_name(1002),
+            Some("Vec<CustomType1>".to_string())
+        );
+
         // Test that predefined types still work
         assert_eq!(deserialized.get_type_name(3), Some("i32".to_string()));
         assert_eq!(deserialized.get_type_name(17), Some("String".to_string()));
@@ -1636,7 +1748,7 @@ mod tests {
         let table = TypeTable::new();
         let bytes = table.to_bytes();
         let deserialized = TypeTable::from_bytes(&bytes).unwrap();
-        
+
         assert_eq!(deserialized.custom_type_count(), 0);
         // Predefined types should still work
         assert_eq!(deserialized.get_type_name(3), Some("i32".to_string()));
@@ -1645,7 +1757,7 @@ mod tests {
     #[test]
     fn test_binary_encoder_decoder() {
         let mut encoder = BinaryEncoder::new();
-        
+
         // Encode various types
         encoder.encode_u8(42);
         encoder.encode_u16(1234);
@@ -1655,31 +1767,31 @@ mod tests {
         encoder.encode_string("hello");
         encoder.encode_string("world");
         encoder.encode_string("hello"); // Duplicate should use same ID
-        
+
         // Encode optional values
         encoder.encode_optional_string(&Some("optional".to_string()));
         encoder.encode_optional_string(&None);
-        
+
         // Encode type names
         encoder.encode_type_name("i32");
         encoder.encode_type_name("CustomType");
         encoder.encode_optional_type_name(&Some("String".to_string()));
         encoder.encode_optional_type_name(&None);
-        
+
         // Encode vector
         encoder.encode_string_vec(&["vec1".to_string(), "vec2".to_string()]);
         encoder.encode_optional_string_vec(&Some(vec!["opt_vec".to_string()]));
         encoder.encode_optional_string_vec(&None);
-        
+
         // Encode raw bytes
         encoder.encode_bytes(b"raw_data");
-        
+
         // Create decoder
         let data = encoder.buffer().to_vec();
         let string_table = encoder.string_table().clone();
         let type_table = encoder.type_table().clone();
         let mut decoder = BinaryDecoder::new(&data, string_table, type_table);
-        
+
         // Decode and verify
         assert_eq!(decoder.decode_u8().unwrap(), 42);
         assert_eq!(decoder.decode_u16().unwrap(), 1234);
@@ -1689,25 +1801,34 @@ mod tests {
         assert_eq!(decoder.decode_string().unwrap(), "hello");
         assert_eq!(decoder.decode_string().unwrap(), "world");
         assert_eq!(decoder.decode_string().unwrap(), "hello"); // Same string
-        
+
         // Decode optional values
-        assert_eq!(decoder.decode_optional_string().unwrap(), Some("optional".to_string()));
+        assert_eq!(
+            decoder.decode_optional_string().unwrap(),
+            Some("optional".to_string())
+        );
         assert_eq!(decoder.decode_optional_string().unwrap(), None);
-        
+
         // Decode type names
         assert_eq!(decoder.decode_type_name().unwrap(), "i32");
         assert_eq!(decoder.decode_type_name().unwrap(), "CustomType");
-        assert_eq!(decoder.decode_optional_type_name().unwrap(), Some("String".to_string()));
+        assert_eq!(
+            decoder.decode_optional_type_name().unwrap(),
+            Some("String".to_string())
+        );
         assert_eq!(decoder.decode_optional_type_name().unwrap(), None);
-        
+
         // Decode vector
         assert_eq!(decoder.decode_string_vec().unwrap(), vec!["vec1", "vec2"]);
-        assert_eq!(decoder.decode_optional_string_vec().unwrap(), Some(vec!["opt_vec".to_string()]));
+        assert_eq!(
+            decoder.decode_optional_string_vec().unwrap(),
+            Some(vec!["opt_vec".to_string()])
+        );
         assert_eq!(decoder.decode_optional_string_vec().unwrap(), None);
-        
+
         // Decode raw bytes
         assert_eq!(decoder.decode_bytes().unwrap(), b"raw_data");
-        
+
         // Should be at end
         assert!(!decoder.has_more());
     }
@@ -1715,21 +1836,24 @@ mod tests {
     #[test]
     fn test_compression_engine() {
         let original_data = b"Hello, World! This is test data for compression.";
-        
+
         // Test no compression
         let compressed = CompressionEngine::compress(original_data, CompressionType::None).unwrap();
-        let decompressed = CompressionEngine::decompress(&compressed, CompressionType::None).unwrap();
+        let decompressed =
+            CompressionEngine::decompress(&compressed, CompressionType::None).unwrap();
         assert_eq!(original_data, decompressed.as_slice());
-        
+
         // Test LZ4 mock compression
         let compressed = CompressionEngine::compress(original_data, CompressionType::Lz4).unwrap();
-        let decompressed = CompressionEngine::decompress(&compressed, CompressionType::Lz4).unwrap();
+        let decompressed =
+            CompressionEngine::decompress(&compressed, CompressionType::Lz4).unwrap();
         assert_eq!(original_data, decompressed.as_slice());
         assert!(compressed.len() > original_data.len()); // Mock compression adds header
-        
+
         // Test Zstd mock compression
         let compressed = CompressionEngine::compress(original_data, CompressionType::Zstd).unwrap();
-        let decompressed = CompressionEngine::decompress(&compressed, CompressionType::Zstd).unwrap();
+        let decompressed =
+            CompressionEngine::decompress(&compressed, CompressionType::Zstd).unwrap();
         assert_eq!(original_data, decompressed.as_slice());
         assert!(compressed.len() > original_data.len()); // Mock compression adds header
     }
@@ -1738,16 +1862,19 @@ mod tests {
     fn test_compression_ratio_estimation() {
         // Test with highly repetitive data
         let repetitive_data = vec![b'A'; 1000];
-        let ratio = CompressionEngine::estimate_compression_ratio(&repetitive_data, CompressionType::Lz4);
+        let ratio =
+            CompressionEngine::estimate_compression_ratio(&repetitive_data, CompressionType::Lz4);
         assert!(ratio < 0.5); // Should compress well
-        
+
         // Test with random data
         let random_data: Vec<u8> = (0..=255).cycle().take(1000).collect();
-        let ratio = CompressionEngine::estimate_compression_ratio(&random_data, CompressionType::Lz4);
+        let ratio =
+            CompressionEngine::estimate_compression_ratio(&random_data, CompressionType::Lz4);
         assert!(ratio > 0.7); // Should not compress as well
-        
+
         // Test no compression
-        let ratio = CompressionEngine::estimate_compression_ratio(&repetitive_data, CompressionType::None);
+        let ratio =
+            CompressionEngine::estimate_compression_ratio(&repetitive_data, CompressionType::None);
         assert_eq!(ratio, 1.0);
     }
 
@@ -1757,23 +1884,23 @@ mod tests {
         let string_table = StringTable::new();
         let type_table = TypeTable::new();
         let mut decoder = BinaryDecoder::new(&empty_data, string_table, type_table);
-        
+
         // Should fail on empty data
         assert!(decoder.decode_u8().is_err());
         assert!(decoder.decode_u16().is_err());
         assert!(decoder.decode_u32().is_err());
         assert!(decoder.decode_u64().is_err());
-        
+
         // Test invalid string ID
         let data = [255, 255, 255, 255]; // Large string ID that doesn't exist
         let mut decoder = BinaryDecoder::new(&data, StringTable::new(), TypeTable::new());
         assert!(decoder.decode_string().is_err());
-        
+
         // Test invalid type ID
         let data = [255, 255]; // Large type ID that doesn't exist
         let mut decoder = BinaryDecoder::new(&data, StringTable::new(), TypeTable::new());
         assert!(decoder.decode_type_name().is_err());
-        
+
         // Test invalid option marker
         let data = [255]; // Invalid option marker
         let mut decoder = BinaryDecoder::new(&data, StringTable::new(), TypeTable::new());

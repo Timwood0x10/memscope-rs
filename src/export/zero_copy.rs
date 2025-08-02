@@ -52,21 +52,21 @@ impl ZeroCopyBufferPool {
     /// Get a buffer from the pool or allocate a new one
     pub fn get_buffer(&self, min_capacity: usize) -> ZeroCopyBuffer {
         let capacity = std::cmp::max(min_capacity, self.default_size);
-        
+
         // Try to get a buffer from the pool
         if let Ok(mut buffers) = self.buffers.lock() {
             if let Some(mut buffer) = buffers.pop_front() {
                 // Ensure buffer has enough capacity
                 if buffer.capacity() >= capacity {
                     buffer.clear();
-                    
+
                     // Update stats
                     if let Ok(mut stats) = self.stats.lock() {
                         stats.total_reused += 1;
                         stats.total_bytes_reused += buffer.capacity();
                         stats.current_pool_size = buffers.len();
                     }
-                    
+
                     return ZeroCopyBuffer::new(buffer, self.clone());
                 } else {
                     // Buffer too small, put it back and allocate new one
@@ -77,7 +77,7 @@ impl ZeroCopyBufferPool {
 
         // Allocate new buffer
         let buffer = BytesMut::with_capacity(capacity);
-        
+
         // Update stats
         if let Ok(mut stats) = self.stats.lock() {
             stats.total_allocated += 1;
@@ -92,7 +92,7 @@ impl ZeroCopyBufferPool {
         if let Ok(mut buffers) = self.buffers.lock() {
             if buffers.len() < self.max_pool_size {
                 buffers.push_back(buffer);
-                
+
                 // Update stats
                 if let Ok(mut stats) = self.stats.lock() {
                     stats.current_pool_size = buffers.len();
@@ -106,11 +106,14 @@ impl ZeroCopyBufferPool {
 
     /// Get buffer pool statistics
     pub fn get_stats(&self) -> BufferPoolStats {
-        self.stats.lock().unwrap_or_else(|_| {
-            // Create a default stats instance when lock is poisoned
-            self.stats.clear_poison();
-            self.stats.lock().unwrap()
-        }).clone()
+        self.stats
+            .lock()
+            .unwrap_or_else(|_| {
+                // Create a default stats instance when lock is poisoned
+                self.stats.clear_poison();
+                self.stats.lock().unwrap()
+            })
+            .clone()
     }
 
     /// Clear the buffer pool
@@ -314,11 +317,14 @@ impl<W: Write> ZeroCopyWriter<W> {
         }
 
         let buffer = self.current_buffer.as_mut().unwrap();
-        
+
         // If data is larger than remaining buffer space, flush first
         if buffer.len() + data.len() > self.flush_threshold {
             self.flush_buffer()?;
-            self.current_buffer = Some(self.pool.get_buffer(std::cmp::max(data.len(), self.flush_threshold)));
+            self.current_buffer = Some(
+                self.pool
+                    .get_buffer(std::cmp::max(data.len(), self.flush_threshold)),
+            );
             let buffer = self.current_buffer.as_mut().unwrap();
             buffer.write(data)?;
         } else {
@@ -409,7 +415,7 @@ impl VectorizedProcessor {
         for batch in allocations.chunks(batch_size) {
             let mut batch_buffer = self.pool.get_buffer(batch.len() * 64);
             processor(batch, &mut batch_buffer)?;
-            
+
             // Append batch result to main buffer
             let batch_bytes = batch_buffer.freeze();
             result_buffer.write(&batch_bytes)?;
@@ -432,21 +438,21 @@ impl VectorizedProcessor {
             .map(|batch| {
                 let mut buffer = self.pool.get_buffer(batch.len() * 32);
                 buffer.write_u32_le(batch.len() as u32);
-                
+
                 for string in *batch {
                     buffer.write_string(string);
                 }
-                
+
                 Ok::<bytes::Bytes, std::io::Error>(buffer.freeze())
             })
             .collect();
 
         let batch_results = results?;
-        
+
         // Combine results
         let total_size: usize = batch_results.iter().map(|b| b.len()).sum();
         let mut final_buffer = self.pool.get_buffer(total_size);
-        
+
         for batch_result in batch_results {
             final_buffer.write(&batch_result)?;
         }
@@ -460,9 +466,9 @@ impl VectorizedProcessor {
         type_usages: &[crate::core::types::TypeMemoryUsage],
     ) -> io::Result<Bytes> {
         let mut buffer = self.pool.get_buffer(type_usages.len() * 64);
-        
+
         buffer.write_u32_le(type_usages.len() as u32);
-        
+
         for usage in type_usages {
             buffer.write_string(&usage.type_name);
             buffer.write_usize_le(usage.total_size);
@@ -514,9 +520,9 @@ impl StringOptimizer {
     /// Get the string table as bytes (zero-copy)
     pub fn to_bytes(&self, pool: &ZeroCopyBufferPool) -> io::Result<Bytes> {
         let mut buffer = pool.get_buffer(self.strings.len() * 32);
-        
+
         buffer.write_u32_le(self.strings.len() as u32);
-        
+
         for string in &self.strings {
             buffer.write_string(string);
         }
@@ -528,7 +534,7 @@ impl StringOptimizer {
     pub fn stats(&self) -> StringOptimizerStats {
         let total_original_size: usize = self.strings.iter().map(|s| s.len()).sum();
         let deduplication_savings = self.interned.len().saturating_sub(self.strings.len());
-        
+
         StringOptimizerStats {
             unique_strings: self.strings.len(),
             total_references: self.interned.len(),
@@ -563,23 +569,23 @@ mod tests {
     #[test]
     fn test_buffer_pool() {
         let pool = ZeroCopyBufferPool::new(1024, 4);
-        
+
         // Get a buffer
         let mut buffer1 = pool.get_buffer(512);
         buffer1.write(b"Hello, world!").unwrap();
-        
+
         // Get another buffer
         let buffer2 = pool.get_buffer(256);
-        
+
         // Drop first buffer (should return to pool)
         drop(buffer1);
-        
+
         // Get another buffer (should reuse from pool)
         let buffer3 = pool.get_buffer(512);
-        
+
         let stats = pool.get_stats();
         assert!(stats.total_reused > 0);
-        
+
         drop(buffer2);
         drop(buffer3);
     }
@@ -588,7 +594,7 @@ mod tests {
     fn test_zero_copy_writer() -> io::Result<()> {
         let mut output = Vec::new();
         let pool = ZeroCopyBufferPool::default();
-        
+
         {
             let mut writer = ZeroCopyWriter::new(Cursor::new(&mut output), pool);
             writer.write_zero_copy(b"Hello")?;
@@ -596,7 +602,7 @@ mod tests {
             writer.write_zero_copy(b"world!")?;
             writer.flush()?;
         }
-        
+
         assert_eq!(output, b"Hello, world!");
         Ok(())
     }
@@ -605,21 +611,21 @@ mod tests {
     fn test_string_optimizer() -> io::Result<()> {
         let mut optimizer = StringOptimizer::new();
         let pool = ZeroCopyBufferPool::default();
-        
+
         let id1 = optimizer.intern("hello");
         let id2 = optimizer.intern("world");
         let id3 = optimizer.intern("hello"); // Should reuse
-        
+
         assert_eq!(id1, id3);
         assert_ne!(id1, id2);
-        
+
         let bytes = optimizer.to_bytes(&pool)?;
         assert!(!bytes.is_empty());
-        
+
         let stats = optimizer.stats();
         assert_eq!(stats.unique_strings, 2);
         assert_eq!(stats.total_references, 2);
-        
+
         Ok(())
     }
 
@@ -627,16 +633,16 @@ mod tests {
     fn test_vectorized_processor() -> io::Result<()> {
         let pool = ZeroCopyBufferPool::default();
         let processor = VectorizedProcessor::new(pool);
-        
+
         let strings = vec![
             "string1".to_string(),
             "string2".to_string(),
             "string3".to_string(),
         ];
-        
+
         let result = processor.process_strings_parallel(&strings, 2)?;
         assert!(!result.is_empty());
-        
+
         Ok(())
     }
 }

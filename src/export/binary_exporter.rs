@@ -12,12 +12,12 @@ use crate::export::binary_format::{
     SectionEntry, SectionType, StringTable, TypeTable,
 };
 use crate::export::memory_mapping::{
-    MemoryMappingConfig, MemoryMappedWriter, MemoryUsageMonitor, MemoryMappingError,
+    MemoryMappedWriter, MemoryMappingConfig, MemoryMappingError, MemoryUsageMonitor,
 };
+use crate::export::simd_optimizations::{SimdCapability, SimdProcessor};
 use crate::export::zero_copy::{
-    ZeroCopyBufferPool, ZeroCopyWriter, VectorizedProcessor, StringOptimizer,
+    StringOptimizer, VectorizedProcessor, ZeroCopyBufferPool, ZeroCopyWriter,
 };
-use crate::export::simd_optimizations::{SimdProcessor, SimdCapability};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
@@ -164,7 +164,7 @@ impl Default for SectionSelectionConfig {
             include_performance_data: true,
             include_variable_registry: true,
             include_security_violations: false, // Optional by default
-            include_memory_passports: false,   // Optional by default
+            include_memory_passports: false,    // Optional by default
         }
     }
 }
@@ -183,10 +183,10 @@ impl Default for ValidationConfig {
 impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
-            use_memory_mapping: false, // Disabled by default for compatibility
+            use_memory_mapping: false,   // Disabled by default for compatibility
             memory_mapping_config: None, // Use default config when enabled
             enable_zero_copy: true,
-            enable_simd: false, // Disabled by default for compatibility
+            enable_simd: false,    // Disabled by default for compatibility
             cache_size: 64 * 1024, // 64KB cache
             batch_size: 1000,
         }
@@ -324,7 +324,7 @@ impl BinaryExportOptions {
             use_memory_mapping: true,
             memory_mapping_config: None,
             enable_zero_copy: true,
-            enable_simd: false, // Conservative for compatibility
+            enable_simd: false,     // Conservative for compatibility
             cache_size: 256 * 1024, // Larger cache
             batch_size: 1500,
         };
@@ -480,9 +480,11 @@ impl BinaryExportOptions {
             errors.push("Auto compression cannot be enabled with no compression".to_string());
         }
 
-        if self.validation.validation_level == ValidationLevel::None 
-            && (self.validation.enable_checksums || self.validation.enable_integrity_checks) {
-            errors.push("Cannot enable specific validations with validation level None".to_string());
+        if self.validation.validation_level == ValidationLevel::None
+            && (self.validation.enable_checksums || self.validation.enable_integrity_checks)
+        {
+            errors
+                .push("Cannot enable specific validations with validation level None".to_string());
         }
 
         if errors.is_empty() {
@@ -524,14 +526,16 @@ impl BinaryExportOptions {
 
         // Map security analysis
         binary_options.enable_security_analysis = options.enable_security_analysis;
-        binary_options.section_selection.include_security_violations = options.enable_security_analysis;
+        binary_options.section_selection.include_security_violations =
+            options.enable_security_analysis;
 
         // Map FFI analysis
         binary_options.include_ffi_analysis = options.enable_enhanced_ffi_analysis;
-        binary_options.section_selection.include_ffi_analysis = options.enable_enhanced_ffi_analysis;
+        binary_options.section_selection.include_ffi_analysis =
+            options.enable_enhanced_ffi_analysis;
 
         // Map memory passport tracking
-        binary_options.section_selection.include_memory_passports = 
+        binary_options.section_selection.include_memory_passports =
             options.enable_memory_passport_tracking;
 
         // Map batch size
@@ -541,7 +545,9 @@ impl BinaryExportOptions {
     }
 
     /// Convert to OptimizedExportOptions for integration
-    pub fn to_optimized_export_options(&self) -> crate::export::optimized_json_export::OptimizedExportOptions {
+    pub fn to_optimized_export_options(
+        &self,
+    ) -> crate::export::optimized_json_export::OptimizedExportOptions {
         use crate::export::optimized_json_export::{OptimizationLevel, OptimizedExportOptions};
 
         let mut json_options = OptimizedExportOptions::default();
@@ -580,7 +586,7 @@ impl BinaryExportOptions {
         json_options.enable_enhanced_ffi_analysis = self.include_ffi_analysis;
 
         // Map memory passport tracking
-        json_options.enable_memory_passport_tracking = 
+        json_options.enable_memory_passport_tracking =
             self.section_selection.include_memory_passports;
 
         // Map batch size
@@ -651,26 +657,54 @@ impl BinaryExportOptions {
             self.buffer_size / 1024,
             self.enable_parallel_encoding,
             self.thread_count,
-            if self.memory_limit > 0 { self.memory_limit / 1024 / 1024 } else { 0 },
+            if self.memory_limit > 0 {
+                self.memory_limit / 1024 / 1024
+            } else {
+                0
+            },
             self.validation.validation_level,
             self.count_enabled_sections(),
-            if self.performance.enable_simd { "SIMD enabled" } else { "Standard" }
+            if self.performance.enable_simd {
+                "SIMD enabled"
+            } else {
+                "Standard"
+            }
         )
     }
 
     /// Count the number of enabled sections
     fn count_enabled_sections(&self) -> usize {
         let mut count = 0;
-        if self.section_selection.include_memory_stats { count += 1; }
-        if self.section_selection.include_active_allocations { count += 1; }
-        if self.section_selection.include_allocation_history { count += 1; }
-        if self.section_selection.include_type_memory_usage { count += 1; }
-        if self.section_selection.include_ffi_analysis { count += 1; }
-        if self.section_selection.include_lifecycle_analysis { count += 1; }
-        if self.section_selection.include_performance_data { count += 1; }
-        if self.section_selection.include_variable_registry { count += 1; }
-        if self.section_selection.include_security_violations { count += 1; }
-        if self.section_selection.include_memory_passports { count += 1; }
+        if self.section_selection.include_memory_stats {
+            count += 1;
+        }
+        if self.section_selection.include_active_allocations {
+            count += 1;
+        }
+        if self.section_selection.include_allocation_history {
+            count += 1;
+        }
+        if self.section_selection.include_type_memory_usage {
+            count += 1;
+        }
+        if self.section_selection.include_ffi_analysis {
+            count += 1;
+        }
+        if self.section_selection.include_lifecycle_analysis {
+            count += 1;
+        }
+        if self.section_selection.include_performance_data {
+            count += 1;
+        }
+        if self.section_selection.include_variable_registry {
+            count += 1;
+        }
+        if self.section_selection.include_security_violations {
+            count += 1;
+        }
+        if self.section_selection.include_memory_passports {
+            count += 1;
+        }
         count
     }
 }
@@ -821,7 +855,9 @@ impl BinaryExporter {
     /// Create a new binary exporter with custom options
     pub fn with_options(options: BinaryExportOptions) -> Self {
         let memory_monitor = if options.performance.use_memory_mapping {
-            let config = options.performance.memory_mapping_config
+            let config = options
+                .performance
+                .memory_mapping_config
                 .clone()
                 .unwrap_or_default();
             Some(MemoryUsageMonitor::new(config.max_memory_usage))
@@ -907,21 +943,30 @@ impl BinaryExporter {
         let path = path.as_ref();
 
         // Get configurations
-        let mmap_config = self.options.performance.memory_mapping_config
+        let mmap_config = self
+            .options
+            .performance
+            .memory_mapping_config
             .clone()
             .unwrap_or_default();
 
-        let buffer_pool = self.buffer_pool.as_ref()
-            .ok_or_else(|| crate::core::types::TrackingError::ExportError("Zero-copy not initialized".to_string()))?;
+        let buffer_pool = self.buffer_pool.as_ref().ok_or_else(|| {
+            crate::core::types::TrackingError::ExportError("Zero-copy not initialized".to_string())
+        })?;
 
         // Create memory monitor if not already created
-        let monitor = self.memory_monitor.get_or_insert_with(|| {
-            MemoryUsageMonitor::new(mmap_config.max_memory_usage)
-        });
+        let monitor = self
+            .memory_monitor
+            .get_or_insert_with(|| MemoryUsageMonitor::new(mmap_config.max_memory_usage));
 
         // Create memory-mapped writer with zero-copy wrapper
-        let mmap_writer = MemoryMappedWriter::new(path, mmap_config, monitor.clone())
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Memory mapping failed: {}", e)))?;
+        let mmap_writer =
+            MemoryMappedWriter::new(path, mmap_config, monitor.clone()).map_err(|e| {
+                crate::core::types::TrackingError::ExportError(format!(
+                    "Memory mapping failed: {}",
+                    e
+                ))
+            })?;
 
         let mut zero_copy_writer = ZeroCopyWriter::new(mmap_writer, buffer_pool.clone())
             .with_flush_threshold(self.options.buffer_size);
@@ -948,14 +993,20 @@ impl BinaryExporter {
         }
 
         // Create sections with zero-copy optimization
-        let sections = self.create_sections_with_zero_copy(&allocations, &stats, &memory_by_type, &mut progress)?;
+        let sections = self.create_sections_with_zero_copy(
+            &allocations,
+            &stats,
+            &memory_by_type,
+            &mut progress,
+        )?;
 
         // Write binary file using zero-copy writer
         self.write_binary_file_zero_copy(&mut zero_copy_writer, sections, &mut progress)?;
 
         // Flush and sync data
-        zero_copy_writer.flush()
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to flush writer: {}", e)))?;
+        zero_copy_writer.flush().map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!("Failed to flush writer: {}", e))
+        })?;
 
         let export_duration = start_time.elapsed();
         let pool_stats = zero_copy_writer.pool_stats();
@@ -988,18 +1039,26 @@ impl BinaryExporter {
         let path = path.as_ref();
 
         // Get memory mapping configuration
-        let mmap_config = self.options.performance.memory_mapping_config
+        let mmap_config = self
+            .options
+            .performance
+            .memory_mapping_config
             .clone()
             .unwrap_or_default();
 
         // Create memory monitor if not already created
-        let monitor = self.memory_monitor.get_or_insert_with(|| {
-            MemoryUsageMonitor::new(mmap_config.max_memory_usage)
-        });
+        let monitor = self
+            .memory_monitor
+            .get_or_insert_with(|| MemoryUsageMonitor::new(mmap_config.max_memory_usage));
 
         // Create memory-mapped writer
-        let mut writer = MemoryMappedWriter::new(path, mmap_config, monitor.clone())
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Memory mapping failed: {}", e)))?;
+        let mut writer =
+            MemoryMappedWriter::new(path, mmap_config, monitor.clone()).map_err(|e| {
+                crate::core::types::TrackingError::ExportError(format!(
+                    "Memory mapping failed: {}",
+                    e
+                ))
+            })?;
 
         // Collect data from tracker
         let allocations = tracker.get_active_allocations()?;
@@ -1023,14 +1082,20 @@ impl BinaryExporter {
         }
 
         // Create sections with memory mapping optimization
-        let sections = self.create_sections_with_memory_mapping(&allocations, &stats, &memory_by_type, &mut progress)?;
+        let sections = self.create_sections_with_memory_mapping(
+            &allocations,
+            &stats,
+            &memory_by_type,
+            &mut progress,
+        )?;
 
         // Write binary file using memory-mapped writer
         self.write_binary_file_memory_mapped(&mut writer, sections, &mut progress)?;
 
         // Flush and sync data
-        writer.sync_all()
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to sync file: {}", e)))?;
+        writer.sync_all().map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!("Failed to sync file: {}", e))
+        })?;
 
         let export_duration = start_time.elapsed();
         let memory_stats = writer.memory_stats();
@@ -2887,11 +2952,11 @@ impl BinaryExporter {
 
         // Calculate offsets and create section directory
         let mut current_offset = self.calculate_header_and_directory_size(&sections);
-        
+
         for (section_type, data) in &sections {
             // Apply compression if enabled
             let (compressed_data, compression_used) = self.compress_section_data(data)?;
-            
+
             let entry = SectionEntry::new(
                 *section_type,
                 compression_used,
@@ -2899,10 +2964,12 @@ impl BinaryExporter {
                 compressed_data.len() as u32,
                 data.len() as u32,
             );
-            
+
             binary_file.directory.add_section(entry);
-            binary_file.section_data.insert(*section_type, compressed_data.clone());
-            
+            binary_file
+                .section_data
+                .insert(*section_type, compressed_data.clone());
+
             current_offset += compressed_data.len() as u64;
         }
 
@@ -2913,13 +2980,18 @@ impl BinaryExporter {
 
         // Write header
         let header_bytes = binary_file.header.to_bytes();
-        writer.write(&header_bytes)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to write header: {}", e)))?;
+        writer.write(&header_bytes).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!("Failed to write header: {}", e))
+        })?;
 
         // Write section directory
         let directory_bytes = binary_file.directory.to_bytes();
-        writer.write(&directory_bytes)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to write directory: {}", e)))?;
+        writer.write(&directory_bytes).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to write directory: {}",
+                e
+            ))
+        })?;
 
         // Write section data
         for section_type in [
@@ -2929,9 +3001,13 @@ impl BinaryExporter {
             // Add other sections in order...
         ] {
             if let Some(data) = binary_file.section_data.get(&section_type) {
-                writer.write(data)
-                    .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to write section {:?}: {}", section_type, e)))?;
-                
+                writer.write(data).map_err(|e| {
+                    crate::core::types::TrackingError::ExportError(format!(
+                        "Failed to write section {:?}: {}",
+                        section_type, e
+                    ))
+                })?;
+
                 progress.bytes_processed += data.len();
                 if let Some(ref callback) = self.progress_callback {
                     callback(progress);
@@ -2946,7 +3022,7 @@ impl BinaryExporter {
     fn encode_memory_stats_optimized(&mut self, stats: &MemoryStats) -> TrackingResult<Vec<u8>> {
         // Use smaller buffer for memory efficiency
         let mut encoder = BinaryEncoder::with_capacity(256);
-        
+
         encoder.encode_usize(stats.total_allocations);
         encoder.encode_usize(stats.total_deallocations);
         encoder.encode_usize(stats.peak_allocations);
@@ -2958,11 +3034,14 @@ impl BinaryExporter {
     }
 
     /// Memory-optimized encoding for active allocations
-    fn encode_active_allocations_optimized(&mut self, allocations: &[AllocationInfo]) -> TrackingResult<Vec<u8>> {
+    fn encode_active_allocations_optimized(
+        &mut self,
+        allocations: &[AllocationInfo],
+    ) -> TrackingResult<Vec<u8>> {
         // Process allocations in batches to reduce memory usage
         let batch_size = self.options.performance.batch_size;
         let mut encoder = BinaryEncoder::with_capacity(allocations.len() * 64); // Estimate
-        
+
         encoder.encode_u32(allocations.len() as u32);
 
         for batch in allocations.chunks(batch_size) {
@@ -2982,9 +3061,12 @@ impl BinaryExporter {
     }
 
     /// Memory-optimized encoding for type memory usage
-    fn encode_type_memory_usage_optimized(&mut self, memory_by_type: &[TypeMemoryUsage]) -> TrackingResult<Vec<u8>> {
+    fn encode_type_memory_usage_optimized(
+        &mut self,
+        memory_by_type: &[TypeMemoryUsage],
+    ) -> TrackingResult<Vec<u8>> {
         let mut encoder = BinaryEncoder::with_capacity(memory_by_type.len() * 32);
-        
+
         encoder.encode_u32(memory_by_type.len() as u32);
 
         for usage in memory_by_type {
@@ -3006,8 +3088,9 @@ impl BinaryExporter {
     ) -> TrackingResult<HashMap<SectionType, bytes::Bytes>> {
         let mut sections = HashMap::new();
 
-        let buffer_pool = self.buffer_pool.as_ref()
-            .ok_or_else(|| crate::core::types::TrackingError::ExportError("Zero-copy not initialized".to_string()))?;
+        let buffer_pool = self.buffer_pool.as_ref().ok_or_else(|| {
+            crate::core::types::TrackingError::ExportError("Zero-copy not initialized".to_string())
+        })?;
 
         let vectorized_processor = VectorizedProcessor::new(buffer_pool.clone());
 
@@ -3024,27 +3107,38 @@ impl BinaryExporter {
 
         // Active allocations with vectorized processing
         if self.options.section_selection.include_active_allocations {
-            let data = vectorized_processor.process_allocations_batch(
-                allocations,
-                self.options.performance.batch_size,
-                |batch, buffer| {
-                    for allocation in batch {
-                        buffer.write_usize_le(allocation.ptr);
-                        buffer.write_usize_le(allocation.size);
-                        buffer.write_optional_string(&allocation.type_name);
-                        buffer.write_optional_string(&allocation.var_name);
-                        buffer.write_optional_string(&allocation.scope_name);
-                        buffer.write_u64_le(allocation.timestamp_alloc);
-                        buffer.write_u8(if allocation.timestamp_dealloc.is_some() { 1 } else { 0 });
-                        if let Some(dealloc_time) = allocation.timestamp_dealloc {
-                            buffer.write_u64_le(dealloc_time);
+            let data = vectorized_processor
+                .process_allocations_batch(
+                    allocations,
+                    self.options.performance.batch_size,
+                    |batch, buffer| {
+                        for allocation in batch {
+                            buffer.write_usize_le(allocation.ptr);
+                            buffer.write_usize_le(allocation.size);
+                            buffer.write_optional_string(&allocation.type_name);
+                            buffer.write_optional_string(&allocation.var_name);
+                            buffer.write_optional_string(&allocation.scope_name);
+                            buffer.write_u64_le(allocation.timestamp_alloc);
+                            buffer.write_u8(if allocation.timestamp_dealloc.is_some() {
+                                1
+                            } else {
+                                0
+                            });
+                            if let Some(dealloc_time) = allocation.timestamp_dealloc {
+                                buffer.write_u64_le(dealloc_time);
+                            }
+                            buffer.write_u8(if allocation.is_leaked { 1 } else { 0 });
                         }
-                        buffer.write_u8(if allocation.is_leaked { 1 } else { 0 });
-                    }
-                    Ok(())
-                }
-            ).map_err(|e| crate::core::types::TrackingError::ExportError(format!("Vectorized processing failed: {}", e)))?;
-            
+                        Ok(())
+                    },
+                )
+                .map_err(|e| {
+                    crate::core::types::TrackingError::ExportError(format!(
+                        "Vectorized processing failed: {}",
+                        e
+                    ))
+                })?;
+
             sections.insert(SectionType::ActiveAllocations, data);
             progress.sections_completed += 1;
             if let Some(ref callback) = self.progress_callback {
@@ -3054,8 +3148,14 @@ impl BinaryExporter {
 
         // Type memory usage with zero-copy
         if self.options.section_selection.include_type_memory_usage {
-            let data = vectorized_processor.process_type_names(memory_by_type)
-                .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Type processing failed: {}", e)))?;
+            let data = vectorized_processor
+                .process_type_names(memory_by_type)
+                .map_err(|e| {
+                    crate::core::types::TrackingError::ExportError(format!(
+                        "Type processing failed: {}",
+                        e
+                    ))
+                })?;
             sections.insert(SectionType::TypeMemoryUsage, data);
             progress.sections_completed += 1;
             if let Some(ref callback) = self.progress_callback {
@@ -3082,11 +3182,11 @@ impl BinaryExporter {
 
         // Calculate offsets and create section directory
         let mut current_offset = self.calculate_header_and_directory_size_bytes(&sections);
-        
+
         for (section_type, data) in &sections {
             // Apply compression if enabled
             let (compressed_data, compression_used) = self.compress_section_data_bytes(data)?;
-            
+
             let entry = SectionEntry::new(
                 *section_type,
                 compression_used,
@@ -3094,10 +3194,12 @@ impl BinaryExporter {
                 compressed_data.len() as u32,
                 data.len() as u32,
             );
-            
+
             binary_file.directory.add_section(entry);
-            binary_file.section_data.insert(*section_type, compressed_data.to_vec());
-            
+            binary_file
+                .section_data
+                .insert(*section_type, compressed_data.to_vec());
+
             current_offset += compressed_data.len() as u64;
         }
 
@@ -3108,13 +3210,18 @@ impl BinaryExporter {
 
         // Write header using zero-copy
         let header_bytes = binary_file.header.to_bytes();
-        writer.write_zero_copy(&header_bytes)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to write header: {}", e)))?;
+        writer.write_zero_copy(&header_bytes).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!("Failed to write header: {}", e))
+        })?;
 
         // Write section directory using zero-copy
         let directory_bytes = binary_file.directory.to_bytes();
-        writer.write_zero_copy(&directory_bytes)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to write directory: {}", e)))?;
+        writer.write_zero_copy(&directory_bytes).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to write directory: {}",
+                e
+            ))
+        })?;
 
         // Write section data using zero-copy
         for section_type in [
@@ -3124,9 +3231,13 @@ impl BinaryExporter {
             // Add other sections in order...
         ] {
             if let Some(data) = binary_file.section_data.get(&section_type) {
-                writer.write_zero_copy(data)
-                    .map_err(|e| crate::core::types::TrackingError::ExportError(format!("Failed to write section {:?}: {}", section_type, e)))?;
-                
+                writer.write_zero_copy(data).map_err(|e| {
+                    crate::core::types::TrackingError::ExportError(format!(
+                        "Failed to write section {:?}: {}",
+                        section_type, e
+                    ))
+                })?;
+
                 progress.bytes_processed += data.len();
                 if let Some(ref callback) = self.progress_callback {
                     callback(progress);
@@ -3144,7 +3255,7 @@ impl BinaryExporter {
         pool: &ZeroCopyBufferPool,
     ) -> TrackingResult<bytes::Bytes> {
         let mut buffer = pool.get_buffer(64); // Small fixed size for stats
-        
+
         buffer.write_usize_le(stats.total_allocations);
         buffer.write_usize_le(stats.total_deallocations);
         buffer.write_usize_le(stats.peak_allocations);
@@ -3156,14 +3267,20 @@ impl BinaryExporter {
     }
 
     /// Calculate header and directory size for Bytes sections
-    fn calculate_header_and_directory_size_bytes(&self, sections: &HashMap<SectionType, bytes::Bytes>) -> u64 {
+    fn calculate_header_and_directory_size_bytes(
+        &self,
+        sections: &HashMap<SectionType, bytes::Bytes>,
+    ) -> u64 {
         let header_size = 64u64; // Fixed header size
         let directory_size = sections.len() as u64 * 20; // 20 bytes per section entry
         header_size + directory_size
     }
 
     /// Compress section data from Bytes
-    fn compress_section_data_bytes(&self, data: &bytes::Bytes) -> TrackingResult<(bytes::Bytes, CompressionType)> {
+    fn compress_section_data_bytes(
+        &self,
+        data: &bytes::Bytes,
+    ) -> TrackingResult<(bytes::Bytes, CompressionType)> {
         if data.len() < self.options.compression_threshold {
             return Ok((data.clone(), CompressionType::None));
         }

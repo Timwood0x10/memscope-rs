@@ -5,7 +5,9 @@
 
 use crate::core::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage};
 use crate::export::binary_parser::{BinaryParser, BinaryParserOptions};
-use crate::export::conversion_validator::{ConversionValidator, ValidationOptions, ValidationResult};
+use crate::export::conversion_validator::{
+    ConversionValidator, ValidationOptions, ValidationResult,
+};
 use crate::export::html_export::export_interactive_html;
 use crate::export::optimized_json_export::OptimizedExportOptions;
 use rayon::prelude::*;
@@ -183,7 +185,8 @@ impl ConversionResult {
 
     /// Get memory usage in MB if available
     pub fn memory_usage_mb(&self) -> Option<f64> {
-        self.peak_memory_usage.map(|usage| usage as f64 / (1024.0 * 1024.0))
+        self.peak_memory_usage
+            .map(|usage| usage as f64 / (1024.0 * 1024.0))
     }
 
     /// Get conversion duration
@@ -510,8 +513,6 @@ impl BatchConversionOptions {
     }
 }
 
-
-
 /// Main binary converter struct
 pub struct BinaryConverter;
 
@@ -521,11 +522,7 @@ impl BinaryConverter {
         binary_path: P,
         json_path: P,
     ) -> TrackingResult<ConversionResult> {
-        Self::binary_to_json_with_options(
-            binary_path,
-            json_path,
-            ConversionOptions::default(),
-        )
+        Self::binary_to_json_with_options(binary_path, json_path, ConversionOptions::default())
     }
 
     /// Convert binary file to JSON format with custom options
@@ -555,7 +552,7 @@ impl BinaryConverter {
 
         // Parse binary file
         let mut parser = BinaryParser::with_options(options.parser_options.clone());
-        
+
         // Add progress callback if enabled
         if options.enable_progress_reporting {
             parser = parser.with_progress_callback(|progress| {
@@ -633,7 +630,7 @@ impl BinaryConverter {
                     validation_result: None,
                     output_format: "JSON".to_string(),
                 };
-                
+
                 match validator.validate_conversion(binary_path, json_path, &temp_result) {
                     Ok(validation_result) => {
                         (Some(validation_result.is_valid), Some(validation_result))
@@ -641,12 +638,18 @@ impl BinaryConverter {
                     Err(e) => {
                         tracing::warn!("Comprehensive validation failed: {}", e);
                         // Fall back to basic validation
-                        (Some(Self::validate_json_output(&json_data, &allocations)?), None)
+                        (
+                            Some(Self::validate_json_output(&json_data, &allocations)?),
+                            None,
+                        )
                     }
                 }
             } else {
                 // Basic validation only
-                (Some(Self::validate_json_output(&json_data, &allocations)?), None)
+                (
+                    Some(Self::validate_json_output(&json_data, &allocations)?),
+                    None,
+                )
             }
         } else {
             (None, None)
@@ -684,11 +687,7 @@ impl BinaryConverter {
         binary_path: P,
         html_path: P,
     ) -> TrackingResult<ConversionResult> {
-        Self::binary_to_html_with_options(
-            binary_path,
-            html_path,
-            ConversionOptions::default(),
-        )
+        Self::binary_to_html_with_options(binary_path, html_path, ConversionOptions::default())
     }
 
     /// Convert binary file to HTML format with custom options
@@ -718,7 +717,7 @@ impl BinaryConverter {
 
         // Parse binary file
         let mut parser = BinaryParser::with_options(options.parser_options.clone());
-        
+
         if options.enable_progress_reporting {
             parser = parser.with_progress_callback(|progress| {
                 tracing::info!(
@@ -769,7 +768,7 @@ impl BinaryConverter {
                     validation_result: None,
                     output_format: "HTML".to_string(),
                 };
-                
+
                 match validator.validate_conversion(binary_path, html_path, &temp_result) {
                     Ok(validation_result) => {
                         (Some(validation_result.is_valid), Some(validation_result))
@@ -861,7 +860,7 @@ impl BinaryConverter {
 
         // Find all binary files in input directory
         let binary_files = Self::find_binary_files(input_dir)?;
-        
+
         if binary_files.is_empty() {
             tracing::warn!("No binary files found in {}", input_dir.display());
             return Ok(BatchConversionReport {
@@ -1042,12 +1041,13 @@ impl BinaryConverter {
         total_output_size: &Arc<AtomicUsize>,
         was_cancelled: &Arc<AtomicBool>,
     ) -> TrackingResult<()> {
-        tracing::info!("Starting parallel conversion of {} files", binary_files.len());
+        tracing::info!(
+            "Starting parallel conversion of {} files",
+            binary_files.len()
+        );
 
-        binary_files
-            .par_iter()
-            .enumerate()
-            .try_for_each(|(_index, binary_file)| -> TrackingResult<()> {
+        binary_files.par_iter().enumerate().try_for_each(
+            |(_index, binary_file)| -> TrackingResult<()> {
                 // Check for cancellation
                 if let Some(ref token) = options.cancellation_token {
                     if token.is_cancelled() {
@@ -1067,15 +1067,14 @@ impl BinaryConverter {
                                 .to_string(),
                         );
                         progress.elapsed_time = start_time.elapsed();
-                        
+
                         // Calculate estimated remaining time
                         let completed = completed_count.load(Ordering::Relaxed);
                         if completed > 0 {
                             let rate = completed as f64 / progress.elapsed_time.as_secs_f64();
                             let remaining_files = binary_files.len() - completed;
-                            progress.estimated_remaining = Some(Duration::from_secs_f64(
-                                remaining_files as f64 / rate,
-                            ));
+                            progress.estimated_remaining =
+                                Some(Duration::from_secs_f64(remaining_files as f64 / rate));
                             progress.conversion_rate = rate;
                         }
                     }
@@ -1095,8 +1094,9 @@ impl BinaryConverter {
                     Ok(conversion_result) => {
                         success_count.fetch_add(1, Ordering::Relaxed);
                         total_input_size.fetch_add(conversion_result.input_size, Ordering::Relaxed);
-                        total_output_size.fetch_add(conversion_result.output_size, Ordering::Relaxed);
-                        
+                        total_output_size
+                            .fetch_add(conversion_result.output_size, Ordering::Relaxed);
+
                         if let Ok(mut results_guard) = results.lock() {
                             results_guard.push(conversion_result);
                         }
@@ -1140,10 +1140,11 @@ impl BinaryConverter {
                         if let Ok(mut progress) = progress_data.lock() {
                             progress.completed_files = completed;
                             progress.successful_conversions = success_count.load(Ordering::Relaxed);
-                            progress.failed_conversions = completed - progress.successful_conversions;
+                            progress.failed_conversions =
+                                completed - progress.successful_conversions;
                             progress.elapsed_time = start_time.elapsed();
                             progress.bytes_processed = total_input_size.load(Ordering::Relaxed);
-                            
+
                             if progress.elapsed_time.as_secs_f64() > 0.0 {
                                 progress.processing_speed_mbps = progress.bytes_processed as f64
                                     / (1024.0 * 1024.0)
@@ -1156,7 +1157,8 @@ impl BinaryConverter {
                 }
 
                 Ok(())
-            })?;
+            },
+        )?;
 
         Ok(())
     }
@@ -1177,7 +1179,10 @@ impl BinaryConverter {
         total_output_size: &Arc<AtomicUsize>,
         was_cancelled: &Arc<AtomicBool>,
     ) -> TrackingResult<()> {
-        tracing::info!("Starting sequential conversion of {} files", binary_files.len());
+        tracing::info!(
+            "Starting sequential conversion of {} files",
+            binary_files.len()
+        );
 
         for (index, binary_file) in binary_files.iter().enumerate() {
             // Check for cancellation
@@ -1199,14 +1204,13 @@ impl BinaryConverter {
                             .to_string(),
                     );
                     progress.elapsed_time = start_time.elapsed();
-                    
+
                     // Calculate estimated remaining time
                     if index > 0 {
                         let rate = index as f64 / progress.elapsed_time.as_secs_f64();
                         let remaining_files = binary_files.len() - index;
-                        progress.estimated_remaining = Some(Duration::from_secs_f64(
-                            remaining_files as f64 / rate,
-                        ));
+                        progress.estimated_remaining =
+                            Some(Duration::from_secs_f64(remaining_files as f64 / rate));
                         progress.conversion_rate = rate;
                     }
                 }
@@ -1226,7 +1230,7 @@ impl BinaryConverter {
                     success_count.fetch_add(1, Ordering::Relaxed);
                     total_input_size.fetch_add(conversion_result.input_size, Ordering::Relaxed);
                     total_output_size.fetch_add(conversion_result.output_size, Ordering::Relaxed);
-                    
+
                     if let Ok(mut results_guard) = results.lock() {
                         results_guard.push(conversion_result);
                     }
@@ -1273,7 +1277,7 @@ impl BinaryConverter {
                         progress.failed_conversions = completed - progress.successful_conversions;
                         progress.elapsed_time = start_time.elapsed();
                         progress.bytes_processed = total_input_size.load(Ordering::Relaxed);
-                        
+
                         if progress.elapsed_time.as_secs_f64() > 0.0 {
                             progress.processing_speed_mbps = progress.bytes_processed as f64
                                 / (1024.0 * 1024.0)
@@ -1301,11 +1305,7 @@ impl BinaryConverter {
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
 
-        let output_file = output_dir.join(format!(
-            "{}.{}",
-            file_name,
-            output_format.extension()
-        ));
+        let output_file = output_dir.join(format!("{}.{}", file_name, output_format.extension()));
 
         match output_format {
             OutputFormat::Json => {
@@ -1422,9 +1422,7 @@ impl BinaryConverter {
         }
 
         serde_json::to_string_pretty(&json_obj).map_err(|e| {
-            crate::core::types::TrackingError::ExportError(format!(
-                "Failed to serialize JSON: {e}"
-            ))
+            crate::core::types::TrackingError::ExportError(format!("Failed to serialize JSON: {e}"))
         })
     }
 
@@ -1435,17 +1433,17 @@ impl BinaryConverter {
         // This is a simplified implementation
         // In a real scenario, we would need to properly reconstruct the MemoryTracker
         // For now, we'll create a basic tracker and populate it with the parsed data
-        
+
         let tracker = crate::core::tracker::MemoryTracker::new();
-        
+
         // Note: This is a placeholder implementation
         // The actual implementation would need to properly restore the tracker state
         // from the parsed binary data, which would require additional methods
         // in both BinaryParser and MemoryTracker
-        
+
         tracing::warn!("Using simplified MemoryTracker reconstruction for HTML export");
         tracing::warn!("Some features may not be available in the generated HTML");
-        
+
         Ok(tracker)
     }
 
@@ -1573,9 +1571,9 @@ impl BinaryConverter {
         validation_options: Option<ValidationOptions>,
     ) -> TrackingResult<String> {
         let batch_validation = Self::validate_batch_conversion(batch_report, validation_options)?;
-        
+
         let mut report = String::new();
-        
+
         report.push_str(&"=".repeat(80));
         report.push_str("\n                    BATCH CONVERSION QUALITY REPORT\n");
         report.push_str(&"=".repeat(80));
@@ -1596,10 +1594,14 @@ impl BinaryConverter {
         // Performance analysis
         report.push_str("\nPERFORMANCE ANALYSIS:\n");
         if !batch_report.results.is_empty() {
-            let speeds: Vec<f64> = batch_report.results.iter()
+            let speeds: Vec<f64> = batch_report
+                .results
+                .iter()
                 .map(|r| r.conversion_speed_mbps())
                 .collect();
-            let size_ratios: Vec<f64> = batch_report.results.iter()
+            let size_ratios: Vec<f64> = batch_report
+                .results
+                .iter()
                 .map(|r| r.size_ratio())
                 .collect();
 
@@ -1613,11 +1615,7 @@ impl BinaryConverter {
                  Speed Range: {:.2} - {:.2} MB/s\n\
                  Average Size Ratio: {:.2}x\n\
                  Parallel Workers: {}\n",
-                avg_speed,
-                min_speed,
-                max_speed,
-                avg_size_ratio,
-                batch_report.parallel_workers
+                avg_speed, min_speed, max_speed, avg_size_ratio, batch_report.parallel_workers
             ));
         }
 
@@ -1650,7 +1648,7 @@ impl BinaryConverter {
             })?;
 
             let path = entry.path();
-            
+
             // Check if it's a binary file (by extension or magic number)
             if Self::is_binary_file(&path)? {
                 binary_files.push(path);
@@ -1702,8 +1700,6 @@ impl OutputFormat {
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -1808,7 +1804,7 @@ mod tests {
     fn test_cancellation_token() {
         let token = CancellationToken::new();
         assert!(!token.is_cancelled());
-        
+
         token.cancel();
         assert!(token.is_cancelled());
     }
@@ -1835,20 +1831,26 @@ mod tests {
 
     #[test]
     fn test_error_categorization() {
-        let io_error = crate::core::types::TrackingError::IoError(
-            "File not found".to_string()
+        let io_error = crate::core::types::TrackingError::IoError("File not found".to_string());
+        assert_eq!(
+            BinaryConverter::categorize_error(&io_error),
+            ErrorCategory::IoError
         );
-        assert_eq!(BinaryConverter::categorize_error(&io_error), ErrorCategory::IoError);
 
         let parse_error = crate::core::types::TrackingError::ExportError(
-            "Failed to parse binary format".to_string()
+            "Failed to parse binary format".to_string(),
         );
-        assert_eq!(BinaryConverter::categorize_error(&parse_error), ErrorCategory::ParseError);
+        assert_eq!(
+            BinaryConverter::categorize_error(&parse_error),
+            ErrorCategory::ParseError
+        );
 
-        let validation_error = crate::core::types::TrackingError::ExportError(
-            "validation failed".to_string()
+        let validation_error =
+            crate::core::types::TrackingError::ExportError("validation failed".to_string());
+        assert_eq!(
+            BinaryConverter::categorize_error(&validation_error),
+            ErrorCategory::ValidationError
         );
-        assert_eq!(BinaryConverter::categorize_error(&validation_error), ErrorCategory::ValidationError);
     }
 
     #[test]
@@ -1889,4 +1891,3 @@ mod tests {
         assert!(summary.contains("IoError: 1 errors"));
     }
 }
-

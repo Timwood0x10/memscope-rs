@@ -323,7 +323,9 @@ fn run_binary_info_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std
     run_binary_info(matches)
 }
 
-fn run_binary_validate_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+fn run_binary_validate_command(
+    matches: &clap::ArgMatches,
+) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::binary_validate::run_binary_validate;
     run_binary_validate(matches)
 }

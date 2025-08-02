@@ -3,9 +3,9 @@
 //! This module provides functionality to validate binary memory analysis files,
 //! including integrity checks, data validation, and performance analysis.
 
+use crate::export::binary_converter::BinaryConverter;
 use crate::export::binary_parser::BinaryParser;
 use crate::export::conversion_validator::{ConversionValidator, ValidationOptions};
-use crate::export::binary_converter::BinaryConverter;
 use clap::ArgMatches;
 use std::path::Path;
 use std::time::Instant;
@@ -32,12 +32,12 @@ pub fn run_binary_validate(matches: &ArgMatches) -> Result<(), Box<dyn std::erro
     // Step 1: Basic file integrity validation
     println!("\n1. File Integrity Validation");
     println!("   Checking file structure and checksums...");
-    
+
     let mut parser = BinaryParser::default();
     match parser.load_from_file(input) {
         Ok(_) => {
             println!("   ✅ File loaded successfully");
-            
+
             // Validate file integrity
             match parser.validate_integrity() {
                 Ok(_) => {
@@ -59,12 +59,15 @@ pub fn run_binary_validate(matches: &ArgMatches) -> Result<(), Box<dyn std::erro
     // Step 2: Data structure validation
     println!("\n2. Data Structure Validation");
     println!("   Validating internal data structures...");
-    
+
     let data_validation_result = validate_data_structures(&mut parser);
     if data_validation_result.is_ok() {
         println!("   ✅ Data structures are valid");
     } else {
-        println!("   ❌ Data structure validation failed: {}", data_validation_result.unwrap_err());
+        println!(
+            "   ❌ Data structure validation failed: {}",
+            data_validation_result.unwrap_err()
+        );
         validation_passed = false;
     }
 
@@ -72,17 +75,23 @@ pub fn run_binary_validate(matches: &ArgMatches) -> Result<(), Box<dyn std::erro
     if comprehensive {
         println!("\n3. Comprehensive Data Validation");
         println!("   Performing detailed data consistency checks...");
-        
+
         match perform_comprehensive_validation(&parser, input) {
             Ok(result) => {
                 if result.is_valid {
                     println!("   ✅ Comprehensive validation passed");
-                    println!("      Quality Grade: {:?}", result.quality_metrics.quality_grade);
-                    println!("      Overall Score: {:.1}/100", result.quality_metrics.overall_score);
+                    println!(
+                        "      Quality Grade: {:?}",
+                        result.quality_metrics.quality_grade
+                    );
+                    println!(
+                        "      Overall Score: {:.1}/100",
+                        result.quality_metrics.overall_score
+                    );
                 } else {
                     println!("   ❌ Comprehensive validation failed");
                     validation_passed = false;
-                    
+
                     for error in &result.validation_errors {
                         println!("      Error: {}", error.message);
                     }
@@ -106,15 +115,24 @@ pub fn run_binary_validate(matches: &ArgMatches) -> Result<(), Box<dyn std::erro
     if performance {
         println!("\n4. Performance Analysis");
         println!("   Analyzing conversion performance...");
-        
+
         match perform_performance_analysis(&parser, input) {
             Ok(perf_result) => {
                 println!("   ✅ Performance analysis completed");
-                println!("      Conversion Speed: {:.2} MB/s", perf_result.conversion_speed_mbps);
+                println!(
+                    "      Conversion Speed: {:.2} MB/s",
+                    perf_result.conversion_speed_mbps
+                );
                 println!("      Size Ratio: {:.2}x", perf_result.size_ratio);
-                println!("      Performance Category: {:?}", perf_result.performance_category);
-                println!("      Performance Rating: {}/5", perf_result.performance_rating);
-                
+                println!(
+                    "      Performance Category: {:?}",
+                    perf_result.performance_category
+                );
+                println!(
+                    "      Performance Rating: {}/5",
+                    perf_result.performance_rating
+                );
+
                 if let Some(memory_usage) = perf_result.memory_usage_mb {
                     println!("      Memory Usage: {:.2} MB", memory_usage);
                 }
@@ -140,7 +158,12 @@ pub fn run_binary_validate(matches: &ArgMatches) -> Result<(), Box<dyn std::erro
     // Generate report if requested
     if let Some(report_path) = report_path {
         println!("\nGenerating validation report...");
-        generate_validation_report(input_path, report_path, validation_passed, validation_duration)?;
+        generate_validation_report(
+            input_path,
+            report_path,
+            validation_passed,
+            validation_duration,
+        )?;
         println!("Report saved to: {}", report_path);
     }
 
@@ -154,11 +177,13 @@ pub fn run_binary_validate(matches: &ArgMatches) -> Result<(), Box<dyn std::erro
 /// Validate data structures within the binary file
 fn validate_data_structures(parser: &mut BinaryParser) -> Result<(), Box<dyn std::error::Error>> {
     // Validate memory statistics
-    let _stats = parser.load_memory_stats()
+    let _stats = parser
+        .load_memory_stats()
         .map_err(|e| format!("Failed to load memory statistics: {}", e))?;
 
     // Validate allocations
-    let allocations = parser.load_allocations()
+    let allocations = parser
+        .load_allocations()
         .map_err(|e| format!("Failed to load allocations: {}", e))?;
 
     // Basic consistency checks
@@ -167,7 +192,8 @@ fn validate_data_structures(parser: &mut BinaryParser) -> Result<(), Box<dyn std
     }
 
     // Validate type memory usage
-    let _type_usage = parser.load_type_memory_usage()
+    let _type_usage = parser
+        .load_type_memory_usage()
         .map_err(|e| format!("Failed to load type memory usage: {}", e))?;
 
     Ok(())
@@ -197,7 +223,8 @@ fn perform_comprehensive_validation(
     };
 
     let validator = ConversionValidator::with_options(validation_options);
-    let validation_result = validator.validate_conversion(input_path, &temp_json, &conversion_result)?;
+    let validation_result =
+        validator.validate_conversion(input_path, &temp_json, &conversion_result)?;
 
     Ok(validation_result)
 }
@@ -206,7 +233,10 @@ fn perform_comprehensive_validation(
 fn perform_performance_analysis(
     _parser: &BinaryParser,
     input_path: &Path,
-) -> Result<crate::export::conversion_validator::PerformanceComparisonResult, Box<dyn std::error::Error>> {
+) -> Result<
+    crate::export::conversion_validator::PerformanceComparisonResult,
+    Box<dyn std::error::Error>,
+> {
     // Create a temporary JSON file for performance testing
     let temp_dir = tempfile::TempDir::new()?;
     let temp_json = temp_dir.path().join("performance_temp.json");
@@ -255,9 +285,12 @@ fn calculate_performance_rating(speed_mbps: f64, size_ratio: f64) -> u8 {
 }
 
 /// Categorize performance
-fn categorize_performance(speed_mbps: f64, size_ratio: f64) -> crate::export::conversion_validator::PerformanceCategory {
+fn categorize_performance(
+    speed_mbps: f64,
+    size_ratio: f64,
+) -> crate::export::conversion_validator::PerformanceCategory {
     use crate::export::conversion_validator::PerformanceCategory;
-    
+
     match (speed_mbps, size_ratio) {
         (s, r) if s > 50.0 && r < 1.5 => PerformanceCategory::Excellent,
         (s, r) if s > 20.0 && r < 2.0 => PerformanceCategory::Good,
@@ -292,9 +325,21 @@ fn generate_validation_report(
         input_path,
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
         validation_duration.as_secs_f64(),
-        if validation_passed { "PASSED" } else { "FAILED" },
-        if validation_passed { "✅ Passed" } else { "❌ Failed" },
-        if validation_passed { "✅ Passed" } else { "❌ Failed" },
+        if validation_passed {
+            "PASSED"
+        } else {
+            "FAILED"
+        },
+        if validation_passed {
+            "✅ Passed"
+        } else {
+            "❌ Failed"
+        },
+        if validation_passed {
+            "✅ Passed"
+        } else {
+            "❌ Failed"
+        },
         if validation_passed {
             "The binary file passed all validation checks and appears to be in good condition."
         } else {
@@ -314,16 +359,16 @@ mod tests {
     fn test_performance_rating_calculation() {
         // Test excellent performance
         assert_eq!(calculate_performance_rating(60.0, 1.2), 5);
-        
+
         // Test good performance
         assert_eq!(calculate_performance_rating(25.0, 1.8), 4);
-        
+
         // Test average performance
         assert_eq!(calculate_performance_rating(8.0, 2.5), 3);
-        
+
         // Test poor performance
         assert_eq!(calculate_performance_rating(2.0, 4.0), 2);
-        
+
         // Test very poor performance
         assert_eq!(calculate_performance_rating(0.5, 6.0), 1);
     }
@@ -331,19 +376,16 @@ mod tests {
     #[test]
     fn test_performance_categorization() {
         use crate::export::conversion_validator::PerformanceCategory;
-        
+
         // Test excellent performance
         assert_eq!(
             categorize_performance(60.0, 1.2),
             PerformanceCategory::Excellent
         );
-        
+
         // Test good performance
-        assert_eq!(
-            categorize_performance(25.0, 1.8),
-            PerformanceCategory::Good
-        );
-        
+        assert_eq!(categorize_performance(25.0, 1.8), PerformanceCategory::Good);
+
         // Test average performance
         assert_eq!(
             categorize_performance(8.0, 2.5),

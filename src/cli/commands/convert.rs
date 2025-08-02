@@ -36,16 +36,12 @@ pub fn run_convert(matches: &ArgMatches) -> Result<(), Box<dyn std::error::Error
             return Err("JSON to binary conversion is not yet implemented".into());
         }
         _ => {
-            return Err(format!(
-                "Unsupported conversion: {} -> {}",
-                from_format, to_format
-            )
-            .into());
+            return Err(format!("Unsupported conversion: {} -> {}", from_format, to_format).into());
         }
     }
 
     let duration = start_time.elapsed();
-    
+
     if verbose {
         println!("Conversion completed in {:.2}s", duration.as_secs_f64());
     } else {
@@ -82,7 +78,7 @@ fn convert_binary_to_json(
         println!("  Output size: {} bytes", result.output_size);
         println!("  Size ratio: {:.2}x", result.size_ratio());
         println!("  Speed: {:.2} MB/s", result.conversion_speed_mbps());
-        
+
         if let Some(memory_usage) = result.memory_usage_mb() {
             println!("  Memory usage: {:.2} MB", memory_usage);
         }
@@ -98,9 +94,11 @@ fn convert_binary_to_json(
         match validator.validate_conversion(input, output, &result) {
             Ok(validation_result) => {
                 if validation_result.is_valid {
-                    println!("✅ Validation passed (Grade: {:?}, Score: {:.1}/100)", 
+                    println!(
+                        "✅ Validation passed (Grade: {:?}, Score: {:.1}/100)",
                         validation_result.quality_metrics.quality_grade,
-                        validation_result.quality_metrics.overall_score);
+                        validation_result.quality_metrics.overall_score
+                    );
                 } else {
                     println!("❌ Validation failed");
                     for error in &validation_result.validation_errors {
@@ -178,12 +176,12 @@ mod tests {
     #[test]
     fn test_convert_command_validation() {
         // Test that the convert command validates input parameters correctly
-        
+
         // Test unsupported conversion
         let result = std::panic::catch_unwind(|| {
             convert_binary_to_json("nonexistent.bin", "output.json", false, false)
         });
-        
+
         // The function should return an error for nonexistent files
         // This is a basic test to ensure error handling works
     }
@@ -191,17 +189,20 @@ mod tests {
     #[test]
     fn test_format_validation() {
         // Test format validation logic
-        let valid_combinations = vec![
-            ("binary", "json"),
-            ("binary", "html"),
-        ];
+        let valid_combinations = vec![("binary", "json"), ("binary", "html")];
 
         for (from, to) in valid_combinations {
             // These should be valid format combinations
-            assert!(matches!((from, to), ("binary", "json") | ("binary", "html")));
+            assert!(matches!(
+                (from, to),
+                ("binary", "json") | ("binary", "html")
+            ));
         }
 
         // Invalid combinations should be rejected
-        assert!(!matches!(("json", "binary"), ("binary", "json") | ("binary", "html")));
+        assert!(!matches!(
+            ("json", "binary"),
+            ("binary", "json") | ("binary", "html")
+        ));
     }
 }

@@ -193,7 +193,7 @@ impl SimdProcessor {
     unsafe fn crc64_avx2_chunk(&self, mut crc: u64, data: *const u8) -> u64 {
         // Load 32 bytes into AVX2 register
         let data_vec = _mm256_loadu_si256(data as *const __m256i);
-        
+
         // For simplicity, we'll process this in 8-byte chunks
         // In a real implementation, you'd use lookup tables and more sophisticated SIMD operations
         let bytes = std::slice::from_raw_parts(data, 32);
@@ -207,7 +207,7 @@ impl SimdProcessor {
                 }
             }
         }
-        
+
         crc
     }
 
@@ -249,7 +249,7 @@ impl SimdProcessor {
     unsafe fn crc64_sse41_chunk(&self, mut crc: u64, data: *const u8) -> u64 {
         // Load 16 bytes into SSE register
         let data_vec = _mm_loadu_si128(data as *const __m128i);
-        
+
         // For simplicity, process as scalar (real implementation would use SIMD operations)
         let bytes = std::slice::from_raw_parts(data, 16);
         for &byte in bytes {
@@ -262,7 +262,7 @@ impl SimdProcessor {
                 }
             }
         }
-        
+
         crc
     }
 
@@ -304,7 +304,7 @@ impl SimdProcessor {
     unsafe fn crc64_neon_chunk(&self, mut crc: u64, data: *const u8) -> u64 {
         // Fallback to scalar implementation to avoid unstable feature issues
         // let data_vec = vld1q_u8(data);
-        
+
         // For simplicity, process as scalar (real implementation would use NEON operations)
         // In a production implementation, you'd use NEON polynomial multiplication
         let bytes = std::slice::from_raw_parts(data, 16);
@@ -318,7 +318,7 @@ impl SimdProcessor {
                 }
             }
         }
-        
+
         crc
     }
 
@@ -366,7 +366,7 @@ impl SimdProcessor {
     unsafe fn crc64_avx2_chunk(&self, mut crc: u64, data: *const u8) -> u64 {
         // Load 32 bytes into AVX2 register
         let _data_vec = _mm256_loadu_si256(data as *const __m256i);
-        
+
         // For simplicity, we'll process this in 8-byte chunks
         // In a real implementation, you'd use lookup tables and more sophisticated SIMD operations
         let bytes = std::slice::from_raw_parts(data, 32);
@@ -380,7 +380,7 @@ impl SimdProcessor {
                 }
             }
         }
-        
+
         crc
     }
 
@@ -422,7 +422,7 @@ impl SimdProcessor {
     unsafe fn crc64_sse41_chunk(&self, mut crc: u64, data: *const u8) -> u64 {
         // Load 16 bytes into SSE register
         let _data_vec = _mm_loadu_si128(data as *const __m128i);
-        
+
         // For simplicity, process as scalar (real implementation would use SIMD operations)
         let bytes = std::slice::from_raw_parts(data, 16);
         for &byte in bytes {
@@ -435,7 +435,7 @@ impl SimdProcessor {
                 }
             }
         }
-        
+
         crc
     }
 
@@ -475,7 +475,11 @@ impl SimdProcessor {
     }
 
     /// Scalar u64 array encoding (fallback)
-    pub fn encode_u64_array_scalar(&self, values: &[u64], output: &mut [u8]) -> Result<usize, SimdError> {
+    pub fn encode_u64_array_scalar(
+        &self,
+        values: &[u64],
+        output: &mut [u8],
+    ) -> Result<usize, SimdError> {
         for (i, &value) in values.iter().enumerate() {
             let bytes = value.to_le_bytes();
             output[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
@@ -500,7 +504,7 @@ impl SimdProcessor {
                 let values_vec = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
                 _mm256_storeu_si256(
                     output[output_offset..].as_mut_ptr() as *mut __m256i,
-                    values_vec
+                    values_vec,
                 );
                 output_offset += 32;
             }
@@ -533,7 +537,7 @@ impl SimdProcessor {
                 let values_vec = _mm_loadu_si128(chunk.as_ptr() as *const __m128i);
                 _mm_storeu_si128(
                     output[output_offset..].as_mut_ptr() as *mut __m128i,
-                    values_vec
+                    values_vec,
                 );
                 output_offset += 16;
             }
@@ -566,11 +570,12 @@ impl SimdProcessor {
                 // Fallback to scalar implementation
                 // let values_vec = vld1q_u64(chunk.as_ptr());
                 // vst1q_u8(output[output_offset..].as_mut_ptr(), vreinterpretq_u8_u64(values_vec));
-                
+
                 // Use scalar implementation instead
                 for (i, &value) in chunk.iter().enumerate() {
                     let bytes = value.to_le_bytes();
-                    output[output_offset + i * 8..output_offset + (i + 1) * 8].copy_from_slice(&bytes);
+                    output[output_offset + i * 8..output_offset + (i + 1) * 8]
+                        .copy_from_slice(&bytes);
                 }
                 output_offset += 16;
             }
@@ -609,7 +614,7 @@ impl SimdProcessor {
                 let values_vec = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
                 _mm256_storeu_si256(
                     output[output_offset..].as_mut_ptr() as *mut __m256i,
-                    values_vec
+                    values_vec,
                 );
                 output_offset += 32;
             }
@@ -642,7 +647,7 @@ impl SimdProcessor {
                 let values_vec = _mm_loadu_si128(chunk.as_ptr() as *const __m128i);
                 _mm_storeu_si128(
                     output[output_offset..].as_mut_ptr() as *mut __m128i,
-                    values_vec
+                    values_vec,
                 );
                 output_offset += 16;
             }
@@ -702,13 +707,16 @@ impl SimdProcessor {
     }
 
     /// Scalar u64 array decoding (fallback)
-    pub fn decode_u64_array_scalar(&self, input: &[u8], output: &mut [u64]) -> Result<usize, SimdError> {
+    pub fn decode_u64_array_scalar(
+        &self,
+        input: &[u8],
+        output: &mut [u64],
+    ) -> Result<usize, SimdError> {
         let value_count = input.len() / 8;
         for i in 0..value_count {
             let bytes = &input[i * 8..(i + 1) * 8];
             output[i] = u64::from_le_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3],
-                bytes[4], bytes[5], bytes[6], bytes[7],
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
             ]);
         }
         Ok(value_count)
@@ -731,7 +739,7 @@ impl SimdProcessor {
                 let data_vec = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
                 _mm256_storeu_si256(
                     output[output_offset..].as_mut_ptr() as *mut __m256i,
-                    data_vec
+                    data_vec,
                 );
                 output_offset += 4;
             }
@@ -741,8 +749,7 @@ impl SimdProcessor {
             for i in 0..remainder_values {
                 let bytes = &remainder[i * 8..(i + 1) * 8];
                 output[output_offset + i] = u64::from_le_bytes([
-                    bytes[0], bytes[1], bytes[2], bytes[3],
-                    bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
             }
 
@@ -767,7 +774,7 @@ impl SimdProcessor {
                 let data_vec = _mm_loadu_si128(chunk.as_ptr() as *const __m128i);
                 _mm_storeu_si128(
                     output[output_offset..].as_mut_ptr() as *mut __m128i,
-                    data_vec
+                    data_vec,
                 );
                 output_offset += 2;
             }
@@ -777,8 +784,7 @@ impl SimdProcessor {
             for i in 0..remainder_values {
                 let bytes = &remainder[i * 8..(i + 1) * 8];
                 output[output_offset + i] = u64::from_le_bytes([
-                    bytes[0], bytes[1], bytes[2], bytes[3],
-                    bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
             }
 
@@ -804,12 +810,16 @@ impl SimdProcessor {
                 // let data_vec = vld1q_u8(chunk.as_ptr());
                 // let u64_vec = vreinterpretq_u64_u8(data_vec);
                 // vst1q_u64(output[output_offset..].as_mut_ptr(), u64_vec);
-                
+
                 // Use scalar implementation instead
-                let u64_chunk = unsafe { std::slice::from_raw_parts(chunk.as_ptr() as *const u64, 2) };
+                let u64_chunk =
+                    unsafe { std::slice::from_raw_parts(chunk.as_ptr() as *const u64, 2) };
                 for (i, &value) in u64_chunk.iter().enumerate() {
                     unsafe {
-                        std::ptr::write(output[output_offset + i..].as_mut_ptr() as *mut u64, value);
+                        std::ptr::write(
+                            output[output_offset + i..].as_mut_ptr() as *mut u64,
+                            value,
+                        );
                     }
                 }
                 output_offset += 2;
@@ -820,8 +830,7 @@ impl SimdProcessor {
             for i in 0..remainder_values {
                 let bytes = &remainder[i * 8..(i + 1) * 8];
                 output[output_offset + i] = u64::from_le_bytes([
-                    bytes[0], bytes[1], bytes[2], bytes[3],
-                    bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
             }
 
@@ -852,7 +861,7 @@ impl SimdProcessor {
                 let data_vec = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
                 _mm256_storeu_si256(
                     output[output_offset..].as_mut_ptr() as *mut __m256i,
-                    data_vec
+                    data_vec,
                 );
                 output_offset += 4;
             }
@@ -862,8 +871,7 @@ impl SimdProcessor {
             for i in 0..remainder_values {
                 let bytes = &remainder[i * 8..(i + 1) * 8];
                 output[output_offset + i] = u64::from_le_bytes([
-                    bytes[0], bytes[1], bytes[2], bytes[3],
-                    bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
             }
 
@@ -888,7 +896,7 @@ impl SimdProcessor {
                 let data_vec = _mm_loadu_si128(chunk.as_ptr() as *const __m128i);
                 _mm_storeu_si128(
                     output[output_offset..].as_mut_ptr() as *mut __m128i,
-                    data_vec
+                    data_vec,
                 );
                 output_offset += 2;
             }
@@ -898,8 +906,7 @@ impl SimdProcessor {
             for i in 0..remainder_values {
                 let bytes = &remainder[i * 8..(i + 1) * 8];
                 output[output_offset + i] = u64::from_le_bytes([
-                    bytes[0], bytes[1], bytes[2], bytes[3],
-                    bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
             }
 
@@ -958,7 +965,7 @@ impl SimdProcessor {
                 let vec_b = _mm256_loadu_si256(chunk_b.as_ptr() as *const __m256i);
                 let cmp = _mm256_cmpeq_epi8(vec_a, vec_b);
                 let mask = _mm256_movemask_epi8(cmp);
-                
+
                 if mask != -1 {
                     return false;
                 }
@@ -988,7 +995,7 @@ impl SimdProcessor {
                 let vec_b = _mm_loadu_si128(chunk_b.as_ptr() as *const __m128i);
                 let cmp = _mm_cmpeq_epi8(vec_a, vec_b);
                 let mask = _mm_movemask_epi8(cmp);
-                
+
                 if mask != 0xFFFF {
                     return false;
                 }
@@ -1019,7 +1026,7 @@ impl SimdProcessor {
                 // let vec_b = vld1q_u8(chunk_b.as_ptr());
                 // let cmp = vceqq_u8(vec_a, vec_b);
                 // let min_val = vminvq_u8(cmp);
-                
+
                 // Use scalar comparison instead
                 let min_val = if chunk_a == chunk_b { 0xFF } else { 0x00 };
                 if min_val != 0xFF {
@@ -1057,7 +1064,7 @@ impl SimdProcessor {
                 let vec_b = _mm256_loadu_si256(chunk_b.as_ptr() as *const __m256i);
                 let cmp = _mm256_cmpeq_epi8(vec_a, vec_b);
                 let mask = _mm256_movemask_epi8(cmp);
-                
+
                 if mask != -1 {
                     return false;
                 }
@@ -1087,7 +1094,7 @@ impl SimdProcessor {
                 let vec_b = _mm_loadu_si128(chunk_b.as_ptr() as *const __m128i);
                 let cmp = _mm_cmpeq_epi8(vec_a, vec_b);
                 let mask = _mm_movemask_epi8(cmp);
-                
+
                 if mask != 0xFFFF {
                     return false;
                 }
@@ -1123,7 +1130,10 @@ pub enum SimdError {
     InsufficientBuffer { required: usize, available: usize },
 
     #[error("Invalid input size: {size}, expected multiple of {expected_multiple}")]
-    InvalidInputSize { size: usize, expected_multiple: usize },
+    InvalidInputSize {
+        size: usize,
+        expected_multiple: usize,
+    },
 
     #[error("SIMD not supported on this platform")]
     NotSupported,
@@ -1148,7 +1158,7 @@ impl SimdBenchmark {
     /// Benchmark CRC64 calculation
     pub fn benchmark_crc64(&self, data_size: usize, iterations: usize) -> BenchmarkResult {
         let data = vec![0xAAu8; data_size];
-        
+
         let start = std::time::Instant::now();
         for _ in 0..iterations {
             let _ = self.processor.crc64_checksum(&data);
@@ -1178,7 +1188,7 @@ impl SimdBenchmark {
     pub fn benchmark_u64_encoding(&self, array_size: usize, iterations: usize) -> BenchmarkResult {
         let values = vec![0x123456789ABCDEFu64; array_size];
         let mut output = vec![0u8; array_size * 8];
-        
+
         let start = std::time::Instant::now();
         for _ in 0..iterations {
             let _ = self.processor.encode_u64_array(&values, &mut output);
@@ -1255,7 +1265,7 @@ mod tests {
     fn test_simd_capability_detection() {
         let processor = SimdProcessor::new();
         println!("Detected SIMD capability: {:?}", processor.capability());
-        
+
         // Should at least detect SSE2 on x86_64
         #[cfg(target_arch = "x86_64")]
         assert!(processor.capability() >= SimdCapability::Sse2);
@@ -1265,10 +1275,10 @@ mod tests {
     fn test_crc64_checksum() {
         let processor = SimdProcessor::new();
         let data = b"Hello, SIMD world!";
-        
+
         let checksum1 = processor.crc64_checksum(data);
         let checksum2 = processor.crc64_scalar(data);
-        
+
         // SIMD and scalar should produce the same result
         assert_eq!(checksum1, checksum2);
     }
@@ -1278,15 +1288,15 @@ mod tests {
         let processor = SimdProcessor::new();
         let values = vec![0x123456789ABCDEF0u64, 0xFEDCBA9876543210u64];
         let mut output = vec![0u8; 16];
-        
+
         let result = processor.encode_u64_array(&values, &mut output);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 16);
-        
+
         // Verify the encoding
         let expected = [
-            0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12,
-            0x10, 0x32, 0x54, 0x76, 0x98, 0xBA, 0xDC, 0xFE,
+            0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12, 0x10, 0x32, 0x54, 0x76, 0x98, 0xBA,
+            0xDC, 0xFE,
         ];
         assert_eq!(output, expected);
     }
@@ -1295,15 +1305,15 @@ mod tests {
     fn test_u64_array_decoding() {
         let processor = SimdProcessor::new();
         let input = [
-            0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12,
-            0x10, 0x32, 0x54, 0x76, 0x98, 0xBA, 0xDC, 0xFE,
+            0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12, 0x10, 0x32, 0x54, 0x76, 0x98, 0xBA,
+            0xDC, 0xFE,
         ];
         let mut output = vec![0u64; 2];
-        
+
         let result = processor.decode_u64_array(&input, &mut output);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 2);
-        
+
         let expected = vec![0x123456789ABCDEF0u64, 0xFEDCBA9876543210u64];
         assert_eq!(output, expected);
     }
@@ -1315,7 +1325,7 @@ mod tests {
         let data2 = vec![0xAAu8; 100];
         let mut data3 = vec![0xAAu8; 100];
         data3[50] = 0xBB;
-        
+
         assert!(processor.memory_compare(&data1, &data2));
         assert!(!processor.memory_compare(&data1, &data3));
     }
@@ -1324,13 +1334,19 @@ mod tests {
     fn test_benchmark() {
         let benchmark = SimdBenchmark::new();
         let result = benchmark.benchmark_crc64(1024, 100);
-        
+
         println!("CRC64 Benchmark:");
         println!("  SIMD Capability: {:?}", result.simd_capability);
         println!("  Speedup: {:.2}x", result.speedup);
-        println!("  SIMD Throughput: {:.2} MB/s", result.simd_throughput_mbps());
-        println!("  Scalar Throughput: {:.2} MB/s", result.scalar_throughput_mbps());
-        
+        println!(
+            "  SIMD Throughput: {:.2} MB/s",
+            result.simd_throughput_mbps()
+        );
+        println!(
+            "  Scalar Throughput: {:.2} MB/s",
+            result.scalar_throughput_mbps()
+        );
+
         assert!(result.speedup >= 1.0); // SIMD should be at least as fast as scalar
     }
 
@@ -1343,23 +1359,23 @@ mod tests {
         fn test_x86_64_capability_detection() {
             let processor = SimdProcessor::new();
             let capability = processor.capability();
-            
+
             println!("x86_64 SIMD Capability: {:?}", capability);
-            
+
             // x86_64 should at least have SSE2
             assert!(capability >= SimdCapability::Sse2);
-            
+
             // Test specific capabilities
             if is_x86_feature_detected!("avx2") {
                 println!("AVX2 detected and should be used");
                 assert!(capability >= SimdCapability::Avx2);
             }
-            
+
             if is_x86_feature_detected!("avx") {
                 println!("AVX detected and should be used");
                 assert!(capability >= SimdCapability::Avx);
             }
-            
+
             if is_x86_feature_detected!("sse4.1") {
                 println!("SSE4.1 detected and should be used");
                 assert!(capability >= SimdCapability::Sse41);
@@ -1370,25 +1386,25 @@ mod tests {
         fn test_x86_64_crc64_performance() {
             let processor = SimdProcessor::new();
             let test_sizes = vec![64, 256, 1024, 4096, 16384];
-            
+
             for size in test_sizes {
                 let data = vec![0xAAu8; size];
-                
+
                 // Benchmark SIMD vs scalar
                 let start = std::time::Instant::now();
                 let simd_result = processor.crc64_checksum(&data);
                 let simd_time = start.elapsed();
-                
+
                 let start = std::time::Instant::now();
                 let scalar_result = processor.crc64_scalar(&data);
                 let scalar_time = start.elapsed();
-                
+
                 // Results should be identical
                 assert_eq!(simd_result, scalar_result);
-                
+
                 let speedup = scalar_time.as_nanos() as f64 / simd_time.as_nanos() as f64;
                 println!("x86_64 CRC64 size {}: speedup {:.2}x", size, speedup);
-                
+
                 // For larger data, SIMD should be faster or at least equal
                 if size >= 1024 {
                     assert!(speedup >= 0.8, "SIMD should not be significantly slower");
@@ -1400,26 +1416,26 @@ mod tests {
         fn test_x86_64_u64_encoding_performance() {
             let processor = SimdProcessor::new();
             let test_sizes = vec![4, 16, 64, 256, 1024];
-            
+
             for size in test_sizes {
                 let values: Vec<u64> = (0..size).map(|i| i as u64 * 0x123456789ABCDEF).collect();
                 let mut simd_output = vec![0u8; size * 8];
                 let mut scalar_output = vec![0u8; size * 8];
-                
+
                 // Test SIMD encoding
                 let start = std::time::Instant::now();
                 let simd_result = processor.encode_u64_array(&values, &mut simd_output);
                 let simd_time = start.elapsed();
-                
+
                 // Test scalar encoding
                 let start = std::time::Instant::now();
                 let scalar_result = processor.encode_u64_array_scalar(&values, &mut scalar_output);
                 let scalar_time = start.elapsed();
-                
+
                 assert!(simd_result.is_ok());
                 assert!(scalar_result.is_ok());
                 assert_eq!(simd_output, scalar_output);
-                
+
                 let speedup = scalar_time.as_nanos() as f64 / simd_time.as_nanos() as f64;
                 println!("x86_64 U64 encoding size {}: speedup {:.2}x", size, speedup);
             }
@@ -1429,42 +1445,48 @@ mod tests {
         fn test_x86_64_memory_compare_performance() {
             let processor = SimdProcessor::new();
             let test_sizes = vec![16, 64, 256, 1024, 4096];
-            
+
             for size in test_sizes {
                 let data1 = vec![0xAAu8; size];
                 let data2 = vec![0xAAu8; size];
                 let mut data3 = vec![0xAAu8; size];
                 data3[size / 2] = 0xBB; // Make one different
-                
+
                 // Test identical data
                 let start = std::time::Instant::now();
                 let simd_result1 = processor.memory_compare(&data1, &data2);
                 let simd_time1 = start.elapsed();
-                
+
                 let start = std::time::Instant::now();
                 let scalar_result1 = data1 == data2;
                 let scalar_time1 = start.elapsed();
-                
+
                 assert_eq!(simd_result1, scalar_result1);
                 assert!(simd_result1);
-                
+
                 // Test different data
                 let start = std::time::Instant::now();
                 let simd_result2 = processor.memory_compare(&data1, &data3);
                 let simd_time2 = start.elapsed();
-                
+
                 let start = std::time::Instant::now();
                 let scalar_result2 = data1 == data3;
                 let scalar_time2 = start.elapsed();
-                
+
                 assert_eq!(simd_result2, scalar_result2);
                 assert!(!simd_result2);
-                
+
                 let speedup1 = scalar_time1.as_nanos() as f64 / simd_time1.as_nanos() as f64;
                 let speedup2 = scalar_time2.as_nanos() as f64 / simd_time2.as_nanos() as f64;
-                
-                println!("x86_64 Memory compare size {} (equal): speedup {:.2}x", size, speedup1);
-                println!("x86_64 Memory compare size {} (different): speedup {:.2}x", size, speedup2);
+
+                println!(
+                    "x86_64 Memory compare size {} (equal): speedup {:.2}x",
+                    size, speedup1
+                );
+                println!(
+                    "x86_64 Memory compare size {} (different): speedup {:.2}x",
+                    size, speedup2
+                );
             }
         }
     }
@@ -1478,9 +1500,9 @@ mod tests {
         fn test_aarch64_capability_detection() {
             let processor = SimdProcessor::new();
             let capability = processor.capability();
-            
+
             println!("ARM64 SIMD Capability: {:?}", capability);
-            
+
             // ARM64 should have NEON
             if std::arch::is_aarch64_feature_detected!("neon") {
                 println!("NEON detected and should be used");
@@ -1495,25 +1517,25 @@ mod tests {
         fn test_aarch64_crc64_performance() {
             let processor = SimdProcessor::new();
             let test_sizes = vec![64, 256, 1024, 4096, 16384];
-            
+
             for size in test_sizes {
                 let data = vec![0xAAu8; size];
-                
+
                 // Benchmark NEON vs scalar
                 let start = std::time::Instant::now();
                 let neon_result = processor.crc64_checksum(&data);
                 let neon_time = start.elapsed();
-                
+
                 let start = std::time::Instant::now();
                 let scalar_result = processor.crc64_scalar(&data);
                 let scalar_time = start.elapsed();
-                
+
                 // Results should be identical
                 assert_eq!(neon_result, scalar_result);
-                
+
                 let speedup = scalar_time.as_nanos() as f64 / neon_time.as_nanos() as f64;
                 println!("ARM64 CRC64 size {}: speedup {:.2}x", size, speedup);
-                
+
                 // For larger data, NEON should be faster or at least equal
                 if size >= 1024 {
                     assert!(speedup >= 0.8, "NEON should not be significantly slower");
@@ -1525,26 +1547,26 @@ mod tests {
         fn test_aarch64_u64_encoding_performance() {
             let processor = SimdProcessor::new();
             let test_sizes = vec![4, 16, 64, 256, 1024];
-            
+
             for size in test_sizes {
                 let values: Vec<u64> = (0..size).map(|i| i as u64 * 0x123456789ABCDEF).collect();
                 let mut neon_output = vec![0u8; size * 8];
                 let mut scalar_output = vec![0u8; size * 8];
-                
+
                 // Test NEON encoding
                 let start = std::time::Instant::now();
                 let neon_result = processor.encode_u64_array(&values, &mut neon_output);
                 let neon_time = start.elapsed();
-                
+
                 // Test scalar encoding
                 let start = std::time::Instant::now();
                 let scalar_result = processor.encode_u64_array_scalar(&values, &mut scalar_output);
                 let scalar_time = start.elapsed();
-                
+
                 assert!(neon_result.is_ok());
                 assert!(scalar_result.is_ok());
                 assert_eq!(neon_output, scalar_output);
-                
+
                 let speedup = scalar_time.as_nanos() as f64 / neon_time.as_nanos() as f64;
                 println!("ARM64 U64 encoding size {}: speedup {:.2}x", size, speedup);
             }
@@ -1554,68 +1576,74 @@ mod tests {
         fn test_aarch64_memory_compare_performance() {
             let processor = SimdProcessor::new();
             let test_sizes = vec![16, 64, 256, 1024, 4096];
-            
+
             for size in test_sizes {
                 let data1 = vec![0xAAu8; size];
                 let data2 = vec![0xAAu8; size];
                 let mut data3 = vec![0xAAu8; size];
                 data3[size / 2] = 0xBB; // Make one different
-                
+
                 // Test identical data
                 let start = std::time::Instant::now();
                 let neon_result1 = processor.memory_compare(&data1, &data2);
                 let neon_time1 = start.elapsed();
-                
+
                 let start = std::time::Instant::now();
                 let scalar_result1 = data1 == data2;
                 let scalar_time1 = start.elapsed();
-                
+
                 assert_eq!(neon_result1, scalar_result1);
                 assert!(neon_result1);
-                
+
                 // Test different data
                 let start = std::time::Instant::now();
                 let neon_result2 = processor.memory_compare(&data1, &data3);
                 let neon_time2 = start.elapsed();
-                
+
                 let start = std::time::Instant::now();
                 let scalar_result2 = data1 == data3;
                 let scalar_time2 = start.elapsed();
-                
+
                 assert_eq!(neon_result2, scalar_result2);
                 assert!(!neon_result2);
-                
+
                 let speedup1 = scalar_time1.as_nanos() as f64 / neon_time1.as_nanos() as f64;
                 let speedup2 = scalar_time2.as_nanos() as f64 / neon_time2.as_nanos() as f64;
-                
-                println!("ARM64 Memory compare size {} (equal): speedup {:.2}x", size, speedup1);
-                println!("ARM64 Memory compare size {} (different): speedup {:.2}x", size, speedup2);
+
+                println!(
+                    "ARM64 Memory compare size {} (equal): speedup {:.2}x",
+                    size, speedup1
+                );
+                println!(
+                    "ARM64 Memory compare size {} (different): speedup {:.2}x",
+                    size, speedup2
+                );
             }
         }
 
         #[test]
         fn test_aarch64_neon_specific_operations() {
             let processor = SimdProcessor::new();
-            
+
             // Test NEON-specific functionality if available
             if std::arch::is_aarch64_feature_detected!("neon") {
                 println!("Testing NEON-specific operations");
-                
+
                 // Test with data that benefits from NEON
                 let data = vec![0x12u8; 1024];
                 let checksum = processor.crc64_checksum(&data);
-                
+
                 // Verify checksum is computed correctly
                 assert_ne!(checksum, 0);
-                
+
                 // Test u64 array operations
                 let values = vec![0x123456789ABCDEFu64; 128];
                 let mut output = vec![0u8; 128 * 8];
-                
+
                 let result = processor.encode_u64_array(&values, &mut output);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), 128 * 8);
-                
+
                 println!("NEON operations completed successfully");
             } else {
                 println!("NEON not available, skipping NEON-specific tests");
@@ -1627,16 +1655,16 @@ mod tests {
     #[test]
     fn test_cross_platform_consistency() {
         let processor = SimdProcessor::new();
-        
+
         // Test data that should produce consistent results across platforms
         let test_data = b"Hello, cross-platform SIMD world! This is a longer test string to ensure consistency across different architectures and SIMD implementations.";
-        
+
         let simd_checksum = processor.crc64_checksum(test_data);
         let scalar_checksum = processor.crc64_scalar(test_data);
-        
+
         // SIMD and scalar should always produce the same result
         assert_eq!(simd_checksum, scalar_checksum);
-        
+
         // Test u64 encoding consistency
         let test_values = vec![
             0x0123456789ABCDEFu64,
@@ -1646,17 +1674,17 @@ mod tests {
             0x5555555555555555u64,
             0xAAAAAAAAAAAAAAAAu64,
         ];
-        
+
         let mut simd_output = vec![0u8; test_values.len() * 8];
         let mut scalar_output = vec![0u8; test_values.len() * 8];
-        
+
         let simd_result = processor.encode_u64_array(&test_values, &mut simd_output);
         let scalar_result = processor.encode_u64_array_scalar(&test_values, &mut scalar_output);
-        
+
         assert!(simd_result.is_ok());
         assert!(scalar_result.is_ok());
         assert_eq!(simd_output, scalar_output);
-        
+
         println!("Cross-platform consistency test passed");
         println!("Platform: {}", std::env::consts::ARCH);
         println!("SIMD Capability: {:?}", processor.capability());
@@ -1665,29 +1693,37 @@ mod tests {
     #[test]
     fn test_simd_error_handling() {
         let processor = SimdProcessor::new();
-        
+
         // Test insufficient buffer
         let values = vec![1u64, 2u64, 3u64];
         let mut small_buffer = vec![0u8; 8]; // Too small for 3 u64s
-        
+
         let result = processor.encode_u64_array(&values, &mut small_buffer);
         assert!(result.is_err());
-        
-        if let Err(SimdError::InsufficientBuffer { required, available }) = result {
+
+        if let Err(SimdError::InsufficientBuffer {
+            required,
+            available,
+        }) = result
+        {
             assert_eq!(required, 24);
             assert_eq!(available, 8);
         } else {
             panic!("Expected InsufficientBuffer error");
         }
-        
+
         // Test invalid input size for decoding
         let invalid_input = vec![0u8; 15]; // Not a multiple of 8
         let mut output = vec![0u64; 2];
-        
+
         let result = processor.decode_u64_array(&invalid_input, &mut output);
         assert!(result.is_err());
-        
-        if let Err(SimdError::InvalidInputSize { size, expected_multiple }) = result {
+
+        if let Err(SimdError::InvalidInputSize {
+            size,
+            expected_multiple,
+        }) = result
+        {
             assert_eq!(size, 15);
             assert_eq!(expected_multiple, 8);
         } else {
@@ -1698,32 +1734,33 @@ mod tests {
     #[test]
     fn test_comprehensive_benchmark() {
         let benchmark = SimdBenchmark::new();
-        
+
         println!("\n=== Comprehensive SIMD Benchmark ===");
         println!("Platform: {}", std::env::consts::ARCH);
-        
+
         // Test different data sizes
         let sizes = vec![1024, 4096, 16384, 65536];
-        
+
         for size in sizes {
             let crc_result = benchmark.benchmark_crc64(size, 1000);
             let encoding_result = benchmark.benchmark_u64_encoding(size / 8, 1000);
-            
+
             println!("\nData size: {} bytes", size);
-            println!("CRC64 - Capability: {:?}, Speedup: {:.2}x, SIMD: {:.2} MB/s, Scalar: {:.2} MB/s",
+            println!(
+                "CRC64 - Capability: {:?}, Speedup: {:.2}x, SIMD: {:.2} MB/s, Scalar: {:.2} MB/s",
                 crc_result.simd_capability,
                 crc_result.speedup,
                 crc_result.simd_throughput_mbps(),
                 crc_result.scalar_throughput_mbps()
             );
-            
+
             println!("U64 Encoding - Capability: {:?}, Speedup: {:.2}x, SIMD: {:.2} MB/s, Scalar: {:.2} MB/s",
                 encoding_result.simd_capability,
                 encoding_result.speedup,
                 encoding_result.simd_throughput_mbps(),
                 encoding_result.scalar_throughput_mbps()
             );
-            
+
             // SIMD should not be significantly slower than scalar
             assert!(crc_result.speedup >= 0.5);
             assert!(encoding_result.speedup >= 0.5);

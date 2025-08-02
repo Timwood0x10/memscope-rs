@@ -37,7 +37,7 @@ impl Default for MemoryMappingConfig {
     fn default() -> Self {
         Self {
             max_memory_usage: 1024 * 1024 * 1024, // 1GB default limit
-            min_file_size_for_mmap: 64 * 1024,     // 64KB minimum
+            min_file_size_for_mmap: 64 * 1024,    // 64KB minimum
             page_size: get_page_size(),
             enable_read_ahead: true,
             read_ahead_size: 256 * 1024, // 256KB read-ahead
@@ -71,7 +71,7 @@ impl MemoryUsageMonitor {
     /// Allocate memory and track usage
     pub fn allocate(&self, size: usize) -> Result<(), MemoryMappingError> {
         let current = self.current_usage.fetch_add(size, Ordering::SeqCst) + size;
-        
+
         if current > self.max_usage {
             // Rollback allocation
             self.current_usage.fetch_sub(size, Ordering::SeqCst);
@@ -179,11 +179,11 @@ impl MemoryMappedReader {
 
         // Create memory mapping
         let mmap = unsafe { memmap2::Mmap::map(&self.file)? };
-        
+
         // Platform-specific optimizations
         #[cfg(unix)]
         self.apply_unix_optimizations(&mmap)?;
-        
+
         #[cfg(windows)]
         self.apply_windows_optimizations(&mmap)?;
 
@@ -195,7 +195,7 @@ impl MemoryMappedReader {
     #[cfg(unix)]
     fn apply_unix_optimizations(&self, mmap: &memmap2::Mmap) -> Result<(), MemoryMappingError> {
         use std::os::unix::io::AsRawFd;
-        
+
         // Advise kernel about access patterns
         if self.config.enable_read_ahead {
             unsafe {
@@ -235,7 +235,7 @@ impl MemoryMappedReader {
             // Use memory mapping for reads
             let start = offset as usize;
             let end = std::cmp::min(start + buffer.len(), mmap.len());
-            
+
             if start >= mmap.len() {
                 return Ok(0);
             }
@@ -344,7 +344,7 @@ impl MemoryMappedWriter {
 
         while !remaining.is_empty() {
             let buffer_space = self.write_buffer.len() - self.buffer_position;
-            
+
             if buffer_space == 0 {
                 // Buffer is full, flush it
                 self.flush_buffer()?;
@@ -353,10 +353,10 @@ impl MemoryMappedWriter {
 
             let bytes_to_copy = std::cmp::min(remaining.len(), buffer_space);
             let end_pos = self.buffer_position + bytes_to_copy;
-            
+
             self.write_buffer[self.buffer_position..end_pos]
                 .copy_from_slice(&remaining[..bytes_to_copy]);
-            
+
             self.buffer_position += bytes_to_copy;
             remaining = &remaining[bytes_to_copy..];
         }
@@ -388,7 +388,8 @@ impl MemoryMappedWriter {
     /// Flush the write buffer to disk
     pub fn flush_buffer(&mut self) -> IoResult<()> {
         if self.buffer_position > 0 {
-            self.file.write_all(&self.write_buffer[..self.buffer_position])?;
+            self.file
+                .write_all(&self.write_buffer[..self.buffer_position])?;
             self.buffer_position = 0;
         }
         Ok(())
@@ -472,7 +473,7 @@ impl BatchMemoryMapper {
     /// Create a new batch memory mapper
     pub fn new(config: MemoryMappingConfig) -> Self {
         let monitor = MemoryUsageMonitor::new(config.max_memory_usage);
-        
+
         Self {
             config,
             monitor,
@@ -513,19 +514,19 @@ mod tests {
     #[test]
     fn test_memory_usage_monitor() {
         let monitor = MemoryUsageMonitor::new(1000);
-        
+
         // Test allocation
         assert!(monitor.allocate(500).is_ok());
         assert_eq!(monitor.current_usage(), 500);
-        
+
         // Test over-allocation
         assert!(monitor.allocate(600).is_err());
         assert_eq!(monitor.current_usage(), 500);
-        
+
         // Test deallocation
         monitor.deallocate(200);
         assert_eq!(monitor.current_usage(), 300);
-        
+
         // Test peak usage
         assert_eq!(monitor.peak_usage(), 500);
     }
@@ -539,15 +540,15 @@ mod tests {
 
         let config = MemoryMappingConfig::default();
         let monitor = MemoryUsageMonitor::new(config.max_memory_usage);
-        
+
         let reader = MemoryMappedReader::new(temp_file.path(), config, monitor)?;
-        
+
         let mut buffer = vec![0u8; test_data.len()];
         let bytes_read = reader.read_at(0, &mut buffer)?;
-        
+
         assert_eq!(bytes_read, test_data.len());
         assert_eq!(&buffer, test_data);
-        
+
         Ok(())
     }
 
@@ -558,7 +559,7 @@ mod tests {
 
         let config = MemoryMappingConfig::default();
         let monitor = MemoryUsageMonitor::new(config.max_memory_usage);
-        
+
         {
             let mut writer = MemoryMappedWriter::new(temp_file.path(), config, monitor)?;
             writer.write(test_data)?;
@@ -568,7 +569,7 @@ mod tests {
         // Verify written data
         let written_data = std::fs::read(temp_file.path())?;
         assert_eq!(&written_data, test_data);
-        
+
         Ok(())
     }
 }
@@ -579,23 +580,24 @@ impl Write for MemoryMappedWriter {
         if self.buffer_position + buf.len() > self.write_buffer.len() {
             self.flush()?;
         }
-        
+
         // If data is larger than buffer, write directly
         if buf.len() > self.write_buffer.len() {
             return self.file.write(buf);
         }
-        
+
         // Copy to buffer
         let end_pos = self.buffer_position + buf.len();
         self.write_buffer[self.buffer_position..end_pos].copy_from_slice(buf);
         self.buffer_position = end_pos;
-        
+
         Ok(buf.len())
     }
-    
+
     fn flush(&mut self) -> IoResult<()> {
         if self.buffer_position > 0 {
-            self.file.write_all(&self.write_buffer[..self.buffer_position])?;
+            self.file
+                .write_all(&self.write_buffer[..self.buffer_position])?;
             self.buffer_position = 0;
         }
         self.file.flush()

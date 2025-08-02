@@ -291,10 +291,10 @@ impl OptimizedExportOptions {
     pub fn fast() -> Self {
         Self {
             parallel_processing: true,
-            buffer_size: 512 * 1024, // Larger buffer for speed
+            buffer_size: 512 * 1024,         // Larger buffer for speed
             use_compact_format: Some(false), // Skip compression for speed
-            enable_type_cache: false, // Skip caching for speed
-            batch_size: 2000, // Larger batches
+            enable_type_cache: false,        // Skip caching for speed
+            batch_size: 2000,                // Larger batches
             use_streaming_writer: true,
             enable_schema_validation: false, // Skip validation
             optimization_level: OptimizationLevel::Low,
@@ -302,7 +302,7 @@ impl OptimizedExportOptions {
             enable_boundary_event_processing: false,
             enable_memory_passport_tracking: false,
             enable_adaptive_optimization: false,
-            max_cache_size: 0, // No caching
+            max_cache_size: 0,       // No caching
             target_batch_time_ms: 5, // Faster batches
             enable_security_analysis: false,
             include_low_severity_violations: false,
@@ -328,7 +328,7 @@ impl OptimizedExportOptions {
             enable_boundary_event_processing: true,
             enable_memory_passport_tracking: true,
             enable_adaptive_optimization: true,
-            max_cache_size: 2000, // Large cache
+            max_cache_size: 2000,     // Large cache
             target_batch_time_ms: 20, // More thorough processing
             enable_security_analysis: true,
             include_low_severity_violations: true,
