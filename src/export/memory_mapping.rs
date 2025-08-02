@@ -15,7 +15,7 @@ use std::os::unix::fs::FileExt;
 use std::os::windows::fs::FileExt;
 
 /// Memory mapping configuration and limits
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MemoryMappingConfig {
     /// Maximum memory usage for memory mapping (bytes)
     pub max_memory_usage: usize,
@@ -210,11 +210,10 @@ impl MemoryMappedReader {
         // Set read-ahead for the file descriptor
         if self.config.enable_read_ahead {
             unsafe {
-                libc::posix_fadvise(
-                    self.file.as_raw_fd(),
-                    0,
-                    self.file_size as i64,
-                    libc::POSIX_FADV_SEQUENTIAL,
+                libc::posix_madvise(
+                    std::ptr::null_mut(),
+                    self.file_size as usize,
+                    libc::POSIX_MADV_SEQUENTIAL,
                 );
             }
         }
@@ -440,7 +439,7 @@ pub enum MemoryMappingError {
     Io(#[from] std::io::Error),
 
     #[error("Memory mapping error: {0}")]
-    Mmap(#[from] memmap2::Error),
+    Mmap(String),
 }
 
 /// Get system page size
@@ -571,5 +570,34 @@ mod tests {
         assert_eq!(&written_data, test_data);
         
         Ok(())
+    }
+}
+
+impl Write for MemoryMappedWriter {
+    fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+        // If buffer would overflow, flush first
+        if self.buffer_position + buf.len() > self.write_buffer.len() {
+            self.flush()?;
+        }
+        
+        // If data is larger than buffer, write directly
+        if buf.len() > self.write_buffer.len() {
+            return self.file.write(buf);
+        }
+        
+        // Copy to buffer
+        let end_pos = self.buffer_position + buf.len();
+        self.write_buffer[self.buffer_position..end_pos].copy_from_slice(buf);
+        self.buffer_position = end_pos;
+        
+        Ok(buf.len())
+    }
+    
+    fn flush(&mut self) -> IoResult<()> {
+        if self.buffer_position > 0 {
+            self.file.write_all(&self.write_buffer[..self.buffer_position])?;
+            self.buffer_position = 0;
+        }
+        self.file.flush()
     }
 }

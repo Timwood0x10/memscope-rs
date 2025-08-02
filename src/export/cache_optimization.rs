@@ -277,11 +277,10 @@ impl MemoryPool {
                 }
                 #[cfg(target_arch = "aarch64")]
                 {
-                    std::arch::aarch64::_prefetch(
-                        current as *const u8,
-                        std::arch::aarch64::_PREFETCH_READ,
-                        std::arch::aarch64::_PREFETCH_LOCALITY3,
-                    );
+                    // Use compiler hint for prefetching instead of unstable intrinsic
+                    // This provides a stable alternative that still gives the compiler
+                    // optimization hints without requiring unstable features
+                    std::hint::black_box(unsafe { std::ptr::read_volatile(current as *const u8) });
                 }
             }
             current += CACHE_LINE_SIZE;
@@ -413,12 +412,11 @@ impl LocalityOptimizer {
 
     /// Get memory pool statistics
     pub fn pool_stats(&self) -> Result<MemoryPoolStats, CacheOptimizationError> {
-        self.pool
+        Ok(self.pool
             .lock()
             .map_err(|_| CacheOptimizationError::LockError)?
             .stats()
-            .clone()
-            .into()
+            .clone())
     }
 
     /// Get cache statistics
@@ -490,11 +488,10 @@ impl LocalityOptimizer {
                 }
                 #[cfg(target_arch = "aarch64")]
                 {
-                    std::arch::aarch64::_prefetch(
-                        current as *const u8,
-                        std::arch::aarch64::_PREFETCH_READ,
-                        std::arch::aarch64::_PREFETCH_LOCALITY3,
-                    );
+                    // Use compiler hint for prefetching instead of unstable intrinsic
+                    // This provides a stable alternative that still gives the compiler
+                    // optimization hints without requiring unstable features
+                    std::hint::black_box(unsafe { std::ptr::read_volatile(current as *const u8) });
                 }
             }
             current += CACHE_LINE_SIZE;
@@ -647,26 +644,8 @@ mod tests {
 
         // Create some test allocations
         let allocations = vec![
-            crate::core::types::AllocationInfo {
-                ptr: 0x1000,
-                size: 1024,
-                type_name: Some("Vec<u8>".to_string()),
-                var_name: Some("buffer".to_string()),
-                scope: Some("main".to_string()),
-                timestamp_alloc: 1000,
-                timestamp_dealloc: None,
-                is_leaked: false,
-            },
-            crate::core::types::AllocationInfo {
-                ptr: 0x2000,
-                size: 512,
-                type_name: Some("String".to_string()),
-                var_name: Some("text".to_string()),
-                scope: Some("main".to_string()),
-                timestamp_alloc: 2000,
-                timestamp_dealloc: None,
-                is_leaked: false,
-            },
+            crate::core::types::AllocationInfo::new(0x1000, 1024),
+            crate::core::types::AllocationInfo::new(0x2000, 512),
         ];
 
         let optimized = optimizer.optimize_allocation_layout(&allocations)?;

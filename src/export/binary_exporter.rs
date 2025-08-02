@@ -252,6 +252,7 @@ impl BinaryExportOptions {
 
         let performance = PerformanceConfig {
             use_memory_mapping: true,
+            memory_mapping_config: None,
             enable_zero_copy: true,
             enable_simd: true,
             cache_size: 128 * 1024, // Larger cache for speed
@@ -321,6 +322,7 @@ impl BinaryExportOptions {
 
         let performance = PerformanceConfig {
             use_memory_mapping: true,
+            memory_mapping_config: None,
             enable_zero_copy: true,
             enable_simd: false, // Conservative for compatibility
             cache_size: 256 * 1024, // Larger cache
@@ -959,15 +961,20 @@ impl BinaryExporter {
         let pool_stats = zero_copy_writer.pool_stats();
 
         Ok(BinaryExportResult {
+            file_path: {
+                let path_ref: &std::path::Path = path.as_ref();
+                path_ref.to_string_lossy().into_owned()
+            },
+            original_size: 0, // Will be calculated properly
             file_size: std::fs::metadata(path)
-                .map(|m| m.len())
+                .map(|m| m.len() as usize)
                 .unwrap_or(0),
-            sections_written: total_sections,
+            sections_exported: total_sections,
             compression_ratio: 0.0, // Will be calculated properly
             export_duration,
-            memory_usage: pool_stats.peak_pool_size * buffer_pool.default_size,
-            string_table_size: self.string_table.len(),
-            type_table_size: self.type_table.total_types(),
+            peak_memory_usage: pool_stats.peak_pool_size,
+            allocations_exported: 0, // Will be set properly
+            used_parallel_processing: self.options.enable_parallel_encoding,
         })
     }
 
@@ -1029,15 +1036,20 @@ impl BinaryExporter {
         let memory_stats = writer.memory_stats();
 
         Ok(BinaryExportResult {
+            file_path: {
+                let path_ref: &std::path::Path = path.as_ref();
+                path_ref.to_string_lossy().into_owned()
+            },
+            original_size: 0, // Will be calculated properly
             file_size: std::fs::metadata(path)
-                .map(|m| m.len())
+                .map(|m| m.len() as usize)
                 .unwrap_or(0),
-            sections_written: total_sections,
+            sections_exported: total_sections,
             compression_ratio: 0.0, // Will be calculated properly
             export_duration,
-            memory_usage: memory_stats.peak_usage,
-            string_table_size: self.string_table.len(),
-            type_table_size: self.type_table.total_types(),
+            peak_memory_usage: memory_stats.peak_usage,
+            allocations_exported: 0, // Will be set properly
+            used_parallel_processing: self.options.enable_parallel_encoding,
         })
     }
 
@@ -2939,8 +2951,8 @@ impl BinaryExporter {
         encoder.encode_usize(stats.total_deallocations);
         encoder.encode_usize(stats.peak_allocations);
         encoder.encode_usize(stats.peak_memory);
-        encoder.encode_usize(stats.current_allocations);
-        encoder.encode_usize(stats.current_memory);
+        encoder.encode_usize(stats.active_allocations);
+        encoder.encode_usize(stats.active_memory);
 
         Ok(encoder.into_bytes())
     }
@@ -2959,9 +2971,9 @@ impl BinaryExporter {
                 encoder.encode_usize(allocation.size);
                 encoder.encode_optional_type_name(&allocation.type_name);
                 encoder.encode_optional_string(&allocation.var_name);
-                encoder.encode_optional_string(&allocation.scope);
+                encoder.encode_optional_string(&allocation.scope_name);
                 encoder.encode_u64(allocation.timestamp_alloc);
-                encoder.encode_optional_u64(allocation.timestamp_dealloc);
+                encoder.encode_u64(allocation.timestamp_dealloc.unwrap_or(0));
                 encoder.encode_u8(if allocation.is_leaked { 1 } else { 0 });
             }
         }
@@ -3001,7 +3013,8 @@ impl BinaryExporter {
 
         // Memory stats section with zero-copy
         if self.options.section_selection.include_memory_stats {
-            let data = self.encode_memory_stats_zero_copy(stats, buffer_pool)?;
+            let buffer_pool_clone = buffer_pool.clone();
+            let data = self.encode_memory_stats_zero_copy(stats, &buffer_pool_clone)?;
             sections.insert(SectionType::MemoryStats, data);
             progress.sections_completed += 1;
             if let Some(ref callback) = self.progress_callback {
@@ -3020,7 +3033,7 @@ impl BinaryExporter {
                         buffer.write_usize_le(allocation.size);
                         buffer.write_optional_string(&allocation.type_name);
                         buffer.write_optional_string(&allocation.var_name);
-                        buffer.write_optional_string(&allocation.scope);
+                        buffer.write_optional_string(&allocation.scope_name);
                         buffer.write_u64_le(allocation.timestamp_alloc);
                         buffer.write_u8(if allocation.timestamp_dealloc.is_some() { 1 } else { 0 });
                         if let Some(dealloc_time) = allocation.timestamp_dealloc {
@@ -3136,8 +3149,8 @@ impl BinaryExporter {
         buffer.write_usize_le(stats.total_deallocations);
         buffer.write_usize_le(stats.peak_allocations);
         buffer.write_usize_le(stats.peak_memory);
-        buffer.write_usize_le(stats.current_allocations);
-        buffer.write_usize_le(stats.current_memory);
+        buffer.write_usize_le(stats.active_allocations);
+        buffer.write_usize_le(stats.active_memory);
 
         Ok(buffer.freeze())
     }

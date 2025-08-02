@@ -106,7 +106,11 @@ impl ZeroCopyBufferPool {
 
     /// Get buffer pool statistics
     pub fn get_stats(&self) -> BufferPoolStats {
-        self.stats.lock().unwrap_or_else(|_| Default::default()).clone()
+        self.stats.lock().unwrap_or_else(|_| {
+            // Create a default stats instance when lock is poisoned
+            self.stats.clear_poison();
+            self.stats.lock().unwrap()
+        }).clone()
     }
 
     /// Clear the buffer pool
@@ -233,7 +237,7 @@ impl ZeroCopyBuffer {
 
     /// Convert to immutable Bytes (zero-copy)
     pub fn freeze(self) -> Bytes {
-        self.buffer.freeze()
+        self.buffer.clone().freeze()
     }
 
     /// Split the buffer at the given index (zero-copy)
@@ -433,7 +437,7 @@ impl VectorizedProcessor {
                     buffer.write_string(string);
                 }
                 
-                Ok(buffer.freeze())
+                Ok::<bytes::Bytes, std::io::Error>(buffer.freeze())
             })
             .collect();
 
