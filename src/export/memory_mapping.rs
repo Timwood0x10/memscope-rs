@@ -4,7 +4,7 @@
 //! efficiently. It includes platform-specific optimizations and memory usage monitoring.
 
 use std::fs::{File, OpenOptions};
-use std::io::{self, Result as IoResult, Seek, SeekFrom};
+use std::io::{self, Result as IoResult, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;

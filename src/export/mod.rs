@@ -1,6 +1,7 @@
 pub mod adaptive_performance;
 pub mod batch_processor;
 pub mod binary_converter;
+pub mod cache_optimization;
 pub mod binary_exporter;
 pub mod binary_format;
 pub mod binary_parser;
