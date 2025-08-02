@@ -4,11 +4,12 @@
 //! can handle large datasets, concurrent operations, memory pressure, and
 //! long-running scenarios without issues.
 
-use memscope::core::tracker::MemoryTracker;
-use memscope::core::types::{AllocationInfo, MemoryStats, TrackingResult};
-use memscope::export::binary_exporter::{BinaryExporter, BinaryExportOptions};
-use memscope::export::binary_parser::BinaryParser;
-use memscope::export::binary_converter::BinaryConverter;
+use memscope_rs::core::tracker::MemoryTracker;
+use memscope_rs::core::types::{AllocationInfo, MemoryStats, TrackingResult};
+use memscope_rs::export::binary_exporter::{BinaryExporter, BinaryExportOptions};
+use memscope_rs::export::binary_parser::{BinaryParser, BinaryParserOptions};
+use memscope_rs::export::binary_converter::BinaryConverter;
+use memscope_rs::export::binary_format::CompressionType;
 use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -127,12 +128,12 @@ fn create_large_dataset(allocation_count: usize) -> TrackingResult<MemoryTracker
         };
         
         let ptr = (0x100000000u64 + (i as u64 * 64)) as *mut u8;
-        tracker.track_allocation(ptr, size, Some(type_name.to_string()))?;
+        tracker.track_allocation(ptr as usize, size)?;
         
         // Simulate realistic deallocation patterns
         if i > 1000 && i % 13 == 0 {
             let dealloc_ptr = (0x100000000u64 + ((i - 500) as u64 * 64)) as *mut u8;
-            let _ = tracker.track_deallocation(dealloc_ptr);
+            let _ = tracker.track_deallocation(dealloc_ptr as usize);
         }
         
         // Progress reporting for very large datasets
@@ -336,7 +337,7 @@ mod tests {
         let mut handles = Vec::new();
         
         for thread_id in 0..thread_count {
-            let tracker = Arc::clone(&tracker);
+            let tracker: Arc<MemoryTracker> = Arc::clone(&tracker);
             let memory_monitor = Arc::clone(&memory_monitor);
             let operations_completed = Arc::clone(&operations_completed);
             let errors_encountered = Arc::clone(&errors_encountered);
@@ -347,7 +348,7 @@ mod tests {
                     let binary_path = temp_dir_path.join(format!("concurrent_{}_{}.bin", thread_id, op_id));
                     
                     let options = BinaryExportOptions::default()
-                        .compression(memscope::export::binary_format::CompressionType::Lz4)
+                        .compression(CompressionType::Lz4)
                         .parallel_encoding(false) // Disable to avoid nested parallelism
                         .thread_count(Some(1));
                     
@@ -417,13 +418,13 @@ mod tests {
         // Test with very limited memory
         let binary_path = temp_dir.path().join("memory_pressure.bin");
         let binary_options = BinaryExportOptions::default()
-            .compression(memscope::export::binary_format::CompressionType::Zstd) // High compression
+            .compression(CompressionType::Zstd) // High compression
             .parallel_encoding(true)
             .memory_limit(64 * 1024 * 1024) // Only 64MB limit
-            .performance(memscope::export::binary_exporter::PerformanceConfig {
+            .performance(memscope_rs::export::binary_exporter::PerformanceConfig {
                 use_memory_mapping: true,
                 memory_mapping_config: Some(
-                    memscope::export::memory_mapping::MemoryMappingConfig {
+                    memscope_rs::export::memory_mapping::MemoryMappingConfig {
                         max_memory_usage: 32 * 1024 * 1024, // 32MB mapping limit
                         ..Default::default()
                     }
@@ -458,7 +459,7 @@ mod tests {
                 
                 // Test that we can still parse it
                 let mut parser = BinaryParser::with_options(
-                    memscope::export::binary_parser::BinaryParserOptions {
+                    BinaryParserOptions {
                         buffer_size: 32 * 1024, // Small buffer
                         ..Default::default()
                     }
@@ -511,7 +512,7 @@ mod tests {
                 
                 let binary_path = temp_dir_path.join(format!("long_running_{}.bin", operation_count));
                 let options = BinaryExportOptions::default()
-                    .compression(memscope::export::binary_format::CompressionType::Lz4);
+                    .compression(CompressionType::Lz4);
                 
                 match tracker.export_to_binary_with_options(&binary_path, options) {
                     Ok(_) => {
@@ -588,7 +589,7 @@ mod tests {
         
         // Test recovery parsing
         let mut recovery_parser = BinaryParser::with_options(
-            memscope::export::binary_parser::BinaryParserOptions::recovery_mode()
+            BinaryParserOptions::recovery_mode()
         );
         
         let start_time = Instant::now();
@@ -617,7 +618,7 @@ mod tests {
         
         // Test strict parser (should fail)
         let mut strict_parser = BinaryParser::with_options(
-            memscope::export::binary_parser::BinaryParserOptions::strict()
+            BinaryParserOptions::strict()
         );
         
         let strict_result = strict_parser.load_from_file(&corrupted_path);
@@ -642,7 +643,7 @@ mod tests {
             
             let binary_path = temp_dir.path().join(format!("cleanup_test_{}.bin", i));
             let options = BinaryExportOptions::default()
-                .compression(memscope::export::binary_format::CompressionType::Lz4);
+                .compression(CompressionType::Lz4);
             
             tracker.export_to_binary_with_options(&binary_path, options)
                 .expect("Export failed during cleanup test");
@@ -709,10 +710,10 @@ mod extreme_tests {
         
         let binary_path = temp_dir.path().join("extreme_10m.bin");
         let binary_options = BinaryExportOptions::comprehensive()
-            .compression(memscope::export::binary_format::CompressionType::Zstd)
+            .compression(CompressionType::Zstd)
             .parallel_encoding(true)
             .memory_limit(2 * 1024 * 1024 * 1024) // 2GB limit
-            .performance(memscope::export::binary_exporter::PerformanceConfig {
+            .performance(memscope_rs::export::binary_exporter::PerformanceConfig {
                 use_memory_mapping: true,
                 memory_mapping_config: None,
                 enable_zero_copy: true,

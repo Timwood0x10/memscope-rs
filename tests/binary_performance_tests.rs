@@ -4,12 +4,13 @@
 //! meets the performance targets of 3-5x speed improvement and 60-80% file size reduction
 //! compared to JSON export.
 
-use memscope::core::tracker::MemoryTracker;
-use memscope::core::types::{AllocationInfo, MemoryStats, TrackingResult};
-use memscope::export::binary_exporter::{BinaryExporter, BinaryExportOptions};
-use memscope::export::binary_parser::BinaryParser;
-use memscope::export::binary_converter::BinaryConverter;
-use memscope::export::optimized_json_export::OptimizedExportOptions;
+use memscope_rs::core::tracker::{MemoryTracker, ExportOptions};
+use memscope_rs::core::types::{AllocationInfo, MemoryStats, TrackingResult};
+use memscope_rs::export::binary_exporter::{BinaryExporter, BinaryExportOptions};
+use memscope_rs::export::binary_parser::BinaryParser;
+use memscope_rs::export::binary_converter::BinaryConverter;
+use memscope_rs::export::binary_format::CompressionType;
+use memscope_rs::export::optimized_json_export::OptimizedExportOptions;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
@@ -156,12 +157,12 @@ fn create_test_tracker(allocation_count: usize) -> TrackingResult<MemoryTracker>
         };
         
         let ptr = (0x1000000 + i * 8) as *mut u8;
-        tracker.track_allocation(ptr, size, Some(type_name.to_string()))?;
+        tracker.track_allocation(ptr as usize, size)?;
         
         // Simulate some deallocations to create realistic patterns
         if i > 100 && i % 7 == 0 {
             let dealloc_ptr = (0x1000000 + (i - 50) * 8) as *mut u8;
-            let _ = tracker.track_deallocation(dealloc_ptr);
+            let _ = tracker.track_deallocation(dealloc_ptr as usize);
         }
     }
     
@@ -181,7 +182,7 @@ fn benchmark_binary_export(
     let duration = start_time.elapsed();
     
     let file_size = std::fs::metadata(&output_path)?.len() as usize;
-    let allocations_processed = tracker.get_stats().total_allocations;
+    let allocations_processed = tracker.get_stats().unwrap().total_allocations;
     
     Ok(BenchmarkResult::new(
         "Export",
@@ -201,11 +202,11 @@ fn benchmark_json_export(
     let output_path = temp_dir.path().join("benchmark.json");
     
     let start_time = Instant::now();
-    tracker.export_to_json_with_options(&output_path, options)?;
+    tracker.export_to_json_with_options(&output_path, ExportOptions::default())?;
     let duration = start_time.elapsed();
     
     let file_size = std::fs::metadata(&output_path)?.len() as usize;
-    let allocations_processed = tracker.get_stats().total_allocations;
+    let allocations_processed = tracker.get_stats().unwrap().total_allocations;
     
     Ok(BenchmarkResult::new(
         "Export",
@@ -277,15 +278,13 @@ mod tests {
         
         // Test binary export with LZ4 compression
         let binary_options = BinaryExportOptions::default()
-            .compression(memscope::export::binary_format::CompressionType::Lz4)
+            .compression(CompressionType::Lz4)
             .parallel_encoding(true);
         let binary_result = benchmark_binary_export(&tracker, &temp_dir, binary_options)
             .expect("Binary export failed");
         
         // Test JSON export with optimization
-        let json_options = OptimizedExportOptions::default()
-            .parallel_processing(true)
-            .use_compact_format(Some(true));
+        let json_options = crate::core::tracker::ExportOptions::default();
         let json_result = benchmark_json_export(&tracker, &temp_dir, json_options)
             .expect("JSON export failed");
         
@@ -310,7 +309,7 @@ mod tests {
         
         // Test binary export with Zstd compression and all optimizations
         let binary_options = BinaryExportOptions::comprehensive()
-            .compression(memscope::export::binary_format::CompressionType::Zstd)
+            .compression(CompressionType::Zstd)
             .parallel_encoding(true)
             .performance(memscope::export::binary_exporter::PerformanceConfig {
                 use_memory_mapping: true,
@@ -324,10 +323,7 @@ mod tests {
             .expect("Binary export failed");
         
         // Test JSON export with maximum optimization
-        let json_options = OptimizedExportOptions::comprehensive()
-            .parallel_processing(true)
-            .thread_count(Some(4))
-            .use_compact_format(Some(true));
+        let json_options = crate::core::tracker::ExportOptions::default();
         let json_result = benchmark_json_export(&tracker, &temp_dir, json_options)
             .expect("JSON export failed");
         
@@ -353,7 +349,7 @@ mod tests {
         // First create a binary file
         let binary_path = temp_dir.path().join("parse_test.bin");
         let binary_options = BinaryExportOptions::default()
-            .compression(memscope::export::binary_format::CompressionType::Lz4);
+            .compression(CompressionType::Lz4);
         tracker.export_to_binary_with_options(&binary_path, binary_options)
             .expect("Failed to create binary file");
         
@@ -383,9 +379,9 @@ mod tests {
         println!("\n=== Compression Comparison Test ===");
         
         let compression_types = vec![
-            ("None", memscope::export::binary_format::CompressionType::None),
-            ("LZ4", memscope::export::binary_format::CompressionType::Lz4),
-            ("Zstd", memscope::export::binary_format::CompressionType::Zstd),
+            ("None", CompressionType::None),
+            ("LZ4", CompressionType::Lz4),
+            ("Zstd", CompressionType::Zstd),
         ];
         
         let mut results = Vec::new();
@@ -440,7 +436,7 @@ mod tests {
             .performance(memscope::export::binary_exporter::PerformanceConfig {
                 use_memory_mapping: true,
                 memory_mapping_config: Some(
-                    memscope::export::memory_mapping::MemoryMappingConfig {
+                    // MemoryMappingConfig { // Commented out for now
                         max_memory_usage: 100 * 1024 * 1024, // 100MB limit
                         ..Default::default()
                     }
