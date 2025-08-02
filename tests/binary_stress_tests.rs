@@ -203,7 +203,7 @@ mod tests {
         // Test binary export
         let binary_path = temp_dir.path().join("large_100k.bin");
         let binary_options = BinaryExportOptions::default()
-            .compression(memscope::export::binary_format::CompressionType::Lz4)
+            .compression(memscope_rs::export::binary_format::CompressionType::Lz4)
             .parallel_encoding(true)
             .memory_limit(512 * 1024 * 1024); // 512MB limit
         
@@ -264,10 +264,10 @@ mod tests {
         // Test binary export with maximum optimizations
         let binary_path = temp_dir.path().join("very_large_1m.bin");
         let binary_options = BinaryExportOptions::default()
-            .compression(memscope::export::binary_format::CompressionType::Zstd)
+            .compression(memscope_rs::export::binary_format::CompressionType::Zstd)
             .parallel_encoding(true)
             .memory_limit(1024 * 1024 * 1024) // 1GB limit
-            .performance(memscope::export::binary_exporter::PerformanceConfig {
+            .performance(memscope_rs::export::binary_exporter::PerformanceConfig {
                 use_memory_mapping: true,
                 memory_mapping_config: None,
                 enable_zero_copy: true,
@@ -302,7 +302,7 @@ mod tests {
         // Test parsing performance
         let parse_start = Instant::now();
         let mut parser = BinaryParser::with_options(
-            memscope::export::binary_parser::BinaryParserOptions::fast()
+            memscope_rs::export::binary_parser::BinaryParserOptions::fast()
         );
         parser.load_from_file(&binary_path).expect("Failed to parse very large binary file");
         let parse_duration = parse_start.elapsed();

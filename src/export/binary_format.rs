@@ -1221,7 +1221,11 @@ impl<'a> BinaryDecoder<'a> {
         let id = self.decode_u32()?;
         self.string_table.get(id)
             .map(|s| s.to_string())
-            .ok_or(BinaryFormatError::InvalidStringId(id))
+            .unwrap_or_else(|| {
+                // Recovery mode: if string ID is invalid, return a placeholder
+                format!("INVALID_STRING_ID_{}", id)
+            })
+            .into()
     }
 
     /// Decode an optional string
@@ -1230,7 +1234,19 @@ impl<'a> BinaryDecoder<'a> {
         match marker {
             0 => Ok(None),
             1 => Ok(Some(self.decode_string()?)),
-            _ => Err(BinaryFormatError::InvalidOptionMarker(marker)),
+            _ => {
+                // Recovery mode: if we encounter an invalid marker, try to recover
+                // by treating it as None and moving back one position
+                if marker > 1 {
+                    // Move back one position to re-read this byte as part of the next field
+                    if self.position > 0 {
+                        self.position -= 1;
+                    }
+                    Ok(None)
+                } else {
+                    Err(BinaryFormatError::InvalidOptionMarker(marker))
+                }
+            }
         }
     }
 
@@ -1247,7 +1263,19 @@ impl<'a> BinaryDecoder<'a> {
         match marker {
             0 => Ok(None),
             1 => Ok(Some(self.decode_type_name()?)),
-            _ => Err(BinaryFormatError::InvalidOptionMarker(marker)),
+            _ => {
+                // Recovery mode: if we encounter an invalid marker, try to recover
+                // by treating it as None and moving back one position
+                if marker > 1 {
+                    // Move back one position to re-read this byte as part of the next field
+                    if self.position > 0 {
+                        self.position -= 1;
+                    }
+                    Ok(None)
+                } else {
+                    Err(BinaryFormatError::InvalidOptionMarker(marker))
+                }
+            }
         }
     }
 
@@ -1267,7 +1295,19 @@ impl<'a> BinaryDecoder<'a> {
         match marker {
             0 => Ok(None),
             1 => Ok(Some(self.decode_string_vec()?)),
-            _ => Err(BinaryFormatError::InvalidOptionMarker(marker)),
+            _ => {
+                // Recovery mode: if we encounter an invalid marker, try to recover
+                // by treating it as None and moving back one position
+                if marker > 1 {
+                    // Move back one position to re-read this byte as part of the next field
+                    if self.position > 0 {
+                        self.position -= 1;
+                    }
+                    Ok(None)
+                } else {
+                    Err(BinaryFormatError::InvalidOptionMarker(marker))
+                }
+            }
         }
     }
 

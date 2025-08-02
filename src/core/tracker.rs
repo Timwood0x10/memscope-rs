@@ -3260,29 +3260,48 @@ impl MemoryTracker {
         self.export_to_binary_with_options(path, options)
     }
 
-    /// Ensure binary export path is within MemoryAnalysis directory with .memscope extension
+    /// Ensure binary export path has .memscope extension, respecting the provided directory
     fn ensure_binary_analysis_path<P: AsRef<std::path::Path>>(
         &self,
         path: P,
     ) -> std::path::PathBuf {
         let path = path.as_ref();
         
-        // Get the base filename without extension
-        let base_name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("export");
+        // If path is absolute or contains directory components, respect them
+        if path.is_absolute() || path.parent().is_some() {
+            // Get the base filename without extension
+            let base_name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("export");
+            
+            // Create parent directory if it doesn't exist
+            if let Some(parent) = path.parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Warning: Could not create directory {:?}: {}", parent, e);
+                }
+            }
+            
+            // Return path with .memscope extension
+            path.with_file_name(format!("{}.memscope", base_name))
+        } else {
+            // For relative paths without directory, use MemoryAnalysis (backward compatibility)
+            let base_name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("export");
 
-        // Create MemoryAnalysis directory structure
-        let memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
-        
-        // Create directory if it doesn't exist
-        if let Err(e) = std::fs::create_dir_all(&memory_analysis_dir) {
-            eprintln!("Warning: Could not create MemoryAnalysis directory: {}", e);
+            // Create MemoryAnalysis directory structure
+            let memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
+            
+            // Create directory if it doesn't exist
+            if let Err(e) = std::fs::create_dir_all(&memory_analysis_dir) {
+                eprintln!("Warning: Could not create MemoryAnalysis directory: {}", e);
+            }
+
+            // Return path with .memscope extension
+            memory_analysis_dir.join(format!("{}.memscope", base_name))
         }
-
-        // Return path with .memscope extension
-        memory_analysis_dir.join(format!("{}.memscope", base_name))
     }
 
 
