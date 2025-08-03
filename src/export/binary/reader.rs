@@ -101,6 +101,8 @@ impl BinaryReader {
         // stack_trace is already read above
         let smart_pointer_info = self.read_optional_json_field()?;
         let memory_layout = self.read_optional_json_field()?;
+        
+
         let generic_info = self.read_optional_json_field()?;
         let dynamic_type_info = self.read_optional_json_field()?;
         let runtime_state = self.read_optional_json_field()?;

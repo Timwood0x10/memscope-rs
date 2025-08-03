@@ -2484,15 +2484,66 @@ fn analyze_complex_types_batch(allocations: &[AllocationInfo]) -> ComplexTypeBat
             entry.allocation_count += 1;
             entry.max_size = entry.max_size.max(alloc.size);
 
-            // Categorized collection
-            let type_info = serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "type_name": type_name,
-                "normalized_type": normalized_type,
-                "size": alloc.size,
-                "var_name": alloc.var_name.as_deref().unwrap_or("unnamed"),
-                "complexity_score": complexity
-            });
+            // Categorized collection with enhanced data
+            let mut type_info_map = serde_json::Map::new();
+            type_info_map.insert("ptr".to_string(), serde_json::Value::String(format!("0x{:x}", alloc.ptr)));
+            type_info_map.insert("type_name".to_string(), serde_json::Value::String(type_name.clone()));
+            type_info_map.insert("normalized_type".to_string(), serde_json::Value::String(normalized_type.clone()));
+            type_info_map.insert("size".to_string(), serde_json::Value::Number(serde_json::Number::from(alloc.size)));
+            type_info_map.insert("var_name".to_string(), serde_json::Value::String(alloc.var_name.as_deref().unwrap_or("unnamed").to_string()));
+            type_info_map.insert("complexity_score".to_string(), serde_json::Value::Number(serde_json::Number::from(complexity)));
+            
+            // Add enhanced fields
+            type_info_map.insert("smart_pointer_info".to_string(), 
+                if let Some(ref info) = alloc.smart_pointer_info {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            type_info_map.insert("memory_layout".to_string(), 
+                if let Some(ref layout) = alloc.memory_layout {
+                    serde_json::to_value(layout).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            type_info_map.insert("generic_info".to_string(), 
+                if let Some(ref info) = alloc.generic_info {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            type_info_map.insert("dynamic_type_info".to_string(), 
+                if let Some(ref info) = alloc.dynamic_type_info {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            type_info_map.insert("generic_instantiation".to_string(), 
+                if let Some(ref info) = alloc.generic_instantiation {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            type_info_map.insert("type_relationships".to_string(), 
+                if let Some(ref info) = alloc.type_relationships {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            type_info_map.insert("type_usage".to_string(), 
+                if let Some(ref info) = alloc.type_usage {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            let type_info = serde_json::Value::Object(type_info_map);
 
             match category.as_str() {
                 "Generic" => generic_types.push(type_info),

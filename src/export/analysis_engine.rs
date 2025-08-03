@@ -470,19 +470,90 @@ impl AnalysisEngine for StandardAnalysisEngine {
             };
             
             let entry = categorized_types.entry(category.to_string()).or_insert(Vec::new());
-            entry.push(serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                "type_name": type_name,
-                "smart_pointer_info": alloc.smart_pointer_info,
-                "memory_layout": alloc.memory_layout,
-                "generic_info": alloc.generic_info,
-                "dynamic_type_info": alloc.dynamic_type_info,
-                "generic_instantiation": alloc.generic_instantiation,
-                "type_relationships": alloc.type_relationships,
-                "type_usage": alloc.type_usage
-            }));
+            // Debug: Check if we have the enhanced data
+            if alloc.memory_layout.is_some() {
+                println!("DEBUG: AllocationInfo has memory_layout for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+            }
+            if alloc.generic_info.is_some() {
+                println!("DEBUG: AllocationInfo has generic_info for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+            }
+            
+            // Manually serialize to avoid potential serde issues
+            let mut json_obj = serde_json::Map::new();
+            json_obj.insert("ptr".to_string(), serde_json::Value::String(format!("0x{:x}", alloc.ptr)));
+            json_obj.insert("size".to_string(), serde_json::Value::Number(serde_json::Number::from(alloc.size)));
+            json_obj.insert("var_name".to_string(), serde_json::Value::String(alloc.var_name.as_deref().unwrap_or("unknown").to_string()));
+            json_obj.insert("type_name".to_string(), serde_json::Value::String(type_name.to_string()));
+            
+            // Serialize complex fields manually
+            json_obj.insert("smart_pointer_info".to_string(), 
+                if let Some(ref info) = alloc.smart_pointer_info {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            json_obj.insert("memory_layout".to_string(), 
+                if let Some(ref layout) = alloc.memory_layout {
+                    match serde_json::to_value(layout) {
+                        Ok(value) => {
+                            println!("DEBUG: Successfully serialized memory_layout for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+                            value
+                        }
+                        Err(e) => {
+                            println!("DEBUG: Failed to serialize memory_layout for {}: {}", alloc.var_name.as_deref().unwrap_or("unknown"), e);
+                            serde_json::Value::Null
+                        }
+                    }
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            json_obj.insert("generic_info".to_string(), 
+                if let Some(ref info) = alloc.generic_info {
+                    match serde_json::to_value(info) {
+                        Ok(value) => {
+                            println!("DEBUG: Successfully serialized generic_info for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+                            value
+                        }
+                        Err(e) => {
+                            println!("DEBUG: Failed to serialize generic_info for {}: {}", alloc.var_name.as_deref().unwrap_or("unknown"), e);
+                            serde_json::Value::Null
+                        }
+                    }
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            json_obj.insert("dynamic_type_info".to_string(), 
+                if let Some(ref info) = alloc.dynamic_type_info {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            json_obj.insert("generic_instantiation".to_string(), 
+                if let Some(ref info) = alloc.generic_instantiation {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            json_obj.insert("type_relationships".to_string(), 
+                if let Some(ref info) = alloc.type_relationships {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            json_obj.insert("type_usage".to_string(), 
+                if let Some(ref info) = alloc.type_usage {
+                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                });
+            
+            entry.push(serde_json::Value::Object(json_obj));
             
             // Track generic types separately
             if category == "generic" {
