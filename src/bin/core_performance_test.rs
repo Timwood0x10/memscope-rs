@@ -1,6 +1,6 @@
-//! 核心性能测试（只测试导出核心，不包含验证）
+//! core performance test (only test export core, not include validation)
 //!
-//! 这个程序直接测试快速导出协调器的核心性能，不包含任何验证
+//! This program directly tests the performance of the fast export coordinator's core, without any validation
 
 use memscope_rs::{get_global_tracker, init};
 use std::fs;
@@ -9,22 +9,22 @@ use std::process::Command;
 use std::time::Instant;
 
 fn main() {
-    tracing::info!("🎯 核心性能测试（纯导出算法）");
+    tracing::info!("🎯  core_performance_test (pure export core algorithm)");
     tracing::info!("==============================");
     tracing::info!("");
 
-    // 初始化内存跟踪
+    // init memory trace
     init();
 
-    // 创建输出目录
+    // create output directory
     let output_dir = PathBuf::from("core_performance_results");
     if let Err(e) = fs::create_dir_all(&output_dir) {
-        tracing::error!("❌ 创建输出目录失败: {}", e);
+        tracing::error!("❌ create output directory failed: {}", e);
         return;
     }
 
-    // 运行 complex_lifecycle_showcase 生成测试数据
-    tracing::info!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
+    // run complex_lifecycle_showcase to generate test data
+    tracing::info!("🔧 run complex_lifecycle_showcase to generate test data...");
     let output = Command::new("cargo")
         .args(&[
             "run",
@@ -38,42 +38,42 @@ fn main() {
         Ok(output) => {
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                tracing::error!("❌ 运行 complex_lifecycle_showcase 失败: {}", stderr);
+                tracing::error!("❌ run complex_lifecycle_showcase failed: {}", stderr);
                 return;
             }
-            tracing::info!("✅ 测试数据生成完成");
+            tracing::info!("✅ test data generated");
         }
         Err(e) => {
-            tracing::error!("❌ 执行命令失败: {}", e);
+            tracing::error!("❌ execute command failed: {}", e);
             return;
         }
     }
 
-    // 等待系统稳定
+    // wait for system to stabilize
     std::thread::sleep(std::time::Duration::from_millis(500));
 
-    // 运行核心性能测试
+    // run core performance tests
     run_core_performance_tests(&output_dir);
 }
 
 fn run_core_performance_tests(output_dir: &PathBuf) {
     tracing::info!("");
-    tracing::info!("📊 开始核心性能测试...");
+    tracing::info!("📊 start core performance tests...");
     tracing::info!("======================");
 
-    let test_runs = 5; // 增加测试次数以获得更准确的结果
+    let test_runs = 5; // increase test runs to get more accurate results
     let mut traditional_core_times = Vec::new();
     let mut fast_core_times = Vec::new();
 
-    // 测试传统导出的核心性能（只测量主要导出，不包含其他文件）
-    tracing::info!("🐌 测试传统导出核心性能...");
+    // test traditional export core performance (only measure main export, not other files)
+    tracing::info!("🐌 test traditional export core performance...");
     for run in 1..=test_runs {
-        tracing::info!("  运行 {}/{}: 传统导出核心", run, test_runs);
+        tracing::info!("  run {}/{}: traditional export core", run, test_runs);
 
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("traditional_core_run_{}.json", run));
 
-        // 获取跟踪器并导出（使用最简配置，只生成主文件）
+        // get global tracker and export (use minimal config, only generate main file)
         let tracker = get_global_tracker();
         let result = tracker.export_to_json(&output_path);
         let export_time = start_time.elapsed();
@@ -81,27 +81,26 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
         match result {
             Ok(_) => {
                 traditional_core_times.push(export_time.as_millis() as u64);
-                tracing::info!("    ⏱️  核心时间: {}ms", export_time.as_millis());
+                tracing::info!("    ⏱️  core time: {}ms", export_time.as_millis());
             }
             Err(e) => {
-                tracing::error!("    ❌ 导出失败: {}", e);
+                tracing::error!("    ❌ export failed: {}", e);
             }
         }
 
-        // 短暂休息
+        // take a short break
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
-    // 测试快速导出协调器的核心性能
-    tracing::info!("⚡ 测试快速导出核心性能...");
+    // test fast export coordinator core performance
     for run in 1..=test_runs {
-        tracing::info!("  运行 {}/{}: 快速导出核心", run, test_runs);
+        tracing::info!("  run {}/{}: fast export core", run, test_runs);
 
-        // 直接测试快速导出协调器
+        // directly test fast export coordinator
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("fast_core_run_{}", run));
 
-        // 使用快速导出协调器
+        // use fast export coordinator
         let config = memscope_rs::export::fast_export_coordinator::FastExportConfig {
             enable_data_localization: true,
             data_cache_ttl_ms: 100,
@@ -109,7 +108,7 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
                 memscope_rs::export::parallel_shard_processor::ParallelShardConfig::default(),
             writer_config:
                 memscope_rs::export::high_speed_buffered_writer::HighSpeedWriterConfig::default(),
-            enable_performance_monitoring: false, // 禁用性能监控以减少开销
+            enable_performance_monitoring: false, // disable performance monitoring to reduce overhead
             verbose_logging: false,
             progress_config: memscope_rs::export::progress_monitor::ProgressConfig {
                 enabled: false,
@@ -127,7 +126,7 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
                 enable_size_validation: false,
                 enable_json_validation: false,
                 enable_encoding_validation: false,
-                max_data_loss_rate: 100.0, // 允许任何数据丢失以跳过验证
+                max_data_loss_rate: 100.0, // allow any data loss to skip validation
                 min_expected_file_size: 0,
                 max_expected_file_size: usize::MAX,
                 verbose_logging: false,
@@ -145,33 +144,33 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
 
         match result {
             Ok(stats) => {
-                // 只记录核心导出时间，不包含验证
+                // only record core export time, not validation
                 let core_time = stats.data_gathering.total_time_ms
                     + stats.parallel_processing.total_processing_time_ms
                     + stats.write_performance.total_write_time_ms;
                 fast_core_times.push(core_time);
                 tracing::info!(
-                    "    ⚡ 核心时间: {}ms (总时间: {}ms)",
+                    "    ⚡ core time: {}ms (total time: {}ms)",
                     core_time,
                     export_time.as_millis()
                 );
                 tracing::info!(
-                    "       数据获取: {}ms, 并行处理: {}ms, 写入: {}ms",
+                    "       data gathering: {}ms, parallel processing: {}ms, write performance: {}ms",
                     stats.data_gathering.total_time_ms,
                     stats.parallel_processing.total_processing_time_ms,
                     stats.write_performance.total_write_time_ms
                 );
             }
             Err(e) => {
-                tracing::error!("    ❌ 导出失败: {}", e);
+                tracing::error!("    ❌ export failed: {}", e);
             }
         }
 
-        // 短暂休息
+        // take a short break
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
-    // 计算和显示结果
+    // calculate and display results
     display_core_performance_results(&traditional_core_times, &fast_core_times, output_dir);
 }
 
@@ -181,15 +180,15 @@ fn display_core_performance_results(
     output_dir: &PathBuf,
 ) {
     tracing::info!("");
-    tracing::info!("📈 核心性能测试结果");
+    tracing::info!("📈 core performance test results");
     tracing::info!("====================");
 
     if traditional_times.is_empty() || fast_times.is_empty() {
-        tracing::info!("❌ 测试数据不足，无法生成报告");
+        tracing::info!("❌ test data is empty, cannot generate report");
         return;
     }
 
-    // 计算统计数据
+    // calculate statistics
     let avg_traditional =
         traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
@@ -199,60 +198,60 @@ fn display_core_performance_results(
     let min_fast = *fast_times.iter().min().unwrap_or(&0);
     let max_fast = *fast_times.iter().max().unwrap_or(&0);
 
-    // 计算改善百分比
+    // calculate improvement percentage
     let improvement_percent = if avg_traditional > 0.0 {
         ((avg_traditional - avg_fast) / avg_traditional) * 100.0
     } else {
         0.0
     };
 
-    // 显示结果
-    tracing::info!("传统导出核心算法:");
-    tracing::info!("  • 平均时间: {:.1}ms", avg_traditional);
-    tracing::info!("  • 最快时间: {}ms", min_traditional);
-    tracing::info!("  • 最慢时间: {}ms", max_traditional);
-    tracing::info!("  • 标准差: {:.1}ms", calculate_std_dev(traditional_times));
+    //  display results
+    tracing::info!("traditional export core algorithm:");
+    tracing::info!("  • average time: {:.1}ms", avg_traditional);
+    tracing::info!("  • fastest time: {}ms", min_traditional);
+    tracing::info!("  • slowest time: {}ms", max_traditional);
+    tracing::info!("  • standard deviation: {:.1}ms", calculate_std_dev(traditional_times));
 
     tracing::info!("");
-    tracing::info!("快速导出核心算法:");
-    tracing::info!("  • 平均时间: {:.1}ms", avg_fast);
-    tracing::info!("  • 最快时间: {}ms", min_fast);
-    tracing::info!("  • 最慢时间: {}ms", max_fast);
-    tracing::info!("  • 标准差: {:.1}ms", calculate_std_dev(fast_times));
+    tracing::info!("fast export core algorithm:");
+    tracing::info!("  • average time: {:.1}ms", avg_fast);
+    tracing::info!("  • fastest time: {}ms", min_fast);
+    tracing::info!("  • slowest time: {}ms", max_fast);
+    tracing::info!("  • standard deviation: {:.1}ms", calculate_std_dev(fast_times));
 
     tracing::info!("");
-    tracing::info!("📊 核心算法性能对比:");
+    tracing::info!("📊 core algorithm performance comparison:");
     if improvement_percent > 0.0 {
-        tracing::info!("  • 时间改善: {:.1}%", improvement_percent);
-        tracing::info!("  • 加速比: {:.2}x", avg_traditional / avg_fast);
-        tracing::info!("  • 时间节省: {:.1}ms", avg_traditional - avg_fast);
+        tracing::info!("  • time improvement: {:.1}%", improvement_percent);
+        tracing::info!("  • acceleration ratio: {:.2}x", avg_traditional / avg_fast);
+        tracing::info!("  • time saved: {:.1}ms", avg_traditional - avg_fast);
     } else {
-        tracing::info!("  • 时间变化: {:.1}% (变慢)", improvement_percent.abs());
-        tracing::info!("  • 减速比: {:.2}x", avg_fast / avg_traditional);
-        tracing::info!("  • 时间增加: {:.1}ms", avg_fast - avg_traditional);
+        tracing::info!("  • time change: {:.1}% (slower)", improvement_percent.abs());
+        tracing::info!("  • acceleration ratio: {:.2}x", avg_fast / avg_traditional);
+        tracing::info!("  • time increase: {:.1}ms", avg_fast - avg_traditional);
     }
 
-    // 评估结果
+    // evaluation results
     tracing::info!("");
-    tracing::info!("🎯 核心算法评估:");
+    tracing::info!("🎯 core algorithm evaluation:");
     if improvement_percent >= 60.0 {
-        tracing::info!("✅ 优秀！核心算法达到了 60-80% 导出时间减少的目标");
-        tracing::info!("   快速导出系统的核心设计是成功的！");
+        tracing::info!("✅ excellent! core algorithm reached the goal of 60-80% export time reduction");
+        tracing::info!("   the fast export system's core design is successful!");
     } else if improvement_percent >= 40.0 {
-        tracing::info!("✅ 良好！核心算法接近 60-80% 导出时间减少的目标");
-        tracing::info!("   快速导出系统有明显优势，可以进一步优化");
+        tracing::info!("✅ good! core algorithm is close to 60-80% export time reduction");
+        tracing::info!("   the fast export system has a clear advantage, can be further optimized");
     } else if improvement_percent >= 20.0 {
-        tracing::info!("⚠️  一般，核心算法有一定改善但未达到预期目标");
-        tracing::info!("   需要进一步优化并行处理和数据本地化策略");
+        tracing::info!("⚠️  general, core algorithm has some improvement but did not reach the expected goal");
+        tracing::info!("   need to further optimize parallel processing and data localization strategy");
     } else if improvement_percent > 0.0 {
-        tracing::info!("⚠️  轻微改善，核心算法优势不明显");
-        tracing::info!("   需要重新审视快速导出的设计思路");
+        tracing::info!("⚠️  minor improvement, core algorithm advantage is not significant");
+        tracing::info!("   need to re-examine the design of the fast export system");
     } else {
-        tracing::info!("❌ 核心算法性能没有提升或有所下降");
-        tracing::info!("   需要从根本上重新设计快速导出算法");
+        tracing::info!("❌ core algorithm performance did not improve or decreased");
+        tracing::info!("   need to fundamentally re-design the fast export algorithm");
     }
 
-    // 生成详细报告
+    // generate detailed report
     generate_core_performance_report(
         traditional_times,
         fast_times,
@@ -288,68 +287,68 @@ fn generate_core_performance_report(
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
 
     let report = format!(
-        r#"# 大型项目导出优化 - 核心性能基准测试报告
+        r#"# Large Project Export Optimization - Core Performance Benchmark Report
 
-**测试时间**: {}
-**测试说明**: 此测试专门测试快速导出协调器的核心算法性能，不包含质量验证、进度监控等附加功能。
+**Test Time**: {}
+**Test Description**: This test specifically tests the performance of the core algorithm in the fast export coordinator, excluding quality validation, progress monitoring, and other additional functions.
 
-## 📊 核心算法性能对比
+## 📊 Core Algorithm Performance Comparison
 
-| 指标 | 传统导出核心 | 快速导出核心 | 改善幅度 |
+| Indicator | Traditional Export Core | Fast Export Core | Improvement |
 |------|-------------|-------------|----------|
-| 平均时间 | {:.1}ms | {:.1}ms | **{:.1}%** |
-| 最快时间 | {}ms | {}ms | - |
-| 最慢时间 | {}ms | {}ms | - |
-| 标准差 | {:.1}ms | {:.1}ms | - |
+| Average Time | {:.1}ms | {:.1}ms | **{:.1}%** |
+| Fastest Time | {}ms | {}ms | - |
+| Slowest Time | {}ms | {}ms | - |
+| Standard Deviation | {:.1}ms | {:.1}ms | - |
 
-## 📈 详细测试数据
+## 📈 Detailed Test Data
 
-### 传统导出核心算法
+### Traditional Export Core Algorithm
 {}
 
-### 快速导出核心算法
+### Fast Export Core Algorithm
 {}
 
-## 🔍 核心算法分析
+## 🔍 Core Algorithm Analysis
 
-### 数据本地化效果
-快速导出系统通过数据本地化减少了全局状态访问，这是性能提升的关键因素之一。
+### Data Localization Effect
+The fast export system reduces global state access through data localization, which is a key factor in performance improvement.
 
-### 并行处理效果
-快速导出系统使用并行分片处理，在多核系统上应该有更好的表现。
+### Parallel Processing Effect
+The fast export system uses parallel sharding processing, which should perform better on multi-core systems.
 
-### 高速缓冲写入
-快速导出系统使用预分配缓冲区和批量写入，减少了I/O开销。
+### High-speed Buffer Writing
+The fast export system uses pre-allocated buffers and batch writing to reduce I/O overhead.
 
-## 🎯 结论
+## 🎯 Conclusion
 
 {}
 
-## 📝 关键发现
+## 📝 Key Discoveries
 
-1. **核心算法效果**: 通过测试纯核心算法，我们可以准确评估快速导出系统的真实性能
-2. **瓶颈识别**: 帮助区分是核心算法问题还是附加功能（验证、监控）的开销
-3. **优化方向**: 为进一步的性能优化提供明确的方向
+1. **Core Algorithm Effectiveness**: By testing the pure core algorithm, we can accurately evaluate the true performance of the fast export system.
+2. **Bottleneck Identification**: Helps distinguish between core algorithm issues and additional function (validation, monitoring) overhead.
+3. **Optimization Direction**: Provides clear direction for further performance optimization.
 
-## 🚀 后续优化建议
+## 🚀 Future Optimization Suggestions
 
-### 如果改善幅度 >= 60%
-- 核心算法设计成功，重点优化附加功能的性能
-- 可以考虑将快速导出作为默认导出方式
+### If improvement >= 60%
+- Core algorithm design is successful, focus on optimizing the performance of additional functions
+- Consider making fast export the default export method
 
-### 如果改善幅度 20-60%
-- 核心算法有效但仍有优化空间
-- 重点优化并行处理效率和数据本地化策略
+### If improvement is 20-60%
+- Core algorithm is effective but still has optimization space
+- Focus on optimizing parallel processing efficiency and data localization strategy
 
-### 如果改善幅度 < 20%
-- 需要重新审视快速导出的核心设计
-- 考虑采用不同的优化策略
+### If improvement < 20%
+- Need to re-examine the core design of the fast export system
+- Consider adopting different optimization strategies
 
-## 📁 生成的文件
+## 📁 Generated Files
 
-- traditional_core_run_*.json - 传统导出核心结果
-- fast_core_run_* - 快速导出核心结果
-- core_performance_report.md - 本报告
+- traditional_core_run_*.json - traditional export core results
+- fast_core_run_* - fast export core results
+- core_performance_report.md - this report
 "#,
         chrono::Utc::now().to_rfc3339(),
         avg_traditional,
@@ -364,32 +363,32 @@ fn generate_core_performance_report(
         traditional_times
             .iter()
             .enumerate()
-            .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
+            .map(|(i, t)| format!("- run {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),
         fast_times
             .iter()
             .enumerate()
-            .map(|(i, t)| format!("- 运行 {}: {}ms", i + 1, t))
+            .map(|(i, t)| format!("- run {}: {}ms", i + 1, t))
             .collect::<Vec<_>>()
             .join("\n"),
         if improvement_percent >= 60.0 {
-            "✅ 优秀！快速导出系统的核心算法非常有效，达到了预期的性能目标。核心设计思路正确，主要瓶颈在于附加功能的开销。"
+            "✅ Excellent! The core algorithm of the quick export system is highly effective and has met the performance targets. The core design approach is correct, with the main bottleneck being the overhead of additional features."
         } else if improvement_percent >= 40.0 {
-            "✅ 良好！快速导出系统的核心算法有明显改善，接近预期目标。可以通过进一步优化并行处理和数据本地化来达到更好的效果。"
+            "✅ Good! The core algorithm of the quick export system shows significant improvement and is close to the target. Further optimization of parallel processing and data localization could yield better results."
         } else if improvement_percent >= 20.0 {
-            "⚠️ 一般，快速导出系统的核心算法有一定改善，但距离预期目标还有差距。需要重新审视并行处理策略和数据本地化的实现。"
+            "⚠️ Fair. The core algorithm shows some improvement but still falls short of the target. Need to review the parallel processing strategy and data localization implementation."
         } else if improvement_percent > 0.0 {
-            "⚠️ 轻微改善，快速导出系统的核心算法优势不明显。可能需要采用完全不同的优化策略，或者重新设计核心架构。"
+            "⚠️ Slight improvement. The advantages of the quick export system's core algorithm are not significant. May need to adopt a completely different optimization strategy or redesign the core architecture."
         } else {
-            "❌ 快速导出系统的核心算法性能没有提升或有所下降。需要从根本上重新审视设计思路，可能当前的优化方向是错误的。"
+            "❌ No improvement or degradation in the performance of the quick export system's core algorithm. Need to fundamentally reassess the design approach, as the current optimization direction may be incorrect."
         }
     );
 
     if let Err(e) = fs::write(&report_file, report) {
-        tracing::error!("⚠️  生成报告失败: {}", e);
+        tracing::error!("⚠️  generate report failed: {}", e);
     } else {
         tracing::info!("");
-        tracing::info!("📄 核心性能报告已生成: {}", report_file.display());
+        tracing::info!("📄 core performance report generated: {}", report_file.display());
     }
 }
