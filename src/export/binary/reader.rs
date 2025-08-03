@@ -81,6 +81,9 @@ impl BinaryReader {
         let scope_name = self.read_optional_string()?;
         let thread_id = self.read_string()?;
         
+        // Read stack trace
+        let stack_trace = self.read_optional_string_vec()?;
+        
         // Read numeric fields
         let borrow_count = self.read_u32()? as usize;
         let is_leaked_byte = self.read_u8()?;
@@ -94,22 +97,22 @@ impl BinaryReader {
             None
         };
         
-        // Skip JSON fields for now - set to None
-        let stack_trace = None;
-        let smart_pointer_info = None;
-        let memory_layout = None;
-        let generic_info = None;
-        let dynamic_type_info = None;
-        let runtime_state = None;
-        let stack_allocation = None;
-        let temporary_object = None;
-        let fragmentation_analysis = None;
-        let generic_instantiation = None;
-        let type_relationships = None;
-        let type_usage = None;
-        let function_call_tracking = None;
-        let lifecycle_tracking = None;
-        let access_tracking = None;
+        // Read JSON fields
+        // stack_trace is already read above
+        let smart_pointer_info = self.read_optional_json_field()?;
+        let memory_layout = self.read_optional_json_field()?;
+        let generic_info = self.read_optional_json_field()?;
+        let dynamic_type_info = self.read_optional_json_field()?;
+        let runtime_state = self.read_optional_json_field()?;
+        let stack_allocation = self.read_optional_json_field()?;
+        let temporary_object = self.read_optional_json_field()?;
+        let fragmentation_analysis = self.read_optional_json_field()?;
+        let generic_instantiation = self.read_optional_json_field()?;
+        let type_relationships = self.read_optional_json_field()?;
+        let type_usage = self.read_optional_json_field()?;
+        let function_call_tracking = self.read_optional_json_field()?;
+        let lifecycle_tracking = self.read_optional_json_field()?;
+        let access_tracking = self.read_optional_json_field()?;
         
         Ok(AllocationInfo {
             ptr,
@@ -198,6 +201,23 @@ impl BinaryReader {
         
         String::from_utf8(string_bytes)
             .map_err(|_| BinaryExportError::CorruptedData("Invalid UTF-8 string".to_string()))
+    }
+    
+    /// Read an optional vector of strings
+    fn read_optional_string_vec(&mut self) -> Result<Option<Vec<String>>, BinaryExportError> {
+        let mut count_bytes = [0u8; 4];
+        self.reader.read_exact(&mut count_bytes)?;
+        let count = u32::from_le_bytes(count_bytes) as usize;
+        
+        if count == 0 {
+            Ok(None)
+        } else {
+            let mut strings = Vec::with_capacity(count);
+            for _ in 0..count {
+                strings.push(self.read_string()?);
+            }
+            Ok(Some(strings))
+        }
     }
     
     /// Read single byte

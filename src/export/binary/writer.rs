@@ -63,6 +63,9 @@ impl BinaryWriter {
         self.write_optional_string(&alloc.scope_name)?;
         self.write_string(&alloc.thread_id)?;
         
+        // Write stack trace
+        self.write_optional_string_vec(&alloc.stack_trace)?;
+        
         // Write numeric fields
         self.writer.write_all(&(alloc.borrow_count as u32).to_le_bytes())?;
         self.writer.write_all(&(alloc.is_leaked as u8).to_le_bytes())?;
@@ -78,9 +81,21 @@ impl BinaryWriter {
             }
         }
         
-        // For now, skip complex JSON fields to avoid serialization issues
-        // These will be set to None when reading back
-        // TODO: Implement proper JSON field serialization later
+        // Write complex JSON fields
+        self.write_optional_json_field(&alloc.smart_pointer_info)?;
+        self.write_optional_json_field(&alloc.memory_layout)?;
+        self.write_optional_json_field(&alloc.generic_info)?;
+        self.write_optional_json_field(&alloc.dynamic_type_info)?;
+        self.write_optional_json_field(&alloc.runtime_state)?;
+        self.write_optional_json_field(&alloc.stack_allocation)?;
+        self.write_optional_json_field(&alloc.temporary_object)?;
+        self.write_optional_json_field(&alloc.fragmentation_analysis)?;
+        self.write_optional_json_field(&alloc.generic_instantiation)?;
+        self.write_optional_json_field(&alloc.type_relationships)?;
+        self.write_optional_json_field(&alloc.type_usage)?;
+        self.write_optional_json_field(&alloc.function_call_tracking)?;
+        self.write_optional_json_field(&alloc.lifecycle_tracking)?;
+        self.write_optional_json_field(&alloc.access_tracking)?;
         
         Ok(())
     }
@@ -119,6 +134,14 @@ impl BinaryWriter {
         
         size += 4 + alloc.thread_id.len(); // thread_id
         
+        // Stack trace
+        size += 4; // stack_trace count
+        if let Some(ref stack_trace) = alloc.stack_trace {
+            for frame in stack_trace {
+                size += 4 + frame.len(); // length + content for each frame
+            }
+        }
+        
         // Numeric fields
         size += 4; // borrow_count
         size += 1; // is_leaked
@@ -129,8 +152,21 @@ impl BinaryWriter {
             size += 8;
         }
         
-        // Skip JSON fields for now to avoid complexity
-        // TODO: Add JSON field size calculation later
+        // JSON fields
+        size += self.calculate_json_field_size(&alloc.smart_pointer_info);
+        size += self.calculate_json_field_size(&alloc.memory_layout);
+        size += self.calculate_json_field_size(&alloc.generic_info);
+        size += self.calculate_json_field_size(&alloc.dynamic_type_info);
+        size += self.calculate_json_field_size(&alloc.runtime_state);
+        size += self.calculate_json_field_size(&alloc.stack_allocation);
+        size += self.calculate_json_field_size(&alloc.temporary_object);
+        size += self.calculate_json_field_size(&alloc.fragmentation_analysis);
+        size += self.calculate_json_field_size(&alloc.generic_instantiation);
+        size += self.calculate_json_field_size(&alloc.type_relationships);
+        size += self.calculate_json_field_size(&alloc.type_usage);
+        size += self.calculate_json_field_size(&alloc.function_call_tracking);
+        size += self.calculate_json_field_size(&alloc.lifecycle_tracking);
+        size += self.calculate_json_field_size(&alloc.access_tracking);
         
         size
     }
@@ -168,6 +204,25 @@ impl BinaryWriter {
     fn write_string(&mut self, s: &str) -> Result<(), BinaryExportError> {
         self.writer.write_all(&(s.len() as u32).to_le_bytes())?;
         self.writer.write_all(s.as_bytes())?;
+        Ok(())
+    }
+    
+    /// Write an optional vector of strings
+    fn write_optional_string_vec(&mut self, vec: &Option<Vec<String>>) -> Result<(), BinaryExportError> {
+        match vec {
+            Some(strings) => {
+                // Write count
+                self.writer.write_all(&(strings.len() as u32).to_le_bytes())?;
+                // Write each string
+                for string in strings {
+                    self.writer.write_all(&(string.len() as u32).to_le_bytes())?;
+                    self.writer.write_all(string.as_bytes())?;
+                }
+            }
+            None => {
+                self.writer.write_all(&0u32.to_le_bytes())?; // 0 count indicates None
+            }
+        }
         Ok(())
     }
     

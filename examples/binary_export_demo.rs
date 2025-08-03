@@ -70,6 +70,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("✅ Created 10 realistic allocations with rich metadata");
     
+    // Simulate some deallocations to show complete lifecycle
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    drop(_tracked_demo_buffer); // This will trigger deallocation tracking
+    drop(_tracked_temp_array);
+    
+    println!("✅ Simulated 2 deallocations for lifecycle demonstration");
+    
     // Export to binary format using MemoryTracker
     println!("\n💾 Exporting to binary format...");
     let start_time = std::time::Instant::now();
