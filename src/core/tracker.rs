@@ -3137,6 +3137,26 @@ impl MemoryTracker {
     /// * `binary_path` - Path to input .memscope file
     /// * `json_path` - Path for output JSON file
     /// 
+    /// Convert binary file to standard JSON files (5 categorized files)
+    /// 
+    /// This method generates the same 5 JSON files as the standard JSON export:
+    /// - memory_analysis.json, lifetime.json, performance.json, unsafe_ffi.json, complex_types.json
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// MemoryTracker::parse_binary_to_standard_json("data.memscope", "project_name")?;
+    /// ```
+    pub fn parse_binary_to_standard_json<P: AsRef<std::path::Path>>(
+        binary_path: P, 
+        base_name: &str
+    ) -> TrackingResult<()> {
+        crate::export::binary::BinaryParser::to_standard_json_files(binary_path, base_name)
+            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))
+    }
+    
+    /// Convert binary file to single JSON format (legacy compatibility)
+    /// 
     /// # Examples
     /// 
     /// ```rust
