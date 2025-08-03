@@ -14,8 +14,8 @@ pub fn run_test(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .map(|s| s.as_str())
         .unwrap_or("enhanced_memory_test");
 
-    println!("🧪 Running enhanced memory tests...");
-    println!("Output path: {}", output_path);
+    tracing::info!("🧪 Running enhanced memory tests...");
+    tracing::info!("Output path: {}", output_path);
 
     // Initialize memory tracking
     crate::init();
@@ -29,7 +29,7 @@ pub fn run_test(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
     use crate::core::tracker::get_global_tracker;
 
-    println!("Creating test allocations...");
+    tracing::info!("Creating test allocations...");
 
     // Create some test allocations
     let vec1 = vec![1, 2, 3, 4, 5];
@@ -53,20 +53,20 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
     let _allocations = match tracker.get_active_allocations() {
         Ok(allocs) => allocs,
         Err(e) => {
-            println!("Error getting allocations: {}", e);
+            tracing::info!("Error getting allocations: {}", e);
             Vec::new()
         }
     };
 
-    println!("Enhanced Memory Analysis Summary:");
-    println!("--------------------------------");
-    println!("Total active allocations: {}", _allocations.len());
+    tracing::info!("Enhanced Memory Analysis Summary:");
+    tracing::info!("--------------------------------");
+    tracing::info!("Total active allocations: {}", _allocations.len());
 
     // Keep variables alive until the end
-    println!("Vec1 length: {}", vec1.len());
-    println!("Vec2 length: {}", vec2.len());
-    println!("String1 length: {}", string1.len());
-    println!("Boxed1 value: {}", *boxed1);
+    tracing::info!("Vec1 length: {}", vec1.len());
+    tracing::info!("Vec2 length: {}", vec2.len());
+    tracing::info!("String1 length: {}", string1.len());
+    tracing::info!("Boxed1 value: {}", *boxed1);
 
     Ok(())
 }
@@ -94,7 +94,7 @@ fn _test_enhanced_memory_analysis() {
     let _allocations = match tracker.get_active_allocations() {
         Ok(allocs) => allocs,
         Err(e) => {
-            println!("Error getting allocations: {}", e);
+            tracing::info!("Error getting allocations: {}", e);
             Vec::new()
         }
     };
@@ -104,13 +104,13 @@ fn _test_enhanced_memory_analysis() {
         .unwrap_or_else(|e| format!("Error: {}", e));
 
     // Print summary
-    println!("Enhanced Memory Analysis Summary:");
-    println!("--------------------------------");
-    println!("Report: {}", report);
+    tracing::info!("Enhanced Memory Analysis Summary:");
+    tracing::info!("--------------------------------");
+    tracing::info!("Report: {}", report);
 
     // Keep variables alive until the end
-    println!("Vec1 length: {}", vec1.len());
-    println!("Vec2 length: {}", vec2.len());
-    println!("String1 length: {}", string1.len());
-    println!("Boxed1 value: {}", *boxed1);
+    tracing::info!("Vec1 length: {}", vec1.len());
+    tracing::info!("Vec2 length: {}", vec2.len());
+    tracing::info!("String1 length: {}", string1.len());
+    tracing::info!("Boxed1 value: {}", *boxed1);
 }

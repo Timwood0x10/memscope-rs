@@ -215,7 +215,7 @@ impl ErrorRecoveryManager {
         // ensure partial save directory exists
         if config.enable_partial_save {
             if let Err(e) = std::fs::create_dir_all(&config.partial_save_directory) {
-                eprintln!("⚠️ Unable to create partial save directory: {e}");
+                tracing::warn!("⚠️ Unable to create partial save directory: {e}");
             }
         }
 
@@ -244,7 +244,7 @@ impl ErrorRecoveryManager {
         self.stats.total_errors += 1;
 
         if self.config.verbose_logging {
-            println!("🔧 Error recovery: {} - {}", operation, error);
+            tracing::debug!("🔧 Error recovery: {} - {}", operation, error);
         }
 
         // select recovery strategy
@@ -267,7 +267,7 @@ impl ErrorRecoveryManager {
         self.update_degradation_state(error, &result);
 
         if self.config.verbose_logging {
-            println!(
+            tracing::debug!(
                 "🔧 Recovery completed: {} ({}ms)",
                 result.message, recovery_time
             );
@@ -866,27 +866,27 @@ pub struct RecoveryReport {
 impl RecoveryReport {
     /// print detailed recovery report
     pub fn print_detailed_report(&self) {
-        println!("\n🔧 recovery report");
-        println!("================");
+        tracing::info!("\n🔧 recovery report");
+        tracing::info!("================");
 
-        println!("📊 total statistics:");
-        println!("   total errors: {}", self.total_errors);
-        println!(
+        tracing::info!("📊 total statistics:");
+        tracing::info!("   total errors: {}", self.total_errors);
+        tracing::info!(
             "   successful recoveries: {} ({:.1}%)",
             self.successful_recoveries, self.success_rate
         );
-        println!("   failed recoveries: {}", self.failed_recoveries);
-        println!("   total retries: {}", self.total_retries);
-        println!("   degradation count: {}", self.degradation_count);
-        println!("   partial saves: {}", self.partial_saves);
-        println!(
+        tracing::info!("   failed recoveries: {}", self.failed_recoveries);
+        tracing::info!("   total retries: {}", self.total_retries);
+        tracing::info!("   degradation count: {}", self.degradation_count);
+        tracing::info!("   partial saves: {}", self.partial_saves);
+        tracing::info!(
             "   average recovery time: {:.2}ms",
             self.avg_recovery_time_ms
         );
 
-        println!("\n🎚️ current state:");
-        println!("   degradation level: {:?}", self.current_degradation_level);
-        println!(
+        tracing::info!("\n🎚️ current state:");
+        tracing::info!("   degradation level: {:?}", self.current_degradation_level);
+        tracing::info!(
             "   is degraded: {}",
             if self.is_currently_degraded {
                 "yes"

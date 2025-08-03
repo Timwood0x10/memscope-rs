@@ -72,8 +72,8 @@ pub struct PerformanceBenchmark;
 impl PerformanceBenchmark {
     /// Run quick benchmark
     pub fn run_quick_benchmark() -> TrackingResult<()> {
-        println!("🚀 Running quick performance benchmark");
-        println!("========================");
+        tracing::info!("🚀 Running quick performance benchmark");
+        tracing::info!("========================");
 
         let config = PerformanceTestConfig {
             dataset_sizes: vec![1000, 5000, 10000],
@@ -88,24 +88,24 @@ impl PerformanceBenchmark {
         let mut test_suite = PerformanceTestSuite::new(config);
         let _report = test_suite.run_basic_tests()?;
 
-        println!("✅ Quick benchmark completed");
+        tracing::info!("✅ Quick benchmark completed");
         Ok(())
     }
 
     /// Run complex_lifecycle_showcase.rs benchmark
     pub fn run_complex_lifecycle_benchmark() -> TrackingResult<ComplexLifecycleBenchmarkResult> {
-        println!("🎯 Running complex_lifecycle_showcase.rs benchmark");
-        println!("==============================================");
+        tracing::info!("🎯 Running complex_lifecycle_showcase.rs benchmark");
+        tracing::info!("==============================================");
 
         let mut benchmark_result = ComplexLifecycleBenchmarkResult::default();
 
         // Test traditional export performance
-        println!("📊 Testing traditional export performance...");
+        tracing::info!("📊 Testing traditional export performance...");
         let traditional_result = Self::benchmark_traditional_export()?;
         benchmark_result.traditional_export = traditional_result;
 
         // Test fast export performance
-        println!("⚡ Testing fast export performance...");
+        tracing::info!("⚡ Testing fast export performance...");
         let fast_result = Self::benchmark_fast_export()?;
         benchmark_result.fast_export = fast_result;
 
@@ -253,21 +253,21 @@ impl PerformanceBenchmark {
 
     /// Print complex benchmark results
     fn print_complex_benchmark_results(result: &ComplexLifecycleBenchmarkResult) {
-        println!("\n📊 Complex Lifecycle Showcase Benchmark Results");
-        println!("==========================================");
+        tracing::info!("\n📊 Complex Lifecycle Showcase Benchmark Results");
+        tracing::info!("==========================================");
 
-        println!("\nTraditional Export:");
-        println!("  Time: {} ms", result.traditional_export.export_time_ms);
-        println!(
+        tracing::info!("\nTraditional Export:");
+        tracing::info!("  Time: {} ms", result.traditional_export.export_time_ms);
+        tracing::info!(
             "  Memory: {:.2} MB",
             result.traditional_export.peak_memory_mb
         );
-        println!(
+        tracing::info!(
             "  File size: {} bytes ({:.2} KB)",
             result.traditional_export.output_file_size_bytes,
             result.traditional_export.output_file_size_bytes as f64 / 1024.0
         );
-        println!(
+        tracing::info!(
             "  Status: {}",
             if result.traditional_export.success {
                 "✅ Success"
@@ -276,15 +276,15 @@ impl PerformanceBenchmark {
             }
         );
 
-        println!("\nFast Export:");
-        println!("  Time: {} ms", result.fast_export.export_time_ms);
-        println!("  Memory: {:.2} MB", result.fast_export.peak_memory_mb);
-        println!(
+        tracing::info!("\nFast Export:");
+        tracing::info!("  Time: {} ms", result.fast_export.export_time_ms);
+        tracing::info!("  Memory: {:.2} MB", result.fast_export.peak_memory_mb);
+        tracing::info!(
             "  File size: {} bytes ({:.2} KB)",
             result.fast_export.output_file_size_bytes,
             result.fast_export.output_file_size_bytes as f64 / 1024.0
         );
-        println!(
+        tracing::info!(
             "  Status: {}",
             if result.fast_export.success {
                 "✅ Success"
@@ -294,25 +294,25 @@ impl PerformanceBenchmark {
         );
 
         if result.traditional_export.success && result.fast_export.success {
-            println!("\n🚀 Performance Improvements:");
-            println!(
+            tracing::info!("\n🚀 Performance Improvements:");
+            tracing::info!(
                 "  Time improvement: {:.2}x ({:.1}% reduction)",
                 result.time_improvement_factor,
                 (1.0 - 1.0 / result.time_improvement_factor) * 100.0
             );
-            println!(
+            tracing::info!(
                 "  Memory optimization: {:.2}x",
                 result.memory_improvement_factor
             );
 
             let target_improvement = 2.0; // Target: reduce 60-80% export time (2-5x improvement)
             if result.time_improvement_factor >= target_improvement {
-                println!(
+                tracing::info!(
                     "  🎯 Achieved expected performance improvement target (>{}x)!",
                     target_improvement
                 );
             } else {
-                println!(
+                tracing::info!(
                     "  ⚠️ Did not achieve expected performance improvement target (>{}x)",
                     target_improvement
                 );
@@ -321,12 +321,12 @@ impl PerformanceBenchmark {
             // Verify memory limits
             let memory_limit = 64.0; // 64MB limit
             if result.fast_export.peak_memory_mb <= memory_limit {
-                println!(
+                tracing::info!(
                     "  ✅ Memory usage within limits ({:.2} MB <= {} MB)",
                     result.fast_export.peak_memory_mb, memory_limit
                 );
             } else {
-                println!(
+                tracing::info!(
                     "  ⚠️ Memory usage exceeds limit ({:.2} MB > {} MB)",
                     result.fast_export.peak_memory_mb, memory_limit
                 );
@@ -334,17 +334,17 @@ impl PerformanceBenchmark {
         }
 
         if let Some(ref error) = result.traditional_export.error_message {
-            println!("\n❌ Traditional export error: {}", error);
+            tracing::info!("\n❌ Traditional export error: {}", error);
         }
         if let Some(ref error) = result.fast_export.error_message {
-            println!("\n❌ Fast export error: {}", error);
+            tracing::info!("\n❌ Fast export error: {}", error);
         }
     }
 
     /// Run complete benchmark
     pub fn run_comprehensive_benchmark() -> TrackingResult<PerformanceTestReport> {
-        println!("🚀 Running comprehensive performance benchmark");
-        println!("========================");
+        tracing::info!("🚀 Running comprehensive performance benchmark");
+        tracing::info!("========================");
 
         let config = PerformanceTestConfig::default();
         let mut test_suite = PerformanceTestSuite::new(config);
@@ -358,35 +358,35 @@ impl PerformanceBenchmark {
 
     /// Print detailed report
     fn print_detailed_report(report: &PerformanceTestReport) {
-        println!("\n📊 Performance Test Report");
-        println!("================");
-        println!("Total tests: {}", report.test_summary.total_tests);
-        println!("Successful tests: {}", report.test_summary.successful_tests);
-        println!("Failed tests: {}", report.test_summary.failed_tests);
-        println!(
+        tracing::info!("\n📊 Performance Test Report");
+        tracing::info!("================");
+        tracing::info!("Total tests: {}", report.test_summary.total_tests);
+        tracing::info!("Successful tests: {}", report.test_summary.successful_tests);
+        tracing::info!("Failed tests: {}", report.test_summary.failed_tests);
+        tracing::info!(
             "Success rate: {:.1}%",
             report.test_summary.successful_tests as f64 / report.test_summary.total_tests as f64
                 * 100.0
         );
 
-        println!("\n📈 Performance Analysis");
-        println!(
+        tracing::info!("\n📈 Performance Analysis");
+        tracing::info!(
             "Average export time: {:.2} ms",
             report.performance_analysis.average_export_time_ms
         );
-        println!(
+        tracing::info!(
             "Average memory usage: {:.2} MB",
             report.performance_analysis.average_memory_usage_mb
         );
-        println!(
+        tracing::info!(
             "Average throughput: {:.0} allocs/sec",
             report.performance_analysis.average_throughput
         );
 
         if !report.optimization_recommendations.is_empty() {
-            println!("\n💡 Optimization Recommendations");
+            tracing::info!("\n💡 Optimization Recommendations");
             for rec in &report.optimization_recommendations {
-                println!(
+                tracing::info!(
                     "• [{}] {}: {}",
                     rec.impact, rec.category, rec.recommendation
                 );
@@ -412,10 +412,10 @@ impl PerformanceTestSuite {
 
     /// Run basic tests
     pub fn run_basic_tests(&mut self) -> TrackingResult<PerformanceTestReport> {
-        println!("📊 Running basic performance tests");
+        tracing::info!("📊 Running basic performance tests");
 
         for &dataset_size in &self.config.dataset_sizes {
-            println!("Testing dataset size: {}", dataset_size);
+            tracing::info!("Testing dataset size: {}", dataset_size);
 
             // Test traditional export
             let traditional_result = self.test_traditional_export(dataset_size)?;
@@ -425,7 +425,7 @@ impl PerformanceTestSuite {
             let fast_result = self.test_fast_export(dataset_size)?;
             self.results.push(fast_result);
 
-            println!("  ✅ Completed testing dataset size {}", dataset_size);
+            tracing::info!("  ✅ Completed testing dataset size {}", dataset_size);
         }
 
         Ok(self.generate_performance_report())
@@ -433,7 +433,7 @@ impl PerformanceTestSuite {
 
     /// Run complete test suite
     pub fn run_full_test_suite(&mut self) -> TrackingResult<PerformanceTestReport> {
-        println!("🚀 Starting comprehensive performance test suite");
+        tracing::info!("🚀 Starting comprehensive performance test suite");
 
         // 1. Basic performance tests
         self.run_basic_tests()?;
@@ -447,13 +447,13 @@ impl PerformanceTestSuite {
         // 4. Memory usage tests
         self.run_memory_tests()?;
 
-        println!("✅ Performance test suite completed");
+        tracing::info!("✅ Performance test suite completed");
         Ok(self.generate_performance_report())
     }
 
     /// Run benchmark performance tests
     pub fn run_baseline_performance_tests(&mut self) -> TrackingResult<()> {
-        println!("📊 Running baseline performance tests");
+        tracing::info!("📊 Running baseline performance tests");
 
         for &dataset_size in &self.config.dataset_sizes {
             // Test traditional export
@@ -470,7 +470,7 @@ impl PerformanceTestSuite {
 
     /// Run shard size optimization tests
     pub fn run_shard_size_optimization_tests(&mut self) -> TrackingResult<()> {
-        println!("⚡ Shard size optimization tests");
+        tracing::info!("⚡ Shard size optimization tests");
 
         let dataset_size = 10000;
         for &shard_size in &self.config.shard_sizes {
@@ -483,13 +483,13 @@ impl PerformanceTestSuite {
 
     /// Run memory usage tests
     pub fn run_memory_usage_tests(&mut self) -> TrackingResult<()> {
-        println!("💾 Memory usage tests");
+        tracing::info!("💾 Memory usage tests");
 
         for &dataset_size in &self.config.dataset_sizes {
             let result = self.test_memory_usage(dataset_size)?;
 
             if result.peak_memory_mb > self.config.memory_limit_mb as f64 {
-                println!(
+                tracing::info!(
                     "  ⚠️ Memory usage exceeds limit: {:.2} MB > {} MB",
                     result.peak_memory_mb, self.config.memory_limit_mb
                 );
@@ -503,7 +503,7 @@ impl PerformanceTestSuite {
 
     /// Run before/after optimization comparison tests
     pub fn run_before_after_comparison_tests(&mut self) -> TrackingResult<()> {
-        println!("🔄 Before/after optimization comparison tests");
+        tracing::info!("🔄 Before/after optimization comparison tests");
 
         let dataset_size = 10000;
 
@@ -524,7 +524,7 @@ impl PerformanceTestSuite {
 
     /// Shard size tests
     fn run_shard_size_tests(&mut self) -> TrackingResult<()> {
-        println!("\n⚡ Shard size optimization tests");
+        tracing::info!("\n⚡ Shard size optimization tests");
 
         let dataset_size = 10000;
         for &shard_size in &self.config.shard_sizes {
@@ -537,7 +537,7 @@ impl PerformanceTestSuite {
 
     /// Multi-thread scalability tests
     pub fn run_thread_scalability_tests(&mut self) -> TrackingResult<()> {
-        println!("\n🔄 Multi-thread scalability tests");
+        tracing::info!("\n🔄 Multi-thread scalability tests");
 
         let dataset_size = 20000;
         for &thread_count in &self.config.thread_counts {
@@ -550,13 +550,13 @@ impl PerformanceTestSuite {
 
     /// Memory usage tests
     fn run_memory_tests(&mut self) -> TrackingResult<()> {
-        println!("\n💾 Memory usage tests");
+        tracing::info!("\n💾 Memory usage tests");
 
         for &dataset_size in &self.config.dataset_sizes {
             let result = self.test_memory_usage(dataset_size)?;
 
             if result.peak_memory_mb > self.config.memory_limit_mb as f64 {
-                println!(
+                tracing::info!(
                     "  ⚠️ Memory usage exceeds limit: {:.2} MB > {} MB",
                     result.peak_memory_mb, self.config.memory_limit_mb
                 );
@@ -1229,7 +1229,7 @@ impl AsyncValidationPerformanceTester {
         &mut self,
         tracker: &MemoryTracker,
     ) -> TrackingResult<AsyncValidationPerformanceReport> {
-        println!("🚀 Starting comprehensive async validation performance tests...");
+        tracing::info!("🚀 Starting comprehensive async validation performance tests...");
 
         // Test 1: Fast vs Slow mode comparison
         let mode_comparison_results = self.test_fast_vs_slow_mode(tracker).await?;
@@ -1258,7 +1258,7 @@ impl AsyncValidationPerformanceTester {
             detailed_results: self.results.clone(),
         };
 
-        println!("✅ Comprehensive async validation performance tests completed!");
+        tracing::info!("✅ Comprehensive async validation performance tests completed!");
         Ok(report)
     }
 
@@ -1267,12 +1267,12 @@ impl AsyncValidationPerformanceTester {
         &mut self,
         tracker: &MemoryTracker,
     ) -> TrackingResult<Vec<ModeComparisonResult>> {
-        println!("📊 Testing fast vs slow mode performance...");
+        tracing::info!("📊 Testing fast vs slow mode performance...");
         let mut comparison_results = Vec::new();
 
         let dataset_sizes = self.config.dataset_sizes.clone();
         for &dataset_size in &dataset_sizes {
-            println!("  Testing dataset size: {}", dataset_size);
+            tracing::info!("  Testing dataset size: {}", dataset_size);
 
             // Generate test data
             self.generate_test_data(tracker, dataset_size)?;
@@ -1328,7 +1328,7 @@ impl AsyncValidationPerformanceTester {
         &mut self,
         tracker: &MemoryTracker,
     ) -> TrackingResult<AsyncValidationImpactAnalysis> {
-        println!("🔍 Testing async validation impact...");
+        tracing::info!("🔍 Testing async validation impact...");
 
         let dataset_size = 10000; // Use medium dataset for this test
         self.generate_test_data(tracker, dataset_size)?;
@@ -1401,7 +1401,7 @@ impl AsyncValidationPerformanceTester {
         tracker: &MemoryTracker,
         dataset_size: usize,
     ) -> TrackingResult<BlockingAnalysis> {
-        println!("🚦 Testing validation blocking behavior...");
+        tracing::info!("🚦 Testing validation blocking behavior...");
 
         // Test inline validation blocking
         let inline_start = Instant::now();
@@ -1441,7 +1441,7 @@ impl AsyncValidationPerformanceTester {
         &mut self,
         tracker: &MemoryTracker,
     ) -> TrackingResult<Vec<AsyncValidationTestResult>> {
-        println!("🔄 Testing deferred validation blocking behavior...");
+        tracing::info!("🔄 Testing deferred validation blocking behavior...");
         let mut results = Vec::new();
 
         for &dataset_size in &[1000, 5000, 10000] {
@@ -1508,14 +1508,14 @@ impl AsyncValidationPerformanceTester {
         &mut self,
         tracker: &MemoryTracker,
     ) -> TrackingResult<Vec<AsyncValidationTestResult>> {
-        println!("💾 Testing large file memory usage...");
+        tracing::info!("💾 Testing large file memory usage...");
         let mut results = Vec::new();
 
         // Test with progressively larger datasets
         let large_dataset_sizes = vec![20000, 50000, 100000];
 
         for &dataset_size in &large_dataset_sizes {
-            println!("  Testing large dataset size: {}", dataset_size);
+            tracing::info!("  Testing large dataset size: {}", dataset_size);
 
             // Test fast mode with large dataset
             let fast_large_result = self
@@ -1547,7 +1547,7 @@ impl AsyncValidationPerformanceTester {
         &mut self,
         tracker: &MemoryTracker,
     ) -> TrackingResult<Vec<AsyncValidationTestResult>> {
-        println!("🔀 Testing concurrent export capability...");
+        tracing::info!("🔀 Testing concurrent export capability...");
         let mut results = Vec::new();
 
         let dataset_size = 5000;
@@ -1688,7 +1688,7 @@ impl AsyncValidationPerformanceTester {
     fn generate_test_data(&self, _tracker: &MemoryTracker, size: usize) -> TrackingResult<()> {
         // This is a simplified test data generation
         // In a real implementation, you would populate the tracker with test allocations
-        println!("  Generating test data of size: {}", size);
+        tracing::info!("  Generating test data of size: {}", size);
         Ok(())
     }
 
@@ -1847,91 +1847,91 @@ pub struct AsyncValidationTestSummary {
 impl AsyncValidationPerformanceReport {
     /// Print comprehensive performance report
     pub fn print_comprehensive_report(&self) {
-        println!("\n🚀 Async Validation Performance Report");
-        println!("=====================================");
+        tracing::info!("\n🚀 Async Validation Performance Report");
+        tracing::info!("=====================================");
 
         // Print test summary
-        println!("\n📊 Test Summary:");
-        println!("   Total tests: {}", self.test_summary.total_tests);
-        println!(
+        tracing::info!("\n📊 Test Summary:");
+        tracing::info!("   Total tests: {}", self.test_summary.total_tests);
+        tracing::info!(
             "   Successful tests: {} ({:.1}%)",
             self.test_summary.successful_tests,
             (self.test_summary.successful_tests as f64 / self.test_summary.total_tests as f64)
                 * 100.0
         );
-        println!("   Failed tests: {}", self.test_summary.failed_tests);
-        println!(
+        tracing::info!("   Failed tests: {}", self.test_summary.failed_tests);
+        tracing::info!(
             "   Average export time: {}ms",
             self.test_summary.avg_export_time_ms
         );
-        println!(
+        tracing::info!(
             "   Total test time: {}ms",
             self.test_summary.total_test_time_ms
         );
 
         // Print mode comparison results
-        println!("\n⚡ Fast vs Slow Mode Comparison:");
+        tracing::info!("\n⚡ Fast vs Slow Mode Comparison:");
         for comparison in &self.mode_comparison_results {
-            println!("   Dataset size: {}", comparison.dataset_size);
-            println!(
+            tracing::info!("   Dataset size: {}", comparison.dataset_size);
+            tracing::info!(
                 "     Fast mode: {}ms",
                 comparison.fast_mode_result.total_time_ms
             );
-            println!(
+            tracing::info!(
                 "     Slow mode: {}ms",
                 comparison.slow_mode_result.total_time_ms
             );
-            println!(
+            tracing::info!(
                 "     Speed improvement: {:.1}x",
                 comparison.speed_improvement_factor
             );
-            println!(
+            tracing::info!(
                 "     Memory efficiency: {:.2}",
                 comparison.memory_efficiency_comparison
             );
-            println!(
+            tracing::info!(
                 "     Validation quality: {}",
                 comparison.validation_quality_comparison
             );
-            println!();
+            tracing::info!("");
         }
 
         // Print validation impact analysis
-        println!("🔍 Validation Impact Analysis:");
+        tracing::info!("🔍 Validation Impact Analysis:");
         let impact = &self.validation_impact_analysis;
-        println!("   Export only: {}ms", impact.export_only_time_ms);
-        println!(
+        tracing::info!("   Export only: {}ms", impact.export_only_time_ms);
+        tracing::info!(
             "   With inline validation: {}ms (+{:.1}%)",
             impact.export_with_inline_validation_ms, impact.inline_validation_overhead_percent
         );
-        println!(
+        tracing::info!(
             "   With deferred validation: {}ms (+{:.1}%)",
             impact.export_with_deferred_validation_ms, impact.deferred_validation_overhead_percent
         );
 
         // Print blocking analysis
-        println!("\n🚦 Blocking Analysis:");
+        tracing::info!("\n🚦 Blocking Analysis:");
         let blocking = &impact.blocking_analysis;
-        println!(
+        tracing::info!(
             "   Inline validation blocks export: {}",
             blocking.inline_blocks_export
         );
-        println!(
+        tracing::info!(
             "   Deferred validation blocks subsequent: {}",
             blocking.deferred_blocks_subsequent
         );
-        println!(
+        tracing::info!(
             "   Concurrent capability: {}",
             blocking.concurrent_export_capability
         );
 
         // Print optimization recommendations
-        println!("\n💡 Optimization Recommendations:");
+        tracing::info!("\n💡 Optimization Recommendations:");
         for (i, rec) in self.optimization_recommendations.iter().enumerate() {
-            println!("   {}. {} - {}", i + 1, rec.category, rec.recommendation);
-            println!("      Impact: {}", rec.impact);
-            println!("      Reason: {}", rec.reason);
-            println!();
+            tracing::info!("   {}. {} - {}", i + 1, rec.category, rec.recommendation);
+            tracing::info!("      Impact: {}", rec.impact);
+            tracing::info!("      Reason: {}", rec.reason);
+            tracing::info!("");
         }
     }
 

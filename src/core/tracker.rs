@@ -2127,7 +2127,7 @@ impl MemoryTracker {
 
         // Create the project directory if it doesn't exist
         if let Err(e) = std::fs::create_dir_all(&project_dir) {
-            eprintln!(
+            tracing::warn!(
                 "Warning: Failed to create project directory {}: {}",
                 project_dir.display(),
                 e
@@ -2253,10 +2253,10 @@ impl MemoryTracker {
             optimized_options.enable_memory_passport_tracking = true;
             optimized_options.enable_security_analysis = true;
 
-            println!(
+            tracing::info!(
                 "⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!"
             );
-            println!("💡 To speed up export, use default options: tracker.export_to_json(path)");
+            tracing::info!("💡 To speed up export, use default options: tracker.export_to_json(path)");
         } else {
             // User-focused mode = High optimization (default)
             optimized_options.optimization_level = OptimizationLevel::High;
@@ -2273,20 +2273,20 @@ impl MemoryTracker {
         optimized_options.parallel_processing =
             options.include_system_allocations || options.buffer_size > 128 * 1024;
 
-        println!("🔄 Converted legacy ExportOptions to OptimizedExportOptions:");
-        println!(
+        tracing::info!("🔄 Converted legacy ExportOptions to OptimizedExportOptions:");
+        tracing::info!(
             "   - Optimization level: {:?}",
             optimized_options.optimization_level
         );
-        println!(
+        tracing::info!(
             "   - Buffer size: {} KB",
             optimized_options.buffer_size / 1024
         );
-        println!(
+        tracing::info!(
             "   - Parallel processing: {}",
             optimized_options.parallel_processing
         );
-        println!(
+        tracing::info!(
             "   - Enhanced features: {}",
             optimized_options.enable_enhanced_ffi_analysis
         );
@@ -2377,12 +2377,12 @@ impl MemoryTracker {
 
         match mode {
             ExportMode::UserFocused => {
-                println!("🚀 Starting FAST user-focused 5-file JSON export...");
-                println!("💡 Only enriching user-tracked variables for optimal performance");
+                tracing::info!("🚀 Starting FAST user-focused 5-file JSON export...");
+                tracing::info!("💡 Only enriching user-tracked variables for optimal performance");
             }
             ExportMode::Complete => {
-                println!("🐌 Starting COMPLETE 5-file JSON export (slow mode)...");
-                println!("⚠️  This will enrich ALL allocations including system data");
+                tracing::info!("🐌 Starting COMPLETE 5-file JSON export (slow mode)...");
+                tracing::info!("⚠️  This will enrich ALL allocations including system data");
             }
         }
 
@@ -2394,7 +2394,7 @@ impl MemoryTracker {
         let parent_dir = base_path.parent().unwrap_or(Path::new("."));
 
         // Collect raw data directly
-        println!("📊 Collecting raw data...");
+        tracing::info!("📊 Collecting raw data...");
 
         let active_allocations = self.get_active_allocations()?;
         let allocation_history = self.get_allocation_history()?;
@@ -2444,47 +2444,47 @@ impl MemoryTracker {
             .unwrap_or(0);
         let total_size = memory_size + lifetime_size + unsafe_size + relationships_size;
 
-        println!("✅ Ultra-fast 4-file export completed in {:?}", export_time);
-        println!("📁 Files created:");
-        println!(
+        tracing::info!("✅ Ultra-fast 4-file export completed in {:?}", export_time);
+        tracing::info!("📁 Files created:");
+        tracing::info!(
             "   - Memory Analysis: {} ({:.2} MB)",
             memory_path.display(),
             memory_size as f64 / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "   - Lifetime Analysis: {} ({:.2} MB)",
             lifetime_path.display(),
             lifetime_size as f64 / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "   - Unsafe/FFI Analysis: {} ({:.2} MB)",
             unsafe_path.display(),
             unsafe_size as f64 / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "   - Variable Relationships: {} ({:.2} MB)",
             relationships_path.display(),
             relationships_size as f64 / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "📊 Total size: {:.2} MB",
             total_size as f64 / 1024.0 / 1024.0
         );
-        println!("📈 Data exported:");
-        println!("   - {} active allocations", active_allocations.len());
-        println!(
+        tracing::info!("📈 Data exported:");
+        tracing::info!("   - {} active allocations", active_allocations.len());
+        tracing::info!(
             "   - {} allocation history entries",
             allocation_history.len()
         );
-        println!("   - {} variables in registry", variable_registry.len());
-        println!(
+        tracing::info!("   - {} variables in registry", variable_registry.len());
+        tracing::info!(
             "   - {} unsafe/FFI operations",
             unsafe_ffi_tracker.get_stats().total_operations
         );
 
         if export_time.as_secs_f64() > 0.0 {
             let throughput = (total_size as f64 / 1024.0 / 1024.0) / export_time.as_secs_f64();
-            println!("🚀 Performance: {:.2} MB/s total throughput", throughput);
+            tracing::info!("🚀 Performance: {:.2} MB/s total throughput", throughput);
         }
 
         Ok(())
@@ -4784,7 +4784,7 @@ impl Drop for MemoryTracker {
     fn drop(&mut self) {
         // Optional verbose tip for users
         if std::env::var("MEMSCOPE_VERBOSE").is_ok() {
-            println!("💡 Tip: Use tracker.export_to_json() or tracker.export_interactive_dashboard() before drop to save analysis results");
+            tracing::info!("💡 Tip: Use tracker.export_to_json() or tracker.export_interactive_dashboard() before drop to save analysis results");
         }
 
         // Clean up any remaining allocations

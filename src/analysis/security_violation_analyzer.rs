@@ -216,13 +216,13 @@ impl Default for AnalysisConfig {
 impl SecurityViolationAnalyzer {
     /// Create a new security violation analyzer
     pub fn new(config: AnalysisConfig) -> Self {
-        println!("🔒 Initializing Security Violation Analyzer");
-        println!(
+        tracing::info!("🔒 Initializing Security Violation Analyzer");
+        tracing::info!(
             "   • Max related allocations: {}",
             config.max_related_allocations
         );
-        println!("   • Max stack depth: {}", config.max_stack_depth);
-        println!(
+        tracing::info!("   • Max stack depth: {}", config.max_stack_depth);
+        tracing::info!(
             "   • Correlation analysis: {}",
             config.enable_correlation_analysis
         );
@@ -238,7 +238,7 @@ impl SecurityViolationAnalyzer {
     /// Update active allocations context
     pub fn update_allocations(&mut self, allocations: Vec<AllocationInfo>) {
         self.active_allocations = allocations;
-        println!(
+        tracing::info!(
             "🔄 Updated allocation context: {} active allocations",
             self.active_allocations.len()
         );
@@ -252,7 +252,7 @@ impl SecurityViolationAnalyzer {
     ) -> Result<String, String> {
         let violation_id = self.generate_violation_id(violation, violation_address);
 
-        println!("🔍 Analyzing security violation: {}", violation_id);
+        tracing::info!("🔍 Analyzing security violation: {}", violation_id);
 
         // Determine severity
         let severity = self.assess_severity(violation);
@@ -309,7 +309,7 @@ impl SecurityViolationAnalyzer {
             self.update_correlation_matrix(&violation_id, correlated_violations);
         }
 
-        println!(
+        tracing::info!(
             "✅ Security violation analysis complete: {} (severity: {:?})",
             violation_id, severity
         );
@@ -733,7 +733,7 @@ impl SecurityViolationAnalyzer {
     pub fn clear_reports(&mut self) {
         self.violation_reports.clear();
         self.correlation_matrix.clear();
-        println!("🧹 Security violation reports cleared");
+        tracing::info!("🧹 Security violation reports cleared");
     }
 }
 

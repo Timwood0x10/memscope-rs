@@ -255,7 +255,7 @@ impl FastExportCoordinator {
         let total_start = Instant::now();
 
         if self.config.verbose_logging {
-            println!("🚀 Starting export mode without validation");
+            tracing::info!("🚀 Starting export mode without validation");
         }
 
         // data localization
@@ -279,7 +279,7 @@ impl FastExportCoordinator {
         );
 
         if self.config.verbose_logging {
-            println!(
+            tracing::info!(
                 "✅ Export without validation completed, total time: {:?}",
                 total_time
             );
@@ -370,7 +370,7 @@ impl FastExportCoordinator {
         let total_start = std::time::Instant::now();
 
         if self.config.verbose_logging {
-            println!("🚀 Starting export with inline validation");
+            tracing::info!("🚀 Starting export with inline validation");
         }
 
         // Step 1: Data localization
@@ -387,7 +387,7 @@ impl FastExportCoordinator {
                 .validate_source_data(&localized_data)?;
             if !validation_result.is_valid {
                 if self.config.verbose_logging {
-                    println!(
+                    tracing::info!(
                         "⚠️ Source data validation failed: {}",
                         validation_result.message
                     );
@@ -405,7 +405,7 @@ impl FastExportCoordinator {
                 .validate_processed_shards(&processed_shards, localized_data.allocations.len())?;
             if !validation_result.is_valid {
                 if self.config.verbose_logging {
-                    println!(
+                    tracing::info!(
                         "⚠️ Processed shard validation failed: {}",
                         validation_result.message
                     );
@@ -425,7 +425,7 @@ impl FastExportCoordinator {
             )?;
             if !validation_result.is_valid {
                 if self.config.verbose_logging {
-                    println!(
+                    tracing::info!(
                         "⚠️ Output file validation failed: {}",
                         validation_result.message
                     );
@@ -444,7 +444,7 @@ impl FastExportCoordinator {
         );
 
         if self.config.verbose_logging {
-            println!(
+            tracing::info!(
                 "✅ Export with inline validation completed, total time: {:?}",
                 total_time
             );
@@ -483,9 +483,9 @@ impl FastExportCoordinator {
         );
 
         if self.config.verbose_logging {
-            println!("🚀 Fast export coordinator starting execution");
-            println!("   Output path: {}", output_path.as_ref().display());
-            println!("   Operation ID: {}", operation_id);
+            tracing::info!("🚀 Fast export coordinator starting execution");
+            tracing::info!("   Output path: {}", output_path.as_ref().display());
+            tracing::info!("   Operation ID: {}", operation_id);
         }
 
         // Create error context
@@ -776,7 +776,7 @@ impl FastExportCoordinator {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
-            println!("📊 Stage 1: Data localization");
+            tracing::info!("📊 Stage 1: Data localization");
         }
 
         if let Some(ref mut monitor) = progress_monitor {
@@ -790,7 +790,7 @@ impl FastExportCoordinator {
         }
 
         if self.config.verbose_logging {
-            println!(
+            tracing::info!(
                 "   ✅ Data localization completed, time elapsed: {:?}",
                 stage_start.elapsed()
             );
@@ -822,7 +822,7 @@ impl FastExportCoordinator {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
-            println!("⚡ Stage 2: Parallel shard processing");
+            tracing::info!("⚡ Stage 2: Parallel shard processing");
         }
 
         if let Some(ref mut monitor) = progress_monitor {
@@ -836,7 +836,7 @@ impl FastExportCoordinator {
         }
 
         if self.config.verbose_logging {
-            println!(
+            tracing::info!(
                 "   ✅ Parallel shard processing completed, time elapsed: {:?}",
                 stage_start.elapsed()
             );
@@ -854,7 +854,7 @@ impl FastExportCoordinator {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
-            println!("💾 High-speed write phase (validation skipped)");
+            tracing::info!("💾 High-speed write phase (validation skipped)");
         }
 
         // estimate total size for writer configuration optimization
@@ -866,7 +866,7 @@ impl FastExportCoordinator {
         let result = writer.write_processed_shards(shards)?;
 
         if self.config.verbose_logging {
-            println!(
+            tracing::info!(
                 "   ✅ High-speed write completed (validation skipped), time: {:?}",
                 stage_start.elapsed()
             );
@@ -885,7 +885,7 @@ impl FastExportCoordinator {
         let stage_start = Instant::now();
 
         if self.config.verbose_logging {
-            println!("💾 Stage 3: High-speed buffered writing");
+            tracing::info!("💾 Stage 3: High-speed buffered writing");
         }
 
         if let Some(ref mut monitor) = progress_monitor {
@@ -911,7 +911,7 @@ impl FastExportCoordinator {
         }
 
         if self.config.verbose_logging {
-            println!(
+            tracing::info!(
                 "   ✅ High-speed buffered writing completed, time elapsed: {:?}",
                 stage_start.elapsed()
             );
@@ -994,80 +994,80 @@ impl FastExportCoordinator {
 
     /// Print complete statistics
     fn print_complete_stats(&self, stats: &CompleteExportStats) {
-        println!("\n🎯 Fast export completed - Performance Statistics");
-        println!("================================");
+        tracing::info!("\n🎯 Fast export completed - Performance Statistics");
+        tracing::info!("================================");
 
-        println!("📊 Overall Performance:");
-        println!("  total_export_time_ms: {}ms", stats.total_export_time_ms);
-        println!(
+        tracing::info!("📊 Overall Performance:");
+        tracing::info!("  total_export_time_ms: {}ms", stats.total_export_time_ms);
+        tracing::info!(
             "  total_allocations_processed: {}",
             stats.total_allocations_processed
         );
-        println!(
+        tracing::info!(
             "  total_output_size_bytes: {:.2} MB",
             stats.total_output_size_bytes as f64 / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "  overall_throughput_allocations_per_sec: {:.0} allocations/second",
             stats.overall_throughput_allocations_per_sec
         );
-        println!(
+        tracing::info!(
             "  overall_write_speed_mbps: {:.2} MB/s",
             stats.overall_write_speed_mbps
         );
 
-        println!("\n⏱️ Stage time analysis:");
-        println!(
+        tracing::info!("\n⏱️ Stage time analysis:");
+        tracing::info!(
             "  data_gathering: {}ms ({:.1}%)",
             stats.data_gathering.total_time_ms, stats.data_gathering_percentage
         );
-        println!(
+        tracing::info!(
             "  parallel_processing: {}ms ({:.1}%)",
             stats.parallel_processing.total_processing_time_ms, stats.processing_percentage
         );
-        println!(
+        tracing::info!(
             "  write_performance: {}ms ({:.1}%)",
             stats.write_performance.total_write_time_ms, stats.writing_percentage
         );
 
-        println!("\n🚀 Performance Improvement:");
-        println!(
+        tracing::info!("\n🚀 Performance Improvement:");
+        tracing::info!(
             "  estimated_traditional_time_ms: {}ms",
             stats.estimated_traditional_time_ms
         );
-        println!(
+        tracing::info!(
             "  performance_improvement_factor: {:.2}x",
             stats.performance_improvement_factor
         );
-        println!(
+        tracing::info!(
             "  time_saved: {}ms ({:.1}%)",
             stats.estimated_traditional_time_ms - stats.total_export_time_ms,
             (1.0 - 1.0 / stats.performance_improvement_factor) * 100.0
         );
 
         if stats.parallel_processing.used_parallel_processing {
-            println!("\n⚡ Parallel Processing Effect:");
-            println!(
+            tracing::info!("\n⚡ Parallel Processing Effect:");
+            tracing::info!(
                 "   threads_used: {}",
                 stats.parallel_processing.threads_used
             );
-            println!(
+            tracing::info!(
                 "   parallel_efficiency: {:.1}%",
                 stats.parallel_processing.parallel_efficiency * 100.0
             );
-            println!("   shard_count: {}", stats.parallel_processing.shard_count);
+            tracing::info!("   shard_count: {}", stats.parallel_processing.shard_count);
         }
 
-        println!("\n💾 Write Performance:");
-        println!(
+        tracing::info!("\n💾 Write Performance:");
+        tracing::info!(
             "   buffer_utilization: {:.1}%",
             stats.write_performance.buffer_utilization * 100.0
         );
-        println!(
+        tracing::info!(
             "   preallocation_effective: {}",
             stats.write_performance.preallocation_effective
         );
-        println!("   flush_count: {}", stats.write_performance.flush_count);
+        tracing::info!("   flush_count: {}", stats.write_performance.flush_count);
     }
 
     /// Get current configuration

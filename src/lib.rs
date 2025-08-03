@@ -1265,7 +1265,7 @@ impl MemoryTracker {
         };
 
         let path = path.as_ref();
-        println!("🚀 Using optimized complex type export for maximum performance...");
+        tracing::info!("🚀 Using optimized complex type export for maximum performance...");
 
         let start_time = std::time::Instant::now();
 
@@ -1297,39 +1297,39 @@ impl MemoryTracker {
         let export_time = start_time.elapsed();
 
         // Performance reporting
-        println!(
+        tracing::info!(
             "✅ Optimized export completed in {:.2}ms",
             export_time.as_millis()
         );
-        println!(
+        tracing::info!(
             "📊 Performance improvement: {:.1}%",
             export_result.export_stats.performance_improvement
         );
-        println!(
+        tracing::info!(
             "📁 Main file: {} ({} bytes)",
             export_result.main_file, export_result.export_stats.main_file_size
         );
 
         if export_result.export_stats.complex_files_size > 0 {
-            println!(
+            tracing::info!(
                 "📁 Complex type files: {} bytes total",
                 export_result.export_stats.complex_files_size
             );
 
             if let Some(ref file) = export_result.complex_types_file {
-                println!("   - Complex types: {}", file);
+                tracing::info!("   - Complex types: {}", file);
             }
             if let Some(ref file) = export_result.borrow_analysis_file {
-                println!("   - Borrow analysis: {}", file);
+                tracing::info!("   - Borrow analysis: {}", file);
             }
             if let Some(ref file) = export_result.async_analysis_file {
-                println!("   - Async analysis: {}", file);
+                tracing::info!("   - Async analysis: {}", file);
             }
             if let Some(ref file) = export_result.closure_analysis_file {
-                println!("   - Closure analysis: {}", file);
+                tracing::info!("   - Closure analysis: {}", file);
             }
             if let Some(ref file) = export_result.lifecycle_analysis_file {
-                println!("   - Lifecycle analysis: {}", file);
+                tracing::info!("   - Lifecycle analysis: {}", file);
             }
         }
 
@@ -1490,7 +1490,7 @@ pub fn enable_auto_export(export_path: Option<&str>) {
     // Install exit hook for automatic export
     install_exit_hook();
 
-    println!(
+    tracing::info!(
         "📋 Auto-export enabled - JSON will be exported to: {}",
         export_path.unwrap_or("memscope_final_snapshot.json")
     );
@@ -1505,7 +1505,7 @@ fn install_exit_hook() {
         // Install panic hook
         let original_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
-            eprintln!("🚨 Program panicked, attempting to export memory data...");
+            tracing::error!("🚨 Program panicked, attempting to export memory data...");
             let _ = export_final_snapshot("memscope_panic_snapshot");
             original_hook(panic_info);
         }));
@@ -1513,14 +1513,14 @@ fn install_exit_hook() {
         // Use libc atexit for reliable program exit handling
         extern "C" fn exit_handler() {
             if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
-                println!("🔄 Program ending, exporting final memory snapshot...");
+                tracing::info!("🔄 Program ending, exporting final memory snapshot...");
                 let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
                     .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
 
                 if let Err(e) = export_final_snapshot(&export_path) {
-                    eprintln!("❌ Failed to export final snapshot: {}", e);
+                    tracing::error!("❌ Failed to export final snapshot: {}", e);
                 } else {
-                    println!("✅ Final memory snapshot exported successfully");
+                    tracing::info!("✅ Final memory snapshot exported successfully");
                 }
             }
         }

@@ -154,8 +154,8 @@ impl JsonFileDiscovery {
         let mut unreadable_files = Vec::new();
         let mut total_size_bytes = 0u64;
 
-        println!("🔍 Discovering JSON files in directory: {}", self.input_dir);
-        println!("🏷️  Using base name pattern: {}", self.base_name);
+        tracing::info!("🔍 Discovering JSON files in directory: {}", self.input_dir);
+        tracing::info!("🏷️  Using base name pattern: {}", self.base_name);
 
         for config in file_configs {
             match self.find_file_for_config(&config) {
@@ -164,7 +164,7 @@ impl JsonFileDiscovery {
                     if let Some(max_size_mb) = config.max_size_mb {
                         let max_bytes = (max_size_mb * 1024 * 1024) as u64;
                         if file_info.size_bytes > max_bytes {
-                            println!(
+                            tracing::info!(
                                 "⚠️  File {} ({:.1} MB) exceeds size limit ({} MB)",
                                 file_info.path.display(),
                                 file_info.size_bytes as f64 / 1024.0 / 1024.0,
@@ -177,13 +177,13 @@ impl JsonFileDiscovery {
 
                     // Check readability
                     if !file_info.is_readable {
-                        println!("⚠️  File {} is not readable", file_info.path.display());
+                        tracing::info!("⚠️  File {} is not readable", file_info.path.display());
                         unreadable_files.push(file_info);
                         continue;
                     }
 
                     total_size_bytes += file_info.size_bytes;
-                    println!(
+                    tracing::info!(
                         "✅ Found {}: {} ({:.1} KB)",
                         config.description,
                         file_info.path.display(),
@@ -193,20 +193,20 @@ impl JsonFileDiscovery {
                 }
                 Ok(None) => {
                     if config.required {
-                        println!(
+                        tracing::info!(
                             "❌ Required file not found: {}_{}*.json",
                             self.base_name, config.suffix
                         );
                         missing_required.push(config);
                     } else {
-                        println!(
+                        tracing::info!(
                             "⚠️  Optional file not found: {}_{}*.json (skipping)",
                             self.base_name, config.suffix
                         );
                     }
                 }
                 Err(e) => {
-                    println!("❌ Error searching for {}: {}", config.description, e);
+                    tracing::info!("❌ Error searching for {}: {}", config.description, e);
                     if config.required {
                         missing_required.push(config);
                     }
@@ -215,15 +215,15 @@ impl JsonFileDiscovery {
         }
 
         // Print discovery summary
-        println!("📊 Discovery Summary:");
-        println!("   Files found: {}", found_files.len());
-        println!(
+        tracing::info!("📊 Discovery Summary:");
+        tracing::info!("   Files found: {}", found_files.len());
+        tracing::info!(
             "   Total size: {:.1} MB",
             total_size_bytes as f64 / 1024.0 / 1024.0
         );
-        println!("   Missing required: {}", missing_required.len());
-        println!("   Oversized files: {}", oversized_files.len());
-        println!("   Unreadable files: {}", unreadable_files.len());
+        tracing::info!("   Missing required: {}", missing_required.len());
+        tracing::info!("   Oversized files: {}", oversized_files.len());
+        tracing::info!("   Unreadable files: {}", unreadable_files.len());
 
         // Check for critical errors
         if !missing_required.is_empty() {

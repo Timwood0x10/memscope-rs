@@ -6,7 +6,7 @@ use std::error::Error;
 
 /// Generate HTML directly from raw JSON data
 pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String, Box<dyn Error>> {
-    println!("🎨 Generating enhanced HTML with embedded JSON data...");
+    tracing::info!("🎨 Generating enhanced HTML with embedded JSON data...");
 
     // Validate that we have essential data
     if json_data.is_empty() {
@@ -15,7 +15,7 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
 
     // Log what data we have
     for (key, value) in json_data {
-        println!(
+        tracing::info!(
             "📊 Found data: {} ({} bytes)",
             key,
             serde_json::to_string(value).unwrap_or_default().len()
@@ -32,7 +32,7 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     // Log data structure for debugging
     if let Some(unsafe_ffi_data) = json_data.get("basic_usage_snapshot_unsafe_ffi") {
         if let Some(summary) = unsafe_ffi_data.get("summary") {
-            println!("📊 Unsafe/FFI Summary: {summary}");
+            tracing::info!("📊 Unsafe/FFI Summary: {summary}");
         }
     }
 
@@ -104,7 +104,7 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
             &css_content,
         ); // alternative format
 
-    println!(
+    tracing::info!(
         "✅ Generated HTML with {} bytes of embedded JSON data",
         json_data_str.len()
     );
@@ -250,7 +250,7 @@ fn transform_json_data_structure(
         );
     }
 
-    println!(
+    tracing::info!(
         "🔄 Transformed data structure with keys: {:?}",
         transformed.keys().collect::<Vec<_>>()
     );

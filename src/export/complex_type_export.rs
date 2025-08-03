@@ -241,11 +241,11 @@ pub fn export_comprehensive_analysis_optimized<P: AsRef<Path>>(
     result.export_stats.complex_files_size = calculate_complex_files_size(&result);
     result.export_stats.performance_improvement = calculate_performance_improvement(&result);
 
-    println!(
+    tracing::info!(
         "✅ Complex type export completed in {}ms",
         result.export_stats.total_time_ms
     );
-    println!(
+    tracing::info!(
         "📊 Main file: {} bytes, Complex files: {} bytes",
         result.export_stats.main_file_size, result.export_stats.complex_files_size
     );

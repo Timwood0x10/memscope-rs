@@ -423,7 +423,7 @@ impl PerformanceLogger {
     /// record operation start
     pub fn log_operation_start(&self, operation: &str, details: &str) {
         if self.should_log(LogLevel::Info) {
-            println!(
+            tracing::info!(
                 "🚀 [{}] start operation: {} - {}",
                 self.format_timestamp(),
                 operation,
@@ -438,7 +438,7 @@ impl PerformanceLogger {
     /// record operation success
     pub fn log_operation_success(&self, operation: &str, duration: Duration, details: &str) {
         if self.should_log(LogLevel::Info) {
-            println!(
+            tracing::info!(
                 "✅ [{}] operation success: {} ({:?}) - {}",
                 self.format_timestamp(),
                 operation,
@@ -457,7 +457,7 @@ impl PerformanceLogger {
     /// record operation failure
     pub fn log_operation_failure(&self, operation: &str, error: &ExportError, duration: Duration) {
         if self.should_log(LogLevel::Error) {
-            println!(
+            tracing::error!(
                 "❌ [{}] operation failure: {} ({:?}) - {}",
                 self.format_timestamp(),
                 operation,
@@ -484,7 +484,7 @@ impl PerformanceLogger {
             } else {
                 String::new()
             };
-            println!(
+            tracing::debug!(
                 "📊 [{}] performance metric - {metric:?}: {value}{threshold_info}",
                 self.format_timestamp()
             );
@@ -507,7 +507,7 @@ impl PerformanceLogger {
     /// record memory usage
     pub fn log_memory_usage(&self, current_usage: usize, peak_usage: usize) {
         if self.should_log(LogLevel::Debug) {
-            println!(
+            tracing::debug!(
                 "💾 [{}] memory usage - current: {:.2}MB, peak: {:.2}MB",
                 self.format_timestamp(),
                 current_usage as f64 / 1024.0 / 1024.0,
@@ -534,21 +534,21 @@ impl PerformanceLogger {
     /// record warning
     pub fn log_warning(&self, message: &str) {
         if self.should_log(LogLevel::Warn) {
-            println!("⚠️ [{}] warning: {}", self.format_timestamp(), message);
+            tracing::warn!("⚠️ [{}] warning: {}", self.format_timestamp(), message);
         }
     }
 
     /// record debug
     pub fn log_debug(&self, message: &str) {
         if self.should_log(LogLevel::Debug) {
-            println!("🔍 [{}] debug: {}", self.format_timestamp(), message);
+            tracing::debug!("🔍 [{}] debug: {}", self.format_timestamp(), message);
         }
     }
 
     /// record error
     pub fn log_error(&self, error: &ExportError) {
         if self.should_log(LogLevel::Error) {
-            println!("💥 [{}] error: {}", self.format_timestamp(), error);
+            tracing::error!("💥 [{}] error: {}", self.format_timestamp(), error);
         }
         self.update_error_statistics(error);
     }
@@ -784,56 +784,56 @@ pub struct ErrorBreakdown {
 impl PerformanceReport {
     /// print detailed report
     pub fn print_detailed_report(&self) {
-        println!("\n📈 detailed performance report");
-        println!("================");
+        tracing::info!("\n📈 detailed performance report");
+        tracing::info!("================");
 
-        println!("⏱️ runtime: {:?}", self.total_runtime);
-        println!("🔢 total operations: {}", self.total_operations);
-        println!(
+        tracing::info!("⏱️ runtime: {:?}", self.total_runtime);
+        tracing::info!("🔢 total operations: {}", self.total_operations);
+        tracing::info!(
             "✅ successful operations: {} ({:.1}%)",
             self.successful_operations, self.success_rate
         );
-        println!("❌ failed operations: {}", self.failed_operations);
-        println!(
+        tracing::info!("❌ failed operations: {}", self.failed_operations);
+        tracing::info!(
             "⚡ average processing time: {:.2}ms",
             self.average_processing_time_ms
         );
-        println!("💾 peak memory usage: {:.2}MB", self.peak_memory_usage_mb);
-        println!(
+        tracing::info!("💾 peak memory usage: {:.2}MB", self.peak_memory_usage_mb);
+        tracing::info!(
             "💾 current memory usage: {:.2}MB",
             self.current_memory_usage_mb
         );
 
-        println!("\n🚨 error breakdown:");
-        println!(
+        tracing::info!("\n🚨 error breakdown:");
+        tracing::info!(
             "   parallel processing errors: {}",
             self.error_breakdown.parallel_processing_errors
         );
-        println!(
+        tracing::info!(
             "   resource limit errors: {}",
             self.error_breakdown.resource_limit_errors
         );
-        println!(
+        tracing::info!(
             "   data quality errors: {}",
             self.error_breakdown.data_quality_errors
         );
-        println!(
+        tracing::info!(
             "   performance threshold errors: {}",
             self.error_breakdown.performance_threshold_errors
         );
-        println!(
+        tracing::info!(
             "   concurrency conflict errors: {}",
             self.error_breakdown.concurrency_conflict_errors
         );
-        println!(
+        tracing::info!(
             "   data corruption errors: {}",
             self.error_breakdown.data_corruption_errors
         );
-        println!(
+        tracing::info!(
             "   insufficient resources errors: {}",
             self.error_breakdown.insufficient_resources_errors
         );
-        println!(
+        tracing::info!(
             "   export interrupted errors: {}",
             self.error_breakdown.export_interrupted_errors
         );

@@ -112,7 +112,7 @@ impl HighSpeedBufferedWriter {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!(
+            tracing::info!(
                 "🔄 Starting high-speed buffered write for {} shards...",
                 shards.len()
             );
@@ -203,7 +203,7 @@ impl HighSpeedBufferedWriter {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!(
+            tracing::info!(
                 "🔄 Starting custom JSON data write ({} bytes)...",
                 json_data.len()
             );
@@ -268,8 +268,8 @@ impl HighSpeedBufferedWriter {
         self.stats.total_write_time_ms = total_time.as_millis() as u64;
 
         if self.config.enable_monitoring {
-            println!("✅ High-speed buffered write completed:");
-            println!("   Total time: {:?}", total_time);
+            tracing::info!("✅ High-speed buffered write completed:");
+            tracing::info!("   Total time: {:?}", total_time);
             self.print_write_stats();
         }
 
@@ -288,22 +288,22 @@ impl HighSpeedBufferedWriter {
 
     /// Print write statistics
     fn print_write_stats(&self) {
-        println!(
+        tracing::info!(
             "   Bytes written: {} ({:.2} MB)",
             self.stats.total_bytes_written,
             self.stats.total_bytes_written as f64 / 1024.0 / 1024.0
         );
-        println!("   Shards written: {}", self.stats.shards_written);
-        println!(
+        tracing::info!("   Shards written: {}", self.stats.shards_written);
+        tracing::info!(
             "   Write speed: {:.2} MB/s",
             self.stats.avg_write_speed_bps / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "   Buffer utilization: {:.1}%",
             self.stats.buffer_utilization * 100.0
         );
-        println!("   Flush count: {}", self.stats.flush_count);
-        println!(
+        tracing::info!("   Flush count: {}", self.stats.flush_count);
+        tracing::info!(
             "   Preallocation effective: {}",
             self.stats.preallocation_effective
         );

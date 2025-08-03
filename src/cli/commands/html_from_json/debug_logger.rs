@@ -286,7 +286,7 @@ impl DebugLogger {
                 LogLevel::Trace => "🔎",
             };
 
-            println!("{}{} {} {}", timestamp, level_icon, level, message);
+            tracing::info!("{}{} {} {}", timestamp, level_icon, level, message);
         }
     }
 
@@ -497,68 +497,68 @@ impl DebugLogger {
         let stats = self.get_stats();
         let total_elapsed = self.start_time.elapsed().as_millis() as u64;
 
-        println!("\n📊 Performance Report:");
-        println!("   Total time: {}ms", total_elapsed);
-        println!(
+        tracing::info!("\n📊 Performance Report:");
+        tracing::info!("   Total time: {}ms", total_elapsed);
+        tracing::info!(
             "   Discovery: {}ms ({:.1}%)",
             stats.discovery_time_ms,
             (stats.discovery_time_ms as f64 / total_elapsed as f64) * 100.0
         );
-        println!(
+        tracing::info!(
             "   Loading: {}ms ({:.1}%)",
             stats.loading_time_ms,
             (stats.loading_time_ms as f64 / total_elapsed as f64) * 100.0
         );
-        println!(
+        tracing::info!(
             "   Normalization: {}ms ({:.1}%)",
             stats.normalization_time_ms,
             (stats.normalization_time_ms as f64 / total_elapsed as f64) * 100.0
         );
-        println!(
+        tracing::info!(
             "   Integration: {}ms ({:.1}%)",
             stats.integration_time_ms,
             (stats.integration_time_ms as f64 / total_elapsed as f64) * 100.0
         );
-        println!(
+        tracing::info!(
             "   Template: {}ms ({:.1}%)",
             stats.template_time_ms,
             (stats.template_time_ms as f64 / total_elapsed as f64) * 100.0
         );
 
-        println!("\n📈 Processing Statistics:");
-        println!("   Files processed: {}", stats.files_processed);
-        println!(
+        tracing::info!("\n📈 Processing Statistics:");
+        tracing::info!("   Files processed: {}", stats.files_processed);
+        tracing::info!(
             "   Data size: {:.1} MB",
             stats.data_size_bytes as f64 / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "   Throughput: {:.1} MB/s",
             stats.get_throughput_mb_per_sec()
         );
-        println!(
+        tracing::info!(
             "   Efficiency score: {:.1}/100",
             stats.get_efficiency_score()
         );
 
         if stats.error_count > 0 || stats.warning_count > 0 {
-            println!("\n⚠️  Issues:");
+            tracing::info!("\n⚠️  Issues:");
             if stats.error_count > 0 {
-                println!("   Errors: {}", stats.error_count);
+                tracing::info!("   Errors: {}", stats.error_count);
             }
             if stats.warning_count > 0 {
-                println!("   Warnings: {}", stats.warning_count);
+                tracing::info!("   Warnings: {}", stats.warning_count);
             }
         }
 
         // Print detailed timing breakdown
         if let Ok(completed) = self.completed_timings.lock() {
             if !completed.is_empty() {
-                println!("\n🔍 Detailed Timing Breakdown:");
+                tracing::info!("\n🔍 Detailed Timing Breakdown:");
                 for timing in completed.iter() {
                     if let Some(duration) = timing.duration_ms {
-                        println!("   {}: {}ms", timing.operation, duration);
+                        tracing::info!("   {}: {}ms", timing.operation, duration);
                         for (key, value) in &timing.metadata {
-                            println!("     {}: {}", key, value);
+                            tracing::info!("     {}: {}", key, value);
                         }
                     }
                 }
@@ -574,8 +574,8 @@ impl DebugLogger {
 
         let stats = self.get_stats();
         if stats.peak_memory_bytes > 0 {
-            println!("\n💾 Memory Usage:");
-            println!(
+            tracing::info!("\n💾 Memory Usage:");
+            tracing::info!(
                 "   Peak memory: {:.1} MB",
                 stats.peak_memory_bytes as f64 / 1024.0 / 1024.0
             );
@@ -583,7 +583,7 @@ impl DebugLogger {
             if stats.data_size_bytes > 0 {
                 let memory_efficiency =
                     (stats.data_size_bytes as f64 / stats.peak_memory_bytes as f64) * 100.0;
-                println!("   Memory efficiency: {:.1}%", memory_efficiency);
+                tracing::info!("   Memory efficiency: {:.1}%", memory_efficiency);
             }
         }
     }

@@ -432,7 +432,7 @@ impl ConsoleProgressDisplay {
 
     /// Finish display (newline)
     pub fn finish(&mut self) {
-        println!();
+        tracing::info!("");
         self.last_line_length = 0;
     }
 }

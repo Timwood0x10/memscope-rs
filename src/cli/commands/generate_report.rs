@@ -18,10 +18,10 @@ pub fn run_generate_report(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .map(|s| s.as_str())
         .unwrap_or("html");
 
-    println!("📊 Generating report...");
-    println!("Input file: {}", input_file);
-    println!("Output file: {}", output_file);
-    println!("Format: {}", format);
+    tracing::info!("📊 Generating report...");
+    tracing::info!("Input file: {}", input_file);
+    tracing::info!("Output file: {}", output_file);
+    tracing::info!("Format: {}", format);
 
     match format {
         "html" => {
@@ -51,20 +51,20 @@ fn _original_main() {
 
             // Check if source file exists
             if !std::path::Path::new("interactive_template.html").exists() {
-                eprintln!("❌ Source template 'interactive_template.html' not found!");
-                eprintln!("Please make sure the interactive_template.html file exists in the current directory.");
+                tracing::error!("❌ Source template 'interactive_template.html' not found!");
+                tracing::error!("Please make sure the interactive_template.html file exists in the current directory.");
                 std::process::exit(1);
             }
 
             if let Err(e) = std::fs::copy("interactive_template.html", output) {
-                eprintln!("❌ Error creating template: {e}");
+                tracing::error!("❌ Error creating template: {e}");
                 std::process::exit(1);
             }
-            println!("✅ Created interactive template: {output}");
+            tracing::info!("✅ Created interactive template: {output}");
         }
         "generate" => {
             if args.len() < 4 {
-                eprintln!(
+                tracing::error!(
                     "❌ Usage: generate_report generate <json_file> <output_file> [template_file]"
                 );
                 std::process::exit(1);
@@ -76,7 +76,7 @@ fn _original_main() {
             let template_file = args.get(4).unwrap_or(&default_template);
 
             if let Err(e) = embed_json_to_html(json_file, template_file, output_file) {
-                eprintln!("❌ Error generating report: {e}");
+                tracing::error!("❌ Error generating report: {e}");
                 std::process::exit(1);
             }
         }
@@ -106,27 +106,27 @@ console.log('📊 Loaded embedded memory analysis data');
 
     std::fs::write(output_file, final_html)?;
 
-    println!("✅ Generated self-contained HTML report: {output_file}");
+    tracing::info!("✅ Generated self-contained HTML report: {output_file}");
     Ok(())
 }
 
 fn _print_usage() {
-    println!("🔍 Memory Analysis Report Generator");
-    println!();
-    println!("Usage:");
-    println!("  generate_report template [output_file]");
-    println!("    Create a standalone HTML template");
-    println!();
-    println!("  generate_report generate <json_file> <output_file> [template_file]");
-    println!("    Generate a self-contained HTML report from JSON data");
-    println!();
-    println!("Examples:");
-    println!("  generate_report template report_template.html");
-    println!("  generate_report generate data.json report.html report_template.html");
-    println!();
-    println!("The generated report.html is completely self-contained and can be:");
-    println!("  ✅ Opened directly in any browser (no server needed)");
-    println!("  ✅ Shared via email or file transfer");
-    println!("  ✅ Archived for historical analysis");
-    println!("  ✅ Viewed offline without any dependencies");
+    tracing::info!("🔍 Memory Analysis Report Generator");
+    tracing::info!("");
+    tracing::info!("Usage:");
+    tracing::info!("  generate_report template [output_file]");
+    tracing::info!("    Create a standalone HTML template");
+    tracing::info!("");
+    tracing::info!("  generate_report generate <json_file> <output_file> [template_file]");
+    tracing::info!("    Generate a self-contained HTML report from JSON data");
+    tracing::info!("");
+    tracing::info!("Examples:");
+    tracing::info!("  generate_report template report_template.html");
+    tracing::info!("  generate_report generate data.json report.html report_template.html");
+    tracing::info!("");
+    tracing::info!("The generated report.html is completely self-contained and can be:");
+    tracing::info!("  ✅ Opened directly in any browser (no server needed)");
+    tracing::info!("  ✅ Shared via email or file transfer");
+    tracing::info!("  ✅ Archived for historical analysis");
+    tracing::info!("  ✅ Viewed offline without any dependencies");
 }

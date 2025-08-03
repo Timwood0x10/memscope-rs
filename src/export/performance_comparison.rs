@@ -728,84 +728,84 @@ impl PerformanceComparator {
 
     /// Print comparison report
     pub fn print_comparison_report(&self, report: &PerformanceComparisonReport) {
-        println!("\n📊 Performance comparison report");
-        println!("================");
-        println!("Generated at: {:?}", report.generated_at);
+        tracing::info!("\n📊 Performance comparison report");
+        tracing::info!("================");
+        tracing::info!("Generated at: {:?}", report.generated_at);
 
-        println!("\n🚀 Performance improvement summary:");
-        println!(
+        tracing::info!("\n🚀 Performance improvement summary:");
+        tracing::info!(
             "  Average performance improvement: {:.2}x",
             report.improvement_summary.average_improvement
         );
-        println!(
+        tracing::info!(
             "  Best performance improvement: {:.2}x",
             report.improvement_summary.best_improvement
         );
-        println!(
+        tracing::info!(
             "  Worst performance improvement: {:.2}x",
             report.improvement_summary.worst_improvement
         );
 
-        println!("\n📈 Key metrics improvement:");
+        tracing::info!("\n📈 Key metrics improvement:");
         let metrics = &report.improvement_summary.key_metrics;
-        println!(
+        tracing::info!(
             "  Export time improvement: {:.1}%",
             metrics.export_time_improvement_percent
         );
-        println!(
+        tracing::info!(
             "  Memory usage improvement: {:.1}%",
             metrics.memory_usage_improvement_percent
         );
-        println!(
+        tracing::info!(
             "  Throughput improvement: {:.1}%",
             metrics.throughput_improvement_percent
         );
-        println!(
+        tracing::info!(
             "  CPU utilization improvement: {:.1}%",
             metrics.cpu_utilization_improvement_percent
         );
 
-        println!("\n📊 Stability analysis:");
+        tracing::info!("\n📊 Stability analysis:");
         let stability = &report.comparison_analysis.stability_analysis;
-        println!(
+        tracing::info!(
             "  Stability improvement: {:.1}%",
             stability.stability_improvement * 100.0
         );
-        println!(
+        tracing::info!(
             "  Consistency score: {:.1}/100",
             stability.consistency_score
         );
 
-        println!("\n📈 Scalability analysis:");
+        tracing::info!("\n📈 Scalability analysis:");
         let scalability = &report.comparison_analysis.scalability_analysis;
-        println!("  Data scalability: {:.2}", scalability.data_scalability);
-        println!(
+        tracing::info!("  Data scalability: {:.2}", scalability.data_scalability);
+        tracing::info!(
             "  Scalability score: {:.1}/100",
             scalability.scalability_score
         );
 
-        println!("\n📋 Detailed comparison:");
+        tracing::info!("\n📋 Detailed comparison:");
         for comparison in &report.detailed_comparisons {
-            println!("  Dataset size: {}", comparison.dataset_size);
-            println!(
+            tracing::info!("  Dataset size: {}", comparison.dataset_size);
+            tracing::info!(
                 "    Baseline performance: {:.1}ms, {:.2}MB, {:.0} allocs/sec",
                 comparison.baseline_performance.avg_export_time_ms,
                 comparison.baseline_performance.avg_memory_usage_mb,
                 comparison.baseline_performance.avg_throughput
             );
-            println!(
+            tracing::info!(
                 "    Optimized performance: {:.1}ms, {:.2}MB, {:.0} allocs/sec",
                 comparison.optimized_performance.avg_export_time_ms,
                 comparison.optimized_performance.avg_memory_usage_mb,
                 comparison.optimized_performance.avg_throughput
             );
-            println!(
+            tracing::info!(
                 "    Improvement factor: {:.2}x time, {:.2}x memory, {:.2}x throughput",
                 comparison.improvements.time_improvement_factor,
                 comparison.improvements.memory_improvement_factor,
                 comparison.improvements.throughput_improvement_factor
             );
-            println!(
+            tracing::info!(
                 "    Statistical significance: {} (p={:.3})",
                 if comparison.statistical_significance.is_significant {
                     "significant"
@@ -814,7 +814,7 @@ impl PerformanceComparator {
                 },
                 comparison.statistical_significance.p_value
             );
-            println!();
+            tracing::info!("");
         }
     }
 }

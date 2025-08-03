@@ -90,7 +90,7 @@ impl ParallelShardProcessor {
                 .num_threads(max_threads)
                 .build_global()
                 .unwrap_or_else(|e| {
-                    eprintln!(
+                    tracing::warn!(
                         "⚠️ Failed to set thread pool size to {}: {}",
                         max_threads, e
                     );
@@ -111,7 +111,7 @@ impl ParallelShardProcessor {
         let start_time = Instant::now();
         let allocations = &data.allocations;
 
-        println!(
+        tracing::info!(
             "🔄 Starting parallel shard processing for {} allocations...",
             allocations.len()
         );
@@ -124,7 +124,7 @@ impl ParallelShardProcessor {
             1
         };
 
-        println!(
+        tracing::info!(
             "   Parallel mode: {}, threads: {}, shard size: {}",
             if use_parallel { "enabled" } else { "disabled" },
             actual_threads,
@@ -137,7 +137,7 @@ impl ParallelShardProcessor {
         // Split data into shards
         let shards: Vec<&[AllocationInfo]> = allocations.chunks(self.config.shard_size).collect();
 
-        println!("   Shard count: {}", shards.len());
+        tracing::info!("   Shard count: {}", shards.len());
 
         // Parallel or serial processing of shards
         let processed_shards: TrackingResult<Vec<ProcessedShard>> = if use_parallel {
@@ -199,7 +199,7 @@ impl ParallelShardProcessor {
         // If monitoring is enabled, print progress
         if self.config.enable_monitoring && shard_index % 10 == 0 {
             let _processed = self.processed_count.load(Ordering::Relaxed);
-            println!(
+            tracing::info!(
                 "   Shard {} completed: {} allocations, {} bytes, {:?}",
                 shard_index,
                 shard.len(),
@@ -273,31 +273,31 @@ impl ParallelShardProcessor {
 
     /// Print performance statistics
     fn print_performance_stats(&self, stats: &ParallelProcessingStats) {
-        println!("✅ Parallel shard processing completed:");
-        println!("   Total allocations: {}", stats.total_allocations);
-        println!("   Shard count: {}", stats.shard_count);
-        println!("   Threads used: {}", stats.threads_used);
-        println!("   Total time: {}ms", stats.total_processing_time_ms);
-        println!(
+        tracing::info!("✅ Parallel shard processing completed:");
+        tracing::info!("   Total allocations: {}", stats.total_allocations);
+        tracing::info!("   Shard count: {}", stats.shard_count);
+        tracing::info!("   Threads used: {}", stats.threads_used);
+        tracing::info!("   Total time: {}ms", stats.total_processing_time_ms);
+        tracing::info!(
             "   Average shard time: {:.2}ms",
             stats.avg_shard_processing_time_ms
         );
-        println!(
+        tracing::info!(
             "   Throughput: {:.0} allocations/sec",
             stats.throughput_allocations_per_sec
         );
-        println!(
+        tracing::info!(
             "   Output size: {:.2} MB",
             stats.total_output_size_bytes as f64 / 1024.0 / 1024.0
         );
 
         if stats.used_parallel_processing {
-            println!(
+            tracing::info!(
                 "   Parallel efficiency: {:.1}%",
                 stats.parallel_efficiency * 100.0
             );
             let speedup = stats.parallel_efficiency * stats.threads_used as f64;
-            println!("   Actual speedup: {:.2}x", speedup);
+            tracing::info!("   Actual speedup: {:.2}x", speedup);
         }
     }
 

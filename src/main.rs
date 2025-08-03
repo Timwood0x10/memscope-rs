@@ -134,30 +134,30 @@ fn main() {
     match matches.subcommand() {
         Some(("analyze", sub_matches)) => {
             if let Err(e) = run_analyze_command(sub_matches) {
-                eprintln!("Error running analyze command: {}", e);
+                tracing::error!("Error running analyze command: {}", e);
                 process::exit(1);
             }
         }
         Some(("report", sub_matches)) => {
             if let Err(e) = run_report_command(sub_matches) {
-                eprintln!("Error running report command: {}", e);
+                tracing::error!("Error running report command: {}", e);
                 process::exit(1);
             }
         }
         Some(("html-from-json", sub_matches)) => {
             if let Err(e) = run_html_from_json_command(sub_matches) {
-                eprintln!("Error running html-from-json command: {}", e);
+                tracing::error!("Error running html-from-json command: {}", e);
                 process::exit(1);
             }
         }
         Some(("test", sub_matches)) => {
             if let Err(e) = run_test_command(sub_matches) {
-                eprintln!("Error running test command: {}", e);
+                tracing::error!("Error running test command: {}", e);
                 process::exit(1);
             }
         }
         _ => {
-            eprintln!("No subcommand provided. Use --help for usage information.");
+            tracing::error!("No subcommand provided. Use --help for usage information.");
             process::exit(1);
         }
     }

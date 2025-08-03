@@ -312,7 +312,7 @@ impl DataNormalizer {
         &self,
         multi_source: &HashMap<String, Value>,
     ) -> Result<UnifiedMemoryData, NormalizationError> {
-        println!("🔄 Starting data normalization...");
+        tracing::info!("🔄 Starting data normalization...");
 
         // Extract and normalize each data source
         let stats = self.normalize_memory_stats(multi_source)?;
@@ -341,7 +341,7 @@ impl DataNormalizer {
             self.validate_unified_data(&unified)?;
         }
 
-        println!("✅ Data normalization completed successfully");
+        tracing::info!("✅ Data normalization completed successfully");
         Ok(unified)
     }
 
@@ -450,7 +450,7 @@ impl DataNormalizer {
             }
         }
 
-        println!("📊 Normalized {} allocations", normalized_allocations.len());
+        tracing::info!("📊 Normalized {} allocations", normalized_allocations.len());
         Ok(normalized_allocations)
     }
 
@@ -715,13 +715,13 @@ impl DataNormalizer {
 
         if actual_active_count != data.stats.active_allocations && data.stats.active_allocations > 0
         {
-            println!(
+            tracing::info!(
                 "⚠️  Warning: Active allocation count mismatch (stats: {}, actual: {})",
                 data.stats.active_allocations, actual_active_count
             );
         }
 
-        println!("✅ Data validation passed");
+        tracing::info!("✅ Data validation passed");
         Ok(())
     }
 

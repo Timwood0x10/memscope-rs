@@ -244,7 +244,7 @@ impl LargeFileOptimizer {
             ));
         }
 
-        println!(
+        tracing::info!(
             "🔧 Processing large file: {} ({:.1} MB)",
             path.display(),
             file_size as f64 / 1024.0 / 1024.0
@@ -254,10 +254,10 @@ impl LargeFileOptimizer {
         let use_streaming = file_size > self.config.max_memory_bytes / 2;
 
         let (json_value, objects_processed) = if use_streaming {
-            println!("📡 Using streaming mode for large file processing");
+            tracing::info!("📡 Using streaming mode for large file processing");
             self.process_streaming(path, file_type)?
         } else {
-            println!("💾 Using memory-optimized mode for file processing");
+            tracing::info!("💾 Using memory-optimized mode for file processing");
             self.process_memory_optimized(path, file_type)?
         };
 
@@ -277,7 +277,7 @@ impl LargeFileOptimizer {
             objects_processed,
         };
 
-        println!(
+        tracing::info!(
             "✅ File processed: {:.1} MB/s, {} objects, {}ms",
             throughput, objects_processed, processing_time
         );

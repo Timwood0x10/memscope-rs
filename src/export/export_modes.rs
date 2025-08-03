@@ -36,7 +36,7 @@ pub fn export_fast<P: AsRef<Path>>(
     let path = output_path.as_ref().to_path_buf();
 
     Box::pin(async move {
-        println!("🚀 Starting fast export mode (no validation)");
+        tracing::info!("🚀 Starting fast export mode (no validation)");
 
         // create fast mode coordinator
         let mut coordinator = FastExportCoordinator::new_fast_mode();
@@ -44,7 +44,7 @@ pub fn export_fast<P: AsRef<Path>>(
         // pure export, skip all validation
         let stats = coordinator.export_without_validation(&path).await?;
 
-        println!(
+        tracing::info!(
             "✅ Fast export completed: {} allocations, {:.2} MB",
             stats.parallel_processing.total_allocations,
             stats.write_performance.total_bytes_written as f64 / 1024.0 / 1024.0
@@ -61,25 +61,25 @@ pub fn export_with_validation<P: AsRef<Path>>(
     let path = output_path.as_ref().to_path_buf();
 
     Box::pin(async move {
-        println!("🚀 Starting export with validation mode (export first, then validate)");
+        tracing::info!("🚀 Starting export with validation mode (export first, then validate)");
 
         // Step 1: Complete export
-        println!("📝 Step 1: Executing export...");
+        tracing::info!("📝 Step 1: Executing export...");
         let mut coordinator = FastExportCoordinator::new_normal_mode();
         let stats = coordinator.export_without_validation(&path).await?;
 
-        println!(
+        tracing::info!(
             "✅ Export completed: {} allocations, {:.2} MB",
             stats.parallel_processing.total_allocations,
             stats.write_performance.total_bytes_written as f64 / 1024.0 / 1024.0
         );
 
         // Step 2: Validate after export completion
-        println!("🔍 Step 2: Executing validation...");
+        tracing::info!("🔍 Step 2: Executing validation...");
         let mut validator = QualityValidator::new_default();
         let validation_result = validator.validate_file_async(&path).await?;
 
-        println!(
+        tracing::info!(
             "✅ Validation completed: {}",
             if validation_result.is_valid {
                 "PASSED"

@@ -221,7 +221,7 @@ impl TemplateGenerator {
     ) -> Result<(String, TemplateStats), TemplateError> {
         let start_time = Instant::now();
 
-        println!("🎨 Starting optimized HTML template generation...");
+        tracing::info!("🎨 Starting optimized HTML template generation...");
 
         // Initialize cache if needed
         self.init_cache()?;
@@ -260,15 +260,15 @@ impl TemplateGenerator {
             compression_ratio: None, // TODO: Implement compression
         };
 
-        println!("✅ Template generation completed in {}ms", total_time);
-        println!("   CSS processing: {}ms", css_time);
-        println!("   JS processing: {}ms", js_time);
-        println!("   Data serialization: {}ms", serialization_time);
-        println!(
+        tracing::info!("✅ Template generation completed in {}ms", total_time);
+        tracing::info!("   CSS processing: {}ms", css_time);
+        tracing::info!("   JS processing: {}ms", js_time);
+        tracing::info!("   Data serialization: {}ms", serialization_time);
+        tracing::info!(
             "   Template size: {:.1} KB",
             template_content.len() as f64 / 1024.0
         );
-        println!("   Cache hit rate: {:.1}%", cache_hit_rate);
+        tracing::info!("   Cache hit rate: {:.1}%", cache_hit_rate);
 
         Ok((template_content, stats))
     }

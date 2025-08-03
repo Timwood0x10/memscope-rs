@@ -531,13 +531,13 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 .or_insert(Vec::new());
             // Debug: Check if we have the enhanced data
             if alloc.memory_layout.is_some() {
-                println!(
+                tracing::debug!(
                     "DEBUG: AllocationInfo has memory_layout for {}",
                     alloc.var_name.as_deref().unwrap_or("unknown")
                 );
             }
             if alloc.generic_info.is_some() {
-                println!(
+                tracing::debug!(
                     "DEBUG: AllocationInfo has generic_info for {}",
                     alloc.var_name.as_deref().unwrap_or("unknown")
                 );
@@ -579,14 +579,14 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 if let Some(ref layout) = alloc.memory_layout {
                     match serde_json::to_value(layout) {
                         Ok(value) => {
-                            println!(
+                            tracing::debug!(
                                 "DEBUG: Successfully serialized memory_layout for {}",
                                 alloc.var_name.as_deref().unwrap_or("unknown")
                             );
                             value
                         }
                         Err(e) => {
-                            println!(
+                            tracing::debug!(
                                 "DEBUG: Failed to serialize memory_layout for {}: {}",
                                 alloc.var_name.as_deref().unwrap_or("unknown"),
                                 e
@@ -604,14 +604,14 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 if let Some(ref info) = alloc.generic_info {
                     match serde_json::to_value(info) {
                         Ok(value) => {
-                            println!(
+                            tracing::debug!(
                                 "DEBUG: Successfully serialized generic_info for {}",
                                 alloc.var_name.as_deref().unwrap_or("unknown")
                             );
                             value
                         }
                         Err(e) => {
-                            println!(
+                            tracing::debug!(
                                 "DEBUG: Failed to serialize generic_info for {}: {}",
                                 alloc.var_name.as_deref().unwrap_or("unknown"),
                                 e

@@ -9,9 +9,9 @@ use std::process::Command;
 use std::time::Instant;
 
 fn main() {
-    println!("🚀 纯性能基准测试（无验证）");
-    println!("============================");
-    println!();
+    tracing::info!("🚀 纯性能基准测试（无验证）");
+    tracing::info!("============================");
+    tracing::info!("");
 
     // 初始化内存跟踪
     init();
@@ -19,12 +19,12 @@ fn main() {
     // 创建输出目录
     let output_dir = PathBuf::from("performance_only_results");
     if let Err(e) = fs::create_dir_all(&output_dir) {
-        eprintln!("❌ 创建输出目录失败: {}", e);
+        tracing::error!("❌ 创建输出目录失败: {}", e);
         return;
     }
 
     // 运行 complex_lifecycle_showcase 生成测试数据
-    println!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
+    tracing::info!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
     let output = Command::new("cargo")
         .args(&[
             "run",
@@ -38,13 +38,13 @@ fn main() {
         Ok(output) => {
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                eprintln!("❌ 运行 complex_lifecycle_showcase 失败: {}", stderr);
+                tracing::error!("❌ 运行 complex_lifecycle_showcase 失败: {}", stderr);
                 return;
             }
-            println!("✅ 测试数据生成完成");
+            tracing::info!("✅ 测试数据生成完成");
         }
         Err(e) => {
-            eprintln!("❌ 执行命令失败: {}", e);
+            tracing::error!("❌ 执行命令失败: {}", e);
             return;
         }
     }
@@ -57,18 +57,18 @@ fn main() {
 }
 
 fn run_performance_only_tests(output_dir: &PathBuf) {
-    println!();
-    println!("📊 开始纯性能测试...");
-    println!("====================");
+    tracing::info!("");
+    tracing::info!("📊 开始纯性能测试...");
+    tracing::info!("====================");
 
     let test_runs = 3;
     let mut traditional_times = Vec::new();
     let mut fast_times = Vec::new();
 
     // 运行传统导出测试（禁用验证）
-    println!("🐌 测试传统导出系统（无验证）...");
+    tracing::info!("🐌 测试传统导出系统（无验证）...");
     for run in 1..=test_runs {
-        println!("  运行 {}/{}: 传统导出", run, test_runs);
+        tracing::info!("  运行 {}/{}: 传统导出", run, test_runs);
 
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("traditional_export_run_{}.json", run));
@@ -94,10 +94,10 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         match result {
             Ok(_) => {
                 traditional_times.push(export_time.as_millis() as u64);
-                println!("    ⏱️  时间: {}ms", export_time.as_millis());
+                tracing::info!("    ⏱️  时间: {}ms", export_time.as_millis());
             }
             Err(e) => {
-                eprintln!("    ❌ 导出失败: {}", e);
+                tracing::error!("    ❌ 导出失败: {}", e);
             }
         }
 
@@ -106,9 +106,9 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
     }
 
     // 运行快速导出测试（禁用验证）
-    println!("⚡ 测试快速导出系统（无验证）...");
+    tracing::info!("⚡ 测试快速导出系统（无验证）...");
     for run in 1..=test_runs {
-        println!("  运行 {}/{}: 快速导出", run, test_runs);
+        tracing::info!("  运行 {}/{}: 快速导出", run, test_runs);
 
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("fast_export_run_{}.json", run));
@@ -141,10 +141,10 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         match result {
             Ok(_) => {
                 fast_times.push(export_time.as_millis() as u64);
-                println!("    ⚡ 时间: {}ms", export_time.as_millis());
+                tracing::info!("    ⚡ 时间: {}ms", export_time.as_millis());
             }
             Err(e) => {
-                eprintln!("    ❌ 导出失败: {}", e);
+                tracing::error!("    ❌ 导出失败: {}", e);
             }
         }
 
@@ -161,12 +161,12 @@ fn display_performance_results(
     fast_times: &[u64],
     output_dir: &PathBuf,
 ) {
-    println!();
-    println!("📈 纯性能测试结果");
-    println!("==================");
+    tracing::info!("");
+    tracing::info!("📈 纯性能测试结果");
+    tracing::info!("==================");
 
     if traditional_times.is_empty() || fast_times.is_empty() {
-        println!("❌ 测试数据不足，无法生成报告");
+        tracing::info!("❌ 测试数据不足，无法生成报告");
         return;
     }
 
@@ -183,56 +183,56 @@ fn display_performance_results(
     };
 
     // 显示结果
-    println!("传统导出系统（无验证）:");
-    println!("  • 平均时间: {:.1}ms", avg_traditional);
-    println!(
+    tracing::info!("传统导出系统（无验证）:");
+    tracing::info!("  • 平均时间: {:.1}ms", avg_traditional);
+    tracing::info!(
         "  • 最快时间: {}ms",
         traditional_times.iter().min().unwrap_or(&0)
     );
-    println!(
+    tracing::info!(
         "  • 最慢时间: {}ms",
         traditional_times.iter().max().unwrap_or(&0)
     );
-    println!(
+    tracing::info!(
         "  • 时间范围: {}ms",
         traditional_times.iter().max().unwrap_or(&0) - traditional_times.iter().min().unwrap_or(&0)
     );
 
-    println!();
-    println!("快速导出系统（无验证）:");
-    println!("  • 平均时间: {:.1}ms", avg_fast);
-    println!("  • 最快时间: {}ms", fast_times.iter().min().unwrap_or(&0));
-    println!("  • 最慢时间: {}ms", fast_times.iter().max().unwrap_or(&0));
-    println!(
+    tracing::info!("");
+    tracing::info!("快速导出系统（无验证）:");
+    tracing::info!("  • 平均时间: {:.1}ms", avg_fast);
+    tracing::info!("  • 最快时间: {}ms", fast_times.iter().min().unwrap_or(&0));
+    tracing::info!("  • 最慢时间: {}ms", fast_times.iter().max().unwrap_or(&0));
+    tracing::info!(
         "  • 时间范围: {}ms",
         fast_times.iter().max().unwrap_or(&0) - fast_times.iter().min().unwrap_or(&0)
     );
 
-    println!();
-    println!("📊 纯性能对比:");
+    tracing::info!("");
+    tracing::info!("📊 纯性能对比:");
     if improvement_percent > 0.0 {
-        println!("  • 时间改善: {:.1}%", improvement_percent);
-        println!("  • 加速比: {:.2}x", avg_traditional / avg_fast);
-        println!("  • 时间节省: {:.1}ms", avg_traditional - avg_fast);
+        tracing::info!("  • 时间改善: {:.1}%", improvement_percent);
+        tracing::info!("  • 加速比: {:.2}x", avg_traditional / avg_fast);
+        tracing::info!("  • 时间节省: {:.1}ms", avg_traditional - avg_fast);
     } else {
-        println!("  • 时间变化: {:.1}% (变慢)", improvement_percent.abs());
-        println!("  • 减速比: {:.2}x", avg_fast / avg_traditional);
-        println!("  • 时间增加: {:.1}ms", avg_fast - avg_traditional);
+        tracing::info!("  • 时间变化: {:.1}% (变慢)", improvement_percent.abs());
+        tracing::info!("  • 减速比: {:.2}x", avg_fast / avg_traditional);
+        tracing::info!("  • 时间增加: {:.1}ms", avg_fast - avg_traditional);
     }
 
     // 评估结果
-    println!();
-    println!("🎯 纯性能评估:");
+    tracing::info!("");
+    tracing::info!("🎯 纯性能评估:");
     if improvement_percent >= 60.0 {
-        println!("✅ 优秀！达到了 60-80% 导出时间减少的目标");
+        tracing::info!("✅ 优秀！达到了 60-80% 导出时间减少的目标");
     } else if improvement_percent >= 40.0 {
-        println!("✅ 良好！接近 60-80% 导出时间减少的目标");
+        tracing::info!("✅ 良好！接近 60-80% 导出时间减少的目标");
     } else if improvement_percent >= 20.0 {
-        println!("⚠️  一般，有一定改善但未达到预期目标");
+        tracing::info!("⚠️  一般，有一定改善但未达到预期目标");
     } else if improvement_percent > 0.0 {
-        println!("⚠️  轻微改善，需要进一步优化");
+        tracing::info!("⚠️  轻微改善，需要进一步优化");
     } else {
-        println!("❌ 核心性能没有提升，需要重新审视算法");
+        tracing::info!("❌ 核心性能没有提升，需要重新审视算法");
     }
 
     // 生成纯性能报告
@@ -339,9 +339,9 @@ fn generate_performance_report(
     );
 
     if let Err(e) = fs::write(&report_file, report) {
-        eprintln!("⚠️  生成报告失败: {}", e);
+        tracing::error!("⚠️  生成报告失败: {}", e);
     } else {
-        println!();
-        println!("📄 纯性能报告已生成: {}", report_file.display());
+        tracing::info!("");
+        tracing::info!("📄 纯性能报告已生成: {}", report_file.display());
     }
 }

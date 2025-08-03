@@ -101,11 +101,11 @@ impl DataLocalizer {
     ) -> TrackingResult<(LocalizedExportData, DataGatheringStats)> {
         let total_start = Instant::now();
 
-        println!("🔄 start data localization to reduce global state access...");
+        tracing::info!("🔄 start data localization to reduce global state access...");
 
         // check if cache is still valid
         if self.is_cache_valid() {
-            println!("✅ using cached data, skipping repeated fetching");
+            tracing::info!("✅ using cached data, skipping repeated fetching");
             return self.get_cached_data();
         }
 
@@ -124,7 +124,7 @@ impl DataLocalizer {
         let ffi_start = Instant::now();
         let ffi_tracker = get_global_unsafe_ffi_tracker();
         let enhanced_allocations = ffi_tracker.get_enhanced_allocations().unwrap_or_else(|e| {
-            eprintln!(
+            tracing::error!(
                 "s⚠️ get enhanced allocations failed: {}, using empty data",
                 e
             );
@@ -169,21 +169,21 @@ impl DataLocalizer {
         };
 
         // print performance stats
-        println!("✅ data localization completed:");
-        println!("   total time: {:?}", total_time);
-        println!(
+        tracing::info!("✅ data localization completed:");
+        tracing::info!("   total time: {:?}", total_time);
+        tracing::info!(
             "   basic data: {:?} ({} allocations)",
             basic_time, gathering_stats.allocation_count
         );
-        println!(
+        tracing::info!(
             "   ffi data: {:?} ({} enhanced allocations)",
             ffi_time, gathering_stats.ffi_allocation_count
         );
-        println!(
+        tracing::info!(
             "   scope data: {:?} ({} scopes)",
             scope_time, gathering_stats.scope_count
         );
-        println!(
+        tracing::info!(
             "   data localization avoided {} global state accesses",
             self.estimate_avoided_global_accesses(&gathering_stats)
         );

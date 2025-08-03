@@ -101,7 +101,7 @@ impl VariableRegistry {
             return Self::enhance_allocations_sequential(allocations);
         }
 
-        println!(
+        tracing::info!(
             "🚀 Processing {} allocations with parallel optimization...",
             allocations.len()
         );
@@ -116,7 +116,7 @@ impl VariableRegistry {
             .collect();
 
         let duration = start_time.elapsed();
-        println!(
+        tracing::info!(
             "✅ Parallel processing completed in {:?} ({:.2} allocs/ms)",
             duration,
             allocations.len() as f64 / duration.as_millis() as f64
@@ -739,7 +739,7 @@ impl VariableRegistry {
         tracker: &crate::core::tracker::MemoryTracker,
     ) -> TrackingResult<serde_json::Value> {
         let start_time = std::time::Instant::now();
-        println!("🔄 Starting comprehensive export generation with allocation classification...");
+        tracing::info!("🔄 Starting comprehensive export generation with allocation classification...");
 
         // Get tracker data in parallel where possible
         let (active_allocations, other_data) = rayon::join(
@@ -762,7 +762,7 @@ impl VariableRegistry {
             (allocation_history, memory_by_type, stats, registry)
         };
 
-        println!(
+        tracing::info!(
             "📊 Data loaded: {} active, {} history, {} registry entries",
             active_allocations.len(),
             allocation_history.len(),
@@ -859,7 +859,7 @@ impl VariableRegistry {
         });
 
         let total_time = start_time.elapsed();
-        println!(
+        tracing::info!(
             "✅ Export completed in {:?} - User: {}, System: {}",
             total_time,
             user_active.len() + user_history.len(),

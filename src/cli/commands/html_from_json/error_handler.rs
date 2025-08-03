@@ -463,7 +463,7 @@ impl HtmlErrorHandler {
                 self.stats.retry_attempts += 1;
 
                 if let Ok(recovered_data) = self.attempt_file_recovery(&file_path, file_type) {
-                    println!(
+                    tracing::info!(
                         "✅ Recovered file {} after {} attempts",
                         file_path.display(),
                         attempt
@@ -480,7 +480,7 @@ impl HtmlErrorHandler {
             // Try fallback if available
             if self.recovery_context.use_fallbacks {
                 if let Ok(fallback_data) = self.get_fallback_data(file_type) {
-                    println!("⚠️  Using fallback data for {}", file_type);
+                    tracing::info!("⚠️  Using fallback data for {}", file_type);
                     self.stats.fallback_errors += 1;
                     self.end_recovery_timing();
                     return Ok(Some(fallback_data));
@@ -575,13 +575,13 @@ impl HtmlErrorHandler {
             return;
         }
 
-        println!("\n📊 Error Recovery Summary:");
-        println!("   Total errors: {}", self.stats.total_errors);
-        println!("   Recovered: {}", self.stats.recovered_errors);
-        println!("   Used fallbacks: {}", self.stats.fallback_errors);
-        println!("   Unrecoverable: {}", self.stats.unrecoverable_errors);
-        println!("   Retry attempts: {}", self.stats.retry_attempts);
-        println!("   Recovery time: {}ms", self.stats.recovery_time_ms);
+        tracing::info!("\n📊 Error Recovery Summary:");
+        tracing::info!("   Total errors: {}", self.stats.total_errors);
+        tracing::info!("   Recovered: {}", self.stats.recovered_errors);
+        tracing::info!("   Used fallbacks: {}", self.stats.fallback_errors);
+        tracing::info!("   Unrecoverable: {}", self.stats.unrecoverable_errors);
+        tracing::info!("   Retry attempts: {}", self.stats.retry_attempts);
+        tracing::info!("   Recovery time: {}ms", self.stats.recovery_time_ms);
 
         let success_rate = if self.stats.total_errors > 0 {
             ((self.stats.recovered_errors + self.stats.fallback_errors) as f64
@@ -590,7 +590,7 @@ impl HtmlErrorHandler {
         } else {
             100.0
         };
-        println!("   Success rate: {:.1}%", success_rate);
+        tracing::info!("   Success rate: {:.1}%", success_rate);
     }
 
     // Private helper methods

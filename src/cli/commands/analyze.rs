@@ -24,10 +24,10 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .map(|s| s.as_str())
         .unwrap_or("memory_analysis");
 
-    println!("🔍 Starting memory analysis...");
-    println!("Command: {:?}", command_args);
-    println!("Export format: {}", export_format);
-    println!("Output path: {}", output_path);
+    tracing::info!("🔍 Starting memory analysis...");
+    tracing::info!("Command: {:?}", command_args);
+    tracing::info!("Export format: {}", export_format);
+    tracing::info!("Output path: {}", output_path);
 
     // Initialize memory tracking
     crate::init();
@@ -125,12 +125,12 @@ fn _original_main() {
         )
         .get_matches();
 
-    println!("🚀 MemScope - Memory Analysis Tool");
+    tracing::info!("🚀 MemScope - Memory Analysis Tool");
 
     match matches.subcommand() {
         Some(("run", _sub_matches)) => {
             // Legacy run command - functionality moved to main analyze command
-            println!("Run command is deprecated. Use 'analyze' instead.");
+            tracing::info!("Run command is deprecated. Use 'analyze' instead.");
         }
         Some(("analyze", sub_matches)) => {
             handle_analyze_command(sub_matches);
@@ -149,7 +149,7 @@ fn handle_run_command(matches: &clap::ArgMatches) {
     let auto_track = matches.get_flag("auto-track");
     let wait_completion = matches.get_flag("wait-completion");
 
-    println!(
+    tracing::info!(
         "📋 Command: {}",
         command_args
             .iter()
@@ -157,15 +157,15 @@ fn handle_run_command(matches: &clap::ArgMatches) {
             .collect::<Vec<_>>()
             .join(" ")
     );
-    println!("📊 Export format: {export_format}");
-    println!("📁 Output path: {output_path}");
+    tracing::info!("📊 Export format: {export_format}");
+    tracing::info!("📁 Output path: {output_path}");
 
     if auto_track {
-        println!("🔍 Auto-tracking enabled");
+        tracing::info!("🔍 Auto-tracking enabled");
     }
 
     if wait_completion {
-        println!("⏳ Wait-for-completion enabled");
+        tracing::info!("⏳ Wait-for-completion enabled");
     }
 
     // Set environment variables for the target process
@@ -189,14 +189,14 @@ fn handle_run_command(matches: &clap::ArgMatches) {
 
     match result {
         Ok(()) => {
-            println!("✅ Program execution completed successfully");
-            println!("📊 Memory analysis exported to: {output_path}");
+            tracing::info!("✅ Program execution completed successfully");
+            tracing::info!("📊 Memory analysis exported to: {output_path}");
 
             // Post-process the exported data
             // Post-processing would happen here if needed
         }
         Err(e) => {
-            eprintln!("❌ Program execution failed: {e}");
+            tracing::error!("❌ Program execution failed: {e}");
             std::process::exit(1);
         }
     }
@@ -207,21 +207,21 @@ fn handle_analyze_command(matches: &clap::ArgMatches) {
     let output_path = matches.get_one::<String>("output").unwrap();
     let format = matches.get_one::<String>("format").unwrap();
 
-    println!("🔍 Analyzing existing memory snapshot");
-    println!("📄 Input: {}", input_path);
-    println!("📄 Output: {}", output_path);
-    println!("📊 Format: {}", format);
+    tracing::info!("🔍 Analyzing existing memory snapshot");
+    tracing::info!("📄 Input: {}", input_path);
+    tracing::info!("📄 Output: {}", output_path);
+    tracing::info!("📊 Format: {}", format);
 
     // Legacy snapshot analysis - not implemented
     let result: Result<(), Box<dyn std::error::Error>> = Ok(());
 
     match result {
         Ok(()) => {
-            println!("✅ Analysis completed successfully");
-            println!("📊 Report generated: {}", output_path);
+            tracing::info!("✅ Analysis completed successfully");
+            tracing::info!("📊 Report generated: {}", output_path);
         }
         Err(e) => {
-            eprintln!("❌ Analysis failed: {}", e);
+            tracing::error!("❌ Analysis failed: {}", e);
             std::process::exit(1);
         }
     }
@@ -235,8 +235,8 @@ fn handle_legacy_mode(matches: &clap::ArgMatches) {
     if let Some(command_args) = matches.get_many::<String>("command") {
         let command_args: Vec<&String> = command_args.collect();
 
-        println!("⚠️  Using legacy mode - consider using 'memscope run' instead");
-        println!(
+        tracing::info!("⚠️  Using legacy mode - consider using 'memscope run' instead");
+        tracing::info!(
             "📋 Command: {}",
             command_args
                 .iter()
@@ -246,12 +246,12 @@ fn handle_legacy_mode(matches: &clap::ArgMatches) {
         );
 
         if let Some(format) = export_format {
-            println!("📊 Export format: {}", format);
-            println!("📁 Output path: {}", output_path);
+            tracing::info!("📊 Export format: {}", format);
+            tracing::info!("📁 Output path: {}", output_path);
         }
 
         if auto_track {
-            println!("🔍 Auto-tracking enabled");
+            tracing::info!("🔍 Auto-tracking enabled");
         }
 
         // Set environment variables for the target process
@@ -271,22 +271,22 @@ fn handle_legacy_mode(matches: &clap::ArgMatches) {
 
         match result {
             Ok(()) => {
-                println!("✅ Program execution completed successfully");
+                tracing::info!("✅ Program execution completed successfully");
 
                 if export_format.is_some() {
-                    println!("📊 Memory analysis exported to: {}", output_path);
+                    tracing::info!("📊 Memory analysis exported to: {}", output_path);
 
                     // Post-process the exported data if needed
                     // Post-processing would happen here if needed
                 }
             }
             Err(e) => {
-                eprintln!("❌ Program execution failed: {}", e);
+                tracing::error!("❌ Program execution failed: {}", e);
                 std::process::exit(1);
             }
         }
     } else {
-        eprintln!("❌ No command provided. Use 'memscope run <command>' or 'memscope analyze <input> <output>'");
+        tracing::error!("❌ No command provided. Use 'memscope run <command>' or 'memscope analyze <input> <output>'");
         std::process::exit(1);
     }
 }
@@ -323,7 +323,7 @@ fn generate_html_report(
     input_path: &str,
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("🌐 Generating HTML report...");
+    tracing::info!("🌐 Generating HTML report...");
 
     // Read the JSON data
     let json_content = std::fs::read_to_string(input_path)?;
@@ -343,7 +343,7 @@ fn generate_svg_visualization(
     input_path: &str,
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("📈 Generating SVG visualization...");
+    tracing::info!("📈 Generating SVG visualization...");
 
     // Create SVG content
     let svg_content = format!(
@@ -366,7 +366,7 @@ fn execute_with_tracking(
     let program = command_args[0];
     let args = &command_args[1..];
 
-    println!(
+    tracing::info!(
         "🔄 Executing: {} {}",
         program,
         args.iter()
@@ -381,7 +381,7 @@ fn execute_with_tracking(
     // Set environment variables for memory tracking
     for (key, value) in env_vars {
         cmd.env(key, value);
-        println!("🔧 Setting env: {}={}", key, value);
+        tracing::info!("🔧 Setting env: {}={}", key, value);
     }
 
     // Inherit stdio to see the program output
@@ -395,7 +395,7 @@ fn execute_with_tracking(
 
     // Give some time for all Drop destructors to complete
     // This is crucial for TrackedVariable Drop implementations to finish
-    println!("⏳ Waiting for cleanup to complete...");
+    tracing::info!("⏳ Waiting for cleanup to complete...");
     std::thread::sleep(std::time::Duration::from_millis(200));
 
     Ok(())
@@ -406,14 +406,14 @@ fn _post_process_analysis(output_path: &str, format: &str) {
         "json" => {
             let json_path = format!("{}.json", output_path);
             if Path::new(&json_path).exists() {
-                println!("📄 JSON analysis: {}", json_path);
+                tracing::info!("📄 JSON analysis: {}", json_path);
                 // JSON analysis would happen here
             }
         }
         "html" => {
             let html_path = format!("{}.html", output_path);
             if Path::new(&html_path).exists() {
-                println!("🌐 HTML dashboard: {}", html_path);
+                tracing::info!("🌐 HTML dashboard: {}", html_path);
             }
         }
         "both" => {
@@ -432,20 +432,20 @@ fn analyze_json_output(json_path: &str) {
                 .and_then(|ma| ma.get("statistics"))
                 .and_then(|s| s.get("lifecycle_analysis"))
             {
-                println!("📈 Quick Analysis:");
+                tracing::info!("📈 Quick Analysis:");
 
                 if let Some(user_stats) = stats.get("user_allocations") {
                     if let Some(total) = user_stats.get("total_count") {
-                        println!("   👤 User allocations: {}", total);
+                        tracing::info!("   👤 User allocations: {}", total);
                     }
                     if let Some(avg_lifetime) = user_stats.get("average_lifetime_ms") {
-                        println!("   ⏱️  Average lifetime: {}ms", avg_lifetime);
+                        tracing::info!("   ⏱️  Average lifetime: {}ms", avg_lifetime);
                     }
                 }
 
                 if let Some(system_stats) = stats.get("system_allocations") {
                     if let Some(total) = system_stats.get("total_count") {
-                        println!("   🔧 System allocations: {}", total);
+                        tracing::info!("   🔧 System allocations: {}", total);
                     }
                 }
             }

@@ -82,7 +82,7 @@ impl AdaptiveBatchController {
 
     /// Record performance metrics and adjust batch size
     pub fn record_performance(&mut self, metrics: PerformanceMetrics) {
-        println!(
+        tracing::info!(
             "📊 Recording performance: {}ms, {} allocs/sec, batch_size: {}",
             metrics.processing_time_ms,
             metrics.allocations_per_second as u64,
@@ -113,7 +113,7 @@ impl AdaptiveBatchController {
                 as usize)
                 .max(self.min_batch_size);
 
-            println!(
+            tracing::info!(
                 "🔽 Reducing batch size: {} -> {} (processing too slow: {}ms)",
                 old_batch_size, self.current_batch_size, current_metrics.processing_time_ms
             );
@@ -123,7 +123,7 @@ impl AdaptiveBatchController {
                 as usize)
                 .min(self.max_batch_size);
 
-            println!(
+            tracing::info!(
                 "🔼 Increasing batch size: {} -> {} (processing fast: {}ms)",
                 old_batch_size, self.current_batch_size, current_metrics.processing_time_ms
             );
@@ -133,7 +133,7 @@ impl AdaptiveBatchController {
         if current_metrics.memory_usage_mb > 500 {
             // High memory usage, reduce batch size
             self.current_batch_size = (self.current_batch_size * 3 / 4).max(self.min_batch_size);
-            println!(
+            tracing::info!(
                 "💾 Reducing batch size due to memory pressure: {} -> {} ({}MB)",
                 old_batch_size, self.current_batch_size, current_metrics.memory_usage_mb
             );
@@ -297,7 +297,7 @@ impl TypeInfoCache {
             if let Ok(mut stats) = self.cache_stats.lock() {
                 stats.evictions += 1;
             }
-            println!("🗑️ Evicted LRU cache entry: {}", key);
+            tracing::info!("🗑️ Evicted LRU cache entry: {}", key);
         }
     }
 
@@ -334,7 +334,7 @@ impl TypeInfoCache {
         if let Ok(mut stats) = self.cache_stats.lock() {
             *stats = CacheStats::default();
         }
-        println!("🧹 Type info cache cleared");
+        tracing::info!("🧹 Type info cache cleared");
     }
 }
 
@@ -374,12 +374,12 @@ impl MemoryUsageMonitor {
 
         // Check thresholds
         if usage_mb > self.critical_threshold_mb {
-            println!(
+            tracing::info!(
                 "🚨 CRITICAL: Memory usage {}MB exceeds critical threshold {}MB",
                 usage_mb, self.critical_threshold_mb
             );
         } else if usage_mb > self.warning_threshold_mb {
-            println!(
+            tracing::info!(
                 "⚠️ WARNING: Memory usage {}MB exceeds warning threshold {}MB",
                 usage_mb, self.warning_threshold_mb
             );
@@ -479,9 +479,9 @@ pub struct AdaptivePerformanceOptimizer {
 impl AdaptivePerformanceOptimizer {
     /// Create a new adaptive performance optimizer
     pub fn new(initial_batch_size: usize, cache_size: usize) -> Self {
-        println!("🚀 Initializing Adaptive Performance Optimizer");
-        println!("   • Initial batch size: {}", initial_batch_size);
-        println!("   • Cache size: {}", cache_size);
+        tracing::info!("🚀 Initializing Adaptive Performance Optimizer");
+        tracing::info!("   • Initial batch size: {}", initial_batch_size);
+        tracing::info!("   • Cache size: {}", cache_size);
 
         Self {
             batch_controller: AdaptiveBatchController::new(initial_batch_size),
@@ -628,7 +628,7 @@ impl AdaptivePerformanceOptimizer {
     /// Enable or disable adaptive optimization
     pub fn set_optimization_enabled(&mut self, enabled: bool) {
         self.optimization_enabled = enabled;
-        println!(
+        tracing::info!(
             "🔧 Adaptive optimization {}",
             if enabled { "enabled" } else { "disabled" }
         );
@@ -639,7 +639,7 @@ impl AdaptivePerformanceOptimizer {
         self.type_cache.clear();
         self.memory_monitor = MemoryUsageMonitor::new();
         self.start_time = Instant::now();
-        println!("🔄 Adaptive performance optimizer reset");
+        tracing::info!("🔄 Adaptive performance optimizer reset");
     }
 }
 

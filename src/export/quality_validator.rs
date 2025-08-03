@@ -702,7 +702,7 @@ impl QualityValidator {
         let mut issues = Vec::new();
 
         if self.config.verbose_logging {
-            println!("🔍 Starting source data quality validation...");
+            tracing::info!("🔍 Starting source data quality validation...");
         }
 
         // Validate data integrity
@@ -761,7 +761,7 @@ impl QualityValidator {
         let mut issues = Vec::new();
 
         if self.config.verbose_logging {
-            println!("🔍 Starting processed shard data validation...");
+            tracing::info!("🔍 Starting processed shard data validation...");
         }
 
         // Validate JSON structure
@@ -817,7 +817,7 @@ impl QualityValidator {
         let mut issues = Vec::new();
 
         if self.config.verbose_logging {
-            println!("🔍 Starting final output file validation: {file_path}");
+            tracing::info!("🔍 Starting final output file validation: {file_path}");
         }
 
         // Check if file exists
@@ -1344,13 +1344,13 @@ impl QualityValidator {
     /// Print validation result
     fn print_validation_result(&self, result: &ValidationResult) {
         let status_icon = if result.is_valid { "✅" } else { "❌" };
-        println!(
+        tracing::info!(
             "{status_icon} Validation result: {} ({}ms)",
             result.message, result.validation_time_ms
         );
 
         if !result.issues.is_empty() {
-            println!("   Issues found:");
+            tracing::info!("   Issues found:");
             for (index, issue) in result.issues.iter().enumerate() {
                 let severity_icon = match issue.severity {
                     IssueSeverity::Critical => "🔴",
@@ -1359,12 +1359,12 @@ impl QualityValidator {
                     IssueSeverity::Low => "🔵",
                     IssueSeverity::Info => "ℹ️",
                 };
-                println!(
+                tracing::info!(
                     "   {index}. {severity_icon} {:?}: {}",
                     issue.issue_type, issue.description
                 );
                 if let Some(fix) = &issue.suggested_fix {
-                    println!("      Suggested fix: {fix}");
+                    tracing::info!("      Suggested fix: {fix}");
                 }
             }
         }
@@ -1395,7 +1395,7 @@ impl AsyncValidator {
         let path = file_path.as_ref();
 
         if self.config.verbose_logging {
-            println!("🔍 Starting async file validation: {}", path.display());
+            tracing::info!("🔍 Starting async file validation: {}", path.display());
         }
 
         // Check if file exists
@@ -1412,14 +1412,14 @@ impl AsyncValidator {
             // Validate file size (lightweight check)
             if self.config.enable_size_validation {
                 if let Err(e) = self.validate_file_size_async(path, &mut issues).await {
-                    println!("⚠️ File size validation failed: {}", e);
+                    tracing::info!("⚠️ File size validation failed: {}", e);
                 }
             }
 
             // Stream-based content validation for large files
             if self.config.enable_json_validation {
                 if let Err(e) = self.validate_content_stream(path, &mut issues).await {
-                    println!("⚠️ Content stream validation failed: {}", e);
+                    tracing::info!("⚠️ Content stream validation failed: {}", e);
                 }
             }
         }
@@ -1618,13 +1618,13 @@ impl AsyncValidator {
     /// Print validation result
     fn print_validation_result(&self, result: &ValidationResult) {
         let status_icon = if result.is_valid { "✅" } else { "❌" };
-        println!(
+        tracing::info!(
             "{status_icon} Validation result: {} ({}ms)",
             result.message, result.validation_time_ms
         );
 
         if !result.issues.is_empty() {
-            println!("   Issues found:");
+            tracing::info!("   Issues found:");
             for (index, issue) in result.issues.iter().enumerate() {
                 let severity_icon = match issue.severity {
                     IssueSeverity::Critical => "🔴",
@@ -1633,12 +1633,12 @@ impl AsyncValidator {
                     IssueSeverity::Low => "🔵",
                     IssueSeverity::Info => "ℹ️",
                 };
-                println!(
+                tracing::info!(
                     "   {index}. {severity_icon} {:?}: {}",
                     issue.issue_type, issue.description
                 );
                 if let Some(fix) = &issue.suggested_fix {
-                    println!("      Suggested fix: {fix}");
+                    tracing::info!("      Suggested fix: {fix}");
                 }
             }
         }
@@ -2010,11 +2010,11 @@ impl ExportArgs {
 
         // Warn about potentially problematic combinations
         if self.mode == ExportMode::Fast && self.validation == ValidationTiming::Inline {
-            eprintln!("Warning: Fast mode with inline validation may impact performance");
+            tracing::warn!("Warning: Fast mode with inline validation may impact performance");
         }
 
         if self.mode == ExportMode::Slow && self.validation == ValidationTiming::Disabled {
-            eprintln!("Warning: Slow mode with disabled validation reduces thoroughness");
+            tracing::warn!("Warning: Slow mode with disabled validation reduces thoroughness");
         }
 
         Ok(())
@@ -2039,7 +2039,7 @@ impl ExportArgs {
         // Validate and fix any conflicts
         let warnings = config.validate_and_fix();
         for warning in warnings {
-            eprintln!("Warning: {}", warning);
+            tracing::warn!("Warning: {}", warning);
         }
 
         config
@@ -2052,40 +2052,40 @@ impl ExportArgs {
 
     /// Print help information for export modes
     pub fn print_mode_help() {
-        println!("Export Modes:");
-        println!("  fast  - Prioritize speed over comprehensive validation");
-        println!("          - Disables JSON and encoding validation");
-        println!("          - Uses minimal validation checks");
-        println!("          - Best for performance-critical scenarios");
-        println!();
-        println!("  slow  - Perform thorough validation during export");
-        println!("          - Enables all validation types");
-        println!("          - Comprehensive error checking");
-        println!("          - Best for data integrity assurance");
-        println!();
-        println!("  auto  - Automatically choose based on data size");
-        println!("          - Uses fast mode for large datasets");
-        println!("          - Uses slow mode for smaller datasets");
-        println!("          - Balanced approach for general use");
+        tracing::info!("Export Modes:");
+        tracing::info!("  fast  - Prioritize speed over comprehensive validation");
+        tracing::info!("          - Disables JSON and encoding validation");
+        tracing::info!("          - Uses minimal validation checks");
+        tracing::info!("          - Best for performance-critical scenarios");
+        tracing::info!("");
+        tracing::info!("  slow  - Perform thorough validation during export");
+        tracing::info!("          - Enables all validation types");
+        tracing::info!("          - Comprehensive error checking");
+        tracing::info!("          - Best for data integrity assurance");
+        tracing::info!("");
+        tracing::info!("  auto  - Automatically choose based on data size");
+        tracing::info!("          - Uses fast mode for large datasets");
+        tracing::info!("          - Uses slow mode for smaller datasets");
+        tracing::info!("          - Balanced approach for general use");
     }
 
     /// Print help information for validation timing
     pub fn print_validation_help() {
-        println!("Validation Timing:");
-        println!("  inline   - Validate during export (blocks I/O)");
-        println!("             - Validation happens synchronously");
-        println!("             - Export fails immediately on validation errors");
-        println!("             - Best for critical data integrity requirements");
-        println!();
-        println!("  deferred - Validate after export (async)");
-        println!("             - Export completes quickly");
-        println!("             - Validation runs in background");
-        println!("             - Best for performance with validation");
-        println!();
-        println!("  disabled - No validation performed");
-        println!("             - Maximum performance");
-        println!("             - No data integrity checks");
-        println!("             - Use only when validation is not needed");
+        tracing::info!("Validation Timing:");
+        tracing::info!("  inline   - Validate during export (blocks I/O)");
+        tracing::info!("             - Validation happens synchronously");
+        tracing::info!("             - Export fails immediately on validation errors");
+        tracing::info!("             - Best for critical data integrity requirements");
+        tracing::info!("");
+        tracing::info!("  deferred - Validate after export (async)");
+        tracing::info!("             - Export completes quickly");
+        tracing::info!("             - Validation runs in background");
+        tracing::info!("             - Best for performance with validation");
+        tracing::info!("");
+        tracing::info!("  disabled - No validation performed");
+        tracing::info!("             - Maximum performance");
+        tracing::info!("             - No data integrity checks");
+        tracing::info!("             - Use only when validation is not needed");
     }
 }
 
@@ -2113,32 +2113,32 @@ pub struct ValidationReport {
 impl ValidationReport {
     /// Print detailed validation report
     pub fn print_detailed_report(&self) {
-        println!("\n🔍 Data Quality Validation Report");
-        println!("==================");
+        tracing::info!("\n🔍 Data Quality Validation Report");
+        tracing::info!("==================");
 
-        println!("📊 Overall Statistics:");
-        println!("   Total validations: {}", self.total_validations);
-        println!(
+        tracing::info!("📊 Overall Statistics:");
+        tracing::info!("   Total validations: {}", self.total_validations);
+        tracing::info!(
             "   Successful validations: {} ({:.1}%)",
             self.successful_validations, self.success_rate
         );
-        println!("   Failed validations: {}", self.failed_validations);
-        println!(
+        tracing::info!("   Failed validations: {}", self.failed_validations);
+        tracing::info!(
             "   Average validation time: {:.2}ms",
             self.avg_validation_time_ms
         );
-        println!("   Issues found: {}", self.total_issues_found);
-        println!("   Issues fixed: {}", self.total_issues_fixed);
+        tracing::info!("   Issues found: {}", self.total_issues_found);
+        tracing::info!("   Issues fixed: {}", self.total_issues_fixed);
 
         if !self.validation_type_breakdown.is_empty() {
-            println!("\n🔍 Validation Type Statistics:");
+            tracing::info!("\n🔍 Validation Type Statistics:");
             for (validation_type, stats) in &self.validation_type_breakdown {
                 let success_rate = if stats.executions > 0 {
                     (stats.successes as f64 / stats.executions as f64) * 100.0
                 } else {
                     0.0
                 };
-                println!("   {validation_type:?}: {} executions, {:.1}% success rate, {:.2}ms average time", 
+                tracing::info!("   {validation_type:?}: {} executions, {:.1}% success rate, {:.2}ms average time", 
                         stats.executions, success_rate, stats.avg_execution_time_ms);
             }
         }

@@ -9,9 +9,9 @@ use std::process::Command;
 use std::time::Instant;
 
 fn main() {
-    println!("🎯 核心性能测试（纯导出算法）");
-    println!("==============================");
-    println!();
+    tracing::info!("🎯 核心性能测试（纯导出算法）");
+    tracing::info!("==============================");
+    tracing::info!("");
 
     // 初始化内存跟踪
     init();
@@ -19,12 +19,12 @@ fn main() {
     // 创建输出目录
     let output_dir = PathBuf::from("core_performance_results");
     if let Err(e) = fs::create_dir_all(&output_dir) {
-        eprintln!("❌ 创建输出目录失败: {}", e);
+        tracing::error!("❌ 创建输出目录失败: {}", e);
         return;
     }
 
     // 运行 complex_lifecycle_showcase 生成测试数据
-    println!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
+    tracing::info!("🔧 运行 complex_lifecycle_showcase 生成测试数据...");
     let output = Command::new("cargo")
         .args(&[
             "run",
@@ -38,13 +38,13 @@ fn main() {
         Ok(output) => {
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                eprintln!("❌ 运行 complex_lifecycle_showcase 失败: {}", stderr);
+                tracing::error!("❌ 运行 complex_lifecycle_showcase 失败: {}", stderr);
                 return;
             }
-            println!("✅ 测试数据生成完成");
+            tracing::info!("✅ 测试数据生成完成");
         }
         Err(e) => {
-            eprintln!("❌ 执行命令失败: {}", e);
+            tracing::error!("❌ 执行命令失败: {}", e);
             return;
         }
     }
@@ -57,18 +57,18 @@ fn main() {
 }
 
 fn run_core_performance_tests(output_dir: &PathBuf) {
-    println!();
-    println!("📊 开始核心性能测试...");
-    println!("======================");
+    tracing::info!("");
+    tracing::info!("📊 开始核心性能测试...");
+    tracing::info!("======================");
 
     let test_runs = 5; // 增加测试次数以获得更准确的结果
     let mut traditional_core_times = Vec::new();
     let mut fast_core_times = Vec::new();
 
     // 测试传统导出的核心性能（只测量主要导出，不包含其他文件）
-    println!("🐌 测试传统导出核心性能...");
+    tracing::info!("🐌 测试传统导出核心性能...");
     for run in 1..=test_runs {
-        println!("  运行 {}/{}: 传统导出核心", run, test_runs);
+        tracing::info!("  运行 {}/{}: 传统导出核心", run, test_runs);
 
         let start_time = Instant::now();
         let output_path = output_dir.join(format!("traditional_core_run_{}.json", run));
@@ -81,10 +81,10 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
         match result {
             Ok(_) => {
                 traditional_core_times.push(export_time.as_millis() as u64);
-                println!("    ⏱️  核心时间: {}ms", export_time.as_millis());
+                tracing::info!("    ⏱️  核心时间: {}ms", export_time.as_millis());
             }
             Err(e) => {
-                eprintln!("    ❌ 导出失败: {}", e);
+                tracing::error!("    ❌ 导出失败: {}", e);
             }
         }
 
@@ -93,9 +93,9 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
     }
 
     // 测试快速导出协调器的核心性能
-    println!("⚡ 测试快速导出核心性能...");
+    tracing::info!("⚡ 测试快速导出核心性能...");
     for run in 1..=test_runs {
-        println!("  运行 {}/{}: 快速导出核心", run, test_runs);
+        tracing::info!("  运行 {}/{}: 快速导出核心", run, test_runs);
 
         // 直接测试快速导出协调器
         let start_time = Instant::now();
@@ -150,12 +150,12 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
                     + stats.parallel_processing.total_processing_time_ms
                     + stats.write_performance.total_write_time_ms;
                 fast_core_times.push(core_time);
-                println!(
+                tracing::info!(
                     "    ⚡ 核心时间: {}ms (总时间: {}ms)",
                     core_time,
                     export_time.as_millis()
                 );
-                println!(
+                tracing::info!(
                     "       数据获取: {}ms, 并行处理: {}ms, 写入: {}ms",
                     stats.data_gathering.total_time_ms,
                     stats.parallel_processing.total_processing_time_ms,
@@ -163,7 +163,7 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
                 );
             }
             Err(e) => {
-                eprintln!("    ❌ 导出失败: {}", e);
+                tracing::error!("    ❌ 导出失败: {}", e);
             }
         }
 
@@ -180,12 +180,12 @@ fn display_core_performance_results(
     fast_times: &[u64],
     output_dir: &PathBuf,
 ) {
-    println!();
-    println!("📈 核心性能测试结果");
-    println!("====================");
+    tracing::info!("");
+    tracing::info!("📈 核心性能测试结果");
+    tracing::info!("====================");
 
     if traditional_times.is_empty() || fast_times.is_empty() {
-        println!("❌ 测试数据不足，无法生成报告");
+        tracing::info!("❌ 测试数据不足，无法生成报告");
         return;
     }
 
@@ -207,49 +207,49 @@ fn display_core_performance_results(
     };
 
     // 显示结果
-    println!("传统导出核心算法:");
-    println!("  • 平均时间: {:.1}ms", avg_traditional);
-    println!("  • 最快时间: {}ms", min_traditional);
-    println!("  • 最慢时间: {}ms", max_traditional);
-    println!("  • 标准差: {:.1}ms", calculate_std_dev(traditional_times));
+    tracing::info!("传统导出核心算法:");
+    tracing::info!("  • 平均时间: {:.1}ms", avg_traditional);
+    tracing::info!("  • 最快时间: {}ms", min_traditional);
+    tracing::info!("  • 最慢时间: {}ms", max_traditional);
+    tracing::info!("  • 标准差: {:.1}ms", calculate_std_dev(traditional_times));
 
-    println!();
-    println!("快速导出核心算法:");
-    println!("  • 平均时间: {:.1}ms", avg_fast);
-    println!("  • 最快时间: {}ms", min_fast);
-    println!("  • 最慢时间: {}ms", max_fast);
-    println!("  • 标准差: {:.1}ms", calculate_std_dev(fast_times));
+    tracing::info!("");
+    tracing::info!("快速导出核心算法:");
+    tracing::info!("  • 平均时间: {:.1}ms", avg_fast);
+    tracing::info!("  • 最快时间: {}ms", min_fast);
+    tracing::info!("  • 最慢时间: {}ms", max_fast);
+    tracing::info!("  • 标准差: {:.1}ms", calculate_std_dev(fast_times));
 
-    println!();
-    println!("📊 核心算法性能对比:");
+    tracing::info!("");
+    tracing::info!("📊 核心算法性能对比:");
     if improvement_percent > 0.0 {
-        println!("  • 时间改善: {:.1}%", improvement_percent);
-        println!("  • 加速比: {:.2}x", avg_traditional / avg_fast);
-        println!("  • 时间节省: {:.1}ms", avg_traditional - avg_fast);
+        tracing::info!("  • 时间改善: {:.1}%", improvement_percent);
+        tracing::info!("  • 加速比: {:.2}x", avg_traditional / avg_fast);
+        tracing::info!("  • 时间节省: {:.1}ms", avg_traditional - avg_fast);
     } else {
-        println!("  • 时间变化: {:.1}% (变慢)", improvement_percent.abs());
-        println!("  • 减速比: {:.2}x", avg_fast / avg_traditional);
-        println!("  • 时间增加: {:.1}ms", avg_fast - avg_traditional);
+        tracing::info!("  • 时间变化: {:.1}% (变慢)", improvement_percent.abs());
+        tracing::info!("  • 减速比: {:.2}x", avg_fast / avg_traditional);
+        tracing::info!("  • 时间增加: {:.1}ms", avg_fast - avg_traditional);
     }
 
     // 评估结果
-    println!();
-    println!("🎯 核心算法评估:");
+    tracing::info!("");
+    tracing::info!("🎯 核心算法评估:");
     if improvement_percent >= 60.0 {
-        println!("✅ 优秀！核心算法达到了 60-80% 导出时间减少的目标");
-        println!("   快速导出系统的核心设计是成功的！");
+        tracing::info!("✅ 优秀！核心算法达到了 60-80% 导出时间减少的目标");
+        tracing::info!("   快速导出系统的核心设计是成功的！");
     } else if improvement_percent >= 40.0 {
-        println!("✅ 良好！核心算法接近 60-80% 导出时间减少的目标");
-        println!("   快速导出系统有明显优势，可以进一步优化");
+        tracing::info!("✅ 良好！核心算法接近 60-80% 导出时间减少的目标");
+        tracing::info!("   快速导出系统有明显优势，可以进一步优化");
     } else if improvement_percent >= 20.0 {
-        println!("⚠️  一般，核心算法有一定改善但未达到预期目标");
-        println!("   需要进一步优化并行处理和数据本地化策略");
+        tracing::info!("⚠️  一般，核心算法有一定改善但未达到预期目标");
+        tracing::info!("   需要进一步优化并行处理和数据本地化策略");
     } else if improvement_percent > 0.0 {
-        println!("⚠️  轻微改善，核心算法优势不明显");
-        println!("   需要重新审视快速导出的设计思路");
+        tracing::info!("⚠️  轻微改善，核心算法优势不明显");
+        tracing::info!("   需要重新审视快速导出的设计思路");
     } else {
-        println!("❌ 核心算法性能没有提升或有所下降");
-        println!("   需要从根本上重新设计快速导出算法");
+        tracing::info!("❌ 核心算法性能没有提升或有所下降");
+        tracing::info!("   需要从根本上重新设计快速导出算法");
     }
 
     // 生成详细报告
@@ -387,9 +387,9 @@ fn generate_core_performance_report(
     );
 
     if let Err(e) = fs::write(&report_file, report) {
-        eprintln!("⚠️  生成报告失败: {}", e);
+        tracing::error!("⚠️  生成报告失败: {}", e);
     } else {
-        println!();
-        println!("📄 核心性能报告已生成: {}", report_file.display());
+        tracing::info!("");
+        tracing::info!("📄 核心性能报告已生成: {}", report_file.display());
     }
 }

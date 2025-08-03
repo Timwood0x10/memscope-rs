@@ -1376,23 +1376,23 @@ pub fn analyze_memory_with_enhanced_features_detailed(
     // Perform comprehensive analysis
     let report = analyzer.analyze_comprehensive(allocations);
 
-    // Print summary
-    println!("Enhanced Memory Analysis Summary:");
-    println!("--------------------------------");
-    println!("Analysis duration: {} ms", report.analysis_duration_ms);
-    println!(
+    // Log summary
+    tracing::info!("Enhanced Memory Analysis Summary:");
+    tracing::info!("--------------------------------");
+    tracing::info!("Analysis duration: {} ms", report.analysis_duration_ms);
+    tracing::info!(
         "Stack allocations: {}",
         report.stack_heap_analysis.stack_allocations.len()
     );
-    println!(
+    tracing::info!(
         "Heap allocations: {}",
         report.stack_heap_analysis.heap_allocations.len()
     );
-    println!(
+    tracing::info!(
         "Temporary objects: {}",
         report.temp_object_analysis.temporary_objects.len()
     );
-    println!(
+    tracing::info!(
         "Fragmentation level: {:.2}%",
         report
             .fragmentation_analysis
@@ -1400,15 +1400,15 @@ pub fn analyze_memory_with_enhanced_features_detailed(
             .total_fragmentation_ratio
             * 100.0
     );
-    println!(
+    tracing::info!(
         "Generic instantiations: {}",
         report.generic_analysis.instantiation_analysis.len()
     );
-    println!(
+    tracing::info!(
         "Lifecycle reports: {}",
         report.lifecycle_analysis.lifecycle_reports.len()
     );
-    println!(
+    tracing::info!(
         "Overall recommendations: {}",
         report.overall_recommendations.len()
     );

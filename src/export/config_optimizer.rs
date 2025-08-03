@@ -77,9 +77,9 @@ impl ConfigOptimizer {
             .validate_configuration(&config_builder);
 
         if !validation_result.is_valid {
-            println!("⚠️ configuration validation failed, using default configuration");
+            tracing::warn!("⚠️ configuration validation failed, using default configuration");
             for error in &validation_result.errors {
-                println!(" Error : {}", error);
+                tracing::warn!(" Error : {}", error);
             }
             return Ok(FastExportConfigBuilder::new());
         }

@@ -154,24 +154,24 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         integration_stats.cross_references_found, integration_stats.conflicts_resolved
     ));
 
-    println!("📊 Integration Statistics:");
-    println!(
+    tracing::info!("📊 Integration Statistics:");
+    tracing::info!(
         "   Cross-references found: {}",
         integration_stats.cross_references_found
     );
-    println!(
+    tracing::info!(
         "   Conflicts resolved: {}",
         integration_stats.conflicts_resolved
     );
-    println!(
+    tracing::info!(
         "   Data enrichments: {}",
         integration_stats.enrichments_performed
     );
-    println!(
+    tracing::info!(
         "   Index build time: {}ms",
         integration_stats.index_build_time_ms
     );
-    println!(
+    tracing::info!(
         "   Total integration time: {}ms",
         integration_stats.integration_time_ms
     );
@@ -196,28 +196,28 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
                 compression_ratio: Some(1.0),
             };
 
-        println!("🎨 Template Generation Statistics:");
-        println!(
+        tracing::info!("🎨 Template Generation Statistics:");
+        tracing::info!(
             "   Template size: {:.1} KB",
             template_stats.template_size_bytes as f64 / 1024.0
         );
-        println!(
+        tracing::info!(
             "   CSS processing: {}ms",
             template_stats.css_processing_time_ms
         );
-        println!(
+        tracing::info!(
             "   JS processing: {}ms",
             template_stats.js_processing_time_ms
         );
-        println!(
+        tracing::info!(
             "   Data serialization: {}ms",
             template_stats.serialization_time_ms
         );
-        println!(
+        tracing::info!(
             "   Total generation time: {}ms",
             template_stats.generation_time_ms
         );
-        println!("   Cache hit rate: {:.1}%", template_stats.cache_hit_rate);
+        tracing::info!("   Cache hit rate: {:.1}%", template_stats.cache_hit_rate);
 
         // Determine output path - if output is just a filename, put it in the input directory
         let output_path = if Path::new(output_file).is_absolute() || output_file.contains('/') {
@@ -593,7 +593,7 @@ fn load_single_file_internal(
 
         match optimizer.process_file(file_path, config.suffix) {
             Ok((json_value, processing_stats)) => {
-                println!(
+                tracing::info!(
                     "📊 Large file processing stats for {}: {:.1} MB/s, {} objects, streaming: {}",
                     config.suffix,
                     processing_stats.throughput_mb_per_sec,
@@ -620,7 +620,7 @@ fn load_single_file_internal(
                     Box::new(e),
                 ) {
                     Ok(Some(recovered_data)) => {
-                        println!("✅ Recovered data for {} using fallback", config.suffix);
+                        tracing::info!("✅ Recovered data for {} using fallback", config.suffix);
                         Ok(JsonLoadResult {
                             suffix: config.suffix.to_string(),
                             success: true,
@@ -656,7 +656,7 @@ fn load_single_file_internal(
                                 &json_value,
                             );
 
-                            eprintln!("{}", validation_err);
+                            tracing::error!("{}", validation_err);
 
                             // Try to continue with partial data if allowed
                             let allow_partial = {
@@ -664,7 +664,7 @@ fn load_single_file_internal(
                                 stats.total_errors < 5 // Allow partial data if not too many errors
                             };
                             if allow_partial {
-                                println!(
+                                tracing::info!(
                                     "⚠️  Continuing with potentially invalid data for {}",
                                     config.suffix
                                 );
@@ -696,7 +696,7 @@ fn load_single_file_internal(
                             &e.to_string(),
                         );
 
-                        eprintln!("{}", parsing_err);
+                        tracing::error!("{}", parsing_err);
                         Err(parsing_err.into())
                     }
                 }
@@ -711,7 +711,7 @@ fn load_single_file_internal(
                     Box::new(e),
                 ) {
                     Ok(Some(recovered_data)) => {
-                        println!("✅ Recovered data for {} using fallback", config.suffix);
+                        tracing::info!("✅ Recovered data for {} using fallback", config.suffix);
                         Ok(JsonLoadResult {
                             suffix: config.suffix.to_string(),
                             success: true,
@@ -758,7 +758,7 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
 
         match optimizer.process_file(file_path, config.suffix) {
             Ok((json_value, processing_stats)) => {
-                println!(
+                tracing::info!(
                     "📊 Large file processing stats for {}: {:.1} MB/s, {} objects, streaming: {}",
                     config.suffix,
                     processing_stats.throughput_mb_per_sec,

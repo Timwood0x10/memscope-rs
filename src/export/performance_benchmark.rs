@@ -120,23 +120,23 @@ impl PerformanceBenchmark {
 
     /// 运行完整的基准测试
     pub fn run_full_benchmark(&mut self) -> TrackingResult<BenchmarkComparison> {
-        println!("🚀 start benchmark");
-        println!("==================");
-        println!("config:");
-        println!("  - 运行次数: {}", self.config.test_runs);
-        println!("  - Output directory: {}", self.config.output_dir.display());
-        println!("  - Verify consistency: {}", self.config.verify_consistency);
-        println!();
+        tracing::info!("🚀 start benchmark");
+        tracing::info!("==================");
+        tracing::info!("config:");
+        tracing::info!("  - 运行次数: {}", self.config.test_runs);
+        tracing::info!("  - Output directory: {}", self.config.output_dir.display());
+        tracing::info!("  - Verify consistency: {}", self.config.verify_consistency);
+        tracing::info!("");
 
         // Run complex_lifecycle_showcase to generate test data
         self.prepare_test_data()?;
 
         // Run traditional export tests
-        println!("📊 Testing traditional export system...");
+        tracing::info!("📊 Testing traditional export system...");
         let traditional_results = self.run_traditional_export_tests()?;
 
         // Run fast export tests
-        println!("⚡ Testing fast export system...");
+        tracing::info!("⚡ Testing fast export system...");
         let fast_results = self.run_fast_export_tests()?;
 
         // Calculate performance improvement
@@ -167,7 +167,7 @@ impl PerformanceBenchmark {
     }
     /// prepare test data
     fn prepare_test_data(&self) -> TrackingResult<()> {
-        println!("🔧 prepare test data...");
+        tracing::info!("🔧 prepare test data...");
 
         // run complex_lifecycle_showcase example to generate complex memory allocation patterns
         let output = Command::new("cargo")
@@ -184,7 +184,7 @@ impl PerformanceBenchmark {
         }
 
         if self.config.verbose {
-            println!("✅ prepare test data completed");
+            tracing::info!("✅ prepare test data completed");
         }
 
         Ok(())
@@ -196,7 +196,7 @@ impl PerformanceBenchmark {
 
         for run in 1..=self.config.test_runs {
             if self.config.verbose {
-                println!("run {}/{}: traditional export", run, self.config.test_runs);
+                tracing::info!("run {}/{}: traditional export", run, self.config.test_runs);
             }
 
             let result = self.run_single_traditional_test(run)?;
@@ -215,7 +215,7 @@ impl PerformanceBenchmark {
 
         for run in 1..=self.config.test_runs {
             if self.config.verbose {
-                println!("run {}/{}: fast export", run, self.config.test_runs);
+                tracing::info!("run {}/{}: fast export", run, self.config.test_runs);
             }
 
             let result = self.run_single_fast_test(run)?;
@@ -305,7 +305,7 @@ impl PerformanceBenchmark {
         };
 
         if self.config.verbose {
-            println!(
+            tracing::info!(
                 "    ⏱️  time: {}ms, 📊 allocations: {}, 📁 size: {:.2}MB",
                 result.export_time_ms,
                 result.allocations_processed,
@@ -375,7 +375,7 @@ impl PerformanceBenchmark {
         };
 
         if self.config.verbose {
-            println!(
+            tracing::info!(
                 "    ⚡ time: {}ms, 📊 allocations: {}, 📁 size: {:.2}MB",
                 result.export_time_ms,
                 result.allocations_processed,
@@ -538,7 +538,7 @@ impl PerformanceBenchmark {
             .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
 
         if self.config.verbose {
-            println!("💾 benchmark results saved to: {}", results_file.display());
+            tracing::info!("💾 benchmark results saved to: {}", results_file.display());
         }
 
         Ok(())
@@ -669,7 +669,7 @@ impl PerformanceBenchmark {
             .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
 
         if self.config.verbose {
-            println!("📄 Detailed report generated: {}", report_file.display());
+            tracing::info!("📄 Detailed report generated: {}", report_file.display());
         }
 
         Ok(())
@@ -677,7 +677,7 @@ impl PerformanceBenchmark {
 
     /// run signal benchmark    
     pub fn run_single_benchmark(&mut self, test_name: &str) -> TrackingResult<BenchmarkComparison> {
-        println!("🎯 Running single benchmark: {}", test_name);
+        tracing::info!("🎯 Running single benchmark: {}", test_name);
         self.prepare_test_data()?;
 
         let traditional_result = self.run_single_traditional_test(1)?;

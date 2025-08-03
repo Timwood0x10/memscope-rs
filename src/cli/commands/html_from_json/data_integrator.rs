@@ -131,14 +131,14 @@ impl DataIntegrator {
     ) -> Result<IntegrationStats, IntegrationError> {
         let start_time = std::time::Instant::now();
 
-        println!("🔗 Starting advanced data integration...");
+        tracing::info!("🔗 Starting advanced data integration...");
 
         // Build data indexes for fast lookups
         let index_start = std::time::Instant::now();
         let data_index = self.build_data_index(&unified_data.allocations)?;
         let index_build_time = index_start.elapsed().as_millis() as u64;
 
-        println!("📊 Built data indexes in {}ms", index_build_time);
+        tracing::info!("📊 Built data indexes in {}ms", index_build_time);
 
         let mut stats = IntegrationStats {
             cross_references_found: 0,
@@ -153,26 +153,26 @@ impl DataIntegrator {
             let cross_refs = self.find_cross_references(unified_data, &data_index)?;
             stats.cross_references_found = cross_refs.len();
             self.apply_cross_references(unified_data, &cross_refs)?;
-            println!("🔗 Found and applied {} cross-references", cross_refs.len());
+            tracing::info!("🔗 Found and applied {} cross-references", cross_refs.len());
         }
 
         // Resolve data conflicts
         if self.enable_conflict_resolution {
             let conflicts_resolved = self.resolve_conflicts(unified_data)?;
             stats.conflicts_resolved = conflicts_resolved;
-            println!("⚖️  Resolved {} data conflicts", conflicts_resolved);
+            tracing::info!("⚖️  Resolved {} data conflicts", conflicts_resolved);
         }
 
         // Perform data enrichment
         if self.enable_data_enrichment {
             let enrichments = self.enrich_data(unified_data, &data_index)?;
             stats.enrichments_performed = enrichments;
-            println!("✨ Performed {} data enrichments", enrichments);
+            tracing::info!("✨ Performed {} data enrichments", enrichments);
         }
 
         stats.integration_time_ms = start_time.elapsed().as_millis() as u64;
 
-        println!(
+        tracing::info!(
             "✅ Data integration completed in {}ms",
             stats.integration_time_ms
         );
@@ -432,7 +432,7 @@ impl DataIntegrator {
         if actual_active_count != unified_data.stats.active_allocations
             && unified_data.stats.active_allocations > 0
         {
-            println!(
+            tracing::info!(
                 "🔧 Resolving active allocation count conflict: stats={}, actual={}",
                 unified_data.stats.active_allocations, actual_active_count
             );
@@ -458,7 +458,7 @@ impl DataIntegrator {
                 * 100.0;
             if diff_percent > 5.0 {
                 // Only resolve if difference is > 5%
-                println!(
+                tracing::info!(
                     "🔧 Resolving active memory conflict: stats={}, actual={} ({:.1}% diff)",
                     unified_data.stats.active_memory, actual_active_memory, diff_percent
                 );
@@ -471,7 +471,7 @@ impl DataIntegrator {
         for alloc in &mut unified_data.allocations {
             if let Some(dealloc_time) = alloc.timestamp_dealloc {
                 if dealloc_time <= alloc.timestamp_alloc {
-                    println!(
+                    tracing::info!(
                         "🔧 Resolving timestamp conflict for allocation {}",
                         alloc.ptr
                     );
