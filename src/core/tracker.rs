@@ -1408,7 +1408,7 @@ impl MemoryTracker {
         allocation.var_name = Some(var_name.clone());
         allocation.type_name = Some(type_name.clone());
         allocation.timestamp_alloc = creation_time;
-        
+
         // Enhance allocation with detailed analysis
         self.enhance_allocation_info(&mut allocation);
 
@@ -1534,7 +1534,7 @@ impl MemoryTracker {
         };
 
         allocation.smart_pointer_info = Some(smart_pointer_info);
-        
+
         // Enhance allocation with detailed analysis
         self.enhance_allocation_info(&mut allocation);
 
@@ -1811,12 +1811,12 @@ impl MemoryTracker {
         if allocation.scope_name.is_none() {
             allocation.scope_name = Some(self.determine_scope_name(allocation.ptr));
         }
-        
+
         // Generate stack trace if missing
         if allocation.stack_trace.is_none() {
             allocation.stack_trace = Some(self.generate_stack_trace());
         }
-        
+
         // Calculate lifetime if the allocation is still active
         if allocation.timestamp_dealloc.is_none() && allocation.lifetime_ms.is_none() {
             let current_time = std::time::SystemTime::now()
@@ -1871,7 +1871,7 @@ impl MemoryTracker {
         // Analyze memory fragmentation
         allocation.fragmentation_analysis = Some(self.analyze_memory_fragmentation());
     }
-    
+
     /// Determine scope name based on allocation context
     fn determine_scope_name(&self, ptr: usize) -> String {
         // Determine scope based on pointer range
@@ -1885,7 +1885,7 @@ impl MemoryTracker {
             "main".to_string()
         }
     }
-    
+
     /// Generate a realistic stack trace
     fn generate_stack_trace(&self) -> Vec<String> {
         vec![
@@ -3143,21 +3143,21 @@ impl MemoryTracker {
     }
 
     /// Export memory tracking data to binary format (.memscope file)
-    /// 
+    ///
     /// This method provides high-performance binary export that is 3x faster than JSON
     /// and produces files that are 60%+ smaller. The binary format uses a simple TLV
     /// structure for efficient storage and parsing.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `path` - Output file path (will be saved in MemoryAnalysis directory with .memscope extension)
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns `Ok(())` on success, or `TrackingError` on failure
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// let tracker = get_global_tracker();
     /// tracker.export_to_binary("my_program")?;
@@ -3165,79 +3165,79 @@ impl MemoryTracker {
     /// ```
     pub fn export_to_binary<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         let output_path = self.ensure_memscope_path(path);
-        
+
         tracing::info!("Starting binary export to: {}", output_path.display());
-        
+
         let allocations = self.get_active_allocations()?;
-        
+
         crate::export::binary::export_to_binary(&allocations, output_path)
             .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
-        
+
         tracing::info!("Binary export completed successfully");
         Ok(())
     }
 
     /// Convert binary file to JSON format
-    /// 
+    ///
     /// This method reads a .memscope binary file and converts it to JSON format,
     /// maintaining full compatibility with existing JSON export structure.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `binary_path` - Path to input .memscope file
     /// * `json_path` - Path for output JSON file
-    /// 
+    ///
     /// Convert binary file to standard JSON files (5 categorized files)
-    /// 
+    ///
     /// This method generates the same 5 JSON files as the standard JSON export:
     /// - memory_analysis.json, lifetime.json, performance.json, unsafe_ffi.json, complex_types.json
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// MemoryTracker::parse_binary_to_standard_json("data.memscope", "project_name")?;
     /// ```
     pub fn parse_binary_to_standard_json<P: AsRef<std::path::Path>>(
-        binary_path: P, 
-        base_name: &str
+        binary_path: P,
+        base_name: &str,
     ) -> TrackingResult<()> {
         crate::export::binary::BinaryParser::to_standard_json_files(binary_path, base_name)
             .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))
     }
-    
+
     /// Convert binary file to single JSON format (legacy compatibility)
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// MemoryTracker::parse_binary_to_json("data.memscope", "data.json")?;
     /// ```
     pub fn parse_binary_to_json<P: AsRef<std::path::Path>>(
-        binary_path: P, 
-        json_path: P
+        binary_path: P,
+        json_path: P,
     ) -> TrackingResult<()> {
         crate::export::binary::parse_binary_to_json(binary_path, json_path)
             .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))
     }
 
     /// Convert binary file to HTML format
-    /// 
+    ///
     /// This method reads a .memscope binary file and generates an HTML report
     /// with memory allocation analysis and visualization.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `binary_path` - Path to input .memscope file
     /// * `html_path` - Path for output HTML file
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// MemoryTracker::parse_binary_to_html("data.memscope", "report.html")?;
     /// ```
     pub fn parse_binary_to_html<P: AsRef<std::path::Path>>(
-        binary_path: P, 
-        html_path: P
+        binary_path: P,
+        html_path: P,
     ) -> TrackingResult<()> {
         crate::export::binary::parse_binary_to_html(binary_path, html_path)
             .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))
@@ -3246,12 +3246,14 @@ impl MemoryTracker {
     /// Ensure path uses .memscope extension and is in MemoryAnalysis directory
     fn ensure_memscope_path<P: AsRef<std::path::Path>>(&self, path: P) -> std::path::PathBuf {
         let mut output_path = self.ensure_memory_analysis_path(path);
-        
+
         // Ensure .memscope extension
-        if output_path.extension().is_none() || output_path.extension() != Some(std::ffi::OsStr::new("memscope")) {
+        if output_path.extension().is_none()
+            || output_path.extension() != Some(std::ffi::OsStr::new("memscope"))
+        {
             output_path.set_extension("memscope");
         }
-        
+
         output_path
     }
 }

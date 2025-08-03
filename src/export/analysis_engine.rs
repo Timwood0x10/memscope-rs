@@ -1,5 +1,5 @@
 //! Unified analysis engine for consistent data processing across different export formats
-//! 
+//!
 //! This module provides a trait-based architecture that ensures JSON and binary exports
 //! use the same analysis logic, preventing data inconsistencies.
 
@@ -54,35 +54,50 @@ impl fmt::Display for AnalysisError {
 impl Error for AnalysisError {}
 
 /// Unified analysis engine trait for consistent data processing
-/// 
+///
 /// This trait ensures that all export formats (JSON, binary, etc.) use the same
 /// analysis logic, preventing data inconsistencies between different export methods.
 pub trait AnalysisEngine {
     /// Create memory analysis data
-    /// 
+    ///
     /// Analyzes memory allocation patterns, sizes, and basic statistics
-    fn create_memory_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError>;
-    
+    fn create_memory_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError>;
+
     /// Create lifetime analysis data
-    /// 
+    ///
     /// Analyzes allocation lifetimes, scope information, and lifecycle events
-    fn create_lifetime_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError>;
-    
+    fn create_lifetime_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError>;
+
     /// Create performance analysis data
-    /// 
+    ///
     /// Analyzes performance metrics, allocation patterns, and optimization opportunities
-    fn create_performance_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError>;
-    
+    fn create_performance_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError>;
+
     /// Create unsafe FFI analysis data
-    /// 
+    ///
     /// Analyzes unsafe operations, FFI boundaries, and potential safety violations
-    fn create_unsafe_ffi_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError>;
-    
+    fn create_unsafe_ffi_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError>;
+
     /// Create complex types analysis data
-    /// 
+    ///
     /// Analyzes complex type usage, generic instantiations, and type relationships
-    fn create_complex_types_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError>;
-    
+    fn create_complex_types_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError>;
+
     /// Get analysis engine configuration
     fn get_config(&self) -> &AnalysisConfig;
 }
@@ -128,7 +143,7 @@ impl Default for AnalysisConfig {
 }
 
 /// Standard implementation of the analysis engine
-/// 
+///
 /// This implementation uses the existing optimized analysis functions
 /// to ensure consistency with the current JSON export system.
 pub struct StandardAnalysisEngine {
@@ -142,7 +157,7 @@ impl StandardAnalysisEngine {
             config: AnalysisConfig::default(),
         }
     }
-    
+
     /// Create a new standard analysis engine with custom configuration
     pub fn with_config(config: AnalysisConfig) -> Self {
         Self { config }
@@ -156,28 +171,38 @@ impl Default for StandardAnalysisEngine {
 }
 
 impl AnalysisEngine for StandardAnalysisEngine {
-    fn create_memory_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError> {
+    fn create_memory_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError> {
         // Create a simple memory analysis since we can't access the private functions
         // This will be improved once we refactor the optimized_json_export module
         let total_size: usize = allocations.iter().map(|a| a.size).sum();
-        let avg_size = if !allocations.is_empty() { total_size / allocations.len() } else { 0 };
+        let avg_size = if !allocations.is_empty() {
+            total_size / allocations.len()
+        } else {
+            0
+        };
         let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(0);
         let min_size = allocations.iter().map(|a| a.size).min().unwrap_or(0);
-        
-        let allocations_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
-                "thread_id": alloc.thread_id,
-                "timestamp_alloc": alloc.timestamp_alloc,
-                "is_leaked": alloc.is_leaked,
-                "borrow_count": alloc.borrow_count,
-                "scope_name": alloc.scope_name.as_deref().unwrap_or("global")
+
+        let allocations_data: Vec<serde_json::Value> = allocations
+            .iter()
+            .map(|alloc| {
+                serde_json::json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "size": alloc.size,
+                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                    "thread_id": alloc.thread_id,
+                    "timestamp_alloc": alloc.timestamp_alloc,
+                    "is_leaked": alloc.is_leaked,
+                    "borrow_count": alloc.borrow_count,
+                    "scope_name": alloc.scope_name.as_deref().unwrap_or("global")
+                })
             })
-        }).collect();
-        
+            .collect();
+
         let data = serde_json::json!({
             "allocations": allocations_data,
             "metadata": {
@@ -204,7 +229,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "leaked_count": allocations.iter().filter(|a| a.is_leaked).count()
             }
         });
-        
+
         Ok(AnalysisData {
             data,
             metadata: AnalysisMetadata {
@@ -218,12 +243,15 @@ impl AnalysisEngine for StandardAnalysisEngine {
             },
         })
     }
-    
-    fn create_lifetime_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError> {
+
+    fn create_lifetime_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError> {
         // Create lifecycle events from allocations
         let mut lifecycle_events = Vec::new();
         let mut scope_analysis = std::collections::HashMap::new();
-        
+
         for alloc in allocations {
             // Add allocation event
             lifecycle_events.push(serde_json::json!({
@@ -235,7 +263,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
                 "scope": alloc.scope_name.as_deref().unwrap_or("global")
             }));
-            
+
             // Add deallocation event if available
             if let Some(dealloc_time) = alloc.timestamp_dealloc {
                 lifecycle_events.push(serde_json::json!({
@@ -246,29 +274,34 @@ impl AnalysisEngine for StandardAnalysisEngine {
                     "scope": alloc.scope_name.as_deref().unwrap_or("global")
                 }));
             }
-            
+
             // Update scope analysis
             let scope = alloc.scope_name.as_deref().unwrap_or("global");
-            let entry = scope_analysis.entry(scope.to_string()).or_insert((0, 0, Vec::new()));
+            let entry = scope_analysis
+                .entry(scope.to_string())
+                .or_insert((0, 0, Vec::new()));
             entry.0 += 1; // allocation count
             entry.1 += alloc.size; // total size
             entry.2.push(alloc.size); // individual sizes
         }
-        
+
         // Convert scope analysis to the expected format
         let scope_stats: std::collections::HashMap<String, serde_json::Value> = scope_analysis
             .into_iter()
             .map(|(scope, (count, total_size, sizes))| {
                 let avg_size = if count > 0 { total_size / count } else { 0 };
-                (scope, serde_json::json!({
-                    "allocation_count": count,
-                    "total_size": total_size,
-                    "average_size": avg_size,
-                    "sizes": sizes
-                }))
+                (
+                    scope,
+                    serde_json::json!({
+                        "allocation_count": count,
+                        "total_size": total_size,
+                        "average_size": avg_size,
+                        "sizes": sizes
+                    }),
+                )
             })
             .collect();
-        
+
         let data = serde_json::json!({
             "lifecycle_events": lifecycle_events,
             "scope_analysis": scope_stats,
@@ -294,7 +327,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "leaked_count": allocations.iter().filter(|a| a.is_leaked).count()
             }
         });
-        
+
         Ok(AnalysisData {
             data,
             metadata: AnalysisMetadata {
@@ -308,46 +341,61 @@ impl AnalysisEngine for StandardAnalysisEngine {
             },
         })
     }
-    
-    fn create_performance_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError> {
+
+    fn create_performance_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError> {
         // Calculate performance metrics
         let total_size: usize = allocations.iter().map(|a| a.size).sum();
-        let avg_size = if !allocations.is_empty() { total_size / allocations.len() } else { 0 };
+        let avg_size = if !allocations.is_empty() {
+            total_size / allocations.len()
+        } else {
+            0
+        };
         let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(0);
         let min_size = allocations.iter().map(|a| a.size).min().unwrap_or(0);
-        
+
         // Group by thread for thread analysis
         let mut thread_stats = std::collections::HashMap::new();
         for alloc in allocations {
-            let entry = thread_stats.entry(alloc.thread_id.clone()).or_insert((0, 0));
+            let entry = thread_stats
+                .entry(alloc.thread_id.clone())
+                .or_insert((0, 0));
             entry.0 += 1; // count
             entry.1 += alloc.size; // total size
         }
-        
+
         let thread_analysis: std::collections::HashMap<String, serde_json::Value> = thread_stats
             .into_iter()
             .map(|(thread_id, (count, total_size))| {
-                (thread_id, serde_json::json!({
-                    "allocation_count": count,
-                    "total_size": total_size,
-                    "average_size": if count > 0 { total_size / count } else { 0 }
-                }))
+                (
+                    thread_id,
+                    serde_json::json!({
+                        "allocation_count": count,
+                        "total_size": total_size,
+                        "average_size": if count > 0 { total_size / count } else { 0 }
+                    }),
+                )
             })
             .collect();
-        
-        let allocations_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "timestamp_alloc": alloc.timestamp_alloc,
-                "thread_id": alloc.thread_id,
-                "borrow_count": alloc.borrow_count,
-                "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
-                "fragmentation_analysis": alloc.fragmentation_analysis
+
+        let allocations_data: Vec<serde_json::Value> = allocations
+            .iter()
+            .map(|alloc| {
+                serde_json::json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "size": alloc.size,
+                    "timestamp_alloc": alloc.timestamp_alloc,
+                    "thread_id": alloc.thread_id,
+                    "borrow_count": alloc.borrow_count,
+                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                    "fragmentation_analysis": alloc.fragmentation_analysis
+                })
             })
-        }).collect();
-        
+            .collect();
+
         let data = serde_json::json!({
             "allocations": allocations_data,
             "thread_analysis": thread_analysis,
@@ -374,7 +422,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "unique_threads": thread_analysis.len()
             }
         });
-        
+
         Ok(AnalysisData {
             data,
             metadata: AnalysisMetadata {
@@ -388,22 +436,28 @@ impl AnalysisEngine for StandardAnalysisEngine {
             },
         })
     }
-    
-    fn create_unsafe_ffi_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError> {
+
+    fn create_unsafe_ffi_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError> {
         // Create enhanced FFI data from allocations
-        let enhanced_ffi_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
-                "thread_id": alloc.thread_id,
-                "stack_trace": alloc.stack_trace,
-                "runtime_state": alloc.runtime_state,
-                "timestamp": alloc.timestamp_alloc
+        let enhanced_ffi_data: Vec<serde_json::Value> = allocations
+            .iter()
+            .map(|alloc| {
+                serde_json::json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "size": alloc.size,
+                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                    "thread_id": alloc.thread_id,
+                    "stack_trace": alloc.stack_trace,
+                    "runtime_state": alloc.runtime_state,
+                    "timestamp": alloc.timestamp_alloc
+                })
             })
-        }).collect();
-        
+            .collect();
+
         let data = serde_json::json!({
             "enhanced_ffi_data": enhanced_ffi_data,
             "boundary_events": [],
@@ -435,7 +489,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "risk_assessment": "low"
             }
         });
-        
+
         Ok(AnalysisData {
             data,
             metadata: AnalysisMetadata {
@@ -449,15 +503,18 @@ impl AnalysisEngine for StandardAnalysisEngine {
             },
         })
     }
-    
-    fn create_complex_types_analysis(&self, allocations: &[AllocationInfo]) -> Result<AnalysisData, AnalysisError> {
+
+    fn create_complex_types_analysis(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> Result<AnalysisData, AnalysisError> {
         // Categorize types
         let mut categorized_types = std::collections::HashMap::new();
         let mut generic_types = std::collections::HashMap::new();
-        
+
         for alloc in allocations {
             let type_name = alloc.type_name.as_deref().unwrap_or("unknown");
-            
+
             // Categorize the type
             let category = if type_name.contains('<') && type_name.contains('>') {
                 "generic"
@@ -468,93 +525,143 @@ impl AnalysisEngine for StandardAnalysisEngine {
             } else {
                 "primitive"
             };
-            
-            let entry = categorized_types.entry(category.to_string()).or_insert(Vec::new());
+
+            let entry = categorized_types
+                .entry(category.to_string())
+                .or_insert(Vec::new());
             // Debug: Check if we have the enhanced data
             if alloc.memory_layout.is_some() {
-                println!("DEBUG: AllocationInfo has memory_layout for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+                println!(
+                    "DEBUG: AllocationInfo has memory_layout for {}",
+                    alloc.var_name.as_deref().unwrap_or("unknown")
+                );
             }
             if alloc.generic_info.is_some() {
-                println!("DEBUG: AllocationInfo has generic_info for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+                println!(
+                    "DEBUG: AllocationInfo has generic_info for {}",
+                    alloc.var_name.as_deref().unwrap_or("unknown")
+                );
             }
-            
+
             // Manually serialize to avoid potential serde issues
             let mut json_obj = serde_json::Map::new();
-            json_obj.insert("ptr".to_string(), serde_json::Value::String(format!("0x{:x}", alloc.ptr)));
-            json_obj.insert("size".to_string(), serde_json::Value::Number(serde_json::Number::from(alloc.size)));
-            json_obj.insert("var_name".to_string(), serde_json::Value::String(alloc.var_name.as_deref().unwrap_or("unknown").to_string()));
-            json_obj.insert("type_name".to_string(), serde_json::Value::String(type_name.to_string()));
-            
+            json_obj.insert(
+                "ptr".to_string(),
+                serde_json::Value::String(format!("0x{:x}", alloc.ptr)),
+            );
+            json_obj.insert(
+                "size".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(alloc.size)),
+            );
+            json_obj.insert(
+                "var_name".to_string(),
+                serde_json::Value::String(
+                    alloc.var_name.as_deref().unwrap_or("unknown").to_string(),
+                ),
+            );
+            json_obj.insert(
+                "type_name".to_string(),
+                serde_json::Value::String(type_name.to_string()),
+            );
+
             // Serialize complex fields manually
-            json_obj.insert("smart_pointer_info".to_string(), 
+            json_obj.insert(
+                "smart_pointer_info".to_string(),
                 if let Some(ref info) = alloc.smart_pointer_info {
                     serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
                 } else {
                     serde_json::Value::Null
-                });
-            
-            json_obj.insert("memory_layout".to_string(), 
+                },
+            );
+
+            json_obj.insert(
+                "memory_layout".to_string(),
                 if let Some(ref layout) = alloc.memory_layout {
                     match serde_json::to_value(layout) {
                         Ok(value) => {
-                            println!("DEBUG: Successfully serialized memory_layout for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+                            println!(
+                                "DEBUG: Successfully serialized memory_layout for {}",
+                                alloc.var_name.as_deref().unwrap_or("unknown")
+                            );
                             value
                         }
                         Err(e) => {
-                            println!("DEBUG: Failed to serialize memory_layout for {}: {}", alloc.var_name.as_deref().unwrap_or("unknown"), e);
+                            println!(
+                                "DEBUG: Failed to serialize memory_layout for {}: {}",
+                                alloc.var_name.as_deref().unwrap_or("unknown"),
+                                e
+                            );
                             serde_json::Value::Null
                         }
                     }
                 } else {
                     serde_json::Value::Null
-                });
-            
-            json_obj.insert("generic_info".to_string(), 
+                },
+            );
+
+            json_obj.insert(
+                "generic_info".to_string(),
                 if let Some(ref info) = alloc.generic_info {
                     match serde_json::to_value(info) {
                         Ok(value) => {
-                            println!("DEBUG: Successfully serialized generic_info for {}", alloc.var_name.as_deref().unwrap_or("unknown"));
+                            println!(
+                                "DEBUG: Successfully serialized generic_info for {}",
+                                alloc.var_name.as_deref().unwrap_or("unknown")
+                            );
                             value
                         }
                         Err(e) => {
-                            println!("DEBUG: Failed to serialize generic_info for {}: {}", alloc.var_name.as_deref().unwrap_or("unknown"), e);
+                            println!(
+                                "DEBUG: Failed to serialize generic_info for {}: {}",
+                                alloc.var_name.as_deref().unwrap_or("unknown"),
+                                e
+                            );
                             serde_json::Value::Null
                         }
                     }
                 } else {
                     serde_json::Value::Null
-                });
-            
-            json_obj.insert("dynamic_type_info".to_string(), 
+                },
+            );
+
+            json_obj.insert(
+                "dynamic_type_info".to_string(),
                 if let Some(ref info) = alloc.dynamic_type_info {
                     serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
                 } else {
                     serde_json::Value::Null
-                });
-            
-            json_obj.insert("generic_instantiation".to_string(), 
+                },
+            );
+
+            json_obj.insert(
+                "generic_instantiation".to_string(),
                 if let Some(ref info) = alloc.generic_instantiation {
                     serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
                 } else {
                     serde_json::Value::Null
-                });
-            
-            json_obj.insert("type_relationships".to_string(), 
+                },
+            );
+
+            json_obj.insert(
+                "type_relationships".to_string(),
                 if let Some(ref info) = alloc.type_relationships {
                     serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
                 } else {
                     serde_json::Value::Null
-                });
-            
-            json_obj.insert("type_usage".to_string(), 
+                },
+            );
+
+            json_obj.insert(
+                "type_usage".to_string(),
                 if let Some(ref info) = alloc.type_usage {
                     serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
                 } else {
                     serde_json::Value::Null
-                });
-            
+                },
+            );
+
             entry.push(serde_json::Value::Object(json_obj));
-            
+
             // Track generic types separately
             if category == "generic" {
                 let entry = generic_types.entry(type_name.to_string()).or_insert((0, 0));
@@ -562,18 +669,21 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 entry.1 += alloc.size; // total size
             }
         }
-        
+
         let generic_stats: std::collections::HashMap<String, serde_json::Value> = generic_types
             .into_iter()
             .map(|(type_name, (count, total_size))| {
-                (type_name, serde_json::json!({
-                    "instantiation_count": count,
-                    "total_size": total_size,
-                    "average_size": if count > 0 { total_size / count } else { 0 }
-                }))
+                (
+                    type_name,
+                    serde_json::json!({
+                        "instantiation_count": count,
+                        "total_size": total_size,
+                        "average_size": if count > 0 { total_size / count } else { 0 }
+                    }),
+                )
             })
             .collect();
-        
+
         let data = serde_json::json!({
             "categorized_types": categorized_types,
             "generic_types": generic_stats,
@@ -596,12 +706,12 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "total_allocations": allocations.len(),
                 "type_categories": categorized_types.len(),
                 "generic_types": generic_stats.len(),
-                "complex_type_ratio": if allocations.len() > 0 { 
+                "complex_type_ratio": if allocations.len() > 0 {
                     (categorized_types.get("generic").map(|v| v.len()).unwrap_or(0) as f64 / allocations.len() as f64) * 100.0
                 } else { 0.0 }
             }
         });
-        
+
         Ok(AnalysisData {
             data,
             metadata: AnalysisMetadata {
@@ -615,7 +725,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
             },
         })
     }
-    
+
     fn get_config(&self) -> &AnalysisConfig {
         &self.config
     }
@@ -623,16 +733,21 @@ impl AnalysisEngine for StandardAnalysisEngine {
 
 impl StandardAnalysisEngine {
     /// Convert our analysis config to the existing OptimizedExportOptions
-    fn convert_to_export_options(&self) -> crate::export::optimized_json_export::OptimizedExportOptions {
-        use crate::export::optimized_json_export::{OptimizedExportOptions, OptimizationLevel as ExportOptLevel};
-        
+    #[allow(dead_code)]
+    fn convert_to_export_options(
+        &self,
+    ) -> crate::export::optimized_json_export::OptimizedExportOptions {
+        use crate::export::optimized_json_export::{
+            OptimizationLevel as ExportOptLevel, OptimizedExportOptions,
+        };
+
         let export_opt_level = match self.config.optimization_level {
             OptimizationLevel::Low => ExportOptLevel::Low,
             OptimizationLevel::Medium => ExportOptLevel::Medium,
             OptimizationLevel::High => ExportOptLevel::High,
             OptimizationLevel::Maximum => ExportOptLevel::Maximum,
         };
-        
+
         OptimizedExportOptions::with_optimization_level(export_opt_level)
             .parallel_processing(self.config.parallel_processing)
             .batch_size(self.config.batch_size)
@@ -643,56 +758,60 @@ impl StandardAnalysisEngine {
 mod tests {
     use super::*;
     use crate::core::types::AllocationInfo;
-    
+
     fn create_test_allocations() -> Vec<AllocationInfo> {
-        vec![
-            AllocationInfo {
-                ptr: 0x1000,
-                size: 1024,
-                var_name: Some("buffer".to_string()),
-                type_name: Some("Vec<u8>".to_string()),
-                scope_name: Some("main".to_string()),
-                timestamp_alloc: 1234567890,
-                timestamp_dealloc: None,
-                thread_id: "main".to_string(),
-                borrow_count: 0,
-                stack_trace: None,
-                is_leaked: false,
-                lifetime_ms: Some(100),
-                smart_pointer_info: None,
-                memory_layout: None,
-                generic_info: None,
-                dynamic_type_info: None,
-                runtime_state: None,
-                stack_allocation: None,
-                temporary_object: None,
-                fragmentation_analysis: None,
-                generic_instantiation: None,
-                type_relationships: None,
-                type_usage: None,
-                function_call_tracking: None,
-                lifecycle_tracking: None,
-                access_tracking: None,
-            },
-        ]
+        vec![AllocationInfo {
+            ptr: 0x1000,
+            size: 1024,
+            var_name: Some("buffer".to_string()),
+            type_name: Some("Vec<u8>".to_string()),
+            scope_name: Some("main".to_string()),
+            timestamp_alloc: 1234567890,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: Some(100),
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+        }]
     }
-    
+
     #[test]
     fn test_standard_analysis_engine_creation() {
         let engine = StandardAnalysisEngine::new();
-        assert_eq!(engine.get_config().optimization_level, OptimizationLevel::High);
+        assert_eq!(
+            engine.get_config().optimization_level,
+            OptimizationLevel::High
+        );
     }
-    
+
     #[test]
     fn test_memory_analysis() {
         let engine = StandardAnalysisEngine::new();
         let allocations = create_test_allocations();
-        
+
         let result = engine.create_memory_analysis(&allocations);
         assert!(result.is_ok());
-        
+
         let analysis_data = result.unwrap();
-        assert_eq!(analysis_data.metadata.analysis_type, "integrated_memory_analysis");
+        assert_eq!(
+            analysis_data.metadata.analysis_type,
+            "integrated_memory_analysis"
+        );
         assert_eq!(analysis_data.metadata.total_allocations, 1);
     }
 }

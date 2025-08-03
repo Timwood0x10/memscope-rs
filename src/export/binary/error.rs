@@ -7,18 +7,23 @@ use std::fmt;
 pub enum BinaryExportError {
     /// File I/O operation failed
     Io(std::io::Error),
-    
+
     /// Invalid file format detected
     InvalidFormat,
-    
+
     /// Unsupported file version
     UnsupportedVersion(u32),
-    
+
     /// Data corruption detected
     CorruptedData(String),
-    
+
     /// Invalid magic bytes in header
-    InvalidMagic { expected: String, actual: String },
+    InvalidMagic {
+        /// Expected magic bytes
+        expected: String,
+        /// Actual magic bytes found
+        actual: String,
+    },
 }
 
 impl fmt::Display for BinaryExportError {
@@ -33,7 +38,11 @@ impl fmt::Display for BinaryExportError {
                 write!(f, "Data corruption: {}", reason)
             }
             BinaryExportError::InvalidMagic { expected, actual } => {
-                write!(f, "Invalid magic bytes: expected '{}', got '{}'", expected, actual)
+                write!(
+                    f,
+                    "Invalid magic bytes: expected '{}', got '{}'",
+                    expected, actual
+                )
             }
         }
     }
@@ -64,21 +73,21 @@ impl From<BinaryExportError> for crate::core::types::TrackingError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_error_display() {
         let err = BinaryExportError::InvalidFormat;
         assert_eq!(err.to_string(), "Invalid file format");
-        
+
         let err = BinaryExportError::UnsupportedVersion(2);
         assert_eq!(err.to_string(), "Unsupported version: 2");
     }
-    
+
     #[test]
     fn test_io_error_conversion() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let binary_err = BinaryExportError::from(io_err);
-        
+
         match binary_err {
             BinaryExportError::Io(_) => (),
             _ => panic!("Expected Io error"),

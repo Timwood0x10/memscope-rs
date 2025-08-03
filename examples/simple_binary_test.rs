@@ -1,10 +1,10 @@
 use memscope_rs::core::types::AllocationInfo;
-use memscope_rs::export::binary::{BinaryWriter, BinaryReader};
+use memscope_rs::export::binary::{BinaryReader, BinaryWriter};
 use tempfile::NamedTempFile;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Simple binary test...");
-    
+
     // Create minimal test allocation
     let test_alloc = AllocationInfo {
         ptr: 0x1000,
@@ -34,10 +34,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         lifecycle_tracking: None,
         access_tracking: None,
     };
-    
+
     let temp_file = NamedTempFile::new()?;
     let file_path = temp_file.path();
-    
+
     // Write
     {
         let mut writer = BinaryWriter::new(file_path)?;
@@ -45,17 +45,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         writer.write_allocation(&test_alloc)?;
         writer.finish()?;
     }
-    
+
     // Read
     let mut reader = BinaryReader::new(file_path)?;
     let _header = reader.read_header()?;
     let read_alloc = reader.read_allocation()?;
-    
+
     println!("Original lifetime_ms: {:?}", test_alloc.lifetime_ms);
     println!("Read lifetime_ms: {:?}", read_alloc.lifetime_ms);
-    
+
     assert_eq!(test_alloc.lifetime_ms, read_alloc.lifetime_ms);
     println!("✅ Test passed!");
-    
+
     Ok(())
 }

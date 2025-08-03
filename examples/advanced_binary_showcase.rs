@@ -1,5 +1,5 @@
 //! Advanced Binary Export Showcase
-//! 
+//!
 //! This example demonstrates the binary export functionality with complex,
 //! real-world scenarios including:
 //! - Complex generic types and trait objects
@@ -10,20 +10,21 @@
 //! - Multi-threaded scenarios
 //! - Performance-critical data structures
 
-use memscope_rs::{get_global_tracker, track_var, Trackable, impl_advanced_trackable};
-use std::collections::{HashMap, BTreeMap, VecDeque};
-use std::sync::{Arc, Mutex, RwLock, Weak};
-use std::rc::Rc;
+use memscope_rs::{get_global_tracker, track_var, Trackable};
 use std::cell::RefCell;
-use std::pin::Pin;
-use std::future::Future;
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::ffi::CString;
-use std::os::raw::{c_char, c_int, c_void};
-use std::ptr;
-use std::slice;
+use std::future::Future;
 use std::hash::RandomState;
+use std::os::raw::{c_char, c_int, c_void};
+use std::pin::Pin;
+use std::ptr;
+use std::rc::Rc;
+use std::slice;
+use std::sync::{Arc, Mutex, RwLock, Weak};
 
 // Complex trait definitions for trait objects
+#[allow(dead_code)]
 trait DataProcessor: Send + Sync {
     fn process(&self, data: &[u8]) -> Vec<u8>;
     fn get_name(&self) -> &str;
@@ -35,8 +36,9 @@ trait AsyncProcessor: Send + Sync {
 
 // Complex generic structures
 #[derive(Debug)]
-struct GenericCache<K, V, H> 
-where 
+#[allow(dead_code)]
+struct GenericCache<K, V, H>
+where
     K: Clone + std::hash::Hash + Eq,
     V: Clone,
     H: std::hash::BuildHasher,
@@ -50,30 +52,32 @@ where
 }
 
 // Complex nested structure with various smart pointers
+#[allow(dead_code)]
 struct ComplexDataStructure {
     // Various smart pointer types
     shared_config: Arc<RwLock<HashMap<String, String>>>,
     local_cache: Rc<RefCell<Vec<String>>>,
     weak_reference: Weak<Mutex<i32>>,
-    
+
     // Complex nested generics
     processing_queue: Arc<Mutex<VecDeque<Box<dyn DataProcessor>>>>,
     async_handlers: Vec<Box<dyn AsyncProcessor>>,
-    
+
     // Function pointers and closures
     callback: Option<Box<dyn Fn(&str) -> String + Send + Sync>>,
     filter_fn: fn(&str) -> bool,
-    
+
     // Unsafe data
     raw_buffer: *mut u8,
     buffer_size: usize,
-    
+
     // FFI data
     c_string: CString,
     external_handle: *mut c_void,
 }
 
 // Implementation of trait objects
+#[allow(dead_code)]
 struct JsonProcessor {
     name: String,
     indent_size: usize,
@@ -81,15 +85,21 @@ struct JsonProcessor {
 
 impl DataProcessor for JsonProcessor {
     fn process(&self, data: &[u8]) -> Vec<u8> {
-        format!("{{\"processed_by\":\"{}\",\"data_size\":{},\"indent\":{}}}", 
-                self.name, data.len(), self.indent_size).into_bytes()
+        format!(
+            "{{\"processed_by\":\"{}\",\"data_size\":{},\"indent\":{}}}",
+            self.name,
+            data.len(),
+            self.indent_size
+        )
+        .into_bytes()
     }
-    
+
     fn get_name(&self) -> &str {
         &self.name
     }
 }
 
+#[allow(dead_code)]
 struct BinaryProcessor {
     compression_level: u8,
 }
@@ -103,7 +113,7 @@ impl DataProcessor for BinaryProcessor {
         result.extend_from_slice(&data[..std::cmp::min(data.len(), 100)]);
         result
     }
-    
+
     fn get_name(&self) -> &str {
         "BinaryProcessor"
     }
@@ -156,7 +166,7 @@ pub extern "C" fn process_data_c(data: *const c_char, len: c_int) -> *mut c_char
         if data.is_null() || len <= 0 {
             return ptr::null_mut();
         }
-        
+
         let input = slice::from_raw_parts(data as *const u8, len as usize);
         let processed = format!("C_PROCESSED:{}", input.len());
         let c_string = CString::new(processed).unwrap();
@@ -164,8 +174,9 @@ pub extern "C" fn process_data_c(data: *const c_char, len: c_int) -> *mut c_char
     }
 }
 
-impl<K, V, H> GenericCache<K, V, H> 
-where 
+#[allow(dead_code)]
+impl<K, V, H> GenericCache<K, V, H>
+where
     K: Clone + std::hash::Hash + Eq,
     V: Clone,
     H: std::hash::BuildHasher,
@@ -180,7 +191,7 @@ where
             miss_count: 0,
         }
     }
-    
+
     fn insert(&mut self, key: K, value: V) {
         if self.data.len() >= self.capacity {
             // Remove oldest entry
@@ -188,11 +199,11 @@ where
                 self.data.remove(&old_key);
             }
         }
-        
+
         self.data.insert(key.clone(), value);
         self.access_log.push_back((key, std::time::Instant::now()));
     }
-    
+
     fn get(&mut self, key: &K) -> Option<&V> {
         if let Some(value) = self.data.get(key) {
             self.hit_count += 1;
@@ -210,12 +221,12 @@ unsafe fn create_unsafe_buffer(size: usize) -> (*mut u8, usize) {
     if ptr.is_null() {
         panic!("Failed to allocate memory");
     }
-    
+
     // Initialize with pattern
     for i in 0..size {
         *ptr.add(i) = (i % 256) as u8;
     }
-    
+
     (ptr, size)
 }
 
@@ -228,12 +239,13 @@ unsafe fn cleanup_unsafe_buffer(ptr: *mut u8, size: usize) {
 
 fn create_complex_closures() -> Vec<Box<dyn Fn(i32) -> i32 + Send + Sync>> {
     let mut closures: Vec<Box<dyn Fn(i32) -> i32 + Send + Sync>> = Vec::new();
-    
+
     // Closure with captured environment
     let multiplier = 42;
-    let multiply_closure: Box<dyn Fn(i32) -> i32 + Send + Sync> = Box::new(move |x: i32| x * multiplier);
+    let multiply_closure: Box<dyn Fn(i32) -> i32 + Send + Sync> =
+        Box::new(move |x: i32| x * multiplier);
     closures.push(multiply_closure);
-    
+
     // Closure with complex logic
     let complex_closure: Box<dyn Fn(i32) -> i32 + Send + Sync> = Box::new(|x: i32| {
         let mut result = x;
@@ -243,13 +255,13 @@ fn create_complex_closures() -> Vec<Box<dyn Fn(i32) -> i32 + Send + Sync>> {
         result
     });
     closures.push(complex_closure);
-    
+
     closures
 }
 
 // Implement Trackable for our custom types
-impl<K, V, H> Trackable for GenericCache<K, V, H> 
-where 
+impl<K, V, H> Trackable for GenericCache<K, V, H>
+where
     K: Clone + std::hash::Hash + Eq,
     V: Clone,
     H: std::hash::BuildHasher,
@@ -268,10 +280,10 @@ where
     }
 
     fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<Self>() + 
-        self.data.get_size_estimate() + 
-        self.metadata.len() * (std::mem::size_of::<String>() * 2) +
-        self.access_log.len() * std::mem::size_of::<(K, std::time::Instant)>()
+        std::mem::size_of::<Self>()
+            + self.data.get_size_estimate()
+            + self.metadata.len() * (std::mem::size_of::<String>() * 2)
+            + self.access_log.len() * std::mem::size_of::<(K, std::time::Instant)>()
     }
 }
 
@@ -290,13 +302,13 @@ impl Trackable for ComplexDataStructure {
     }
 
     fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<Self>() + 
-        self.shared_config.get_size_estimate() +
-        self.local_cache.get_size_estimate() +
-        self.processing_queue.get_size_estimate() +
-        self.async_handlers.len() * std::mem::size_of::<Box<dyn AsyncProcessor>>() +
-        self.buffer_size +
-        self.c_string.as_bytes().len()
+        std::mem::size_of::<Self>()
+            + self.shared_config.get_size_estimate()
+            + self.local_cache.get_size_estimate()
+            + self.processing_queue.get_size_estimate()
+            + self.async_handlers.len() * std::mem::size_of::<Box<dyn AsyncProcessor>>()
+            + self.buffer_size
+            + self.c_string.as_bytes().len()
     }
 }
 
@@ -314,45 +326,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     let tracker = get_global_tracker();
-    
+
     // Create output directory
     let output_dir = std::path::Path::new("./MemoryAnalysis/advanced_binary_showcase");
     std::fs::create_dir_all(output_dir)?;
     println!("📁 Created output directory: {}", output_dir.display());
-    
+
     println!("\n🔧 Creating complex data structures...");
-    
+
     // 1. Complex Generic Cache
     let mut string_cache = GenericCache::new(100, RandomState::new());
     for i in 0..50 {
-        string_cache.insert(format!("key_{}", i), format!("value_data_{}_with_long_content", i));
+        string_cache.insert(
+            format!("key_{}", i),
+            format!("value_data_{}_with_long_content", i),
+        );
     }
     let _tracked_string_cache = track_var!(string_cache);
-    
+
     // 2. Multi-level nested smart pointers
     let shared_config = Arc::new(RwLock::new({
         let mut config = HashMap::new();
-        config.insert("database_url".to_string(), "postgresql://localhost:5432/mydb".to_string());
-        config.insert("redis_url".to_string(), "redis://localhost:6379".to_string());
+        config.insert(
+            "database_url".to_string(),
+            "postgresql://localhost:5432/mydb".to_string(),
+        );
+        config.insert(
+            "redis_url".to_string(),
+            "redis://localhost:6379".to_string(),
+        );
         config.insert("api_key".to_string(), "sk-1234567890abcdef".to_string());
         config
     }));
     let _tracked_shared_config = track_var!(shared_config);
-    
+
     // 3. Complex trait object collections
     let mut processors: Vec<Box<dyn DataProcessor>> = Vec::new();
-    processors.push(Box::new(JsonProcessor { 
-        name: "PrimaryJsonProcessor".to_string(), 
-        indent_size: 4 
+    processors.push(Box::new(JsonProcessor {
+        name: "PrimaryJsonProcessor".to_string(),
+        indent_size: 4,
     }));
-    processors.push(Box::new(JsonProcessor { 
-        name: "CompactJsonProcessor".to_string(), 
-        indent_size: 0 
+    processors.push(Box::new(JsonProcessor {
+        name: "CompactJsonProcessor".to_string(),
+        indent_size: 0,
     }));
-    processors.push(Box::new(BinaryProcessor { compression_level: 9 }));
-    processors.push(Box::new(BinaryProcessor { compression_level: 1 }));
+    processors.push(Box::new(BinaryProcessor {
+        compression_level: 9,
+    }));
+    processors.push(Box::new(BinaryProcessor {
+        compression_level: 1,
+    }));
     let _tracked_processors = track_var!(processors);
-    
+
     // 4. Async processors
     let async_processors: Vec<Box<dyn AsyncProcessor>> = vec![
         Box::new(AsyncDataProcessor { delay_ms: 10 }),
@@ -360,30 +385,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(AsyncDataProcessor { delay_ms: 100 }),
     ];
     let _tracked_async_processors = track_var!(async_processors);
-    
+
     // 5. Complex nested structure with various pointer types
     let strong_ref = Arc::new(Mutex::new(42i32));
     let weak_ref = Arc::downgrade(&strong_ref);
-    
+
     let local_cache = Rc::new(RefCell::new(vec![
         "cached_item_1".to_string(),
         "cached_item_2_with_longer_content".to_string(),
         "cached_item_3_with_even_more_detailed_information".to_string(),
     ]));
-    
+
     // 6. Unsafe memory operations
     let (raw_buffer, buffer_size) = unsafe { create_unsafe_buffer(8192) };
-    
+
     // 7. FFI operations
     let c_string = CString::new("Hello from Rust to C interface!")?;
-    let external_handle = unsafe { external_malloc(1024) };
-    
+    let external_handle = external_malloc(1024);
+
     // Process some data through C
     let test_data = CString::new("Test data for C processing")?;
-    let processed_c_data = unsafe {
-        process_data_c(test_data.as_ptr(), test_data.as_bytes().len() as c_int)
-    };
-    
+    let processed_c_data = process_data_c(test_data.as_ptr(), test_data.as_bytes().len() as c_int);
+
     let complex_structure = ComplexDataStructure {
         shared_config: Arc::new(RwLock::new({
             let mut map = HashMap::new();
@@ -395,7 +418,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         weak_reference: weak_ref,
         processing_queue: Arc::new(Mutex::new(VecDeque::new())),
         async_handlers: async_processors,
-        callback: Some(Box::new(|input: &str| format!("CALLBACK_PROCESSED: {}", input.to_uppercase()))),
+        callback: Some(Box::new(|input: &str| {
+            format!("CALLBACK_PROCESSED: {}", input.to_uppercase())
+        })),
         filter_fn: |s: &str| s.len() > 5,
         raw_buffer,
         buffer_size,
@@ -403,15 +428,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         external_handle,
     };
     let _tracked_complex_structure = track_var!(complex_structure);
-    
+
     // 8. Complex closures with captured environments
     let closures = create_complex_closures();
     let _tracked_closures = track_var!(closures);
-    
+
     // 9. Multi-threaded data structures
     let thread_safe_counter = Arc::new(Mutex::new(0u64));
     let mut handles = Vec::new();
-    
+
     for i in 0..4 {
         let counter = Arc::clone(&thread_safe_counter);
         let handle = std::thread::spawn(move || {
@@ -422,22 +447,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         handles.push(handle);
     }
-    
+
     // Wait for threads to complete
     for handle in handles {
         handle.join().unwrap();
     }
     let _tracked_thread_safe_counter = track_var!(thread_safe_counter);
-    
+
     // 10. Performance-critical data structures
     let mut performance_map: HashMap<String, Vec<f64>> = HashMap::with_capacity(1000);
     for i in 0..500 {
         let key = format!("metric_{}_{}", i / 100, i % 100);
-        let values: Vec<f64> = (0..100).map(|j| (i as f64 * 3.14159 + j as f64).sin()).collect();
+        let values: Vec<f64> = (0..100)
+            .map(|j| (i as f64 * 3.14159 + j as f64).sin())
+            .collect();
         performance_map.insert(key, values);
     }
     let _tracked_performance_map = track_var!(performance_map);
-    
+
     // 11. Complex async operations
     println!("\n⚡ Running async operations...");
     let async_results = tokio::join!(
@@ -460,7 +487,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _tracked_result1 = track_var!(async_results.0);
     let _tracked_result2 = track_var!(async_results.1);
     let _tracked_result3 = track_var!(async_results.2);
-    
+
     println!("✅ Created complex data structures with:");
     println!("  • Generic cache with {} entries", 50);
     println!("  • {} trait object processors", 4);
@@ -469,59 +496,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • {} performance metrics", 500);
     println!("  • Unsafe buffer of {} bytes", buffer_size);
     println!("  • FFI operations with C interface");
-    
+
     // Add some deallocations to show complete lifecycle
     std::thread::sleep(std::time::Duration::from_millis(50));
-    drop(_tracked_string_cache);
-    drop(_tracked_performance_map);
-    
+    let _ = _tracked_string_cache;
+    let _ = _tracked_performance_map;
+
     println!("✅ Simulated some deallocations for lifecycle analysis");
-    
+
     // Export to binary format
     println!("\n💾 Exporting to binary format...");
     let start_time = std::time::Instant::now();
     tracker.export_to_binary("advanced_binary_showcase")?;
     let binary_export_time = start_time.elapsed();
-    
+
     // Find the created binary file
     let binary_file = find_binary_file("MemoryAnalysis")?;
     let binary_size = std::fs::metadata(&binary_file)?.len();
-    
+
     println!("✅ Binary export completed in {:?}", binary_export_time);
-    println!("📁 Binary file: {} ({} bytes)", binary_file.display(), binary_size);
-    
+    println!(
+        "📁 Binary file: {} ({} bytes)",
+        binary_file.display(),
+        binary_size
+    );
+
     // Convert binary to standard JSON files
     println!("\n🔄 Converting binary to standard JSON files...");
     let start_time = std::time::Instant::now();
-    memscope_rs::core::tracker::MemoryTracker::parse_binary_to_standard_json(&binary_file, "advanced_binary_showcase")?;
+    memscope_rs::core::tracker::MemoryTracker::parse_binary_to_standard_json(
+        &binary_file,
+        "advanced_binary_showcase",
+    )?;
     let json_conversion_time = start_time.elapsed();
-    
+
     // Convert binary to HTML report
     println!("\n🌐 Converting binary to HTML report...");
     let html_file = output_dir.join("advanced_binary_showcase.html");
     let start_time = std::time::Instant::now();
     memscope_rs::core::tracker::MemoryTracker::parse_binary_to_html(&binary_file, &html_file)?;
     let html_conversion_time = start_time.elapsed();
-    
-    let html_size = std::fs::metadata(&html_file)?.len();
-    
+
+    let _html_size = std::fs::metadata(&html_file)?.len();
+
     // Performance comparison with direct JSON export
     println!("\n📊 Performance Analysis:");
     println!("========================");
-    
+
     let start_time = std::time::Instant::now();
     tracker.export_to_json("advanced_binary_direct")?;
     let json_direct_time = start_time.elapsed();
-    
+
     // Calculate file sizes
     let json_files = [
         "advanced_binary_showcase_memory_analysis.json",
-        "advanced_binary_showcase_lifetime.json", 
+        "advanced_binary_showcase_lifetime.json",
         "advanced_binary_showcase_performance.json",
         "advanced_binary_showcase_unsafe_ffi.json",
         "advanced_binary_showcase_complex_types.json",
     ];
-    
+
     let mut total_json_size = 0;
     println!("✅ Generated JSON files:");
     for json_file_name in &json_files {
@@ -532,23 +566,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("  • {} ({} bytes)", json_file_name, size);
         }
     }
-    
+
     // Calculate performance metrics
-    let size_reduction = ((total_json_size as f64 - binary_size as f64) / total_json_size as f64) * 100.0;
-    let speed_improvement = json_direct_time.as_nanos() as f64 / binary_export_time.as_nanos() as f64;
-    
+    let size_reduction =
+        ((total_json_size as f64 - binary_size as f64) / total_json_size as f64) * 100.0;
+    let speed_improvement =
+        json_direct_time.as_nanos() as f64 / binary_export_time.as_nanos() as f64;
+
     println!("\nAdvanced Binary Export Performance:");
     println!("  📊 Binary export time:     {:?}", binary_export_time);
     println!("  📊 Standard JSON time:     {:?}", json_direct_time);
-    println!("  🚀 Speed improvement:      {:.2}x faster", speed_improvement);
+    println!(
+        "  🚀 Speed improvement:      {:.2}x faster",
+        speed_improvement
+    );
     println!("  📁 Binary file size:       {} bytes", binary_size);
-    println!("  📁 JSON files size:        {} bytes (5 files)", total_json_size);
+    println!(
+        "  📁 JSON files size:        {} bytes (5 files)",
+        total_json_size
+    );
     println!("  💾 Size reduction:         {:.1}%", size_reduction);
-    
+
     println!("\nConversion Performance:");
     println!("  🔄 Binary → JSON files:    {:?}", json_conversion_time);
     println!("  🌐 Binary → HTML:          {:?}", html_conversion_time);
-    
+
     println!("\n🎉 Advanced showcase completed successfully!");
     println!("📁 All files generated in: {}", output_dir.display());
     println!("\n💡 Key Features Demonstrated:");
@@ -562,7 +604,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✅ Multi-threaded data structures");
     println!("  ✅ Performance-critical collections");
     println!("  ✅ Complex memory layouts and lifetimes");
-    
+
     // Cleanup unsafe resources
     unsafe {
         cleanup_unsafe_buffer(raw_buffer, buffer_size);
@@ -573,20 +615,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = CString::from_raw(processed_c_data);
         }
     }
-    
+
     println!("\n🧹 Cleaned up unsafe resources");
-    
+
     Ok(())
 }
 
 /// Find the binary file in the MemoryAnalysis directory
 fn find_binary_file(base_dir: &str) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let memory_analysis_dir = std::path::Path::new(base_dir);
-    
+
     if !memory_analysis_dir.exists() {
         return Err("MemoryAnalysis directory not found".into());
     }
-    
+
     // Look for .memscope files
     for entry in std::fs::read_dir(memory_analysis_dir)? {
         let entry = entry?;
@@ -599,6 +641,6 @@ fn find_binary_file(base_dir: &str) -> Result<std::path::PathBuf, Box<dyn std::e
             }
         }
     }
-    
+
     Err("No .memscope file found".into())
 }
