@@ -303,7 +303,7 @@ impl<T> Trackable for std::sync::Arc<T> {
     }
 }
 
-impl<K, V> Trackable for std::collections::HashMap<K, V> {
+impl<K, V, S> Trackable for std::collections::HashMap<K, V, S> {
     fn get_heap_ptr(&self) -> Option<usize> {
         // HashMap has internal heap allocations for buckets
         // We'll use the HashMap's address as a proxy
@@ -311,7 +311,7 @@ impl<K, V> Trackable for std::collections::HashMap<K, V> {
     }
 
     fn get_type_name(&self) -> &'static str {
-        std::any::type_name::<std::collections::HashMap<K, V>>()
+        std::any::type_name::<std::collections::HashMap<K, V, S>>()
     }
 
     fn get_size_estimate(&self) -> usize {
@@ -511,6 +511,35 @@ impl_advanced_trackable!(std::sync::atomic::AtomicI64, 0xEA00_0000, no_generics)
 impl_advanced_trackable!(std::mem::ManuallyDrop<T>, 0xF000_0000);
 impl_advanced_trackable!(std::mem::MaybeUninit<T>, 0xF100_0000);
 impl_advanced_trackable!(std::pin::Pin<T>, 0xF200_0000);
+
+// Additional complex types for advanced showcase
+impl_advanced_trackable!(std::ffi::CString, 0xF300_0000, no_generics);
+impl_advanced_trackable!(std::hash::RandomState, 0xF400_0000, no_generics);
+
+// Implement Trackable for tuples (commonly used in async results)
+impl<T1: Trackable, T2: Trackable, T3: Trackable> Trackable for (T1, T2, T3) {
+    fn get_heap_ptr(&self) -> Option<usize> {
+        // Use the first element's pointer as the base
+        if let Some(ptr1) = self.0.get_heap_ptr() {
+            Some(0xF500_0000 + (ptr1 % 0x0FFF_FFFF))
+        } else if let Some(ptr2) = self.1.get_heap_ptr() {
+            Some(0xF500_0000 + (ptr2 % 0x0FFF_FFFF))
+        } else if let Some(ptr3) = self.2.get_heap_ptr() {
+            Some(0xF500_0000 + (ptr3 % 0x0FFF_FFFF))
+        } else {
+            // If no heap pointers, use stack address
+            Some(0xF500_0000 + (self as *const _ as usize % 0x0FFF_FFFF))
+        }
+    }
+
+    fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<(T1, T2, T3)>()
+    }
+
+    fn get_size_estimate(&self) -> usize {
+        self.0.get_size_estimate() + self.1.get_size_estimate() + self.2.get_size_estimate()
+    }
+}
 
 // Implement for Option<T> where T: Trackable
 impl<T: Trackable> Trackable for Option<T> {
