@@ -32,28 +32,55 @@ impl BinaryWriter {
     
     /// Write single allocation record in TLV format
     pub fn write_allocation(&mut self, alloc: &AllocationInfo) -> Result<(), BinaryExportError> {
-        // Calculate record size
-        let record_size = self.calculate_record_size(alloc);
+        // Calculate value size (excluding Type and Length fields)
+        let value_size = self.calculate_value_size(alloc);
         
         // Write Type (1 byte)
         self.writer.write_all(&[ALLOCATION_RECORD_TYPE])?;
         
-        // Write Length (4 bytes, Little Endian)
-        self.writer.write_all(&(record_size as u32).to_le_bytes())?;
+        // Write Length (4 bytes, Little Endian) - only the Value part
+        self.writer.write_all(&(value_size as u32).to_le_bytes())?;
         
-        // Write Value: basic fields (ptr, size, timestamp)
+        // Write Value: basic fields (ptr, size, timestamps)
         self.writer.write_all(&(alloc.ptr as u64).to_le_bytes())?;
         self.writer.write_all(&(alloc.size as u64).to_le_bytes())?;
         self.writer.write_all(&alloc.timestamp_alloc.to_le_bytes())?;
         
-        // Write optional variable name
+        // Write optional timestamp_dealloc
+        match alloc.timestamp_dealloc {
+            Some(ts) => {
+                self.writer.write_all(&1u8.to_le_bytes())?; // has value
+                self.writer.write_all(&ts.to_le_bytes())?;
+            }
+            None => {
+                self.writer.write_all(&0u8.to_le_bytes())?; // no value
+            }
+        }
+        
+        // Write string fields
         self.write_optional_string(&alloc.var_name)?;
-        
-        // Write optional type name
         self.write_optional_string(&alloc.type_name)?;
-        
-        // Write thread ID
+        self.write_optional_string(&alloc.scope_name)?;
         self.write_string(&alloc.thread_id)?;
+        
+        // Write numeric fields
+        self.writer.write_all(&(alloc.borrow_count as u32).to_le_bytes())?;
+        self.writer.write_all(&(alloc.is_leaked as u8).to_le_bytes())?;
+        
+        // Write optional lifetime_ms
+        match alloc.lifetime_ms {
+            Some(ms) => {
+                self.writer.write_all(&1u8.to_le_bytes())?; // has value
+                self.writer.write_all(&ms.to_le_bytes())?;
+            }
+            None => {
+                self.writer.write_all(&0u8.to_le_bytes())?; // no value
+            }
+        }
+        
+        // For now, skip complex JSON fields to avoid serialization issues
+        // These will be set to None when reading back
+        // TODO: Implement proper JSON field serialization later
         
         Ok(())
     }
@@ -64,25 +91,62 @@ impl BinaryWriter {
         Ok(())
     }
     
-    /// Calculate total size needed for allocation record
-    fn calculate_record_size(&self, alloc: &AllocationInfo) -> usize {
-        let mut size = 8 + 8 + 8; // ptr + size + timestamp
+    /// Calculate size needed for the Value part of TLV (excluding Type and Length)
+    fn calculate_value_size(&self, alloc: &AllocationInfo) -> usize {
+        let mut size = 8 + 8 + 8; // ptr + size + timestamp_alloc
         
-        // Variable name: length (4 bytes) + content
-        size += 4;
+        // timestamp_dealloc: 1 byte flag + optional 8 bytes
+        size += 1;
+        if alloc.timestamp_dealloc.is_some() {
+            size += 8;
+        }
+        
+        // String fields: length (4 bytes) + content
+        size += 4; // var_name length
         if let Some(ref name) = alloc.var_name {
             size += name.len();
         }
         
-        // Type name: length (4 bytes) + content
-        size += 4;
+        size += 4; // type_name length
         if let Some(ref name) = alloc.type_name {
             size += name.len();
         }
         
-        // Thread ID: length (4 bytes) + content
-        size += 4 + alloc.thread_id.len();
+        size += 4; // scope_name length
+        if let Some(ref name) = alloc.scope_name {
+            size += name.len();
+        }
         
+        size += 4 + alloc.thread_id.len(); // thread_id
+        
+        // Numeric fields
+        size += 4; // borrow_count
+        size += 1; // is_leaked
+        
+        // lifetime_ms: 1 byte flag + optional 8 bytes
+        size += 1;
+        if alloc.lifetime_ms.is_some() {
+            size += 8;
+        }
+        
+        // Skip JSON fields for now to avoid complexity
+        // TODO: Add JSON field size calculation later
+        
+        size
+    }
+    
+    /// Calculate size needed for optional JSON field
+    fn calculate_json_field_size<T: serde::Serialize>(&self, field: &Option<T>) -> usize {
+        let mut size = 1; // flag byte
+        if let Some(value) = field {
+            // Pre-serialize to get exact size
+            if let Ok(json_str) = serde_json::to_string(value) {
+                size += 4 + json_str.len(); // length + content
+            } else {
+                // If serialization fails, just account for the flag
+                size = 1;
+            }
+        }
         size
     }
     
@@ -104,6 +168,22 @@ impl BinaryWriter {
     fn write_string(&mut self, s: &str) -> Result<(), BinaryExportError> {
         self.writer.write_all(&(s.len() as u32).to_le_bytes())?;
         self.writer.write_all(s.as_bytes())?;
+        Ok(())
+    }
+    
+    /// Write optional JSON field (serialize to JSON string)
+    fn write_optional_json_field<T: serde::Serialize>(&mut self, field: &Option<T>) -> Result<(), BinaryExportError> {
+        match field {
+            Some(value) => {
+                let json_str = serde_json::to_string(value)
+                    .map_err(|e| BinaryExportError::CorruptedData(format!("JSON serialization failed: {}", e)))?;
+                self.writer.write_all(&1u8.to_le_bytes())?; // has value
+                self.write_string(&json_str)?;
+            }
+            None => {
+                self.writer.write_all(&0u8.to_le_bytes())?; // no value
+            }
+        }
         Ok(())
     }
 }

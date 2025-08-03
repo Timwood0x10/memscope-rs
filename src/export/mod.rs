@@ -1,4 +1,5 @@
 pub mod adaptive_performance;
+pub mod analysis_engine;
 pub mod batch_processor;
 pub mod binary;
 pub mod complex_type_export;

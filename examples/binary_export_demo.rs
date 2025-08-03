@@ -8,9 +8,10 @@
 //! - binary_demo_example.json (converted from binary)
 //! - binary_demo_example.html (HTML report from binary)
 
-use memscope_rs::{get_global_tracker, core::tracker::MemoryTracker};
+use memscope_rs::{get_global_tracker, core::tracker::MemoryTracker, track_var};
 use std::fs;
 use std::path::Path;
+use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Binary Export Demo");
@@ -23,20 +24,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Get the global memory tracker
     let tracker = get_global_tracker();
-    tracker.enable_fast_mode();
+    // Don't enable fast mode to get richer data
     
-    // Simulate some realistic memory allocations
-    println!("\n📊 Simulating memory allocations...");
-    tracker.fast_track_allocation(0x1000, 1024, "demo_buffer".to_string())?;
-    tracker.fast_track_allocation(0x2000, 2048, "large_data".to_string())?;
-    tracker.fast_track_allocation(0x3000, 512, "config_string".to_string())?;
-    tracker.fast_track_allocation(0x4000, 256, "temp_array".to_string())?;
-    tracker.fast_track_allocation(0x5000, 4096, "image_buffer".to_string())?;
-    tracker.fast_track_allocation(0x6000, 128, "small_cache".to_string())?;
-    tracker.fast_track_allocation(0x7000, 8192, "network_buffer".to_string())?;
-    tracker.fast_track_allocation(0x8000, 64, "metadata".to_string())?;
+    // Create realistic memory allocations with rich data
+    println!("\n📊 Creating realistic memory allocations with rich data...");
     
-    println!("✅ Created 8 test allocations with various sizes");
+    // Create various data structures to get rich allocation data
+    let demo_buffer = vec![0u8; 1024];
+    let _tracked_demo_buffer = track_var!(demo_buffer);
+    
+    let large_data = vec![42i32; 512]; // 512 * 4 = 2048 bytes
+    let _tracked_large_data = track_var!(large_data);
+    
+    let config_string = "Configuration data with detailed settings and parameters".repeat(10);
+    let _tracked_config_string = track_var!(config_string);
+    
+    let temp_array = vec![1.0f64; 32]; // 32 * 8 = 256 bytes
+    let _tracked_temp_array = track_var!(temp_array);
+    
+    let image_buffer = vec![255u8; 4096];
+    let _tracked_image_buffer = track_var!(image_buffer);
+    
+    let mut small_cache = HashMap::new();
+    for i in 0..16 {
+        small_cache.insert(format!("key_{}", i), format!("value_{}", i));
+    }
+    let _tracked_small_cache = track_var!(small_cache);
+    
+    let network_buffer = vec![0u8; 8192];
+    let _tracked_network_buffer = track_var!(network_buffer);
+    
+    let metadata = format!("{{\"version\": \"1.0\", \"timestamp\": {}, \"size\": 64}}", 
+                          std::time::SystemTime::now()
+                              .duration_since(std::time::UNIX_EPOCH)
+                              .unwrap()
+                              .as_secs());
+    let _tracked_metadata = track_var!(metadata);
+    
+    // Add some smart pointer examples for richer data
+    let boxed_string = Box::new("Boxed string data".to_string());
+    let _tracked_boxed_string = track_var!(boxed_string);
+    
+    let shared_data = std::rc::Rc::new(vec![1, 2, 3, 4, 5]);
+    let _tracked_shared_data = track_var!(shared_data);
+    
+    println!("✅ Created 10 realistic allocations with rich metadata");
     
     // Export to binary format using MemoryTracker
     println!("\n💾 Exporting to binary format...");

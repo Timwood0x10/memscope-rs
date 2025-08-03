@@ -61,45 +61,83 @@ impl BinaryReader {
         // Read Length (4 bytes)
         let mut length_bytes = [0u8; 4];
         self.reader.read_exact(&mut length_bytes)?;
-        let _record_length = u32::from_le_bytes(length_bytes);
+        let record_length = u32::from_le_bytes(length_bytes);
         
         // Read basic fields
         let ptr = self.read_u64()? as usize;
         let size = self.read_u64()? as usize;
         let timestamp_alloc = self.read_u64()?;
         
-        // Read optional strings
+        // Read optional timestamp_dealloc
+        let timestamp_dealloc = if self.read_u8()? == 1 {
+            Some(self.read_u64()?)
+        } else {
+            None
+        };
+        
+        // Read string fields
         let var_name = self.read_optional_string()?;
         let type_name = self.read_optional_string()?;
+        let scope_name = self.read_optional_string()?;
         let thread_id = self.read_string()?;
+        
+        // Read numeric fields
+        let borrow_count = self.read_u32()? as usize;
+        let is_leaked_byte = self.read_u8()?;
+        let is_leaked = is_leaked_byte != 0;
+        
+        // Read optional lifetime_ms
+        let lifetime_flag = self.read_u8()?;
+        let lifetime_ms = if lifetime_flag == 1 {
+            Some(self.read_u64()?)
+        } else {
+            None
+        };
+        
+        // Skip JSON fields for now - set to None
+        let stack_trace = None;
+        let smart_pointer_info = None;
+        let memory_layout = None;
+        let generic_info = None;
+        let dynamic_type_info = None;
+        let runtime_state = None;
+        let stack_allocation = None;
+        let temporary_object = None;
+        let fragmentation_analysis = None;
+        let generic_instantiation = None;
+        let type_relationships = None;
+        let type_usage = None;
+        let function_call_tracking = None;
+        let lifecycle_tracking = None;
+        let access_tracking = None;
         
         Ok(AllocationInfo {
             ptr,
             size,
             var_name,
             type_name,
-            scope_name: None,
+            scope_name,
             timestamp_alloc,
-            timestamp_dealloc: None,
+            timestamp_dealloc,
             thread_id,
-            borrow_count: 0,
-            stack_trace: None,
-            is_leaked: false,
-            lifetime_ms: None,
-            smart_pointer_info: None,
-            memory_layout: None,
-            generic_info: None,
-            dynamic_type_info: None,
-            runtime_state: None,
-            stack_allocation: None,
-            temporary_object: None,
-            fragmentation_analysis: None,
-            generic_instantiation: None,
-            type_relationships: None,
-            type_usage: None,
-            function_call_tracking: None,
-            lifecycle_tracking: None,
-            access_tracking: None,
+            borrow_count,
+            stack_trace,
+            is_leaked,
+            lifetime_ms,
+            smart_pointer_info,
+            memory_layout,
+            generic_info,
+            dynamic_type_info,
+            runtime_state,
+            stack_allocation,
+            temporary_object,
+            fragmentation_analysis,
+            generic_instantiation,
+            type_relationships,
+            type_usage,
+            function_call_tracking,
+            lifecycle_tracking,
+            access_tracking,
         })
     }
     
@@ -121,6 +159,13 @@ impl BinaryReader {
         let mut bytes = [0u8; 8];
         self.reader.read_exact(&mut bytes)?;
         Ok(u64::from_le_bytes(bytes))
+    }
+    
+    /// Read u32 value in Little Endian format
+    fn read_u32(&mut self) -> Result<u32, BinaryExportError> {
+        let mut bytes = [0u8; 4];
+        self.reader.read_exact(&mut bytes)?;
+        Ok(u32::from_le_bytes(bytes))
     }
     
     /// Read optional string with length prefix
@@ -153,6 +198,25 @@ impl BinaryReader {
         
         String::from_utf8(string_bytes)
             .map_err(|_| BinaryExportError::CorruptedData("Invalid UTF-8 string".to_string()))
+    }
+    
+    /// Read single byte
+    fn read_u8(&mut self) -> Result<u8, BinaryExportError> {
+        let mut buffer = [0u8; 1];
+        self.reader.read_exact(&mut buffer)?;
+        Ok(buffer[0])
+    }
+    
+    /// Read optional JSON field
+    fn read_optional_json_field<T: serde::de::DeserializeOwned>(&mut self) -> Result<Option<T>, BinaryExportError> {
+        if self.read_u8()? == 1 {
+            let json_str = self.read_string()?;
+            let value = serde_json::from_str(&json_str)
+                .map_err(|e| BinaryExportError::CorruptedData(format!("JSON deserialization failed: {}", e)))?;
+            Ok(Some(value))
+        } else {
+            Ok(None)
+        }
     }
 }
 

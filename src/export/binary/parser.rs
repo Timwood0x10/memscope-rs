@@ -1,6 +1,7 @@
 //! Binary file parser and converter for transforming binary data to other formats
 
 use crate::core::types::AllocationInfo;
+use crate::export::analysis_engine::{AnalysisEngine, AnalysisError, StandardAnalysisEngine};
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::reader::BinaryReader;
 use std::path::Path;
@@ -10,6 +11,8 @@ pub struct BinaryParser;
 
 impl BinaryParser {
     /// Convert binary file to standard JSON files (5 categorized files)
+    /// 
+    /// Uses the unified analysis engine to ensure 100% consistency with JSON export
     pub fn to_standard_json_files<P: AsRef<Path>>(
         binary_path: P, 
         base_name: &str
@@ -21,17 +24,27 @@ impl BinaryParser {
         let project_dir = base_memory_analysis_dir.join(base_name);
         std::fs::create_dir_all(&project_dir)?;
         
-        // Generate the 5 standard JSON files
-        let files_to_generate = [
-            ("memory_analysis", Self::generate_memory_analysis_json(&allocations)?),
-            ("lifetime", Self::generate_lifetime_json(&allocations)?),
-            ("performance", Self::generate_performance_json(&allocations)?),
-            ("unsafe_ffi", Self::generate_unsafe_ffi_json(&allocations)?),
-            ("complex_types", Self::generate_complex_types_json(&allocations)?),
+        // Use the unified analysis engine for consistent data processing
+        let analysis_engine = StandardAnalysisEngine::new();
+        
+        // Generate the 5 standard JSON files using the same analysis logic as JSON export
+        let analyses = [
+            ("memory_analysis", analysis_engine.create_memory_analysis(&allocations)
+                .map_err(|e| BinaryExportError::CorruptedData(format!("Memory analysis failed: {}", e)))?),
+            ("lifetime", analysis_engine.create_lifetime_analysis(&allocations)
+                .map_err(|e| BinaryExportError::CorruptedData(format!("Lifetime analysis failed: {}", e)))?),
+            ("performance", analysis_engine.create_performance_analysis(&allocations)
+                .map_err(|e| BinaryExportError::CorruptedData(format!("Performance analysis failed: {}", e)))?),
+            ("unsafe_ffi", analysis_engine.create_unsafe_ffi_analysis(&allocations)
+                .map_err(|e| BinaryExportError::CorruptedData(format!("Unsafe FFI analysis failed: {}", e)))?),
+            ("complex_types", analysis_engine.create_complex_types_analysis(&allocations)
+                .map_err(|e| BinaryExportError::CorruptedData(format!("Complex types analysis failed: {}", e)))?),
         ];
         
-        for (file_type, json_content) in files_to_generate {
+        for (file_type, analysis_data) in analyses {
             let file_path = project_dir.join(format!("{}_{}.json", base_name, file_type));
+            let json_content = serde_json::to_string_pretty(&analysis_data.data)
+                .map_err(|e| BinaryExportError::CorruptedData(format!("JSON serialization failed: {}", e)))?;
             std::fs::write(file_path, json_content)?;
         }
         
@@ -183,152 +196,7 @@ impl BinaryParser {
         Ok(html)
     }
     
-    /// Generate memory analysis JSON data
-    fn generate_memory_analysis_json(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
-        // Focus on core memory allocation data
-        let memory_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "var_name": alloc.var_name.as_deref().unwrap_or("N/A"),
-                "type_name": alloc.type_name.as_deref().unwrap_or("N/A"),
-                "thread_id": alloc.thread_id,
-                "timestamp_alloc": alloc.timestamp_alloc,
-                "is_leaked": alloc.is_leaked,
-                "borrow_count": alloc.borrow_count
-            })
-        }).collect();
-        
-        let result = serde_json::json!({
-            "memory_analysis": {
-                "total_allocations": allocations.len(),
-                "total_memory": allocations.iter().map(|a| a.size).sum::<usize>(),
-                "allocations": memory_data
-            }
-        });
-        
-        serde_json::to_string_pretty(&result)
-            .map_err(|e| BinaryExportError::CorruptedData(format!("Memory analysis JSON serialization failed: {}", e)))
-    }
-    
-    /// Generate lifetime analysis JSON data
-    fn generate_lifetime_json(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
-        // Focus on lifetime and temporal data
-        let lifetime_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "timestamp_alloc": alloc.timestamp_alloc,
-                "timestamp_dealloc": alloc.timestamp_dealloc,
-                "lifetime_ms": alloc.lifetime_ms,
-                "is_leaked": alloc.is_leaked,
-                "var_name": alloc.var_name.as_deref().unwrap_or("N/A"),
-                "scope_name": alloc.scope_name.as_deref().unwrap_or("N/A")
-            })
-        }).collect();
-        
-        let result = serde_json::json!({
-            "lifetime_analysis": {
-                "total_allocations": allocations.len(),
-                "leaked_count": allocations.iter().filter(|a| a.is_leaked).count(),
-                "allocations": lifetime_data
-            }
-        });
-        
-        serde_json::to_string_pretty(&result)
-            .map_err(|e| BinaryExportError::CorruptedData(format!("Lifetime JSON serialization failed: {}", e)))
-    }
-    
-    /// Generate performance analysis JSON data
-    fn generate_performance_json(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
-        // Focus on performance metrics
-        let total_size: usize = allocations.iter().map(|a| a.size).sum();
-        let avg_size = if !allocations.is_empty() { total_size / allocations.len() } else { 0 };
-        let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(0);
-        let min_size = allocations.iter().map(|a| a.size).min().unwrap_or(0);
-        
-        let performance_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "timestamp_alloc": alloc.timestamp_alloc,
-                "thread_id": alloc.thread_id,
-                "borrow_count": alloc.borrow_count,
-                "fragmentation_analysis": alloc.fragmentation_analysis
-            })
-        }).collect();
-        
-        let result = serde_json::json!({
-            "performance_analysis": {
-                "summary": {
-                    "total_allocations": allocations.len(),
-                    "total_memory": total_size,
-                    "average_size": avg_size,
-                    "max_size": max_size,
-                    "min_size": min_size
-                },
-                "allocations": performance_data
-            }
-        });
-        
-        serde_json::to_string_pretty(&result)
-            .map_err(|e| BinaryExportError::CorruptedData(format!("Performance JSON serialization failed: {}", e)))
-    }
-    
-    /// Generate unsafe FFI analysis JSON data
-    fn generate_unsafe_ffi_json(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
-        // Focus on unsafe operations and FFI-related data
-        let unsafe_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "var_name": alloc.var_name.as_deref().unwrap_or("N/A"),
-                "type_name": alloc.type_name.as_deref().unwrap_or("N/A"),
-                "thread_id": alloc.thread_id,
-                "stack_trace": alloc.stack_trace,
-                "runtime_state": alloc.runtime_state
-            })
-        }).collect();
-        
-        let result = serde_json::json!({
-            "unsafe_ffi_analysis": {
-                "total_allocations": allocations.len(),
-                "allocations": unsafe_data
-            }
-        });
-        
-        serde_json::to_string_pretty(&result)
-            .map_err(|e| BinaryExportError::CorruptedData(format!("Unsafe FFI JSON serialization failed: {}", e)))
-    }
-    
-    /// Generate complex types analysis JSON data
-    fn generate_complex_types_json(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
-        // Focus on complex type information
-        let complex_data: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-            serde_json::json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "var_name": alloc.var_name.as_deref().unwrap_or("N/A"),
-                "type_name": alloc.type_name.as_deref().unwrap_or("N/A"),
-                "smart_pointer_info": alloc.smart_pointer_info,
-                "memory_layout": alloc.memory_layout,
-                "generic_info": alloc.generic_info,
-                "dynamic_type_info": alloc.dynamic_type_info,
-                "generic_instantiation": alloc.generic_instantiation,
-                "type_relationships": alloc.type_relationships,
-                "type_usage": alloc.type_usage
-            })
-        }).collect();
-        
-        let result = serde_json::json!({
-            "complex_types_analysis": {
-                "total_allocations": allocations.len(),
-                "allocations": complex_data
-            }
-        });
-        
-        serde_json::to_string_pretty(&result)
-            .map_err(|e| BinaryExportError::CorruptedData(format!("Complex types JSON serialization failed: {}", e)))
-    }
+
     
     /// Validate allocation data for consistency
     fn validate_allocations(allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
