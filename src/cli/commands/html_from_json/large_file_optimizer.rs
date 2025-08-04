@@ -279,7 +279,9 @@ impl LargeFileOptimizer {
 
         tracing::info!(
             "✅ File processed: {:.1} MB/s, {} objects, {}ms",
-            throughput, objects_processed, processing_time
+            throughput,
+            objects_processed,
+            processing_time
         );
 
         Ok((json_value, stats))

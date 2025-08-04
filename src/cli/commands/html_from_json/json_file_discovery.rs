@@ -195,13 +195,15 @@ impl JsonFileDiscovery {
                     if config.required {
                         tracing::info!(
                             "❌ Required file not found: {}_{}*.json",
-                            self.base_name, config.suffix
+                            self.base_name,
+                            config.suffix
                         );
                         missing_required.push(config);
                     } else {
                         tracing::info!(
                             "⚠️  Optional file not found: {}_{}*.json (skipping)",
-                            self.base_name, config.suffix
+                            self.base_name,
+                            config.suffix
                         );
                     }
                 }

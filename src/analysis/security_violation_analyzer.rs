@@ -311,7 +311,8 @@ impl SecurityViolationAnalyzer {
 
         tracing::info!(
             "✅ Security violation analysis complete: {} (severity: {:?})",
-            violation_id, severity
+            violation_id,
+            severity
         );
 
         Ok(violation_id)

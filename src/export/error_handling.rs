@@ -791,7 +791,8 @@ impl PerformanceReport {
         tracing::info!("🔢 total operations: {}", self.total_operations);
         tracing::info!(
             "✅ successful operations: {} ({:.1}%)",
-            self.successful_operations, self.success_rate
+            self.successful_operations,
+            self.success_rate
         );
         tracing::info!("❌ failed operations: {}", self.failed_operations);
         tracing::info!(

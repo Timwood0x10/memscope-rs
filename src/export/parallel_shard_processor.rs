@@ -92,7 +92,8 @@ impl ParallelShardProcessor {
                 .unwrap_or_else(|e| {
                     tracing::warn!(
                         "⚠️ Failed to set thread pool size to {}: {}",
-                        max_threads, e
+                        max_threads,
+                        e
                     );
                 });
         }

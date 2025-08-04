@@ -739,7 +739,9 @@ impl VariableRegistry {
         tracker: &crate::core::tracker::MemoryTracker,
     ) -> TrackingResult<serde_json::Value> {
         let start_time = std::time::Instant::now();
-        tracing::info!("🔄 Starting comprehensive export generation with allocation classification...");
+        tracing::info!(
+            "🔄 Starting comprehensive export generation with allocation classification..."
+        );
 
         // Get tracker data in parallel where possible
         let (active_allocations, other_data) = rayon::join(

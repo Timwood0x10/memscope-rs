@@ -102,18 +102,18 @@ use crate::core::types::{
     FieldLayoutInfo, LayoutEfficiency, OptimizationPotential, PaddingAnalysis,
 };
 
+use crate::core::types::SimpleLifecyclePattern;
 #[allow(unused_imports)]
 use crate::core::types::{
-    ContainerAnalysis, ContainerType, CapacityUtilization, ReallocationPatterns,
-    ContainerEfficiencyMetrics, UtilizationEfficiency, GrowthPattern, ReallocationFrequency,
-    AccessEfficiency,
+    AccessEfficiency, CapacityUtilization, ContainerAnalysis, ContainerEfficiencyMetrics,
+    ContainerType, GrowthPattern, ReallocationFrequency, ReallocationPatterns,
+    UtilizationEfficiency,
 };
 use crate::core::types::{
     FragmentationMetrics, FragmentationSeverity, MemoryLocationType, TemporaryUsagePattern,
 };
 use crate::core::types::{FunctionCallTrackingInfo, MemoryAccessTrackingInfo, ObjectLifecycleInfo};
 use crate::core::types::{GenericInstantiationInfo, TypeRelationshipInfo, TypeUsageInfo};
-use crate::core::types::SimpleLifecyclePattern;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -219,9 +219,13 @@ impl MemoryTracker {
         let alignment = self.estimate_alignment(type_name, size);
         let field_layout = self.analyze_enhanced_field_layout(type_name, size, alignment);
         let padding_info = self.analyze_padding(&field_layout, size, alignment);
-        let layout_efficiency =
-            self.calculate_enhanced_layout_efficiency(&field_layout, &padding_info, size, type_name);
-        
+        let layout_efficiency = self.calculate_enhanced_layout_efficiency(
+            &field_layout,
+            &padding_info,
+            size,
+            type_name,
+        );
+
         // Perform container-specific analysis
         let container_analysis = self.analyze_container_structure(type_name, size);
 
@@ -355,7 +359,7 @@ impl MemoryTracker {
         if type_name.starts_with("Vec<") {
             // Vec<T> analysis with capacity utilization insights
             let ptr_size = std::mem::size_of::<usize>();
-            
+
             fields.push(FieldLayoutInfo {
                 field_name: "ptr".to_string(),
                 field_type: "*mut T".to_string(),
@@ -383,11 +387,10 @@ impl MemoryTracker {
 
             // Add container-specific analysis
             self.analyze_vec_container_efficiency(type_name, total_size, &mut fields);
-
         } else if type_name == "String" {
             // String is essentially Vec<u8> with UTF-8 guarantees
             let ptr_size = std::mem::size_of::<usize>();
-            
+
             fields.push(FieldLayoutInfo {
                 field_name: "vec_ptr".to_string(),
                 field_type: "*mut u8".to_string(),
@@ -415,11 +418,10 @@ impl MemoryTracker {
 
             // Add string-specific analysis
             self.analyze_string_efficiency(total_size, &mut fields);
-
         } else if type_name.starts_with("HashMap<") || type_name.starts_with("BTreeMap<") {
             // HashMap/BTreeMap analysis with load factor insights
             let ptr_size = std::mem::size_of::<usize>();
-            
+
             if type_name.starts_with("HashMap<") {
                 fields.push(FieldLayoutInfo {
                     field_name: "hash_builder".to_string(),
@@ -459,11 +461,10 @@ impl MemoryTracker {
                     is_padding: false,
                 });
             }
-
         } else if type_name.starts_with("Box<") {
             // Box<T> analysis
             let ptr_size = std::mem::size_of::<usize>();
-            
+
             fields.push(FieldLayoutInfo {
                 field_name: "ptr".to_string(),
                 field_type: "*mut T".to_string(),
@@ -475,11 +476,10 @@ impl MemoryTracker {
 
             // Add Box-specific analysis
             self.analyze_box_efficiency(type_name, total_size, &mut fields);
-
         } else if type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
             // Reference counted smart pointers
             let ptr_size = std::mem::size_of::<usize>();
-            
+
             fields.push(FieldLayoutInfo {
                 field_name: "ptr".to_string(),
                 field_type: "*const RcBox<T>".to_string(),
@@ -491,7 +491,6 @@ impl MemoryTracker {
 
             // Add reference counting analysis
             self.analyze_rc_arc_efficiency(type_name, total_size, &mut fields);
-
         } else {
             // Fallback to basic analysis for unknown types
             fields.push(FieldLayoutInfo {
@@ -508,7 +507,12 @@ impl MemoryTracker {
     }
 
     /// Analyze Vec container efficiency and add insights
-    fn analyze_vec_container_efficiency(&self, type_name: &str, total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+    fn analyze_vec_container_efficiency(
+        &self,
+        type_name: &str,
+        total_size: usize,
+        fields: &mut Vec<FieldLayoutInfo>,
+    ) {
         // Extract element type from Vec<T>
         let element_type = if let Some(start) = type_name.find('<') {
             if let Some(end) = type_name.rfind('>') {
@@ -522,7 +526,7 @@ impl MemoryTracker {
 
         // Estimate element size
         let element_size = self.estimate_type_size(element_type);
-        
+
         // Add efficiency analysis as a virtual field
         fields.push(FieldLayoutInfo {
             field_name: "efficiency_analysis".to_string(),
@@ -534,7 +538,8 @@ impl MemoryTracker {
         });
 
         // Add capacity utilization insight
-        let estimated_capacity = if total_size > 24 { // Vec header is ~24 bytes
+        let estimated_capacity = if total_size > 24 {
+            // Vec header is ~24 bytes
             (total_size - 24) / element_size.max(1)
         } else {
             0
@@ -582,7 +587,12 @@ impl MemoryTracker {
     }
 
     /// Analyze HashMap efficiency
-    fn analyze_hashmap_efficiency(&self, type_name: &str, total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+    fn analyze_hashmap_efficiency(
+        &self,
+        type_name: &str,
+        total_size: usize,
+        fields: &mut Vec<FieldLayoutInfo>,
+    ) {
         // Extract key and value types
         let (key_type, value_type) = if let Some(start) = type_name.find('<') {
             if let Some(end) = type_name.rfind('>') {
@@ -603,8 +613,9 @@ impl MemoryTracker {
         let key_size = self.estimate_type_size(key_type);
         let value_size = self.estimate_type_size(value_type);
         let entry_size = key_size + value_size + 8; // 8 bytes for hash and metadata
-        
-        let estimated_buckets = if total_size > 64 { // HashMap overhead
+
+        let estimated_buckets = if total_size > 64 {
+            // HashMap overhead
             (total_size - 64) / entry_size.max(1)
         } else {
             0
@@ -612,7 +623,10 @@ impl MemoryTracker {
 
         fields.push(FieldLayoutInfo {
             field_name: "hash_analysis".to_string(),
-            field_type: format!("HashMap<{}, {}> - Est. {} buckets", key_type, value_type, estimated_buckets),
+            field_type: format!(
+                "HashMap<{}, {}> - Est. {} buckets",
+                key_type, value_type, estimated_buckets
+            ),
             offset: 0, // Virtual field
             size: 0,   // Virtual field
             alignment: 1,
@@ -633,7 +647,12 @@ impl MemoryTracker {
     }
 
     /// Analyze Box efficiency
-    fn analyze_box_efficiency(&self, type_name: &str, _total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+    fn analyze_box_efficiency(
+        &self,
+        type_name: &str,
+        _total_size: usize,
+        fields: &mut Vec<FieldLayoutInfo>,
+    ) {
         // Extract boxed type
         let boxed_type = if let Some(start) = type_name.find('<') {
             if let Some(end) = type_name.rfind('>') {
@@ -646,7 +665,7 @@ impl MemoryTracker {
         };
 
         let boxed_size = self.estimate_type_size(boxed_type);
-        
+
         fields.push(FieldLayoutInfo {
             field_name: "box_analysis".to_string(),
             field_type: format!("Box<{}> - Heap allocated {} bytes", boxed_type, boxed_size),
@@ -674,10 +693,15 @@ impl MemoryTracker {
     }
 
     /// Analyze Rc/Arc efficiency
-    fn analyze_rc_arc_efficiency(&self, type_name: &str, _total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+    fn analyze_rc_arc_efficiency(
+        &self,
+        type_name: &str,
+        _total_size: usize,
+        fields: &mut Vec<FieldLayoutInfo>,
+    ) {
         let is_arc = type_name.starts_with("Arc<");
         let ref_type = if is_arc { "Arc" } else { "Rc" };
-        
+
         // Extract inner type
         let inner_type = if let Some(start) = type_name.find('<') {
             if let Some(end) = type_name.rfind('>') {
@@ -716,14 +740,22 @@ impl MemoryTracker {
     }
 
     /// Analyze container structure for Vec, HashMap, Box, etc.
-    fn analyze_container_structure(&self, type_name: &str, size: usize) -> Option<crate::core::types::ContainerAnalysis> {
+    fn analyze_container_structure(
+        &self,
+        type_name: &str,
+        size: usize,
+    ) -> Option<crate::core::types::ContainerAnalysis> {
         use crate::core::types::*;
 
         // Determine container type and perform specific analysis
         let container_type = self.classify_container_type(type_name)?;
         let capacity_utilization = self.analyze_capacity_utilization(&container_type, size);
         let reallocation_patterns = self.detect_reallocation_patterns(&container_type, size);
-        let efficiency_metrics = self.calculate_container_efficiency_metrics(&container_type, size, &capacity_utilization);
+        let efficiency_metrics = self.calculate_container_efficiency_metrics(
+            &container_type,
+            size,
+            &capacity_utilization,
+        );
 
         Some(ContainerAnalysis {
             container_type,
@@ -734,41 +766,76 @@ impl MemoryTracker {
     }
 
     /// Classify the container type based on type name
-    fn classify_container_type(&self, type_name: &str) -> Option<crate::core::types::ContainerType> {
+    fn classify_container_type(
+        &self,
+        type_name: &str,
+    ) -> Option<crate::core::types::ContainerType> {
         use crate::core::types::ContainerType;
 
         if type_name.starts_with("Vec<") {
-            let element_type = self.extract_generic_type(type_name, "Vec").unwrap_or("T".to_string());
+            let element_type = self
+                .extract_generic_type(type_name, "Vec")
+                .unwrap_or("T".to_string());
             let element_size = self.estimate_type_size(&element_type);
-            Some(ContainerType::Vec { element_type, element_size })
+            Some(ContainerType::Vec {
+                element_type,
+                element_size,
+            })
         } else if type_name.starts_with("HashMap<") {
             let (key_type, value_type) = self.extract_hashmap_types(type_name);
             let key_size = self.estimate_type_size(&key_type);
             let value_size = self.estimate_type_size(&value_type);
-            Some(ContainerType::HashMap { key_type, value_type, key_size, value_size })
+            Some(ContainerType::HashMap {
+                key_type,
+                value_type,
+                key_size,
+                value_size,
+            })
         } else if type_name.starts_with("Box<") {
-            let boxed_type = self.extract_generic_type(type_name, "Box").unwrap_or("T".to_string());
+            let boxed_type = self
+                .extract_generic_type(type_name, "Box")
+                .unwrap_or("T".to_string());
             let boxed_size = self.estimate_type_size(&boxed_type);
-            Some(ContainerType::Box { boxed_type, boxed_size })
+            Some(ContainerType::Box {
+                boxed_type,
+                boxed_size,
+            })
         } else if type_name == "String" {
             Some(ContainerType::String)
         } else if type_name.starts_with("Rc<") {
-            let referenced_type = self.extract_generic_type(type_name, "Rc").unwrap_or("T".to_string());
+            let referenced_type = self
+                .extract_generic_type(type_name, "Rc")
+                .unwrap_or("T".to_string());
             let referenced_size = self.estimate_type_size(&referenced_type);
-            Some(ContainerType::Rc { referenced_type, referenced_size })
+            Some(ContainerType::Rc {
+                referenced_type,
+                referenced_size,
+            })
         } else if type_name.starts_with("Arc<") {
-            let referenced_type = self.extract_generic_type(type_name, "Arc").unwrap_or("T".to_string());
+            let referenced_type = self
+                .extract_generic_type(type_name, "Arc")
+                .unwrap_or("T".to_string());
             let referenced_size = self.estimate_type_size(&referenced_type);
-            Some(ContainerType::Arc { referenced_type, referenced_size })
+            Some(ContainerType::Arc {
+                referenced_type,
+                referenced_size,
+            })
         } else if type_name.starts_with("BTreeMap<") {
             let (key_type, value_type) = self.extract_hashmap_types(type_name);
             let key_size = self.estimate_type_size(&key_type);
             let value_size = self.estimate_type_size(&value_type);
-            Some(ContainerType::BTreeMap { key_type, value_type, key_size, value_size })
+            Some(ContainerType::BTreeMap {
+                key_type,
+                value_type,
+                key_size,
+                value_size,
+            })
         } else {
             // Check if it's a known container type that we should analyze
             if type_name.contains("Vec") || type_name.contains("Map") || type_name.contains("Set") {
-                Some(ContainerType::Other { type_name: type_name.to_string() })
+                Some(ContainerType::Other {
+                    type_name: type_name.to_string(),
+                })
             } else {
                 None // Not a container type
             }
@@ -813,7 +880,7 @@ impl MemoryTracker {
                         ',' if depth == 0 => {
                             return (
                                 inner[..i].trim().to_string(),
-                                inner[i + 1..].trim().to_string()
+                                inner[i + 1..].trim().to_string(),
                             );
                         }
                         _ => {}
@@ -825,7 +892,11 @@ impl MemoryTracker {
     }
 
     /// Analyze capacity utilization for containers
-    fn analyze_capacity_utilization(&self, container_type: &crate::core::types::ContainerType, size: usize) -> crate::core::types::CapacityUtilization {
+    fn analyze_capacity_utilization(
+        &self,
+        container_type: &crate::core::types::ContainerType,
+        size: usize,
+    ) -> crate::core::types::CapacityUtilization {
         use crate::core::types::*;
 
         let (current_capacity, current_length, wasted_space) = match container_type {
@@ -841,8 +912,12 @@ impl MemoryTracker {
                 } else {
                     (0, 0, 0)
                 }
-            },
-            ContainerType::HashMap { key_size, value_size, .. } => {
+            }
+            ContainerType::HashMap {
+                key_size,
+                value_size,
+                ..
+            } => {
                 let header_size = 64; // Estimated HashMap overhead
                 if size > header_size {
                     let entry_size = key_size + value_size + 8; // 8 bytes for hash and metadata
@@ -858,11 +933,11 @@ impl MemoryTracker {
                 } else {
                     (0, 0, 0)
                 }
-            },
+            }
             ContainerType::Box { .. } => {
                 // Box has no capacity concept, it's always fully utilized
                 (1, 1, 0)
-            },
+            }
             ContainerType::String => {
                 let header_size = 3 * std::mem::size_of::<usize>(); // Same as Vec<u8>
                 if size > header_size {
@@ -874,12 +949,16 @@ impl MemoryTracker {
                 } else {
                     (0, 0, 0)
                 }
-            },
+            }
             ContainerType::Rc { .. } | ContainerType::Arc { .. } => {
                 // Reference counted types have fixed overhead
                 (1, 1, 0)
-            },
-            ContainerType::BTreeMap { key_size, value_size, .. } => {
+            }
+            ContainerType::BTreeMap {
+                key_size,
+                value_size,
+                ..
+            } => {
                 let node_overhead = 32; // Estimated BTreeMap node overhead
                 let entry_size = key_size + value_size + node_overhead;
                 if entry_size > 0 && size > 64 {
@@ -889,11 +968,11 @@ impl MemoryTracker {
                 } else {
                     (0, 0, 0)
                 }
-            },
+            }
             ContainerType::Other { .. } => {
                 // Unknown container, provide conservative estimates
                 (1, 1, 0)
-            },
+            }
         };
 
         let utilization_ratio = if current_capacity > 0 {
@@ -924,16 +1003,25 @@ impl MemoryTracker {
     }
 
     /// Detect reallocation patterns for containers
-    fn detect_reallocation_patterns(&self, container_type: &crate::core::types::ContainerType, size: usize) -> crate::core::types::ReallocationPatterns {
+    fn detect_reallocation_patterns(
+        &self,
+        container_type: &crate::core::types::ContainerType,
+        size: usize,
+    ) -> crate::core::types::ReallocationPatterns {
         use crate::core::types::*;
 
-        let (estimated_reallocations, growth_pattern, frequency_assessment, optimization_suggestions) = match container_type {
+        let (
+            estimated_reallocations,
+            growth_pattern,
+            frequency_assessment,
+            optimization_suggestions,
+        ) = match container_type {
             ContainerType::Vec { element_size, .. } => {
                 if *element_size > 0 {
                     let header_size = 3 * std::mem::size_of::<usize>();
                     let data_size = size.saturating_sub(header_size);
                     let capacity = data_size / element_size;
-                    
+
                     // Estimate reallocations based on capacity (Vec doubles capacity each time)
                     let reallocations = if capacity > 0 {
                         (capacity as f64).log2().ceil() as usize
@@ -942,7 +1030,9 @@ impl MemoryTracker {
                     };
 
                     let frequency = if reallocations > 10 {
-                        ReallocationFrequency::High { performance_impact: 15.0 }
+                        ReallocationFrequency::High {
+                            performance_impact: 15.0,
+                        }
                     } else if reallocations > 5 {
                         ReallocationFrequency::Moderate
                     } else if reallocations > 0 {
@@ -956,11 +1046,21 @@ impl MemoryTracker {
                         "Consider using SmallVec for small collections".to_string(),
                     ];
 
-                    (reallocations, GrowthPattern::Exponential, frequency, suggestions)
+                    (
+                        reallocations,
+                        GrowthPattern::Exponential,
+                        frequency,
+                        suggestions,
+                    )
                 } else {
-                    (0, GrowthPattern::SingleAllocation, ReallocationFrequency::None, vec![])
+                    (
+                        0,
+                        GrowthPattern::SingleAllocation,
+                        ReallocationFrequency::None,
+                        vec![],
+                    )
                 }
-            },
+            }
             ContainerType::HashMap { .. } => {
                 // HashMap rehashes when load factor exceeds ~75%
                 let estimated_rehashes = if size > 128 {
@@ -970,7 +1070,9 @@ impl MemoryTracker {
                 };
 
                 let frequency = if estimated_rehashes > 5 {
-                    ReallocationFrequency::High { performance_impact: 25.0 }
+                    ReallocationFrequency::High {
+                        performance_impact: 25.0,
+                    }
                 } else if estimated_rehashes > 2 {
                     ReallocationFrequency::Moderate
                 } else if estimated_rehashes > 0 {
@@ -984,8 +1086,13 @@ impl MemoryTracker {
                     "Consider using FxHashMap for better performance".to_string(),
                 ];
 
-                (estimated_rehashes, GrowthPattern::Exponential, frequency, suggestions)
-            },
+                (
+                    estimated_rehashes,
+                    GrowthPattern::Exponential,
+                    frequency,
+                    suggestions,
+                )
+            }
             ContainerType::String => {
                 // String behaves like Vec<u8>
                 let header_size = 3 * std::mem::size_of::<usize>();
@@ -997,7 +1104,9 @@ impl MemoryTracker {
                 };
 
                 let frequency = if reallocations > 8 {
-                    ReallocationFrequency::High { performance_impact: 12.0 }
+                    ReallocationFrequency::High {
+                        performance_impact: 12.0,
+                    }
                 } else if reallocations > 4 {
                     ReallocationFrequency::Moderate
                 } else if reallocations > 0 {
@@ -1011,12 +1120,22 @@ impl MemoryTracker {
                     "Consider using &str when possible".to_string(),
                 ];
 
-                (reallocations, GrowthPattern::Exponential, frequency, suggestions)
-            },
+                (
+                    reallocations,
+                    GrowthPattern::Exponential,
+                    frequency,
+                    suggestions,
+                )
+            }
             ContainerType::Box { .. } | ContainerType::Rc { .. } | ContainerType::Arc { .. } => {
                 // These containers don't reallocate
-                (0, GrowthPattern::SingleAllocation, ReallocationFrequency::None, vec![])
-            },
+                (
+                    0,
+                    GrowthPattern::SingleAllocation,
+                    ReallocationFrequency::None,
+                    vec![],
+                )
+            }
             ContainerType::BTreeMap { .. } => {
                 // BTreeMap grows by adding nodes, less predictable pattern
                 let estimated_node_splits = if size > 256 {
@@ -1033,11 +1152,19 @@ impl MemoryTracker {
                     ReallocationFrequency::None
                 };
 
-                (estimated_node_splits, GrowthPattern::Irregular, frequency, vec![])
-            },
-            ContainerType::Other { .. } => {
-                (0, GrowthPattern::Unknown, ReallocationFrequency::None, vec![])
-            },
+                (
+                    estimated_node_splits,
+                    GrowthPattern::Irregular,
+                    frequency,
+                    vec![],
+                )
+            }
+            ContainerType::Other { .. } => (
+                0,
+                GrowthPattern::Unknown,
+                ReallocationFrequency::None,
+                vec![],
+            ),
         };
 
         ReallocationPatterns {
@@ -1050,47 +1177,47 @@ impl MemoryTracker {
 
     /// Calculate container-specific efficiency metrics
     fn calculate_container_efficiency_metrics(
-        &self, 
-        container_type: &crate::core::types::ContainerType, 
+        &self,
+        container_type: &crate::core::types::ContainerType,
         size: usize,
-        capacity_utilization: &crate::core::types::CapacityUtilization
+        capacity_utilization: &crate::core::types::CapacityUtilization,
     ) -> crate::core::types::ContainerEfficiencyMetrics {
         use crate::core::types::*;
 
         let (memory_overhead, cache_efficiency, access_efficiency) = match container_type {
             ContainerType::Vec { element_size, .. } => {
-                let header_overhead = (3 * std::mem::size_of::<usize>()) as f64 / size as f64 * 100.0;
+                let header_overhead =
+                    (3 * std::mem::size_of::<usize>()) as f64 / size as f64 * 100.0;
                 let cache_eff = if *element_size <= 64 { 95.0 } else { 85.0 }; // Sequential access
                 (header_overhead, cache_eff, AccessEfficiency::Sequential)
-            },
+            }
             ContainerType::HashMap { .. } => {
                 let overhead = 64.0 / size as f64 * 100.0 + 20.0; // Hash table overhead
                 let cache_eff = 45.0; // Poor cache locality due to random access
                 (overhead, cache_eff, AccessEfficiency::Random)
-            },
+            }
             ContainerType::Box { .. } => {
                 let overhead = std::mem::size_of::<usize>() as f64 / size as f64 * 100.0;
                 let cache_eff = 80.0; // Indirection reduces cache efficiency
                 (overhead, cache_eff, AccessEfficiency::Sequential)
-            },
+            }
             ContainerType::String => {
-                let header_overhead = (3 * std::mem::size_of::<usize>()) as f64 / size as f64 * 100.0;
+                let header_overhead =
+                    (3 * std::mem::size_of::<usize>()) as f64 / size as f64 * 100.0;
                 let cache_eff = 90.0; // Good cache locality for string data
                 (header_overhead, cache_eff, AccessEfficiency::Sequential)
-            },
+            }
             ContainerType::Rc { .. } | ContainerType::Arc { .. } => {
                 let overhead = (std::mem::size_of::<usize>() * 2) as f64 / size as f64 * 100.0; // Ref count overhead
                 let cache_eff = 75.0; // Reference counting adds some overhead
                 (overhead, cache_eff, AccessEfficiency::Mixed)
-            },
+            }
             ContainerType::BTreeMap { .. } => {
                 let overhead = 30.0; // Node overhead in B-trees
                 let cache_eff = 70.0; // Better than HashMap but worse than Vec
                 (overhead, cache_eff, AccessEfficiency::Mixed)
-            },
-            ContainerType::Other { .. } => {
-                (10.0, 60.0, AccessEfficiency::Unknown)
-            },
+            }
+            ContainerType::Other { .. } => (10.0, 60.0, AccessEfficiency::Unknown),
         };
 
         // Calculate overall health score
@@ -1165,7 +1292,8 @@ impl MemoryTracker {
         let optimization_potential = if padding.padding_ratio > 0.3 {
             crate::core::types::OptimizationPotential::Major {
                 potential_savings: padding.total_padding_bytes,
-                suggestions: self.generate_container_optimization_suggestions(type_name, total_size),
+                suggestions: self
+                    .generate_container_optimization_suggestions(type_name, total_size),
             }
         } else if padding.padding_ratio > 0.15 {
             crate::core::types::OptimizationPotential::Moderate {
@@ -1189,7 +1317,11 @@ impl MemoryTracker {
     }
 
     /// Generate container-specific optimization suggestions
-    fn generate_container_optimization_suggestions(&self, type_name: &str, total_size: usize) -> Vec<String> {
+    fn generate_container_optimization_suggestions(
+        &self,
+        type_name: &str,
+        total_size: usize,
+    ) -> Vec<String> {
         let mut suggestions = Vec::new();
 
         if type_name.starts_with("Vec<") {
@@ -1960,10 +2092,10 @@ impl MemoryTracker {
 
         // Calculate performance impact based on usage patterns
         let performance_impact = self.calculate_type_performance_impact(
-            type_name, 
-            type_count, 
-            total_size, 
-            &allocation_sizes
+            type_name,
+            type_count,
+            total_size,
+            &allocation_sizes,
         );
 
         Some(TypeUsageInfo {
@@ -1977,7 +2109,11 @@ impl MemoryTracker {
     }
 
     /// Create usage timeline from allocation timestamps and sizes
-    fn create_usage_timeline(&self, timestamps: &[u64], sizes: &[usize]) -> Vec<crate::core::types::UsageTimePoint> {
+    fn create_usage_timeline(
+        &self,
+        timestamps: &[u64],
+        sizes: &[usize],
+    ) -> Vec<crate::core::types::UsageTimePoint> {
         if timestamps.is_empty() {
             return vec![];
         }
@@ -1988,14 +2124,14 @@ impl MemoryTracker {
 
         if let (Some(&first_ts), Some(&last_ts)) = (timestamps.first(), timestamps.last()) {
             let mut current_window = first_ts;
-            
+
             while current_window <= last_ts {
                 let window_end = current_window + window_size_ns;
-                
+
                 // Count allocations and total memory in this window
                 let mut usage_count = 0u32;
                 let mut memory_usage = 0usize;
-                
+
                 for (i, &ts) in timestamps.iter().enumerate() {
                     if ts >= current_window && ts < window_end {
                         usage_count += 1;
@@ -2025,7 +2161,12 @@ impl MemoryTracker {
     }
 
     /// Analyze usage contexts based on type characteristics
-    fn analyze_usage_contexts(&self, type_name: &str, usage_count: u64, total_size: usize) -> Vec<crate::core::types::UsageContext> {
+    fn analyze_usage_contexts(
+        &self,
+        type_name: &str,
+        usage_count: u64,
+        total_size: usize,
+    ) -> Vec<crate::core::types::UsageContext> {
         let mut contexts = Vec::new();
 
         // Infer context based on type name patterns
@@ -2033,7 +2174,10 @@ impl MemoryTracker {
             crate::core::types::ContextType::LocalVariable
         } else if type_name.starts_with("HashMap<") || type_name.starts_with("BTreeMap<") {
             crate::core::types::ContextType::LocalVariable
-        } else if type_name.starts_with("Box<") || type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
+        } else if type_name.starts_with("Box<")
+            || type_name.starts_with("Rc<")
+            || type_name.starts_with("Arc<")
+        {
             crate::core::types::ContextType::LocalVariable
         } else if type_name == "String" || type_name.starts_with("&str") {
             crate::core::types::ContextType::LocalVariable
@@ -2044,7 +2188,11 @@ impl MemoryTracker {
         };
 
         // Calculate performance metrics for this context
-        let avg_size = if usage_count > 0 { total_size as f64 / usage_count as f64 } else { 0.0 };
+        let avg_size = if usage_count > 0 {
+            total_size as f64 / usage_count as f64
+        } else {
+            0.0
+        };
         let allocation_frequency = usage_count as f64; // Simplified
 
         contexts.push(crate::core::types::UsageContext {
@@ -2063,7 +2211,10 @@ impl MemoryTracker {
     }
 
     /// Calculate basic performance impact for types with no allocation data
-    fn calculate_basic_performance_impact(&self, type_name: &str) -> crate::core::types::TypePerformanceImpact {
+    fn calculate_basic_performance_impact(
+        &self,
+        type_name: &str,
+    ) -> crate::core::types::TypePerformanceImpact {
         // Provide reasonable defaults based on type characteristics
         let (perf_score, mem_score, cpu_score, cache_score) = match type_name {
             "String" => (80.0, 85.0, 90.0, 75.0),
@@ -2085,20 +2236,26 @@ impl MemoryTracker {
 
     /// Calculate performance impact based on actual usage patterns
     fn calculate_type_performance_impact(
-        &self, 
-        type_name: &str, 
-        usage_count: u64, 
+        &self,
+        type_name: &str,
+        usage_count: u64,
         total_size: usize,
-        allocation_sizes: &[usize]
+        allocation_sizes: &[usize],
     ) -> crate::core::types::TypePerformanceImpact {
-        let avg_size = if usage_count > 0 { total_size as f64 / usage_count as f64 } else { 0.0 };
-        
+        let avg_size = if usage_count > 0 {
+            total_size as f64 / usage_count as f64
+        } else {
+            0.0
+        };
+
         // Calculate size variance to detect allocation patterns
         let size_variance = if allocation_sizes.len() > 1 {
             let mean = avg_size;
-            let variance = allocation_sizes.iter()
+            let variance = allocation_sizes
+                .iter()
                 .map(|&size| (size as f64 - mean).powi(2))
-                .sum::<f64>() / allocation_sizes.len() as f64;
+                .sum::<f64>()
+                / allocation_sizes.len() as f64;
             variance.sqrt()
         } else {
             0.0
@@ -2108,7 +2265,7 @@ impl MemoryTracker {
         let mut base_scores = self.calculate_basic_performance_impact(type_name);
 
         // Adjust scores based on usage patterns
-        
+
         // High usage count might indicate performance bottlenecks
         if usage_count > 1000 {
             base_scores.performance_score *= 0.9; // Reduce performance score
@@ -2116,7 +2273,8 @@ impl MemoryTracker {
         }
 
         // Large average size might indicate memory inefficiency
-        if avg_size > 1024.0 * 1024.0 { // > 1MB
+        if avg_size > 1024.0 * 1024.0 {
+            // > 1MB
             base_scores.memory_efficiency_score *= 0.8;
             base_scores.cache_efficiency_score *= 0.7;
         }
@@ -2128,32 +2286,39 @@ impl MemoryTracker {
 
         // Add specific recommendations based on analysis
         let mut recommendations = base_scores.optimization_recommendations;
-        
+
         if usage_count > 100 && avg_size < 64.0 {
             recommendations.push(crate::core::types::OptimizationRecommendation {
                 recommendation_type: crate::core::types::RecommendationType::MemoryPooling,
                 priority: crate::core::types::Priority::High,
-                description: "Consider using object pooling for small, frequently allocated objects".to_string(),
+                description:
+                    "Consider using object pooling for small, frequently allocated objects"
+                        .to_string(),
                 expected_improvement: 25.0,
                 implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
             });
         }
-        
+
         if size_variance > avg_size {
             recommendations.push(crate::core::types::OptimizationRecommendation {
                 recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
                 priority: crate::core::types::Priority::High,
-                description: "Consider pre-allocating with estimated capacity to reduce reallocations".to_string(),
+                description:
+                    "Consider pre-allocating with estimated capacity to reduce reallocations"
+                        .to_string(),
                 expected_improvement: 30.0,
                 implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
             });
         }
 
-        if total_size > 10 * 1024 * 1024 { // > 10MB total
+        if total_size > 10 * 1024 * 1024 {
+            // > 10MB total
             recommendations.push(crate::core::types::OptimizationRecommendation {
                 recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
                 priority: crate::core::types::Priority::Critical,
-                description: "Consider memory usage optimization - this type uses significant memory".to_string(),
+                description:
+                    "Consider memory usage optimization - this type uses significant memory"
+                        .to_string(),
                 expected_improvement: 40.0,
                 implementation_difficulty: crate::core::types::ImplementationDifficulty::Hard,
             });
@@ -2172,7 +2337,7 @@ impl MemoryTracker {
     fn estimate_cache_miss_rate(&self, type_name: &str, avg_size: f64) -> f64 {
         // Cache line size is typically 64 bytes
         let cache_line_size = 64.0;
-        
+
         if avg_size <= cache_line_size {
             0.05 // Low miss rate for small objects
         } else if avg_size <= cache_line_size * 4.0 {
@@ -2185,15 +2350,20 @@ impl MemoryTracker {
     }
 
     /// Generate optimization recommendations based on type characteristics
-    fn generate_optimization_recommendations(&self, type_name: &str) -> Vec<crate::core::types::OptimizationRecommendation> {
+    fn generate_optimization_recommendations(
+        &self,
+        type_name: &str,
+    ) -> Vec<crate::core::types::OptimizationRecommendation> {
         let mut recommendations = Vec::new();
 
         match type_name {
             "String" => {
                 recommendations.push(crate::core::types::OptimizationRecommendation {
-                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    recommendation_type:
+                        crate::core::types::RecommendationType::DataStructureChange,
                     priority: crate::core::types::Priority::Medium,
-                    description: "Consider using &str when possible to avoid allocations".to_string(),
+                    description: "Consider using &str when possible to avoid allocations"
+                        .to_string(),
                     expected_improvement: 15.0,
                     implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
                 });
@@ -2214,7 +2384,8 @@ impl MemoryTracker {
                     implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
                 });
                 recommendations.push(crate::core::types::OptimizationRecommendation {
-                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    recommendation_type:
+                        crate::core::types::RecommendationType::DataStructureChange,
                     priority: crate::core::types::Priority::Low,
                     description: "Consider using SmallVec for small collections".to_string(),
                     expected_improvement: 10.0,
@@ -2230,9 +2401,12 @@ impl MemoryTracker {
                     implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
                 });
                 recommendations.push(crate::core::types::OptimizationRecommendation {
-                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    recommendation_type:
+                        crate::core::types::RecommendationType::DataStructureChange,
                     priority: crate::core::types::Priority::Medium,
-                    description: "Consider using FxHashMap for better performance with integer keys".to_string(),
+                    description:
+                        "Consider using FxHashMap for better performance with integer keys"
+                            .to_string(),
                     expected_improvement: 15.0,
                     implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
                 });
@@ -2241,14 +2415,16 @@ impl MemoryTracker {
                 recommendations.push(crate::core::types::OptimizationRecommendation {
                     recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
                     priority: crate::core::types::Priority::Low,
-                    description: "Box is efficient for heap allocation of single values".to_string(),
+                    description: "Box is efficient for heap allocation of single values"
+                        .to_string(),
                     expected_improvement: 5.0,
                     implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
                 });
             }
             name if name.starts_with("Rc<") => {
                 recommendations.push(crate::core::types::OptimizationRecommendation {
-                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    recommendation_type:
+                        crate::core::types::RecommendationType::DataStructureChange,
                     priority: crate::core::types::Priority::Medium,
                     description: "Consider Arc<> for thread-safe reference counting".to_string(),
                     expected_improvement: 0.0, // No performance improvement, just thread safety
@@ -2264,7 +2440,8 @@ impl MemoryTracker {
             }
             name if name.starts_with("Arc<") => {
                 recommendations.push(crate::core::types::OptimizationRecommendation {
-                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    recommendation_type:
+                        crate::core::types::RecommendationType::DataStructureChange,
                     priority: crate::core::types::Priority::Low,
                     description: "Arc has atomic overhead - use Rc if single-threaded".to_string(),
                     expected_improvement: 10.0,
@@ -3513,7 +3690,9 @@ impl MemoryTracker {
             tracing::info!(
                 "⚠️  WARNING: System allocation enrichment enabled - export will be 5-10x slower!"
             );
-            tracing::info!("💡 To speed up export, use default options: tracker.export_to_json(path)");
+            tracing::info!(
+                "💡 To speed up export, use default options: tracker.export_to_json(path)"
+            );
         } else {
             // User-focused mode = High optimization (default)
             optimized_options.optimization_level = OptimizationLevel::High;
@@ -4523,7 +4702,11 @@ impl MemoryTracker {
                 // For deallocated objects, calculate exact lifetime
                 let lifetime_ns = dealloc_time.saturating_sub(allocation.timestamp_alloc);
                 let lifetime_ms = lifetime_ns / 1_000_000; // Convert to milliseconds
-                tracing::debug!("Deallocated allocation lifetime: {}ns -> {}ms", lifetime_ns, lifetime_ms);
+                tracing::debug!(
+                    "Deallocated allocation lifetime: {}ns -> {}ms",
+                    lifetime_ns,
+                    lifetime_ms
+                );
                 allocation.lifetime_ms = Some(lifetime_ms);
             } else {
                 // For active allocations, calculate current lifetime
@@ -4533,7 +4716,11 @@ impl MemoryTracker {
                     .as_nanos() as u64;
                 let lifetime_ns = current_time.saturating_sub(allocation.timestamp_alloc);
                 let lifetime_ms = lifetime_ns / 1_000_000; // Convert to milliseconds
-                tracing::debug!("Active allocation lifetime: {}ns -> {}ms", lifetime_ns, lifetime_ms);
+                tracing::debug!(
+                    "Active allocation lifetime: {}ns -> {}ms",
+                    lifetime_ns,
+                    lifetime_ms
+                );
                 allocation.lifetime_ms = Some(lifetime_ms);
             }
         }
@@ -4548,13 +4735,13 @@ impl MemoryTracker {
     fn analyze_lifecycle_efficiency(&self, allocation: &mut AllocationInfo, lifetime_ms: u64) {
         // Classify lifecycle pattern based on lifetime
         let lifecycle_pattern = self.classify_lifecycle_pattern(lifetime_ms);
-        
+
         // Calculate efficiency score
         let efficiency_score = self.calculate_efficiency_score(allocation, lifetime_ms);
-        
+
         // Generate optimization suggestions
         let suggestions = self.generate_lifecycle_suggestions(allocation, lifetime_ms);
-        
+
         // Log insights for debugging (only for inefficient allocations)
         if efficiency_score < 0.5 {
             tracing::debug!(
@@ -4626,7 +4813,11 @@ impl MemoryTracker {
     }
 
     /// Generate lifecycle optimization suggestions
-    fn generate_lifecycle_suggestions(&self, allocation: &AllocationInfo, lifetime_ms: u64) -> Vec<String> {
+    fn generate_lifecycle_suggestions(
+        &self,
+        allocation: &AllocationInfo,
+        lifetime_ms: u64,
+    ) -> Vec<String> {
         let mut suggestions = Vec::new();
 
         // Size-based suggestions
@@ -4638,19 +4829,26 @@ impl MemoryTracker {
 
         // Lifetime-based suggestions
         if lifetime_ms <= 1 {
-            suggestions.push("Very short lifetime - consider stack allocation or object pooling".to_string());
+            suggestions.push(
+                "Very short lifetime - consider stack allocation or object pooling".to_string(),
+            );
         } else if lifetime_ms > 300000 {
-            suggestions.push("Long-lived allocation - ensure it's necessary for entire duration".to_string());
+            suggestions.push(
+                "Long-lived allocation - ensure it's necessary for entire duration".to_string(),
+            );
         }
 
         // Type-specific suggestions
         if let Some(type_name) = &allocation.type_name {
             if type_name.starts_with("Vec<") {
-                suggestions.push("Consider pre-allocating Vec capacity if size is known".to_string());
+                suggestions
+                    .push("Consider pre-allocating Vec capacity if size is known".to_string());
             } else if type_name.starts_with("HashMap<") {
                 suggestions.push("Consider pre-sizing HashMap with capacity hint".to_string());
             } else if type_name == "String" {
-                suggestions.push("Consider using String::with_capacity() for known string sizes".to_string());
+                suggestions.push(
+                    "Consider using String::with_capacity() for known string sizes".to_string(),
+                );
             }
         }
 

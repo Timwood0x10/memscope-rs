@@ -118,7 +118,7 @@ impl PerformanceBenchmark {
         })
     }
 
-    
+    /// run full benchmark
     pub fn run_full_benchmark(&mut self) -> TrackingResult<BenchmarkComparison> {
         tracing::info!("🚀 start benchmark");
         tracing::info!("==================");

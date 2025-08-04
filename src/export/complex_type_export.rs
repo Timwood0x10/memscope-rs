@@ -247,7 +247,8 @@ pub fn export_comprehensive_analysis_optimized<P: AsRef<Path>>(
     );
     tracing::info!(
         "📊 Main file: {} bytes, Complex files: {} bytes",
-        result.export_stats.main_file_size, result.export_stats.complex_files_size
+        result.export_stats.main_file_size,
+        result.export_stats.complex_files_size
     );
 
     Ok(result)

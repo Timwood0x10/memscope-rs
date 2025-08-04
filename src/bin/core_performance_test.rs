@@ -210,14 +210,20 @@ fn display_core_performance_results(
     tracing::info!("  • average time: {:.1}ms", avg_traditional);
     tracing::info!("  • fastest time: {}ms", min_traditional);
     tracing::info!("  • slowest time: {}ms", max_traditional);
-    tracing::info!("  • standard deviation: {:.1}ms", calculate_std_dev(traditional_times));
+    tracing::info!(
+        "  • standard deviation: {:.1}ms",
+        calculate_std_dev(traditional_times)
+    );
 
     tracing::info!("");
     tracing::info!("fast export core algorithm:");
     tracing::info!("  • average time: {:.1}ms", avg_fast);
     tracing::info!("  • fastest time: {}ms", min_fast);
     tracing::info!("  • slowest time: {}ms", max_fast);
-    tracing::info!("  • standard deviation: {:.1}ms", calculate_std_dev(fast_times));
+    tracing::info!(
+        "  • standard deviation: {:.1}ms",
+        calculate_std_dev(fast_times)
+    );
 
     tracing::info!("");
     tracing::info!("📊 core algorithm performance comparison:");
@@ -226,7 +232,10 @@ fn display_core_performance_results(
         tracing::info!("  • acceleration ratio: {:.2}x", avg_traditional / avg_fast);
         tracing::info!("  • time saved: {:.1}ms", avg_traditional - avg_fast);
     } else {
-        tracing::info!("  • time change: {:.1}% (slower)", improvement_percent.abs());
+        tracing::info!(
+            "  • time change: {:.1}% (slower)",
+            improvement_percent.abs()
+        );
         tracing::info!("  • acceleration ratio: {:.2}x", avg_fast / avg_traditional);
         tracing::info!("  • time increase: {:.1}ms", avg_fast - avg_traditional);
     }
@@ -235,14 +244,20 @@ fn display_core_performance_results(
     tracing::info!("");
     tracing::info!("🎯 core algorithm evaluation:");
     if improvement_percent >= 60.0 {
-        tracing::info!("✅ excellent! core algorithm reached the goal of 60-80% export time reduction");
+        tracing::info!(
+            "✅ excellent! core algorithm reached the goal of 60-80% export time reduction"
+        );
         tracing::info!("   the fast export system's core design is successful!");
     } else if improvement_percent >= 40.0 {
         tracing::info!("✅ good! core algorithm is close to 60-80% export time reduction");
         tracing::info!("   the fast export system has a clear advantage, can be further optimized");
     } else if improvement_percent >= 20.0 {
-        tracing::info!("⚠️  general, core algorithm has some improvement but did not reach the expected goal");
-        tracing::info!("   need to further optimize parallel processing and data localization strategy");
+        tracing::info!(
+            "⚠️  general, core algorithm has some improvement but did not reach the expected goal"
+        );
+        tracing::info!(
+            "   need to further optimize parallel processing and data localization strategy"
+        );
     } else if improvement_percent > 0.0 {
         tracing::info!("⚠️  minor improvement, core algorithm advantage is not significant");
         tracing::info!("   need to re-examine the design of the fast export system");
@@ -389,6 +404,9 @@ The fast export system uses pre-allocated buffers and batch writing to reduce I/
         tracing::error!("⚠️  generate report failed: {}", e);
     } else {
         tracing::info!("");
-        tracing::info!("📄 core performance report generated: {}", report_file.display());
+        tracing::info!(
+            "📄 core performance report generated: {}",
+            report_file.display()
+        );
     }
 }

@@ -1428,7 +1428,9 @@ impl MemoryTracker {
             *analyzer = SecurityViolationAnalyzer::new(config);
             tracing::info!(
                 "🔧 Security analysis configured: correlation={}, low_severity={}, hashes={}",
-                enable_correlation, include_low_severity, generate_hashes
+                enable_correlation,
+                include_low_severity,
+                generate_hashes
             );
         }
 

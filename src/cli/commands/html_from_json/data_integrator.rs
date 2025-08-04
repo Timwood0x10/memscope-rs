@@ -434,7 +434,8 @@ impl DataIntegrator {
         {
             tracing::info!(
                 "🔧 Resolving active allocation count conflict: stats={}, actual={}",
-                unified_data.stats.active_allocations, actual_active_count
+                unified_data.stats.active_allocations,
+                actual_active_count
             );
             unified_data.stats.active_allocations = actual_active_count;
             conflicts_resolved += 1;
@@ -460,7 +461,9 @@ impl DataIntegrator {
                 // Only resolve if difference is > 5%
                 tracing::info!(
                     "🔧 Resolving active memory conflict: stats={}, actual={} ({:.1}% diff)",
-                    unified_data.stats.active_memory, actual_active_memory, diff_percent
+                    unified_data.stats.active_memory,
+                    actual_active_memory,
+                    diff_percent
                 );
                 unified_data.stats.active_memory = actual_active_memory;
                 conflicts_resolved += 1;

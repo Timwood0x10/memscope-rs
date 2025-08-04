@@ -166,8 +166,14 @@ fn display_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &P
     tracing::info!("");
     tracing::info!("fast export system:");
     tracing::info!("  • average time: {:.1}ms", avg_fast);
-    tracing::info!("  • fastest time: {}ms", fast_times.iter().min().unwrap_or(&0));
-    tracing::info!("  • slowest time: {}ms", fast_times.iter().max().unwrap_or(&0));
+    tracing::info!(
+        "  • fastest time: {}ms",
+        fast_times.iter().min().unwrap_or(&0)
+    );
+    tracing::info!(
+        "  • slowest time: {}ms",
+        fast_times.iter().max().unwrap_or(&0)
+    );
 
     tracing::info!("");
     tracing::info!("📊 performance improvement:");
@@ -175,7 +181,10 @@ fn display_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &P
         tracing::info!("  • time improvement: {:.1}%", improvement_percent);
         tracing::info!("  • acceleration ratio: {:.2}x", avg_traditional / avg_fast);
     } else {
-        tracing::info!("  • time change: {:.1}% (slower)", improvement_percent.abs());
+        tracing::info!(
+            "  • time change: {:.1}% (slower)",
+            improvement_percent.abs()
+        );
     }
 
     // evaluation result

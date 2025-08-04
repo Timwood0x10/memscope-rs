@@ -29,7 +29,7 @@ pub struct BinaryExportConfig {
     pub include_details: bool,
     /// Compression level (0-9, 0 = no compression)
     pub compression_level: u8,
-    
+
     // New advanced metrics fields
     /// Advanced metrics collection level
     pub advanced_metrics_level: AdvancedMetricsLevel,
@@ -72,17 +72,17 @@ impl BinaryExportConfig {
             buffer_size: 64 * 1024, // 64KB
             include_details: true,
             compression_level: 0, // No compression for speed
-            
+
             // Advanced metrics - conservative settings
             advanced_metrics_level: AdvancedMetricsLevel::Essential,
-            source_analysis: false,      // Stack tracing has overhead
-            lifecycle_timeline: true,    // Based on existing data, low overhead
-            container_analysis: true,    // High value container analysis
-            fragmentation_analysis: false, // Computation overhead
-            thread_context_tracking: true,  // Low overhead, high value
-            drop_chain_analysis: false,  // Can be expensive
-            zst_analysis: false,         // Specialized use case
-            health_scoring: false,       // Additional computation
+            source_analysis: false,          // Stack tracing has overhead
+            lifecycle_timeline: true,        // Based on existing data, low overhead
+            container_analysis: true,        // High value container analysis
+            fragmentation_analysis: false,   // Computation overhead
+            thread_context_tracking: true,   // Low overhead, high value
+            drop_chain_analysis: false,      // Can be expensive
+            zst_analysis: false,             // Specialized use case
+            health_scoring: false,           // Additional computation
             performance_benchmarking: false, // Only for debugging
         }
     }
@@ -94,7 +94,7 @@ impl BinaryExportConfig {
             buffer_size: 128 * 1024, // 128KB for better I/O
             include_details: true,
             compression_level: 1, // Light compression
-            
+
             // Advanced metrics - all enabled
             advanced_metrics_level: AdvancedMetricsLevel::Comprehensive,
             source_analysis: true,
@@ -116,7 +116,7 @@ impl BinaryExportConfig {
             buffer_size: 32 * 1024, // 32KB
             include_details: false,
             compression_level: 0,
-            
+
             // Advanced metrics - all disabled
             advanced_metrics_level: AdvancedMetricsLevel::None,
             source_analysis: false,
@@ -154,9 +154,15 @@ impl BinaryExportConfig {
         match self.advanced_metrics_level {
             AdvancedMetricsLevel::None => {
                 // If metrics level is None, disable all advanced features
-                if self.source_analysis || self.lifecycle_timeline || self.container_analysis 
-                   || self.fragmentation_analysis || self.thread_context_tracking 
-                   || self.drop_chain_analysis || self.zst_analysis || self.health_scoring {
+                if self.source_analysis
+                    || self.lifecycle_timeline
+                    || self.container_analysis
+                    || self.fragmentation_analysis
+                    || self.thread_context_tracking
+                    || self.drop_chain_analysis
+                    || self.zst_analysis
+                    || self.health_scoring
+                {
                     warnings.push("Advanced metrics level is None but some advanced features are enabled. Disabling advanced features.".to_string());
                     self.disable_all_advanced_features();
                 }
@@ -176,8 +182,13 @@ impl BinaryExportConfig {
         }
 
         // Performance vs features conflict detection
-        if self.compression_level > 0 && self.advanced_metrics_level == AdvancedMetricsLevel::Comprehensive {
-            warnings.push("High compression with comprehensive metrics may significantly impact performance".to_string());
+        if self.compression_level > 0
+            && self.advanced_metrics_level == AdvancedMetricsLevel::Comprehensive
+        {
+            warnings.push(
+                "High compression with comprehensive metrics may significantly impact performance"
+                    .to_string(),
+            );
         }
 
         warnings
@@ -198,11 +209,16 @@ impl BinaryExportConfig {
 
     /// Check if any advanced metrics are enabled
     pub fn has_advanced_metrics(&self) -> bool {
-        self.advanced_metrics_level != AdvancedMetricsLevel::None ||
-        self.source_analysis || self.lifecycle_timeline || self.container_analysis ||
-        self.fragmentation_analysis || self.thread_context_tracking ||
-        self.drop_chain_analysis || self.zst_analysis || self.health_scoring ||
-        self.performance_benchmarking
+        self.advanced_metrics_level != AdvancedMetricsLevel::None
+            || self.source_analysis
+            || self.lifecycle_timeline
+            || self.container_analysis
+            || self.fragmentation_analysis
+            || self.thread_context_tracking
+            || self.drop_chain_analysis
+            || self.zst_analysis
+            || self.health_scoring
+            || self.performance_benchmarking
     }
 
     /// Get estimated performance impact (0.0 = no impact, 1.0 = significant impact)
@@ -217,12 +233,24 @@ impl BinaryExportConfig {
         };
 
         // Individual feature impacts
-        if self.source_analysis { impact += 0.2; }
-        if self.fragmentation_analysis { impact += 0.3; }
-        if self.drop_chain_analysis { impact += 0.15; }
-        if self.zst_analysis { impact += 0.1; }
-        if self.health_scoring { impact += 0.1; }
-        if self.performance_benchmarking { impact += 0.05; }
+        if self.source_analysis {
+            impact += 0.2;
+        }
+        if self.fragmentation_analysis {
+            impact += 0.3;
+        }
+        if self.drop_chain_analysis {
+            impact += 0.15;
+        }
+        if self.zst_analysis {
+            impact += 0.1;
+        }
+        if self.health_scoring {
+            impact += 0.1;
+        }
+        if self.performance_benchmarking {
+            impact += 0.05;
+        }
 
         // Compression impact
         impact += self.compression_level as f64 * 0.02;
@@ -344,7 +372,10 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = BinaryExportConfig::default();
-        assert_eq!(config.advanced_metrics_level, AdvancedMetricsLevel::Essential);
+        assert_eq!(
+            config.advanced_metrics_level,
+            AdvancedMetricsLevel::Essential
+        );
         assert!(!config.source_analysis); // Should be false for performance
         assert!(config.lifecycle_timeline); // Should be true for value
         assert!(config.container_analysis); // Should be true for value
@@ -362,7 +393,10 @@ mod tests {
     #[test]
     fn test_debug_comprehensive_config() {
         let config = BinaryExportConfig::debug_comprehensive();
-        assert_eq!(config.advanced_metrics_level, AdvancedMetricsLevel::Comprehensive);
+        assert_eq!(
+            config.advanced_metrics_level,
+            AdvancedMetricsLevel::Comprehensive
+        );
         assert!(config.source_analysis);
         assert!(config.fragmentation_analysis);
         assert!(config.zst_analysis);
@@ -382,7 +416,7 @@ mod tests {
         let mut config = BinaryExportConfig::default();
         config.buffer_size = 100; // Too small
         config.compression_level = 15; // Too high
-        
+
         let warnings = config.validate_and_fix();
         assert!(!warnings.is_empty());
         assert_eq!(config.buffer_size, 1024);
@@ -398,7 +432,10 @@ mod tests {
             .compression_level(3)
             .build();
 
-        assert_eq!(config.advanced_metrics_level, AdvancedMetricsLevel::Comprehensive);
+        assert_eq!(
+            config.advanced_metrics_level,
+            AdvancedMetricsLevel::Comprehensive
+        );
         assert!(config.source_analysis);
         assert!(config.fragmentation_analysis);
         assert_eq!(config.compression_level, 3);

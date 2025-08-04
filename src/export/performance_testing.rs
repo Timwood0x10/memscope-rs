@@ -323,12 +323,14 @@ impl PerformanceBenchmark {
             if result.fast_export.peak_memory_mb <= memory_limit {
                 tracing::info!(
                     "  ✅ Memory usage within limits ({:.2} MB <= {} MB)",
-                    result.fast_export.peak_memory_mb, memory_limit
+                    result.fast_export.peak_memory_mb,
+                    memory_limit
                 );
             } else {
                 tracing::info!(
                     "  ⚠️ Memory usage exceeds limit ({:.2} MB > {} MB)",
-                    result.fast_export.peak_memory_mb, memory_limit
+                    result.fast_export.peak_memory_mb,
+                    memory_limit
                 );
             }
         }
@@ -388,7 +390,9 @@ impl PerformanceBenchmark {
             for rec in &report.optimization_recommendations {
                 tracing::info!(
                     "• [{}] {}: {}",
-                    rec.impact, rec.category, rec.recommendation
+                    rec.impact,
+                    rec.category,
+                    rec.recommendation
                 );
             }
         }
@@ -491,7 +495,8 @@ impl PerformanceTestSuite {
             if result.peak_memory_mb > self.config.memory_limit_mb as f64 {
                 tracing::info!(
                     "  ⚠️ Memory usage exceeds limit: {:.2} MB > {} MB",
-                    result.peak_memory_mb, self.config.memory_limit_mb
+                    result.peak_memory_mb,
+                    self.config.memory_limit_mb
                 );
             }
 
@@ -558,7 +563,8 @@ impl PerformanceTestSuite {
             if result.peak_memory_mb > self.config.memory_limit_mb as f64 {
                 tracing::info!(
                     "  ⚠️ Memory usage exceeds limit: {:.2} MB > {} MB",
-                    result.peak_memory_mb, self.config.memory_limit_mb
+                    result.peak_memory_mb,
+                    self.config.memory_limit_mb
                 );
             }
 
@@ -1902,11 +1908,13 @@ impl AsyncValidationPerformanceReport {
         tracing::info!("   Export only: {}ms", impact.export_only_time_ms);
         tracing::info!(
             "   With inline validation: {}ms (+{:.1}%)",
-            impact.export_with_inline_validation_ms, impact.inline_validation_overhead_percent
+            impact.export_with_inline_validation_ms,
+            impact.inline_validation_overhead_percent
         );
         tracing::info!(
             "   With deferred validation: {}ms (+{:.1}%)",
-            impact.export_with_deferred_validation_ms, impact.deferred_validation_overhead_percent
+            impact.export_with_deferred_validation_ms,
+            impact.deferred_validation_overhead_percent
         );
 
         // Print blocking analysis

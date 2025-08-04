@@ -9,8 +9,13 @@
 mod config;
 mod error;
 mod format;
+mod memory_layout_serialization;
 mod parser;
+#[cfg(test)]
+mod performance_tests;
 mod reader;
+mod serializable;
+mod smart_pointer_serialization;
 mod writer;
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
@@ -48,7 +53,7 @@ pub fn export_to_binary_with_config<P: AsRef<Path>>(
     writer.write_advanced_metrics_segment(allocations)?;
 
     writer.finish()?;
-    
+
     // Log configuration info if advanced metrics are enabled
     if config.has_advanced_metrics() {
         tracing::info!(
@@ -56,7 +61,7 @@ pub fn export_to_binary_with_config<P: AsRef<Path>>(
             config.estimated_performance_impact() * 100.0
         );
     }
-    
+
     Ok(())
 }
 

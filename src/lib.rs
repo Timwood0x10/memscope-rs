@@ -1307,7 +1307,8 @@ impl MemoryTracker {
         );
         tracing::info!(
             "📁 Main file: {} ({} bytes)",
-            export_result.main_file, export_result.export_stats.main_file_size
+            export_result.main_file,
+            export_result.export_stats.main_file_size
         );
 
         if export_result.export_stats.complex_files_size > 0 {

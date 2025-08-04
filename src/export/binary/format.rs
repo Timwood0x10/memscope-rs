@@ -103,10 +103,10 @@ impl AllocationRecord {
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct AdvancedMetricsHeader {
-    pub magic: [u8; 4],        // "ADVD"
-    pub segment_size: u32,     // Size of the entire segment including header
-    pub metrics_bitmap: u32,   // Bitmap indicating which metrics are present
-    pub reserved: u32,         // Reserved for future use
+    pub magic: [u8; 4],      // "ADVD"
+    pub segment_size: u32,   // Size of the entire segment including header
+    pub metrics_bitmap: u32, // Bitmap indicating which metrics are present
+    pub reserved: u32,       // Reserved for future use
 }
 
 impl AdvancedMetricsHeader {
@@ -157,17 +157,17 @@ impl AdvancedMetricsHeader {
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetricsBitmapFlags {
-    LifecycleAnalysis = 1 << 0,      // Task 4 lifecycle metrics
-    ContainerAnalysis = 1 << 1,      // Task 3 container analysis
-    TypeUsageStats = 1 << 2,         // Task 2 type usage statistics
-    SourceAnalysis = 1 << 3,         // Source code analysis
-    FragmentationAnalysis = 1 << 4,  // Memory fragmentation analysis
-    ThreadContext = 1 << 5,          // Thread context information
-    DropChainAnalysis = 1 << 6,      // Drop chain analysis
-    ZstAnalysis = 1 << 7,            // Zero-sized type analysis
-    HealthScoring = 1 << 8,          // Memory health scoring
-    PerformanceBenchmarks = 1 << 9,  // Performance benchmark data
-    // Bits 10-31 reserved for future metrics
+    LifecycleAnalysis = 1 << 0,     // Task 4 lifecycle metrics
+    ContainerAnalysis = 1 << 1,     // Task 3 container analysis
+    TypeUsageStats = 1 << 2,        // Task 2 type usage statistics
+    SourceAnalysis = 1 << 3,        // Source code analysis
+    FragmentationAnalysis = 1 << 4, // Memory fragmentation analysis
+    ThreadContext = 1 << 5,         // Thread context information
+    DropChainAnalysis = 1 << 6,     // Drop chain analysis
+    ZstAnalysis = 1 << 7,           // Zero-sized type analysis
+    HealthScoring = 1 << 8,         // Memory health scoring
+    PerformanceBenchmarks = 1 << 9, // Performance benchmark data
+                                    // Bits 10-31 reserved for future metrics
 }
 
 impl MetricsBitmapFlags {
@@ -291,16 +291,34 @@ mod tests {
 
         // Test enabling flags
         bitmap = MetricsBitmapFlags::enable(bitmap, MetricsBitmapFlags::LifecycleAnalysis);
-        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::LifecycleAnalysis));
-        assert!(!MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::ContainerAnalysis));
+        assert!(MetricsBitmapFlags::is_enabled(
+            bitmap,
+            MetricsBitmapFlags::LifecycleAnalysis
+        ));
+        assert!(!MetricsBitmapFlags::is_enabled(
+            bitmap,
+            MetricsBitmapFlags::ContainerAnalysis
+        ));
 
         bitmap = MetricsBitmapFlags::enable(bitmap, MetricsBitmapFlags::ContainerAnalysis);
-        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::LifecycleAnalysis));
-        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::ContainerAnalysis));
+        assert!(MetricsBitmapFlags::is_enabled(
+            bitmap,
+            MetricsBitmapFlags::LifecycleAnalysis
+        ));
+        assert!(MetricsBitmapFlags::is_enabled(
+            bitmap,
+            MetricsBitmapFlags::ContainerAnalysis
+        ));
 
         // Test disabling flags
         bitmap = MetricsBitmapFlags::disable(bitmap, MetricsBitmapFlags::LifecycleAnalysis);
-        assert!(!MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::LifecycleAnalysis));
-        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::ContainerAnalysis));
+        assert!(!MetricsBitmapFlags::is_enabled(
+            bitmap,
+            MetricsBitmapFlags::LifecycleAnalysis
+        ));
+        assert!(MetricsBitmapFlags::is_enabled(
+            bitmap,
+            MetricsBitmapFlags::ContainerAnalysis
+        ));
     }
 }

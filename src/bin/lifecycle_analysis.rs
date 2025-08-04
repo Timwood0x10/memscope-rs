@@ -121,7 +121,10 @@ fn analyze_lifecycle_patterns() {
 
         let lifecycle = &stats.lifecycle_stats;
         tracing::info!("\n📈 lifecycle distribution:");
-        tracing::info!("  • instant allocations (< 1ms): {}", lifecycle.instant_allocations);
+        tracing::info!(
+            "  • instant allocations (< 1ms): {}",
+            lifecycle.instant_allocations
+        );
         tracing::info!(
             "  • short term allocations (1-100ms): {}",
             lifecycle.short_term_allocations
@@ -130,7 +133,10 @@ fn analyze_lifecycle_patterns() {
             "  • medium term allocations (100ms-1s): {}",
             lifecycle.medium_term_allocations
         );
-        tracing::info!("  • long term allocations (> 1s): {}", lifecycle.long_term_allocations);
+        tracing::info!(
+            "  • long term allocations (> 1s): {}",
+            lifecycle.long_term_allocations
+        );
 
         tracing::info!("\n💡 conclusion:");
         if stats.active_allocations < stats.total_allocations / 2 {

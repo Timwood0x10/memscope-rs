@@ -6,6 +6,7 @@ use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::format::{
     AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE,
 };
+use crate::export::binary::serializable::BinarySerializable;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -99,9 +100,9 @@ impl BinaryWriter {
             }
         }
 
-        // Write complex JSON fields
-        self.write_optional_json_field(&alloc.smart_pointer_info)?;
-        self.write_optional_json_field(&alloc.memory_layout)?;
+        // Write complex fields using binary serialization
+        self.write_optional_binary_field(&alloc.smart_pointer_info)?;
+        self.write_optional_binary_field(&alloc.memory_layout)?;
         self.write_optional_json_field(&alloc.generic_info)?;
         self.write_optional_json_field(&alloc.dynamic_type_info)?;
         self.write_optional_json_field(&alloc.runtime_state)?;
@@ -131,31 +132,44 @@ impl BinaryWriter {
         let mut metrics_bitmap = 0u32;
 
         if self.config.lifecycle_timeline {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::LifecycleAnalysis);
+            metrics_bitmap =
+                MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::LifecycleAnalysis);
         }
         if self.config.container_analysis {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ContainerAnalysis);
+            metrics_bitmap =
+                MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ContainerAnalysis);
         }
         if self.config.source_analysis {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::SourceAnalysis);
+            metrics_bitmap =
+                MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::SourceAnalysis);
         }
         if self.config.fragmentation_analysis {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::FragmentationAnalysis);
+            metrics_bitmap = MetricsBitmapFlags::enable(
+                metrics_bitmap,
+                MetricsBitmapFlags::FragmentationAnalysis,
+            );
         }
         if self.config.thread_context_tracking {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ThreadContext);
+            metrics_bitmap =
+                MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ThreadContext);
         }
         if self.config.drop_chain_analysis {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::DropChainAnalysis);
+            metrics_bitmap =
+                MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::DropChainAnalysis);
         }
         if self.config.zst_analysis {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ZstAnalysis);
+            metrics_bitmap =
+                MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ZstAnalysis);
         }
         if self.config.health_scoring {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::HealthScoring);
+            metrics_bitmap =
+                MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::HealthScoring);
         }
         if self.config.performance_benchmarking {
-            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::PerformanceBenchmarks);
+            metrics_bitmap = MetricsBitmapFlags::enable(
+                metrics_bitmap,
+                MetricsBitmapFlags::PerformanceBenchmarks,
+            );
         }
 
         // Calculate segment size (header + data)
@@ -223,26 +237,33 @@ impl BinaryWriter {
     }
 
     /// Write lifecycle analysis metrics
-    fn write_lifecycle_metrics(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+    fn write_lifecycle_metrics(
+        &mut self,
+        allocations: &[AllocationInfo],
+    ) -> Result<(), BinaryExportError> {
         // Write count of allocations with lifecycle data
         let lifecycle_count = allocations
             .iter()
             .filter(|a| a.lifetime_ms.is_some())
             .count();
-        
-        self.writer.write_all(&(lifecycle_count as u32).to_le_bytes())?;
+
+        self.writer
+            .write_all(&(lifecycle_count as u32).to_le_bytes())?;
 
         // Write lifecycle data for each allocation
         for alloc in allocations {
             if let Some(lifetime) = alloc.lifetime_ms {
                 self.writer.write_all(&(alloc.ptr as u64).to_le_bytes())?; // allocation ID
                 self.writer.write_all(&lifetime.to_le_bytes())?; // lifetime in ms
-                
+
                 // Write lifecycle phase information if available
                 if let Some(ref lifecycle_tracking) = alloc.lifecycle_tracking {
                     self.writer.write_all(&1u8.to_le_bytes())?; // has lifecycle tracking
-                    let json_str = serde_json::to_string(lifecycle_tracking)
-                        .map_err(|e| BinaryExportError::CorruptedData(format!("Lifecycle JSON serialization failed: {e}")))?;
+                    let json_str = serde_json::to_string(lifecycle_tracking).map_err(|e| {
+                        BinaryExportError::CorruptedData(format!(
+                            "Lifecycle JSON serialization failed: {e}"
+                        ))
+                    })?;
                     self.write_string(&json_str)?;
                 } else {
                     self.writer.write_all(&0u8.to_le_bytes())?; // no lifecycle tracking
@@ -254,23 +275,30 @@ impl BinaryWriter {
     }
 
     /// Write container analysis metrics
-    fn write_container_metrics(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+    fn write_container_metrics(
+        &mut self,
+        allocations: &[AllocationInfo],
+    ) -> Result<(), BinaryExportError> {
         // Write count of allocations with container data
         let container_count = allocations
             .iter()
             .filter(|a| a.memory_layout.is_some())
             .count();
-        
-        self.writer.write_all(&(container_count as u32).to_le_bytes())?;
+
+        self.writer
+            .write_all(&(container_count as u32).to_le_bytes())?;
 
         // Write container data for each allocation
         for alloc in allocations {
             if let Some(ref memory_layout) = alloc.memory_layout {
                 self.writer.write_all(&(alloc.ptr as u64).to_le_bytes())?; // allocation ID
-                
+
                 // Serialize memory layout as JSON for now (can be optimized later)
-                let json_str = serde_json::to_string(memory_layout)
-                    .map_err(|e| BinaryExportError::CorruptedData(format!("Memory layout JSON serialization failed: {e}")))?;
+                let json_str = serde_json::to_string(memory_layout).map_err(|e| {
+                    BinaryExportError::CorruptedData(format!(
+                        "Memory layout JSON serialization failed: {e}"
+                    ))
+                })?;
                 self.write_string(&json_str)?;
             }
         }
@@ -279,23 +307,30 @@ impl BinaryWriter {
     }
 
     /// Write type usage statistics
-    fn write_type_usage_metrics(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+    fn write_type_usage_metrics(
+        &mut self,
+        allocations: &[AllocationInfo],
+    ) -> Result<(), BinaryExportError> {
         // Write count of allocations with type usage data
         let type_usage_count = allocations
             .iter()
             .filter(|a| a.type_usage.is_some())
             .count();
-        
-        self.writer.write_all(&(type_usage_count as u32).to_le_bytes())?;
+
+        self.writer
+            .write_all(&(type_usage_count as u32).to_le_bytes())?;
 
         // Write type usage data for each allocation
         for alloc in allocations {
             if let Some(ref type_usage) = alloc.type_usage {
                 self.writer.write_all(&(alloc.ptr as u64).to_le_bytes())?; // allocation ID
-                
+
                 // Serialize type usage as JSON for now (can be optimized later)
-                let json_str = serde_json::to_string(type_usage)
-                    .map_err(|e| BinaryExportError::CorruptedData(format!("Type usage JSON serialization failed: {e}")))?;
+                let json_str = serde_json::to_string(type_usage).map_err(|e| {
+                    BinaryExportError::CorruptedData(format!(
+                        "Type usage JSON serialization failed: {e}"
+                    ))
+                })?;
                 self.write_string(&json_str)?;
             }
         }
@@ -306,13 +341,13 @@ impl BinaryWriter {
     /// Calculate size for lifecycle data
     fn calculate_lifecycle_data_size(&self, allocations: &[AllocationInfo]) -> usize {
         let mut size = 4; // count field
-        
+
         for alloc in allocations {
             if alloc.lifetime_ms.is_some() {
                 size += 8; // ptr
                 size += 8; // lifetime_ms
                 size += 1; // lifecycle_tracking flag
-                
+
                 if let Some(ref lifecycle_tracking) = alloc.lifecycle_tracking {
                     if let Ok(json_str) = serde_json::to_string(lifecycle_tracking) {
                         size += 4 + json_str.len(); // string length + content
@@ -320,14 +355,14 @@ impl BinaryWriter {
                 }
             }
         }
-        
+
         size
     }
 
     /// Calculate size for container data
     fn calculate_container_data_size(&self, allocations: &[AllocationInfo]) -> usize {
         let mut size = 4; // count field
-        
+
         for alloc in allocations {
             if let Some(ref memory_layout) = alloc.memory_layout {
                 size += 8; // ptr
@@ -336,14 +371,14 @@ impl BinaryWriter {
                 }
             }
         }
-        
+
         size
     }
 
     /// Calculate size for type usage data
     fn calculate_type_usage_data_size(&self, allocations: &[AllocationInfo]) -> usize {
         let mut size = 4; // count field
-        
+
         for alloc in allocations {
             if let Some(ref type_usage) = alloc.type_usage {
                 size += 8; // ptr
@@ -352,7 +387,7 @@ impl BinaryWriter {
                 }
             }
         }
-        
+
         size
     }
 
@@ -408,9 +443,9 @@ impl BinaryWriter {
             size += 8;
         }
 
-        // JSON fields
-        size += self.calculate_json_field_size(&alloc.smart_pointer_info);
-        size += self.calculate_json_field_size(&alloc.memory_layout);
+        // Binary fields
+        size += self.calculate_binary_field_size(&alloc.smart_pointer_info);
+        size += self.calculate_binary_field_size(&alloc.memory_layout);
         size += self.calculate_json_field_size(&alloc.generic_info);
         size += self.calculate_json_field_size(&alloc.dynamic_type_info);
         size += self.calculate_json_field_size(&alloc.runtime_state);
@@ -424,6 +459,15 @@ impl BinaryWriter {
         size += self.calculate_json_field_size(&alloc.lifecycle_tracking);
         size += self.calculate_json_field_size(&alloc.access_tracking);
 
+        size
+    }
+
+    /// Calculate size needed for optional binary field
+    fn calculate_binary_field_size<T: BinarySerializable>(&self, field: &Option<T>) -> usize {
+        let mut size = 1; // flag byte
+        if let Some(value) = field {
+            size += value.binary_size();
+        }
         size
     }
 
@@ -482,6 +526,23 @@ impl BinaryWriter {
             }
             None => {
                 self.writer.write_all(&0u32.to_le_bytes())?; // 0 count indicates None
+            }
+        }
+        Ok(())
+    }
+
+    /// Write optional binary field using BinarySerializable trait
+    fn write_optional_binary_field<T: BinarySerializable>(
+        &mut self,
+        field: &Option<T>,
+    ) -> Result<(), BinaryExportError> {
+        match field {
+            Some(value) => {
+                self.writer.write_all(&1u8.to_le_bytes())?; // has value
+                value.write_binary(&mut self.writer)?;
+            }
+            None => {
+                self.writer.write_all(&0u8.to_le_bytes())?; // no value
             }
         }
         Ok(())
@@ -618,7 +679,7 @@ mod tests {
 
         let mut alloc = create_test_allocation();
         alloc.lifetime_ms = Some(1500); // Add some lifecycle data
-        
+
         writer.write_allocation(&alloc).unwrap();
         writer.write_advanced_metrics_segment(&[alloc]).unwrap();
         writer.finish().unwrap();
@@ -637,7 +698,7 @@ mod tests {
         writer.write_header(1).unwrap();
         let alloc = create_test_allocation();
         writer.write_allocation(&alloc).unwrap();
-        
+
         // Should not write advanced metrics segment
         writer.write_advanced_metrics_segment(&[alloc]).unwrap();
         writer.finish().unwrap();

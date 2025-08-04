@@ -201,8 +201,14 @@ fn display_performance_results(
     tracing::info!("");
     tracing::info!("fast export system (no validation): ");
     tracing::info!("  • average time: {:.1}ms", avg_fast);
-    tracing::info!("  • fastest time: {}ms", fast_times.iter().min().unwrap_or(&0));
-    tracing::info!("  • slowest time: {}ms", fast_times.iter().max().unwrap_or(&0));
+    tracing::info!(
+        "  • fastest time: {}ms",
+        fast_times.iter().min().unwrap_or(&0)
+    );
+    tracing::info!(
+        "  • slowest time: {}ms",
+        fast_times.iter().max().unwrap_or(&0)
+    );
     tracing::info!(
         "  • time range: {}ms",
         fast_times.iter().max().unwrap_or(&0) - fast_times.iter().min().unwrap_or(&0)
@@ -215,7 +221,10 @@ fn display_performance_results(
         tracing::info!("  • acceleration ratio: {:.2}x", avg_traditional / avg_fast);
         tracing::info!("  • time saved: {:.1}ms", avg_traditional - avg_fast);
     } else {
-        tracing::info!("  • time change: {:.1}% (slower)", improvement_percent.abs());
+        tracing::info!(
+            "  • time change: {:.1}% (slower)",
+            improvement_percent.abs()
+        );
         tracing::info!("  • deceleration ratio: {:.2}x", avg_fast / avg_traditional);
         tracing::info!("  • time increase: {:.1}ms", avg_fast - avg_traditional);
     }
@@ -342,6 +351,9 @@ this indicates that the fast export system's core algorithm needs further optimi
         tracing::error!("⚠️  generate report failed: {}", e);
     } else {
         tracing::info!("");
-        tracing::info!("📄 pure performance report generated: {}", report_file.display());
+        tracing::info!(
+            "📄 pure performance report generated: {}",
+            report_file.display()
+        );
     }
 }

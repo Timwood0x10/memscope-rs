@@ -717,7 +717,8 @@ impl DataNormalizer {
         {
             tracing::info!(
                 "⚠️  Warning: Active allocation count mismatch (stats: {}, actual: {})",
-                data.stats.active_allocations, actual_active_count
+                data.stats.active_allocations,
+                actual_active_count
             );
         }
 

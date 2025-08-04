@@ -1346,7 +1346,8 @@ impl QualityValidator {
         let status_icon = if result.is_valid { "✅" } else { "❌" };
         tracing::info!(
             "{status_icon} Validation result: {} ({}ms)",
-            result.message, result.validation_time_ms
+            result.message,
+            result.validation_time_ms
         );
 
         if !result.issues.is_empty() {
@@ -1361,7 +1362,8 @@ impl QualityValidator {
                 };
                 tracing::info!(
                     "   {index}. {severity_icon} {:?}: {}",
-                    issue.issue_type, issue.description
+                    issue.issue_type,
+                    issue.description
                 );
                 if let Some(fix) = &issue.suggested_fix {
                     tracing::info!("      Suggested fix: {fix}");
@@ -1620,7 +1622,8 @@ impl AsyncValidator {
         let status_icon = if result.is_valid { "✅" } else { "❌" };
         tracing::info!(
             "{status_icon} Validation result: {} ({}ms)",
-            result.message, result.validation_time_ms
+            result.message,
+            result.validation_time_ms
         );
 
         if !result.issues.is_empty() {
@@ -1635,7 +1638,8 @@ impl AsyncValidator {
                 };
                 tracing::info!(
                     "   {index}. {severity_icon} {:?}: {}",
-                    issue.issue_type, issue.description
+                    issue.issue_type,
+                    issue.description
                 );
                 if let Some(fix) = &issue.suggested_fix {
                     tracing::info!("      Suggested fix: {fix}");
@@ -2120,7 +2124,8 @@ impl ValidationReport {
         tracing::info!("   Total validations: {}", self.total_validations);
         tracing::info!(
             "   Successful validations: {} ({:.1}%)",
-            self.successful_validations, self.success_rate
+            self.successful_validations,
+            self.success_rate
         );
         tracing::info!("   Failed validations: {}", self.failed_validations);
         tracing::info!(

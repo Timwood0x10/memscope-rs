@@ -77,7 +77,9 @@ fn main() {
             tracing::info!("📁 generated files:");
             tracing::info!("  • benchmark_results/benchmark_results.json - detailed test data");
             tracing::info!("  • benchmark_results/performance_report.md - performance report");
-            tracing::info!("  • benchmark_results/traditional_export_run_*.json - traditional export results");
+            tracing::info!(
+                "  • benchmark_results/traditional_export_run_*.json - traditional export results"
+            );
             tracing::info!("  • benchmark_results/fast_export_run_*.json - fast export results");
         }
         Err(e) => {

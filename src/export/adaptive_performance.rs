@@ -115,7 +115,9 @@ impl AdaptiveBatchController {
 
             tracing::info!(
                 "🔽 Reducing batch size: {} -> {} (processing too slow: {}ms)",
-                old_batch_size, self.current_batch_size, current_metrics.processing_time_ms
+                old_batch_size,
+                self.current_batch_size,
+                current_metrics.processing_time_ms
             );
         } else if current_metrics.processing_time_ms < self.target_processing_time_ms / 2 {
             // Processing is fast, we can increase batch size
@@ -125,7 +127,9 @@ impl AdaptiveBatchController {
 
             tracing::info!(
                 "🔼 Increasing batch size: {} -> {} (processing fast: {}ms)",
-                old_batch_size, self.current_batch_size, current_metrics.processing_time_ms
+                old_batch_size,
+                self.current_batch_size,
+                current_metrics.processing_time_ms
             );
         }
 
@@ -135,7 +139,9 @@ impl AdaptiveBatchController {
             self.current_batch_size = (self.current_batch_size * 3 / 4).max(self.min_batch_size);
             tracing::info!(
                 "💾 Reducing batch size due to memory pressure: {} -> {} ({}MB)",
-                old_batch_size, self.current_batch_size, current_metrics.memory_usage_mb
+                old_batch_size,
+                self.current_batch_size,
+                current_metrics.memory_usage_mb
             );
         }
     }
@@ -376,12 +382,14 @@ impl MemoryUsageMonitor {
         if usage_mb > self.critical_threshold_mb {
             tracing::info!(
                 "🚨 CRITICAL: Memory usage {}MB exceeds critical threshold {}MB",
-                usage_mb, self.critical_threshold_mb
+                usage_mb,
+                self.critical_threshold_mb
             );
         } else if usage_mb > self.warning_threshold_mb {
             tracing::info!(
                 "⚠️ WARNING: Memory usage {}MB exceeds warning threshold {}MB",
-                usage_mb, self.warning_threshold_mb
+                usage_mb,
+                self.warning_threshold_mb
             );
         }
     }

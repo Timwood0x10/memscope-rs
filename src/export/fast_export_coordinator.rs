@@ -1019,15 +1019,18 @@ impl FastExportCoordinator {
         tracing::info!("\n⏱️ Stage time analysis:");
         tracing::info!(
             "  data_gathering: {}ms ({:.1}%)",
-            stats.data_gathering.total_time_ms, stats.data_gathering_percentage
+            stats.data_gathering.total_time_ms,
+            stats.data_gathering_percentage
         );
         tracing::info!(
             "  parallel_processing: {}ms ({:.1}%)",
-            stats.parallel_processing.total_processing_time_ms, stats.processing_percentage
+            stats.parallel_processing.total_processing_time_ms,
+            stats.processing_percentage
         );
         tracing::info!(
             "  write_performance: {}ms ({:.1}%)",
-            stats.write_performance.total_write_time_ms, stats.writing_percentage
+            stats.write_performance.total_write_time_ms,
+            stats.writing_percentage
         );
 
         tracing::info!("\n🚀 Performance Improvement:");

@@ -269,7 +269,8 @@ impl ErrorRecoveryManager {
         if self.config.verbose_logging {
             tracing::debug!(
                 "🔧 Recovery completed: {} ({}ms)",
-                result.message, recovery_time
+                result.message,
+                recovery_time
             );
         }
 
@@ -873,7 +874,8 @@ impl RecoveryReport {
         tracing::info!("   total errors: {}", self.total_errors);
         tracing::info!(
             "   successful recoveries: {} ({:.1}%)",
-            self.successful_recoveries, self.success_rate
+            self.successful_recoveries,
+            self.success_rate
         );
         tracing::info!("   failed recoveries: {}", self.failed_recoveries);
         tracing::info!("   total retries: {}", self.total_retries);

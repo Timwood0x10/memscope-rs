@@ -108,9 +108,14 @@ fn test_traditional_export(output_dir: &PathBuf, stats: &memscope_rs::core::type
                         if let Some(allocations) = json_value.get("allocations") {
                             if let Some(alloc_array) = allocations.as_array() {
                                 tracing::info!("  • JSON allocations count: {}", alloc_array.len());
-                                tracing::info!("  • tracker reported allocations count: {}", stats.total_allocations);
+                                tracing::info!(
+                                    "  • tracker reported allocations count: {}",
+                                    stats.total_allocations
+                                );
                                 if alloc_array.len() != stats.total_allocations {
-                                    tracing::info!("  ⚠️  allocations count mismatch! possible data loss");
+                                    tracing::info!(
+                                        "  ⚠️  allocations count mismatch! possible data loss"
+                                    );
                                 }
                             }
                         }

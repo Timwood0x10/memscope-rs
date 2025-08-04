@@ -27,43 +27,60 @@ fn test_lifetime_ms_calculation() {
     let stats = tracker.get_stats().unwrap();
     println!("Total allocations: {}", stats.allocations.len());
     for alloc in &stats.allocations {
-        println!("Allocation: ptr=0x{:x}, lifetime_ms={:?}", alloc.ptr, alloc.lifetime_ms);
+        println!(
+            "Allocation: ptr=0x{:x}, lifetime_ms={:?}",
+            alloc.ptr, alloc.lifetime_ms
+        );
     }
-    
+
     // Check both active allocations and history
     let allocation = stats.allocations.iter().find(|a| a.ptr == ptr);
-    
+
     if allocation.is_none() {
         // Try to get allocation history
         if let Ok(history) = tracker.get_allocation_history() {
             println!("Total history allocations: {}", history.len());
             for alloc in &history {
-                println!("History allocation: ptr=0x{:x}, lifetime_ms={:?}", alloc.ptr, alloc.lifetime_ms);
+                println!(
+                    "History allocation: ptr=0x{:x}, lifetime_ms={:?}",
+                    alloc.ptr, alloc.lifetime_ms
+                );
             }
             let allocation = history.iter().find(|a| a.ptr == ptr);
-            assert!(allocation.is_some(), "Allocation with ptr=0x{:x} not found in history either", ptr);
+            assert!(
+                allocation.is_some(),
+                "Allocation with ptr=0x{:x} not found in history either",
+                ptr
+            );
             let allocation = allocation.unwrap();
-            
+
             // Lifetime should be calculated
             assert!(allocation.lifetime_ms.is_some());
             let lifetime = allocation.lifetime_ms.unwrap();
-            println!("Task 4 - Lifetime calculation: {}ms (expected >= 1ms)", lifetime);
-            
+            println!(
+                "Task 4 - Lifetime calculation: {}ms (expected >= 1ms)",
+                lifetime
+            );
+
             // For now, just verify that lifetime_ms is set, even if it's 0
             // This proves our enhancement is working
             println!("✓ Task 4 - Lifetime field is populated: {}ms", lifetime);
             return;
         }
     }
-    
-    assert!(allocation.is_some(), "Allocation with ptr=0x{:x} not found", ptr);
+
+    assert!(
+        allocation.is_some(),
+        "Allocation with ptr=0x{:x} not found",
+        ptr
+    );
     let allocation = allocation.unwrap();
-    
+
     // Lifetime should be calculated
     assert!(allocation.lifetime_ms.is_some());
     let lifetime = allocation.lifetime_ms.unwrap();
     assert!(lifetime >= 1); // Should be at least 1ms (lowered expectation)
-    
+
     println!("✓ Task 4 - Lifetime calculation: {}ms", lifetime);
 }
 
@@ -87,20 +104,33 @@ fn test_active_allocation_lifetime() {
     let stats = tracker.get_stats().unwrap();
     println!("Total active allocations: {}", stats.allocations.len());
     for alloc in &stats.allocations {
-        println!("Active allocation: ptr=0x{:x}, lifetime_ms={:?}", alloc.ptr, alloc.lifetime_ms);
+        println!(
+            "Active allocation: ptr=0x{:x}, lifetime_ms={:?}",
+            alloc.ptr, alloc.lifetime_ms
+        );
     }
-    
+
     let allocation = stats.allocations.iter().find(|a| a.ptr == ptr);
-    
-    assert!(allocation.is_some(), "Active allocation with ptr=0x{:x} not found", ptr);
+
+    assert!(
+        allocation.is_some(),
+        "Active allocation with ptr=0x{:x} not found",
+        ptr
+    );
     let allocation = allocation.unwrap();
-    
+
     // Active allocation should also have lifetime calculated
     assert!(allocation.lifetime_ms.is_some());
     let lifetime = allocation.lifetime_ms.unwrap();
-    println!("Task 4 - Active allocation lifetime: {}ms (expected >= 1ms)", lifetime);
-    
+    println!(
+        "Task 4 - Active allocation lifetime: {}ms (expected >= 1ms)",
+        lifetime
+    );
+
     // For now, just verify that lifetime_ms is set, even if it's 0
     // This proves our enhancement is working
-    println!("✓ Task 4 - Active allocation lifetime field is populated: {}ms", lifetime);
+    println!(
+        "✓ Task 4 - Active allocation lifetime field is populated: {}ms",
+        lifetime
+    );
 }

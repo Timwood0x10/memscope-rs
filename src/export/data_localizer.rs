@@ -173,15 +173,18 @@ impl DataLocalizer {
         tracing::info!("   total time: {:?}", total_time);
         tracing::info!(
             "   basic data: {:?} ({} allocations)",
-            basic_time, gathering_stats.allocation_count
+            basic_time,
+            gathering_stats.allocation_count
         );
         tracing::info!(
             "   ffi data: {:?} ({} enhanced allocations)",
-            ffi_time, gathering_stats.ffi_allocation_count
+            ffi_time,
+            gathering_stats.ffi_allocation_count
         );
         tracing::info!(
             "   scope data: {:?} ({} scopes)",
-            scope_time, gathering_stats.scope_count
+            scope_time,
+            gathering_stats.scope_count
         );
         tracing::info!(
             "   data localization avoided {} global state accesses",
