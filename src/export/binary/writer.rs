@@ -6,7 +6,7 @@ use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::format::{
     AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE,
 };
-use crate::export::binary::serializable::{primitives, BinarySerializable};
+use crate::export::binary::serializable::BinarySerializable;
 use crate::export::binary::string_table::{StringTable, StringTableBuilder};
 use std::fs::File;
 use std::io::{BufWriter, Write};
