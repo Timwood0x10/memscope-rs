@@ -118,12 +118,12 @@ impl PerformanceBenchmark {
         })
     }
 
-    /// 运行完整的基准测试
+    
     pub fn run_full_benchmark(&mut self) -> TrackingResult<BenchmarkComparison> {
         tracing::info!("🚀 start benchmark");
         tracing::info!("==================");
         tracing::info!("config:");
-        tracing::info!("  - 运行次数: {}", self.config.test_runs);
+        tracing::info!("  - run numbers: {}", self.config.test_runs);
         tracing::info!("  - Output directory: {}", self.config.output_dir.display());
         tracing::info!("  - Verify consistency: {}", self.config.verify_consistency);
         tracing::info!("");

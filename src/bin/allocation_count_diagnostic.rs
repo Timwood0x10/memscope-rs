@@ -158,7 +158,7 @@ fn test_fast_export(output_dir: &PathBuf, stats: &memscope_rs::core::types::Memo
 
             if export_stats.parallel_processing.total_allocations != stats.total_allocations {
                 tracing::info!(
-                    "  ⚠️  processed allocations count mismatch! possible data loss",
+                    "  ⚠️  processed allocations count mismatch! possible data loss: exported={}, actual={}",
                     export_stats.parallel_processing.total_allocations, stats.total_allocations
                 );
             }

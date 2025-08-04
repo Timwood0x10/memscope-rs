@@ -1150,6 +1150,8 @@ pub struct MemoryLayoutInfo {
     pub padding_info: PaddingAnalysis,
     /// Memory layout efficiency analysis
     pub layout_efficiency: LayoutEfficiency,
+    /// Container-specific analysis (Vec, HashMap, Box, etc.)
+    pub container_analysis: Option<ContainerAnalysis>,
 }
 
 /// Field layout information
@@ -1244,6 +1246,182 @@ pub enum OptimizationPotential {
         /// Optimization suggestions
         suggestions: Vec<String>,
     },
+}
+
+/// Container-specific analysis for Vec, HashMap, Box, etc.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContainerAnalysis {
+    /// Type of container (Vec, HashMap, Box, etc.)
+    pub container_type: ContainerType,
+    /// Capacity utilization analysis
+    pub capacity_utilization: CapacityUtilization,
+    /// Reallocation pattern detection
+    pub reallocation_patterns: ReallocationPatterns,
+    /// Container-specific efficiency metrics
+    pub efficiency_metrics: ContainerEfficiencyMetrics,
+}
+
+/// Container type classification
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ContainerType {
+    /// Vec<T> container
+    Vec {
+        /// Element type
+        element_type: String,
+        /// Element size in bytes
+        element_size: usize,
+    },
+    /// HashMap<K, V> container
+    HashMap {
+        /// Key type
+        key_type: String,
+        /// Value type
+        value_type: String,
+        /// Key size in bytes
+        key_size: usize,
+        /// Value size in bytes
+        value_size: usize,
+    },
+    /// Box<T> container
+    Box {
+        /// Boxed type
+        boxed_type: String,
+        /// Boxed type size in bytes
+        boxed_size: usize,
+    },
+    /// String container (special case of Vec<u8>)
+    String,
+    /// Rc<T> reference counted container
+    Rc {
+        /// Referenced type
+        referenced_type: String,
+        /// Referenced type size in bytes
+        referenced_size: usize,
+    },
+    /// Arc<T> atomic reference counted container
+    Arc {
+        /// Referenced type
+        referenced_type: String,
+        /// Referenced type size in bytes
+        referenced_size: usize,
+    },
+    /// BTreeMap<K, V> container
+    BTreeMap {
+        /// Key type
+        key_type: String,
+        /// Value type
+        value_type: String,
+        /// Key size in bytes
+        key_size: usize,
+        /// Value size in bytes
+        value_size: usize,
+    },
+    /// Other container type
+    Other {
+        /// Container type name
+        type_name: String,
+    },
+}
+
+/// Capacity utilization analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapacityUtilization {
+    /// Current capacity (estimated)
+    pub current_capacity: usize,
+    /// Current length/size (estimated)
+    pub current_length: usize,
+    /// Utilization ratio (length / capacity)
+    pub utilization_ratio: f64,
+    /// Wasted space in bytes
+    pub wasted_space: usize,
+    /// Efficiency assessment
+    pub efficiency_assessment: UtilizationEfficiency,
+}
+
+/// Utilization efficiency assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum UtilizationEfficiency {
+    /// Excellent utilization (>90%)
+    Excellent,
+    /// Good utilization (70-90%)
+    Good,
+    /// Fair utilization (50-70%)
+    Fair,
+    /// Poor utilization (<50%)
+    Poor {
+        /// Suggested optimization
+        suggestion: String,
+    },
+}
+
+/// Reallocation pattern detection
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReallocationPatterns {
+    /// Estimated number of reallocations
+    pub estimated_reallocations: usize,
+    /// Growth pattern (exponential, linear, etc.)
+    pub growth_pattern: GrowthPattern,
+    /// Reallocation frequency assessment
+    pub frequency_assessment: ReallocationFrequency,
+    /// Optimization suggestions
+    pub optimization_suggestions: Vec<String>,
+}
+
+/// Growth pattern classification
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum GrowthPattern {
+    /// Exponential growth (typical for Vec)
+    Exponential,
+    /// Linear growth
+    Linear,
+    /// Irregular growth
+    Irregular,
+    /// Single allocation (no growth)
+    SingleAllocation,
+    /// Unknown pattern
+    Unknown,
+}
+
+/// Reallocation frequency assessment
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ReallocationFrequency {
+    /// No reallocations detected
+    None,
+    /// Low frequency (acceptable)
+    Low,
+    /// Moderate frequency (consider optimization)
+    Moderate,
+    /// High frequency (optimization recommended)
+    High {
+        /// Performance impact estimate
+        performance_impact: f64,
+    },
+}
+
+/// Container-specific efficiency metrics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContainerEfficiencyMetrics {
+    /// Memory overhead percentage
+    pub memory_overhead: f64,
+    /// Cache efficiency score (0-100)
+    pub cache_efficiency: f64,
+    /// Access pattern efficiency
+    pub access_efficiency: AccessEfficiency,
+    /// Overall container health score (0-100)
+    pub health_score: f64,
+}
+
+/// Access pattern efficiency
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AccessEfficiency {
+    /// Sequential access pattern (cache-friendly)
+    Sequential,
+    /// Random access pattern (cache-unfriendly)
+    Random,
+    /// Mixed access pattern
+    Mixed,
+    /// Unknown access pattern
+    Unknown,
 }
 
 /// Generic type information

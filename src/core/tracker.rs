@@ -102,12 +102,21 @@ use crate::core::types::{
     FieldLayoutInfo, LayoutEfficiency, OptimizationPotential, PaddingAnalysis,
 };
 use crate::core::types::{
+    ContainerAnalysis, ContainerType, CapacityUtilization, ReallocationPatterns,
+    ContainerEfficiencyMetrics, UtilizationEfficiency, GrowthPattern, ReallocationFrequency,
+    AccessEfficiency,
+};
+use crate::core::types::{
     FragmentationMetrics, FragmentationSeverity, MemoryLocationType, TemporaryUsagePattern,
 };
 use crate::core::types::{FunctionCallTrackingInfo, MemoryAccessTrackingInfo, ObjectLifecycleInfo};
 use crate::core::types::{GenericInstantiationInfo, TypeRelationshipInfo, TypeUsageInfo};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
+
+#[cfg(test)]
+#[path = "tracker_container_test.rs"]
+mod tracker_container_test;
 
 /// Helper function to convert std::io::Error to TrackingError::IoError
 #[allow(dead_code)]
@@ -198,14 +207,17 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Analyze memory layout information
+    /// Analyze memory layout information with enhanced container analysis
     pub fn analyze_memory_layout(&self, type_name: &str, size: usize) -> Option<MemoryLayoutInfo> {
         // Infer memory layout based on type name and size
         let alignment = self.estimate_alignment(type_name, size);
-        let field_layout = self.analyze_field_layout(type_name, size, alignment);
+        let field_layout = self.analyze_enhanced_field_layout(type_name, size, alignment);
         let padding_info = self.analyze_padding(&field_layout, size, alignment);
         let layout_efficiency =
-            self.calculate_layout_efficiency(&field_layout, &padding_info, size);
+            self.calculate_enhanced_layout_efficiency(&field_layout, &padding_info, size, type_name);
+        
+        // Perform container-specific analysis
+        let container_analysis = self.analyze_container_structure(type_name, size);
 
         Some(MemoryLayoutInfo {
             total_size: size,
@@ -213,6 +225,7 @@ impl MemoryTracker {
             field_layout,
             padding_info,
             layout_efficiency,
+            container_analysis,
         })
     }
 
@@ -322,6 +335,888 @@ impl MemoryTracker {
         }
 
         fields
+    }
+
+    /// Enhanced field layout analysis with container-specific insights
+    fn analyze_enhanced_field_layout(
+        &self,
+        type_name: &str,
+        total_size: usize,
+        alignment: usize,
+    ) -> Vec<FieldLayoutInfo> {
+        let mut fields = Vec::new();
+
+        if type_name.starts_with("Vec<") {
+            // Vec<T> analysis with capacity utilization insights
+            let ptr_size = std::mem::size_of::<usize>();
+            
+            fields.push(FieldLayoutInfo {
+                field_name: "ptr".to_string(),
+                field_type: "*mut T".to_string(),
+                offset: 0,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+            fields.push(FieldLayoutInfo {
+                field_name: "capacity".to_string(),
+                field_type: "usize".to_string(),
+                offset: ptr_size,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+            fields.push(FieldLayoutInfo {
+                field_name: "len".to_string(),
+                field_type: "usize".to_string(),
+                offset: ptr_size * 2,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+
+            // Add container-specific analysis
+            self.analyze_vec_container_efficiency(type_name, total_size, &mut fields);
+
+        } else if type_name == "String" {
+            // String is essentially Vec<u8> with UTF-8 guarantees
+            let ptr_size = std::mem::size_of::<usize>();
+            
+            fields.push(FieldLayoutInfo {
+                field_name: "vec_ptr".to_string(),
+                field_type: "*mut u8".to_string(),
+                offset: 0,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+            fields.push(FieldLayoutInfo {
+                field_name: "capacity".to_string(),
+                field_type: "usize".to_string(),
+                offset: ptr_size,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+            fields.push(FieldLayoutInfo {
+                field_name: "len".to_string(),
+                field_type: "usize".to_string(),
+                offset: ptr_size * 2,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+
+            // Add string-specific analysis
+            self.analyze_string_efficiency(total_size, &mut fields);
+
+        } else if type_name.starts_with("HashMap<") || type_name.starts_with("BTreeMap<") {
+            // HashMap/BTreeMap analysis with load factor insights
+            let ptr_size = std::mem::size_of::<usize>();
+            
+            if type_name.starts_with("HashMap<") {
+                fields.push(FieldLayoutInfo {
+                    field_name: "hash_builder".to_string(),
+                    field_type: "BuildHasher".to_string(),
+                    offset: 0,
+                    size: 8, // Typical hasher size
+                    alignment: 8,
+                    is_padding: false,
+                });
+                fields.push(FieldLayoutInfo {
+                    field_name: "table".to_string(),
+                    field_type: "RawTable<(K, V)>".to_string(),
+                    offset: 8,
+                    size: total_size - 8,
+                    alignment: 8,
+                    is_padding: false,
+                });
+
+                // Add HashMap-specific analysis
+                self.analyze_hashmap_efficiency(type_name, total_size, &mut fields);
+            } else {
+                // BTreeMap
+                fields.push(FieldLayoutInfo {
+                    field_name: "root".to_string(),
+                    field_type: "Option<NodeRef>".to_string(),
+                    offset: 0,
+                    size: ptr_size,
+                    alignment: ptr_size,
+                    is_padding: false,
+                });
+                fields.push(FieldLayoutInfo {
+                    field_name: "length".to_string(),
+                    field_type: "usize".to_string(),
+                    offset: ptr_size,
+                    size: ptr_size,
+                    alignment: ptr_size,
+                    is_padding: false,
+                });
+            }
+
+        } else if type_name.starts_with("Box<") {
+            // Box<T> analysis
+            let ptr_size = std::mem::size_of::<usize>();
+            
+            fields.push(FieldLayoutInfo {
+                field_name: "ptr".to_string(),
+                field_type: "*mut T".to_string(),
+                offset: 0,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+
+            // Add Box-specific analysis
+            self.analyze_box_efficiency(type_name, total_size, &mut fields);
+
+        } else if type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
+            // Reference counted smart pointers
+            let ptr_size = std::mem::size_of::<usize>();
+            
+            fields.push(FieldLayoutInfo {
+                field_name: "ptr".to_string(),
+                field_type: "*const RcBox<T>".to_string(),
+                offset: 0,
+                size: ptr_size,
+                alignment: ptr_size,
+                is_padding: false,
+            });
+
+            // Add reference counting analysis
+            self.analyze_rc_arc_efficiency(type_name, total_size, &mut fields);
+
+        } else {
+            // Fallback to basic analysis for unknown types
+            fields.push(FieldLayoutInfo {
+                field_name: "data".to_string(),
+                field_type: type_name.to_string(),
+                offset: 0,
+                size: total_size,
+                alignment,
+                is_padding: false,
+            });
+        }
+
+        fields
+    }
+
+    /// Analyze Vec container efficiency and add insights
+    fn analyze_vec_container_efficiency(&self, type_name: &str, total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+        // Extract element type from Vec<T>
+        let element_type = if let Some(start) = type_name.find('<') {
+            if let Some(end) = type_name.rfind('>') {
+                &type_name[start + 1..end]
+            } else {
+                "T"
+            }
+        } else {
+            "T"
+        };
+
+        // Estimate element size
+        let element_size = self.estimate_type_size(element_type);
+        
+        // Add efficiency analysis as a virtual field
+        fields.push(FieldLayoutInfo {
+            field_name: "efficiency_analysis".to_string(),
+            field_type: format!("VecEfficiency<{}>", element_type),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+
+        // Add capacity utilization insight
+        let estimated_capacity = if total_size > 24 { // Vec header is ~24 bytes
+            (total_size - 24) / element_size.max(1)
+        } else {
+            0
+        };
+
+        if estimated_capacity > 0 {
+            fields.push(FieldLayoutInfo {
+                field_name: "capacity_analysis".to_string(),
+                field_type: format!("EstimatedCapacity: {}", estimated_capacity),
+                offset: 0, // Virtual field
+                size: 0,   // Virtual field
+                alignment: 1,
+                is_padding: false,
+            });
+        }
+    }
+
+    /// Analyze String efficiency
+    fn analyze_string_efficiency(&self, total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+        // String is essentially Vec<u8>, so similar analysis
+        let estimated_capacity = if total_size > 24 {
+            total_size - 24 // Subtract Vec header size
+        } else {
+            0
+        };
+
+        fields.push(FieldLayoutInfo {
+            field_name: "string_analysis".to_string(),
+            field_type: format!("StringCapacity: {} bytes", estimated_capacity),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+
+        // Add UTF-8 efficiency note
+        fields.push(FieldLayoutInfo {
+            field_name: "encoding_info".to_string(),
+            field_type: "UTF-8 encoded".to_string(),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+    }
+
+    /// Analyze HashMap efficiency
+    fn analyze_hashmap_efficiency(&self, type_name: &str, total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+        // Extract key and value types
+        let (key_type, value_type) = if let Some(start) = type_name.find('<') {
+            if let Some(end) = type_name.rfind('>') {
+                let inner = &type_name[start + 1..end];
+                if let Some(comma) = inner.find(',') {
+                    (inner[..comma].trim(), inner[comma + 1..].trim())
+                } else {
+                    ("K", "V")
+                }
+            } else {
+                ("K", "V")
+            }
+        } else {
+            ("K", "V")
+        };
+
+        // Estimate bucket count based on size
+        let key_size = self.estimate_type_size(key_type);
+        let value_size = self.estimate_type_size(value_type);
+        let entry_size = key_size + value_size + 8; // 8 bytes for hash and metadata
+        
+        let estimated_buckets = if total_size > 64 { // HashMap overhead
+            (total_size - 64) / entry_size.max(1)
+        } else {
+            0
+        };
+
+        fields.push(FieldLayoutInfo {
+            field_name: "hash_analysis".to_string(),
+            field_type: format!("HashMap<{}, {}> - Est. {} buckets", key_type, value_type, estimated_buckets),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+
+        // Add load factor analysis
+        if estimated_buckets > 0 {
+            fields.push(FieldLayoutInfo {
+                field_name: "load_factor_info".to_string(),
+                field_type: "Load factor analysis available".to_string(),
+                offset: 0, // Virtual field
+                size: 0,   // Virtual field
+                alignment: 1,
+                is_padding: false,
+            });
+        }
+    }
+
+    /// Analyze Box efficiency
+    fn analyze_box_efficiency(&self, type_name: &str, _total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+        // Extract boxed type
+        let boxed_type = if let Some(start) = type_name.find('<') {
+            if let Some(end) = type_name.rfind('>') {
+                &type_name[start + 1..end]
+            } else {
+                "T"
+            }
+        } else {
+            "T"
+        };
+
+        let boxed_size = self.estimate_type_size(boxed_type);
+        
+        fields.push(FieldLayoutInfo {
+            field_name: "box_analysis".to_string(),
+            field_type: format!("Box<{}> - Heap allocated {} bytes", boxed_type, boxed_size),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+
+        // Add heap allocation efficiency note
+        let efficiency = if boxed_size >= std::mem::size_of::<usize>() {
+            "Efficient heap allocation"
+        } else {
+            "Small type - consider stack allocation"
+        };
+
+        fields.push(FieldLayoutInfo {
+            field_name: "allocation_efficiency".to_string(),
+            field_type: efficiency.to_string(),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+    }
+
+    /// Analyze Rc/Arc efficiency
+    fn analyze_rc_arc_efficiency(&self, type_name: &str, _total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
+        let is_arc = type_name.starts_with("Arc<");
+        let ref_type = if is_arc { "Arc" } else { "Rc" };
+        
+        // Extract inner type
+        let inner_type = if let Some(start) = type_name.find('<') {
+            if let Some(end) = type_name.rfind('>') {
+                &type_name[start + 1..end]
+            } else {
+                "T"
+            }
+        } else {
+            "T"
+        };
+
+        fields.push(FieldLayoutInfo {
+            field_name: "ref_count_analysis".to_string(),
+            field_type: format!("{}<{}> - Reference counted", ref_type, inner_type),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+
+        // Add thread safety note
+        let thread_safety = if is_arc {
+            "Thread-safe (atomic operations)"
+        } else {
+            "Single-threaded only"
+        };
+
+        fields.push(FieldLayoutInfo {
+            field_name: "thread_safety".to_string(),
+            field_type: thread_safety.to_string(),
+            offset: 0, // Virtual field
+            size: 0,   // Virtual field
+            alignment: 1,
+            is_padding: false,
+        });
+    }
+
+    /// Analyze container structure for Vec, HashMap, Box, etc.
+    fn analyze_container_structure(&self, type_name: &str, size: usize) -> Option<crate::core::types::ContainerAnalysis> {
+        use crate::core::types::*;
+
+        // Determine container type and perform specific analysis
+        let container_type = self.classify_container_type(type_name)?;
+        let capacity_utilization = self.analyze_capacity_utilization(&container_type, size);
+        let reallocation_patterns = self.detect_reallocation_patterns(&container_type, size);
+        let efficiency_metrics = self.calculate_container_efficiency_metrics(&container_type, size, &capacity_utilization);
+
+        Some(ContainerAnalysis {
+            container_type,
+            capacity_utilization,
+            reallocation_patterns,
+            efficiency_metrics,
+        })
+    }
+
+    /// Classify the container type based on type name
+    fn classify_container_type(&self, type_name: &str) -> Option<crate::core::types::ContainerType> {
+        use crate::core::types::ContainerType;
+
+        if type_name.starts_with("Vec<") {
+            let element_type = self.extract_generic_type(type_name, "Vec").unwrap_or("T".to_string());
+            let element_size = self.estimate_type_size(&element_type);
+            Some(ContainerType::Vec { element_type, element_size })
+        } else if type_name.starts_with("HashMap<") {
+            let (key_type, value_type) = self.extract_hashmap_types(type_name);
+            let key_size = self.estimate_type_size(&key_type);
+            let value_size = self.estimate_type_size(&value_type);
+            Some(ContainerType::HashMap { key_type, value_type, key_size, value_size })
+        } else if type_name.starts_with("Box<") {
+            let boxed_type = self.extract_generic_type(type_name, "Box").unwrap_or("T".to_string());
+            let boxed_size = self.estimate_type_size(&boxed_type);
+            Some(ContainerType::Box { boxed_type, boxed_size })
+        } else if type_name == "String" {
+            Some(ContainerType::String)
+        } else if type_name.starts_with("Rc<") {
+            let referenced_type = self.extract_generic_type(type_name, "Rc").unwrap_or("T".to_string());
+            let referenced_size = self.estimate_type_size(&referenced_type);
+            Some(ContainerType::Rc { referenced_type, referenced_size })
+        } else if type_name.starts_with("Arc<") {
+            let referenced_type = self.extract_generic_type(type_name, "Arc").unwrap_or("T".to_string());
+            let referenced_size = self.estimate_type_size(&referenced_type);
+            Some(ContainerType::Arc { referenced_type, referenced_size })
+        } else if type_name.starts_with("BTreeMap<") {
+            let (key_type, value_type) = self.extract_hashmap_types(type_name);
+            let key_size = self.estimate_type_size(&key_type);
+            let value_size = self.estimate_type_size(&value_type);
+            Some(ContainerType::BTreeMap { key_type, value_type, key_size, value_size })
+        } else {
+            // Check if it's a known container type that we should analyze
+            if type_name.contains("Vec") || type_name.contains("Map") || type_name.contains("Set") {
+                Some(ContainerType::Other { type_name: type_name.to_string() })
+            } else {
+                None // Not a container type
+            }
+        }
+    }
+
+    /// Extract generic type from container type name
+    fn extract_generic_type(&self, type_name: &str, _container_name: &str) -> Option<String> {
+        if let Some(start) = type_name.find('<') {
+            if let Some(end) = type_name.rfind('>') {
+                let inner = &type_name[start + 1..end];
+                // Handle nested generics by finding the first comma at the same level
+                let mut depth = 0;
+                for (i, ch) in inner.char_indices() {
+                    match ch {
+                        '<' => depth += 1,
+                        '>' => depth -= 1,
+                        ',' if depth == 0 => return Some(inner[..i].trim().to_string()),
+                        _ => {}
+                    }
+                }
+                Some(inner.trim().to_string())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Extract key and value types from HashMap/BTreeMap type name
+    fn extract_hashmap_types(&self, type_name: &str) -> (String, String) {
+        if let Some(start) = type_name.find('<') {
+            if let Some(end) = type_name.rfind('>') {
+                let inner = &type_name[start + 1..end];
+                // Find the comma separating key and value types
+                let mut depth = 0;
+                for (i, ch) in inner.char_indices() {
+                    match ch {
+                        '<' => depth += 1,
+                        '>' => depth -= 1,
+                        ',' if depth == 0 => {
+                            return (
+                                inner[..i].trim().to_string(),
+                                inner[i + 1..].trim().to_string()
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        ("K".to_string(), "V".to_string())
+    }
+
+    /// Analyze capacity utilization for containers
+    fn analyze_capacity_utilization(&self, container_type: &crate::core::types::ContainerType, size: usize) -> crate::core::types::CapacityUtilization {
+        use crate::core::types::*;
+
+        let (current_capacity, current_length, wasted_space) = match container_type {
+            ContainerType::Vec { element_size, .. } => {
+                let header_size = 3 * std::mem::size_of::<usize>(); // ptr, capacity, len
+                if size > header_size && *element_size > 0 {
+                    let data_size = size - header_size;
+                    let capacity = data_size / element_size;
+                    // Estimate length as 75% of capacity (heuristic)
+                    let length = (capacity as f64 * 0.75) as usize;
+                    let wasted = (capacity - length) * element_size;
+                    (capacity, length, wasted)
+                } else {
+                    (0, 0, 0)
+                }
+            },
+            ContainerType::HashMap { key_size, value_size, .. } => {
+                let header_size = 64; // Estimated HashMap overhead
+                if size > header_size {
+                    let entry_size = key_size + value_size + 8; // 8 bytes for hash and metadata
+                    if entry_size > 0 {
+                        let capacity = (size - header_size) / entry_size;
+                        // HashMap typically maintains 75% load factor
+                        let length = (capacity as f64 * 0.75) as usize;
+                        let wasted = (capacity - length) * entry_size;
+                        (capacity, length, wasted)
+                    } else {
+                        (0, 0, 0)
+                    }
+                } else {
+                    (0, 0, 0)
+                }
+            },
+            ContainerType::Box { .. } => {
+                // Box has no capacity concept, it's always fully utilized
+                (1, 1, 0)
+            },
+            ContainerType::String => {
+                let header_size = 3 * std::mem::size_of::<usize>(); // Same as Vec<u8>
+                if size > header_size {
+                    let capacity = size - header_size;
+                    // Estimate length as 80% of capacity for strings
+                    let length = (capacity as f64 * 0.8) as usize;
+                    let wasted = capacity - length;
+                    (capacity, length, wasted)
+                } else {
+                    (0, 0, 0)
+                }
+            },
+            ContainerType::Rc { .. } | ContainerType::Arc { .. } => {
+                // Reference counted types have fixed overhead
+                (1, 1, 0)
+            },
+            ContainerType::BTreeMap { key_size, value_size, .. } => {
+                let node_overhead = 32; // Estimated BTreeMap node overhead
+                let entry_size = key_size + value_size + node_overhead;
+                if entry_size > 0 && size > 64 {
+                    let capacity = (size - 64) / entry_size;
+                    let length = capacity; // BTreeMap is typically well-utilized
+                    (capacity, length, 0)
+                } else {
+                    (0, 0, 0)
+                }
+            },
+            ContainerType::Other { .. } => {
+                // Unknown container, provide conservative estimates
+                (1, 1, 0)
+            },
+        };
+
+        let utilization_ratio = if current_capacity > 0 {
+            current_length as f64 / current_capacity as f64
+        } else {
+            1.0
+        };
+
+        let efficiency_assessment = if utilization_ratio > 0.9 {
+            UtilizationEfficiency::Excellent
+        } else if utilization_ratio > 0.7 {
+            UtilizationEfficiency::Good
+        } else if utilization_ratio > 0.5 {
+            UtilizationEfficiency::Fair
+        } else {
+            UtilizationEfficiency::Poor {
+                suggestion: "Consider using with_capacity() to reduce memory waste".to_string(),
+            }
+        };
+
+        CapacityUtilization {
+            current_capacity,
+            current_length,
+            utilization_ratio,
+            wasted_space,
+            efficiency_assessment,
+        }
+    }
+
+    /// Detect reallocation patterns for containers
+    fn detect_reallocation_patterns(&self, container_type: &crate::core::types::ContainerType, size: usize) -> crate::core::types::ReallocationPatterns {
+        use crate::core::types::*;
+
+        let (estimated_reallocations, growth_pattern, frequency_assessment, optimization_suggestions) = match container_type {
+            ContainerType::Vec { element_size, .. } => {
+                if *element_size > 0 {
+                    let header_size = 3 * std::mem::size_of::<usize>();
+                    let data_size = size.saturating_sub(header_size);
+                    let capacity = data_size / element_size;
+                    
+                    // Estimate reallocations based on capacity (Vec doubles capacity each time)
+                    let reallocations = if capacity > 0 {
+                        (capacity as f64).log2().ceil() as usize
+                    } else {
+                        0
+                    };
+
+                    let frequency = if reallocations > 10 {
+                        ReallocationFrequency::High { performance_impact: 15.0 }
+                    } else if reallocations > 5 {
+                        ReallocationFrequency::Moderate
+                    } else if reallocations > 0 {
+                        ReallocationFrequency::Low
+                    } else {
+                        ReallocationFrequency::None
+                    };
+
+                    let suggestions = vec![
+                        "Use Vec::with_capacity() if final size is known".to_string(),
+                        "Consider using SmallVec for small collections".to_string(),
+                    ];
+
+                    (reallocations, GrowthPattern::Exponential, frequency, suggestions)
+                } else {
+                    (0, GrowthPattern::SingleAllocation, ReallocationFrequency::None, vec![])
+                }
+            },
+            ContainerType::HashMap { .. } => {
+                // HashMap rehashes when load factor exceeds ~75%
+                let estimated_rehashes = if size > 128 {
+                    ((size as f64).log2() - 6.0).max(0.0) as usize // Subtract initial capacity log
+                } else {
+                    0
+                };
+
+                let frequency = if estimated_rehashes > 5 {
+                    ReallocationFrequency::High { performance_impact: 25.0 }
+                } else if estimated_rehashes > 2 {
+                    ReallocationFrequency::Moderate
+                } else if estimated_rehashes > 0 {
+                    ReallocationFrequency::Low
+                } else {
+                    ReallocationFrequency::None
+                };
+
+                let suggestions = vec![
+                    "Use HashMap::with_capacity() to avoid rehashing".to_string(),
+                    "Consider using FxHashMap for better performance".to_string(),
+                ];
+
+                (estimated_rehashes, GrowthPattern::Exponential, frequency, suggestions)
+            },
+            ContainerType::String => {
+                // String behaves like Vec<u8>
+                let header_size = 3 * std::mem::size_of::<usize>();
+                let capacity = size.saturating_sub(header_size);
+                let reallocations = if capacity > 0 {
+                    (capacity as f64).log2().ceil() as usize
+                } else {
+                    0
+                };
+
+                let frequency = if reallocations > 8 {
+                    ReallocationFrequency::High { performance_impact: 12.0 }
+                } else if reallocations > 4 {
+                    ReallocationFrequency::Moderate
+                } else if reallocations > 0 {
+                    ReallocationFrequency::Low
+                } else {
+                    ReallocationFrequency::None
+                };
+
+                let suggestions = vec![
+                    "Use String::with_capacity() when size is known".to_string(),
+                    "Consider using &str when possible".to_string(),
+                ];
+
+                (reallocations, GrowthPattern::Exponential, frequency, suggestions)
+            },
+            ContainerType::Box { .. } | ContainerType::Rc { .. } | ContainerType::Arc { .. } => {
+                // These containers don't reallocate
+                (0, GrowthPattern::SingleAllocation, ReallocationFrequency::None, vec![])
+            },
+            ContainerType::BTreeMap { .. } => {
+                // BTreeMap grows by adding nodes, less predictable pattern
+                let estimated_node_splits = if size > 256 {
+                    ((size as f64).log2() - 4.0).max(0.0) as usize
+                } else {
+                    0
+                };
+
+                let frequency = if estimated_node_splits > 10 {
+                    ReallocationFrequency::Moderate
+                } else if estimated_node_splits > 0 {
+                    ReallocationFrequency::Low
+                } else {
+                    ReallocationFrequency::None
+                };
+
+                (estimated_node_splits, GrowthPattern::Irregular, frequency, vec![])
+            },
+            ContainerType::Other { .. } => {
+                (0, GrowthPattern::Unknown, ReallocationFrequency::None, vec![])
+            },
+        };
+
+        ReallocationPatterns {
+            estimated_reallocations,
+            growth_pattern,
+            frequency_assessment,
+            optimization_suggestions,
+        }
+    }
+
+    /// Calculate container-specific efficiency metrics
+    fn calculate_container_efficiency_metrics(
+        &self, 
+        container_type: &crate::core::types::ContainerType, 
+        size: usize,
+        capacity_utilization: &crate::core::types::CapacityUtilization
+    ) -> crate::core::types::ContainerEfficiencyMetrics {
+        use crate::core::types::*;
+
+        let (memory_overhead, cache_efficiency, access_efficiency) = match container_type {
+            ContainerType::Vec { element_size, .. } => {
+                let header_overhead = (3 * std::mem::size_of::<usize>()) as f64 / size as f64 * 100.0;
+                let cache_eff = if *element_size <= 64 { 95.0 } else { 85.0 }; // Sequential access
+                (header_overhead, cache_eff, AccessEfficiency::Sequential)
+            },
+            ContainerType::HashMap { .. } => {
+                let overhead = 64.0 / size as f64 * 100.0 + 20.0; // Hash table overhead
+                let cache_eff = 45.0; // Poor cache locality due to random access
+                (overhead, cache_eff, AccessEfficiency::Random)
+            },
+            ContainerType::Box { .. } => {
+                let overhead = std::mem::size_of::<usize>() as f64 / size as f64 * 100.0;
+                let cache_eff = 80.0; // Indirection reduces cache efficiency
+                (overhead, cache_eff, AccessEfficiency::Sequential)
+            },
+            ContainerType::String => {
+                let header_overhead = (3 * std::mem::size_of::<usize>()) as f64 / size as f64 * 100.0;
+                let cache_eff = 90.0; // Good cache locality for string data
+                (header_overhead, cache_eff, AccessEfficiency::Sequential)
+            },
+            ContainerType::Rc { .. } | ContainerType::Arc { .. } => {
+                let overhead = (std::mem::size_of::<usize>() * 2) as f64 / size as f64 * 100.0; // Ref count overhead
+                let cache_eff = 75.0; // Reference counting adds some overhead
+                (overhead, cache_eff, AccessEfficiency::Mixed)
+            },
+            ContainerType::BTreeMap { .. } => {
+                let overhead = 30.0; // Node overhead in B-trees
+                let cache_eff = 70.0; // Better than HashMap but worse than Vec
+                (overhead, cache_eff, AccessEfficiency::Mixed)
+            },
+            ContainerType::Other { .. } => {
+                (10.0, 60.0, AccessEfficiency::Unknown)
+            },
+        };
+
+        // Calculate overall health score
+        let utilization_score = capacity_utilization.utilization_ratio * 40.0; // 40% weight
+        let cache_score = cache_efficiency * 0.3; // 30% weight
+        let overhead_score = (100.0 - memory_overhead.min(100.0)) * 0.3; // 30% weight
+        let health_score = (utilization_score + cache_score + overhead_score).min(100.0);
+
+        ContainerEfficiencyMetrics {
+            memory_overhead,
+            cache_efficiency,
+            access_efficiency,
+            health_score,
+        }
+    }
+
+    /// Calculate enhanced layout efficiency with container-specific insights
+    fn calculate_enhanced_layout_efficiency(
+        &self,
+        fields: &[FieldLayoutInfo],
+        padding: &crate::core::types::PaddingAnalysis,
+        total_size: usize,
+        type_name: &str,
+    ) -> crate::core::types::LayoutEfficiency {
+        let useful_data_size = total_size - padding.total_padding_bytes;
+        let memory_utilization = useful_data_size as f64 / total_size as f64;
+
+        // Enhanced cache friendliness score based on container type
+        let cache_friendliness = if type_name.starts_with("Vec<") {
+            // Vec has good cache locality
+            if total_size <= 64 {
+                100.0 // Fits in a single cache line
+            } else if total_size <= 512 {
+                90.0 // Good locality
+            } else {
+                70.0 // Larger but still sequential
+            }
+        } else if type_name.starts_with("HashMap<") {
+            // HashMap has poor cache locality due to random access
+            if total_size <= 128 {
+                60.0 // Small hash tables are better
+            } else {
+                40.0 // Large hash tables have poor locality
+            }
+        } else if type_name.starts_with("Box<") {
+            // Box adds indirection but is cache-friendly for the pointer
+            85.0
+        } else if type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
+            // Reference counting adds overhead but data locality depends on usage
+            75.0
+        } else if type_name == "String" {
+            // String has good cache locality for the data
+            if total_size <= 64 {
+                95.0
+            } else {
+                80.0
+            }
+        } else {
+            // Default cache friendliness calculation
+            if total_size <= 64 {
+                100.0
+            } else if total_size <= 128 {
+                80.0
+            } else if total_size <= 256 {
+                60.0
+            } else {
+                40.0
+            }
+        };
+
+        // Enhanced optimization potential based on container analysis
+        let optimization_potential = if padding.padding_ratio > 0.3 {
+            crate::core::types::OptimizationPotential::Major {
+                potential_savings: padding.total_padding_bytes,
+                suggestions: self.generate_container_optimization_suggestions(type_name, total_size),
+            }
+        } else if padding.padding_ratio > 0.15 {
+            crate::core::types::OptimizationPotential::Moderate {
+                potential_savings: padding.total_padding_bytes,
+                suggestions: vec!["Optimize field arrangement".to_string()],
+            }
+        } else if padding.padding_ratio > 0.05 {
+            crate::core::types::OptimizationPotential::Minor {
+                potential_savings: padding.total_padding_bytes,
+            }
+        } else {
+            crate::core::types::OptimizationPotential::None
+        };
+
+        crate::core::types::LayoutEfficiency {
+            memory_utilization,
+            cache_friendliness,
+            alignment_waste: padding.total_padding_bytes,
+            optimization_potential,
+        }
+    }
+
+    /// Generate container-specific optimization suggestions
+    fn generate_container_optimization_suggestions(&self, type_name: &str, total_size: usize) -> Vec<String> {
+        let mut suggestions = Vec::new();
+
+        if type_name.starts_with("Vec<") {
+            suggestions.push("Use Vec::with_capacity() to avoid reallocations".to_string());
+            if total_size > 1024 {
+                suggestions.push("Consider using SmallVec for small collections".to_string());
+            }
+            suggestions.push("Consider using slice operations to avoid copying".to_string());
+        } else if type_name.starts_with("HashMap<") {
+            suggestions.push("Use HashMap::with_capacity() to reduce rehashing".to_string());
+            suggestions.push("Consider using FxHashMap for better performance".to_string());
+            if total_size > 1024 {
+                suggestions.push("Consider using BTreeMap for better cache locality".to_string());
+            }
+        } else if type_name.starts_with("Box<") {
+            if total_size < std::mem::size_of::<usize>() {
+                suggestions.push("Consider stack allocation for small types".to_string());
+            }
+        } else if type_name.starts_with("Rc<") {
+            suggestions.push("Consider using Arc for thread safety if needed".to_string());
+            suggestions.push("Be aware of potential reference cycles".to_string());
+        } else if type_name.starts_with("Arc<") {
+            suggestions.push("Consider using Rc if single-threaded".to_string());
+            suggestions.push("Use weak references to break cycles".to_string());
+        } else if type_name == "String" {
+            suggestions.push("Use String::with_capacity() when size is known".to_string());
+            suggestions.push("Consider using &str when possible".to_string());
+        } else {
+            suggestions.push("Rearrange field order to reduce padding".to_string());
+            suggestions.push("Use #[repr(packed)] if appropriate".to_string());
+        }
+
+        suggestions
     }
 
     /// Analyze padding bytes
@@ -1013,22 +1908,382 @@ impl MemoryTracker {
         score
     }
 
-    /// Track type usage
+    /// Track type usage with enhanced statistics collection
     pub fn track_type_usage(&self, type_name: &str) -> Option<TypeUsageInfo> {
+        // Get current statistics to analyze type usage patterns
+        let stats = match self.stats.try_lock() {
+            Ok(stats) => stats,
+            Err(_) => return None, // Skip if lock is contended
+        };
+
+        // Calculate type usage statistics from current allocations
+        let mut type_count = 0u64;
+        let mut total_size = 0usize;
+        let mut allocation_timestamps = Vec::new();
+        let mut allocation_sizes = Vec::new();
+
+        // Analyze current allocations for this type
+        for allocation in &stats.allocations {
+            if let Some(ref alloc_type) = allocation.type_name {
+                if alloc_type == type_name {
+                    type_count += 1;
+                    total_size += allocation.size;
+                    allocation_timestamps.push(allocation.timestamp_alloc);
+                    allocation_sizes.push(allocation.size);
+                }
+            }
+        }
+
+        // If no allocations found for this type, return basic info
+        if type_count == 0 {
+            return Some(TypeUsageInfo {
+                type_name: type_name.to_string(),
+                total_usage_count: 1,
+                usage_contexts: vec![],
+                usage_timeline: vec![],
+                hot_paths: vec![],
+                performance_impact: self.calculate_basic_performance_impact(type_name),
+            });
+        }
+
+        // Create usage timeline from allocation timestamps
+        let usage_timeline = self.create_usage_timeline(&allocation_timestamps, &allocation_sizes);
+
+        // Analyze usage contexts based on type characteristics
+        let usage_contexts = self.analyze_usage_contexts(type_name, type_count, total_size);
+
+        // Calculate performance impact based on usage patterns
+        let performance_impact = self.calculate_type_performance_impact(
+            type_name, 
+            type_count, 
+            total_size, 
+            &allocation_sizes
+        );
+
         Some(TypeUsageInfo {
             type_name: type_name.to_string(),
-            total_usage_count: 1,
-            usage_contexts: vec![],
-            usage_timeline: vec![],
-            hot_paths: vec![],
-            performance_impact: crate::core::types::TypePerformanceImpact {
-                performance_score: 85.0,
-                memory_efficiency_score: 90.0,
-                cpu_efficiency_score: 80.0,
-                cache_efficiency_score: 75.0,
-                optimization_recommendations: vec![],
-            },
+            total_usage_count: type_count,
+            usage_contexts,
+            usage_timeline,
+            hot_paths: vec![], // Hot path analysis would require more complex profiling
+            performance_impact,
         })
+    }
+
+    /// Create usage timeline from allocation timestamps and sizes
+    fn create_usage_timeline(&self, timestamps: &[u64], sizes: &[usize]) -> Vec<crate::core::types::UsageTimePoint> {
+        if timestamps.is_empty() {
+            return vec![];
+        }
+
+        // Group allocations by time windows (e.g., 1 second intervals)
+        let mut timeline = Vec::new();
+        let window_size_ns = 1_000_000_000; // 1 second in nanoseconds
+
+        if let (Some(&first_ts), Some(&last_ts)) = (timestamps.first(), timestamps.last()) {
+            let mut current_window = first_ts;
+            
+            while current_window <= last_ts {
+                let window_end = current_window + window_size_ns;
+                
+                // Count allocations and total memory in this window
+                let mut usage_count = 0u32;
+                let mut memory_usage = 0usize;
+                
+                for (i, &ts) in timestamps.iter().enumerate() {
+                    if ts >= current_window && ts < window_end {
+                        usage_count += 1;
+                        memory_usage += sizes[i];
+                    }
+                }
+
+                if usage_count > 0 {
+                    timeline.push(crate::core::types::UsageTimePoint {
+                        timestamp: current_window,
+                        usage_count,
+                        memory_usage,
+                        performance_snapshot: crate::core::types::PerformanceSnapshot {
+                            cpu_usage: 0.0, // Would need system profiling
+                            memory_usage: memory_usage as f64,
+                            cache_hit_rate: 0.95, // Estimated
+                            throughput: usage_count as f64,
+                        },
+                    });
+                }
+
+                current_window = window_end;
+            }
+        }
+
+        timeline
+    }
+
+    /// Analyze usage contexts based on type characteristics
+    fn analyze_usage_contexts(&self, type_name: &str, usage_count: u64, total_size: usize) -> Vec<crate::core::types::UsageContext> {
+        let mut contexts = Vec::new();
+
+        // Infer context based on type name patterns
+        let context_type = if type_name.starts_with("Vec<") {
+            crate::core::types::ContextType::LocalVariable
+        } else if type_name.starts_with("HashMap<") || type_name.starts_with("BTreeMap<") {
+            crate::core::types::ContextType::LocalVariable
+        } else if type_name.starts_with("Box<") || type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
+            crate::core::types::ContextType::LocalVariable
+        } else if type_name == "String" || type_name.starts_with("&str") {
+            crate::core::types::ContextType::LocalVariable
+        } else if type_name.contains("Future") || type_name.contains("async") {
+            crate::core::types::ContextType::AsyncContext
+        } else {
+            crate::core::types::ContextType::LocalVariable
+        };
+
+        // Calculate performance metrics for this context
+        let avg_size = if usage_count > 0 { total_size as f64 / usage_count as f64 } else { 0.0 };
+        let allocation_frequency = usage_count as f64; // Simplified
+
+        contexts.push(crate::core::types::UsageContext {
+            context_type,
+            location: "unknown".to_string(), // Would need stack trace analysis
+            frequency: usage_count as u32,
+            performance_metrics: crate::core::types::ContextPerformanceMetrics {
+                avg_execution_time_ns: avg_size * 10.0, // Rough estimate
+                allocation_frequency,
+                cache_miss_rate: self.estimate_cache_miss_rate(type_name, avg_size),
+                branch_misprediction_rate: 0.05, // Default estimate
+            },
+        });
+
+        contexts
+    }
+
+    /// Calculate basic performance impact for types with no allocation data
+    fn calculate_basic_performance_impact(&self, type_name: &str) -> crate::core::types::TypePerformanceImpact {
+        // Provide reasonable defaults based on type characteristics
+        let (perf_score, mem_score, cpu_score, cache_score) = match type_name {
+            "String" => (80.0, 85.0, 90.0, 75.0),
+            name if name.starts_with("Vec<") => (85.0, 90.0, 85.0, 80.0),
+            name if name.starts_with("HashMap<") => (75.0, 80.0, 70.0, 65.0),
+            name if name.starts_with("Box<") => (90.0, 95.0, 95.0, 90.0),
+            name if name.starts_with("Rc<") || name.starts_with("Arc<") => (85.0, 85.0, 80.0, 85.0),
+            _ => (85.0, 90.0, 80.0, 75.0), // Default scores
+        };
+
+        crate::core::types::TypePerformanceImpact {
+            performance_score: perf_score,
+            memory_efficiency_score: mem_score,
+            cpu_efficiency_score: cpu_score,
+            cache_efficiency_score: cache_score,
+            optimization_recommendations: self.generate_optimization_recommendations(type_name),
+        }
+    }
+
+    /// Calculate performance impact based on actual usage patterns
+    fn calculate_type_performance_impact(
+        &self, 
+        type_name: &str, 
+        usage_count: u64, 
+        total_size: usize,
+        allocation_sizes: &[usize]
+    ) -> crate::core::types::TypePerformanceImpact {
+        let avg_size = if usage_count > 0 { total_size as f64 / usage_count as f64 } else { 0.0 };
+        
+        // Calculate size variance to detect allocation patterns
+        let size_variance = if allocation_sizes.len() > 1 {
+            let mean = avg_size;
+            let variance = allocation_sizes.iter()
+                .map(|&size| (size as f64 - mean).powi(2))
+                .sum::<f64>() / allocation_sizes.len() as f64;
+            variance.sqrt()
+        } else {
+            0.0
+        };
+
+        // Base scores on type characteristics
+        let mut base_scores = self.calculate_basic_performance_impact(type_name);
+
+        // Adjust scores based on usage patterns
+        
+        // High usage count might indicate performance bottlenecks
+        if usage_count > 1000 {
+            base_scores.performance_score *= 0.9; // Reduce performance score
+            base_scores.cpu_efficiency_score *= 0.95;
+        }
+
+        // Large average size might indicate memory inefficiency
+        if avg_size > 1024.0 * 1024.0 { // > 1MB
+            base_scores.memory_efficiency_score *= 0.8;
+            base_scores.cache_efficiency_score *= 0.7;
+        }
+
+        // High size variance might indicate inefficient allocation patterns
+        if size_variance > avg_size * 0.5 {
+            base_scores.memory_efficiency_score *= 0.9;
+        }
+
+        // Add specific recommendations based on analysis
+        let mut recommendations = base_scores.optimization_recommendations;
+        
+        if usage_count > 100 && avg_size < 64.0 {
+            recommendations.push(crate::core::types::OptimizationRecommendation {
+                recommendation_type: crate::core::types::RecommendationType::MemoryPooling,
+                priority: crate::core::types::Priority::High,
+                description: "Consider using object pooling for small, frequently allocated objects".to_string(),
+                expected_improvement: 25.0,
+                implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
+            });
+        }
+        
+        if size_variance > avg_size {
+            recommendations.push(crate::core::types::OptimizationRecommendation {
+                recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                priority: crate::core::types::Priority::High,
+                description: "Consider pre-allocating with estimated capacity to reduce reallocations".to_string(),
+                expected_improvement: 30.0,
+                implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+            });
+        }
+
+        if total_size > 10 * 1024 * 1024 { // > 10MB total
+            recommendations.push(crate::core::types::OptimizationRecommendation {
+                recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                priority: crate::core::types::Priority::Critical,
+                description: "Consider memory usage optimization - this type uses significant memory".to_string(),
+                expected_improvement: 40.0,
+                implementation_difficulty: crate::core::types::ImplementationDifficulty::Hard,
+            });
+        }
+
+        crate::core::types::TypePerformanceImpact {
+            performance_score: base_scores.performance_score,
+            memory_efficiency_score: base_scores.memory_efficiency_score,
+            cpu_efficiency_score: base_scores.cpu_efficiency_score,
+            cache_efficiency_score: base_scores.cache_efficiency_score,
+            optimization_recommendations: recommendations,
+        }
+    }
+
+    /// Estimate cache miss rate based on type and size characteristics
+    fn estimate_cache_miss_rate(&self, type_name: &str, avg_size: f64) -> f64 {
+        // Cache line size is typically 64 bytes
+        let cache_line_size = 64.0;
+        
+        if avg_size <= cache_line_size {
+            0.05 // Low miss rate for small objects
+        } else if avg_size <= cache_line_size * 4.0 {
+            0.15 // Medium miss rate
+        } else if type_name.starts_with("Vec<") || type_name.starts_with("HashMap<") {
+            0.25 // Higher miss rate for large containers
+        } else {
+            0.35 // High miss rate for large objects
+        }
+    }
+
+    /// Generate optimization recommendations based on type characteristics
+    fn generate_optimization_recommendations(&self, type_name: &str) -> Vec<crate::core::types::OptimizationRecommendation> {
+        let mut recommendations = Vec::new();
+
+        match type_name {
+            "String" => {
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    priority: crate::core::types::Priority::Medium,
+                    description: "Consider using &str when possible to avoid allocations".to_string(),
+                    expected_improvement: 15.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+                });
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                    priority: crate::core::types::Priority::Medium,
+                    description: "Use String::with_capacity() when final size is known".to_string(),
+                    expected_improvement: 20.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+                });
+            }
+            name if name.starts_with("Vec<") => {
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                    priority: crate::core::types::Priority::High,
+                    description: "Use Vec::with_capacity() when size is predictable".to_string(),
+                    expected_improvement: 25.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+                });
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    priority: crate::core::types::Priority::Low,
+                    description: "Consider using SmallVec for small collections".to_string(),
+                    expected_improvement: 10.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
+                });
+            }
+            name if name.starts_with("HashMap<") => {
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                    priority: crate::core::types::Priority::High,
+                    description: "Use HashMap::with_capacity() for better performance".to_string(),
+                    expected_improvement: 30.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+                });
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    priority: crate::core::types::Priority::Medium,
+                    description: "Consider using FxHashMap for better performance with integer keys".to_string(),
+                    expected_improvement: 15.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
+                });
+            }
+            name if name.starts_with("Box<") => {
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                    priority: crate::core::types::Priority::Low,
+                    description: "Box is efficient for heap allocation of single values".to_string(),
+                    expected_improvement: 5.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+                });
+            }
+            name if name.starts_with("Rc<") => {
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    priority: crate::core::types::Priority::Medium,
+                    description: "Consider Arc<> for thread-safe reference counting".to_string(),
+                    expected_improvement: 0.0, // No performance improvement, just thread safety
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+                });
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                    priority: crate::core::types::Priority::High,
+                    description: "Be aware of potential reference cycles".to_string(),
+                    expected_improvement: 0.0, // Prevents memory leaks
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
+                });
+            }
+            name if name.starts_with("Arc<") => {
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::DataStructureChange,
+                    priority: crate::core::types::Priority::Low,
+                    description: "Arc has atomic overhead - use Rc if single-threaded".to_string(),
+                    expected_improvement: 10.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Easy,
+                });
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                    priority: crate::core::types::Priority::Medium,
+                    description: "Consider weak references to break cycles".to_string(),
+                    expected_improvement: 0.0, // Prevents memory leaks
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
+                });
+            }
+            _ => {
+                recommendations.push(crate::core::types::OptimizationRecommendation {
+                    recommendation_type: crate::core::types::RecommendationType::MemoryLayout,
+                    priority: crate::core::types::Priority::Low,
+                    description: "Consider the memory layout and access patterns".to_string(),
+                    expected_improvement: 5.0,
+                    implementation_difficulty: crate::core::types::ImplementationDifficulty::Medium,
+                });
+            }
+        }
+
+        recommendations
     }
 
     /// Track function calls
