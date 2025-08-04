@@ -32,10 +32,23 @@ pub mod primitives {
         Ok(buffer[0])
     }
 
+    /// Write a u16 value in little endian
+    pub fn write_u16<W: Write>(writer: &mut W, value: u16) -> Result<usize, BinaryExportError> {
+        writer.write_all(&value.to_le_bytes())?;
+        Ok(2)
+    }
+
     /// Write a u32 value in little endian
     pub fn write_u32<W: Write>(writer: &mut W, value: u32) -> Result<usize, BinaryExportError> {
         writer.write_all(&value.to_le_bytes())?;
         Ok(4)
+    }
+
+    /// Read a u16 value in little endian
+    pub fn read_u16<R: Read>(reader: &mut R) -> Result<u16, BinaryExportError> {
+        let mut buffer = [0u8; 2];
+        reader.read_exact(&mut buffer)?;
+        Ok(u16::from_le_bytes(buffer))
     }
 
     /// Read a u32 value in little endian

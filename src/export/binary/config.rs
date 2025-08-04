@@ -51,6 +51,8 @@ pub struct BinaryExportConfig {
     pub health_scoring: bool,
     /// Enable performance benchmarking
     pub performance_benchmarking: bool,
+    /// Enable string table optimization for repeated strings
+    pub string_table_optimization: bool,
 }
 
 impl Default for BinaryExportConfig {
@@ -84,6 +86,7 @@ impl BinaryExportConfig {
             zst_analysis: false,             // Specialized use case
             health_scoring: false,           // Additional computation
             performance_benchmarking: false, // Only for debugging
+            string_table_optimization: true, // Good compression with minimal overhead
         }
     }
 
@@ -106,6 +109,7 @@ impl BinaryExportConfig {
             zst_analysis: true,
             health_scoring: true,
             performance_benchmarking: true,
+            string_table_optimization: true,
         }
     }
 
@@ -128,6 +132,7 @@ impl BinaryExportConfig {
             zst_analysis: false,
             health_scoring: false,
             performance_benchmarking: false,
+            string_table_optimization: false, // Minimal config disables optimizations
         }
     }
 
@@ -205,6 +210,7 @@ impl BinaryExportConfig {
         self.zst_analysis = false;
         self.health_scoring = false;
         self.performance_benchmarking = false;
+        self.string_table_optimization = false;
     }
 
     /// Check if any advanced metrics are enabled
@@ -219,6 +225,7 @@ impl BinaryExportConfig {
             || self.zst_analysis
             || self.health_scoring
             || self.performance_benchmarking
+            || self.string_table_optimization
     }
 
     /// Get estimated performance impact (0.0 = no impact, 1.0 = significant impact)
@@ -346,6 +353,12 @@ impl BinaryExportConfigBuilder {
     /// Enable/disable performance benchmarking
     pub fn performance_benchmarking(mut self, enable: bool) -> Self {
         self.config.performance_benchmarking = enable;
+        self
+    }
+
+    /// Enable/disable string table optimization
+    pub fn string_table_optimization(mut self, enable: bool) -> Self {
+        self.config.string_table_optimization = enable;
         self
     }
 

@@ -5,7 +5,8 @@ use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::format::{
     AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE, HEADER_SIZE,
 };
-use crate::export::binary::serializable::BinarySerializable;
+use crate::export::binary::serializable::{primitives, BinarySerializable};
+use crate::export::binary::string_table::StringTable;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
@@ -15,6 +16,7 @@ use std::path::Path;
 pub struct BinaryReader {
     reader: BufReader<File>,
     advanced_metrics: Option<AdvancedMetricsData>,
+    string_table: Option<StringTable>,
 }
 
 /// Container for advanced metrics data read from binary file
@@ -41,6 +43,7 @@ impl BinaryReader {
         Ok(Self {
             reader,
             advanced_metrics: None,
+            string_table: None,
         })
     }
 
@@ -66,7 +69,47 @@ impl BinaryReader {
             return Err(BinaryExportError::UnsupportedVersion(header.version));
         }
 
+        // Read string table after header
+        self.read_string_table()?;
+
         Ok(header)
+    }
+
+    /// Read string table from file if present
+    fn read_string_table(&mut self) -> Result<(), BinaryExportError> {
+        // Read string table marker (4 bytes)
+        let mut marker = [0u8; 4];
+        self.reader.read_exact(&mut marker)?;
+
+        // Read table size (4 bytes)
+        let table_size = primitives::read_u32(&mut self.reader)?;
+
+        if &marker == b"STBL" && table_size > 0 {
+            // Read string table
+            let string_count = primitives::read_u32(&mut self.reader)? as usize;
+            let mut strings = Vec::with_capacity(string_count);
+
+            for _ in 0..string_count {
+                let string = primitives::read_string(&mut self.reader)?;
+                strings.push(string);
+            }
+
+            // Create string table from read strings
+            let mut string_table = StringTable::new();
+            for string in strings {
+                string_table.add_string(&string)?;
+            }
+            self.string_table = Some(string_table);
+        } else if &marker == b"NONE" {
+            // No string table present
+            self.string_table = None;
+        } else {
+            return Err(BinaryExportError::CorruptedData(
+                "Invalid string table marker".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
     /// Read single allocation record from current position
@@ -335,16 +378,35 @@ impl BinaryReader {
         Ok(u32::from_le_bytes(bytes))
     }
 
-    /// Read optional string with length prefix
+    /// Read optional string with length prefix or string table reference
     fn read_optional_string(&mut self) -> Result<Option<String>, BinaryExportError> {
         let mut length_bytes = [0u8; 4];
         self.reader.read_exact(&mut length_bytes)?;
-        let length = u32::from_le_bytes(length_bytes) as usize;
+        let length = u32::from_le_bytes(length_bytes);
 
-        if length == 0 {
+        if length == 0xFFFFFFFE {
+            // None marker
             Ok(None)
+        } else if length == 0xFFFF {
+            // String table reference
+            let index = primitives::read_u16(&mut self.reader)?;
+            if let Some(ref string_table) = self.string_table {
+                if let Some(string) = string_table.get_string(index) {
+                    Ok(Some(string.to_string()))
+                } else {
+                    Err(BinaryExportError::CorruptedData(format!(
+                        "Invalid string table index: {}",
+                        index
+                    )))
+                }
+            } else {
+                Err(BinaryExportError::CorruptedData(
+                    "String table reference found but no string table loaded".to_string(),
+                ))
+            }
         } else {
-            let mut string_bytes = vec![0u8; length];
+            // Inline string (including empty strings with length 0)
+            let mut string_bytes = vec![0u8; length as usize];
             self.reader.read_exact(&mut string_bytes)?;
 
             let string = String::from_utf8(string_bytes).map_err(|_| {
@@ -355,17 +417,37 @@ impl BinaryReader {
         }
     }
 
-    /// Read string with length prefix
+    /// Read string with length prefix or string table reference
     fn read_string(&mut self) -> Result<String, BinaryExportError> {
         let mut length_bytes = [0u8; 4];
         self.reader.read_exact(&mut length_bytes)?;
-        let length = u32::from_le_bytes(length_bytes) as usize;
+        let length = u32::from_le_bytes(length_bytes);
 
-        let mut string_bytes = vec![0u8; length];
-        self.reader.read_exact(&mut string_bytes)?;
+        if length == 0xFFFF {
+            // String table reference
+            let index = primitives::read_u16(&mut self.reader)?;
+            if let Some(ref string_table) = self.string_table {
+                if let Some(string) = string_table.get_string(index) {
+                    Ok(string.to_string())
+                } else {
+                    Err(BinaryExportError::CorruptedData(format!(
+                        "Invalid string table index: {}",
+                        index
+                    )))
+                }
+            } else {
+                Err(BinaryExportError::CorruptedData(
+                    "String table reference found but no string table loaded".to_string(),
+                ))
+            }
+        } else {
+            // Inline string
+            let mut string_bytes = vec![0u8; length as usize];
+            self.reader.read_exact(&mut string_bytes)?;
 
-        String::from_utf8(string_bytes)
-            .map_err(|_| BinaryExportError::CorruptedData("Invalid UTF-8 string".to_string()))
+            String::from_utf8(string_bytes)
+                .map_err(|_| BinaryExportError::CorruptedData("Invalid UTF-8 string".to_string()))
+        }
     }
 
     /// Read an optional vector of strings

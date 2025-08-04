@@ -6,7 +6,8 @@ use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::format::{
     AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE,
 };
-use crate::export::binary::serializable::BinarySerializable;
+use crate::export::binary::serializable::{primitives, BinarySerializable};
+use crate::export::binary::string_table::{StringTable, StringTableBuilder};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -15,6 +16,7 @@ use std::path::Path;
 pub struct BinaryWriter {
     writer: BufWriter<File>,
     config: BinaryExportConfig,
+    string_table: Option<StringTable>,
 }
 
 impl BinaryWriter {
@@ -34,15 +36,80 @@ impl BinaryWriter {
         Ok(Self {
             writer,
             config: config.clone(),
+            string_table: None,
         })
     }
 
-    /// Write file header with allocation count
+    /// Build string table from allocation data for optimization
+    pub fn build_string_table(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+        if !self.config.string_table_optimization {
+            return Ok(()); // String table optimization disabled
+        }
+
+        // Use frequency threshold based on data size
+        let min_frequency = if allocations.len() > 1000 { 3 } else { 2 };
+        let mut builder = StringTableBuilder::new(min_frequency);
+
+        // Collect string frequencies from all allocations
+        for alloc in allocations {
+            // Record frequently repeated strings
+            if let Some(ref type_name) = alloc.type_name {
+                builder.record_string(type_name);
+            }
+            if let Some(ref var_name) = alloc.var_name {
+                builder.record_string(var_name);
+            }
+            if let Some(ref scope_name) = alloc.scope_name {
+                builder.record_string(scope_name);
+            }
+            builder.record_string(&alloc.thread_id);
+
+            // Record stack trace strings (function names are often repeated)
+            if let Some(ref stack_trace) = alloc.stack_trace {
+                for frame in stack_trace {
+                    builder.record_string(frame);
+                }
+            }
+        }
+
+        let table = builder.build()?;
+        let stats = table.compression_stats();
+        
+        // Only use string table if it provides meaningful compression
+        if stats.space_saved() > 0 && table.len() > 0 {
+            tracing::debug!(
+                "String table built: {} strings, {:.1}% space savings",
+                table.len(),
+                stats.space_saved_percent()
+            );
+            self.string_table = Some(table);
+        }
+
+        Ok(())
+    }
+
+    /// Write file header with allocation count and optional string table
     pub fn write_header(&mut self, count: u32) -> Result<(), BinaryExportError> {
         let header = FileHeader::new(count);
         let header_bytes = header.to_bytes();
 
         self.writer.write_all(&header_bytes)?;
+
+        // Write string table if present
+        if let Some(ref string_table) = self.string_table {
+            // Write string table marker and size
+            self.writer.write_all(b"STBL")?; // String table marker
+            let table_size = string_table.serialized_size() as u32;
+            self.writer.write_all(&table_size.to_le_bytes())?;
+            
+            // Write the string table
+            string_table.write_binary(&mut self.writer)?;
+        } else {
+            // Write empty string table marker
+            self.writer.write_all(b"NONE")?; // No string table
+            self.writer.write_all(&0u32.to_le_bytes())?; // Size 0
+        }
+
         Ok(())
     }
 
@@ -486,28 +553,74 @@ impl BinaryWriter {
         size
     }
 
-    /// Write optional string field with length prefix
+    /// Write optional string field, using string table if available
     fn write_optional_string(&mut self, opt_str: &Option<String>) -> Result<(), BinaryExportError> {
         match opt_str {
             Some(s) => {
-                self.writer.write_all(&(s.len() as u32).to_le_bytes())?;
-                self.writer.write_all(s.as_bytes())?;
+                if let Some(ref string_table) = self.string_table {
+                    // Try to find string in table
+                    if let Some(index) = self.find_string_index(s) {
+                        // Write as string table reference: 0xFFFF followed by index
+                        self.writer.write_all(&0xFFFFu32.to_le_bytes())?;
+                        self.writer.write_all(&index.to_le_bytes())?;
+                    } else {
+                        // Write as inline string
+                        self.write_inline_string(s)?;
+                    }
+                } else {
+                    // No string table, write inline
+                    self.write_inline_string(s)?;
+                }
             }
             None => {
-                self.writer.write_all(&0u32.to_le_bytes())?;
+                // Use 0xFFFFFFFE as None marker to distinguish from empty string (length 0)
+                self.writer.write_all(&0xFFFFFFFEu32.to_le_bytes())?;
             }
         }
         Ok(())
     }
 
-    /// Write string field with length prefix
+    /// Write string field, using string table if available
     fn write_string(&mut self, s: &str) -> Result<(), BinaryExportError> {
+        if let Some(ref string_table) = self.string_table {
+            // Try to find string in table
+            if let Some(index) = self.find_string_index(s) {
+                // Write as string table reference: 0xFFFF followed by index
+                self.writer.write_all(&0xFFFFu32.to_le_bytes())?;
+                self.writer.write_all(&index.to_le_bytes())?;
+            } else {
+                // Write as inline string
+                self.write_inline_string(s)?;
+            }
+        } else {
+            // No string table, write inline
+            self.write_inline_string(s)?;
+        }
+        Ok(())
+    }
+
+    /// Write string inline with length prefix
+    fn write_inline_string(&mut self, s: &str) -> Result<(), BinaryExportError> {
         self.writer.write_all(&(s.len() as u32).to_le_bytes())?;
         self.writer.write_all(s.as_bytes())?;
         Ok(())
     }
 
-    /// Write an optional vector of strings
+    /// Find string index in string table
+    fn find_string_index(&self, s: &str) -> Option<u16> {
+        // Don't use string table for empty strings
+        if s.is_empty() {
+            return None;
+        }
+        
+        if let Some(ref string_table) = self.string_table {
+            string_table.get_index(s)
+        } else {
+            None
+        }
+    }
+
+    /// Write an optional vector of strings, using string table if available
     fn write_optional_string_vec(
         &mut self,
         vec: &Option<Vec<String>>,
@@ -517,11 +630,9 @@ impl BinaryWriter {
                 // Write count
                 self.writer
                     .write_all(&(strings.len() as u32).to_le_bytes())?;
-                // Write each string
+                // Write each string using string table optimization
                 for string in strings {
-                    self.writer
-                        .write_all(&(string.len() as u32).to_le_bytes())?;
-                    self.writer.write_all(string.as_bytes())?;
+                    self.write_string(string)?;
                 }
             }
             None => {

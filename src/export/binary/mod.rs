@@ -16,6 +16,7 @@ mod performance_tests;
 mod reader;
 mod serializable;
 mod smart_pointer_serialization;
+mod string_table;
 mod writer;
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
@@ -42,6 +43,10 @@ pub fn export_to_binary_with_config<P: AsRef<Path>>(
     config: &BinaryExportConfig,
 ) -> Result<(), BinaryExportError> {
     let mut writer = BinaryWriter::new_with_config(path, config)?;
+    
+    // Build string table for optimization if enabled
+    writer.build_string_table(allocations)?;
+    
     writer.write_header(allocations.len() as u32)?;
 
     // Write basic allocation records
