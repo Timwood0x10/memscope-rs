@@ -3,9 +3,13 @@
 /// File magic bytes for format identification
 pub const MAGIC_BYTES: &[u8; 8] = b"MEMSCOPE";
 
-pub const FORMAT_VERSION: u32 = 1;
+pub const FORMAT_VERSION: u32 = 2; // Updated for Task 6: Advanced metrics support
 pub const HEADER_SIZE: usize = 16;
 pub const ALLOCATION_RECORD_TYPE: u8 = 1;
+
+// Task 6: New segment types for advanced metrics
+pub const ADVANCED_METRICS_SEGMENT_TYPE: u8 = 2;
+pub const ADVANCED_METRICS_MAGIC: &[u8; 4] = b"ADVD"; // Advanced Data segment identifier
 
 /// File header structure (16 bytes fixed size)
 #[repr(C)]
@@ -95,6 +99,94 @@ impl AllocationRecord {
     }
 }
 
+/// Task 6: Advanced metrics segment header
+#[repr(C)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct AdvancedMetricsHeader {
+    pub magic: [u8; 4],        // "ADVD"
+    pub segment_size: u32,     // Size of the entire segment including header
+    pub metrics_bitmap: u32,   // Bitmap indicating which metrics are present
+    pub reserved: u32,         // Reserved for future use
+}
+
+impl AdvancedMetricsHeader {
+    pub fn new(segment_size: u32, metrics_bitmap: u32) -> Self {
+        Self {
+            magic: *ADVANCED_METRICS_MAGIC,
+            segment_size,
+            metrics_bitmap,
+            reserved: 0,
+        }
+    }
+
+    pub fn is_valid_magic(&self) -> bool {
+        self.magic == *ADVANCED_METRICS_MAGIC
+    }
+
+    /// Convert header to bytes using Little Endian format
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut bytes = [0u8; 16];
+
+        bytes[0..4].copy_from_slice(&self.magic);
+        bytes[4..8].copy_from_slice(&self.segment_size.to_le_bytes());
+        bytes[8..12].copy_from_slice(&self.metrics_bitmap.to_le_bytes());
+        bytes[12..16].copy_from_slice(&self.reserved.to_le_bytes());
+
+        bytes
+    }
+
+    /// Create header from bytes using Little Endian format
+    pub fn from_bytes(bytes: &[u8; 16]) -> Self {
+        let mut magic = [0u8; 4];
+        magic.copy_from_slice(&bytes[0..4]);
+
+        let segment_size = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+        let metrics_bitmap = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+        let reserved = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
+
+        Self {
+            magic,
+            segment_size,
+            metrics_bitmap,
+            reserved,
+        }
+    }
+}
+
+/// Task 6: Metrics bitmap flags for identifying which advanced metrics are present
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MetricsBitmapFlags {
+    LifecycleAnalysis = 1 << 0,      // Task 4 lifecycle metrics
+    ContainerAnalysis = 1 << 1,      // Task 3 container analysis
+    TypeUsageStats = 1 << 2,         // Task 2 type usage statistics
+    SourceAnalysis = 1 << 3,         // Source code analysis
+    FragmentationAnalysis = 1 << 4,  // Memory fragmentation analysis
+    ThreadContext = 1 << 5,          // Thread context information
+    DropChainAnalysis = 1 << 6,      // Drop chain analysis
+    ZstAnalysis = 1 << 7,            // Zero-sized type analysis
+    HealthScoring = 1 << 8,          // Memory health scoring
+    PerformanceBenchmarks = 1 << 9,  // Performance benchmark data
+    // Bits 10-31 reserved for future metrics
+}
+
+impl MetricsBitmapFlags {
+    /// Check if a specific metric is enabled in the bitmap
+    pub fn is_enabled(bitmap: u32, flag: MetricsBitmapFlags) -> bool {
+        (bitmap & flag as u32) != 0
+    }
+
+    /// Enable a specific metric in the bitmap
+    pub fn enable(bitmap: u32, flag: MetricsBitmapFlags) -> u32 {
+        bitmap | (flag as u32)
+    }
+
+    /// Disable a specific metric in the bitmap
+    pub fn disable(bitmap: u32, flag: MetricsBitmapFlags) -> u32 {
+        bitmap & !(flag as u32)
+    }
+}
+
 /// Endian conversion utilities
 pub mod endian {
     #[allow(dead_code)]
@@ -172,5 +264,43 @@ mod tests {
         let bytes64 = endian::u64_to_le_bytes(value64);
         let converted64 = endian::u64_from_le_bytes(bytes64);
         assert_eq!(value64, converted64);
+    }
+
+    #[test]
+    fn test_advanced_metrics_header_creation() {
+        let header = AdvancedMetricsHeader::new(1024, 0x12345678);
+        assert_eq!(header.magic, *ADVANCED_METRICS_MAGIC);
+        assert_eq!(header.segment_size, 1024);
+        assert_eq!(header.metrics_bitmap, 0x12345678);
+        assert_eq!(header.reserved, 0);
+        assert!(header.is_valid_magic());
+    }
+
+    #[test]
+    fn test_advanced_metrics_header_serialization() {
+        let header = AdvancedMetricsHeader::new(2048, 0xABCDEF00);
+        let bytes = header.to_bytes();
+        let deserialized = AdvancedMetricsHeader::from_bytes(&bytes);
+
+        assert_eq!(header, deserialized);
+    }
+
+    #[test]
+    fn test_metrics_bitmap_flags() {
+        let mut bitmap = 0u32;
+
+        // Test enabling flags
+        bitmap = MetricsBitmapFlags::enable(bitmap, MetricsBitmapFlags::LifecycleAnalysis);
+        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::LifecycleAnalysis));
+        assert!(!MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::ContainerAnalysis));
+
+        bitmap = MetricsBitmapFlags::enable(bitmap, MetricsBitmapFlags::ContainerAnalysis);
+        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::LifecycleAnalysis));
+        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::ContainerAnalysis));
+
+        // Test disabling flags
+        bitmap = MetricsBitmapFlags::disable(bitmap, MetricsBitmapFlags::LifecycleAnalysis);
+        assert!(!MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::LifecycleAnalysis));
+        assert!(MetricsBitmapFlags::is_enabled(bitmap, MetricsBitmapFlags::ContainerAnalysis));
     }
 }

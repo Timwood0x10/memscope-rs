@@ -2,14 +2,34 @@
 
 use crate::core::types::AllocationInfo;
 use crate::export::binary::error::BinaryExportError;
-use crate::export::binary::format::{FileHeader, ALLOCATION_RECORD_TYPE, HEADER_SIZE};
+use crate::export::binary::format::{
+    AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE, HEADER_SIZE,
+};
+use crate::binary::BinaryExportConfig;
+use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 /// Binary reader for allocation records using buffered I/O
 pub struct BinaryReader {
     reader: BufReader<File>,
+    advanced_metrics: Option<AdvancedMetricsData>,
+}
+
+/// Container for advanced metrics data read from binary file
+#[derive(Debug, Clone)]
+pub struct AdvancedMetricsData {
+    pub lifecycle_metrics: HashMap<u64, LifecycleMetric>,
+    pub container_metrics: HashMap<u64, String>, // JSON for now
+    pub type_usage_metrics: HashMap<u64, String>, // JSON for now
+}
+
+/// Lifecycle metric data
+#[derive(Debug, Clone)]
+pub struct LifecycleMetric {
+    pub lifetime_ms: u64,
+    pub lifecycle_tracking: Option<String>, // JSON for now
 }
 
 impl BinaryReader {
@@ -18,7 +38,10 @@ impl BinaryReader {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
-        Ok(Self { reader })
+        Ok(Self {
+            reader,
+            advanced_metrics: None,
+        })
     }
 
     /// Read and validate file header
@@ -156,7 +179,127 @@ impl BinaryReader {
             allocations.push(allocation);
         }
 
+        // Try to read advanced metrics segment if present
+        if let Err(_) = self.try_read_advanced_metrics_segment() {
+            // Advanced metrics segment not present or corrupted, continue without it
+            tracing::debug!("No advanced metrics segment found or failed to read");
+        }
+
         Ok(allocations)
+    }
+
+    /// Try to read advanced metrics segment (backward compatible)
+    fn try_read_advanced_metrics_segment(&mut self) -> Result<(), BinaryExportError> {
+        // Try to read advanced metrics header
+        let mut header_bytes = [0u8; 16];
+        match self.reader.read_exact(&mut header_bytes) {
+            Ok(()) => {
+                let header = AdvancedMetricsHeader::from_bytes(&header_bytes);
+                
+                if header.is_valid_magic() {
+                    // Valid advanced metrics segment found
+                    self.read_advanced_metrics_data(header)?;
+                } else {
+                    // Not an advanced metrics segment, seek back
+                    self.reader.seek(SeekFrom::Current(-16))?;
+                    return Err(BinaryExportError::CorruptedData("Invalid advanced metrics magic".to_string()));
+                }
+            }
+            Err(_) => {
+                // End of file reached, no advanced metrics segment
+                return Err(BinaryExportError::CorruptedData("No advanced metrics segment".to_string()));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Read advanced metrics data based on header
+    fn read_advanced_metrics_data(&mut self, header: AdvancedMetricsHeader) -> Result<(), BinaryExportError> {
+        let mut lifecycle_metrics = HashMap::new();
+        let mut container_metrics = HashMap::new();
+        let mut type_usage_metrics = HashMap::new();
+
+        // Read lifecycle analysis data if enabled
+        if MetricsBitmapFlags::is_enabled(header.metrics_bitmap, MetricsBitmapFlags::LifecycleAnalysis) {
+            lifecycle_metrics = self.read_lifecycle_metrics()?;
+        }
+
+        // Read container analysis data if enabled
+        if MetricsBitmapFlags::is_enabled(header.metrics_bitmap, MetricsBitmapFlags::ContainerAnalysis) {
+            container_metrics = self.read_container_metrics()?;
+        }
+
+        // Read type usage statistics if enabled
+        if MetricsBitmapFlags::is_enabled(header.metrics_bitmap, MetricsBitmapFlags::TypeUsageStats) {
+            type_usage_metrics = self.read_type_usage_metrics()?;
+        }
+
+        // Store advanced metrics data
+        self.advanced_metrics = Some(AdvancedMetricsData {
+            lifecycle_metrics,
+            container_metrics,
+            type_usage_metrics,
+        });
+
+        Ok(())
+    }
+
+    /// Read lifecycle metrics from advanced segment
+    fn read_lifecycle_metrics(&mut self) -> Result<HashMap<u64, LifecycleMetric>, BinaryExportError> {
+        let count = self.read_u32()? as usize;
+        let mut metrics = HashMap::with_capacity(count);
+
+        for _ in 0..count {
+            let ptr = self.read_u64()?;
+            let lifetime_ms = self.read_u64()?;
+            
+            let lifecycle_tracking = if self.read_u8()? == 1 {
+                Some(self.read_string()?)
+            } else {
+                None
+            };
+
+            metrics.insert(ptr, LifecycleMetric {
+                lifetime_ms,
+                lifecycle_tracking,
+            });
+        }
+
+        Ok(metrics)
+    }
+
+    /// Read container metrics from advanced segment
+    fn read_container_metrics(&mut self) -> Result<HashMap<u64, String>, BinaryExportError> {
+        let count = self.read_u32()? as usize;
+        let mut metrics = HashMap::with_capacity(count);
+
+        for _ in 0..count {
+            let ptr = self.read_u64()?;
+            let json_data = self.read_string()?;
+            metrics.insert(ptr, json_data);
+        }
+
+        Ok(metrics)
+    }
+
+    /// Read type usage metrics from advanced segment
+    fn read_type_usage_metrics(&mut self) -> Result<HashMap<u64, String>, BinaryExportError> {
+        let count = self.read_u32()? as usize;
+        let mut metrics = HashMap::with_capacity(count);
+
+        for _ in 0..count {
+            let ptr = self.read_u64()?;
+            let json_data = self.read_string()?;
+            metrics.insert(ptr, json_data);
+        }
+
+        Ok(metrics)
+    }
+
+    /// Get advanced metrics data if available
+    pub fn get_advanced_metrics(&self) -> Option<&AdvancedMetricsData> {
+        self.advanced_metrics.as_ref()
     }
 
     /// Read u64 value in Little Endian format
@@ -344,5 +487,76 @@ mod tests {
         assert_eq!(read_alloc.var_name, original_alloc.var_name);
         assert_eq!(read_alloc.type_name, original_alloc.type_name);
         assert_eq!(read_alloc.thread_id, original_alloc.thread_id);
+    }
+
+    #[test]
+    fn test_advanced_metrics_round_trip() {
+        use crate::export::binary::config::BinaryExportConfig;
+        
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut original_alloc = create_test_allocation();
+        original_alloc.lifetime_ms = Some(2500); // Add lifecycle data
+
+        // Write test data with advanced metrics
+        {
+            let config = BinaryExportConfig::debug_comprehensive();
+            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+            writer.write_header(1).unwrap();
+            writer.write_allocation(&original_alloc).unwrap();
+            writer.write_advanced_metrics_segment(&[original_alloc.clone()]).unwrap();
+            writer.finish().unwrap();
+        }
+
+        // Read and verify
+        let mut reader = BinaryReader::new(temp_file.path()).unwrap();
+        let allocations = reader.read_all().unwrap();
+
+        assert_eq!(allocations.len(), 1);
+        let read_alloc = &allocations[0];
+
+        // Verify basic data
+        assert_eq!(read_alloc.ptr, original_alloc.ptr);
+        assert_eq!(read_alloc.size, original_alloc.size);
+        assert_eq!(read_alloc.lifetime_ms, original_alloc.lifetime_ms);
+
+        // Verify advanced metrics were read
+        let advanced_metrics = reader.get_advanced_metrics();
+        assert!(advanced_metrics.is_some());
+        
+        let metrics = advanced_metrics.unwrap();
+        assert!(metrics.lifecycle_metrics.contains_key(&(original_alloc.ptr as u64)));
+        
+        let lifecycle_metric = &metrics.lifecycle_metrics[&(original_alloc.ptr as u64)];
+        assert_eq!(lifecycle_metric.lifetime_ms, 2500);
+    }
+
+    #[test]
+    fn test_backward_compatibility() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let original_alloc = create_test_allocation();
+
+        // Write test data without advanced metrics (old format)
+        {
+            let config = BinaryExportConfig::minimal();
+            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+            writer.write_header(1).unwrap();
+            writer.write_allocation(&original_alloc).unwrap();
+            writer.finish().unwrap();
+        }
+
+        // Read with new reader (should handle missing advanced metrics gracefully)
+        let mut reader = BinaryReader::new(temp_file.path()).unwrap();
+        let allocations = reader.read_all().unwrap();
+
+        assert_eq!(allocations.len(), 1);
+        let read_alloc = &allocations[0];
+
+        // Basic data should still be readable
+        assert_eq!(read_alloc.ptr, original_alloc.ptr);
+        assert_eq!(read_alloc.size, original_alloc.size);
+
+        // Advanced metrics should be None (backward compatibility)
+        let advanced_metrics = reader.get_advanced_metrics();
+        assert!(advanced_metrics.is_none());
     }
 }

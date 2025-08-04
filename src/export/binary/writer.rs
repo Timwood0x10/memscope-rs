@@ -1,8 +1,11 @@
 //! Binary data writer for efficient allocation record serialization
 
 use crate::core::types::AllocationInfo;
+use crate::export::binary::config::BinaryExportConfig;
 use crate::export::binary::error::BinaryExportError;
-use crate::export::binary::format::{FileHeader, ALLOCATION_RECORD_TYPE};
+use crate::export::binary::format::{
+    AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE,
+};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -10,15 +13,27 @@ use std::path::Path;
 /// Binary writer for allocation records using buffered I/O
 pub struct BinaryWriter {
     writer: BufWriter<File>,
+    config: BinaryExportConfig,
 }
 
 impl BinaryWriter {
-    /// Create new binary writer for the specified file path
+    /// Create new binary writer for the specified file path with default config
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, BinaryExportError> {
+        Self::new_with_config(path, &BinaryExportConfig::default())
+    }
+
+    /// Create new binary writer with custom configuration
+    pub fn new_with_config<P: AsRef<Path>>(
+        path: P,
+        config: &BinaryExportConfig,
+    ) -> Result<Self, BinaryExportError> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
 
-        Ok(Self { writer })
+        Ok(Self {
+            writer,
+            config: config.clone(),
+        })
     }
 
     /// Write file header with allocation count
@@ -101,6 +116,244 @@ impl BinaryWriter {
         self.write_optional_json_field(&alloc.access_tracking)?;
 
         Ok(())
+    }
+
+    /// Write advanced metrics segment if enabled in config
+    pub fn write_advanced_metrics_segment(
+        &mut self,
+        allocations: &[AllocationInfo],
+    ) -> Result<(), BinaryExportError> {
+        if !self.config.has_advanced_metrics() {
+            return Ok(()); // Skip if no advanced metrics enabled
+        }
+
+        // Calculate metrics bitmap based on config
+        let mut metrics_bitmap = 0u32;
+
+        if self.config.lifecycle_timeline {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::LifecycleAnalysis);
+        }
+        if self.config.container_analysis {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ContainerAnalysis);
+        }
+        if self.config.source_analysis {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::SourceAnalysis);
+        }
+        if self.config.fragmentation_analysis {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::FragmentationAnalysis);
+        }
+        if self.config.thread_context_tracking {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ThreadContext);
+        }
+        if self.config.drop_chain_analysis {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::DropChainAnalysis);
+        }
+        if self.config.zst_analysis {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::ZstAnalysis);
+        }
+        if self.config.health_scoring {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::HealthScoring);
+        }
+        if self.config.performance_benchmarking {
+            metrics_bitmap = MetricsBitmapFlags::enable(metrics_bitmap, MetricsBitmapFlags::PerformanceBenchmarks);
+        }
+
+        // Calculate segment size (header + data)
+        let data_size = self.calculate_advanced_metrics_data_size(allocations, metrics_bitmap);
+        let segment_size = 16 + data_size; // 16 bytes for AdvancedMetricsHeader
+
+        // Write advanced metrics header
+        let header = AdvancedMetricsHeader::new(segment_size as u32, metrics_bitmap);
+        let header_bytes = header.to_bytes();
+        self.writer.write_all(&header_bytes)?;
+
+        // Write metrics data based on enabled flags
+        self.write_metrics_data(allocations, metrics_bitmap)?;
+
+        Ok(())
+    }
+
+    /// Calculate size needed for advanced metrics data
+    fn calculate_advanced_metrics_data_size(
+        &self,
+        allocations: &[AllocationInfo],
+        metrics_bitmap: u32,
+    ) -> usize {
+        let mut size = 0;
+
+        // For each enabled metric, calculate its data size
+        if MetricsBitmapFlags::is_enabled(metrics_bitmap, MetricsBitmapFlags::LifecycleAnalysis) {
+            size += self.calculate_lifecycle_data_size(allocations);
+        }
+        if MetricsBitmapFlags::is_enabled(metrics_bitmap, MetricsBitmapFlags::ContainerAnalysis) {
+            size += self.calculate_container_data_size(allocations);
+        }
+        if MetricsBitmapFlags::is_enabled(metrics_bitmap, MetricsBitmapFlags::TypeUsageStats) {
+            size += self.calculate_type_usage_data_size(allocations);
+        }
+        // Add other metrics as needed...
+
+        size
+    }
+
+    /// Write metrics data based on enabled bitmap flags
+    fn write_metrics_data(
+        &mut self,
+        allocations: &[AllocationInfo],
+        metrics_bitmap: u32,
+    ) -> Result<(), BinaryExportError> {
+        // Write lifecycle analysis data if enabled
+        if MetricsBitmapFlags::is_enabled(metrics_bitmap, MetricsBitmapFlags::LifecycleAnalysis) {
+            self.write_lifecycle_metrics(allocations)?;
+        }
+
+        // Write container analysis data if enabled
+        if MetricsBitmapFlags::is_enabled(metrics_bitmap, MetricsBitmapFlags::ContainerAnalysis) {
+            self.write_container_metrics(allocations)?;
+        }
+
+        // Write type usage statistics if enabled
+        if MetricsBitmapFlags::is_enabled(metrics_bitmap, MetricsBitmapFlags::TypeUsageStats) {
+            self.write_type_usage_metrics(allocations)?;
+        }
+
+        // Add other metrics as they are implemented...
+
+        Ok(())
+    }
+
+    /// Write lifecycle analysis metrics
+    fn write_lifecycle_metrics(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+        // Write count of allocations with lifecycle data
+        let lifecycle_count = allocations
+            .iter()
+            .filter(|a| a.lifetime_ms.is_some())
+            .count();
+        
+        self.writer.write_all(&(lifecycle_count as u32).to_le_bytes())?;
+
+        // Write lifecycle data for each allocation
+        for alloc in allocations {
+            if let Some(lifetime) = alloc.lifetime_ms {
+                self.writer.write_all(&(alloc.ptr as u64).to_le_bytes())?; // allocation ID
+                self.writer.write_all(&lifetime.to_le_bytes())?; // lifetime in ms
+                
+                // Write lifecycle phase information if available
+                if let Some(ref lifecycle_tracking) = alloc.lifecycle_tracking {
+                    self.writer.write_all(&1u8.to_le_bytes())?; // has lifecycle tracking
+                    let json_str = serde_json::to_string(lifecycle_tracking)
+                        .map_err(|e| BinaryExportError::CorruptedData(format!("Lifecycle JSON serialization failed: {e}")))?;
+                    self.write_string(&json_str)?;
+                } else {
+                    self.writer.write_all(&0u8.to_le_bytes())?; // no lifecycle tracking
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Write container analysis metrics
+    fn write_container_metrics(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+        // Write count of allocations with container data
+        let container_count = allocations
+            .iter()
+            .filter(|a| a.memory_layout.is_some())
+            .count();
+        
+        self.writer.write_all(&(container_count as u32).to_le_bytes())?;
+
+        // Write container data for each allocation
+        for alloc in allocations {
+            if let Some(ref memory_layout) = alloc.memory_layout {
+                self.writer.write_all(&(alloc.ptr as u64).to_le_bytes())?; // allocation ID
+                
+                // Serialize memory layout as JSON for now (can be optimized later)
+                let json_str = serde_json::to_string(memory_layout)
+                    .map_err(|e| BinaryExportError::CorruptedData(format!("Memory layout JSON serialization failed: {e}")))?;
+                self.write_string(&json_str)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Write type usage statistics
+    fn write_type_usage_metrics(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+        // Write count of allocations with type usage data
+        let type_usage_count = allocations
+            .iter()
+            .filter(|a| a.type_usage.is_some())
+            .count();
+        
+        self.writer.write_all(&(type_usage_count as u32).to_le_bytes())?;
+
+        // Write type usage data for each allocation
+        for alloc in allocations {
+            if let Some(ref type_usage) = alloc.type_usage {
+                self.writer.write_all(&(alloc.ptr as u64).to_le_bytes())?; // allocation ID
+                
+                // Serialize type usage as JSON for now (can be optimized later)
+                let json_str = serde_json::to_string(type_usage)
+                    .map_err(|e| BinaryExportError::CorruptedData(format!("Type usage JSON serialization failed: {e}")))?;
+                self.write_string(&json_str)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Calculate size for lifecycle data
+    fn calculate_lifecycle_data_size(&self, allocations: &[AllocationInfo]) -> usize {
+        let mut size = 4; // count field
+        
+        for alloc in allocations {
+            if alloc.lifetime_ms.is_some() {
+                size += 8; // ptr
+                size += 8; // lifetime_ms
+                size += 1; // lifecycle_tracking flag
+                
+                if let Some(ref lifecycle_tracking) = alloc.lifecycle_tracking {
+                    if let Ok(json_str) = serde_json::to_string(lifecycle_tracking) {
+                        size += 4 + json_str.len(); // string length + content
+                    }
+                }
+            }
+        }
+        
+        size
+    }
+
+    /// Calculate size for container data
+    fn calculate_container_data_size(&self, allocations: &[AllocationInfo]) -> usize {
+        let mut size = 4; // count field
+        
+        for alloc in allocations {
+            if let Some(ref memory_layout) = alloc.memory_layout {
+                size += 8; // ptr
+                if let Ok(json_str) = serde_json::to_string(memory_layout) {
+                    size += 4 + json_str.len(); // string length + content
+                }
+            }
+        }
+        
+        size
+    }
+
+    /// Calculate size for type usage data
+    fn calculate_type_usage_data_size(&self, allocations: &[AllocationInfo]) -> usize {
+        let mut size = 4; // count field
+        
+        for alloc in allocations {
+            if let Some(ref type_usage) = alloc.type_usage {
+                size += 8; // ptr
+                if let Ok(json_str) = serde_json::to_string(type_usage) {
+                    size += 4 + json_str.len(); // string length + content
+                }
+            }
+        }
+        
+        size
     }
 
     /// Finish writing and flush all data to disk
@@ -353,5 +606,44 @@ mod tests {
         // JSON fields (14 fields * 1 byte flag each): 14
         // Total: 24 + 1 + 12 + 7 + 4 + 8 + 4 + 4 + 1 + 1 + 14 = 80
         assert_eq!(size, 80);
+    }
+
+    #[test]
+    fn test_advanced_metrics_segment_writing() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let config = BinaryExportConfig::debug_comprehensive();
+        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+
+        writer.write_header(1).unwrap();
+
+        let mut alloc = create_test_allocation();
+        alloc.lifetime_ms = Some(1500); // Add some lifecycle data
+        
+        writer.write_allocation(&alloc).unwrap();
+        writer.write_advanced_metrics_segment(&[alloc]).unwrap();
+        writer.finish().unwrap();
+
+        // Verify file has content beyond basic allocation data
+        let metadata = std::fs::metadata(temp_file.path()).unwrap();
+        assert!(metadata.len() > 100); // Should be larger with advanced metrics
+    }
+
+    #[test]
+    fn test_advanced_metrics_disabled() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let config = BinaryExportConfig::minimal(); // No advanced metrics
+        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+
+        writer.write_header(1).unwrap();
+        let alloc = create_test_allocation();
+        writer.write_allocation(&alloc).unwrap();
+        
+        // Should not write advanced metrics segment
+        writer.write_advanced_metrics_segment(&[alloc]).unwrap();
+        writer.finish().unwrap();
+
+        // File should be smaller without advanced metrics
+        let metadata = std::fs::metadata(temp_file.path()).unwrap();
+        assert!(metadata.len() < 150); // Should be smaller without advanced metrics
     }
 }

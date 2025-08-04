@@ -36,12 +36,16 @@ pub fn export_to_binary_with_config<P: AsRef<Path>>(
     path: P,
     config: &BinaryExportConfig,
 ) -> Result<(), BinaryExportError> {
-    let mut writer = BinaryWriter::new(path)?;
+    let mut writer = BinaryWriter::new_with_config(path, config)?;
     writer.write_header(allocations.len() as u32)?;
 
+    // Write basic allocation records
     for allocation in allocations {
         writer.write_allocation(allocation)?;
     }
+
+    // Write advanced metrics segment if enabled
+    writer.write_advanced_metrics_segment(allocations)?;
 
     writer.finish()?;
     
