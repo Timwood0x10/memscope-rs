@@ -2858,6 +2858,21 @@ pub enum LifecyclePatternType {
     RAII,
 }
 
+/// Simple lifecycle pattern classification for Task 4
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SimpleLifecyclePattern {
+    /// Very short-lived (0-1ms)
+    Instant,
+    /// Short-lived (2-100ms)
+    ShortLived,
+    /// Medium-lived (101ms-10s)
+    MediumLived,
+    /// Long-lived (10s-5min)
+    LongLived,
+    /// Persistent (>5min)
+    Persistent,
+}
+
 /// Memory access pattern tracking
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MemoryAccessTrackingInfo {
