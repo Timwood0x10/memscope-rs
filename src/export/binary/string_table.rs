@@ -16,6 +16,8 @@ pub struct StringTable {
     strings: Vec<String>,
     /// Map from string to its index in the strings vector
     index_map: HashMap<String, u16>,
+    /// Enable compressed index format for smaller indices
+    use_compressed_indices: bool,
 }
 
 impl StringTable {
@@ -24,6 +26,16 @@ impl StringTable {
         Self {
             strings: Vec::new(),
             index_map: HashMap::new(),
+            use_compressed_indices: true,
+        }
+    }
+
+    /// Create a new string table with compression settings
+    pub fn with_compression(use_compressed_indices: bool) -> Self {
+        Self {
+            strings: Vec::new(),
+            index_map: HashMap::new(),
+            use_compressed_indices,
         }
     }
 
@@ -69,16 +81,45 @@ impl StringTable {
 
     /// Calculate the total size needed to serialize the string table
     pub fn serialized_size(&self) -> usize {
-        let mut size = 4; // count field (u32)
+        let mut size = 1; // compression flag (u8)
+        size += 4; // count field (u32)
         for string in &self.strings {
             size += 4 + string.len(); // length prefix + string content
         }
         size
     }
 
+    /// Read a compressed index from the reader
+    pub fn read_compressed_index<R: std::io::Read>(reader: &mut R, use_compressed: bool) -> Result<u16, BinaryExportError> {
+        if !use_compressed {
+            // Use standard u16 format
+            return primitives::read_u16(reader);
+        }
+
+        // Read first byte to determine format
+        let first_byte = primitives::read_u8(reader)?;
+
+        if first_byte < 0x80 {
+            // Single byte format (0-127)
+            Ok(first_byte as u16)
+        } else if first_byte < 0xC0 {
+            // Two byte format (128-16383)
+            let second_byte = primitives::read_u8(reader)?;
+            let index = (((first_byte & 0x3F) as u16) << 8) | (second_byte as u16);
+            Ok(index)
+        } else {
+            // Three byte format (16384-65535)
+            let index = primitives::read_u16(reader)?;
+            Ok(index)
+        }
+    }
+
     /// Write the string table to binary format
     pub fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
         let mut size = 0;
+
+        // Write compression flag
+        size += primitives::write_u8(writer, if self.use_compressed_indices { 1 } else { 0 })?;
 
         // Write count of strings
         size += primitives::write_u32(writer, self.strings.len() as u32)?;
@@ -91,22 +132,70 @@ impl StringTable {
         Ok(size)
     }
 
+    /// Write a compressed index to the writer
+    pub fn write_compressed_index<W: Write>(&self, writer: &mut W, index: u16) -> Result<usize, BinaryExportError> {
+        if !self.use_compressed_indices {
+            // Use standard u16 format
+            return primitives::write_u16(writer, index);
+        }
+
+        // Use variable-length encoding for smaller indices
+        if index < 128 {
+            // Single byte for indices 0-127
+            primitives::write_u8(writer, index as u8)
+        } else if index < 16384 {
+            // Two bytes for indices 128-16383
+            // First byte: 0x80 | (index >> 8)
+            // Second byte: index & 0xFF
+            let first_byte = 0x80 | ((index >> 8) as u8);
+            let second_byte = (index & 0xFF) as u8;
+            let mut size = primitives::write_u8(writer, first_byte)?;
+            size += primitives::write_u8(writer, second_byte)?;
+            Ok(size)
+        } else {
+            // Three bytes for indices 16384-65535
+            // First byte: 0xC0
+            // Next two bytes: standard u16
+            let mut size = primitives::write_u8(writer, 0xC0)?;
+            size += primitives::write_u16(writer, index)?;
+            Ok(size)
+        }
+    }
+
+    /// Calculate size needed for a compressed index
+    pub fn compressed_index_size(&self, index: u16) -> usize {
+        if !self.use_compressed_indices {
+            return 2; // Standard u16
+        }
+
+        if index < 128 {
+            1 // Single byte
+        } else if index < 16384 {
+            2 // Two bytes
+        } else {
+            3 // Three bytes
+        }
+    }
+
     /// Calculate compression statistics
     pub fn compression_stats(&self) -> CompressionStats {
         let mut total_original_size = 0;
         let mut total_references = 0;
+        let mut total_reference_size = 0;
 
-        for (string, &_index) in &self.index_map {
-            // Each reference saves (string.len() + 4 - 2) bytes
-            // +4 for length prefix, -2 for index storage
+        for (string, &index) in &self.index_map {
+            // Each reference saves (string.len() + 4 - compressed_index_size) bytes
+            // +4 for length prefix, -compressed_index_size for index storage
             let string_size = string.len() + 4;
             total_original_size += string_size;
             total_references += 1;
+            
+            // Calculate actual reference size based on compression
+            total_reference_size += self.compressed_index_size(index);
         }
 
         let table_size = self.serialized_size();
-        let reference_size = total_references * 2; // 2 bytes per reference (u16 index)
-        let compressed_size = table_size + reference_size;
+        let compressed_size = table_size + total_reference_size;
 
         CompressionStats {
             original_size: total_original_size,
@@ -166,6 +255,10 @@ pub struct StringTableBuilder {
     min_frequency: usize,
     /// Track frequency of each string
     frequency_map: HashMap<String, usize>,
+    /// Track total size savings potential for each string
+    size_savings_map: HashMap<String, usize>,
+    /// Enable advanced compression heuristics
+    enable_advanced_compression: bool,
 }
 
 impl StringTableBuilder {
@@ -175,6 +268,19 @@ impl StringTableBuilder {
             table: StringTable::new(),
             min_frequency,
             frequency_map: HashMap::new(),
+            size_savings_map: HashMap::new(),
+            enable_advanced_compression: true,
+        }
+    }
+
+    /// Create a new builder with advanced compression settings
+    pub fn with_advanced_compression(min_frequency: usize, enable_advanced: bool) -> Self {
+        Self {
+            table: StringTable::new(),
+            min_frequency,
+            frequency_map: HashMap::new(),
+            size_savings_map: HashMap::new(),
+            enable_advanced_compression: enable_advanced,
         }
     }
 
@@ -182,12 +288,39 @@ impl StringTableBuilder {
     pub fn record_string(&mut self, s: &str) {
         // Only record non-empty strings for optimization
         if !s.is_empty() {
-            *self.frequency_map.entry(s.to_string()).or_insert(0) += 1;
+            let string_key = s.to_string();
+            *self.frequency_map.entry(string_key.clone()).or_insert(0) += 1;
+            
+            // Calculate potential size savings for this string
+            // Each occurrence saves: string_length + 4 (length prefix) - 2 (index reference)
+            let savings_per_occurrence = if s.len() + 4 > 2 { s.len() + 4 - 2 } else { 0 };
+            *self.size_savings_map.entry(string_key).or_insert(0) += savings_per_occurrence;
+        }
+    }
+
+    /// Record a string with weight (for strings that appear in critical paths)
+    pub fn record_string_weighted(&mut self, s: &str, weight: usize) {
+        if !s.is_empty() {
+            let string_key = s.to_string();
+            *self.frequency_map.entry(string_key.clone()).or_insert(0) += weight;
+            
+            // Weighted size savings calculation
+            let savings_per_occurrence = if s.len() + 4 > 2 { s.len() + 4 - 2 } else { 0 };
+            *self.size_savings_map.entry(string_key).or_insert(0) += savings_per_occurrence * weight;
         }
     }
 
     /// Build the final string table including only strings that meet the frequency threshold
     pub fn build(mut self) -> Result<StringTable, BinaryExportError> {
+        if self.enable_advanced_compression {
+            self.build_with_advanced_heuristics()
+        } else {
+            self.build_with_simple_frequency()
+        }
+    }
+
+    /// Build string table using simple frequency-based selection
+    fn build_with_simple_frequency(&mut self) -> Result<StringTable, BinaryExportError> {
         // Add strings that meet the frequency threshold to the table
         for (string, frequency) in &self.frequency_map {
             if *frequency >= self.min_frequency {
@@ -195,7 +328,111 @@ impl StringTableBuilder {
             }
         }
 
-        Ok(self.table)
+        Ok(self.table.clone())
+    }
+
+    /// Build string table using advanced compression heuristics
+    fn build_with_advanced_heuristics(&mut self) -> Result<StringTable, BinaryExportError> {
+        // Create a list of candidates with their compression scores
+        let mut candidates: Vec<(String, f64)> = Vec::new();
+
+        for (string, frequency) in &self.frequency_map {
+            if *frequency >= self.min_frequency {
+                let size_savings = self.size_savings_map.get(string).unwrap_or(&0);
+                
+                // Calculate compression score based on multiple factors
+                let compression_score = self.calculate_compression_score(string, *frequency, *size_savings);
+                
+                candidates.push((string.clone(), compression_score));
+            }
+        }
+
+        // Sort candidates by compression score (descending)
+        candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Add top candidates to string table, respecting size limits
+        let max_table_size = 8192; // 8KB limit for string table
+        let mut current_table_size = 4; // Start with count field size
+
+        for (string, _score) in candidates {
+            let string_size = 4 + string.len(); // length prefix + content
+            if current_table_size + string_size <= max_table_size {
+                self.table.add_string(&string)?;
+                current_table_size += string_size;
+            } else {
+                break; // Stop adding if we would exceed size limit
+            }
+        }
+
+        Ok(self.table.clone())
+    }
+
+    /// Calculate compression score for a string based on multiple factors
+    fn calculate_compression_score(&self, string: &str, frequency: usize, size_savings: usize) -> f64 {
+        let string_len = string.len();
+        
+        // Base score from size savings
+        let mut score = size_savings as f64;
+        
+        // Bonus for high frequency strings
+        if frequency > 10 {
+            score *= 1.5;
+        } else if frequency > 5 {
+            score *= 1.2;
+        }
+        
+        // Bonus for longer strings (more compression potential)
+        if string_len > 20 {
+            score *= 1.3;
+        } else if string_len > 10 {
+            score *= 1.1;
+        }
+        
+        // Bonus for common patterns (type names, function names)
+        if self.is_likely_type_name(string) {
+            score *= 1.4; // Type names are often repeated
+        } else if self.is_likely_function_name(string) {
+            score *= 1.2; // Function names are moderately repeated
+        }
+        
+        // Penalty for very short strings (overhead might not be worth it)
+        if string_len < 4 {
+            score *= 0.5;
+        }
+        
+        score
+    }
+
+    /// Heuristic to detect if a string is likely a type name
+    fn is_likely_type_name(&self, s: &str) -> bool {
+        // Common Rust type patterns
+        s.contains('<') && s.contains('>') || // Generic types like Vec<T>
+        s.starts_with("std::") ||             // Standard library types
+        s.starts_with("alloc::") ||           // Allocator types
+        s.contains("::") ||                   // Module paths
+        s.ends_with("Error") ||               // Error types
+        s.ends_with("Result") ||              // Result types
+        s.starts_with("Box<") ||              // Box types
+        s.starts_with("Arc<") ||              // Arc types
+        s.starts_with("Rc<") ||               // Rc types
+        s.starts_with("Vec<") ||              // Vec types
+        s.starts_with("HashMap<") ||          // HashMap types
+        s.starts_with("BTreeMap<")            // BTreeMap types
+    }
+
+    /// Heuristic to detect if a string is likely a function name
+    fn is_likely_function_name(&self, s: &str) -> bool {
+        // Common function name patterns
+        s.contains("::") ||                   // Method calls
+        s == "main" ||                        // Main function
+        s.starts_with("std::") ||             // Standard library functions
+        s.starts_with("core::") ||            // Core library functions
+        s.contains("alloc") ||                // Allocation functions
+        s.contains("drop") ||                 // Drop functions
+        s.ends_with("_new") ||                // Constructor patterns
+        s.ends_with("_init") ||               // Initialization patterns
+        s.starts_with("_") ||                 // Internal functions
+        (s.len() > 3 && s.chars().all(|c| c.is_ascii_lowercase() || c == '_')) // snake_case
     }
 
     /// Get current frequency statistics

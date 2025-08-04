@@ -560,9 +560,9 @@ impl BinaryWriter {
                 if let Some(ref string_table) = self.string_table {
                     // Try to find string in table
                     if let Some(index) = self.find_string_index(s) {
-                        // Write as string table reference: 0xFFFF followed by index
+                        // Write as string table reference: 0xFFFF followed by compressed index
                         self.writer.write_all(&0xFFFFu32.to_le_bytes())?;
-                        self.writer.write_all(&index.to_le_bytes())?;
+                        string_table.write_compressed_index(&mut self.writer, index)?;
                     } else {
                         // Write as inline string
                         self.write_inline_string(s)?;
@@ -585,9 +585,9 @@ impl BinaryWriter {
         if let Some(ref string_table) = self.string_table {
             // Try to find string in table
             if let Some(index) = self.find_string_index(s) {
-                // Write as string table reference: 0xFFFF followed by index
+                // Write as string table reference: 0xFFFF followed by compressed index
                 self.writer.write_all(&0xFFFFu32.to_le_bytes())?;
-                self.writer.write_all(&index.to_le_bytes())?;
+                string_table.write_compressed_index(&mut self.writer, index)?;
             } else {
                 // Write as inline string
                 self.write_inline_string(s)?;

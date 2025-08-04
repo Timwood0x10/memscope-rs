@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::ffi::CString;
 use std::future::Future;
 use std::hash::RandomState;
+use std::f64::consts::PI;
 use std::os::raw::{c_char, c_int, c_void};
 use std::pin::Pin;
 use std::ptr;
@@ -459,7 +460,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..500 {
         let key = format!("metric_{}_{}", i / 100, i % 100);
         let values: Vec<f64> = (0..100)
-            .map(|j| (i as f64 * 3.14159 + j as f64).sin())
+            .map(|j| (i as f64 * PI + j as f64).sin())
             .collect();
         performance_map.insert(key, values);
     }

@@ -2,6 +2,7 @@
 
 use memscope_rs::{get_global_tracker, init};
 use std::collections::HashMap;
+use std::f32::consts::PI;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize memory tracking
@@ -48,7 +49,7 @@ fn create_test_allocations() {
     let _map2: HashMap<String, i32> = HashMap::with_capacity(50);
 
     // Create Box allocations
-    let _box1 = Box::new(3.14);
+    let _box1 = Box::new(PI);
     let _box2 = Box::new(2.71);
 
     println!("   Created various allocations for type analysis");

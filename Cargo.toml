@@ -27,6 +27,7 @@ num_cpus = "1.16"
 libc = "0.2"
 flate2 = "1.0"
 regex = "1.10"
+rand = "0.8"
 memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0"}
 
 

@@ -9,6 +9,7 @@
 mod config;
 mod error;
 mod format;
+
 mod memory_layout_serialization;
 mod parser;
 #[cfg(test)]

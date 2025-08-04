@@ -85,6 +85,9 @@ impl BinaryReader {
         let table_size = primitives::read_u32(&mut self.reader)?;
 
         if &marker == b"STBL" && table_size > 0 {
+            // Read compression flag (new format)
+            let use_compressed_indices = primitives::read_u8(&mut self.reader)? != 0;
+            
             // Read string table
             let string_count = primitives::read_u32(&mut self.reader)? as usize;
             let mut strings = Vec::with_capacity(string_count);
@@ -94,8 +97,8 @@ impl BinaryReader {
                 strings.push(string);
             }
 
-            // Create string table from read strings
-            let mut string_table = StringTable::new();
+            // Create string table from read strings with compression setting
+            let mut string_table = StringTable::with_compression(use_compressed_indices);
             for string in strings {
                 string_table.add_string(&string)?;
             }
