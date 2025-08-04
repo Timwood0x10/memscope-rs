@@ -525,26 +525,18 @@ fn write_json_optimized<P: AsRef<Path>>(
         .use_compact_format
         .unwrap_or(estimated_size > 1_000_000); // Use compact for files > 1MB
 
-    // Use streaming writer for large files or when explicitly enabled
-    // TODO: Fix streaming writer implementation
-    if false && options.use_streaming_writer && estimated_size > 500_000 {
-        let _file = File::create(path)?;
-        // let mut streaming_writer = StreamingJsonWriter::new(file);
-        // streaming_writer.write_complete_json(data)?;
-        // streaming_writer.finalize()?;
+    // Create file and buffered writer
+    let file = File::create(path)?;
+    let mut writer = BufWriter::with_capacity(options.buffer_size, file);
+
+    // Choose serialization format based on compact setting
+    if use_compact {
+        serde_json::to_writer(&mut writer, data)?;
     } else {
-        // Use traditional buffered writer for smaller files
-        let file = File::create(path)?;
-        let mut writer = BufWriter::with_capacity(options.buffer_size, file);
-
-        if use_compact {
-            serde_json::to_writer(&mut writer, data)?;
-        } else {
-            serde_json::to_writer_pretty(&mut writer, data)?;
-        }
-
-        writer.flush()?;
+        serde_json::to_writer_pretty(&mut writer, data)?;
     }
+
+    writer.flush()?;
 
     Ok(())
 }
