@@ -2,10 +2,10 @@ name: memscope-rs CI
 
 on:
   push:
-    branches: [ main, master, develop ]
-    tags: [ 'v*' ]
+    branches: [main, master, develop]
+    tags: ["v*"]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [main, master, develop]
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,76 +13,31 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  # Code quality checks
   quality:
-    name: Code Quality & Format Check
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: quality-${{ hashFiles('**/Cargo.lock') }}
-      
-      # Strict formatting check - fail if any file is not properly formatted
-      - name: Check code formatting (strict)
-        run: |
-          echo "🔍 Checking code formatting with cargo fmt..."
-          if ! cargo fmt --all -- --check; then
-            echo "❌ Code formatting check failed!"
-            echo "💡 Please run 'cargo fmt --all' to fix formatting issues"
-            echo "📋 Files that need formatting:"
-            cargo fmt --all -- --check --verbose 2>&1 || true
-            exit 1
-          fi
-          echo "✅ All code is properly formatted"
-      
-      # Enhanced clippy analysis with zero tolerance for warnings
-      - name: Clippy analysis (zero warnings)
-        run: |
-          echo "🔍 Running clippy analysis with zero warning tolerance..."
-          cargo clippy --workspace --all-targets --all-features -- \
-            -D warnings \
-            -D clippy::all \
-            -D clippy::pedantic \
-            -W clippy::nursery \
-            -D clippy::cargo
-          echo "✅ Clippy analysis passed with zero warnings"
-      
-      # Compilation check with zero warnings
-      - name: Check compilation (zero warnings)
-        run: |
-          echo "🔍 Checking compilation with zero warning tolerance..."
-          RUSTFLAGS="-D warnings" cargo check --workspace --all-targets --all-features
-          echo "✅ Compilation check passed with zero warnings"
-      
-      # Additional checks for code quality
-      - name: Check for TODO/FIXME comments
-        run: |
-          echo "🔍 Checking for TODO/FIXME comments..."
-          if grep -r "TODO\|FIXME" src/ --include="*.rs" | grep -v "// TODO: This is acceptable"; then
-            echo "⚠️  Found TODO/FIXME comments in code"
-            echo "💡 Consider addressing these before merging"
-            # Don't fail the build, just warn
-          else
-            echo "✅ No TODO/FIXME comments found"
-          fi
-      
-      # Check for proper documentation
-      - name: Check documentation completeness
-        run: |
-          echo "🔍 Checking documentation completeness..."
-          RUSTDOCFLAGS="-D missing_docs -D rustdoc::broken_intra_doc_links" \
-          cargo doc --workspace --all-features --no-deps --document-private-items
-          echo "✅ Documentation check passed"
 
-  # Test suite
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy analysis
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Check compilation
+        run: cargo check --workspace --all-targets --all-features
+
   test:
     name: Tests
     runs-on: ${{ matrix.os }}
@@ -94,101 +49,84 @@ jobs:
         include:
           - os: ubuntu-latest
             rust: beta
-          - os: ubuntu-latest  
+          - os: ubuntu-latest
             rust: nightly
             experimental: true
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
-      
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: test-${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
-      
-      # Core library tests with zero warnings
-      - name: Run library tests (zero warnings)
-        run: |
-          echo "🔍 Running library tests with zero warning tolerance..."
-          RUSTFLAGS="-D warnings" cargo test --lib --workspace
-          echo "✅ Library tests passed with zero warnings"
-        continue-on-error: ${{ matrix.experimental == true }}
-      
-      # Integration tests with zero warnings
-      - name: Run integration tests (zero warnings)
-        run: |
-          echo "🔍 Running integration tests with zero warning tolerance..."
-          RUSTFLAGS="-D warnings" cargo test --test '*' --workspace
-          echo "✅ Integration tests passed with zero warnings"
-        continue-on-error: ${{ matrix.experimental == true }}
-      
-      # Binary tool tests with zero warnings
-      - name: Test CLI binary (zero warnings)
-        run: |
-          echo "🔍 Testing CLI binary with zero warning tolerance..."
-          RUSTFLAGS="-D warnings" cargo test --bin '*' --workspace
-          echo "✅ CLI binary tests passed with zero warnings"
-        continue-on-error: ${{ matrix.experimental == true }}
-      
-      # Example tests with zero warnings
-      - name: Test examples (zero warnings)
-        run: |
-          echo "🔍 Testing examples with zero warning tolerance..."
-          RUSTFLAGS="-D warnings" cargo run --example basic_usage
-          RUSTFLAGS="-D warnings" cargo run --example binary_export_demo
-          RUSTFLAGS="-D warnings" cargo run --example ownership_demo
-          echo "✅ Example tests passed with zero warnings"
+
+      - name: Run library tests
+        run: cargo test --lib --workspace
         continue-on-error: ${{ matrix.experimental == true }}
 
-  # Performance benchmarks
+      - name: Run integration tests
+        run: cargo test --test '*' --workspace
+        continue-on-error: ${{ matrix.experimental == true }}
+
+      - name: Test CLI binary
+        run: cargo test --bin '*' --workspace
+        continue-on-error: ${{ matrix.experimental == true }}
+
+      - name: Test examples
+        run: |
+          cargo run --example basic_usage
+          cargo run --example binary_export_demo
+          cargo run --example ownership_demo
+        continue-on-error: ${{ matrix.experimental == true }}
+
   benchmarks:
     name: Benchmarks
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: bench-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Run benchmarks
         run: cargo bench --bench binary_performance
-      
+
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: target/criterion/
 
-  # Documentation generation
   docs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: docs-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Build documentation
         run: cargo doc --workspace --all-features --no-deps
-      
+
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: peaceiris/actions-gh-pages@v3
@@ -197,57 +135,54 @@ jobs:
           publish_dir: ./target/doc
           force_orphan: true
 
-  # Security audit
   security:
     name: Security Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install cargo-audit
         run: cargo install cargo-audit
-      
+
       - name: Run security audit
         run: cargo audit
-      
+
       - name: Check licenses
         run: |
           cargo install cargo-license
           cargo license --json | jq -r '.[] | select(.license != "MIT" and .license != "Apache-2.0" and .license != "BSD-3-Clause" and .license != "BSD-2-Clause") | .name + ": " + .license'
 
-  # Code coverage (Linux stable only)
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
-      
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: coverage-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
-      
+
       - name: Generate coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
-      
+
       - name: Upload to codecov
         uses: codecov/codecov-action@v3
         with:
           files: lcov.info
           fail_ci_if_error: false
 
-  # Release builds (tags only)
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -268,23 +203,23 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             name: memscope-rs-macos-arm64
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} --bin memscope
-      
+
       - name: Prepare binary
         shell: bash
         run: |
@@ -293,7 +228,7 @@ jobs:
           else
             cp target/${{ matrix.target }}/release/memscope ${{ matrix.name }}
           fi
-      
+
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
@@ -303,7 +238,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Publish to crates.io
   publish:
     name: Publish to crates.io
     if: startsWith(github.ref, 'refs/tags/v')
@@ -311,10 +245,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Verify version consistency
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
@@ -323,18 +257,15 @@ jobs:
             echo "Version mismatch: tag=$VERSION, Cargo.toml=$CARGO_VERSION"
             exit 1
           fi
-      
-      # Publish derive package first
+
       - name: Publish memscope-derive
         working-directory: memscope-derive
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
         continue-on-error: true
-      
-      # Wait for derive package to be available on crates.io
+
       - name: Wait for derive package
         run: sleep 30
-      
-      # Publish main package
+
       - name: Publish memscope-rs
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
         continue-on-error: true

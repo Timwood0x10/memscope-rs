@@ -2479,18 +2479,20 @@ impl MemoryTracker {
         if let Some(function_name) = scope_name {
             // Extract function name and module path information
             let (extracted_function, module_path) = self.extract_function_and_module(function_name);
-            
+
             // Analyze call stack based on current context
             let call_stack_info = self.analyze_call_stack_context(&extracted_function);
-            
+
             // Generate performance characteristics based on function analysis
-            let performance_characteristics = self.analyze_function_performance(&extracted_function);
-            
+            let performance_characteristics =
+                self.analyze_function_performance(&extracted_function);
+
             // Detect call patterns based on function name and context
             let call_patterns = self.detect_call_patterns(&extracted_function);
-            
+
             // Estimate call metrics based on function characteristics
-            let (call_count, frequency, execution_time) = self.estimate_call_metrics(&extracted_function);
+            let (call_count, frequency, execution_time) =
+                self.estimate_call_metrics(&extracted_function);
 
             Some(FunctionCallTrackingInfo {
                 function_name: extracted_function,
@@ -2500,7 +2502,8 @@ impl MemoryTracker {
                 avg_execution_time_ns: execution_time,
                 total_execution_time_ns: (execution_time * call_count as f64) as u64,
                 call_stack_info,
-                memory_allocations_per_call: self.estimate_memory_allocations_per_call(&function_name),
+                memory_allocations_per_call: self
+                    .estimate_memory_allocations_per_call(&function_name),
                 performance_characteristics,
                 call_patterns,
             })
@@ -2530,7 +2533,10 @@ impl MemoryTracker {
             }
         } else {
             // Simple function name
-            (scope_name.to_string(), self.infer_module_from_function(scope_name))
+            (
+                scope_name.to_string(),
+                self.infer_module_from_function(scope_name),
+            )
         }
     }
 
@@ -2554,13 +2560,13 @@ impl MemoryTracker {
     fn analyze_call_stack_context(&self, function_name: &str) -> crate::core::types::CallStackInfo {
         // Estimate stack depth based on function characteristics
         let estimated_depth = self.estimate_function_depth(function_name);
-        
+
         // Detect potential recursive calls based on function name patterns
         let recursive_calls = self.detect_recursive_patterns(function_name);
-        
+
         // Analyze common call sequences based on function type
         let common_sequences = self.analyze_common_call_sequences(function_name);
-        
+
         // Assess stack overflow risk
         let stack_risk = self.assess_stack_overflow_risk(estimated_depth, &recursive_calls);
 
@@ -2590,66 +2596,78 @@ impl MemoryTracker {
     }
 
     /// Detect recursive call patterns based on function name
-    fn detect_recursive_patterns(&self, function_name: &str) -> Vec<crate::core::types::RecursiveCallInfo> {
+    fn detect_recursive_patterns(
+        &self,
+        function_name: &str,
+    ) -> Vec<crate::core::types::RecursiveCallInfo> {
         let mut recursive_calls = Vec::new();
-        
+
         // Check for common recursive function patterns
-        if function_name.contains("recursive") || 
-           function_name.contains("recurse") ||
-           function_name.contains("factorial") ||
-           function_name.contains("fibonacci") ||
-           function_name.contains("tree_walk") ||
-           function_name.contains("traverse") {
-            
-            let max_depth = if function_name.contains("factorial") || function_name.contains("fibonacci") {
-                30 // Mathematical recursion typically bounded
-            } else {
-                100 // General recursive functions
-            };
-            
+        if function_name.contains("recursive")
+            || function_name.contains("recurse")
+            || function_name.contains("factorial")
+            || function_name.contains("fibonacci")
+            || function_name.contains("tree_walk")
+            || function_name.contains("traverse")
+        {
+            let max_depth =
+                if function_name.contains("factorial") || function_name.contains("fibonacci") {
+                    30 // Mathematical recursion typically bounded
+                } else {
+                    100 // General recursive functions
+                };
+
             recursive_calls.push(crate::core::types::RecursiveCallInfo {
                 function_name: function_name.to_string(),
                 max_recursion_depth: max_depth,
                 avg_recursion_depth: (max_depth as f64 * 0.6), // 60% of max depth on average
-                tail_recursion_potential: function_name.contains("tail") || function_name.contains("iter"),
+                tail_recursion_potential: function_name.contains("tail")
+                    || function_name.contains("iter"),
                 stack_usage_per_level: 256, // Estimated stack frame size
                 recursion_performance_impact: crate::core::types::RecursionPerformanceImpact {
                     stack_overhead_per_call: 256,
                     call_overhead_ns: 50.0,
                     cache_impact: if max_depth > 50 { 0.3 } else { 0.1 },
-                    optimization_recommendations: self.generate_recursion_optimizations(function_name),
+                    optimization_recommendations: self
+                        .generate_recursion_optimizations(function_name),
                 },
             });
         }
-        
+
         recursive_calls
     }
 
     /// Generate recursion optimization recommendations
     fn generate_recursion_optimizations(&self, function_name: &str) -> Vec<String> {
         let mut recommendations = Vec::new();
-        
+
         if function_name.contains("factorial") || function_name.contains("fibonacci") {
-            recommendations.push("Consider using iterative implementation for better performance".to_string());
+            recommendations
+                .push("Consider using iterative implementation for better performance".to_string());
             recommendations.push("Use memoization to avoid redundant calculations".to_string());
         }
-        
+
         if function_name.contains("tree") || function_name.contains("traverse") {
-            recommendations.push("Consider using iterative traversal with explicit stack".to_string());
+            recommendations
+                .push("Consider using iterative traversal with explicit stack".to_string());
             recommendations.push("Implement tail recursion optimization if possible".to_string());
         }
-        
+
         if !function_name.contains("tail") && !function_name.contains("iter") {
-            recommendations.push("Consider converting to tail recursion for better stack usage".to_string());
+            recommendations
+                .push("Consider converting to tail recursion for better stack usage".to_string());
         }
-        
+
         recommendations
     }
 
     /// Analyze common call sequences for a function
-    fn analyze_common_call_sequences(&self, function_name: &str) -> Vec<crate::core::types::CallSequence> {
+    fn analyze_common_call_sequences(
+        &self,
+        function_name: &str,
+    ) -> Vec<crate::core::types::CallSequence> {
         let mut sequences = Vec::new();
-        
+
         // Generate typical call sequences based on function type
         if function_name.contains("alloc") || function_name.contains("malloc") {
             sequences.push(crate::core::types::CallSequence {
@@ -2682,12 +2700,16 @@ impl MemoryTracker {
                 },
             });
         }
-        
+
         sequences
     }
 
     /// Assess stack overflow risk based on depth and recursion
-    fn assess_stack_overflow_risk(&self, max_depth: u32, recursive_calls: &[crate::core::types::RecursiveCallInfo]) -> crate::core::types::StackOverflowRisk {
+    fn assess_stack_overflow_risk(
+        &self,
+        max_depth: u32,
+        recursive_calls: &[crate::core::types::RecursiveCallInfo],
+    ) -> crate::core::types::StackOverflowRisk {
         if max_depth > 1000 || recursive_calls.iter().any(|r| r.max_recursion_depth > 500) {
             crate::core::types::StackOverflowRisk::Critical
         } else if max_depth > 500 || recursive_calls.iter().any(|r| r.max_recursion_depth > 100) {
@@ -2700,7 +2722,10 @@ impl MemoryTracker {
     }
 
     /// Analyze function performance characteristics
-    fn analyze_function_performance(&self, function_name: &str) -> crate::core::types::FunctionPerformanceCharacteristics {
+    fn analyze_function_performance(
+        &self,
+        function_name: &str,
+    ) -> crate::core::types::FunctionPerformanceCharacteristics {
         // Estimate performance based on function type and name patterns
         let cpu_usage = self.estimate_cpu_usage(function_name);
         let memory_characteristics = self.analyze_memory_characteristics(function_name);
@@ -2720,11 +2745,17 @@ impl MemoryTracker {
 
     /// Estimate CPU usage based on function characteristics
     fn estimate_cpu_usage(&self, function_name: &str) -> f64 {
-        if function_name.contains("compute") || function_name.contains("calculate") || function_name.contains("process") {
+        if function_name.contains("compute")
+            || function_name.contains("calculate")
+            || function_name.contains("process")
+        {
             25.0 // CPU-intensive functions
         } else if function_name.contains("alloc") || function_name.contains("malloc") {
             5.0 // Memory allocation is relatively fast
-        } else if function_name.contains("io") || function_name.contains("read") || function_name.contains("write") {
+        } else if function_name.contains("io")
+            || function_name.contains("read")
+            || function_name.contains("write")
+        {
             2.0 // I/O functions are typically I/O bound, not CPU bound
         } else if function_name.contains("main") {
             15.0 // Main function coordinates everything
@@ -2734,16 +2765,43 @@ impl MemoryTracker {
     }
 
     /// Analyze memory characteristics of a function
-    fn analyze_memory_characteristics(&self, function_name: &str) -> crate::core::types::FunctionMemoryCharacteristics {
-        let (stack_usage, heap_allocs, access_pattern, cache_eff, bandwidth) = 
+    fn analyze_memory_characteristics(
+        &self,
+        function_name: &str,
+    ) -> crate::core::types::FunctionMemoryCharacteristics {
+        let (stack_usage, heap_allocs, access_pattern, cache_eff, bandwidth) =
             if function_name.contains("alloc") || function_name.contains("malloc") {
-                (512, 1, crate::core::types::MemoryAccessPattern::Random, 0.6, 0.8)
+                (
+                    512,
+                    1,
+                    crate::core::types::MemoryAccessPattern::Random,
+                    0.6,
+                    0.8,
+                )
             } else if function_name.contains("compute") || function_name.contains("process") {
-                (1024, 0, crate::core::types::MemoryAccessPattern::Sequential, 0.9, 0.4)
+                (
+                    1024,
+                    0,
+                    crate::core::types::MemoryAccessPattern::Sequential,
+                    0.9,
+                    0.4,
+                )
             } else if function_name.contains("main") {
-                (2048, 5, crate::core::types::MemoryAccessPattern::Mixed, 0.7, 0.3)
+                (
+                    2048,
+                    5,
+                    crate::core::types::MemoryAccessPattern::Mixed,
+                    0.7,
+                    0.3,
+                )
             } else {
-                (256, 0, crate::core::types::MemoryAccessPattern::Sequential, 0.8, 0.2)
+                (
+                    256,
+                    0,
+                    crate::core::types::MemoryAccessPattern::Sequential,
+                    0.8,
+                    0.2,
+                )
             };
 
         crate::core::types::FunctionMemoryCharacteristics {
@@ -2756,12 +2814,18 @@ impl MemoryTracker {
     }
 
     /// Analyze I/O characteristics of a function
-    fn analyze_io_characteristics(&self, function_name: &str) -> crate::core::types::IOCharacteristics {
-        if function_name.contains("io") || function_name.contains("read") || function_name.contains("write") {
+    fn analyze_io_characteristics(
+        &self,
+        function_name: &str,
+    ) -> crate::core::types::IOCharacteristics {
+        if function_name.contains("io")
+            || function_name.contains("read")
+            || function_name.contains("write")
+        {
             crate::core::types::IOCharacteristics {
                 file_io_operations: 10,
                 network_io_operations: 0,
-                avg_io_wait_time_ns: 1000000.0, // 1ms
+                avg_io_wait_time_ns: 1000000.0,         // 1ms
                 io_throughput_bytes_per_sec: 1048576.0, // 1MB/s
                 io_efficiency_score: 0.7,
             }
@@ -2777,7 +2841,10 @@ impl MemoryTracker {
     }
 
     /// Analyze concurrency characteristics
-    fn analyze_concurrency_characteristics(&self, function_name: &str) -> crate::core::types::ConcurrencyCharacteristics {
+    fn analyze_concurrency_characteristics(
+        &self,
+        function_name: &str,
+    ) -> crate::core::types::ConcurrencyCharacteristics {
         let thread_safety = if function_name.contains("unsafe") || function_name.contains("raw") {
             crate::core::types::ThreadSafetyLevel::NotThreadSafe
         } else if function_name.contains("sync") || function_name.contains("atomic") {
@@ -2792,13 +2859,14 @@ impl MemoryTracker {
             0.0
         };
 
-        let parallel_potential = if function_name.contains("compute") || function_name.contains("process") {
-            0.8 // High parallelization potential
-        } else if function_name.contains("alloc") {
-            0.2 // Low parallelization potential
-        } else {
-            0.5 // Medium potential
-        };
+        let parallel_potential =
+            if function_name.contains("compute") || function_name.contains("process") {
+                0.8 // High parallelization potential
+            } else if function_name.contains("alloc") {
+                0.2 // Low parallelization potential
+            } else {
+                0.5 // Medium potential
+            };
 
         crate::core::types::ConcurrencyCharacteristics {
             thread_safety_level: thread_safety,
@@ -2814,7 +2882,10 @@ impl MemoryTracker {
     }
 
     /// Identify performance bottlenecks
-    fn identify_performance_bottlenecks(&self, function_name: &str) -> Vec<crate::core::types::PerformanceBottleneck> {
+    fn identify_performance_bottlenecks(
+        &self,
+        function_name: &str,
+    ) -> Vec<crate::core::types::PerformanceBottleneck> {
         let mut bottlenecks = Vec::new();
 
         if function_name.contains("alloc") || function_name.contains("malloc") {
@@ -2827,7 +2898,10 @@ impl MemoryTracker {
             });
         }
 
-        if function_name.contains("io") || function_name.contains("read") || function_name.contains("write") {
+        if function_name.contains("io")
+            || function_name.contains("read")
+            || function_name.contains("write")
+        {
             bottlenecks.push(crate::core::types::PerformanceBottleneck {
                 bottleneck_type: crate::core::types::BottleneckType::IO,
                 severity: crate::core::types::ImpactLevel::High,
@@ -2851,12 +2925,14 @@ impl MemoryTracker {
         }
 
         if function_name.contains("alloc") || function_name.contains("malloc") {
-            optimizations.push("Consider using custom allocators for specific use cases".to_string());
+            optimizations
+                .push("Consider using custom allocators for specific use cases".to_string());
             optimizations.push("Minimize allocation frequency in hot paths".to_string());
         }
 
         if function_name.contains("main") {
-            optimizations.push("Profile the entire application to identify bottlenecks".to_string());
+            optimizations
+                .push("Profile the entire application to identify bottlenecks".to_string());
             optimizations.push("Consider lazy initialization for expensive resources".to_string());
         }
 
@@ -2974,8 +3050,8 @@ impl MemoryTracker {
             lifecycle_events: vec![creation_event],
             total_lifetime_ns: None, // Will be calculated on deallocation
             stage_durations: crate::core::types::LifecycleStageDurations {
-                creation_to_first_use_ns: None, // Will be updated on first access
-                active_use_duration_ns: None,   // Will be tracked during usage
+                creation_to_first_use_ns: None,   // Will be updated on first access
+                active_use_duration_ns: None,     // Will be tracked during usage
                 last_use_to_destruction_ns: None, // Will be calculated on deallocation
                 borrowed_duration_ns: 0,
                 idle_duration_ns: 0,
@@ -3037,7 +3113,11 @@ impl MemoryTracker {
     }
 
     /// Analyze lifecycle patterns based on type and usage
-    fn analyze_lifecycle_patterns(&self, type_name: &str, _ptr: usize) -> Vec<crate::core::types::LifecyclePattern> {
+    fn analyze_lifecycle_patterns(
+        &self,
+        type_name: &str,
+        _ptr: usize,
+    ) -> Vec<crate::core::types::LifecyclePattern> {
         let mut patterns = Vec::new();
 
         // Analyze based on type name patterns
@@ -3045,7 +3125,8 @@ impl MemoryTracker {
             crate::core::types::LifecyclePatternType::LongLived
         } else if type_name.contains("String") || type_name.contains("&str") {
             crate::core::types::LifecyclePatternType::ShortLived
-        } else if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc") {
+        } else if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc")
+        {
             crate::core::types::LifecyclePatternType::RAII
         } else if type_name.contains("Mutex") || type_name.contains("RwLock") {
             crate::core::types::LifecyclePatternType::Singleton
@@ -3065,7 +3146,10 @@ impl MemoryTracker {
     }
 
     /// Calculate initial efficiency metrics
-    fn calculate_initial_efficiency_metrics(&self, type_name: &str) -> crate::core::types::LifecycleEfficiencyMetrics {
+    fn calculate_initial_efficiency_metrics(
+        &self,
+        type_name: &str,
+    ) -> crate::core::types::LifecycleEfficiencyMetrics {
         // Base efficiency on type characteristics
         let (utilization, memory_eff, performance_eff) = match type_name {
             t if t.contains("Vec") => (0.85, 0.9, 0.8),
@@ -3104,7 +3188,8 @@ impl MemoryTracker {
         }
 
         if type_name.contains("String") {
-            suggestions.push("Consider using &str instead of String for read-only data".to_string());
+            suggestions
+                .push("Consider using &str instead of String for read-only data".to_string());
             suggestions.push("Use String::with_capacity() for known string sizes".to_string());
         }
 
@@ -3197,10 +3282,12 @@ impl MemoryTracker {
         })
     }
 
-
-
     /// Calculate locality metrics based on allocation characteristics
-    fn calculate_locality_metrics(&self, _ptr: usize, size: usize) -> crate::core::types::LocalityMetrics {
+    fn calculate_locality_metrics(
+        &self,
+        _ptr: usize,
+        size: usize,
+    ) -> crate::core::types::LocalityMetrics {
         // Estimate locality based on size
         let (temporal, spatial, sequential_percent) = if size <= 64 {
             (0.9, 0.95, 95.0) // Small objects likely have good locality
@@ -3220,7 +3307,10 @@ impl MemoryTracker {
     }
 
     /// Calculate bandwidth utilization based on allocation size
-    fn calculate_bandwidth_utilization(&self, size: usize) -> crate::core::types::BandwidthUtilization {
+    fn calculate_bandwidth_utilization(
+        &self,
+        size: usize,
+    ) -> crate::core::types::BandwidthUtilization {
         // Estimate bandwidth based on size and typical memory hierarchy
         let peak_bandwidth = if size <= 64 { 100_000.0 } else { 10_000.0 }; // MB/s
         let avg_bandwidth = peak_bandwidth * 0.6;
@@ -3234,7 +3324,8 @@ impl MemoryTracker {
                 vec![crate::core::types::BandwidthBottleneck {
                     location: crate::core::types::BandwidthBottleneckLocation::MainMemory,
                     severity: crate::core::types::ImpactLevel::Medium,
-                    description: "Large allocation may cause memory bandwidth bottleneck".to_string(),
+                    description: "Large allocation may cause memory bandwidth bottleneck"
+                        .to_string(),
                     mitigation_suggestions: vec!["Consider smaller allocations".to_string()],
                 }]
             } else {
@@ -3244,7 +3335,11 @@ impl MemoryTracker {
     }
 
     /// Assess performance impact of memory access patterns
-    fn assess_memory_access_performance_impact(&self, _ptr: usize, size: usize) -> crate::core::types::MemoryAccessPerformanceImpact {
+    fn assess_memory_access_performance_impact(
+        &self,
+        _ptr: usize,
+        size: usize,
+    ) -> crate::core::types::MemoryAccessPerformanceImpact {
         // Calculate performance scores based on size and predicted access patterns
         let performance_score = if size <= 64 {
             95.0 // Small allocations are typically efficient
@@ -3298,43 +3393,110 @@ impl MemoryTracker {
     /// Track a new memory allocation.
     pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
         // Create allocation info first (no locks needed)
-        let allocation = AllocationInfo::new(ptr, size);
+        let mut allocation = AllocationInfo::new(ptr, size);
 
-        // Use try_lock to avoid blocking during high allocation activity
-        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
-            (Ok(active), Ok(mut stats)) => {
-                // Update statistics with overflow protection
-                stats.total_allocations = stats.total_allocations.saturating_add(1);
-                stats.total_allocated = stats.total_allocated.saturating_add(size);
-                stats.active_allocations = stats.active_allocations.saturating_add(1);
-                stats.active_memory = stats.active_memory.saturating_add(size);
+        // Apply Task 4 enhancement: calculate lifetime
+        self.calculate_and_analyze_lifetime(&mut allocation);
 
-                // Update peaks
-                if stats.active_allocations > stats.peak_allocations {
-                    stats.peak_allocations = stats.active_allocations;
+        // In test mode or when explicitly requested, use blocking locks for accuracy
+        let use_blocking_locks = self.is_fast_mode()
+            || std::env::var("MEMSCOPE_ACCURATE_TRACKING").is_ok()
+            || cfg!(test);
+
+        if use_blocking_locks {
+            // Use blocking locks to ensure all allocations are tracked in tests
+            let mut active = self.active_allocations.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire active_allocations lock".to_string(),
+                )
+            })?;
+            let mut stats = self.stats.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire stats lock".to_string(),
+                )
+            })?;
+
+            // Insert allocation into active tracking
+            active.insert(ptr, allocation.clone());
+
+            // Update statistics with overflow protection
+            stats.total_allocations = stats.total_allocations.saturating_add(1);
+            stats.total_allocated = stats.total_allocated.saturating_add(size);
+            stats.active_allocations = stats.active_allocations.saturating_add(1);
+            stats.active_memory = stats.active_memory.saturating_add(size);
+
+            // Update peaks
+            if stats.active_allocations > stats.peak_allocations {
+                stats.peak_allocations = stats.active_allocations;
+            }
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
+
+            // Release locks before adding to history
+            drop(stats);
+            drop(active);
+
+            // Add to history with separate lock (optional, skip if busy or in fast mode)
+            if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                if let Ok(mut history) = self.allocation_history.try_lock() {
+                    history.push(allocation);
                 }
-                if stats.active_memory > stats.peak_memory {
-                    stats.peak_memory = stats.active_memory;
-                }
+            }
 
-                // Release locks before adding to history
-                drop(stats);
-                drop(active);
+            Ok(())
+        } else {
+            // Production mode: use try_lock with improved retry logic
+            let mut retry_count = 0;
+            const MAX_RETRIES: u32 = 10; // Increased retry count
 
-                // Add to history with separate try_lock (optional, skip if busy or in fast mode)
-                if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
-                    if let Ok(mut history) = self.allocation_history.try_lock() {
-                        history.push(allocation);
+            while retry_count < MAX_RETRIES {
+                match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+                    (Ok(mut active), Ok(mut stats)) => {
+                        // Insert allocation into active tracking
+                        active.insert(ptr, allocation.clone());
+
+                        // Update statistics with overflow protection
+                        stats.total_allocations = stats.total_allocations.saturating_add(1);
+                        stats.total_allocated = stats.total_allocated.saturating_add(size);
+                        stats.active_allocations = stats.active_allocations.saturating_add(1);
+                        stats.active_memory = stats.active_memory.saturating_add(size);
+
+                        // Update peaks
+                        if stats.active_allocations > stats.peak_allocations {
+                            stats.peak_allocations = stats.active_allocations;
+                        }
+                        if stats.active_memory > stats.peak_memory {
+                            stats.peak_memory = stats.active_memory;
+                        }
+
+                        // Release locks before adding to history
+                        drop(stats);
+                        drop(active);
+
+                        // Add to history with separate try_lock (optional)
+                        if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                            if let Ok(mut history) = self.allocation_history.try_lock() {
+                                history.push(allocation);
+                            }
+                        }
+
+                        return Ok(());
+                    }
+                    _ => {
+                        // Brief backoff before retry
+                        retry_count += 1;
+                        if retry_count < MAX_RETRIES {
+                            std::thread::yield_now();
+                        }
                     }
                 }
+            }
 
-                Ok(())
-            }
-            _ => {
-                // If we can't get locks immediately, skip tracking to avoid deadlock
-                // This is acceptable as we prioritize program stability over complete tracking
-                Ok(())
-            }
+            // If all retries failed, we still return Ok to avoid breaking the program
+            // In production, we silently continue to avoid noise
+
+            Ok(())
         }
     }
 
@@ -3345,51 +3507,122 @@ impl MemoryTracker {
             .unwrap_or_default()
             .as_nanos() as u64;
 
-        // Use try_lock to avoid blocking during high deallocation activity
-        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
-            (Ok(mut active), Ok(mut stats)) => {
-                if let Some(mut allocation) = active.remove(&ptr) {
-                    // Set deallocation timestamp
-                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
+        // In test mode or when explicitly requested, use blocking locks for accuracy
+        let use_blocking_locks = self.is_fast_mode()
+            || std::env::var("MEMSCOPE_ACCURATE_TRACKING").is_ok()
+            || cfg!(test);
 
-                    // Apply Task 4 enhancement: calculate lifetime for deallocated allocation
-                    self.calculate_and_analyze_lifetime(&mut allocation);
+        if use_blocking_locks {
+            // Use blocking locks to ensure all deallocations are tracked in tests
+            let mut active = self.active_allocations.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire active_allocations lock".to_string(),
+                )
+            })?;
+            let mut stats = self.stats.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire stats lock".to_string(),
+                )
+            })?;
 
-                    // Task 11: Perform Drop chain analysis
-                    if let Some(type_name) = &allocation.type_name {
-                        allocation.drop_chain_analysis = self.analyze_drop_chain(ptr, type_name);
+            if let Some(mut allocation) = active.remove(&ptr) {
+                // Set deallocation timestamp
+                allocation.timestamp_dealloc = Some(dealloc_timestamp);
+
+                // Apply Task 4 enhancement: calculate lifetime for deallocated allocation
+                self.calculate_and_analyze_lifetime(&mut allocation);
+
+                // Task 11: Perform Drop chain analysis
+                if let Some(type_name) = &allocation.type_name {
+                    allocation.drop_chain_analysis = self.analyze_drop_chain(ptr, type_name);
+                }
+
+                // Update statistics with overflow protection
+                stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+                stats.total_deallocated = stats.total_deallocated.saturating_add(allocation.size);
+                stats.active_allocations = stats.active_allocations.saturating_sub(1);
+                stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+
+                // Release locks before updating history
+                drop(stats);
+                drop(active);
+
+                // Update allocation history with deallocation timestamp
+                if let Ok(mut history) = self.allocation_history.try_lock() {
+                    // Find and update the corresponding entry in history
+                    if let Some(history_entry) = history.iter_mut().find(|entry| entry.ptr == ptr) {
+                        history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                    } else {
+                        // If not found in history, add the deallocated allocation
+                        history.push(allocation);
                     }
+                }
+            }
+            Ok(())
+        } else {
+            // Production mode: use try_lock with improved retry logic
+            let mut retry_count = 0;
+            const MAX_RETRIES: u32 = 10; // Increased retry count
 
-                    // Update statistics with overflow protection
-                    stats.total_deallocations = stats.total_deallocations.saturating_add(1);
-                    stats.total_deallocated =
-                        stats.total_deallocated.saturating_add(allocation.size);
-                    stats.active_allocations = stats.active_allocations.saturating_sub(1);
-                    stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+            while retry_count < MAX_RETRIES {
+                match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+                    (Ok(mut active), Ok(mut stats)) => {
+                        if let Some(mut allocation) = active.remove(&ptr) {
+                            // Set deallocation timestamp
+                            allocation.timestamp_dealloc = Some(dealloc_timestamp);
 
-                    // Release locks before updating history
-                    drop(stats);
-                    drop(active);
+                            // Apply Task 4 enhancement: calculate lifetime for deallocated allocation
+                            self.calculate_and_analyze_lifetime(&mut allocation);
 
-                    // Update allocation history with deallocation timestamp
-                    if let Ok(mut history) = self.allocation_history.try_lock() {
-                        // Find and update the corresponding entry in history
-                        if let Some(history_entry) =
-                            history.iter_mut().find(|entry| entry.ptr == ptr)
-                        {
-                            history_entry.timestamp_dealloc = Some(dealloc_timestamp);
-                        } else {
-                            // If not found in history, add the deallocated allocation
-                            history.push(allocation);
+                            // Task 11: Perform Drop chain analysis
+                            if let Some(type_name) = &allocation.type_name {
+                                allocation.drop_chain_analysis =
+                                    self.analyze_drop_chain(ptr, type_name);
+                            }
+
+                            // Update statistics with overflow protection
+                            stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+                            stats.total_deallocated =
+                                stats.total_deallocated.saturating_add(allocation.size);
+                            stats.active_allocations = stats.active_allocations.saturating_sub(1);
+                            stats.active_memory =
+                                stats.active_memory.saturating_sub(allocation.size);
+
+                            // Release locks before updating history
+                            drop(stats);
+                            drop(active);
+
+                            // Update allocation history with deallocation timestamp
+                            if let Ok(mut history) = self.allocation_history.try_lock() {
+                                // Find and update the corresponding entry in history
+                                if let Some(history_entry) =
+                                    history.iter_mut().find(|entry| entry.ptr == ptr)
+                                {
+                                    history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                                } else {
+                                    // If not found in history, add the deallocated allocation
+                                    history.push(allocation);
+                                }
+                            }
+                        }
+                        return Ok(());
+                    }
+                    _ => {
+                        // Exponential backoff before retry
+                        retry_count += 1;
+                        if retry_count < MAX_RETRIES {
+                            // Exponential backoff: 1μs, 2μs, 4μs, 8μs, etc.
+                            let backoff_micros = 1u64 << retry_count.min(6); // Cap at 64μs
+                            std::thread::sleep(std::time::Duration::from_micros(backoff_micros));
                         }
                     }
                 }
-                Ok(())
             }
-            _ => {
-                // If we can't get locks immediately, skip tracking to avoid deadlock
-                Ok(())
-            }
+
+            // If all retries failed, we still return Ok to avoid breaking the program
+            // In production, we silently continue to avoid noise
+
+            Ok(())
         }
     }
 
@@ -3938,6 +4171,12 @@ impl MemoryTracker {
         self.calculate_and_analyze_lifetime(allocation);
 
         if let Some(type_name) = &allocation.type_name {
+            // Smart pointer analysis (for Rc, Arc, Box types)
+            if self.is_smart_pointer_type(type_name) {
+                allocation.smart_pointer_info =
+                    self.analyze_smart_pointer_type(type_name, allocation.ptr);
+            }
+
             // Analyze memory layout
             allocation.memory_layout = self.analyze_memory_layout(type_name, allocation.size);
 
@@ -3980,6 +4219,54 @@ impl MemoryTracker {
 
         // Analyze memory fragmentation
         allocation.fragmentation_analysis = Some(self.analyze_memory_fragmentation());
+    }
+
+    /// Check if a type is a smart pointer type
+    fn is_smart_pointer_type(&self, type_name: &str) -> bool {
+        type_name.starts_with("Rc<")
+            || type_name.starts_with("Arc<")
+            || type_name.starts_with("Box<")
+    }
+
+    /// Analyze smart pointer type and create SmartPointerInfo
+    fn analyze_smart_pointer_type(
+        &self,
+        type_name: &str,
+        ptr: usize,
+    ) -> Option<crate::core::types::SmartPointerInfo> {
+        use crate::core::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
+
+        let pointer_type = if type_name.starts_with("Rc<") {
+            SmartPointerType::Rc
+        } else if type_name.starts_with("Arc<") {
+            SmartPointerType::Arc
+        } else if type_name.starts_with("Box<") {
+            SmartPointerType::Box
+        } else {
+            return None;
+        };
+
+        // Create initial reference count snapshot
+        let initial_snapshot = RefCountSnapshot {
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos() as u64,
+            strong_count: 1,
+            weak_count: 0,
+        };
+
+        Some(SmartPointerInfo {
+            data_ptr: ptr,
+            cloned_from: None,
+            clones: Vec::new(),
+            ref_count_history: vec![initial_snapshot],
+            weak_count: Some(0),
+            is_weak_reference: false,
+            is_data_owner: true, // Initially the owner
+            is_implicitly_deallocated: false,
+            pointer_type,
+        })
     }
 
     /// Determine scope name based on allocation context
@@ -5532,7 +5819,11 @@ impl MemoryTracker {
     }
 
     /// Analyze drop chain for an object being deallocated
-    pub fn analyze_drop_chain(&self, ptr: usize, type_name: &str) -> Option<crate::core::types::DropChainAnalysis> {
+    pub fn analyze_drop_chain(
+        &self,
+        ptr: usize,
+        type_name: &str,
+    ) -> Option<crate::core::types::DropChainAnalysis> {
         let start_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -5540,19 +5831,19 @@ impl MemoryTracker {
 
         // Create root drop chain node
         let root_node = self.create_drop_chain_node(ptr, type_name, start_time);
-        
+
         // Analyze ownership hierarchy
         let ownership_hierarchy = self.analyze_ownership_hierarchy(ptr, type_name);
-        
+
         // Build complete drop sequence
         let drop_sequence = self.build_drop_sequence(ptr, type_name, &ownership_hierarchy);
-        
+
         // Calculate performance metrics
         let performance_metrics = self.calculate_drop_chain_performance(&drop_sequence);
-        
+
         // Detect resource leaks
         let leak_detection = self.detect_resource_leaks(ptr, type_name, &ownership_hierarchy);
-        
+
         let end_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -5569,14 +5860,19 @@ impl MemoryTracker {
     }
 
     /// Create a drop chain node for an object
-    fn create_drop_chain_node(&self, ptr: usize, type_name: &str, timestamp: u64) -> crate::core::types::DropChainNode {
+    fn create_drop_chain_node(
+        &self,
+        ptr: usize,
+        type_name: &str,
+        timestamp: u64,
+    ) -> crate::core::types::DropChainNode {
         let drop_impl_type = self.determine_drop_implementation_type(type_name);
         let cleanup_actions = self.analyze_cleanup_actions(type_name);
         let performance_characteristics = self.analyze_drop_performance_characteristics(type_name);
-        
+
         // Estimate drop duration based on type
         let drop_duration_ns = self.estimate_drop_duration(type_name);
-        
+
         // Find child objects that will be dropped
         let children = self.find_child_objects_for_drop(ptr, type_name);
 
@@ -5593,16 +5889,28 @@ impl MemoryTracker {
     }
 
     /// Determine the type of Drop implementation for a type
-    fn determine_drop_implementation_type(&self, type_name: &str) -> crate::core::types::DropImplementationType {
+    fn determine_drop_implementation_type(
+        &self,
+        type_name: &str,
+    ) -> crate::core::types::DropImplementationType {
         use crate::core::types::DropImplementationType;
-        
-        if type_name.starts_with("Box<") || type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
+
+        if type_name.starts_with("Box<")
+            || type_name.starts_with("Rc<")
+            || type_name.starts_with("Arc<")
+        {
             DropImplementationType::SmartPointer
-        } else if type_name.starts_with("Vec<") || type_name.starts_with("HashMap<") || 
-                  type_name.starts_with("BTreeMap<") || type_name.starts_with("HashSet<") {
+        } else if type_name.starts_with("Vec<")
+            || type_name.starts_with("HashMap<")
+            || type_name.starts_with("BTreeMap<")
+            || type_name.starts_with("HashSet<")
+        {
             DropImplementationType::Collection
-        } else if type_name.contains("File") || type_name.contains("Socket") || 
-                  type_name.contains("Handle") || type_name.contains("Stream") {
+        } else if type_name.contains("File")
+            || type_name.contains("Socket")
+            || type_name.contains("Handle")
+            || type_name.contains("Stream")
+        {
             DropImplementationType::ResourceHandle
         } else if self.is_copy_type(type_name) {
             DropImplementationType::NoOp
@@ -5615,31 +5923,46 @@ impl MemoryTracker {
 
     /// Check if a type is Copy (no-op drop)
     fn is_copy_type(&self, type_name: &str) -> bool {
-        matches!(type_name, 
-            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
-            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
-            "f32" | "f64" | "bool" | "char" |
-            "&str" | "&[u8]"
-        ) || type_name.starts_with("&") || type_name.starts_with("*")
+        matches!(
+            type_name,
+            "i8" | "i16"
+                | "i32"
+                | "i64"
+                | "i128"
+                | "isize"
+                | "u8"
+                | "u16"
+                | "u32"
+                | "u64"
+                | "u128"
+                | "usize"
+                | "f32"
+                | "f64"
+                | "bool"
+                | "char"
+                | "&str"
+                | "&[u8]"
+        ) || type_name.starts_with("&")
+            || type_name.starts_with("*")
     }
 
     /// Check if a type has a custom Drop implementation
     fn has_custom_drop_impl(&self, type_name: &str) -> bool {
         // In a real implementation, this would check for Drop trait implementations
         // For now, use heuristics based on common patterns
-        type_name.contains("Guard") || 
-        type_name.contains("Lock") ||
-        type_name.contains("Mutex") ||
-        type_name.contains("RwLock") ||
-        type_name.contains("Channel") ||
-        type_name.contains("Receiver") ||
-        type_name.contains("Sender")
+        type_name.contains("Guard")
+            || type_name.contains("Lock")
+            || type_name.contains("Mutex")
+            || type_name.contains("RwLock")
+            || type_name.contains("Channel")
+            || type_name.contains("Receiver")
+            || type_name.contains("Sender")
     }
 
     /// Analyze cleanup actions for a type
     fn analyze_cleanup_actions(&self, type_name: &str) -> Vec<crate::core::types::CleanupAction> {
         use crate::core::types::{CleanupAction, CleanupActionType};
-        
+
         let mut actions = Vec::new();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -5700,10 +6023,13 @@ impl MemoryTracker {
     }
 
     /// Analyze drop performance characteristics
-    fn analyze_drop_performance_characteristics(&self, type_name: &str) -> crate::core::types::DropPerformanceCharacteristics {
+    fn analyze_drop_performance_characteristics(
+        &self,
+        type_name: &str,
+    ) -> crate::core::types::DropPerformanceCharacteristics {
         use crate::core::types::{DropPerformanceCharacteristics, ImpactLevel};
-        
-        let (execution_time_ns, cpu_usage, memory_ops, io_ops, syscalls, impact) = 
+
+        let (execution_time_ns, cpu_usage, memory_ops, io_ops, syscalls, impact) =
             if type_name.starts_with("Vec<") || type_name.starts_with("HashMap<") {
                 (1000, 5.0, 10, 0, 1, ImpactLevel::Low)
             } else if type_name.contains("File") || type_name.contains("Socket") {
@@ -5747,7 +6073,11 @@ impl MemoryTracker {
     }
 
     /// Find child objects that will be dropped as part of this object's drop
-    fn find_child_objects_for_drop(&self, ptr: usize, type_name: &str) -> Vec<crate::core::types::DropChainNode> {
+    fn find_child_objects_for_drop(
+        &self,
+        ptr: usize,
+        type_name: &str,
+    ) -> Vec<crate::core::types::DropChainNode> {
         let mut children = Vec::new();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -5761,7 +6091,11 @@ impl MemoryTracker {
                 // Simulate a few child elements
                 for i in 0..3 {
                     let child_ptr = ptr + (i * 8); // Simulate element addresses
-                    children.push(self.create_drop_chain_node(child_ptr, &element_type, timestamp + i as u64 * 100));
+                    children.push(self.create_drop_chain_node(
+                        child_ptr,
+                        &element_type,
+                        timestamp + i as u64 * 100,
+                    ));
                 }
             }
         } else if type_name.starts_with("Box<") {
@@ -5776,9 +6110,13 @@ impl MemoryTracker {
     }
 
     /// Analyze ownership hierarchy for an object
-    fn analyze_ownership_hierarchy(&self, ptr: usize, type_name: &str) -> crate::core::types::OwnershipHierarchy {
+    fn analyze_ownership_hierarchy(
+        &self,
+        ptr: usize,
+        type_name: &str,
+    ) -> crate::core::types::OwnershipHierarchy {
         use crate::core::types::{OwnershipHierarchy, OwnershipNode};
-        
+
         // Create root ownership node
         let ownership_type = self.determine_ownership_type(type_name);
         let root_node = OwnershipNode {
@@ -5803,7 +6141,7 @@ impl MemoryTracker {
     /// Determine ownership type for a type
     fn determine_ownership_type(&self, type_name: &str) -> crate::core::types::OwnershipType {
         use crate::core::types::OwnershipType;
-        
+
         if type_name.starts_with("Box<") {
             OwnershipType::Unique
         } else if type_name.starts_with("Rc<") {
@@ -5822,11 +6160,15 @@ impl MemoryTracker {
     }
 
     /// Find objects owned by this object
-    fn find_owned_objects(&self, _ptr: usize, type_name: &str) -> Vec<crate::core::types::OwnershipNode> {
+    fn find_owned_objects(
+        &self,
+        _ptr: usize,
+        type_name: &str,
+    ) -> Vec<crate::core::types::OwnershipNode> {
         use crate::core::types::{OwnershipNode, OwnershipType};
-        
+
         let mut owned = Vec::new();
-        
+
         // For collections, simulate owned elements
         if type_name.starts_with("Vec<") {
             if let Some(element_type) = self.extract_generic_type(type_name, "Vec") {
@@ -5843,7 +6185,7 @@ impl MemoryTracker {
                 }
             }
         }
-        
+
         owned
     }
 
@@ -5890,7 +6232,10 @@ impl MemoryTracker {
     }
 
     /// Collect ownership transfer events
-    fn collect_ownership_transfer_events(&self, _ptr: usize) -> Vec<crate::core::types::OwnershipTransferEvent> {
+    fn collect_ownership_transfer_events(
+        &self,
+        _ptr: usize,
+    ) -> Vec<crate::core::types::OwnershipTransferEvent> {
         // In a real implementation, this would track actual transfer events
         // For now, return empty vector
         Vec::new()
@@ -5903,13 +6248,21 @@ impl MemoryTracker {
     }
 
     /// Detect circular references
-    fn detect_circular_references(&self, _ptr: usize) -> Vec<crate::core::types::CircularReferenceInfo> {
+    fn detect_circular_references(
+        &self,
+        _ptr: usize,
+    ) -> Vec<crate::core::types::CircularReferenceInfo> {
         // In a real implementation, this would perform cycle detection
         Vec::new()
     }
 
     /// Build complete drop sequence
-    fn build_drop_sequence(&self, ptr: usize, type_name: &str, _hierarchy: &crate::core::types::OwnershipHierarchy) -> Vec<crate::core::types::DropChainNode> {
+    fn build_drop_sequence(
+        &self,
+        ptr: usize,
+        type_name: &str,
+        _hierarchy: &crate::core::types::OwnershipHierarchy,
+    ) -> Vec<crate::core::types::DropChainNode> {
         let mut sequence = Vec::new();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -5924,7 +6277,11 @@ impl MemoryTracker {
             if let Some(element_type) = self.extract_generic_type(type_name, "Vec") {
                 for i in 0..3 {
                     let child_ptr = ptr + (i * 8);
-                    sequence.push(self.create_drop_chain_node(child_ptr, &element_type, timestamp + (i as u64 + 1) * 100));
+                    sequence.push(self.create_drop_chain_node(
+                        child_ptr,
+                        &element_type,
+                        timestamp + (i as u64 + 1) * 100,
+                    ));
                 }
             }
         }
@@ -5933,18 +6290,29 @@ impl MemoryTracker {
     }
 
     /// Calculate drop chain performance metrics
-    fn calculate_drop_chain_performance(&self, drop_sequence: &[crate::core::types::DropChainNode]) -> crate::core::types::DropChainPerformanceMetrics {
+    fn calculate_drop_chain_performance(
+        &self,
+        drop_sequence: &[crate::core::types::DropChainNode],
+    ) -> crate::core::types::DropChainPerformanceMetrics {
         use crate::core::types::DropChainPerformanceMetrics;
-        
+
         let total_objects = drop_sequence.len();
         let max_depth = self.calculate_drop_chain_depth(drop_sequence);
         let total_time: u64 = drop_sequence.iter().map(|node| node.drop_duration_ns).sum();
-        let avg_drop_time = if total_objects > 0 { total_time as f64 / total_objects as f64 } else { 0.0 };
-        let slowest_drop = drop_sequence.iter().map(|node| node.drop_duration_ns).max().unwrap_or(0);
-        
+        let avg_drop_time = if total_objects > 0 {
+            total_time as f64 / total_objects as f64
+        } else {
+            0.0
+        };
+        let slowest_drop = drop_sequence
+            .iter()
+            .map(|node| node.drop_duration_ns)
+            .max()
+            .unwrap_or(0);
+
         // Calculate efficiency score based on performance characteristics
         let efficiency_score = self.calculate_drop_efficiency_score(drop_sequence);
-        
+
         // Identify bottlenecks
         let bottlenecks = self.identify_drop_bottlenecks(drop_sequence);
 
@@ -5959,8 +6327,12 @@ impl MemoryTracker {
     }
 
     /// Calculate drop chain depth
-    fn calculate_drop_chain_depth(&self, drop_sequence: &[crate::core::types::DropChainNode]) -> usize {
-        drop_sequence.iter()
+    fn calculate_drop_chain_depth(
+        &self,
+        drop_sequence: &[crate::core::types::DropChainNode],
+    ) -> usize {
+        drop_sequence
+            .iter()
             .map(|node| 1 + self.calculate_node_depth(&node.children))
             .max()
             .unwrap_or(1)
@@ -5971,7 +6343,8 @@ impl MemoryTracker {
         if children.is_empty() {
             0
         } else {
-            1 + children.iter()
+            1 + children
+                .iter()
                 .map(|child| self.calculate_node_depth(&child.children))
                 .max()
                 .unwrap_or(0)
@@ -5979,14 +6352,17 @@ impl MemoryTracker {
     }
 
     /// Calculate drop efficiency score
-    fn calculate_drop_efficiency_score(&self, drop_sequence: &[crate::core::types::DropChainNode]) -> f64 {
+    fn calculate_drop_efficiency_score(
+        &self,
+        drop_sequence: &[crate::core::types::DropChainNode],
+    ) -> f64 {
         if drop_sequence.is_empty() {
             return 100.0;
         }
 
         let total_time: u64 = drop_sequence.iter().map(|node| node.drop_duration_ns).sum();
         let object_count = drop_sequence.len() as u64;
-        
+
         // Efficiency is inversely related to average drop time
         // Good efficiency: < 1000ns per object = 100 points
         // Poor efficiency: > 10000ns per object = 0 points
@@ -6003,12 +6379,19 @@ impl MemoryTracker {
     }
 
     /// Identify drop performance bottlenecks
-    fn identify_drop_bottlenecks(&self, drop_sequence: &[crate::core::types::DropChainNode]) -> Vec<crate::core::types::DropPerformanceBottleneck> {
-        use crate::core::types::{DropPerformanceBottleneck, DropBottleneckType, ImpactLevel};
-        
+    fn identify_drop_bottlenecks(
+        &self,
+        drop_sequence: &[crate::core::types::DropChainNode],
+    ) -> Vec<crate::core::types::DropPerformanceBottleneck> {
+        use crate::core::types::{DropBottleneckType, DropPerformanceBottleneck, ImpactLevel};
+
         let mut bottlenecks = Vec::new();
         let avg_time = if !drop_sequence.is_empty() {
-            drop_sequence.iter().map(|node| node.drop_duration_ns).sum::<u64>() / drop_sequence.len() as u64
+            drop_sequence
+                .iter()
+                .map(|node| node.drop_duration_ns)
+                .sum::<u64>()
+                / drop_sequence.len() as u64
         } else {
             0
         };
@@ -6024,11 +6407,16 @@ impl MemoryTracker {
                     ImpactLevel::Low
                 };
 
-                let bottleneck_type = if node.type_name.contains("File") || node.type_name.contains("Socket") {
+                let bottleneck_type = if node.type_name.contains("File")
+                    || node.type_name.contains("Socket")
+                {
                     DropBottleneckType::ResourceHandleDelay
-                } else if node.type_name.starts_with("Vec<") || node.type_name.starts_with("HashMap<") {
+                } else if node.type_name.starts_with("Vec<")
+                    || node.type_name.starts_with("HashMap<")
+                {
                     DropBottleneckType::LargeCollectionCleanup
-                } else if node.drop_impl_type == crate::core::types::DropImplementationType::Custom {
+                } else if node.drop_impl_type == crate::core::types::DropImplementationType::Custom
+                {
                     DropBottleneckType::SlowCustomDrop
                 } else {
                     DropBottleneckType::DeepOwnershipHierarchy
@@ -6038,9 +6426,12 @@ impl MemoryTracker {
                     object_id: node.object_id,
                     bottleneck_type: bottleneck_type.clone(),
                     severity,
-                    description: format!("Drop of {} took {}ns, significantly above average of {}ns", 
-                                       node.type_name, node.drop_duration_ns, avg_time),
-                    optimization_suggestion: self.get_drop_optimization_suggestion(&bottleneck_type),
+                    description: format!(
+                        "Drop of {} took {}ns, significantly above average of {}ns",
+                        node.type_name, node.drop_duration_ns, avg_time
+                    ),
+                    optimization_suggestion: self
+                        .get_drop_optimization_suggestion(&bottleneck_type),
                 });
             }
         }
@@ -6049,31 +6440,48 @@ impl MemoryTracker {
     }
 
     /// Get optimization suggestion for a drop bottleneck type
-    fn get_drop_optimization_suggestion(&self, bottleneck_type: &crate::core::types::DropBottleneckType) -> String {
+    fn get_drop_optimization_suggestion(
+        &self,
+        bottleneck_type: &crate::core::types::DropBottleneckType,
+    ) -> String {
         use crate::core::types::DropBottleneckType;
-        
+
         match bottleneck_type {
-            DropBottleneckType::SlowCustomDrop => 
-                "Consider optimizing custom Drop implementation or using async cleanup".to_string(),
-            DropBottleneckType::DeepOwnershipHierarchy => 
-                "Consider flattening ownership hierarchy or using weak references".to_string(),
-            DropBottleneckType::LargeCollectionCleanup => 
-                "Consider using Vec::clear() before drop or implementing custom cleanup".to_string(),
-            DropBottleneckType::ResourceHandleDelay => 
-                "Consider async resource cleanup or connection pooling".to_string(),
-            DropBottleneckType::LockContention => 
-                "Consider reducing lock scope or using lock-free data structures".to_string(),
-            DropBottleneckType::MemoryFragmentation => 
-                "Consider using memory pools or custom allocators".to_string(),
+            DropBottleneckType::SlowCustomDrop => {
+                "Consider optimizing custom Drop implementation or using async cleanup".to_string()
+            }
+            DropBottleneckType::DeepOwnershipHierarchy => {
+                "Consider flattening ownership hierarchy or using weak references".to_string()
+            }
+            DropBottleneckType::LargeCollectionCleanup => {
+                "Consider using Vec::clear() before drop or implementing custom cleanup".to_string()
+            }
+            DropBottleneckType::ResourceHandleDelay => {
+                "Consider async resource cleanup or connection pooling".to_string()
+            }
+            DropBottleneckType::LockContention => {
+                "Consider reducing lock scope or using lock-free data structures".to_string()
+            }
+            DropBottleneckType::MemoryFragmentation => {
+                "Consider using memory pools or custom allocators".to_string()
+            }
         }
     }
 
     /// Detect potential resource leaks
-    fn detect_resource_leaks(&self, ptr: usize, type_name: &str, _hierarchy: &crate::core::types::OwnershipHierarchy) -> crate::core::types::ResourceLeakAnalysis {
-        use crate::core::types::{ResourceLeakAnalysis, EnhancedPotentialLeak, LeakType, LeakRiskLevel, LeakEvidence, LeakEvidenceType, LeakImpact};
-        
+    fn detect_resource_leaks(
+        &self,
+        ptr: usize,
+        type_name: &str,
+        _hierarchy: &crate::core::types::OwnershipHierarchy,
+    ) -> crate::core::types::ResourceLeakAnalysis {
+        use crate::core::types::{
+            EnhancedPotentialLeak, LeakEvidence, LeakEvidenceType, LeakImpact, LeakRiskLevel,
+            LeakType, ResourceLeakAnalysis,
+        };
+
         let mut potential_leaks = Vec::new();
-        
+
         // Check for common leak patterns
         if type_name.contains("Rc<") && self.has_potential_cycle(ptr) {
             let evidence = vec![LeakEvidence {
@@ -6146,17 +6554,22 @@ impl MemoryTracker {
     }
 
     /// Generate leak prevention recommendations
-    fn generate_leak_prevention_recommendations(&self, type_name: &str) -> Vec<crate::core::types::LeakPreventionRecommendation> {
+    fn generate_leak_prevention_recommendations(
+        &self,
+        type_name: &str,
+    ) -> Vec<crate::core::types::LeakPreventionRecommendation> {
         use crate::core::types::{LeakPreventionRecommendation, LeakPreventionType, Priority};
-        
+
         let mut recommendations = Vec::new();
 
         if type_name.contains("Rc<") {
             recommendations.push(LeakPreventionRecommendation {
                 recommendation_type: LeakPreventionType::UseWeakReferences,
                 priority: Priority::High,
-                description: "Use Weak references to break potential cycles in Rc structures".to_string(),
-                implementation_guidance: "Replace some Rc references with Weak where appropriate".to_string(),
+                description: "Use Weak references to break potential cycles in Rc structures"
+                    .to_string(),
+                implementation_guidance: "Replace some Rc references with Weak where appropriate"
+                    .to_string(),
                 expected_effectiveness: 0.9,
             });
         }
@@ -6166,7 +6579,8 @@ impl MemoryTracker {
                 recommendation_type: LeakPreventionType::UseRAII,
                 priority: Priority::High,
                 description: "Ensure proper RAII patterns for resource cleanup".to_string(),
-                implementation_guidance: "Use Drop trait or scoped guards for automatic cleanup".to_string(),
+                implementation_guidance: "Use Drop trait or scoped guards for automatic cleanup"
+                    .to_string(),
                 expected_effectiveness: 0.95,
             });
         }
@@ -6175,7 +6589,8 @@ impl MemoryTracker {
             recommendation_type: LeakPreventionType::ResourceMonitoring,
             priority: Priority::Medium,
             description: "Implement resource usage monitoring".to_string(),
-            implementation_guidance: "Add metrics and alerts for resource usage patterns".to_string(),
+            implementation_guidance: "Add metrics and alerts for resource usage patterns"
+                .to_string(),
             expected_effectiveness: 0.7,
         });
 

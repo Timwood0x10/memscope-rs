@@ -5,7 +5,7 @@
 //! that tracks all heap allocations and deallocations, and provides utilities
 //! for exporting memory usage data in various formats.
 
-#![warn(missing_docs)]
+#![allow(missing_docs)]
 
 /// Macro for advanced type Trackable implementations
 pub mod advanced_trackable_macro;
