@@ -22,6 +22,7 @@ mod writer;
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
+pub use format::{FileHeader, MAGIC_BYTES, FORMAT_VERSION};
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
 pub use writer::BinaryWriter;

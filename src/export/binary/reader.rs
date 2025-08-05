@@ -17,6 +17,7 @@ pub struct BinaryReader {
     reader: BufReader<File>,
     advanced_metrics: Option<AdvancedMetricsData>,
     string_table: Option<StringTable>,
+    file_version: Option<u32>,
 }
 
 /// Container for advanced metrics data read from binary file
@@ -44,6 +45,7 @@ impl BinaryReader {
             reader,
             advanced_metrics: None,
             string_table: None,
+            file_version: None,
         })
     }
 
@@ -68,6 +70,9 @@ impl BinaryReader {
         if !header.is_compatible_version() {
             return Err(BinaryExportError::UnsupportedVersion(header.version));
         }
+        
+        // Store version for version-specific handling
+        self.file_version = Some(header.get_version());
 
         // Read string table after header
         self.read_string_table()?;
@@ -117,6 +122,101 @@ impl BinaryReader {
 
     /// Read single allocation record from current position
     pub fn read_allocation(&mut self) -> Result<AllocationInfo, BinaryExportError> {
+        let file_version = self.file_version.unwrap_or(1);
+        
+        if file_version == 1 {
+            self.read_allocation_v1()
+        } else {
+            self.read_allocation_v2()
+        }
+    }
+    
+    /// Read allocation record for version 1 format (legacy - basic fields only)
+    fn read_allocation_v1(&mut self) -> Result<AllocationInfo, BinaryExportError> {
+        // Read Type (1 byte)
+        let mut type_byte = [0u8; 1];
+        self.reader.read_exact(&mut type_byte)?;
+
+        if type_byte[0] != ALLOCATION_RECORD_TYPE {
+            return Err(BinaryExportError::CorruptedData(format!(
+                "Invalid record type: {}",
+                type_byte[0]
+            )));
+        }
+
+        // Read Length (4 bytes)
+        let mut length_bytes = [0u8; 4];
+        self.reader.read_exact(&mut length_bytes)?;
+        let _record_length = u32::from_le_bytes(length_bytes);
+
+        // Read basic fields only for v1
+        let ptr = self.read_u64()? as usize;
+        let size = self.read_u64()? as usize;
+        let timestamp_alloc = self.read_u64()?;
+
+        // Read optional timestamp_dealloc
+        let timestamp_dealloc = if self.read_u8()? == 1 {
+            Some(self.read_u64()?)
+        } else {
+            None
+        };
+
+        // Read basic string fields
+        let var_name = self.read_optional_string()?;
+        let type_name = self.read_optional_string()?;
+        let scope_name = self.read_optional_string()?;
+        let thread_id = self.read_string()?;
+
+        // Read stack trace
+        let stack_trace = self.read_optional_string_vec()?;
+
+        // Read basic numeric fields
+        let borrow_count = self.read_u32()? as usize;
+        let is_leaked_byte = self.read_u8()?;
+        let is_leaked = is_leaked_byte != 0;
+
+        // Read optional lifetime_ms
+        let lifetime_flag = self.read_u8()?;
+        let lifetime_ms = if lifetime_flag == 1 {
+            Some(self.read_u64()?)
+        } else {
+            None
+        };
+
+        // For v1, set all advanced fields to None
+        Ok(AllocationInfo {
+            ptr,
+            size,
+            var_name,
+            type_name,
+            scope_name,
+            timestamp_alloc,
+            timestamp_dealloc,
+            thread_id,
+            borrow_count,
+            stack_trace,
+            is_leaked,
+            lifetime_ms,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        })
+    }
+    
+    /// Read allocation record for version 2 format (current - with advanced metrics)
+    fn read_allocation_v2(&mut self) -> Result<AllocationInfo, BinaryExportError> {
         // Read Type (1 byte)
         let mut type_byte = [0u8; 1];
         self.reader.read_exact(&mut type_byte)?;
@@ -167,8 +267,7 @@ impl BinaryReader {
             None
         };
 
-        // Read binary fields
-        // stack_trace is already read above
+        // Read advanced fields (v2 only)
         let smart_pointer_info = self.read_optional_binary_field()?;
         let memory_layout = self.read_optional_binary_field()?;
 

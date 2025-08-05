@@ -145,7 +145,7 @@ fn create_allocation_with_complex_data() -> AllocationInfo {
         function_call_tracking: None,
         lifecycle_tracking: None,
         access_tracking: None,
-            drop_chain_analysis: None,
+        drop_chain_analysis: None,
     }
 }
 
@@ -363,7 +363,7 @@ fn test_json_vs_optimized_binary_comparison() {
         binary_file_size < json_file_size,
         "Binary should be smaller"
     );
-    
+
     // Import should be faster due to binary deserialization of complex structures
     assert!(
         binary_import_time <= json_import_time * 2,

@@ -13,10 +13,10 @@
 use memscope_rs::{get_global_tracker, track_var, Trackable};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::f64::consts::PI;
 use std::ffi::CString;
 use std::future::Future;
 use std::hash::RandomState;
-use std::f64::consts::PI;
 use std::os::raw::{c_char, c_int, c_void};
 use std::pin::Pin;
 use std::ptr;
@@ -459,9 +459,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut performance_map: HashMap<String, Vec<f64>> = HashMap::with_capacity(1000);
     for i in 0..500 {
         let key = format!("metric_{}_{}", i / 100, i % 100);
-        let values: Vec<f64> = (0..100)
-            .map(|j| (i as f64 * PI + j as f64).sin())
-            .collect();
+        let values: Vec<f64> = (0..100).map(|j| (i as f64 * PI + j as f64).sin()).collect();
         performance_map.insert(key, values);
     }
     let _tracked_performance_map = track_var!(performance_map);
