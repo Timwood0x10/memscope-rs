@@ -212,6 +212,7 @@ impl BinaryReader {
             function_call_tracking,
             lifecycle_tracking,
             access_tracking,
+            drop_chain_analysis: None,
         })
     }
 
@@ -538,6 +539,7 @@ mod tests {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         }
     }
 

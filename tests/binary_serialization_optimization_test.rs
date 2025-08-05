@@ -145,6 +145,7 @@ fn create_allocation_with_complex_data() -> AllocationInfo {
         function_call_tracking: None,
         lifecycle_tracking: None,
         access_tracking: None,
+            drop_chain_analysis: None,
     }
 }
 

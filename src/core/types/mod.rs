@@ -363,6 +363,8 @@ pub struct AllocationInfo {
     pub lifecycle_tracking: Option<ObjectLifecycleInfo>,
     /// Memory access pattern tracking
     pub access_tracking: Option<MemoryAccessTrackingInfo>,
+    /// Drop chain analysis (when object is dropped)
+    pub drop_chain_analysis: Option<DropChainAnalysis>,
 }
 
 impl<'de> serde::Deserialize<'de> for AllocationInfo {
@@ -413,6 +415,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         })
     }
 }
@@ -450,6 +453,7 @@ impl AllocationInfo {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         }
     }
 
@@ -3153,6 +3157,461 @@ pub enum MemoryOptimizationType {
     Vectorization,
     /// Compression optimization
     Compression,
+}
+
+/// Drop chain analysis information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DropChainAnalysis {
+    /// Root object that initiated the drop chain
+    pub root_object: DropChainNode,
+    /// Complete drop chain sequence
+    pub drop_sequence: Vec<DropChainNode>,
+    /// Total drop chain duration in nanoseconds
+    pub total_duration_ns: u64,
+    /// Drop chain performance metrics
+    pub performance_metrics: DropChainPerformanceMetrics,
+    /// Ownership hierarchy analysis
+    pub ownership_hierarchy: OwnershipHierarchy,
+    /// Resource leak detection results
+    pub leak_detection: ResourceLeakAnalysis,
+}
+
+/// Individual node in the drop chain
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DropChainNode {
+    /// Object identifier
+    pub object_id: usize,
+    /// Object type name
+    pub type_name: String,
+    /// Drop timestamp
+    pub drop_timestamp: u64,
+    /// Drop duration in nanoseconds
+    pub drop_duration_ns: u64,
+    /// Children objects dropped as part of this drop
+    pub children: Vec<DropChainNode>,
+    /// Drop implementation type
+    pub drop_impl_type: DropImplementationType,
+    /// Resource cleanup actions performed
+    pub cleanup_actions: Vec<CleanupAction>,
+    /// Drop performance characteristics
+    pub performance_characteristics: DropPerformanceCharacteristics,
+}
+
+/// Types of Drop implementations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DropImplementationType {
+    /// Automatic drop (compiler generated)
+    Automatic,
+    /// Custom Drop trait implementation
+    Custom,
+    /// Smart pointer drop (Box, Rc, Arc)
+    SmartPointer,
+    /// Collection drop (Vec, HashMap, etc.)
+    Collection,
+    /// Resource handle drop (File, Socket, etc.)
+    ResourceHandle,
+    /// No-op drop (for Copy types)
+    NoOp,
+}
+
+/// Cleanup action performed during drop
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CleanupAction {
+    /// Action type
+    pub action_type: CleanupActionType,
+    /// Action timestamp
+    pub timestamp: u64,
+    /// Action duration in nanoseconds
+    pub duration_ns: u64,
+    /// Resource being cleaned up
+    pub resource_description: String,
+    /// Success status
+    pub success: bool,
+}
+
+/// Types of cleanup actions
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CleanupActionType {
+    /// Memory deallocation
+    MemoryDeallocation,
+    /// File handle closure
+    FileHandleClosure,
+    /// Network connection closure
+    NetworkConnectionClosure,
+    /// Mutex/lock release
+    LockRelease,
+    /// Thread join/cleanup
+    ThreadCleanup,
+    /// Reference count decrement
+    ReferenceCountDecrement,
+    /// Custom cleanup logic
+    CustomCleanup,
+}
+
+/// Drop chain performance metrics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DropChainPerformanceMetrics {
+    /// Total objects in chain
+    pub total_objects: usize,
+    /// Maximum chain depth
+    pub max_depth: usize,
+    /// Average drop time per object
+    pub avg_drop_time_ns: f64,
+    /// Slowest drop in chain
+    pub slowest_drop_ns: u64,
+    /// Drop chain efficiency score (0-100)
+    pub efficiency_score: f64,
+    /// Performance bottlenecks identified
+    pub bottlenecks: Vec<DropPerformanceBottleneck>,
+}
+
+/// Drop performance bottleneck
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DropPerformanceBottleneck {
+    /// Object causing the bottleneck
+    pub object_id: usize,
+    /// Bottleneck type
+    pub bottleneck_type: DropBottleneckType,
+    /// Impact severity
+    pub severity: ImpactLevel,
+    /// Description
+    pub description: String,
+    /// Optimization suggestion
+    pub optimization_suggestion: String,
+}
+
+/// Types of drop performance bottlenecks
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DropBottleneckType {
+    /// Slow custom Drop implementation
+    SlowCustomDrop,
+    /// Deep ownership hierarchy
+    DeepOwnershipHierarchy,
+    /// Large collection cleanup
+    LargeCollectionCleanup,
+    /// Resource handle cleanup delay
+    ResourceHandleDelay,
+    /// Lock contention during drop
+    LockContention,
+    /// Memory fragmentation during cleanup
+    MemoryFragmentation,
+}
+
+/// Drop performance characteristics for individual objects
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DropPerformanceCharacteristics {
+    /// Drop execution time in nanoseconds
+    pub execution_time_ns: u64,
+    /// CPU usage during drop
+    pub cpu_usage_percent: f64,
+    /// Memory operations performed
+    pub memory_operations: u32,
+    /// I/O operations performed
+    pub io_operations: u32,
+    /// System calls made
+    pub system_calls: u32,
+    /// Performance impact level
+    pub impact_level: ImpactLevel,
+}
+
+/// Ownership hierarchy analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OwnershipHierarchy {
+    /// Root owners in the hierarchy
+    pub root_owners: Vec<OwnershipNode>,
+    /// Maximum ownership depth
+    pub max_depth: usize,
+    /// Total objects in hierarchy
+    pub total_objects: usize,
+    /// Ownership transfer events
+    pub transfer_events: Vec<OwnershipTransferEvent>,
+    /// Weak reference analysis
+    pub weak_references: Vec<WeakReferenceInfo>,
+    /// Circular reference detection
+    pub circular_references: Vec<CircularReferenceInfo>,
+}
+
+/// Node in ownership hierarchy
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OwnershipNode {
+    /// Object identifier
+    pub object_id: usize,
+    /// Object type name
+    pub type_name: String,
+    /// Ownership type
+    pub ownership_type: OwnershipType,
+    /// Owned objects
+    pub owned_objects: Vec<OwnershipNode>,
+    /// Reference count (for Rc/Arc)
+    pub reference_count: Option<usize>,
+    /// Weak reference count
+    pub weak_reference_count: Option<usize>,
+}
+
+/// Types of ownership
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum OwnershipType {
+    /// Unique ownership (Box, owned values)
+    Unique,
+    /// Shared ownership (Rc)
+    SharedSingleThreaded,
+    /// Shared ownership (Arc)
+    SharedMultiThreaded,
+    /// Borrowed reference
+    Borrowed,
+    /// Weak reference
+    Weak,
+    /// Raw pointer (unsafe)
+    Raw,
+}
+
+/// Ownership transfer event
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OwnershipTransferEvent {
+    /// Source object
+    pub source_object: usize,
+    /// Target object
+    pub target_object: usize,
+    /// Transfer type
+    pub transfer_type: OwnershipTransferType,
+    /// Transfer timestamp
+    pub timestamp: u64,
+    /// Transfer mechanism
+    pub mechanism: String,
+}
+
+/// Types of ownership transfers
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum OwnershipTransferType {
+    /// Move operation
+    Move,
+    /// Clone operation
+    Clone,
+    /// Reference creation
+    Borrow,
+    /// Reference counting increment
+    ReferenceIncrement,
+    /// Reference counting decrement
+    ReferenceDecrement,
+}
+
+/// Weak reference information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WeakReferenceInfo {
+    /// Weak reference object ID
+    pub weak_ref_id: usize,
+    /// Target object ID
+    pub target_object_id: usize,
+    /// Weak reference type
+    pub weak_ref_type: WeakReferenceType,
+    /// Is target still alive
+    pub target_alive: bool,
+    /// Upgrade attempts
+    pub upgrade_attempts: u32,
+    /// Successful upgrades
+    pub successful_upgrades: u32,
+}
+
+/// Types of weak references
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum WeakReferenceType {
+    /// std::rc::Weak
+    RcWeak,
+    /// std::sync::Weak
+    ArcWeak,
+    /// Custom weak reference
+    Custom,
+}
+
+/// Circular reference information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CircularReferenceInfo {
+    /// Objects involved in the cycle
+    pub cycle_objects: Vec<usize>,
+    /// Cycle detection timestamp
+    pub detection_timestamp: u64,
+    /// Cycle type
+    pub cycle_type: CircularReferenceType,
+    /// Potential memory leak risk
+    pub leak_risk: LeakRiskLevel,
+    /// Suggested resolution
+    pub resolution_suggestion: String,
+}
+
+/// Types of circular references
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CircularReferenceType {
+    /// Direct circular reference (A -> B -> A)
+    Direct,
+    /// Indirect circular reference (A -> B -> C -> A)
+    Indirect,
+    /// Self-referential (A -> A)
+    SelfReferential,
+    /// Complex multi-path cycle
+    Complex,
+}
+
+/// Resource leak analysis
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResourceLeakAnalysis {
+    /// Potential leaks detected
+    pub potential_leaks: Vec<EnhancedPotentialLeak>,
+    /// Leak detection confidence
+    pub detection_confidence: f64,
+    /// Resource usage patterns
+    pub usage_patterns: Vec<ResourceUsagePattern>,
+    /// Leak prevention recommendations
+    pub prevention_recommendations: Vec<LeakPreventionRecommendation>,
+}
+
+/// Enhanced potential resource leak (extends existing PotentialLeak)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnhancedPotentialLeak {
+    /// Object that may be leaking
+    pub object_id: usize,
+    /// Leak type
+    pub leak_type: LeakType,
+    /// Risk level
+    pub risk_level: LeakRiskLevel,
+    /// Evidence for the leak
+    pub evidence: Vec<LeakEvidence>,
+    /// Estimated impact
+    pub estimated_impact: LeakImpact,
+}
+
+/// Types of resource leaks
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LeakType {
+    /// Memory leak
+    Memory,
+    /// File handle leak
+    FileHandle,
+    /// Network connection leak
+    NetworkConnection,
+    /// Thread leak
+    Thread,
+    /// Lock leak (unreleased mutex)
+    Lock,
+    /// Reference cycle leak
+    ReferenceCycle,
+}
+
+/// Leak risk levels
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LeakRiskLevel {
+    /// Low risk
+    Low,
+    /// Medium risk
+    Medium,
+    /// High risk
+    High,
+    /// Critical risk
+    Critical,
+}
+
+/// Evidence for a potential leak
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LeakEvidence {
+    /// Evidence type
+    pub evidence_type: LeakEvidenceType,
+    /// Evidence description
+    pub description: String,
+    /// Evidence strength (0-100)
+    pub strength: f64,
+    /// Timestamp when evidence was collected
+    pub timestamp: u64,
+}
+
+/// Types of leak evidence
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LeakEvidenceType {
+    /// Object never dropped
+    NeverDropped,
+    /// Circular reference detected
+    CircularReference,
+    /// Resource handle not closed
+    ResourceNotClosed,
+    /// Growing memory usage
+    GrowingMemoryUsage,
+    /// Long-lived temporary object
+    LongLivedTemporary,
+    /// Unreachable object still allocated
+    UnreachableObject,
+}
+
+/// Estimated leak impact
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LeakImpact {
+    /// Memory impact in bytes
+    pub memory_bytes: usize,
+    /// Performance impact percentage
+    pub performance_impact_percent: f64,
+    /// Resource count impact
+    pub resource_count: u32,
+    /// Time to critical impact
+    pub time_to_critical_hours: Option<f64>,
+}
+
+/// Resource usage pattern for leak detection
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResourceUsagePattern {
+    /// Pattern type
+    pub pattern_type: ResourcePatternType,
+    /// Pattern description
+    pub description: String,
+    /// Frequency of occurrence
+    pub frequency: f64,
+    /// Associated leak risk
+    pub leak_risk: LeakRiskLevel,
+}
+
+/// Types of resource usage patterns
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ResourcePatternType {
+    /// Monotonic growth
+    MonotonicGrowth,
+    /// Periodic spikes
+    PeriodicSpikes,
+    /// Gradual accumulation
+    GradualAccumulation,
+    /// Sudden jumps
+    SuddenJumps,
+    /// Irregular patterns
+    Irregular,
+}
+
+/// Leak prevention recommendation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LeakPreventionRecommendation {
+    /// Recommendation type
+    pub recommendation_type: LeakPreventionType,
+    /// Priority level
+    pub priority: Priority,
+    /// Description
+    pub description: String,
+    /// Implementation guidance
+    pub implementation_guidance: String,
+    /// Expected effectiveness
+    pub expected_effectiveness: f64,
+}
+
+/// Types of leak prevention recommendations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LeakPreventionType {
+    /// Use RAII patterns
+    UseRAII,
+    /// Implement proper Drop
+    ImplementDrop,
+    /// Break circular references
+    BreakCircularReferences,
+    /// Use weak references
+    UseWeakReferences,
+    /// Implement resource pooling
+    ResourcePooling,
+    /// Add resource monitoring
+    ResourceMonitoring,
+    /// Use scoped guards
+    ScopedGuards,
 }
 
 // TODO: Gradually move types to these modules:

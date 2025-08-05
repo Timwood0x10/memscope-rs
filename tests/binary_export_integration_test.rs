@@ -41,6 +41,7 @@ fn test_binary_export_direct() {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         },
         AllocationInfo {
             ptr: 0x2000,
@@ -69,6 +70,7 @@ fn test_binary_export_direct() {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         },
     ];
 
@@ -204,6 +206,7 @@ fn test_binary_to_html_conversion() {
         function_call_tracking: None,
         lifecycle_tracking: None,
         access_tracking: None,
+            drop_chain_analysis: None,
     }];
 
     // Export to binary using direct function

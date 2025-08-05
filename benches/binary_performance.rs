@@ -36,6 +36,7 @@ fn create_test_allocations(count: usize) -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         })
         .collect()
 }

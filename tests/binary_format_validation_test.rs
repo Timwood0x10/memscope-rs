@@ -41,6 +41,7 @@ fn create_comprehensive_test_data() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         },
         // Large allocation
         AllocationInfo {
@@ -70,6 +71,7 @@ fn create_comprehensive_test_data() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         },
         // String allocation
         AllocationInfo {
@@ -99,6 +101,7 @@ fn create_comprehensive_test_data() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         },
         // Allocation with no variable name
         AllocationInfo {
@@ -128,6 +131,7 @@ fn create_comprehensive_test_data() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         },
     ]
 }

@@ -317,6 +317,7 @@ mod tests {
                 function_call_tracking: None,
                 lifecycle_tracking: None,
                 access_tracking: None,
+            drop_chain_analysis: None,
             },
             AllocationInfo {
                 ptr: 0x2000,
@@ -345,6 +346,7 @@ mod tests {
                 function_call_tracking: None,
                 lifecycle_tracking: None,
                 access_tracking: None,
+            drop_chain_analysis: None,
             },
         ]
     }

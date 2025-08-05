@@ -48,6 +48,7 @@ fn create_test_allocations_with_repeated_strings() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         };
         
         allocations.push(allocation);
@@ -177,6 +178,7 @@ fn test_string_table_with_unique_strings() {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         };
         
         allocations.push(allocation);
@@ -235,6 +237,7 @@ fn test_empty_and_none_strings() {
         function_call_tracking: None,
         lifecycle_tracking: None,
         access_tracking: None,
+            drop_chain_analysis: None,
     };
     
     let allocations = vec![allocation];

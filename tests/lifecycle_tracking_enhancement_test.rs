@@ -50,6 +50,7 @@ fn create_test_allocations_with_lifecycle() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None, // Will be populated by the tracker
             access_tracking: None,    // Will be populated by the tracker
+            drop_chain_analysis: None,
         };
         
         allocations.push(allocation);
@@ -205,6 +206,7 @@ fn test_lifecycle_patterns_analysis() {
             function_call_tracking: None,
             lifecycle_tracking: None,
             access_tracking: None,
+            drop_chain_analysis: None,
         };
         
         allocations.push(allocation);

@@ -36,6 +36,7 @@ fn create_test_allocations() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None, // Simplified for testing
             access_tracking: None,
+            drop_chain_analysis: None,
         },
         AllocationInfo {
             ptr: 0x2000,
@@ -64,6 +65,7 @@ fn create_test_allocations() -> Vec<AllocationInfo> {
             function_call_tracking: None,
             lifecycle_tracking: None, // Simplified for testing
             access_tracking: None,
+            drop_chain_analysis: None,
         },
     ]
 }

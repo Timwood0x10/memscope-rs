@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         function_call_tracking: None,
         lifecycle_tracking: None,
         access_tracking: None,
+        drop_chain_analysis: None,
     };
 
     // Create temporary file
