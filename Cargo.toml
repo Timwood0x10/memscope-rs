@@ -28,6 +28,9 @@ libc = "0.2"
 flate2 = "1.0"
 regex = "1.10"
 rand = "0.8"
+dashmap = "6.0"
+parking_lot = "0.12"
+crossbeam = "0.8"
 memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0"}
 
 

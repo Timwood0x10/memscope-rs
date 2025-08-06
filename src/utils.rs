@@ -1,5 +1,15 @@
 //! Common utility functions shared across modules
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Get current timestamp in nanoseconds since Unix epoch
+pub fn current_timestamp_nanos() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64
+}
+
 /// Format bytes in a human-readable format
 pub fn format_bytes(bytes: usize) -> String {
     if bytes < 1024 {
