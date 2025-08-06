@@ -49,6 +49,8 @@ aim/**
 
 docs/**
 
+/partial_exports/
+
 memory_*.json
 memory_*.svg
 *_test.json
