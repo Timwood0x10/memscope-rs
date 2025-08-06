@@ -5,6 +5,7 @@
 
 use crate::core::smart_optimization::{SmartMutex, SafeUnwrap, SmartStats};
 use crate::core::atomic_stats::SimpleMemoryStats;
+use crate::core::simple_mutex::SimpleMutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -18,8 +19,8 @@ pub struct FastStatsCollector {
     pub deallocation_count: AtomicU64,
     pub total_deallocated: AtomicU64,
     
-    // Low-frequency detailed data uses smart mutex
-    detailed_data: SmartMutex<DetailedStatsData>,
+    // Low-frequency detailed data uses simple mutex
+    detailed_data: SimpleMutex<DetailedStatsData>,
 }
 
 #[derive(Default)]
@@ -35,7 +36,7 @@ impl FastStatsCollector {
             memory_stats: SimpleMemoryStats::new(),
             deallocation_count: AtomicU64::new(0),
             total_deallocated: AtomicU64::new(0),
-            detailed_data: SmartMutex::new(DetailedStatsData::default()),
+            detailed_data: SimpleMutex::new(DetailedStatsData::default()),
         }
     }
 
@@ -50,11 +51,16 @@ impl FastStatsCollector {
         self.memory_stats.record_allocation_detailed(size as u64);
         
         // Only do histogram tracking if we can get the lock quickly
+        #[cfg(feature = "parking-lot")]
         if let Some(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
             *data.allocation_histogram.entry(size).or_insert(0) += 1;
-            
-            // Peak memory is now handled by SimpleMemoryStats
+        }
+        
+        #[cfg(not(feature = "parking-lot"))]
+        if let Ok(mut data) = self.detailed_data.try_lock() {
+            data.allocation_sizes.push(size);
+            *data.allocation_histogram.entry(size).or_insert(0) += 1;
         }
         // If we can't get the lock, we just skip histogram tracking
     }
@@ -81,7 +87,24 @@ impl FastStatsCollector {
         let basic = self.get_basic_stats();
         let snapshot = self.memory_stats.snapshot();
         
+        #[cfg(feature = "parking-lot")]
         if let Some(data) = self.detailed_data.try_lock() {
+            Some(DetailedStats {
+                basic,
+                peak_memory: snapshot.peak_memory as usize,
+                avg_allocation_size: if !data.allocation_sizes.is_empty() {
+                    data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
+                } else {
+                    0
+                },
+                allocation_count_by_size: data.allocation_histogram.clone(),
+            })
+        } else {
+            None
+        }
+        
+        #[cfg(not(feature = "parking-lot"))]
+        if let Ok(data) = self.detailed_data.try_lock() {
             Some(DetailedStats {
                 basic,
                 peak_memory: snapshot.peak_memory as usize,
@@ -136,7 +159,7 @@ pub fn fast_unwrap_result_or_default<T: Default, E>(result: Result<T, E>) -> T {
 
 /// Batch operations to reduce lock frequency
 pub struct BatchProcessor<T> {
-    batch: SmartMutex<Vec<T>>,
+    batch: SimpleMutex<Vec<T>>,
     batch_size: usize,
     processor: Box<dyn Fn(&[T]) + Send + Sync>,
 }
@@ -147,7 +170,7 @@ impl<T> BatchProcessor<T> {
         F: Fn(&[T]) + Send + Sync + 'static,
     {
         Self {
-            batch: SmartMutex::new(Vec::with_capacity(batch_size)),
+            batch: SimpleMutex::new(Vec::with_capacity(batch_size)),
             batch_size,
             processor: Box::new(processor),
         }
@@ -155,9 +178,18 @@ impl<T> BatchProcessor<T> {
 
     pub fn add(&self, item: T) {
         let should_process = {
-            let mut batch = self.batch.lock();
-            batch.push(item);
-            batch.len() >= self.batch_size
+            #[cfg(feature = "parking-lot")]
+            {
+                let mut batch = self.batch.lock();
+                batch.push(item);
+                batch.len() >= self.batch_size
+            }
+            #[cfg(not(feature = "parking-lot"))]
+            {
+                let mut batch = self.batch.lock().expect("Mutex poisoned");
+                batch.push(item);
+                batch.len() >= self.batch_size
+            }
         };
 
         if should_process {
@@ -167,8 +199,16 @@ impl<T> BatchProcessor<T> {
 
     fn process_batch(&self) {
         let batch = {
-            let mut batch_guard = self.batch.lock();
-            std::mem::take(&mut *batch_guard)
+            #[cfg(feature = "parking-lot")]
+            {
+                let mut batch_guard = self.batch.lock();
+                std::mem::take(&mut *batch_guard)
+            }
+            #[cfg(not(feature = "parking-lot"))]
+            {
+                let mut batch_guard = self.batch.lock().expect("Mutex poisoned");
+                std::mem::take(&mut *batch_guard)
+            }
         };
 
         if !batch.is_empty() {
@@ -257,12 +297,20 @@ mod tests {
 
     #[test]
     fn test_batch_processor() {
-        let processed_items = Arc::new(SmartMutex::new(Vec::new()));
+        let processed_items = Arc::new(SimpleMutex::new(Vec::new()));
         let processed_clone = processed_items.clone();
         
         let processor = BatchProcessor::new(3, move |batch: &[i32]| {
-            let mut items = processed_clone.lock();
-            items.extend_from_slice(batch);
+            #[cfg(feature = "parking-lot")]
+            {
+                let mut items = processed_clone.lock();
+                items.extend_from_slice(batch);
+            }
+            #[cfg(not(feature = "parking-lot"))]
+            {
+                let mut items = processed_clone.lock().expect("Mutex poisoned");
+                items.extend_from_slice(batch);
+            }
         });
 
         // Add items one by one
@@ -273,8 +321,16 @@ mod tests {
         // Give it a moment to process
         std::thread::sleep(std::time::Duration::from_millis(10));
 
-        let items = processed_items.lock();
-        assert_eq!(*items, vec![1, 2, 3]);
+        #[cfg(feature = "parking-lot")]
+        {
+            let items = processed_items.lock();
+            assert_eq!(*items, vec![1, 2, 3]);
+        }
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let items = processed_items.lock().expect("Mutex poisoned");
+            assert_eq!(*items, vec![1, 2, 3]);
+        }
     }
 
     #[test]
