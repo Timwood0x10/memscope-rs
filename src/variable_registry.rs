@@ -299,15 +299,11 @@ impl VariableRegistry {
         let thread_id = format!("{:?}", std::thread::current().id());
 
         // Try to get the current scope from the scope stack
-        if let Ok(scope_stack) = scope_tracker.scope_stack.try_lock() {
-            if let Some(thread_stack) = scope_stack.get(&thread_id) {
-                if let Some(&current_scope_id) = thread_stack.last() {
-                    // Get the scope name from active scopes
-                    if let Ok(active_scopes) = scope_tracker.active_scopes.try_lock() {
-                        if let Some(scope_info) = active_scopes.get(&current_scope_id) {
-                            return Some(scope_info.name.clone());
-                        }
-                    }
+        if let Some(thread_stack) = scope_tracker.scope_stack.get(&thread_id) {
+            if let Some(&current_scope_id) = thread_stack.last() {
+                // Get the scope name from active scopes
+                if let Some(scope_info) = scope_tracker.active_scopes.get(&current_scope_id) {
+                    return Some(scope_info.name.clone());
                 }
             }
         }

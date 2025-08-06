@@ -8,17 +8,21 @@
 
 pub mod allocation_adapter;
 pub mod allocator;
+pub mod atomic_stats;
 pub mod clone_monitor;
 pub mod clone_optimizer;
 pub mod clone_utils;
 pub mod error;
 pub mod error_adapter;
+pub mod optimized_locks;
 pub mod optimized_tracker;
 pub mod optimized_types;
 pub mod scope_tracker;
+pub mod sharded_locks;
 pub mod shared_types;
 pub mod string_pool;
 pub mod string_pool_monitor;
+pub mod test_optimized_locks;
 pub mod tracker;
 pub mod tracker_optimizations;
 /// Type definitions
@@ -48,6 +52,15 @@ pub use string_pool_monitor::{
 
 // Re-export optimized types
 pub use optimized_types::OptimizedAllocationInfo;
+
+// Re-export atomic statistics
+pub use atomic_stats::{AtomicMemoryStats, AtomicPerformanceCounters, MemoryStatsSnapshot, PerformanceSnapshot};
+
+// Re-export optimized locks
+pub use optimized_locks::{OptimizedMutex, OptimizedRwLock, LockFreeCounter};
+
+// Re-export sharded locks
+pub use sharded_locks::{ShardedRwLock, ShardedMutex, ShardStats};
 
 // Re-export allocation adapter for compatibility
 pub use allocation_adapter::{AllocationInfoAdapter, AllocationCollection, CollectionMemoryStats};
