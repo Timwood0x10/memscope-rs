@@ -4,8 +4,139 @@
 //! counters, reducing lock contention and improving performance.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
+
+/// Cold path statistics stored in mutex-protected structure
+#[derive(Debug, Default)]
+struct ColdStats {
+    active_allocations: u64,
+    active_memory: u64,
+    peak_allocations: u64,
+    peak_memory: u64,
+    total_deallocations: u64,
+    total_deallocated: u64,
+    leaked_allocations: u64,
+    leaked_memory: u64,
+}
+
+/// Simple memory statistics optimized for cache line efficiency
+/// Hot path operations use only the first cache line (16 bytes)
+#[repr(align(64))]
+#[derive(Debug)]
+pub struct SimpleMemoryStats {
+    /// Hot path: allocation count (8 bytes)
+    pub allocation_count: AtomicU64,
+    /// Hot path: total allocated bytes (8 bytes)
+    pub total_allocated: AtomicU64,
+    /// Cold path: detailed statistics
+    detailed: Mutex<ColdStats>,
+}
+
+impl SimpleMemoryStats {
+    /// Create new simple memory statistics
+    pub fn new() -> Self {
+        Self {
+            allocation_count: AtomicU64::new(0),
+            total_allocated: AtomicU64::new(0),
+            detailed: Mutex::new(ColdStats::default()),
+        }
+    }
+
+    /// Record allocation - fast path for hot operations
+    pub fn record_allocation_fast(&self, size: u64) {
+        self.allocation_count.fetch_add(1, Ordering::Relaxed);
+        self.total_allocated.fetch_add(size, Ordering::Relaxed);
+    }
+
+    /// Record allocation with detailed tracking - slower path
+    pub fn record_allocation_detailed(&self, size: u64) {
+        // Fast path first
+        self.record_allocation_fast(size);
+        
+        // Detailed tracking
+        if let Ok(mut stats) = self.detailed.try_lock() {
+            stats.active_allocations += 1;
+            stats.active_memory += size;
+            
+            // Update peaks
+            if stats.active_allocations > stats.peak_allocations {
+                stats.peak_allocations = stats.active_allocations;
+            }
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
+        }
+    }
+
+    /// Record deallocation
+    pub fn record_deallocation(&self, size: u64) {
+        if let Ok(mut stats) = self.detailed.try_lock() {
+            stats.total_deallocations += 1;
+            stats.total_deallocated += size;
+            stats.active_allocations = stats.active_allocations.saturating_sub(1);
+            stats.active_memory = stats.active_memory.saturating_sub(size);
+        }
+    }
+
+    /// Record leaked allocation
+    pub fn record_leak(&self, size: u64) {
+        if let Ok(mut stats) = self.detailed.try_lock() {
+            stats.leaked_allocations += 1;
+            stats.leaked_memory += size;
+        }
+    }
+
+    /// Get snapshot of current statistics
+    pub fn snapshot(&self) -> MemoryStatsSnapshot {
+        let allocation_count = self.allocation_count.load(Ordering::Relaxed);
+        let total_allocated = self.total_allocated.load(Ordering::Relaxed);
+        
+        // Try to get detailed stats, use defaults if locked
+        let detailed = self.detailed.try_lock()
+            .map(|stats| ColdStats {
+                active_allocations: stats.active_allocations,
+                active_memory: stats.active_memory,
+                peak_allocations: stats.peak_allocations,
+                peak_memory: stats.peak_memory,
+                total_deallocations: stats.total_deallocations,
+                total_deallocated: stats.total_deallocated,
+                leaked_allocations: stats.leaked_allocations,
+                leaked_memory: stats.leaked_memory,
+            })
+            .unwrap_or_default();
+
+        MemoryStatsSnapshot {
+            total_allocations: allocation_count,
+            total_allocated,
+            active_allocations: detailed.active_allocations,
+            active_memory: detailed.active_memory,
+            peak_allocations: detailed.peak_allocations,
+            peak_memory: detailed.peak_memory,
+            total_deallocations: detailed.total_deallocations,
+            total_deallocated: detailed.total_deallocated,
+            leaked_allocations: detailed.leaked_allocations,
+            leaked_memory: detailed.leaked_memory,
+        }
+    }
+
+    /// Reset all statistics
+    pub fn reset(&self) {
+        self.allocation_count.store(0, Ordering::Relaxed);
+        self.total_allocated.store(0, Ordering::Relaxed);
+        
+        if let Ok(mut stats) = self.detailed.try_lock() {
+            *stats = ColdStats::default();
+        }
+    }
+}
+
+impl Default for SimpleMemoryStats {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Atomic memory statistics for lock-free updates
 #[derive(Debug)]

@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use memscope_rs::core::{OptimizedMutex, ShardedRwLock, AtomicMemoryStats};
+use memscope_rs::core::{OptimizedMutex, ShardedRwLock, AdaptiveHashMap, AtomicMemoryStats, SimpleMemoryStats};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::collections::HashMap;
@@ -107,6 +107,29 @@ fn benchmark_hashmap_vs_sharded(c: &mut Criterion) {
         });
     });
     
+    // Adaptive HashMap
+    group.bench_function("adaptive_hashmap", |b| {
+        let map = Arc::new(AdaptiveHashMap::<i32, String>::new());
+        b.iter(|| {
+            let map_clone = map.clone();
+            let handles: Vec<_> = (0..10).map(|i| {
+                let map = map_clone.clone();
+                thread::spawn(move || {
+                    for j in 0..100 {
+                        let key = i * 100 + j;
+                        let value = format!("value_{}", key);
+                        map.insert(key, value);
+                        black_box(map.get(&key));
+                    }
+                })
+            }).collect();
+            
+            for handle in handles {
+                handle.join().unwrap();
+            }
+        });
+    });
+    
     group.finish();
 }
 
@@ -151,14 +174,14 @@ fn benchmark_atomic_stats(c: &mut Criterion) {
     
     // Atomic stats
     group.bench_function("atomic_stats", |b| {
-        let stats = Arc::new(AtomicMemoryStats::new());
+        let stats = Arc::new(SimpleMemoryStats::new());
         b.iter(|| {
             let stats_clone = stats.clone();
             let handles: Vec<_> = (0..10).map(|_| {
                 let stats = stats_clone.clone();
                 thread::spawn(move || {
                     for _ in 0..1000 {
-                        stats.record_allocation(64);
+                        stats.record_allocation_fast(64);
                         stats.record_deallocation(64);
                     }
                 })

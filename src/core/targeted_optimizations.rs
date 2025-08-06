@@ -4,16 +4,18 @@
 //! rather than theoretical ones.
 
 use crate::core::smart_optimization::{SmartMutex, SafeUnwrap, SmartStats};
+use crate::core::atomic_stats::SimpleMemoryStats;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::collections::HashMap;
 use std::time::Instant;
 
 /// Optimized statistics collector that avoids lock contention
 pub struct FastStatsCollector {
-    // High-frequency counters use atomics
-    pub allocation_count: AtomicU64,
+    // Core memory statistics using cache-line optimized structure
+    memory_stats: SimpleMemoryStats,
+    
+    // Additional counters for deallocations
     pub deallocation_count: AtomicU64,
-    pub total_allocated: AtomicU64,
     pub total_deallocated: AtomicU64,
     
     // Low-frequency detailed data uses smart mutex
@@ -30,9 +32,8 @@ struct DetailedStatsData {
 impl FastStatsCollector {
     pub fn new() -> Self {
         Self {
-            allocation_count: AtomicU64::new(0),
+            memory_stats: SimpleMemoryStats::new(),
             deallocation_count: AtomicU64::new(0),
-            total_allocated: AtomicU64::new(0),
             total_deallocated: AtomicU64::new(0),
             detailed_data: SmartMutex::new(DetailedStatsData::default()),
         }
@@ -40,41 +41,37 @@ impl FastStatsCollector {
 
     /// Fast path: just increment counters (no locks)
     pub fn record_allocation_fast(&self, size: usize) {
-        self.allocation_count.fetch_add(1, Ordering::Relaxed);
-        self.total_allocated.fetch_add(size as u64, Ordering::Relaxed);
+        self.memory_stats.record_allocation_fast(size as u64);
     }
 
     /// Slow path: record detailed data (uses lock, but only when needed)
     pub fn record_allocation_detailed(&self, size: usize) {
-        // Always do the fast part
-        self.record_allocation_fast(size);
+        // Use the optimized detailed recording
+        self.memory_stats.record_allocation_detailed(size as u64);
         
-        // Only do detailed tracking if we can get the lock quickly
+        // Only do histogram tracking if we can get the lock quickly
         if let Some(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
             *data.allocation_histogram.entry(size).or_insert(0) += 1;
             
-            // Update peak memory
-            let current_memory = self.total_allocated.load(Ordering::Relaxed) 
-                - self.total_deallocated.load(Ordering::Relaxed);
-            if current_memory as usize > data.peak_memory {
-                data.peak_memory = current_memory as usize;
-            }
+            // Peak memory is now handled by SimpleMemoryStats
         }
-        // If we can't get the lock, we just skip detailed tracking - no big deal
+        // If we can't get the lock, we just skip histogram tracking
     }
 
     pub fn record_deallocation(&self, size: usize) {
         self.deallocation_count.fetch_add(1, Ordering::Relaxed);
         self.total_deallocated.fetch_add(size as u64, Ordering::Relaxed);
+        self.memory_stats.record_deallocation(size as u64);
     }
 
     /// Get basic stats without any locks
     pub fn get_basic_stats(&self) -> BasicStats {
+        let snapshot = self.memory_stats.snapshot();
         BasicStats {
-            allocation_count: self.allocation_count.load(Ordering::Relaxed),
+            allocation_count: snapshot.total_allocations,
             deallocation_count: self.deallocation_count.load(Ordering::Relaxed),
-            total_allocated: self.total_allocated.load(Ordering::Relaxed),
+            total_allocated: snapshot.total_allocated,
             total_deallocated: self.total_deallocated.load(Ordering::Relaxed),
         }
     }
@@ -82,11 +79,12 @@ impl FastStatsCollector {
     /// Get detailed stats (may use lock, but with timeout)
     pub fn get_detailed_stats(&self) -> Option<DetailedStats> {
         let basic = self.get_basic_stats();
+        let snapshot = self.memory_stats.snapshot();
         
         if let Some(data) = self.detailed_data.try_lock() {
             Some(DetailedStats {
                 basic,
-                peak_memory: data.peak_memory,
+                peak_memory: snapshot.peak_memory as usize,
                 avg_allocation_size: if !data.allocation_sizes.is_empty() {
                     data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
                 } else {

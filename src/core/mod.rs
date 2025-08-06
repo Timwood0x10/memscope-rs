@@ -6,6 +6,7 @@
 //! - Type definitions
 //! - Scope tracking
 
+pub mod adaptive_hashmap;
 pub mod allocation_adapter;
 pub mod allocator;
 pub mod atomic_stats;
@@ -56,13 +57,16 @@ pub use string_pool_monitor::{
 pub use optimized_types::OptimizedAllocationInfo;
 
 // Re-export atomic statistics
-pub use atomic_stats::{AtomicMemoryStats, AtomicPerformanceCounters, MemoryStatsSnapshot, PerformanceSnapshot};
+pub use atomic_stats::{AtomicMemoryStats, SimpleMemoryStats, AtomicPerformanceCounters, MemoryStatsSnapshot, PerformanceSnapshot};
 
 // Re-export optimized locks
 pub use optimized_locks::{OptimizedMutex, OptimizedRwLock, LockFreeCounter};
 
 // Re-export sharded locks
 pub use sharded_locks::{ShardedRwLock, ShardedMutex, ShardStats};
+
+// Re-export adaptive hashmap
+pub use adaptive_hashmap::AdaptiveHashMap;
 
 // Re-export smart optimization tools
 pub use smart_optimization::{SmartMutex, SafeUnwrap, SmartClone, SmartStats};
