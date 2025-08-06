@@ -59,4 +59,12 @@ criterion = { version = "0.5", features = ["html_reports"] }
 name = "binary_performance"
 harness = false
 
+[[bench]]
+name = "lock_optimization_benchmark"
+harness = false
+
+[[bench]]
+name = "real_optimization_benchmark"
+harness = false
+
 

@@ -20,6 +20,8 @@ pub mod optimized_types;
 pub mod scope_tracker;
 pub mod sharded_locks;
 pub mod shared_types;
+pub mod smart_optimization;
+pub mod targeted_optimizations;
 pub mod string_pool;
 pub mod string_pool_monitor;
 pub mod test_optimized_locks;
@@ -61,6 +63,12 @@ pub use optimized_locks::{OptimizedMutex, OptimizedRwLock, LockFreeCounter};
 
 // Re-export sharded locks
 pub use sharded_locks::{ShardedRwLock, ShardedMutex, ShardStats};
+
+// Re-export smart optimization tools
+pub use smart_optimization::{SmartMutex, SafeUnwrap, SmartClone, SmartStats};
+
+// Re-export targeted optimizations
+pub use targeted_optimizations::{FastStatsCollector, BatchProcessor, efficient_string_concat};
 
 // Re-export allocation adapter for compatibility
 pub use allocation_adapter::{AllocationInfoAdapter, AllocationCollection, CollectionMemoryStats};

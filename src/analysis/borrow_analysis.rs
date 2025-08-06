@@ -173,21 +173,32 @@ impl BorrowAnalyzer {
 
     /// Get borrow statistics
     pub fn get_borrow_statistics(&self) -> BorrowStatistics {
-        let history = self.borrow_history.lock().unwrap();
-        let conflicts = self.conflicts.lock().unwrap();
-        let active = self.active_borrows.lock().unwrap();
-
-        let total_borrows = history.len();
-        let active_borrows: usize = active.values().map(|v| v.len()).sum();
-        let total_conflicts = conflicts.len();
-
-        // Calculate borrow duration statistics
-        let mut durations = Vec::new();
-        for event in history.iter() {
-            if let Some(end_time) = event.borrow_info.end_time {
-                durations.push(end_time - event.borrow_info.start_time);
+        // Avoid holding multiple locks simultaneously to prevent deadlock
+        let (total_borrows, durations, by_type) = {
+            let history = self.borrow_history.lock().unwrap();
+            let total = history.len();
+            let mut durations = Vec::new();
+            let mut by_type = HashMap::new();
+            
+            for event in history.iter() {
+                if let Some(end_time) = event.borrow_info.end_time {
+                    durations.push(end_time - event.borrow_info.start_time);
+                }
+                let type_name = format!("{:?}", event.borrow_info.borrow_type);
+                *by_type.entry(type_name).or_insert(0) += 1;
             }
-        }
+            (total, durations, by_type)
+        };
+
+        let total_conflicts = {
+            let conflicts = self.conflicts.lock().unwrap();
+            conflicts.len()
+        };
+
+        let active_borrows: usize = {
+            let active = self.active_borrows.lock().unwrap();
+            active.values().map(|v| v.len()).sum()
+        };
 
         let avg_borrow_duration = if !durations.is_empty() {
             durations.iter().sum::<u64>() / durations.len() as u64
@@ -196,13 +207,6 @@ impl BorrowAnalyzer {
         };
 
         let max_borrow_duration = durations.iter().max().copied().unwrap_or(0);
-
-        // Count by borrow type
-        let mut by_type = HashMap::new();
-        for event in history.iter() {
-            let type_name = format!("{:?}", event.borrow_info.borrow_type);
-            *by_type.entry(type_name).or_insert(0) += 1;
-        }
 
         BorrowStatistics {
             total_borrows,
