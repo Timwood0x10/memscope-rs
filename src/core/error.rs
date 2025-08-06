@@ -46,7 +46,7 @@ pub enum MemScopeError {
     System {
         error_type: SystemErrorType,
         message: Arc<str>,
-        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        source_message: Option<Arc<str>>,
     },
     
     /// Internal errors that should not normally occur
@@ -153,7 +153,7 @@ impl MemScopeError {
         Self::System {
             error_type,
             message: message.into(),
-            source: None,
+            source_message: None,
         }
     }
     
@@ -161,12 +161,12 @@ impl MemScopeError {
     pub fn system_with_source(
         error_type: SystemErrorType, 
         message: impl Into<Arc<str>>,
-        source: Box<dyn std::error::Error + Send + Sync>
+        source: impl std::error::Error
     ) -> Self {
         Self::System {
             error_type,
             message: message.into(),
-            source: Some(source),
+            source_message: Some(Arc::from(source.to_string())),
         }
     }
     
@@ -281,7 +281,7 @@ impl fmt::Display for MemScopeError {
             Self::Configuration { component, message } => {
                 write!(f, "Configuration error in {}: {}", component, message)
             }
-            Self::System { error_type, message, .. } => {
+            Self::System { error_type, message, source_message } => {
                 write!(f, "{} error: {}", 
                     match error_type {
                         SystemErrorType::Io => "I/O",
@@ -293,7 +293,11 @@ impl fmt::Display for MemScopeError {
                         SystemErrorType::FileSystem => "File system",
                     },
                     message
-                )
+                )?;
+                if let Some(source) = source_message {
+                    write!(f, " (source: {})", source)?;
+                }
+                Ok(())
             }
             Self::Internal { message, location } => {
                 write!(f, "Internal error: {}", message)?;
@@ -306,14 +310,7 @@ impl fmt::Display for MemScopeError {
     }
 }
 
-impl std::error::Error for MemScopeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::System { source: Some(source), .. } => Some(source.as_ref()),
-            _ => None,
-        }
-    }
-}
+impl std::error::Error for MemScopeError {}
 
 // Conversion from standard library errors
 impl From<std::io::Error> for MemScopeError {
@@ -321,7 +318,7 @@ impl From<std::io::Error> for MemScopeError {
         Self::system_with_source(
             SystemErrorType::Io,
             format!("I/O operation failed: {}", err),
-            Box::new(err)
+            err
         )
     }
 }
@@ -331,7 +328,7 @@ impl From<serde_json::Error> for MemScopeError {
         Self::system_with_source(
             SystemErrorType::Serialization,
             format!("JSON serialization failed: {}", err),
-            Box::new(err)
+            err
         )
     }
 }
