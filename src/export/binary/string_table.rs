@@ -90,7 +90,10 @@ impl StringTable {
     }
 
     /// Read a compressed index from the reader
-    pub fn read_compressed_index<R: std::io::Read>(reader: &mut R, use_compressed: bool) -> Result<u16, BinaryExportError> {
+    pub fn read_compressed_index<R: std::io::Read>(
+        reader: &mut R,
+        use_compressed: bool,
+    ) -> Result<u16, BinaryExportError> {
         if !use_compressed {
             // Use standard u16 format
             return primitives::read_u16(reader);
@@ -133,7 +136,11 @@ impl StringTable {
     }
 
     /// Write a compressed index to the writer
-    pub fn write_compressed_index<W: Write>(&self, writer: &mut W, index: u16) -> Result<usize, BinaryExportError> {
+    pub fn write_compressed_index<W: Write>(
+        &self,
+        writer: &mut W,
+        index: u16,
+    ) -> Result<usize, BinaryExportError> {
         if !self.use_compressed_indices {
             // Use standard u16 format
             return primitives::write_u16(writer, index);
@@ -189,7 +196,7 @@ impl StringTable {
             let string_size = string.len() + 4;
             total_original_size += string_size;
             total_references += 1;
-            
+
             // Calculate actual reference size based on compression
             total_reference_size += self.compressed_index_size(index);
         }
@@ -290,7 +297,7 @@ impl StringTableBuilder {
         if !s.is_empty() {
             let string_key = s.to_string();
             *self.frequency_map.entry(string_key.clone()).or_insert(0) += 1;
-            
+
             // Calculate potential size savings for this string
             // Each occurrence saves: string_length + 4 (length prefix) - 2 (index reference)
             let savings_per_occurrence = if s.len() + 4 > 2 { s.len() + 4 - 2 } else { 0 };
@@ -303,10 +310,11 @@ impl StringTableBuilder {
         if !s.is_empty() {
             let string_key = s.to_string();
             *self.frequency_map.entry(string_key.clone()).or_insert(0) += weight;
-            
+
             // Weighted size savings calculation
             let savings_per_occurrence = if s.len() + 4 > 2 { s.len() + 4 - 2 } else { 0 };
-            *self.size_savings_map.entry(string_key).or_insert(0) += savings_per_occurrence * weight;
+            *self.size_savings_map.entry(string_key).or_insert(0) +=
+                savings_per_occurrence * weight;
         }
     }
 
@@ -339,10 +347,11 @@ impl StringTableBuilder {
         for (string, frequency) in &self.frequency_map {
             if *frequency >= self.min_frequency {
                 let size_savings = self.size_savings_map.get(string).unwrap_or(&0);
-                
+
                 // Calculate compression score based on multiple factors
-                let compression_score = self.calculate_compression_score(string, *frequency, *size_savings);
-                
+                let compression_score =
+                    self.calculate_compression_score(string, *frequency, *size_savings);
+
                 candidates.push((string.clone(), compression_score));
             }
         }
@@ -368,38 +377,43 @@ impl StringTableBuilder {
     }
 
     /// Calculate compression score for a string based on multiple factors
-    fn calculate_compression_score(&self, string: &str, frequency: usize, size_savings: usize) -> f64 {
+    fn calculate_compression_score(
+        &self,
+        string: &str,
+        frequency: usize,
+        size_savings: usize,
+    ) -> f64 {
         let string_len = string.len();
-        
+
         // Base score from size savings
         let mut score = size_savings as f64;
-        
+
         // Bonus for high frequency strings
         if frequency > 10 {
             score *= 1.5;
         } else if frequency > 5 {
             score *= 1.2;
         }
-        
+
         // Bonus for longer strings (more compression potential)
         if string_len > 20 {
             score *= 1.3;
         } else if string_len > 10 {
             score *= 1.1;
         }
-        
+
         // Bonus for common patterns (type names, function names)
         if self.is_likely_type_name(string) {
             score *= 1.4; // Type names are often repeated
         } else if self.is_likely_function_name(string) {
             score *= 1.2; // Function names are moderately repeated
         }
-        
+
         // Penalty for very short strings (overhead might not be worth it)
         if string_len < 4 {
             score *= 0.5;
         }
-        
+
         score
     }
 
@@ -417,7 +431,7 @@ impl StringTableBuilder {
         s.starts_with("Rc<") ||               // Rc types
         s.starts_with("Vec<") ||              // Vec types
         s.starts_with("HashMap<") ||          // HashMap types
-        s.starts_with("BTreeMap<")            // BTreeMap types
+        s.starts_with("BTreeMap<") // BTreeMap types
     }
 
     /// Heuristic to detect if a string is likely a function name
@@ -500,8 +514,8 @@ mod tests {
         table.add_string("test").unwrap();
         table.add_string("hello").unwrap();
 
-        // Expected size: 4 (count) + 4 + 4 (test) + 4 + 5 (hello) = 21
-        assert_eq!(table.serialized_size(), 21);
+        // Expected size: 1 (compression flag) + 4 (count) + 4 + 4 (test) + 4 + 5 (hello) = 22
+        assert_eq!(table.serialized_size(), 22);
     }
 
     #[test]

@@ -8,13 +8,19 @@
 
 pub mod allocation_adapter;
 pub mod allocator;
+pub mod clone_monitor;
+pub mod clone_optimizer;
+pub mod clone_utils;
 pub mod error;
 pub mod error_adapter;
+pub mod optimized_tracker;
 pub mod optimized_types;
 pub mod scope_tracker;
+pub mod shared_types;
 pub mod string_pool;
 pub mod string_pool_monitor;
 pub mod tracker;
+pub mod tracker_optimizations;
 /// Type definitions
 pub mod types;
 pub mod unwrap_safe;
@@ -45,6 +51,13 @@ pub use optimized_types::OptimizedAllocationInfo;
 
 // Re-export allocation adapter for compatibility
 pub use allocation_adapter::{AllocationInfoAdapter, AllocationCollection, CollectionMemoryStats};
+
+// Re-export clone optimization functionality
+pub use clone_optimizer::{CloneOptimizer, CloneStats, CloneInfo};
+pub use clone_monitor::{get_clone_stats, get_optimization_recommendations, CloneMonitorStats};
+pub use clone_utils::{share_allocation_info, clone_shared_allocation, optimized_clone};
+pub use optimized_tracker::OptimizedMemoryTracker;
+pub use shared_types::{SharedAllocationInfo, SharedAllocationCollection, SharedConfig};
 
 #[cfg(test)]
 pub use unwrap_safe::get_unwrap_stats_mut;
