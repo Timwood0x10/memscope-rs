@@ -116,19 +116,46 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         // Handle custom types with namespaces
         let parts: Vec<&str> = clean_type.split("::").collect();
         if parts.len() >= 2 {
-            let type_part = parts.last().unwrap();
-            // Try to categorize based on common patterns
-            if type_part.ends_with("Error") || type_part.contains("Err") {
-                (type_part.to_string(), "Error Types".to_string())
+            // Use the original clean_type as fallback if parts is somehow empty
+            let type_part = parts.last().unwrap_or(&clean_type);
+            
+            // Determine category based on namespace and type patterns
+            let category = if parts.iter().any(|&part| part.contains("error") || part.contains("Error")) 
+                || type_part.ends_with("Error") || type_part.contains("Err") {
+                "Error Types"
             } else if type_part.ends_with("Config") || type_part.ends_with("Settings") {
-                (type_part.to_string(), "Configuration".to_string())
-            } else if type_part.ends_with("Builder") {
-                (type_part.to_string(), "Builders".to_string())
+                "Configuration"
+            } else if type_part.ends_with("Builder") || type_part.ends_with("Factory") {
+                "Builders"
+            } else if parts.iter().any(|&part| part == "std" || part == "core" || part == "alloc") {
+                "Standard Library"
+            } else if parts.iter().any(|&part| part.contains("test") || part.contains("mock")) {
+                "Test Types"
+            } else if parts.len() > 2 {
+                // Deep namespace suggests library or framework type
+                "Library Types"
             } else {
-                (type_part.to_string(), "Custom Types".to_string())
-            }
+                "Custom Types"
+            };
+            
+            (type_part.to_string(), category.to_string())
         } else {
-            (clean_type.to_string(), "Custom Types".to_string())
+            // Single part, no namespace
+            let category = if clean_type.ends_with("Error") || clean_type.contains("Err") {
+                "Error Types"
+            } else if clean_type.ends_with("Config") || clean_type.ends_with("Settings") {
+                "Configuration"
+            } else if clean_type.ends_with("Builder") || clean_type.ends_with("Factory") {
+                "Builders"
+            } else if clean_type.chars().next().map_or(false, |c| c.is_uppercase()) {
+                // Starts with uppercase, likely a struct/enum
+                "Custom Types"
+            } else {
+                // Lowercase, might be a function type or other
+                "Other Types"
+            };
+            
+            (clean_type.to_string(), category.to_string())
         }
     } else {
         // For simple type names without namespace

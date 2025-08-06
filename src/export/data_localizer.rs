@@ -213,11 +213,21 @@ impl DataLocalizer {
     /// get cached data
     fn get_cached_data(&self) -> TrackingResult<(LocalizedExportData, DataGatheringStats)> {
         let localized_data = LocalizedExportData {
-            allocations: self.cached_allocations.as_ref().unwrap().clone(),
-            enhanced_allocations: self.cached_ffi_data.as_ref().unwrap().clone(),
-            stats: self.cached_stats.as_ref().unwrap().clone(),
-            ffi_stats: self.cached_ffi_stats.as_ref().unwrap().clone(),
-            scope_info: self.cached_scope_info.as_ref().unwrap().clone(),
+            allocations: self.cached_allocations.as_ref()
+                .ok_or_else(|| TrackingError::InternalError("Cached allocations not available".to_string()))?
+                .clone(),
+            enhanced_allocations: self.cached_ffi_data.as_ref()
+                .ok_or_else(|| TrackingError::InternalError("Cached FFI data not available".to_string()))?
+                .clone(),
+            stats: self.cached_stats.as_ref()
+                .ok_or_else(|| TrackingError::InternalError("Cached stats not available".to_string()))?
+                .clone(),
+            ffi_stats: self.cached_ffi_stats.as_ref()
+                .ok_or_else(|| TrackingError::InternalError("Cached FFI stats not available".to_string()))?
+                .clone(),
+            scope_info: self.cached_scope_info.as_ref()
+                .ok_or_else(|| TrackingError::InternalError("Cached scope info not available".to_string()))?
+                .clone(),
             timestamp: self.last_update,
         };
 
