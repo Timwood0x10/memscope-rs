@@ -368,7 +368,17 @@ fn find_binary_file(base_dir: &str) -> Result<std::path::PathBuf, Box<dyn std::e
         return Err("MemoryAnalysis directory not found".into());
     }
 
-    // Look for .memscope files
+    // Look for .memscope files in the main directory first
+    for entry in fs::read_dir(memory_analysis_dir)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            if entry.path().extension() == Some(std::ffi::OsStr::new("memscope")) {
+                return Ok(entry.path());
+            }
+        }
+    }
+
+    // If not found in main directory, look in subdirectories
     for entry in fs::read_dir(memory_analysis_dir)? {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
