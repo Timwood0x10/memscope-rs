@@ -225,9 +225,7 @@ impl<T> Trackable for std::rc::Rc<T> {
         let weak_count = std::rc::Rc::weak_count(self);
 
         if let Err(e) = tracker.track_smart_pointer_clone(
-            clone_ptr,
-            source_ptr,
-            clone_ptr, // data_ptr - use clone_ptr as data pointer
+            clone_ptr, source_ptr, clone_ptr, // data_ptr - use clone_ptr as data pointer
             1,         // new_ref_count - Rc clone increases ref count
             weak_count,
         ) {

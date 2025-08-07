@@ -5,7 +5,6 @@
 
 use crate::core::optimized_types::OptimizedAllocationInfo;
 use crate::core::types::AllocationInfo;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Arc-shared allocation information for reduced clone overhead

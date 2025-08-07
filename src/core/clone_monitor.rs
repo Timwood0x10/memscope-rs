@@ -5,8 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Instant;
+use std::sync::{Mutex, OnceLock};
 
 /// Statistics about clone operations
 #[derive(Debug, Clone, Serialize, Deserialize)]

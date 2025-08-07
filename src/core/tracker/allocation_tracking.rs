@@ -7,8 +7,8 @@ use super::memory_tracker::MemoryTracker;
 use crate::core::types::{
     AllocationInfo, EventPerformanceMetrics, FunctionCallTrackingInfo,
     FunctionPerformanceCharacteristics, LeakPotential, MemoryAccessTrackingInfo,
-    MemoryLocationType, MemoryUsagePattern, ObjectLifecycleInfo, SourceLocation, TrackingResult,
-    SimpleLifecyclePattern,
+    MemoryLocationType, MemoryUsagePattern, ObjectLifecycleInfo, SimpleLifecyclePattern,
+    SourceLocation, TrackingResult,
 };
 
 impl MemoryTracker {
@@ -1300,9 +1300,8 @@ impl MemoryTracker {
         }
     }
 
-
-     /// Classify lifecycle pattern based on lifetime duration
-     fn classify_lifecycle_pattern(&self, lifetime_ms: u64) -> SimpleLifecyclePattern {
+    /// Classify lifecycle pattern based on lifetime duration
+    fn classify_lifecycle_pattern(&self, lifetime_ms: u64) -> SimpleLifecyclePattern {
         match lifetime_ms {
             0..=1 => SimpleLifecyclePattern::Instant,
             2..=100 => SimpleLifecyclePattern::ShortLived,
@@ -1392,8 +1391,6 @@ impl MemoryTracker {
 
         suggestions
     }
-
-
 
     /// Analyze memory characteristics of a function
     fn analyze_memory_characteristics(
