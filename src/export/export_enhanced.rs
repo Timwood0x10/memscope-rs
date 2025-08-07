@@ -422,7 +422,9 @@ pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationC
             continue;
         }
 
-        let type_name = allocation.type_name.as_ref()
+        let type_name = allocation
+            .type_name
+            .as_ref()
             .expect("Type name should be available after None check");
         let (_, category_name) = simplify_type_name(type_name);
         let category_name_clone = category_name.clone();
@@ -2950,8 +2952,11 @@ pub fn add_enhanced_timeline_dashboard(
     let mut scope_groups: std::collections::HashMap<String, Vec<&AllocationInfo>> =
         std::collections::HashMap::new();
     for var in &limited_tracked_vars {
-        let scope_name = extract_scope_name(var.var_name.as_ref()
-            .unwrap_or(&"unknown_variable".to_string()));
+        let scope_name = extract_scope_name(
+            var.var_name
+                .as_ref()
+                .unwrap_or(&"unknown_variable".to_string()),
+        );
         scope_groups.entry(scope_name).or_default().push(*var);
     }
 
@@ -3163,8 +3168,7 @@ pub fn add_enhanced_timeline_dashboard(
         // Draw variables within this scope
         for (var_index, alloc) in scope_vars.iter().enumerate() {
             let default_name = "unnamed_variable".to_string();
-            let var_name = alloc.var_name.as_ref()
-                .unwrap_or(&default_name);
+            let var_name = alloc.var_name.as_ref().unwrap_or(&default_name);
 
             // Calculate variable bar position
             let start_x = plot_x as i32

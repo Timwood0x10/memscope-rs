@@ -1,11 +1,11 @@
 //! Scope tracking functionality for memory analysis
 
-use crate::core::types::*;
 use crate::core::optimized_locks::OptimizedMutex;
 use crate::core::sharded_locks::ShardedRwLock;
+use crate::core::types::*;
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Global scope tracker instance
@@ -163,7 +163,9 @@ impl ScopeTracker {
         let thread_id = format!("{:?}", std::thread::current().id());
 
         // Find current scope for this thread
-        let current_scope_id = self.scope_stack.get(&thread_id)
+        let current_scope_id = self
+            .scope_stack
+            .get(&thread_id)
             .and_then(|stack| stack.last().copied());
 
         if let Some(scope_id) = current_scope_id {
@@ -183,14 +185,15 @@ impl ScopeTracker {
     /// Get current scope analysis
     pub fn get_scope_analysis(&self) -> TrackingResult<ScopeAnalysis> {
         let mut all_scopes = Vec::new();
-        
+
         // Collect active scopes from all shards
-        for i in 0..16 { // Default shard count
+        for i in 0..16 {
+            // Default shard count
             self.active_scopes.with_shard_read(&i, |shard| {
                 all_scopes.extend(shard.values().cloned());
             });
         }
-        
+
         // Add completed scopes
         if let Some(completed_scopes) = self.completed_scopes.try_lock() {
             all_scopes.extend(completed_scopes.iter().cloned());
@@ -277,7 +280,8 @@ impl ScopeTracker {
         let mut all_scopes = Vec::new();
 
         // Add active scopes from all shards
-        for i in 0..16 { // Default shard count
+        for i in 0..16 {
+            // Default shard count
             self.active_scopes.with_shard_read(&i, |shard| {
                 all_scopes.extend(shard.values().cloned());
             });

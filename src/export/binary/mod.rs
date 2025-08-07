@@ -22,7 +22,7 @@ mod writer;
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
-pub use format::{FileHeader, MAGIC_BYTES, FORMAT_VERSION};
+pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
 pub use writer::BinaryWriter;
@@ -45,10 +45,10 @@ pub fn export_to_binary_with_config<P: AsRef<Path>>(
     config: &BinaryExportConfig,
 ) -> Result<(), BinaryExportError> {
     let mut writer = BinaryWriter::new_with_config(path, config)?;
-    
+
     // Build string table for optimization if enabled
     writer.build_string_table(allocations)?;
-    
+
     writer.write_header(allocations.len() as u32)?;
 
     // Write basic allocation records

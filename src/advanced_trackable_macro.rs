@@ -54,7 +54,7 @@ macro_rules! impl_advanced_trackable {
                     function_call_tracking: None,
                     lifecycle_tracking: None,
                     access_tracking: None,
-            drop_chain_analysis: None,
+                    drop_chain_analysis: None,
                 };
 
                 Some(
@@ -115,7 +115,7 @@ macro_rules! impl_advanced_trackable {
                     function_call_tracking: None,
                     lifecycle_tracking: None,
                     access_tracking: None,
-            drop_chain_analysis: None,
+                    drop_chain_analysis: None,
                 };
 
                 Some(

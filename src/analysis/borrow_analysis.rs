@@ -179,7 +179,7 @@ impl BorrowAnalyzer {
             let total = history.len();
             let mut durations = Vec::new();
             let mut by_type = HashMap::new();
-            
+
             for event in history.iter() {
                 if let Some(end_time) = event.borrow_info.end_time {
                     durations.push(end_time - event.borrow_info.start_time);

@@ -41,7 +41,10 @@ impl BinaryWriter {
     }
 
     /// Build string table from allocation data for optimization
-    pub fn build_string_table(&mut self, allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+    pub fn build_string_table(
+        &mut self,
+        allocations: &[AllocationInfo],
+    ) -> Result<(), BinaryExportError> {
         if !self.config.string_table_optimization {
             return Ok(()); // String table optimization disabled
         }
@@ -74,7 +77,7 @@ impl BinaryWriter {
 
         let table = builder.build()?;
         let stats = table.compression_stats();
-        
+
         // Only use string table if it provides meaningful compression
         if stats.space_saved() > 0 && table.len() > 0 {
             tracing::debug!(
@@ -101,7 +104,7 @@ impl BinaryWriter {
             self.writer.write_all(b"STBL")?; // String table marker
             let table_size = string_table.serialized_size() as u32;
             self.writer.write_all(&table_size.to_le_bytes())?;
-            
+
             // Write the string table
             string_table.write_binary(&mut self.writer)?;
         } else {
@@ -612,7 +615,7 @@ impl BinaryWriter {
         if s.is_empty() {
             return None;
         }
-        
+
         if let Some(ref string_table) = self.string_table {
             string_table.get_index(s)
         } else {

@@ -1,24 +1,24 @@
 //! Targeted optimizations for actual performance bottlenecks
-//! 
+//!
 //! Based on profiling data, these optimizations target real performance issues
 //! rather than theoretical ones.
 
-use crate::core::smart_optimization::{SmartMutex, SafeUnwrap, SmartStats};
 use crate::core::atomic_stats::SimpleMemoryStats;
 use crate::core::simple_mutex::SimpleMutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use crate::core::smart_optimization::{SafeUnwrap, SmartMutex, SmartStats};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 /// Optimized statistics collector that avoids lock contention
 pub struct FastStatsCollector {
     // Core memory statistics using cache-line optimized structure
     memory_stats: SimpleMemoryStats,
-    
+
     // Additional counters for deallocations
     pub deallocation_count: AtomicU64,
     pub total_deallocated: AtomicU64,
-    
+
     // Low-frequency detailed data uses simple mutex
     detailed_data: SimpleMutex<DetailedStatsData>,
 }
@@ -49,14 +49,14 @@ impl FastStatsCollector {
     pub fn record_allocation_detailed(&self, size: usize) {
         // Use the optimized detailed recording
         self.memory_stats.record_allocation_detailed(size as u64);
-        
+
         // Only do histogram tracking if we can get the lock quickly
         #[cfg(feature = "parking-lot")]
         if let Some(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
             *data.allocation_histogram.entry(size).or_insert(0) += 1;
         }
-        
+
         #[cfg(not(feature = "parking-lot"))]
         if let Ok(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
@@ -67,7 +67,8 @@ impl FastStatsCollector {
 
     pub fn record_deallocation(&self, size: usize) {
         self.deallocation_count.fetch_add(1, Ordering::Relaxed);
-        self.total_deallocated.fetch_add(size as u64, Ordering::Relaxed);
+        self.total_deallocated
+            .fetch_add(size as u64, Ordering::Relaxed);
         self.memory_stats.record_deallocation(size as u64);
     }
 
@@ -86,7 +87,7 @@ impl FastStatsCollector {
     pub fn get_detailed_stats(&self) -> Option<DetailedStats> {
         let basic = self.get_basic_stats();
         let snapshot = self.memory_stats.snapshot();
-        
+
         #[cfg(feature = "parking-lot")]
         if let Some(data) = self.detailed_data.try_lock() {
             Some(DetailedStats {
@@ -102,7 +103,7 @@ impl FastStatsCollector {
         } else {
             None
         }
-        
+
         #[cfg(not(feature = "parking-lot"))]
         if let Ok(data) = self.detailed_data.try_lock() {
             Some(DetailedStats {
@@ -165,8 +166,8 @@ pub struct BatchProcessor<T> {
 }
 
 impl<T> BatchProcessor<T> {
-    pub fn new<F>(batch_size: usize, processor: F) -> Self 
-    where 
+    pub fn new<F>(batch_size: usize, processor: F) -> Self
+    where
         F: Fn(&[T]) + Send + Sync + 'static,
     {
         Self {
@@ -226,7 +227,7 @@ pub fn efficient_string_concat(parts: &[&str]) -> String {
     if parts.is_empty() {
         return String::new();
     }
-    
+
     if parts.len() == 1 {
         return parts[0].to_string();
     }
@@ -234,11 +235,11 @@ pub fn efficient_string_concat(parts: &[&str]) -> String {
     // Pre-calculate capacity to avoid reallocations
     let total_len: usize = parts.iter().map(|s| s.len()).sum();
     let mut result = String::with_capacity(total_len);
-    
+
     for part in parts {
         result.push_str(part);
     }
-    
+
     result
 }
 
@@ -254,18 +255,18 @@ pub fn clone_if_needed<T: Clone>(value: &T, need_owned: bool) -> std::borrow::Co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
     use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn test_fast_stats_collector() {
         let collector = FastStatsCollector::new();
-        
+
         // Test fast path
         for i in 0..1000 {
             collector.record_allocation_fast(64);
         }
-        
+
         let stats = collector.get_basic_stats();
         assert_eq!(stats.allocation_count, 1000);
         assert_eq!(stats.total_allocated, 64000);
@@ -299,7 +300,7 @@ mod tests {
     fn test_batch_processor() {
         let processed_items = Arc::new(SimpleMutex::new(Vec::new()));
         let processed_clone = processed_items.clone();
-        
+
         let processor = BatchProcessor::new(3, move |batch: &[i32]| {
             #[cfg(feature = "parking-lot")]
             {
@@ -338,11 +339,11 @@ mod tests {
         let parts = vec!["Hello", " ", "World", "!"];
         let result = efficient_string_concat(&parts);
         assert_eq!(result, "Hello World!");
-        
+
         // Test empty case
         let empty_result = efficient_string_concat(&[]);
         assert_eq!(empty_result, "");
-        
+
         // Test single item
         let single_result = efficient_string_concat(&["test"]);
         assert_eq!(single_result, "test");

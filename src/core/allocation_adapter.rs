@@ -1,16 +1,16 @@
 //! Compatibility adapter for AllocationInfo migration
-//! 
+//!
 //! This module provides a compatibility layer that allows existing code
 //! to continue working with the original AllocationInfo interface while
 //! internally using the optimized OptimizedAllocationInfo with string interning.
 
-use std::sync::Arc;
-use crate::core::types::AllocationInfo;
 use crate::core::optimized_types::OptimizedAllocationInfo;
 use crate::core::string_pool::intern_string;
+use crate::core::types::AllocationInfo;
+use std::sync::Arc;
 
 /// Adapter that provides AllocationInfo interface backed by OptimizedAllocationInfo
-/// 
+///
 /// This allows existing code to continue working unchanged while benefiting
 /// from string interning optimizations under the hood.
 pub struct AllocationInfoAdapter {
@@ -118,15 +118,15 @@ impl AllocationInfoAdapter {
     }
 
     pub fn stack_trace(&self) -> Option<Vec<String>> {
-        self.inner.stack_trace.as_ref().map(|trace| {
-            trace.iter().map(|frame| frame.to_string()).collect()
-        })
+        self.inner
+            .stack_trace
+            .as_ref()
+            .map(|trace| trace.iter().map(|frame| frame.to_string()).collect())
     }
 
     pub fn set_stack_trace(&mut self, trace: Option<Vec<String>>) {
-        self.inner.stack_trace = trace.map(|t| {
-            Arc::new(t.into_iter().map(|frame| intern_string(&frame)).collect())
-        });
+        self.inner.stack_trace =
+            trace.map(|t| Arc::new(t.into_iter().map(|frame| intern_string(&frame)).collect()));
     }
 
     pub fn is_leaked(&self) -> bool {
@@ -250,7 +250,10 @@ impl AllocationCollection {
 
     /// Convert to a vector of AllocationInfo (for compatibility)
     pub fn to_allocation_infos(&self) -> Vec<AllocationInfo> {
-        self.allocations.iter().map(|a| a.to_allocation_info()).collect()
+        self.allocations
+            .iter()
+            .map(|a| a.to_allocation_info())
+            .collect()
     }
 
     /// Convert to a vector of OptimizedAllocationInfo (for performance)
@@ -263,7 +266,7 @@ impl AllocationCollection {
         let total_size: usize = self.allocations.iter().map(|a| a.size()).sum();
         let active_count = self.allocations.iter().filter(|a| a.is_active()).count();
         let leaked_count = self.allocations.iter().filter(|a| a.is_leaked()).count();
-        
+
         CollectionMemoryStats {
             total_allocations: self.allocations.len(),
             active_allocations: active_count,
@@ -296,19 +299,19 @@ mod tests {
     #[test]
     fn test_allocation_adapter_basic_operations() {
         clear_string_pool();
-        
+
         let mut adapter = AllocationInfoAdapter::from_allocation(0x1000, 64);
-        
+
         assert_eq!(adapter.ptr(), 0x1000);
         assert_eq!(adapter.size(), 64);
         assert!(adapter.is_active());
-        
+
         adapter.set_var_name(Some("test_var".to_string()));
         adapter.set_type_name(Some("TestType".to_string()));
-        
+
         assert_eq!(adapter.var_name(), Some("test_var".to_string()));
         assert_eq!(adapter.type_name(), Some("TestType".to_string()));
-        
+
         adapter.mark_deallocated();
         assert!(!adapter.is_active());
         assert!(adapter.lifetime_ms().is_some());
@@ -317,7 +320,7 @@ mod tests {
     #[test]
     fn test_conversion_compatibility() {
         clear_string_pool();
-        
+
         // Create original AllocationInfo
         let original = AllocationInfo {
             ptr: 0x1000,
@@ -348,11 +351,11 @@ mod tests {
             access_tracking: None,
             drop_chain_analysis: None,
         };
-        
+
         // Convert through adapter
         let adapter = AllocationInfoAdapter::from(original.clone());
         let converted_back = AllocationInfo::from(adapter);
-        
+
         assert_eq!(converted_back.ptr, original.ptr);
         assert_eq!(converted_back.size, original.size);
         assert_eq!(converted_back.var_name, original.var_name);
@@ -362,18 +365,18 @@ mod tests {
     #[test]
     fn test_allocation_collection() {
         clear_string_pool();
-        
+
         let mut collection = AllocationCollection::new();
-        
+
         let adapter1 = AllocationInfoAdapter::from_allocation(0x1000, 64);
         let adapter2 = AllocationInfoAdapter::from_allocation(0x2000, 128);
-        
+
         collection.push(adapter1);
         collection.push(adapter2);
-        
+
         assert_eq!(collection.len(), 2);
         assert!(!collection.is_empty());
-        
+
         let stats = collection.memory_stats();
         assert_eq!(stats.total_allocations, 2);
         assert_eq!(stats.active_allocations, 2);
@@ -383,13 +386,13 @@ mod tests {
     #[test]
     fn test_string_interning_through_adapter() {
         clear_string_pool();
-        
+
         let mut adapter1 = AllocationInfoAdapter::from_allocation(0x1000, 64);
         let mut adapter2 = AllocationInfoAdapter::from_allocation(0x2000, 128);
-        
+
         adapter1.set_var_name(Some("shared_name".to_string()));
         adapter2.set_var_name(Some("shared_name".to_string()));
-        
+
         // Verify that the underlying Arc<str> are the same (interned)
         assert!(Arc::ptr_eq(
             adapter1.inner().var_name.as_ref().unwrap(),

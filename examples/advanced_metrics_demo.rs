@@ -57,10 +57,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add some simple main-thread allocations with clear variable names
     println!("   Creating main-thread allocations with clear variable names...");
-    
+
     let main_thread_buffer = vec![42u8; 1024];
     track_var!(main_thread_buffer);
-    
+
     let main_thread_map = {
         let mut map = HashMap::new();
         map.insert("key1".to_string(), vec![1, 2, 3, 4, 5]);
@@ -68,14 +68,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         map
     };
     track_var!(main_thread_map);
-    
+
     let main_thread_string = "This is a main thread string for testing".to_string();
     track_var!(main_thread_string);
-    
+
     let main_thread_tuple = (
         vec!["tuple_item_1".to_string(), "tuple_item_2".to_string()],
         vec![100, 200, 300],
-        vec!["metadata".to_string()]
+        vec!["metadata".to_string()],
     );
     track_var!(main_thread_tuple);
 

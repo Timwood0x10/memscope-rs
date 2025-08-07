@@ -1,9 +1,9 @@
 //! Threshold-based batch processor that adapts based on operation frequency
-//! 
+//!
 //! This module provides a batch processor that automatically switches between
 //! direct processing and batching based on operation frequency.
 
-use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -44,7 +44,11 @@ impl BatchConfig {
     }
 
     /// Create custom configuration
-    pub fn custom(batch_size: usize, frequency_threshold: u64, measurement_window: Duration) -> Self {
+    pub fn custom(
+        batch_size: usize,
+        frequency_threshold: u64,
+        measurement_window: Duration,
+    ) -> Self {
         Self {
             batch_size,
             frequency_threshold,
@@ -64,12 +68,12 @@ pub struct ThresholdBatchProcessor<T> {
     config: BatchConfig,
     buffer: Mutex<Vec<T>>,
     processor: Box<dyn Fn(&[T]) + Send + Sync>,
-    
+
     // Frequency tracking
     operation_count: AtomicU64,
     last_measurement: Mutex<Instant>,
     batching_enabled: AtomicBool,
-    
+
     // Statistics
     total_operations: AtomicU64,
     batched_operations: AtomicU64,
@@ -77,8 +81,8 @@ pub struct ThresholdBatchProcessor<T> {
 
 impl<T> ThresholdBatchProcessor<T> {
     /// Create new threshold batch processor
-    pub fn new<F>(config: BatchConfig, processor: F) -> Self 
-    where 
+    pub fn new<F>(config: BatchConfig, processor: F) -> Self
+    where
         F: Fn(&[T]) + Send + Sync + 'static,
     {
         Self {
@@ -94,8 +98,8 @@ impl<T> ThresholdBatchProcessor<T> {
     }
 
     /// Create with default medium frequency configuration
-    pub fn with_default_config<F>(processor: F) -> Self 
-    where 
+    pub fn with_default_config<F>(processor: F) -> Self
+    where
         F: Fn(&[T]) + Send + Sync + 'static,
     {
         Self::new(BatchConfig::default(), processor)
@@ -105,10 +109,10 @@ impl<T> ThresholdBatchProcessor<T> {
     pub fn process(&self, item: T) {
         self.total_operations.fetch_add(1, Ordering::Relaxed);
         self.operation_count.fetch_add(1, Ordering::Relaxed);
-        
+
         // Check if we should update batching mode
         self.update_batching_mode();
-        
+
         if self.batching_enabled.load(Ordering::Relaxed) {
             self.process_batched(item);
         } else {
@@ -139,7 +143,7 @@ impl<T> ThresholdBatchProcessor<T> {
         if should_flush {
             self.flush_batch();
         }
-        
+
         self.batched_operations.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -159,7 +163,7 @@ impl<T> ThresholdBatchProcessor<T> {
         if let Ok(mut last_measurement) = self.last_measurement.try_lock() {
             let now = Instant::now();
             let elapsed = now.duration_since(*last_measurement);
-            
+
             if elapsed >= self.config.measurement_window {
                 let ops_count = self.operation_count.swap(0, Ordering::Relaxed);
                 let frequency = if elapsed.as_secs() > 0 {
@@ -167,11 +171,11 @@ impl<T> ThresholdBatchProcessor<T> {
                 } else {
                     ops_count * 1000 / elapsed.as_millis().max(1) as u64
                 };
-                
+
                 // Enable batching if frequency exceeds threshold
                 let should_batch = frequency > self.config.frequency_threshold;
                 self.batching_enabled.store(should_batch, Ordering::Relaxed);
-                
+
                 *last_measurement = now;
             }
         }
@@ -182,7 +186,7 @@ impl<T> ThresholdBatchProcessor<T> {
         if let Ok(last_measurement) = self.last_measurement.try_lock() {
             let elapsed = last_measurement.elapsed();
             let ops_count = self.operation_count.load(Ordering::Relaxed);
-            
+
             if elapsed.as_secs() > 0 {
                 ops_count / elapsed.as_secs()
             } else {
@@ -202,15 +206,15 @@ impl<T> ThresholdBatchProcessor<T> {
     pub fn stats(&self) -> ProcessingStats {
         let total = self.total_operations.load(Ordering::Relaxed);
         let batched = self.batched_operations.load(Ordering::Relaxed);
-        
+
         ProcessingStats {
             total_operations: total,
             batched_operations: batched,
             direct_operations: total - batched,
-            batching_ratio: if total > 0 { 
-                batched as f64 / total as f64 
-            } else { 
-                0.0 
+            batching_ratio: if total > 0 {
+                batched as f64 / total as f64
+            } else {
+                0.0
             },
             current_frequency: self.current_frequency(),
             batching_enabled: self.is_batching_enabled(),
@@ -222,7 +226,7 @@ impl<T> ThresholdBatchProcessor<T> {
         self.total_operations.store(0, Ordering::Relaxed);
         self.batched_operations.store(0, Ordering::Relaxed);
         self.operation_count.store(0, Ordering::Relaxed);
-        
+
         if let Ok(mut last_measurement) = self.last_measurement.try_lock() {
             *last_measurement = Instant::now();
         }
@@ -257,7 +261,7 @@ mod tests {
     fn test_low_frequency_direct_processing() {
         let processed = Arc::new(StdMutex::new(Vec::new()));
         let processed_clone = processed.clone();
-        
+
         let config = BatchConfig::custom(5, 100, Duration::from_millis(100));
         let processor = ThresholdBatchProcessor::new(config, move |items: &[i32]| {
             let mut p = processed_clone.lock().unwrap();
@@ -271,13 +275,13 @@ mod tests {
         }
 
         processor.flush_batch();
-        
+
         let stats = processor.stats();
         println!("Low frequency stats: {:?}", stats);
-        
+
         // Should mostly use direct processing
         assert!(!processor.is_batching_enabled());
-        
+
         let processed_items = processed.lock().unwrap();
         assert_eq!(processed_items.len(), 10);
     }
@@ -286,7 +290,7 @@ mod tests {
     fn test_high_frequency_batch_processing() {
         let processed = Arc::new(StdMutex::new(Vec::new()));
         let processed_clone = processed.clone();
-        
+
         let config = BatchConfig::custom(3, 50, Duration::from_millis(100));
         let processor = ThresholdBatchProcessor::new(config, move |items: &[i32]| {
             let mut p = processed_clone.lock().unwrap();
@@ -298,20 +302,20 @@ mod tests {
             processor.process(i);
             // No sleep - maximum frequency
         }
-        
+
         // Wait for measurement window
         thread::sleep(Duration::from_millis(150));
-        
+
         // Process a few more to trigger batching mode check
         for i in 20..25 {
             processor.process(i);
         }
 
         processor.flush_batch();
-        
+
         let stats = processor.stats();
         println!("High frequency stats: {:?}", stats);
-        
+
         let processed_items = processed.lock().unwrap();
         assert_eq!(processed_items.len(), 25);
     }
@@ -320,10 +324,10 @@ mod tests {
     fn test_config_presets() {
         let low = BatchConfig::low_frequency();
         assert_eq!(low.frequency_threshold, 100);
-        
+
         let medium = BatchConfig::medium_frequency();
         assert_eq!(medium.frequency_threshold, 500);
-        
+
         let high = BatchConfig::high_frequency();
         assert_eq!(high.frequency_threshold, 1000);
     }

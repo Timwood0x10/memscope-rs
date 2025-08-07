@@ -1,11 +1,11 @@
 //! Optimized lock implementations using parking_lot
-//! 
+//!
 //! This module provides drop-in replacements for standard library locks
 //! using parking_lot for better performance and features.
 
-use parking_lot::{Mutex, RwLock, MutexGuard, RwLockReadGuard, RwLockWriteGuard};
-use std::time::{Duration, Instant};
 use crate::core::atomic_stats::AtomicPerformanceCounters;
+use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::time::{Duration, Instant};
 
 /// Optimized mutex with performance monitoring
 #[derive(Debug)]
@@ -26,7 +26,7 @@ impl<T> OptimizedMutex<T> {
     /// Lock the mutex with performance monitoring
     pub fn lock(&self) -> OptimizedMutexGuard<T> {
         let start = Instant::now();
-        
+
         // Try to acquire the lock without blocking first
         if let Some(guard) = self.inner.try_lock() {
             let wait_time = start.elapsed();
@@ -39,12 +39,12 @@ impl<T> OptimizedMutex<T> {
 
         // If we couldn't acquire immediately, record contention
         self.counters.record_lock_contention();
-        
+
         // Now block until we can acquire the lock
         let guard = self.inner.lock();
         let wait_time = start.elapsed();
         self.counters.record_lock_acquisition(wait_time);
-        
+
         OptimizedMutexGuard {
             guard,
             _counters: &self.counters,
@@ -54,7 +54,7 @@ impl<T> OptimizedMutex<T> {
     /// Try to lock the mutex without blocking
     pub fn try_lock(&self) -> Option<OptimizedMutexGuard<T>> {
         let start = Instant::now();
-        
+
         if let Some(guard) = self.inner.try_lock() {
             let wait_time = start.elapsed();
             self.counters.record_lock_acquisition(wait_time);
@@ -71,7 +71,7 @@ impl<T> OptimizedMutex<T> {
     /// Try to lock with a timeout
     pub fn try_lock_for(&self, timeout: Duration) -> Option<OptimizedMutexGuard<T>> {
         let start = Instant::now();
-        
+
         if let Some(guard) = self.inner.try_lock_for(timeout) {
             let wait_time = start.elapsed();
             self.counters.record_lock_acquisition(wait_time);
@@ -130,7 +130,7 @@ impl<T> OptimizedRwLock<T> {
     /// Acquire a read lock with performance monitoring
     pub fn read(&self) -> OptimizedRwLockReadGuard<T> {
         let start = Instant::now();
-        
+
         // Try to acquire the read lock without blocking first
         if let Some(guard) = self.inner.try_read() {
             let wait_time = start.elapsed();
@@ -143,12 +143,12 @@ impl<T> OptimizedRwLock<T> {
 
         // If we couldn't acquire immediately, record contention
         self.counters.record_lock_contention();
-        
+
         // Now block until we can acquire the lock
         let guard = self.inner.read();
         let wait_time = start.elapsed();
         self.counters.record_lock_acquisition(wait_time);
-        
+
         OptimizedRwLockReadGuard {
             guard,
             _counters: &self.counters,
@@ -158,7 +158,7 @@ impl<T> OptimizedRwLock<T> {
     /// Acquire a write lock with performance monitoring
     pub fn write(&self) -> OptimizedRwLockWriteGuard<T> {
         let start = Instant::now();
-        
+
         // Try to acquire the write lock without blocking first
         if let Some(guard) = self.inner.try_write() {
             let wait_time = start.elapsed();
@@ -171,12 +171,12 @@ impl<T> OptimizedRwLock<T> {
 
         // If we couldn't acquire immediately, record contention
         self.counters.record_lock_contention();
-        
+
         // Now block until we can acquire the lock
         let guard = self.inner.write();
         let wait_time = start.elapsed();
         self.counters.record_lock_acquisition(wait_time);
-        
+
         OptimizedRwLockWriteGuard {
             guard,
             _counters: &self.counters,
@@ -186,7 +186,7 @@ impl<T> OptimizedRwLock<T> {
     /// Try to acquire a read lock without blocking
     pub fn try_read(&self) -> Option<OptimizedRwLockReadGuard<T>> {
         let start = Instant::now();
-        
+
         if let Some(guard) = self.inner.try_read() {
             let wait_time = start.elapsed();
             self.counters.record_lock_acquisition(wait_time);
@@ -203,7 +203,7 @@ impl<T> OptimizedRwLock<T> {
     /// Try to acquire a write lock without blocking
     pub fn try_write(&self) -> Option<OptimizedRwLockWriteGuard<T>> {
         let start = Instant::now();
-        
+
         if let Some(guard) = self.inner.try_write() {
             let wait_time = start.elapsed();
             self.counters.record_lock_acquisition(wait_time);
@@ -273,22 +273,30 @@ impl LockFreeCounter {
 
     /// Increment the counter and return the new value
     pub fn increment(&self) -> u64 {
-        self.value.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
+        self.value
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1
     }
 
     /// Decrement the counter and return the new value
     pub fn decrement(&self) -> u64 {
-        self.value.fetch_sub(1, std::sync::atomic::Ordering::Relaxed) - 1
+        self.value
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed)
+            - 1
     }
 
     /// Add a value to the counter and return the new value
     pub fn add(&self, value: u64) -> u64 {
-        self.value.fetch_add(value, std::sync::atomic::Ordering::Relaxed) + value
+        self.value
+            .fetch_add(value, std::sync::atomic::Ordering::Relaxed)
+            + value
     }
 
     /// Subtract a value from the counter and return the new value
     pub fn sub(&self, value: u64) -> u64 {
-        self.value.fetch_sub(value, std::sync::atomic::Ordering::Relaxed) - value
+        self.value
+            .fetch_sub(value, std::sync::atomic::Ordering::Relaxed)
+            - value
     }
 
     /// Get the current value
@@ -298,7 +306,8 @@ impl LockFreeCounter {
 
     /// Set the value
     pub fn set(&self, value: u64) {
-        self.value.store(value, std::sync::atomic::Ordering::Relaxed);
+        self.value
+            .store(value, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Compare and swap

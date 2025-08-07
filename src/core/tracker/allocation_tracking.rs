@@ -1,0 +1,1826 @@
+//! Memory allocation tracking implementation.
+//!
+//! This module contains the core allocation and deallocation tracking logic
+//! for the MemoryTracker, including fast tracking modes and statistics updates.
+
+use super::memory_tracker::MemoryTracker;
+use crate::core::types::{
+    AllocationInfo, EventPerformanceMetrics, FunctionCallTrackingInfo,
+    FunctionPerformanceCharacteristics, LeakPotential, MemoryAccessTrackingInfo,
+    MemoryLocationType, MemoryUsagePattern, ObjectLifecycleInfo, SourceLocation, TrackingResult,
+    SimpleLifecyclePattern,
+};
+
+impl MemoryTracker {
+    /// Fast track allocation for testing (minimal overhead)
+    pub fn fast_track_allocation(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: String,
+    ) -> TrackingResult<()> {
+        if !self.is_fast_mode() {
+            return self.create_synthetic_allocation(ptr, size, var_name, "unknown".to_string(), 0);
+        }
+
+        // In fast mode, create minimal allocation info but still track it
+        let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.var_name = Some(var_name);
+        allocation.type_name = Some("fast_tracked".to_string());
+
+        // Apply Task 4 enhancement: calculate lifetime
+        self.calculate_and_analyze_lifetime(&mut allocation);
+
+        // Try to update both active allocations and stats
+        if let (Ok(mut active), Ok(mut stats)) =
+            (self.active_allocations.try_lock(), self.stats.try_lock())
+        {
+            active.insert(ptr, allocation);
+            stats.total_allocations = stats.total_allocations.saturating_add(1);
+            stats.active_allocations = stats.active_allocations.saturating_add(1);
+            stats.active_memory = stats.active_memory.saturating_add(size);
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
+        }
+        Ok(())
+    }
+
+    /// Track a new memory allocation.
+    pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
+        // Create allocation info first (no locks needed)
+        let mut allocation = AllocationInfo::new(ptr, size);
+
+        // Apply Task 4 enhancement: calculate lifetime
+        self.calculate_and_analyze_lifetime(&mut allocation);
+
+        // In test mode or when explicitly requested, use blocking locks for accuracy
+        let use_blocking_locks = self.is_fast_mode()
+            || std::env::var("MEMSCOPE_ACCURATE_TRACKING").is_ok()
+            || cfg!(test);
+
+        if use_blocking_locks {
+            // Use blocking locks to ensure all allocations are tracked in tests
+            let mut active = self.active_allocations.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire active_allocations lock".to_string(),
+                )
+            })?;
+            let mut stats = self.stats.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire stats lock".to_string(),
+                )
+            })?;
+
+            // Insert allocation into active tracking
+            active.insert(ptr, allocation.clone());
+
+            // Update statistics with overflow protection
+            stats.total_allocations = stats.total_allocations.saturating_add(1);
+            stats.total_allocated = stats.total_allocated.saturating_add(size);
+            stats.active_allocations = stats.active_allocations.saturating_add(1);
+            stats.active_memory = stats.active_memory.saturating_add(size);
+
+            // Update peaks
+            if stats.active_allocations > stats.peak_allocations {
+                stats.peak_allocations = stats.active_allocations;
+            }
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
+
+            // Release locks before adding to history
+            drop(stats);
+            drop(active);
+
+            // Add to history with separate lock (optional, skip if busy or in fast mode)
+            if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                if let Ok(mut history) = self.allocation_history.try_lock() {
+                    history.push(allocation);
+                }
+            }
+
+            Ok(())
+        } else {
+            // Production mode: use try_lock with improved retry logic
+            self.track_allocation_with_retry(ptr, size, allocation)
+        }
+    }
+
+    /// Track a memory deallocation.
+    pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<()> {
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // In test mode or when explicitly requested, use blocking locks for accuracy
+        let use_blocking_locks = self.is_fast_mode()
+            || std::env::var("MEMSCOPE_ACCURATE_TRACKING").is_ok()
+            || cfg!(test);
+
+        if use_blocking_locks {
+            self.track_deallocation_blocking(ptr, dealloc_timestamp)
+        } else {
+            // Production mode: use try_lock with improved retry logic
+            self.track_deallocation_with_retry(ptr, dealloc_timestamp)
+        }
+    }
+
+    // Private helper methods
+
+    /// Track allocation with retry logic for production mode
+    fn track_allocation_with_retry(
+        &self,
+        ptr: usize,
+        size: usize,
+        allocation: AllocationInfo,
+    ) -> TrackingResult<()> {
+        let mut retry_count = 0;
+        const MAX_RETRIES: u32 = 10;
+
+        while retry_count < MAX_RETRIES {
+            match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+                (Ok(mut active), Ok(mut stats)) => {
+                    // Insert allocation into active tracking
+                    active.insert(ptr, allocation.clone());
+
+                    // Update statistics with overflow protection
+                    stats.total_allocations = stats.total_allocations.saturating_add(1);
+                    stats.total_allocated = stats.total_allocated.saturating_add(size);
+                    stats.active_allocations = stats.active_allocations.saturating_add(1);
+                    stats.active_memory = stats.active_memory.saturating_add(size);
+
+                    // Update peaks
+                    if stats.active_allocations > stats.peak_allocations {
+                        stats.peak_allocations = stats.active_allocations;
+                    }
+                    if stats.active_memory > stats.peak_memory {
+                        stats.peak_memory = stats.active_memory;
+                    }
+
+                    return Ok(());
+                }
+                _ => {
+                    retry_count += 1;
+                    if retry_count < MAX_RETRIES {
+                        std::thread::yield_now();
+                    }
+                }
+            }
+        }
+
+        // If all retries failed, return error
+        Err(crate::core::types::TrackingError::LockError(
+            "Failed to acquire locks after retries".to_string(),
+        ))
+    }
+
+    /// Track deallocation with blocking locks
+    fn track_deallocation_blocking(
+        &self,
+        ptr: usize,
+        dealloc_timestamp: u64,
+    ) -> TrackingResult<()> {
+        let mut active = self.active_allocations.lock().map_err(|_| {
+            crate::core::types::TrackingError::LockError(
+                "Failed to acquire active_allocations lock".to_string(),
+            )
+        })?;
+        let mut stats = self.stats.lock().map_err(|_| {
+            crate::core::types::TrackingError::LockError("Failed to acquire stats lock".to_string())
+        })?;
+
+        if let Some(mut allocation) = active.remove(&ptr) {
+            // Set deallocation timestamp
+            allocation.timestamp_dealloc = Some(dealloc_timestamp);
+
+            // Apply Task 4 enhancement: calculate lifetime for deallocated allocation
+            self.calculate_and_analyze_lifetime(&mut allocation);
+
+            // Update statistics with overflow protection
+            stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+            stats.total_deallocated = stats.total_deallocated.saturating_add(allocation.size);
+            stats.active_allocations = stats.active_allocations.saturating_sub(1);
+            stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+
+            // Release locks before updating history
+            drop(stats);
+            drop(active);
+
+            // Update allocation history with deallocation timestamp
+            if let Ok(mut history) = self.allocation_history.try_lock() {
+                // Find and update the corresponding entry in history
+                if let Some(history_entry) = history.iter_mut().find(|entry| entry.ptr == ptr) {
+                    history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                } else {
+                    // If not found in history, add the deallocated allocation
+                    history.push(allocation);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Track deallocation with retry logic for production mode
+    fn track_deallocation_with_retry(
+        &self,
+        ptr: usize,
+        dealloc_timestamp: u64,
+    ) -> TrackingResult<()> {
+        let mut retry_count = 0;
+        const MAX_RETRIES: u32 = 10;
+
+        while retry_count < MAX_RETRIES {
+            match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+                (Ok(mut active), Ok(mut stats)) => {
+                    if let Some(mut allocation) = active.remove(&ptr) {
+                        // Set deallocation timestamp
+                        allocation.timestamp_dealloc = Some(dealloc_timestamp);
+
+                        // Apply Task 4 enhancement: calculate lifetime for deallocated allocation
+                        self.calculate_and_analyze_lifetime(&mut allocation);
+
+                        // Update statistics with overflow protection
+                        stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+                        stats.total_deallocated =
+                            stats.total_deallocated.saturating_add(allocation.size);
+                        stats.active_allocations = stats.active_allocations.saturating_sub(1);
+                        stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+
+                        // Release locks before updating history
+                        drop(stats);
+                        drop(active);
+
+                        // Update allocation history with deallocation timestamp
+                        if let Ok(mut history) = self.allocation_history.try_lock() {
+                            // Find and update the corresponding entry in history
+                            if let Some(history_entry) =
+                                history.iter_mut().find(|entry| entry.ptr == ptr)
+                            {
+                                history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                            } else {
+                                // If not found in history, add the deallocated allocation
+                                history.push(allocation);
+                            }
+                        }
+                    }
+                    return Ok(());
+                }
+                _ => {
+                    retry_count += 1;
+                    if retry_count < MAX_RETRIES {
+                        std::thread::yield_now();
+                    }
+                }
+            }
+        }
+
+        // If all retries failed, return error
+        Err(crate::core::types::TrackingError::LockError(
+            "Failed to acquire locks after retries".to_string(),
+        ))
+    }
+
+    /// Enhanced lifetime calculation and analysis for Task 4
+    /// This method fills the lifetime_ms field with precise calculations and adds lifecycle analysis
+    fn calculate_and_analyze_lifetime(&self, allocation: &mut AllocationInfo) {
+        // 1. Calculate precise lifetime based on timestamps
+        if allocation.lifetime_ms.is_none() {
+            if let Some(dealloc_time) = allocation.timestamp_dealloc {
+                // For deallocated objects, calculate exact lifetime
+                let lifetime_ns = dealloc_time.saturating_sub(allocation.timestamp_alloc);
+                let lifetime_ms = lifetime_ns / 1_000_000; // Convert to milliseconds
+                tracing::debug!(
+                    "Deallocated allocation lifetime: {}ns -> {}ms",
+                    lifetime_ns,
+                    lifetime_ms
+                );
+                allocation.lifetime_ms = Some(lifetime_ms);
+            } else {
+                // For active allocations, calculate current lifetime
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u64;
+                let lifetime_ns = current_time.saturating_sub(allocation.timestamp_alloc);
+                let lifetime_ms = lifetime_ns / 1_000_000; // Convert to milliseconds
+                tracing::debug!(
+                    "Active allocation lifetime: {}ns -> {}ms",
+                    lifetime_ns,
+                    lifetime_ms
+                );
+                allocation.lifetime_ms = Some(lifetime_ms);
+            }
+        }
+
+        // 2. Perform lifecycle analysis and efficiency evaluation
+        if let Some(lifetime_ms) = allocation.lifetime_ms {
+            self.analyze_lifecycle_efficiency(allocation, lifetime_ms);
+        }
+    }
+
+    /// Associate a variable name and type with an allocation.
+    pub fn associate_var(
+        &self,
+        ptr: usize,
+        var_name: String,
+        type_name: String,
+    ) -> TrackingResult<()> {
+        // Use try_lock to avoid blocking if the allocator is currently tracking
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                if let Some(allocation) = active.get_mut(&ptr) {
+                    allocation.var_name = Some(var_name.clone());
+                    allocation.type_name = Some(type_name.clone());
+
+                    tracing::debug!(
+                        "Associated variable '{}' with existing allocation at {:x}",
+                        var_name,
+                        ptr
+                    );
+                    Ok(())
+                } else {
+                    // For smart pointers and other complex types, create a synthetic allocation entry
+                    let mut synthetic_allocation = AllocationInfo::new(ptr, 0);
+                    synthetic_allocation.var_name = Some(var_name.clone());
+                    synthetic_allocation.type_name = Some(type_name.clone());
+
+                    // Estimate size based on type
+                    let estimated_size = self.estimate_type_size(&type_name);
+                    synthetic_allocation.size = estimated_size;
+
+                    // Add to active allocations for tracking
+                    active.insert(ptr, synthetic_allocation);
+                    tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
+                                   var_name, ptr, estimated_size);
+                    Ok(())
+                }
+            }
+            Err(_) => {
+                // If we can't get the lock immediately, skip to avoid deadlock
+                Ok(())
+            }
+        }
+    }
+
+    /// Track a memory deallocation with precise lifetime information.
+    pub fn track_deallocation_with_lifetime(
+        &self,
+        ptr: usize,
+        lifetime_ms: u64,
+    ) -> TrackingResult<()> {
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Use try_lock to avoid blocking during high deallocation activity
+        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+            (Ok(mut active), Ok(mut stats)) => {
+                if let Some(mut allocation) = active.remove(&ptr) {
+                    // Set deallocation timestamp and lifetime
+                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
+
+                    // Update statistics with overflow protection
+                    stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+                    stats.total_deallocated =
+                        stats.total_deallocated.saturating_add(allocation.size);
+                    stats.active_allocations = stats.active_allocations.saturating_sub(1);
+                    stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+
+                    // Release locks before updating history
+                    drop(stats);
+                    drop(active);
+
+                    // Update allocation history with deallocation timestamp AND lifetime
+                    if let Ok(mut history) = self.allocation_history.try_lock() {
+                        // Find and update the corresponding entry in history
+                        let mut found = false;
+                        for history_entry in history.iter_mut() {
+                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none()
+                            {
+                                history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                                history_entry.lifetime_ms = Some(lifetime_ms);
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if !found {
+                            // If not found, add the allocation with lifetime info
+                            allocation.lifetime_ms = Some(lifetime_ms);
+                            history.push(allocation);
+                        }
+                    }
+
+                    Ok(())
+                } else {
+                    Ok(()) // Allocation not found, but don't error
+                }
+            }
+            _ => Ok(()), // Lock contention, skip to avoid deadlock
+        }
+    }
+
+    /// Create a specialized synthetic allocation for Rc/Arc with reference counting support.
+    pub fn create_smart_pointer_allocation(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: String,
+        type_name: String,
+        creation_time: u64,
+        ref_count: usize,
+        data_ptr: usize,
+    ) -> TrackingResult<()> {
+        let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.var_name = Some(var_name.clone());
+        allocation.type_name = Some(type_name.clone());
+        allocation.timestamp_alloc = creation_time;
+
+        // Determine smart pointer type
+        let pointer_type = if type_name.contains("std::rc::Rc") {
+            crate::core::types::SmartPointerType::Rc
+        } else if type_name.contains("std::sync::Arc") {
+            crate::core::types::SmartPointerType::Arc
+        } else if type_name.contains("std::rc::Weak") {
+            crate::core::types::SmartPointerType::RcWeak
+        } else if type_name.contains("std::sync::Weak") {
+            crate::core::types::SmartPointerType::ArcWeak
+        } else if type_name.contains("Box") {
+            crate::core::types::SmartPointerType::Box
+        } else {
+            crate::core::types::SmartPointerType::Rc // Default fallback
+        };
+
+        // Create smart pointer info
+        let smart_pointer_info = if matches!(
+            pointer_type,
+            crate::core::types::SmartPointerType::RcWeak
+                | crate::core::types::SmartPointerType::ArcWeak
+        ) {
+            crate::core::types::SmartPointerInfo::new_weak(data_ptr, pointer_type, ref_count)
+        } else {
+            crate::core::types::SmartPointerInfo::new_rc_arc(data_ptr, pointer_type, ref_count, 0)
+        };
+
+        allocation.smart_pointer_info = Some(smart_pointer_info);
+
+        // Enhance allocation with detailed analysis
+        self.enhance_allocation_info(&mut allocation);
+
+        // Use try_lock to avoid blocking
+        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+            (Ok(mut active), Ok(mut stats)) => {
+                // Add to active allocations
+                active.insert(ptr, allocation.clone());
+
+                // Update statistics
+                stats.total_allocations = stats.total_allocations.saturating_add(1);
+                stats.total_allocated = stats.total_allocated.saturating_add(size);
+                stats.active_allocations = stats.active_allocations.saturating_add(1);
+                stats.active_memory = stats.active_memory.saturating_add(size);
+
+                // Release locks before updating history
+                // Add to active allocations and history
+                active.insert(ptr, allocation.clone());
+                drop(stats);
+                drop(active);
+
+                // Add to allocation history (only if needed for analysis and not in fast mode)
+                if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                    if let Ok(mut history) = self.allocation_history.try_lock() {
+                        history.push(allocation);
+                    }
+                }
+
+                tracing::debug!(
+                    "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x}",
+                    var_name,
+                    type_name,
+                    ptr,
+                    size,
+                    ref_count,
+                    data_ptr
+                );
+
+                Ok(())
+            }
+            _ => {
+                // Use a brief retry strategy instead of immediate failure
+                for attempt in 0..3 {
+                    std::thread::sleep(std::time::Duration::from_nanos(100 * (attempt + 1)));
+                    if let (Ok(mut active), Ok(mut stats)) =
+                        (self.active_allocations.try_lock(), self.stats.try_lock())
+                    {
+                        active.insert(ptr, allocation.clone());
+                        stats.active_allocations += 1;
+                        stats.active_memory += size;
+                        stats.total_allocations += 1;
+                        if stats.active_memory > stats.peak_memory {
+                            stats.peak_memory = stats.active_memory;
+                        }
+                        drop(stats);
+                        drop(active);
+
+                        // Add to allocation history (only if needed for analysis)
+                        if std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                            if let Ok(mut history) = self.allocation_history.try_lock() {
+                                history.push(allocation.clone());
+                            }
+                        }
+
+                        tracing::debug!(
+                            "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x} (attempt {})",
+                            var_name,
+                            type_name,
+                            ptr,
+                            size,
+                            ref_count,
+                            data_ptr,
+                            attempt + 1
+                        );
+                        return Ok(());
+                    }
+                }
+
+                // Only debug log after all retries failed
+                tracing::debug!(
+                    "⚠️ Failed to create smart pointer allocation for '{}' after retries",
+                    var_name
+                );
+                Ok(())
+            }
+        }
+    }
+
+    /// Track smart pointer clone relationship
+    pub fn track_smart_pointer_clone(
+        &self,
+        clone_ptr: usize,
+        source_ptr: usize,
+        data_ptr: usize,
+        new_ref_count: usize,
+        weak_count: usize,
+    ) -> TrackingResult<()> {
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                // Update source pointer's clone list
+                if let Some(source_alloc) = active.get_mut(&source_ptr) {
+                    if let Some(ref mut smart_info) = source_alloc.smart_pointer_info {
+                        smart_info.record_clone(clone_ptr, source_ptr);
+                        smart_info.update_ref_count(new_ref_count, weak_count);
+                    }
+                }
+
+                // Update clone pointer's source reference
+                if let Some(clone_alloc) = active.get_mut(&clone_ptr) {
+                    if let Some(ref mut smart_info) = clone_alloc.smart_pointer_info {
+                        smart_info.cloned_from = Some(source_ptr);
+                        smart_info.update_ref_count(new_ref_count, weak_count);
+                    }
+                }
+
+                tracing::debug!(
+                    "🔗 Tracked clone relationship: 0x{:x} -> 0x{:x}, data_ptr=0x{:x}, ref_count={}",
+                    source_ptr,
+                    clone_ptr,
+                    data_ptr,
+                    new_ref_count
+                );
+
+                Ok(())
+            }
+            Err(_) => {
+                // Skip if we can't get the lock
+                Ok(())
+            }
+        }
+    }
+
+    /// Update reference count for a smart pointer
+    pub fn update_smart_pointer_ref_count(
+        &self,
+        ptr: usize,
+        strong_count: usize,
+        weak_count: usize,
+    ) -> TrackingResult<()> {
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                if let Some(allocation) = active.get_mut(&ptr) {
+                    if let Some(ref mut smart_info) = allocation.smart_pointer_info {
+                        smart_info.update_ref_count(strong_count, weak_count);
+
+                        tracing::debug!(
+                            "📊 Updated ref count for 0x{:x}: strong={}, weak={}",
+                            ptr,
+                            strong_count,
+                            weak_count
+                        );
+                    }
+                }
+                Ok(())
+            }
+            Err(_) => Ok(()),
+        }
+    }
+
+    /// Track the deallocation of a smart pointer with enhanced metadata.
+    pub fn track_smart_pointer_deallocation(
+        &self,
+        ptr: usize,
+        lifetime_ms: u64,
+        final_ref_count: usize,
+    ) -> TrackingResult<()> {
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Use try_lock to avoid blocking during high deallocation activity
+        match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+            (Ok(mut active), Ok(mut stats)) => {
+                if let Some(mut allocation) = active.remove(&ptr) {
+                    // Set deallocation timestamp and lifetime
+                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
+
+                    // Update statistics with overflow protection
+                    stats.total_deallocations = stats.total_deallocations.saturating_add(1);
+                    stats.total_deallocated =
+                        stats.total_deallocated.saturating_add(allocation.size);
+                    stats.active_allocations = stats.active_allocations.saturating_sub(1);
+                    stats.active_memory = stats.active_memory.saturating_sub(allocation.size);
+
+                    // Release locks before updating history
+                    drop(stats);
+                    drop(active);
+
+                    // Update allocation history with enhanced smart pointer info
+                    if let Ok(mut history) = self.allocation_history.try_lock() {
+                        // Find and update the corresponding entry in history
+                        let mut found = false;
+                        for history_entry in history.iter_mut() {
+                            if history_entry.ptr == ptr && history_entry.timestamp_dealloc.is_none()
+                            {
+                                history_entry.timestamp_dealloc = Some(dealloc_timestamp);
+                                history_entry.lifetime_ms = Some(lifetime_ms);
+                                found = true;
+
+                                tracing::debug!(
+                                    "🎯 Updated smart pointer history entry: ptr=0x{:x}, lifetime={}ms, final_ref_count={}",
+                                    ptr,
+                                    lifetime_ms,
+                                    final_ref_count
+                                );
+                                break;
+                            }
+                        }
+
+                        if !found {
+                            // If not found, add the allocation with lifetime info
+                            allocation.lifetime_ms = Some(lifetime_ms);
+                            history.push(allocation);
+
+                            tracing::debug!(
+                                "⚠️ Added new smart pointer history entry: ptr=0x{:x}, lifetime={}ms, final_ref_count={}",
+                                ptr,
+                                lifetime_ms,
+                                final_ref_count
+                            );
+                        }
+                    }
+                }
+                Ok(())
+            }
+            _ => {
+                // If we can't get locks immediately, skip tracking to avoid deadlock
+                Ok(())
+            }
+        }
+    }
+
+    /// Create synthetic allocation (placeholder implementation)
+    pub fn create_synthetic_allocation(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: String,
+        _type_name: String,
+        _timestamp: u64,
+    ) -> TrackingResult<()> {
+        let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.var_name = Some(var_name);
+        allocation.type_name = Some(_type_name);
+
+        self.track_allocation(ptr, size)
+    }
+
+    /// Update allocation info for an existing allocation without creating duplicates.
+    pub fn update_allocation_info(
+        &self,
+        ptr: usize,
+        var_name: String,
+        type_name: String,
+    ) -> TrackingResult<()> {
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                if let Some(allocation) = active.get_mut(&ptr) {
+                    // Update existing allocation
+                    allocation.var_name = Some(var_name);
+                    allocation.type_name = Some(type_name);
+                    Ok(())
+                } else {
+                    // If allocation doesn't exist, create a synthetic one
+                    self.create_synthetic_allocation(ptr, 0, var_name, type_name, 0)
+                }
+            }
+            Err(_) => {
+                // If we can't get the lock, skip to avoid deadlock
+                Ok(())
+            }
+        }
+    }
+
+    /// Mark smart pointer data as implicitly deallocated
+    pub fn mark_smart_pointer_data_deallocated(&self, data_ptr: usize) -> TrackingResult<()> {
+        match self.active_allocations.try_lock() {
+            Ok(mut active) => {
+                // Find all smart pointers that reference this data
+                for allocation in active.values_mut() {
+                    if let Some(ref mut smart_ptr_info) = allocation.smart_pointer_info {
+                        if smart_ptr_info.data_ptr == data_ptr {
+                            smart_ptr_info.is_implicitly_deallocated = true;
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Err(_) => Ok(()), // Skip if lock is contended
+        }
+    }
+
+    /// Enhance allocation information with detailed analysis
+    pub fn enhance_allocation_info(&self, allocation: &mut AllocationInfo) {
+        // Fill in scope information if missing
+        if allocation.scope_name.is_none() {
+            allocation.scope_name = Some("global".to_string());
+        }
+
+        // Add memory layout analysis if type is known
+        if let Some(ref type_name) = allocation.type_name {
+            allocation.memory_layout = self.analyze_memory_layout(type_name, allocation.size);
+        }
+
+        // Add lifecycle analysis
+        self.calculate_and_analyze_lifetime(allocation);
+    }
+
+    /// Track function calls
+    /// Track function calls and call stack information with enhanced analysis
+    pub fn track_function_calls(
+        &self,
+        scope_name: Option<&str>,
+    ) -> Option<FunctionCallTrackingInfo> {
+        if let Some(function_name) = scope_name {
+            // Extract function name and module path information
+            let (extracted_function, module_path) = self.extract_function_and_module(function_name);
+
+            // Analyze call stack based on current context
+            let call_stack_info = self.analyze_call_stack_context(&extracted_function);
+
+            // Generate performance characteristics based on function analysis
+            let performance_characteristics =
+                self.analyze_function_performance(&extracted_function);
+
+            // Detect call patterns based on function name and context
+            let call_patterns = self.detect_call_patterns(&extracted_function);
+
+            // Estimate call metrics based on function characteristics
+            let (call_count, frequency, execution_time) =
+                self.estimate_call_metrics(&extracted_function);
+
+            Some(FunctionCallTrackingInfo {
+                function_name: extracted_function,
+                module_path,
+                total_call_count: call_count,
+                call_frequency_per_sec: frequency,
+                avg_execution_time_ns: execution_time,
+                total_execution_time_ns: (execution_time * call_count as f64) as u64,
+                call_stack_info,
+                memory_allocations_per_call: self
+                    .estimate_memory_allocations_per_call(&function_name),
+                performance_characteristics,
+                call_patterns,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Track object lifecycle
+    pub fn track_object_lifecycle(
+        &self,
+        ptr: usize,
+        type_name: &str,
+    ) -> Option<ObjectLifecycleInfo> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Create creation event with enhanced information
+        let creation_event = crate::core::types::LifecycleEvent {
+            event_type: crate::core::types::LifecycleEventType::Creation,
+            timestamp: current_time,
+            location: self.get_current_source_location(),
+            memory_state: crate::core::types::MemoryState {
+                memory_location: self.determine_memory_location(ptr),
+                memory_address: ptr,
+                object_size: self.estimate_type_size(type_name),
+                reference_count: self.get_reference_count(ptr),
+                borrow_state: crate::core::types::BorrowState::NotBorrowed,
+            },
+            performance_metrics: self.collect_event_performance_metrics(),
+            call_stack: self.get_current_call_stack(),
+        };
+
+        // Determine lifecycle pattern based on type
+        let lifecycle_patterns = self.analyze_lifecycle_patterns(type_name, ptr);
+
+        // Calculate initial efficiency metrics
+        let efficiency_metrics = self.calculate_initial_efficiency_metrics(type_name);
+
+        Some(ObjectLifecycleInfo {
+            object_id: ptr,
+            type_name: type_name.to_string(),
+            lifecycle_events: vec![creation_event],
+            total_lifetime_ns: None, // Will be calculated on deallocation
+            stage_durations: crate::core::types::LifecycleStageDurations {
+                creation_to_first_use_ns: None,   // Will be updated on first access
+                active_use_duration_ns: None,     // Will be tracked during usage
+                last_use_to_destruction_ns: None, // Will be calculated on deallocation
+                borrowed_duration_ns: 0,
+                idle_duration_ns: 0,
+            },
+            efficiency_metrics,
+            lifecycle_patterns,
+        })
+    }
+
+    /// Track memory access patterns with enhanced data collection
+    pub fn track_memory_access_patterns(
+        &self,
+        ptr: usize,
+        size: usize,
+    ) -> Option<MemoryAccessTrackingInfo> {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Create initial access event for allocation (simplified)
+        let initial_access_event = crate::core::types::MemoryAccessEvent {
+            access_type: crate::core::types::MemoryAccessType::Write,
+            timestamp: current_time,
+            address: ptr,
+            size,
+            function_name: "allocation".to_string(),
+            latency_ns: 100,
+            cache_info: crate::core::types::CacheAccessInfo {
+                l1_hit: true,
+                l2_hit: false,
+                l3_hit: false,
+                memory_access: false,
+                latency_breakdown: crate::core::types::CacheLatencyBreakdown {
+                    l1_latency_ns: 1.0,
+                    l2_latency_ns: 0.0,
+                    l3_latency_ns: 0.0,
+                    memory_latency_ns: 0.0,
+                },
+            },
+        };
+
+        // Simplified access pattern analysis
+        let access_patterns = vec![crate::core::types::AccessPattern {
+            pattern_type: crate::core::types::AccessPatternType::Sequential,
+            description: "Sequential allocation access pattern".to_string(),
+            frequency: 1,
+            performance_characteristics: crate::core::types::AccessPatternPerformance {
+                cache_hit_rate: 0.8,
+                avg_latency_ns: 10.0,
+                bandwidth_efficiency: 0.9,
+                prefetcher_effectiveness: 0.7,
+            },
+            optimization_potential: 0.8,
+        }];
+
+        // Calculate locality metrics based on allocation characteristics
+        let locality_metrics = self.calculate_locality_metrics(ptr, size);
+
+        // Determine bandwidth utilization based on size and access patterns
+        let bandwidth_utilization = self.calculate_bandwidth_utilization(size);
+
+        // Generate performance impact assessment
+        let performance_impact = self.assess_memory_access_performance_impact(ptr, size);
+
+        Some(MemoryAccessTrackingInfo {
+            region_id: ptr,
+            address_range: crate::core::types::AddressRange {
+                start_address: ptr,
+                end_address: ptr + size,
+                size,
+            },
+            access_events: vec![initial_access_event],
+            access_statistics: crate::core::types::MemoryAccessStatistics {
+                total_reads: 0,
+                total_writes: 1, // Initial write during allocation
+                read_write_ratio: 0.0,
+                avg_access_frequency: self.estimate_access_frequency(size),
+                peak_access_frequency: self.estimate_peak_access_frequency(size),
+                locality_metrics,
+                bandwidth_utilization,
+            },
+            access_patterns,
+            performance_impact,
+        })
+    }
+
+    // Private helper methods
+
+    /// Extract function name and module path from scope information
+    fn extract_function_and_module(&self, scope_name: &str) -> (String, String) {
+        // Parse different function name formats without expensive symbol resolution
+        if scope_name.contains("::") {
+            // Rust-style module::function format
+            let parts: Vec<&str> = scope_name.rsplitn(2, "::").collect();
+            if parts.len() == 2 {
+                (parts[0].to_string(), parts[1].to_string())
+            } else {
+                (scope_name.to_string(), "unknown".to_string())
+            }
+        } else if scope_name.contains('.') {
+            // C-style module.function format
+            let parts: Vec<&str> = scope_name.rsplitn(2, '.').collect();
+            if parts.len() == 2 {
+                (parts[0].to_string(), parts[1].to_string())
+            } else {
+                (scope_name.to_string(), "unknown".to_string())
+            }
+        } else {
+            // Simple function name
+            (
+                scope_name.to_string(),
+                self.infer_module_from_function(scope_name),
+            )
+        }
+    }
+
+    /// Infer module name from function name patterns
+    fn infer_module_from_function(&self, function_name: &str) -> String {
+        // Use common naming patterns to infer module
+        if function_name.starts_with("std_") || function_name.contains("stdlib") {
+            "std".to_string()
+        } else if function_name.starts_with("alloc_") || function_name.contains("malloc") {
+            "alloc".to_string()
+        } else if function_name.starts_with("core_") {
+            "core".to_string()
+        } else if function_name.contains("main") {
+            "main".to_string()
+        } else {
+            "user".to_string()
+        }
+    }
+
+    /// Analyze call stack context based on current execution state
+    fn analyze_call_stack_context(&self, function_name: &str) -> crate::core::types::CallStackInfo {
+        // Estimate stack depth based on function characteristics
+        let estimated_depth = self.estimate_function_depth(function_name);
+
+        // Detect potential recursive calls based on function name patterns
+        let recursive_calls = self.detect_recursive_patterns(function_name);
+
+        // Analyze common call sequences based on function type
+        let common_sequences = self.analyze_common_call_sequences(function_name);
+
+        // Assess stack overflow risk
+        let stack_risk = self.assess_stack_overflow_risk(estimated_depth, &recursive_calls);
+
+        crate::core::types::CallStackInfo {
+            max_stack_depth: estimated_depth,
+            avg_stack_depth: (estimated_depth as f64 * 0.7), // Assume 70% of max depth on average
+            common_call_sequences: common_sequences,
+            recursive_calls,
+            stack_overflow_risk: stack_risk,
+        }
+    }
+
+    /// Estimate function call depth based on function characteristics
+    fn estimate_function_depth(&self, function_name: &str) -> u32 {
+        // Estimate based on function name patterns
+        if function_name.contains("recursive") || function_name.contains("recurse") {
+            50 // Potentially deep recursion
+        } else if function_name.contains("main") {
+            5 // Main function typically has shallow stack
+        } else if function_name.contains("alloc") || function_name.contains("malloc") {
+            15 // Allocation functions may have moderate depth
+        } else if function_name.contains("std") || function_name.contains("core") {
+            10 // Standard library functions
+        } else {
+            20 // Default estimate for user functions
+        }
+    }
+
+    /// Detect recursive call patterns based on function name
+    fn detect_recursive_patterns(
+        &self,
+        function_name: &str,
+    ) -> Vec<crate::core::types::RecursiveCallInfo> {
+        let mut recursive_calls = Vec::new();
+
+        // Check for common recursive function patterns
+        if function_name.contains("recursive")
+            || function_name.contains("recurse")
+            || function_name.contains("factorial")
+            || function_name.contains("fibonacci")
+            || function_name.contains("tree_walk")
+            || function_name.contains("traverse")
+        {
+            let max_depth =
+                if function_name.contains("factorial") || function_name.contains("fibonacci") {
+                    30 // Mathematical recursion typically bounded
+                } else {
+                    100 // General recursive functions
+                };
+
+            recursive_calls.push(crate::core::types::RecursiveCallInfo {
+                function_name: function_name.to_string(),
+                max_recursion_depth: max_depth,
+                avg_recursion_depth: (max_depth as f64 * 0.6), // 60% of max depth on average
+                tail_recursion_potential: function_name.contains("tail")
+                    || function_name.contains("iter"),
+                stack_usage_per_level: 256, // Estimated stack frame size
+                recursion_performance_impact: crate::core::types::RecursionPerformanceImpact {
+                    stack_overhead_per_call: 256,
+                    call_overhead_ns: 50.0,
+                    cache_impact: if max_depth > 50 { 0.3 } else { 0.1 },
+                    optimization_recommendations: self
+                        .generate_recursion_optimizations(function_name),
+                },
+            });
+        }
+
+        recursive_calls
+    }
+
+    /// Generate recursion optimization recommendations
+    fn generate_recursion_optimizations(&self, function_name: &str) -> Vec<String> {
+        let mut recommendations = Vec::new();
+
+        if function_name.contains("factorial") || function_name.contains("fibonacci") {
+            recommendations
+                .push("Consider using iterative implementation for better performance".to_string());
+            recommendations.push("Use memoization to avoid redundant calculations".to_string());
+        }
+
+        if function_name.contains("tree") || function_name.contains("traverse") {
+            recommendations
+                .push("Consider using iterative traversal with explicit stack".to_string());
+            recommendations.push("Implement tail recursion optimization if possible".to_string());
+        }
+
+        if !function_name.contains("tail") && !function_name.contains("iter") {
+            recommendations
+                .push("Consider converting to tail recursion for better stack usage".to_string());
+        }
+
+        recommendations
+    }
+
+    /// Analyze common call sequences for a function
+    fn analyze_common_call_sequences(
+        &self,
+        function_name: &str,
+    ) -> Vec<crate::core::types::CallSequence> {
+        let mut sequences = Vec::new();
+
+        // Generate typical call sequences based on function type
+        if function_name.contains("alloc") || function_name.contains("malloc") {
+            sequences.push(crate::core::types::CallSequence {
+                function_sequence: vec![
+                    "main".to_string(),
+                    "user_function".to_string(),
+                    function_name.to_string(),
+                ],
+                frequency: 100,
+                avg_execution_time_ns: 1000.0,
+                memory_usage_pattern: MemoryUsagePattern {
+                    peak_memory_usage: 2048,
+                    avg_memory_usage: 1024,
+                    allocation_frequency: 1.0,
+                    deallocation_frequency: 0.8,
+                    leak_potential: LeakPotential::Low,
+                },
+            });
+        } else if function_name.contains("main") {
+            sequences.push(crate::core::types::CallSequence {
+                function_sequence: vec![function_name.to_string()],
+                frequency: 1,
+                avg_execution_time_ns: 1000000.0, // 1ms for main function
+                memory_usage_pattern: MemoryUsagePattern {
+                    peak_memory_usage: 8192,
+                    avg_memory_usage: 4096,
+                    allocation_frequency: 10.0,
+                    deallocation_frequency: 9.5,
+                    leak_potential: LeakPotential::Medium,
+                },
+            });
+        }
+
+        sequences
+    }
+
+    /// Assess stack overflow risk based on depth and recursion
+    fn assess_stack_overflow_risk(
+        &self,
+        max_depth: u32,
+        recursive_calls: &[crate::core::types::RecursiveCallInfo],
+    ) -> crate::core::types::StackOverflowRisk {
+        if max_depth > 1000 || recursive_calls.iter().any(|r| r.max_recursion_depth > 500) {
+            crate::core::types::StackOverflowRisk::Critical
+        } else if max_depth > 500 || recursive_calls.iter().any(|r| r.max_recursion_depth > 100) {
+            crate::core::types::StackOverflowRisk::High
+        } else if max_depth > 100 || !recursive_calls.is_empty() {
+            crate::core::types::StackOverflowRisk::Medium
+        } else {
+            crate::core::types::StackOverflowRisk::Low
+        }
+    }
+
+    /// Analyze function performance characteristics
+    fn analyze_function_performance(
+        &self,
+        function_name: &str,
+    ) -> FunctionPerformanceCharacteristics {
+        // Estimate performance based on function type and name patterns
+        let cpu_usage = self.estimate_cpu_usage(function_name);
+        let memory_characteristics = self.analyze_memory_characteristics(function_name);
+        let io_characteristics = self.analyze_io_characteristics(function_name);
+        let concurrency_characteristics = self.analyze_concurrency_characteristics(function_name);
+        let bottlenecks = self.identify_performance_bottlenecks(function_name);
+        let _optimizations = self.generate_performance_optimizations(function_name);
+
+        crate::core::types::FunctionPerformanceCharacteristics {
+            cpu_usage_percent: cpu_usage,
+            memory_characteristics,
+            io_characteristics,
+            concurrency_characteristics,
+            bottlenecks,
+        }
+    }
+
+    /// Analyze lifecycle efficiency and add insights
+    fn analyze_lifecycle_efficiency(&self, allocation: &mut AllocationInfo, lifetime_ms: u64) {
+        // Classify lifecycle pattern based on lifetime
+        let lifecycle_pattern = self.classify_lifecycle_pattern(lifetime_ms);
+
+        // Calculate efficiency score
+        let efficiency_score = self.calculate_efficiency_score(allocation, lifetime_ms);
+
+        // Generate optimization suggestions
+        let suggestions = self.generate_lifecycle_suggestions(allocation, lifetime_ms);
+
+        // Log insights for debugging (only for inefficient allocations)
+        if efficiency_score < 0.5 {
+            tracing::debug!(
+                "Inefficient allocation detected: ptr=0x{:x}, lifetime={}ms, efficiency={:.2}, pattern={:?}",
+                allocation.ptr,
+                lifetime_ms,
+                efficiency_score,
+                lifecycle_pattern
+            );
+        }
+
+        // Store analysis results in allocation metadata (could be used by binary export)
+        if !suggestions.is_empty() {
+            tracing::trace!(
+                "Lifecycle suggestions for ptr=0x{:x}: {:?}",
+                allocation.ptr,
+                suggestions
+            );
+        }
+    }
+
+    /// Estimate access frequency based on allocation size
+    fn estimate_access_frequency(&self, size: usize) -> f64 {
+        // Smaller allocations tend to be accessed more frequently
+        if size <= 64 {
+            10.0 // High frequency
+        } else if size <= 1024 {
+            5.0 // Medium frequency
+        } else {
+            1.0 // Low frequency
+        }
+    }
+
+    /// Estimate peak access frequency
+    fn estimate_peak_access_frequency(&self, size: usize) -> f64 {
+        self.estimate_access_frequency(size) * 2.0
+    }
+
+    fn calculate_locality_metrics(
+        &self,
+        _ptr: usize,
+        size: usize,
+    ) -> crate::core::types::LocalityMetrics {
+        // Estimate locality based on size
+        let (temporal, spatial, sequential_percent) = if size <= 64 {
+            (0.9, 0.95, 95.0) // Small objects likely have good locality
+        } else if size <= 4096 {
+            (0.7, 0.8, 80.0) // Medium objects have moderate locality
+        } else {
+            (0.5, 0.6, 60.0) // Large objects may have poor locality
+        };
+
+        crate::core::types::LocalityMetrics {
+            temporal_locality: temporal,
+            spatial_locality: spatial,
+            sequential_access_percent: sequential_percent,
+            random_access_percent: 100.0 - sequential_percent,
+            stride_patterns: vec![], // Would be populated during actual access tracking
+        }
+    }
+
+    /// Calculate bandwidth utilization based on allocation size
+    fn calculate_bandwidth_utilization(
+        &self,
+        size: usize,
+    ) -> crate::core::types::BandwidthUtilization {
+        // Estimate bandwidth based on size and typical memory hierarchy
+        let peak_bandwidth = if size <= 64 { 100_000.0 } else { 10_000.0 }; // MB/s
+        let avg_bandwidth = peak_bandwidth * 0.6;
+        let efficiency = if size <= 1024 { 80.0 } else { 60.0 };
+
+        crate::core::types::BandwidthUtilization {
+            peak_bandwidth,
+            avg_bandwidth,
+            efficiency_percent: efficiency,
+            bottlenecks: if size > 4096 {
+                vec![crate::core::types::BandwidthBottleneck {
+                    location: crate::core::types::BandwidthBottleneckLocation::MainMemory,
+                    severity: crate::core::types::ImpactLevel::Medium,
+                    description: "Large allocation may cause memory bandwidth bottleneck"
+                        .to_string(),
+                    mitigation_suggestions: vec!["Consider smaller allocations".to_string()],
+                }]
+            } else {
+                vec![]
+            },
+        }
+    }
+
+    /// Estimate CPU usage based on function characteristics
+    fn estimate_cpu_usage(&self, function_name: &str) -> f64 {
+        if function_name.contains("compute")
+            || function_name.contains("calculate")
+            || function_name.contains("process")
+        {
+            25.0 // CPU-intensive functions
+        } else if function_name.contains("alloc") || function_name.contains("malloc") {
+            5.0 // Memory allocation is relatively fast
+        } else if function_name.contains("io")
+            || function_name.contains("read")
+            || function_name.contains("write")
+        {
+            2.0 // I/O functions are typically I/O bound, not CPU bound
+        } else if function_name.contains("main") {
+            15.0 // Main function coordinates everything
+        } else {
+            8.0 // Default estimate for general functions
+        }
+    }
+
+
+     /// Classify lifecycle pattern based on lifetime duration
+     fn classify_lifecycle_pattern(&self, lifetime_ms: u64) -> SimpleLifecyclePattern {
+        match lifetime_ms {
+            0..=1 => SimpleLifecyclePattern::Instant,
+            2..=100 => SimpleLifecyclePattern::ShortLived,
+            101..=10000 => SimpleLifecyclePattern::MediumLived,
+            10001..=300000 => SimpleLifecyclePattern::LongLived,
+            _ => SimpleLifecyclePattern::Persistent,
+        }
+    }
+
+    /// Calculate lifecycle efficiency score (0.0 to 1.0)
+    fn calculate_efficiency_score(&self, allocation: &AllocationInfo, lifetime_ms: u64) -> f64 {
+        // Size factor: smaller allocations are generally more efficient
+        let size_factor = match allocation.size {
+            0..=64 => 1.0,      // Small allocations are efficient
+            65..=1024 => 0.9,   // Medium allocations
+            1025..=8192 => 0.8, // Large allocations
+            _ => 0.7,           // Very large allocations
+        };
+
+        // Lifetime factor: avoid too short or too long lifetimes
+        let lifetime_factor = match lifetime_ms {
+            0..=1 => 0.3,        // Too short, likely inefficient
+            2..=1000 => 1.0,     // Good lifetime range
+            1001..=60000 => 0.9, // Reasonable lifetime
+            _ => 0.8,            // Long lifetime, potentially inefficient
+        };
+
+        // Type factor: some types are inherently more efficient
+        let type_factor = if let Some(type_name) = &allocation.type_name {
+            if type_name.contains("Vec") || type_name.contains("HashMap") {
+                0.9 // Container types are generally efficient
+            } else if type_name.contains("String") {
+                0.95 // Strings are usually well-optimized
+            } else if type_name.contains("Box") {
+                0.85 // Box has some overhead
+            } else {
+                1.0 // Default efficiency
+            }
+        } else {
+            0.8 // Unknown type penalty
+        };
+
+        // Calculate overall efficiency
+        let efficiency: f64 = size_factor * lifetime_factor * type_factor;
+        efficiency.min(1.0)
+    }
+
+    /// Generate lifecycle optimization suggestions
+    fn generate_lifecycle_suggestions(
+        &self,
+        allocation: &AllocationInfo,
+        lifetime_ms: u64,
+    ) -> Vec<String> {
+        let mut suggestions = Vec::new();
+
+        // Size-based suggestions
+        if allocation.size > 8192 {
+            suggestions.push("Consider breaking large allocation into smaller chunks".to_string());
+        } else if allocation.size < 8 {
+            suggestions.push("Consider stack allocation for small data".to_string());
+        }
+
+        // Lifetime-based suggestions
+        if lifetime_ms <= 1 {
+            suggestions.push(
+                "Very short lifetime - consider stack allocation or object pooling".to_string(),
+            );
+        } else if lifetime_ms > 300000 {
+            suggestions.push(
+                "Long-lived allocation - ensure it's necessary for entire duration".to_string(),
+            );
+        }
+
+        // Type-specific suggestions
+        if let Some(type_name) = &allocation.type_name {
+            if type_name.starts_with("Vec<") {
+                suggestions
+                    .push("Consider pre-allocating Vec capacity if size is known".to_string());
+            } else if type_name.starts_with("HashMap<") {
+                suggestions.push("Consider pre-sizing HashMap with capacity hint".to_string());
+            } else if type_name == "String" {
+                suggestions.push(
+                    "Consider using String::with_capacity() for known string sizes".to_string(),
+                );
+            }
+        }
+
+        suggestions
+    }
+
+
+
+    /// Analyze memory characteristics of a function
+    fn analyze_memory_characteristics(
+        &self,
+        function_name: &str,
+    ) -> crate::core::types::FunctionMemoryCharacteristics {
+        let (stack_usage, heap_allocs, access_pattern, cache_eff, bandwidth) =
+            if function_name.contains("alloc") || function_name.contains("malloc") {
+                (
+                    512,
+                    1,
+                    crate::core::types::MemoryAccessPattern::Random,
+                    0.6,
+                    0.8,
+                )
+            } else if function_name.contains("compute") || function_name.contains("process") {
+                (
+                    1024,
+                    0,
+                    crate::core::types::MemoryAccessPattern::Sequential,
+                    0.9,
+                    0.4,
+                )
+            } else if function_name.contains("main") {
+                (
+                    2048,
+                    5,
+                    crate::core::types::MemoryAccessPattern::Mixed,
+                    0.7,
+                    0.3,
+                )
+            } else {
+                (
+                    256,
+                    0,
+                    crate::core::types::MemoryAccessPattern::Sequential,
+                    0.8,
+                    0.2,
+                )
+            };
+
+        crate::core::types::FunctionMemoryCharacteristics {
+            stack_memory_usage: stack_usage,
+            heap_allocations: heap_allocs,
+            access_pattern,
+            cache_efficiency: cache_eff,
+            memory_bandwidth_utilization: bandwidth,
+        }
+    }
+
+    /// Analyze I/O characteristics of a function
+    fn analyze_io_characteristics(
+        &self,
+        function_name: &str,
+    ) -> crate::core::types::IOCharacteristics {
+        if function_name.contains("io")
+            || function_name.contains("read")
+            || function_name.contains("write")
+        {
+            crate::core::types::IOCharacteristics {
+                file_io_operations: 10,
+                network_io_operations: 0,
+                avg_io_wait_time_ns: 1000000.0,         // 1ms
+                io_throughput_bytes_per_sec: 1048576.0, // 1MB/s
+                io_efficiency_score: 0.7,
+            }
+        } else {
+            crate::core::types::IOCharacteristics {
+                file_io_operations: 0,
+                network_io_operations: 0,
+                avg_io_wait_time_ns: 0.0,
+                io_throughput_bytes_per_sec: 0.0,
+                io_efficiency_score: 1.0,
+            }
+        }
+    }
+
+    /// Analyze concurrency characteristics
+    fn analyze_concurrency_characteristics(
+        &self,
+        function_name: &str,
+    ) -> crate::core::types::ConcurrencyCharacteristics {
+        let thread_safety = if function_name.contains("unsafe") || function_name.contains("raw") {
+            crate::core::types::ThreadSafetyLevel::NotThreadSafe
+        } else if function_name.contains("sync") || function_name.contains("atomic") {
+            crate::core::types::ThreadSafetyLevel::ThreadSafe
+        } else {
+            crate::core::types::ThreadSafetyLevel::ConditionallyThreadSafe
+        };
+
+        let lock_contention = if function_name.contains("lock") || function_name.contains("mutex") {
+            0.3 // Moderate lock contention
+        } else {
+            0.0
+        };
+
+        let parallel_potential =
+            if function_name.contains("compute") || function_name.contains("process") {
+                0.8 // High parallelization potential
+            } else if function_name.contains("alloc") {
+                0.2 // Low parallelization potential
+            } else {
+                0.5 // Medium potential
+            };
+
+        crate::core::types::ConcurrencyCharacteristics {
+            thread_safety_level: thread_safety,
+            lock_contention_frequency: lock_contention,
+            parallel_execution_potential: parallel_potential,
+            synchronization_overhead_ns: lock_contention * 1000.0,
+            deadlock_risk: if lock_contention > 0.2 {
+                crate::core::types::DeadlockRisk::Low
+            } else {
+                crate::core::types::DeadlockRisk::None
+            },
+        }
+    }
+
+    /// Identify performance bottlenecks
+    fn identify_performance_bottlenecks(
+        &self,
+        function_name: &str,
+    ) -> Vec<crate::core::types::PerformanceBottleneck> {
+        let mut bottlenecks = Vec::new();
+
+        if function_name.contains("alloc") || function_name.contains("malloc") {
+            bottlenecks.push(crate::core::types::PerformanceBottleneck {
+                    bottleneck_type: crate::core::types::BottleneckType::MemoryAllocation,
+                    severity: crate::core::types::ImpactLevel::Medium,
+                    location: function_name.to_string(),
+                    description: "Memory allocation can become a bottleneck under high frequency".to_string(),
+                    optimization_suggestion: "Use memory pools for frequent allocations or consider stack allocation for small objects".to_string(),
+                });
+        }
+
+        if function_name.contains("io")
+            || function_name.contains("read")
+            || function_name.contains("write")
+        {
+            bottlenecks.push(crate::core::types::PerformanceBottleneck {
+                    bottleneck_type: crate::core::types::BottleneckType::IO,
+                    severity: crate::core::types::ImpactLevel::High,
+                    location: function_name.to_string(),
+                    description: "I/O operations are typically the slowest part of execution".to_string(),
+                    optimization_suggestion: "Use asynchronous I/O where possible, implement buffering for small I/O operations, or consider I/O batching".to_string(),
+                });
+        }
+
+        bottlenecks
+    }
+
+    /// Generate performance optimization recommendations
+    fn generate_performance_optimizations(&self, function_name: &str) -> Vec<String> {
+        let mut optimizations = Vec::new();
+
+        if function_name.contains("compute") || function_name.contains("calculate") {
+            optimizations.push("Consider vectorization for mathematical operations".to_string());
+            optimizations.push("Use SIMD instructions where applicable".to_string());
+            optimizations.push("Profile for hot loops and optimize them".to_string());
+        }
+
+        if function_name.contains("alloc") || function_name.contains("malloc") {
+            optimizations
+                .push("Consider using custom allocators for specific use cases".to_string());
+            optimizations.push("Minimize allocation frequency in hot paths".to_string());
+        }
+
+        if function_name.contains("main") {
+            optimizations
+                .push("Profile the entire application to identify bottlenecks".to_string());
+            optimizations.push("Consider lazy initialization for expensive resources".to_string());
+        }
+
+        optimizations
+    }
+
+    /// Detect call patterns based on function analysis
+    fn detect_call_patterns(&self, function_name: &str) -> Vec<crate::core::types::CallPattern> {
+        let mut patterns = Vec::new();
+
+        // Detect common patterns based on function name
+        if function_name.contains("init") || function_name.contains("setup") {
+            patterns.push(crate::core::types::CallPattern {
+                pattern_type: crate::core::types::CallPatternType::Sequential,
+                description: "Initialization pattern - called once during setup".to_string(),
+                frequency: 1,
+                performance_impact: 0.3,
+                optimization_potential: 0.3,
+            });
+        } else if function_name.contains("cleanup") || function_name.contains("destroy") {
+            patterns.push(crate::core::types::CallPattern {
+                pattern_type: crate::core::types::CallPatternType::Sequential,
+                description: "Cleanup pattern - called once during teardown".to_string(),
+                frequency: 1,
+                performance_impact: 0.2,
+                optimization_potential: 0.2,
+            });
+        } else if function_name.contains("loop") || function_name.contains("iter") {
+            patterns.push(crate::core::types::CallPattern {
+                pattern_type: crate::core::types::CallPatternType::Iterative,
+                description: "Iterative pattern - called repeatedly in loops".to_string(),
+                frequency: 100,
+                performance_impact: 0.7,
+                optimization_potential: 0.8,
+            });
+        } else {
+            patterns.push(crate::core::types::CallPattern {
+                pattern_type: crate::core::types::CallPatternType::Sequential,
+                description: "Regular sequential pattern".to_string(),
+                frequency: 10,
+                performance_impact: 0.5,
+                optimization_potential: 0.5,
+            });
+        }
+
+        patterns
+    }
+
+    /// Estimate call metrics based on function characteristics
+    fn estimate_call_metrics(&self, function_name: &str) -> (u64, f64, f64) {
+        let (call_count, frequency, execution_time) = if function_name.contains("main") {
+            (1, 0.0, 1000000.0) // Main called once, long execution
+        } else if function_name.contains("init") || function_name.contains("setup") {
+            (1, 0.0, 10000.0) // Initialization functions
+        } else if function_name.contains("alloc") || function_name.contains("malloc") {
+            (100, 10.0, 1000.0) // Frequent allocation calls
+        } else if function_name.contains("compute") || function_name.contains("process") {
+            (50, 5.0, 5000.0) // Moderate frequency, longer execution
+        } else {
+            (10, 1.0, 2000.0) // Default estimates
+        };
+
+        (call_count, frequency, execution_time)
+    }
+
+    /// Estimate memory allocations per call
+    fn estimate_memory_allocations_per_call(&self, function_name: &str) -> f64 {
+        if function_name.contains("alloc") || function_name.contains("malloc") {
+            1.0 // Allocation functions allocate memory
+        } else if function_name.contains("main") {
+            5.0 // Main function may trigger multiple allocations
+        } else if function_name.contains("compute") || function_name.contains("process") {
+            2.0 // Processing functions may allocate temporary memory
+        } else {
+            0.1 // Most functions don't allocate much memory
+        }
+    }
+
+    /// Assess performance impact of memory access patterns
+    fn assess_memory_access_performance_impact(
+        &self,
+        _ptr: usize,
+        size: usize,
+    ) -> crate::core::types::MemoryAccessPerformanceImpact {
+        // Calculate performance scores based on size and predicted access patterns
+        let performance_score = if size <= 64 {
+            95.0 // Small allocations are typically efficient
+        } else if size <= 4096 {
+            80.0 // Medium allocations are moderately efficient
+        } else {
+            65.0 // Large allocations may have performance impact
+        };
+
+        let cache_efficiency = if size <= 1024 { 0.9 } else { 0.6 };
+        let bandwidth_impact = if size > 4096 { 0.7 } else { 0.2 };
+        let pipeline_impact = if size > 1024 { 0.3 } else { 0.1 };
+
+        let mut recommendations = Vec::new();
+        if size > 4096 {
+            recommendations.push(crate::core::types::MemoryOptimizationRecommendation {
+                recommendation_type: crate::core::types::MemoryOptimizationType::DataLayout,
+                priority: crate::core::types::Priority::Medium,
+                expected_improvement: 0.3,
+                implementation_effort: crate::core::types::ImplementationDifficulty::Medium,
+                description: "Consider breaking large allocation into smaller chunks".to_string(),
+            });
+        }
+
+        crate::core::types::MemoryAccessPerformanceImpact {
+            performance_score,
+            cache_efficiency_impact: cache_efficiency,
+            bandwidth_impact,
+            pipeline_impact,
+            optimization_recommendations: recommendations,
+        }
+    }
+
+    /// Analyze lifecycle patterns based on type and usage
+    fn analyze_lifecycle_patterns(
+        &self,
+        type_name: &str,
+        _ptr: usize,
+    ) -> Vec<crate::core::types::LifecyclePattern> {
+        let mut patterns = Vec::new();
+
+        // Analyze based on type name patterns
+        let pattern_type = if type_name.contains("Vec") || type_name.contains("HashMap") {
+            crate::core::types::LifecyclePatternType::LongLived
+        } else if type_name.contains("String") || type_name.contains("&str") {
+            crate::core::types::LifecyclePatternType::ShortLived
+        } else if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc")
+        {
+            crate::core::types::LifecyclePatternType::RAII
+        } else if type_name.contains("Mutex") || type_name.contains("RwLock") {
+            crate::core::types::LifecyclePatternType::Singleton
+        } else {
+            crate::core::types::LifecyclePatternType::OnDemand
+        };
+
+        patterns.push(crate::core::types::LifecyclePattern {
+            pattern_type,
+            frequency: 1,
+            efficiency_score: 0.8,
+            performance_impact: 0.1,
+            optimization_suggestions: self.generate_optimization_suggestions(type_name),
+        });
+
+        patterns
+    }
+
+    /// Get current source location (simplified implementation)
+    fn get_current_source_location(&self) -> SourceLocation {
+        // In a real implementation, this would use backtrace or debug info
+        // For now, provide a simplified version
+        SourceLocation {
+            file: "tracked_allocation.rs".to_string(),
+            line: 1,
+            column: 1,
+        }
+    }
+
+    /// Determine memory location type based on address
+    fn determine_memory_location(&self, ptr: usize) -> MemoryLocationType {
+        // Simple heuristic: addresses in certain ranges are likely stack vs heap
+        if ptr > 0x7fff_0000_0000 {
+            MemoryLocationType::Stack
+        } else {
+            MemoryLocationType::Heap
+        }
+    }
+
+    /// Get reference count for smart pointers
+    fn get_reference_count(&self, _ptr: usize) -> Option<u32> {
+        // In a real implementation, this would check if the type is a smart pointer
+        // and extract the reference count. For now, return None for simplicity.
+        None
+    }
+
+    /// Collect performance metrics for the current event
+    fn collect_event_performance_metrics(&self) -> EventPerformanceMetrics {
+        // In a real implementation, this would use performance counters
+        // For now, provide reasonable estimates
+        crate::core::types::EventPerformanceMetrics {
+            cpu_cycles: 1000 + (rand::random::<u16>() as u64),
+            memory_bandwidth_bytes: 64,
+            cache_misses: if rand::random::<f32>() < 0.1 { 1 } else { 0 },
+            processing_time_ns: 100 + (rand::random::<u16>() as u64),
+        }
+    }
+
+    /// Get current call stack (simplified)
+    fn get_current_call_stack(&self) -> Vec<String> {
+        // In a real implementation, this would use backtrace
+        // For now, provide a simplified call stack
+        vec![
+            "main".to_string(),
+            "allocate_memory".to_string(),
+            "track_allocation".to_string(),
+        ]
+    }
+
+    /// Calculate initial efficiency metrics
+    fn calculate_initial_efficiency_metrics(
+        &self,
+        type_name: &str,
+    ) -> crate::core::types::LifecycleEfficiencyMetrics {
+        // Base efficiency on type characteristics
+        let (utilization, memory_eff, performance_eff) = match type_name {
+            t if t.contains("Vec") => (0.85, 0.9, 0.8),
+            t if t.contains("HashMap") => (0.75, 0.85, 0.75),
+            t if t.contains("String") => (0.9, 0.95, 0.9),
+            t if t.contains("Box") => (0.95, 0.98, 0.95),
+            _ => (0.8, 0.85, 0.8),
+        };
+
+        crate::core::types::LifecycleEfficiencyMetrics {
+            utilization_ratio: utilization,
+            memory_efficiency: memory_eff,
+            performance_efficiency: performance_eff,
+            resource_waste: crate::core::types::ResourceWasteAssessment {
+                wasted_memory_percent: (1.0 - memory_eff) * 100.0,
+                wasted_cpu_percent: (1.0 - performance_eff) * 100.0,
+                premature_destructions: 0,
+                unused_instances: 0,
+                optimization_opportunities: self.generate_optimization_suggestions(type_name),
+            },
+        }
+    }
+
+    /// Generate optimization suggestions based on type
+    fn generate_optimization_suggestions(&self, type_name: &str) -> Vec<String> {
+        let mut suggestions = Vec::new();
+
+        if type_name.contains("Vec") {
+            suggestions.push("Consider pre-allocating Vec capacity if size is known".to_string());
+            suggestions.push("Use Vec::with_capacity() to avoid reallocations".to_string());
+        }
+
+        if type_name.contains("HashMap") {
+            suggestions.push("Consider using FxHashMap for better performance".to_string());
+            suggestions.push("Pre-size HashMap if approximate size is known".to_string());
+        }
+
+        if type_name.contains("String") {
+            suggestions
+                .push("Consider using &str instead of String for read-only data".to_string());
+            suggestions.push("Use String::with_capacity() for known string sizes".to_string());
+        }
+
+        if type_name.contains("Box") {
+            suggestions.push("Consider stack allocation if object size is small".to_string());
+        }
+
+        if suggestions.is_empty() {
+            suggestions.push("Monitor usage patterns for optimization opportunities".to_string());
+        }
+
+        suggestions
+    }
+}

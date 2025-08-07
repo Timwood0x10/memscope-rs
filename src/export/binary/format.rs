@@ -37,11 +37,11 @@ impl FileHeader {
         // Support backward compatibility: can read older versions
         self.version <= FORMAT_VERSION && self.version >= 1
     }
-    
+
     pub fn get_version(&self) -> u32 {
         self.version
     }
-    
+
     pub fn is_legacy_version(&self) -> bool {
         self.version < FORMAT_VERSION
     }

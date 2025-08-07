@@ -70,7 +70,7 @@ impl BinaryReader {
         if !header.is_compatible_version() {
             return Err(BinaryExportError::UnsupportedVersion(header.version));
         }
-        
+
         // Store version for version-specific handling
         self.file_version = Some(header.get_version());
 
@@ -92,7 +92,7 @@ impl BinaryReader {
         if &marker == b"STBL" && table_size > 0 {
             // Read compression flag (new format)
             let use_compressed_indices = primitives::read_u8(&mut self.reader)? != 0;
-            
+
             // Read string table
             let string_count = primitives::read_u32(&mut self.reader)? as usize;
             let mut strings = Vec::with_capacity(string_count);
@@ -123,14 +123,14 @@ impl BinaryReader {
     /// Read single allocation record from current position
     pub fn read_allocation(&mut self) -> Result<AllocationInfo, BinaryExportError> {
         let file_version = self.file_version.unwrap_or(1);
-        
+
         if file_version == 1 {
             self.read_allocation_v1()
         } else {
             self.read_allocation_v2()
         }
     }
-    
+
     /// Read allocation record for version 1 format (legacy - basic fields only)
     fn read_allocation_v1(&mut self) -> Result<AllocationInfo, BinaryExportError> {
         // Read Type (1 byte)
@@ -214,7 +214,7 @@ impl BinaryReader {
             drop_chain_analysis: None,
         })
     }
-    
+
     /// Read allocation record for version 2 format (current - with advanced metrics)
     fn read_allocation_v2(&mut self) -> Result<AllocationInfo, BinaryExportError> {
         // Read Type (1 byte)

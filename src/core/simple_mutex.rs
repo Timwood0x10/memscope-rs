@@ -1,5 +1,5 @@
 //! Simple mutex implementation with compile-time optimization selection
-//! 
+//!
 //! This module provides a simplified mutex that avoids runtime overhead
 //! by using compile-time feature selection.
 
@@ -33,8 +33,9 @@ impl<T> SimpleMutex<T> {
     #[cfg(feature = "parking-lot")]
     pub fn lock(&self) -> parking_lot::MutexGuard<T> {
         #[cfg(debug_assertions)]
-        self.access_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        
+        self.access_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         self.inner.lock()
     }
 
@@ -42,8 +43,9 @@ impl<T> SimpleMutex<T> {
     #[cfg(not(feature = "parking-lot"))]
     pub fn lock(&self) -> Result<MutexGuard<T>, std::sync::PoisonError<MutexGuard<T>>> {
         #[cfg(debug_assertions)]
-        self.access_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        
+        self.access_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         self.inner.lock()
     }
 
@@ -51,8 +53,9 @@ impl<T> SimpleMutex<T> {
     #[cfg(feature = "parking-lot")]
     pub fn try_lock(&self) -> Option<parking_lot::MutexGuard<T>> {
         #[cfg(debug_assertions)]
-        self.access_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        
+        self.access_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         self.inner.try_lock()
     }
 
@@ -60,8 +63,9 @@ impl<T> SimpleMutex<T> {
     #[cfg(not(feature = "parking-lot"))]
     pub fn try_lock(&self) -> Result<MutexGuard<T>, std::sync::TryLockError<MutexGuard<T>>> {
         #[cfg(debug_assertions)]
-        self.access_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        
+        self.access_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         self.inner.try_lock()
     }
 
@@ -99,20 +103,20 @@ mod tests {
     #[test]
     fn test_basic_operations() {
         let mutex = SimpleMutex::new(42);
-        
+
         // Test lock
         #[cfg(feature = "parking-lot")]
         {
             let guard = mutex.lock();
             assert_eq!(*guard, 42);
         }
-        
+
         #[cfg(not(feature = "parking-lot"))]
         {
             let guard = mutex.lock().unwrap();
             assert_eq!(*guard, 42);
         }
-        
+
         // Test try_lock
         #[cfg(feature = "parking-lot")]
         {
@@ -120,7 +124,7 @@ mod tests {
                 assert_eq!(*guard, 42);
             }
         }
-        
+
         #[cfg(not(feature = "parking-lot"))]
         {
             if let Ok(guard) = mutex.try_lock() {
@@ -143,7 +147,7 @@ mod tests {
                         let mut guard = mutex_clone.lock();
                         *guard += 1;
                     }
-                    
+
                     #[cfg(not(feature = "parking-lot"))]
                     {
                         let mut guard = mutex_clone.lock().unwrap();
@@ -163,7 +167,7 @@ mod tests {
             let guard = mutex.lock();
             assert_eq!(*guard, 1000);
         }
-        
+
         #[cfg(not(feature = "parking-lot"))]
         {
             let guard = mutex.lock().unwrap();

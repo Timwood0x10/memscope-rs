@@ -1,16 +1,16 @@
 //! Unified error handling system for memscope-rs
-//! 
+//!
 //! This module provides a simplified, efficient error handling system that:
 //! - Reduces string cloning overhead using Arc<str>
 //! - Maintains all existing error information
 //! - Provides error recovery mechanisms
 //! - Ensures backward compatibility
 
-use std::sync::Arc;
 use std::fmt;
+use std::sync::Arc;
 
 /// Unified error type for the entire memscope-rs system
-/// 
+///
 /// This replaces the complex TrackingError with a simpler, more efficient design
 /// while maintaining all existing error information and backward compatibility.
 #[derive(Debug, Clone)]
@@ -21,34 +21,34 @@ pub enum MemScopeError {
         message: Arc<str>,
         context: Option<Arc<str>>,
     },
-    
+
     /// Analysis operations (fragmentation, lifecycle, etc.)
     Analysis {
         analyzer: Arc<str>,
         message: Arc<str>,
         recoverable: bool,
     },
-    
+
     /// Export operations (JSON, binary, HTML, etc.)
     Export {
         format: Arc<str>,
         message: Arc<str>,
         partial_success: bool,
     },
-    
+
     /// Configuration and initialization errors
     Configuration {
         component: Arc<str>,
         message: Arc<str>,
     },
-    
+
     /// System-level errors (IO, threading, etc.)
     System {
         error_type: SystemErrorType,
         message: Arc<str>,
         source_message: Option<Arc<str>>,
     },
-    
+
     /// Internal errors that should not normally occur
     Internal {
         message: Arc<str>,
@@ -90,12 +90,12 @@ impl MemScopeError {
             context: None,
         }
     }
-    
+
     /// Create a memory operation error with context
     pub fn memory_with_context(
-        operation: MemoryOperation, 
+        operation: MemoryOperation,
         message: impl Into<Arc<str>>,
-        context: impl Into<Arc<str>>
+        context: impl Into<Arc<str>>,
     ) -> Self {
         Self::Memory {
             operation,
@@ -103,7 +103,7 @@ impl MemScopeError {
             context: Some(context.into()),
         }
     }
-    
+
     /// Create an analysis error
     pub fn analysis(analyzer: impl Into<Arc<str>>, message: impl Into<Arc<str>>) -> Self {
         Self::Analysis {
@@ -112,7 +112,7 @@ impl MemScopeError {
             recoverable: true,
         }
     }
-    
+
     /// Create a non-recoverable analysis error
     pub fn analysis_fatal(analyzer: impl Into<Arc<str>>, message: impl Into<Arc<str>>) -> Self {
         Self::Analysis {
@@ -121,7 +121,7 @@ impl MemScopeError {
             recoverable: false,
         }
     }
-    
+
     /// Create an export error
     pub fn export(format: impl Into<Arc<str>>, message: impl Into<Arc<str>>) -> Self {
         Self::Export {
@@ -130,7 +130,7 @@ impl MemScopeError {
             partial_success: false,
         }
     }
-    
+
     /// Create an export error with partial success
     pub fn export_partial(format: impl Into<Arc<str>>, message: impl Into<Arc<str>>) -> Self {
         Self::Export {
@@ -139,7 +139,7 @@ impl MemScopeError {
             partial_success: true,
         }
     }
-    
+
     /// Create a configuration error
     pub fn config(component: impl Into<Arc<str>>, message: impl Into<Arc<str>>) -> Self {
         Self::Configuration {
@@ -147,7 +147,7 @@ impl MemScopeError {
             message: message.into(),
         }
     }
-    
+
     /// Create a system error
     pub fn system(error_type: SystemErrorType, message: impl Into<Arc<str>>) -> Self {
         Self::System {
@@ -156,12 +156,12 @@ impl MemScopeError {
             source_message: None,
         }
     }
-    
+
     /// Create a system error with source
     pub fn system_with_source(
-        error_type: SystemErrorType, 
+        error_type: SystemErrorType,
         message: impl Into<Arc<str>>,
-        source: impl std::error::Error
+        source: impl std::error::Error,
     ) -> Self {
         Self::System {
             error_type,
@@ -169,7 +169,7 @@ impl MemScopeError {
             source_message: Some(Arc::from(source.to_string())),
         }
     }
-    
+
     /// Create an internal error
     pub fn internal(message: impl Into<Arc<str>>) -> Self {
         Self::Internal {
@@ -177,7 +177,7 @@ impl MemScopeError {
             location: None,
         }
     }
-    
+
     /// Create an internal error with location
     pub fn internal_at(message: impl Into<Arc<str>>, location: impl Into<Arc<str>>) -> Self {
         Self::Internal {
@@ -185,36 +185,47 @@ impl MemScopeError {
             location: Some(location.into()),
         }
     }
-    
+
     /// Check if this error is recoverable
     pub fn is_recoverable(&self) -> bool {
         match self {
             Self::Memory { .. } => true,
             Self::Analysis { recoverable, .. } => *recoverable,
-            Self::Export { partial_success, .. } => *partial_success,
+            Self::Export {
+                partial_success, ..
+            } => *partial_success,
             Self::Configuration { .. } => false,
-            Self::System { error_type, .. } => matches!(error_type, 
+            Self::System { error_type, .. } => matches!(
+                error_type,
                 SystemErrorType::Io | SystemErrorType::Network | SystemErrorType::Locking
             ),
             Self::Internal { .. } => false,
         }
     }
-    
+
     /// Get error severity level
     pub fn severity(&self) -> ErrorSeverity {
         match self {
             Self::Memory { .. } => ErrorSeverity::Medium,
-            Self::Analysis { recoverable: false, .. } => ErrorSeverity::High,
+            Self::Analysis {
+                recoverable: false, ..
+            } => ErrorSeverity::High,
             Self::Analysis { .. } => ErrorSeverity::Low,
-            Self::Export { partial_success: true, .. } => ErrorSeverity::Low,
+            Self::Export {
+                partial_success: true,
+                ..
+            } => ErrorSeverity::Low,
             Self::Export { .. } => ErrorSeverity::Medium,
             Self::Configuration { .. } => ErrorSeverity::High,
-            Self::System { error_type: SystemErrorType::Threading, .. } => ErrorSeverity::High,
+            Self::System {
+                error_type: SystemErrorType::Threading,
+                ..
+            } => ErrorSeverity::High,
             Self::System { .. } => ErrorSeverity::Medium,
             Self::Internal { .. } => ErrorSeverity::Critical,
         }
     }
-    
+
     /// Get a user-friendly error message
     pub fn user_message(&self) -> &str {
         match self {
@@ -226,7 +237,7 @@ impl MemScopeError {
             Self::Internal { message, .. } => message,
         }
     }
-    
+
     /// Get error category for logging/metrics
     pub fn category(&self) -> &'static str {
         match self {
@@ -252,8 +263,14 @@ pub enum ErrorSeverity {
 impl fmt::Display for MemScopeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Memory { operation, message, context } => {
-                write!(f, "Memory {} error: {}", 
+            Self::Memory {
+                operation,
+                message,
+                context,
+            } => {
+                write!(
+                    f,
+                    "Memory {} error: {}",
                     match operation {
                         MemoryOperation::Allocation => "allocation",
                         MemoryOperation::Deallocation => "deallocation",
@@ -268,10 +285,16 @@ impl fmt::Display for MemScopeError {
                 }
                 Ok(())
             }
-            Self::Analysis { analyzer, message, .. } => {
+            Self::Analysis {
+                analyzer, message, ..
+            } => {
                 write!(f, "Analysis error in {}: {}", analyzer, message)
             }
-            Self::Export { format, message, partial_success } => {
+            Self::Export {
+                format,
+                message,
+                partial_success,
+            } => {
                 if *partial_success {
                     write!(f, "Partial export error ({}): {}", format, message)
                 } else {
@@ -281,8 +304,14 @@ impl fmt::Display for MemScopeError {
             Self::Configuration { component, message } => {
                 write!(f, "Configuration error in {}: {}", component, message)
             }
-            Self::System { error_type, message, source_message } => {
-                write!(f, "{} error: {}", 
+            Self::System {
+                error_type,
+                message,
+                source_message,
+            } => {
+                write!(
+                    f,
+                    "{} error: {}",
                     match error_type {
                         SystemErrorType::Io => "I/O",
                         SystemErrorType::Threading => "Threading",
@@ -318,7 +347,7 @@ impl From<std::io::Error> for MemScopeError {
         Self::system_with_source(
             SystemErrorType::Io,
             format!("I/O operation failed: {}", err),
-            err
+            err,
         )
     }
 }
@@ -328,7 +357,7 @@ impl From<serde_json::Error> for MemScopeError {
         Self::system_with_source(
             SystemErrorType::Serialization,
             format!("JSON serialization failed: {}", err),
-            err
+            err,
         )
     }
 }
@@ -337,7 +366,7 @@ impl From<serde_json::Error> for MemScopeError {
 impl From<crate::core::types::TrackingError> for MemScopeError {
     fn from(err: crate::core::types::TrackingError) -> Self {
         use crate::core::types::TrackingError as TE;
-        
+
         match err {
             TE::AllocationFailed(msg) => Self::memory(MemoryOperation::Allocation, msg),
             TE::DeallocationFailed(msg) => Self::memory(MemoryOperation::Deallocation, msg),
@@ -390,10 +419,10 @@ pub enum RecoveryAction {
 pub trait ErrorRecovery {
     /// Determine if an error can be recovered from
     fn can_recover(&self, error: &MemScopeError) -> bool;
-    
+
     /// Get the recovery action for an error
     fn get_recovery_action(&self, error: &MemScopeError) -> Option<RecoveryAction>;
-    
+
     /// Execute recovery action
     fn execute_recovery(&self, action: &RecoveryAction) -> Result<()>;
 }
@@ -411,7 +440,7 @@ impl DefaultErrorRecovery {
             retry_delay_ms: 100,
         }
     }
-    
+
     pub fn with_config(max_retries: u32, retry_delay_ms: u64) -> Self {
         Self {
             max_retries,
@@ -430,12 +459,12 @@ impl ErrorRecovery for DefaultErrorRecovery {
     fn can_recover(&self, error: &MemScopeError) -> bool {
         error.is_recoverable() && error.severity() != ErrorSeverity::Critical
     }
-    
+
     fn get_recovery_action(&self, error: &MemScopeError) -> Option<RecoveryAction> {
         if !self.can_recover(error) {
             return Some(RecoveryAction::Abort);
         }
-        
+
         match error {
             MemScopeError::Memory { .. } => Some(RecoveryAction::Retry {
                 max_attempts: self.max_retries,
@@ -444,20 +473,24 @@ impl ErrorRecovery for DefaultErrorRecovery {
             MemScopeError::Analysis { .. } => Some(RecoveryAction::UseDefault {
                 value: "{}".to_string(), // Empty JSON object as default
             }),
-            MemScopeError::Export { partial_success: true, .. } => Some(RecoveryAction::Skip),
+            MemScopeError::Export {
+                partial_success: true,
+                ..
+            } => Some(RecoveryAction::Skip),
             MemScopeError::Export { .. } => Some(RecoveryAction::Fallback {
                 strategy: "minimal_export".to_string(),
             }),
-            MemScopeError::System { error_type: SystemErrorType::Locking, .. } => {
-                Some(RecoveryAction::Retry {
-                    max_attempts: 1,
-                    delay_ms: 50,
-                })
-            }
+            MemScopeError::System {
+                error_type: SystemErrorType::Locking,
+                ..
+            } => Some(RecoveryAction::Retry {
+                max_attempts: 1,
+                delay_ms: 50,
+            }),
             _ => Some(RecoveryAction::Abort),
         }
     }
-    
+
     fn execute_recovery(&self, action: &RecoveryAction) -> Result<()> {
         match action {
             RecoveryAction::Retry { delay_ms, .. } => {
@@ -477,7 +510,7 @@ impl ErrorRecovery for DefaultErrorRecovery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_error_creation() {
         let err = MemScopeError::memory(MemoryOperation::Allocation, "test allocation failed");
@@ -485,39 +518,39 @@ mod tests {
         assert_eq!(err.severity(), ErrorSeverity::Medium);
         assert!(err.is_recoverable());
     }
-    
+
     #[test]
     fn test_error_recovery() {
         let recovery = DefaultErrorRecovery::new();
         let err = MemScopeError::memory(MemoryOperation::Allocation, "test error");
-        
+
         assert!(recovery.can_recover(&err));
-        
+
         let action = recovery.get_recovery_action(&err);
         assert!(matches!(action, Some(RecoveryAction::Retry { .. })));
     }
-    
+
     #[test]
     fn test_error_display() {
         let err = MemScopeError::memory_with_context(
             MemoryOperation::Allocation,
             "allocation failed",
-            "in test function"
+            "in test function",
         );
-        
+
         let display = format!("{}", err);
         assert!(display.contains("Memory allocation error"));
         assert!(display.contains("allocation failed"));
         assert!(display.contains("context: in test function"));
     }
-    
+
     #[test]
     fn test_backward_compatibility() {
         use crate::core::types::TrackingError;
-        
+
         let old_err = TrackingError::AllocationFailed("test".to_string());
         let new_err: MemScopeError = old_err.into();
-        
+
         assert_eq!(new_err.category(), "memory");
         assert!(matches!(new_err, MemScopeError::Memory { .. }));
     }

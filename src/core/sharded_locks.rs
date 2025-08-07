@@ -1,19 +1,19 @@
 //! Sharded lock system for reducing lock contention
-//! 
+//!
 //! This module provides a sharded locking mechanism that distributes
 //! lock contention across multiple shards, improving concurrent performance.
 
+use parking_lot::{Mutex, RwLock};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher, DefaultHasher};
-use parking_lot::{RwLock, Mutex};
-use serde::{Serialize, Deserialize};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 /// Number of shards to use by default
 const DEFAULT_SHARD_COUNT: usize = 16;
 
 /// Sharded read-write lock for concurrent access
 #[derive(Debug)]
-pub struct ShardedRwLock<K, V> 
+pub struct ShardedRwLock<K, V>
 where
     K: Hash + Eq,
 {
@@ -44,7 +44,7 @@ where
     }
 
     /// Get the shard index for a given key
-    fn get_shard_index<Q>(&self, key: &Q) -> usize 
+    fn get_shard_index<Q>(&self, key: &Q) -> usize
     where
         Q: Hash + ?Sized,
     {
@@ -96,15 +96,12 @@ where
 
     /// Get the total number of entries across all shards
     pub fn len(&self) -> usize {
-        self.shards.iter()
-            .map(|shard| shard.read().len())
-            .sum()
+        self.shards.iter().map(|shard| shard.read().len()).sum()
     }
 
     /// Check if the sharded map is empty
     pub fn is_empty(&self) -> bool {
-        self.shards.iter()
-            .all(|shard| shard.read().is_empty())
+        self.shards.iter().all(|shard| shard.read().is_empty())
     }
 
     /// Clear all entries from all shards
@@ -140,9 +137,7 @@ where
 
     /// Get statistics about shard distribution
     pub fn shard_stats(&self) -> ShardStats {
-        let shard_sizes: Vec<usize> = self.shards.iter()
-            .map(|shard| shard.read().len())
-            .collect();
+        let shard_sizes: Vec<usize> = self.shards.iter().map(|shard| shard.read().len()).collect();
 
         let total_entries: usize = shard_sizes.iter().sum();
         let max_shard_size = shard_sizes.iter().max().copied().unwrap_or(0);
@@ -191,12 +186,15 @@ impl ShardStats {
             return 0.0;
         }
 
-        let variance: f64 = self.shard_sizes.iter()
+        let variance: f64 = self
+            .shard_sizes
+            .iter()
             .map(|&size| {
                 let diff = size as f64 - self.avg_shard_size;
                 diff * diff
             })
-            .sum::<f64>() / self.shard_count as f64;
+            .sum::<f64>()
+            / self.shard_count as f64;
 
         let std_dev = variance.sqrt();
         std_dev / self.avg_shard_size
@@ -236,7 +234,7 @@ where
     }
 
     /// Get the shard index for a given key
-    fn get_shard_index<Q>(&self, key: &Q) -> usize 
+    fn get_shard_index<Q>(&self, key: &Q) -> usize
     where
         Q: Hash + ?Sized,
     {
@@ -289,15 +287,12 @@ where
 
     /// Get the total number of entries across all shards
     pub fn len(&self) -> usize {
-        self.shards.iter()
-            .map(|shard| shard.lock().len())
-            .sum()
+        self.shards.iter().map(|shard| shard.lock().len()).sum()
     }
 
     /// Check if the sharded map is empty
     pub fn is_empty(&self) -> bool {
-        self.shards.iter()
-            .all(|shard| shard.lock().is_empty())
+        self.shards.iter().all(|shard| shard.lock().is_empty())
     }
 }
 
@@ -313,21 +308,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
     use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn test_sharded_rwlock_basic_operations() {
         let sharded = ShardedRwLock::new();
-        
+
         // Test insert and get
         assert_eq!(sharded.insert("key1", "value1"), None);
         assert_eq!(sharded.get("key1"), Some("value1"));
-        
+
         // Test update
         assert_eq!(sharded.insert("key1", "value2"), Some("value1"));
         assert_eq!(sharded.get("key1"), Some("value2"));
-        
+
         // Test remove
         assert_eq!(sharded.remove("key1"), Some("value2"));
         assert_eq!(sharded.get("key1"), None);
@@ -364,12 +359,12 @@ mod tests {
     #[test]
     fn test_shard_stats() {
         let sharded = ShardedRwLock::with_shard_count(4);
-        
+
         // Insert some data
         for i in 0..100 {
             sharded.insert(i, format!("value_{}", i));
         }
-        
+
         let stats = sharded.shard_stats();
         assert_eq!(stats.shard_count, 4);
         assert_eq!(stats.total_entries, 100);

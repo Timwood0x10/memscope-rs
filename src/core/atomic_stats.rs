@@ -1,12 +1,12 @@
 //! Atomic statistics system for lock-free performance monitoring
-//! 
+//!
 //! This module provides atomic-based statistics to replace mutex-protected
 //! counters, reducing lock contention and improving performance.
 
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
-use serde::{Serialize, Deserialize};
 
 /// Cold path statistics stored in mutex-protected structure
 #[derive(Debug, Default)]
@@ -54,12 +54,12 @@ impl SimpleMemoryStats {
     pub fn record_allocation_detailed(&self, size: u64) {
         // Fast path first
         self.record_allocation_fast(size);
-        
+
         // Detailed tracking
         if let Ok(mut stats) = self.detailed.try_lock() {
             stats.active_allocations += 1;
             stats.active_memory += size;
-            
+
             // Update peaks
             if stats.active_allocations > stats.peak_allocations {
                 stats.peak_allocations = stats.active_allocations;
@@ -92,9 +92,11 @@ impl SimpleMemoryStats {
     pub fn snapshot(&self) -> MemoryStatsSnapshot {
         let allocation_count = self.allocation_count.load(Ordering::Relaxed);
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
-        
+
         // Try to get detailed stats, use defaults if locked
-        let detailed = self.detailed.try_lock()
+        let detailed = self
+            .detailed
+            .try_lock()
             .map(|stats| ColdStats {
                 active_allocations: stats.active_allocations,
                 active_memory: stats.active_memory,
@@ -125,7 +127,7 @@ impl SimpleMemoryStats {
     pub fn reset(&self) {
         self.allocation_count.store(0, Ordering::Relaxed);
         self.total_allocated.store(0, Ordering::Relaxed);
-        
+
         if let Ok(mut stats) = self.detailed.try_lock() {
             *stats = ColdStats::default();
         }
@@ -186,7 +188,7 @@ impl AtomicMemoryStats {
         self.total_allocated.fetch_add(size, Ordering::Relaxed);
         self.active_allocations.fetch_add(1, Ordering::Relaxed);
         let new_active_memory = self.active_memory.fetch_add(size, Ordering::Relaxed) + size;
-        
+
         // Update peaks atomically
         self.update_peak_allocations();
         self.update_peak_memory(new_active_memory);
@@ -210,7 +212,7 @@ impl AtomicMemoryStats {
     fn update_peak_allocations(&self) {
         let current_active = self.active_allocations.load(Ordering::Relaxed);
         let mut current_peak = self.peak_allocations.load(Ordering::Relaxed);
-        
+
         while current_active > current_peak {
             match self.peak_allocations.compare_exchange_weak(
                 current_peak,
@@ -227,7 +229,7 @@ impl AtomicMemoryStats {
     /// Update peak memory atomically
     fn update_peak_memory(&self, new_memory: u64) {
         let mut current_peak = self.peak_memory.load(Ordering::Relaxed);
-        
+
         while new_memory > current_peak {
             match self.peak_memory.compare_exchange_weak(
                 current_peak,
@@ -331,7 +333,8 @@ impl AtomicPerformanceCounters {
     /// Record a lock acquisition
     pub fn record_lock_acquisition(&self, wait_time: Duration) {
         self.lock_acquisitions.fetch_add(1, Ordering::Relaxed);
-        self.lock_wait_time_ns.fetch_add(wait_time.as_nanos() as u64, Ordering::Relaxed);
+        self.lock_wait_time_ns
+            .fetch_add(wait_time.as_nanos() as u64, Ordering::Relaxed);
     }
 
     /// Record lock contention

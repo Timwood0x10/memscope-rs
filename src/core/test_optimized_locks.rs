@@ -3,22 +3,24 @@
 #[cfg(test)]
 mod tests {
     use crate::core::scope_tracker::{get_global_scope_tracker, ScopeGuard};
-    use std::thread;
     use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn test_optimized_scope_tracker_basic() {
         let tracker = get_global_scope_tracker();
-        
+
         // Test basic scope operations
         let scope_id = tracker.enter_scope("test_scope".to_string()).unwrap();
-        
+
         // Associate a variable
-        tracker.associate_variable("test_var".to_string(), 64).unwrap();
-        
+        tracker
+            .associate_variable("test_var".to_string(), 64)
+            .unwrap();
+
         // Exit scope
         tracker.exit_scope(scope_id).unwrap();
-        
+
         // Get analysis
         let analysis = tracker.get_scope_analysis().unwrap();
         assert!(analysis.total_scopes > 0);

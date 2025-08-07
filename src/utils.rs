@@ -128,18 +128,28 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         if parts.len() >= 2 {
             // Use the original clean_type as fallback if parts is somehow empty
             let type_part = parts.last().unwrap_or(&clean_type);
-            
+
             // Determine category based on namespace and type patterns
-            let category = if parts.iter().any(|&part| part.contains("error") || part.contains("Error")) 
-                || type_part.ends_with("Error") || type_part.contains("Err") {
+            let category = if parts
+                .iter()
+                .any(|&part| part.contains("error") || part.contains("Error"))
+                || type_part.ends_with("Error")
+                || type_part.contains("Err")
+            {
                 "Error Types"
             } else if type_part.ends_with("Config") || type_part.ends_with("Settings") {
                 "Configuration"
             } else if type_part.ends_with("Builder") || type_part.ends_with("Factory") {
                 "Builders"
-            } else if parts.iter().any(|&part| part == "std" || part == "core" || part == "alloc") {
+            } else if parts
+                .iter()
+                .any(|&part| part == "std" || part == "core" || part == "alloc")
+            {
                 "Standard Library"
-            } else if parts.iter().any(|&part| part.contains("test") || part.contains("mock")) {
+            } else if parts
+                .iter()
+                .any(|&part| part.contains("test") || part.contains("mock"))
+            {
                 "Test Types"
             } else if parts.len() > 2 {
                 // Deep namespace suggests library or framework type
@@ -147,7 +157,7 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
             } else {
                 "Custom Types"
             };
-            
+
             (type_part.to_string(), category.to_string())
         } else {
             // Single part, no namespace
@@ -157,14 +167,18 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
                 "Configuration"
             } else if clean_type.ends_with("Builder") || clean_type.ends_with("Factory") {
                 "Builders"
-            } else if clean_type.chars().next().map_or(false, |c| c.is_uppercase()) {
+            } else if clean_type
+                .chars()
+                .next()
+                .map_or(false, |c| c.is_uppercase())
+            {
                 // Starts with uppercase, likely a struct/enum
                 "Custom Types"
             } else {
                 // Lowercase, might be a function type or other
                 "Other Types"
             };
-            
+
             (clean_type.to_string(), category.to_string())
         }
     } else {

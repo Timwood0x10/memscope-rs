@@ -1,22 +1,21 @@
 //! Optimized data structures using string interning and Arc sharing
-//! 
+//!
 //! This module provides memory-optimized versions of core data structures
 //! that use Arc<str> for string fields and the global string pool for
 //! memory efficiency.
 
-use std::sync::Arc;
-use serde::{Serialize, Deserialize};
 use crate::core::string_pool::intern_string;
 use crate::core::types::{
-    SmartPointerInfo, MemoryLayoutInfo, GenericTypeInfo, DynamicTypeInfo,
-    RuntimeStateInfo, StackAllocationInfo, TemporaryObjectInfo,
-    EnhancedFragmentationAnalysis, GenericInstantiationInfo, TypeRelationshipInfo,
-    TypeUsageInfo, FunctionCallTrackingInfo, ObjectLifecycleInfo,
-    MemoryAccessTrackingInfo, DropChainAnalysis
+    DropChainAnalysis, DynamicTypeInfo, EnhancedFragmentationAnalysis, FunctionCallTrackingInfo,
+    GenericInstantiationInfo, GenericTypeInfo, MemoryAccessTrackingInfo, MemoryLayoutInfo,
+    ObjectLifecycleInfo, RuntimeStateInfo, SmartPointerInfo, StackAllocationInfo,
+    TemporaryObjectInfo, TypeRelationshipInfo, TypeUsageInfo,
 };
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Optimized allocation information using Arc<str> for string fields
-/// 
+///
 /// This structure is a drop-in replacement for AllocationInfo that uses
 /// Arc<str> for all string fields to reduce memory usage through string
 /// interning. All string fields are automatically interned using the
@@ -145,12 +144,14 @@ impl OptimizedAllocationInfo {
 
     /// Get the lifetime duration in nanoseconds if deallocated
     pub fn lifetime_duration_nanos(&self) -> Option<u64> {
-        self.timestamp_dealloc.map(|dealloc| dealloc - self.timestamp_alloc)
+        self.timestamp_dealloc
+            .map(|dealloc| dealloc - self.timestamp_alloc)
     }
 
     /// Get the lifetime duration in milliseconds if deallocated
     pub fn lifetime_duration_ms(&self) -> Option<u64> {
-        self.lifetime_duration_nanos().map(|nanos| nanos / 1_000_000)
+        self.lifetime_duration_nanos()
+            .map(|nanos| nanos / 1_000_000)
     }
 
     /// Check if this allocation is currently active (not deallocated)
@@ -180,9 +181,9 @@ impl OptimizedAllocationInfo {
 
     /// Get stack trace as Vec<&str> for compatibility
     pub fn stack_trace_strs(&self) -> Option<Vec<&str>> {
-        self.stack_trace.as_ref().map(|trace| {
-            trace.iter().map(|frame| frame.as_ref()).collect()
-        })
+        self.stack_trace
+            .as_ref()
+            .map(|trace| trace.iter().map(|frame| frame.as_ref()).collect())
     }
 }
 
@@ -193,7 +194,7 @@ impl Serialize for OptimizedAllocationInfo {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        
+
         let mut state = serializer.serialize_struct("OptimizedAllocationInfo", 24)?;
         state.serialize_field("ptr", &self.ptr)?;
         state.serialize_field("size", &self.size)?;
@@ -203,13 +204,16 @@ impl Serialize for OptimizedAllocationInfo {
         state.serialize_field("timestamp_alloc", &self.timestamp_alloc)?;
         state.serialize_field("timestamp_dealloc", &self.timestamp_dealloc)?;
         state.serialize_field("borrow_count", &self.borrow_count)?;
-        
+
         // Serialize stack trace as Vec<&str>
         let stack_trace_strs = self.stack_trace.as_ref().map(|trace| {
-            trace.iter().map(|frame| frame.as_ref()).collect::<Vec<&str>>()
+            trace
+                .iter()
+                .map(|frame| frame.as_ref())
+                .collect::<Vec<&str>>()
         });
         state.serialize_field("stack_trace", &stack_trace_strs)?;
-        
+
         state.serialize_field("is_leaked", &self.is_leaked)?;
         state.serialize_field("lifetime_ms", &self.lifetime_ms)?;
         state.serialize_field("smart_pointer_info", &self.smart_pointer_info)?;
@@ -280,7 +284,12 @@ impl<'de> Deserialize<'de> for OptimizedAllocationInfo {
             thread_id: intern_string(&format!("{:?}", std::thread::current().id())),
             borrow_count: helper.borrow_count,
             stack_trace: helper.stack_trace.map(|trace| {
-                Arc::new(trace.into_iter().map(|frame| intern_string(&frame)).collect())
+                Arc::new(
+                    trace
+                        .into_iter()
+                        .map(|frame| intern_string(&frame))
+                        .collect(),
+                )
             }),
             is_leaked: helper.is_leaked,
             lifetime_ms: helper.lifetime_ms,
@@ -317,7 +326,12 @@ impl From<crate::core::types::AllocationInfo> for OptimizedAllocationInfo {
             thread_id: intern_string(&original.thread_id),
             borrow_count: original.borrow_count,
             stack_trace: original.stack_trace.map(|trace| {
-                Arc::new(trace.into_iter().map(|frame| intern_string(&frame)).collect())
+                Arc::new(
+                    trace
+                        .into_iter()
+                        .map(|frame| intern_string(&frame))
+                        .collect(),
+                )
             }),
             is_leaked: original.is_leaked,
             lifetime_ms: original.lifetime_ms,
@@ -353,9 +367,9 @@ impl From<OptimizedAllocationInfo> for crate::core::types::AllocationInfo {
             timestamp_dealloc: optimized.timestamp_dealloc,
             thread_id: optimized.thread_id.to_string(),
             borrow_count: optimized.borrow_count,
-            stack_trace: optimized.stack_trace.map(|trace| {
-                trace.iter().map(|frame| frame.to_string()).collect()
-            }),
+            stack_trace: optimized
+                .stack_trace
+                .map(|trace| trace.iter().map(|frame| frame.to_string()).collect()),
             is_leaked: optimized.is_leaked,
             lifetime_ms: optimized.lifetime_ms,
             smart_pointer_info: optimized.smart_pointer_info,
@@ -385,11 +399,11 @@ mod tests {
     #[test]
     fn test_optimized_allocation_info_creation() {
         clear_string_pool();
-        
+
         let info = OptimizedAllocationInfo::new(0x1000, 64)
             .with_var_info("my_var", "Vec<i32>")
             .with_scope("main");
-        
+
         assert_eq!(info.ptr, 0x1000);
         assert_eq!(info.size, 64);
         assert_eq!(info.var_name_str(), Some("my_var"));
@@ -402,17 +416,15 @@ mod tests {
     fn test_string_interning_in_allocation_info() {
         // Test that string interning works by checking content equality
         // We can't reliably test Arc pointer equality due to test isolation issues
-        let info1 = OptimizedAllocationInfo::new(0x1000, 64)
-            .with_var_info("test_var", "TestType");
-        let info2 = OptimizedAllocationInfo::new(0x2000, 128)
-            .with_var_info("test_var", "TestType");
-        
+        let info1 = OptimizedAllocationInfo::new(0x1000, 64).with_var_info("test_var", "TestType");
+        let info2 = OptimizedAllocationInfo::new(0x2000, 128).with_var_info("test_var", "TestType");
+
         // Same strings should have same content
         assert_eq!(info1.var_name_str(), Some("test_var"));
         assert_eq!(info2.var_name_str(), Some("test_var"));
         assert_eq!(info1.type_name_str(), Some("TestType"));
         assert_eq!(info2.type_name_str(), Some("TestType"));
-        
+
         // Verify the strings are actually Arc<str>
         assert!(info1.var_name.is_some());
         assert!(info1.type_name.is_some());
@@ -425,19 +437,17 @@ mod tests {
             "function_a".to_string(),
             "function_b".to_string(),
         ];
-        
-        let info1 = OptimizedAllocationInfo::new(0x1000, 64)
-            .with_stack_trace(trace.clone());
-        let info2 = OptimizedAllocationInfo::new(0x2000, 128)
-            .with_stack_trace(trace);
-        
+
+        let info1 = OptimizedAllocationInfo::new(0x1000, 64).with_stack_trace(trace.clone());
+        let info2 = OptimizedAllocationInfo::new(0x2000, 128).with_stack_trace(trace);
+
         // Stack trace frames should have same content
         let trace1_strs = info1.stack_trace_strs().unwrap();
         let trace2_strs = info2.stack_trace_strs().unwrap();
-        
+
         assert_eq!(trace1_strs, trace2_strs);
         assert_eq!(trace1_strs, vec!["main", "function_a", "function_b"]);
-        
+
         // Verify the traces are actually Arc<Vec<Arc<str>>>
         assert!(info1.stack_trace.is_some());
         assert!(info2.stack_trace.is_some());
@@ -446,9 +456,9 @@ mod tests {
     #[test]
     fn test_conversion_from_original() {
         use crate::core::types::AllocationInfo;
-        
+
         clear_string_pool();
-        
+
         let original = AllocationInfo {
             ptr: 0x1000,
             size: 64,
@@ -478,15 +488,15 @@ mod tests {
             access_tracking: None,
             drop_chain_analysis: None,
         };
-        
+
         let optimized = OptimizedAllocationInfo::from(original.clone());
-        
+
         assert_eq!(optimized.ptr, original.ptr);
         assert_eq!(optimized.size, original.size);
         assert_eq!(optimized.var_name_str(), original.var_name.as_deref());
         assert_eq!(optimized.type_name_str(), original.type_name.as_deref());
         assert_eq!(optimized.scope_name_str(), original.scope_name.as_deref());
-        
+
         // Convert back and verify
         let converted_back = crate::core::types::AllocationInfo::from(optimized);
         assert_eq!(converted_back.var_name, original.var_name);
@@ -497,12 +507,12 @@ mod tests {
     #[test]
     fn test_deallocation_tracking() {
         let mut info = OptimizedAllocationInfo::new(0x1000, 64);
-        
+
         assert!(info.is_active());
         assert!(info.lifetime_duration_nanos().is_none());
-        
+
         info.mark_deallocated();
-        
+
         assert!(!info.is_active());
         assert!(info.lifetime_duration_nanos().is_some());
         assert!(info.lifetime_duration_ms().is_some());

@@ -123,7 +123,7 @@ pub trait Trackable {
                 function_call_tracking: None,
                 lifecycle_tracking: None,
                 access_tracking: None,
-            drop_chain_analysis: None,
+                drop_chain_analysis: None,
             };
 
             Some(
@@ -227,8 +227,8 @@ impl<T> Trackable for std::rc::Rc<T> {
         if let Err(e) = tracker.track_smart_pointer_clone(
             clone_ptr,
             source_ptr,
-            data_ptr,
-            strong_count,
+            clone_ptr, // data_ptr - use clone_ptr as data pointer
+            1,         // new_ref_count - Rc clone increases ref count
             weak_count,
         ) {
             tracing::warn!("Failed to track Rc clone relationship: {}", e);
@@ -1210,9 +1210,8 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
                 type_name.clone(),
                 creation_time,
                 ref_count,
-                data_ptr,
+                0, // weak_count placeholder
             );
-
             tracing::debug!(
                 "🎯 Created smart pointer tracking for '{}' at ptr 0x{:x}, ref_count={}",
                 var_name,

@@ -30,6 +30,8 @@ Thumbs.db
 *.svg
 
 
+/backup/
+
 MemoryAnalysis/
 
 test_data/

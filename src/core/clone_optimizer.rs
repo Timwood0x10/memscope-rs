@@ -1,9 +1,9 @@
 //! Clone optimization system for reducing unnecessary clone() calls
-//! 
+//!
 //! This module provides tools to analyze and optimize clone() calls throughout
 //! the codebase by replacing them with Arc-based sharing where appropriate.
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Statistics about clone operations in the system
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,18 +61,18 @@ impl CloneOptimizer {
     /// Record a clone operation
     pub fn record_clone(&mut self, location: &str, type_name: &str, size: usize) {
         self.stats.total_clones += 1;
-        
+
         let can_optimize = self.can_optimize_type(type_name);
         if can_optimize {
             self.stats.optimizable_clones += 1;
         }
-        
+
         let optimization_reason = if can_optimize {
             "Can be replaced with Arc sharing".to_string()
         } else {
             self.get_optimization_reason(type_name)
         };
-        
+
         self.clone_info.push(CloneInfo {
             location: location.to_string(),
             type_name: type_name.to_string(),
@@ -81,15 +81,15 @@ impl CloneOptimizer {
             optimization_reason,
         });
     }
-    
+
     /// Check if a type can be optimized with Arc sharing
     fn can_optimize_type(&self, type_name: &str) -> bool {
         // Types that benefit from Arc sharing
-        matches!(type_name, 
-            "AllocationInfo" | 
-            "String" | 
-            "Vec<_>" | 
-            "HashMap<_,_>" | 
+        matches!(type_name,
+            "AllocationInfo" |
+            "String" |
+            "Vec<_>" |
+            "HashMap<_,_>" |
             "BTreeMap<_,_>" |
             "ExportConfig" |
             "AnalysisResult" |
@@ -99,7 +99,7 @@ impl CloneOptimizer {
                  type_name.contains("Data")
         )
     }
-    
+
     /// Get reason why a type cannot be optimized
     fn get_optimization_reason(&self, type_name: &str) -> String {
         if type_name.contains("Mutex") || type_name.contains("RwLock") {
@@ -114,26 +114,39 @@ impl CloneOptimizer {
             "Type analysis needed".to_string()
         }
     }
-    
+
     /// Check if a type is primitive
     fn is_primitive_type(&self, type_name: &str) -> bool {
-        matches!(type_name,
-            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
-            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
-            "f32" | "f64" | "bool" | "char"
+        matches!(
+            type_name,
+            "i8" | "i16"
+                | "i32"
+                | "i64"
+                | "i128"
+                | "isize"
+                | "u8"
+                | "u16"
+                | "u32"
+                | "u64"
+                | "u128"
+                | "usize"
+                | "f32"
+                | "f64"
+                | "bool"
+                | "char"
         )
     }
-    
+
     /// Get current statistics
     pub fn get_stats(&self) -> &CloneStats {
         &self.stats
     }
-    
+
     /// Get clone information
     pub fn get_clone_info(&self) -> &[CloneInfo] {
         &self.clone_info
     }
-    
+
     /// Mark a clone as optimized
     pub fn mark_optimized(&mut self, location: &str) {
         if let Some(info) = self.clone_info.iter_mut().find(|i| i.location == location) {
@@ -143,10 +156,10 @@ impl CloneOptimizer {
                 info.optimization_reason = "Optimized with Arc sharing".to_string();
             }
         }
-        
+
         // Update performance improvement
         if self.stats.optimizable_clones > 0 {
-            self.stats.performance_improvement = 
+            self.stats.performance_improvement =
                 self.stats.optimized_clones as f64 / self.stats.optimizable_clones as f64;
         }
     }
@@ -160,9 +173,9 @@ impl Default for CloneOptimizer {
 
 /// Check if a type should use Arc sharing based on common patterns
 pub fn should_use_arc(type_name: &str) -> bool {
-    type_name.contains("AllocationInfo") ||
-    type_name.contains("Config") ||
-    type_name.contains("Result") ||
-    type_name.contains("Collection") ||
-    type_name.len() > 50 // Large type names often indicate complex types
+    type_name.contains("AllocationInfo")
+        || type_name.contains("Config")
+        || type_name.contains("Result")
+        || type_name.contains("Collection")
+        || type_name.len() > 50 // Large type names often indicate complex types
 }

@@ -1,14 +1,13 @@
 //! String pool monitoring and statistics
-//! 
+//!
 //! This module provides monitoring capabilities for the string pool system,
 //! including performance metrics, memory usage tracking, and optimization
 //! recommendations.
 
-
+use crate::core::string_pool::{get_string_pool_stats, StringPoolStats};
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use serde::{Serialize, Deserialize};
-use crate::core::string_pool::{get_string_pool_stats, StringPoolStats};
 
 /// Detailed string pool monitoring statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,13 +164,13 @@ impl StringPoolMonitor {
         if let Ok(mut tracker) = self.performance_tracker.lock() {
             tracker.total_intern_time_ns += duration_ns;
             tracker.intern_count += 1;
-            
+
             // Add to recent times (ring buffer)
             if tracker.recent_intern_times.len() >= 1000 {
                 tracker.recent_intern_times.remove(0);
             }
             tracker.recent_intern_times.push(duration_ns);
-            
+
             // Update operations per second calculation
             let now = Instant::now();
             if now.duration_since(tracker.last_ops_calculation) >= Duration::from_secs(1) {
@@ -193,7 +192,8 @@ impl StringPoolMonitor {
         let performance = self.get_performance_metrics();
         let memory_efficiency = self.calculate_memory_efficiency(&pool_stats);
         let usage_patterns = self.analyze_usage_patterns(&pool_stats);
-        let recommendations = self.generate_recommendations(&pool_stats, &performance, &memory_efficiency);
+        let recommendations =
+            self.generate_recommendations(&pool_stats, &performance, &memory_efficiency);
 
         StringPoolMonitorStats {
             pool_stats,
@@ -235,17 +235,18 @@ impl StringPoolMonitor {
         let avg_string_size = pool_stats.average_string_length as u64;
         let total_unique_strings = pool_stats.unique_strings as u64;
         let total_intern_ops = pool_stats.intern_operations;
-        
+
         // Memory with interning: unique strings + Arc overhead
         let arc_overhead_per_string = std::mem::size_of::<Arc<str>>() as u64;
-        let memory_with_interning = (avg_string_size + arc_overhead_per_string) * total_unique_strings;
-        
+        let memory_with_interning =
+            (avg_string_size + arc_overhead_per_string) * total_unique_strings;
+
         // Memory without interning: all strings stored separately
         let memory_without_interning = avg_string_size * total_intern_ops;
-        
+
         // Pool overhead: HashMap structure + DashMap overhead
         let pool_overhead = total_unique_strings * 64; // Rough estimate
-        
+
         let efficiency_ratio = if memory_without_interning > 0 {
             1.0 - (memory_with_interning as f64 / memory_without_interning as f64)
         } else {
@@ -266,10 +267,30 @@ impl StringPoolMonitor {
         UsagePatterns {
             top_strings: vec![],
             length_distribution: vec![
-                LengthBucket { min_length: 0, max_length: 10, count: 0, total_bytes: 0 },
-                LengthBucket { min_length: 10, max_length: 50, count: 0, total_bytes: 0 },
-                LengthBucket { min_length: 50, max_length: 100, count: 0, total_bytes: 0 },
-                LengthBucket { min_length: 100, max_length: usize::MAX, count: 0, total_bytes: 0 },
+                LengthBucket {
+                    min_length: 0,
+                    max_length: 10,
+                    count: 0,
+                    total_bytes: 0,
+                },
+                LengthBucket {
+                    min_length: 10,
+                    max_length: 50,
+                    count: 0,
+                    total_bytes: 0,
+                },
+                LengthBucket {
+                    min_length: 50,
+                    max_length: 100,
+                    count: 0,
+                    total_bytes: 0,
+                },
+                LengthBucket {
+                    min_length: 100,
+                    max_length: usize::MAX,
+                    count: 0,
+                    total_bytes: 0,
+                },
             ],
             temporal_patterns: TemporalPatterns {
                 ops_last_minute: 0,
@@ -291,7 +312,9 @@ impl StringPoolMonitor {
         if memory_efficiency.efficiency_ratio < 0.3 {
             recommendations.push(OptimizationRecommendation {
                 recommendation_type: RecommendationType::MemoryOptimization,
-                description: "String pool efficiency is low. Consider reviewing string usage patterns.".to_string(),
+                description:
+                    "String pool efficiency is low. Consider reviewing string usage patterns."
+                        .to_string(),
                 estimated_impact: "Could reduce memory usage by 20-40%".to_string(),
                 priority: 4,
             });
@@ -369,7 +392,7 @@ mod tests {
     fn test_monitor_creation() {
         let monitor = StringPoolMonitor::new();
         let stats = monitor.get_stats();
-        
+
         assert_eq!(stats.performance.avg_intern_time_ns, 0.0);
         assert_eq!(stats.performance.peak_ops_per_second, 0.0);
     }
@@ -377,12 +400,12 @@ mod tests {
     #[test]
     fn test_performance_tracking() {
         let monitor = StringPoolMonitor::new();
-        
+
         // Record some operations
         monitor.record_intern_operation(100);
         monitor.record_intern_operation(200);
         monitor.record_intern_operation(150);
-        
+
         let stats = monitor.get_stats();
         assert_eq!(stats.performance.avg_intern_time_ns, 150.0);
         assert_eq!(stats.performance.total_intern_time_ns, 450);
@@ -391,7 +414,7 @@ mod tests {
     #[test]
     fn test_memory_efficiency_calculation() {
         let monitor = StringPoolMonitor::new();
-        
+
         let pool_stats = StringPoolStats {
             unique_strings: 100,
             intern_operations: 1000,
@@ -399,9 +422,9 @@ mod tests {
             memory_saved_bytes: 5000,
             average_string_length: 20.0,
         };
-        
+
         let efficiency = monitor.calculate_memory_efficiency(&pool_stats);
-        
+
         // Should show good efficiency due to high cache hit rate
         assert!(efficiency.efficiency_ratio > 0.5);
         assert!(efficiency.memory_without_interning_bytes > efficiency.memory_with_interning_bytes);
@@ -410,7 +433,7 @@ mod tests {
     #[test]
     fn test_recommendations_generation() {
         let monitor = StringPoolMonitor::new();
-        
+
         let pool_stats = StringPoolStats {
             unique_strings: 1000,
             intern_operations: 1000, // Low cache hit rate
@@ -418,26 +441,32 @@ mod tests {
             memory_saved_bytes: 1000,
             average_string_length: 50.0,
         };
-        
+
         let performance = PerformanceMetrics {
             avg_intern_time_ns: 500.0, // Good performance
             peak_ops_per_second: 1000.0,
             current_ops_per_second: 100.0,
             total_intern_time_ns: 500000,
         };
-        
+
         let memory_efficiency = MemoryEfficiencyMetrics {
             efficiency_ratio: 0.2, // Poor efficiency
             memory_without_interning_bytes: 50000,
             memory_with_interning_bytes: 40000,
             pool_overhead_bytes: 5000,
         };
-        
-        let recommendations = monitor.generate_recommendations(&pool_stats, &performance, &memory_efficiency);
-        
+
+        let recommendations =
+            monitor.generate_recommendations(&pool_stats, &performance, &memory_efficiency);
+
         // Should generate recommendations for poor efficiency and low cache hit rate
         assert!(!recommendations.is_empty());
-        assert!(recommendations.iter().any(|r| matches!(r.recommendation_type, RecommendationType::MemoryOptimization)));
-        assert!(recommendations.iter().any(|r| matches!(r.recommendation_type, RecommendationType::UsageOptimization)));
+        assert!(recommendations.iter().any(|r| matches!(
+            r.recommendation_type,
+            RecommendationType::MemoryOptimization
+        )));
+        assert!(recommendations
+            .iter()
+            .any(|r| matches!(r.recommendation_type, RecommendationType::UsageOptimization)));
     }
 }

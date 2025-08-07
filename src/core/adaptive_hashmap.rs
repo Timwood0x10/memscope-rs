@@ -1,17 +1,17 @@
 //! Adaptive HashMap that switches between simple and sharded modes based on contention
-//! 
+//!
 //! This module provides an adaptive data structure that starts with a simple mutex-protected
 //! HashMap and upgrades to a sharded version when contention is detected.
 
+use crate::core::sharded_locks::ShardedRwLock;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
-use crate::core::sharded_locks::ShardedRwLock;
 
 /// Simplified adaptive HashMap that chooses mode at creation time
 /// This avoids runtime switching complexity while providing the benefits
-pub struct AdaptiveHashMap<K, V> 
+pub struct AdaptiveHashMap<K, V>
 where
     K: Hash + Eq + Clone,
     V: Clone,
@@ -64,13 +64,13 @@ where
     /// Insert a key-value pair
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         self.access_counter.fetch_add(1, Ordering::Relaxed);
-        
+
         if self.use_sharded.load(Ordering::Relaxed) {
             if let Some(ref sharded) = self.sharded_map {
                 return sharded.insert(key, value);
             }
         }
-        
+
         // Use simple map
         match self.simple_map.try_lock() {
             Ok(mut map) => map.insert(key, value),
@@ -87,13 +87,13 @@ where
     /// Get a value by key
     pub fn get(&self, key: &K) -> Option<V> {
         self.access_counter.fetch_add(1, Ordering::Relaxed);
-        
+
         if self.use_sharded.load(Ordering::Relaxed) {
             if let Some(ref sharded) = self.sharded_map {
                 return sharded.get(key);
             }
         }
-        
+
         // Use simple map
         match self.simple_map.try_lock() {
             Ok(map) => map.get(key).cloned(),
@@ -110,13 +110,13 @@ where
     /// Remove a key-value pair
     pub fn remove(&self, key: &K) -> Option<V> {
         self.access_counter.fetch_add(1, Ordering::Relaxed);
-        
+
         if self.use_sharded.load(Ordering::Relaxed) {
             if let Some(ref sharded) = self.sharded_map {
                 return sharded.remove(key);
             }
         }
-        
+
         // Use simple map
         match self.simple_map.try_lock() {
             Ok(mut map) => map.remove(key),
@@ -138,7 +138,7 @@ where
 
         let accesses = self.access_counter.load(Ordering::Relaxed);
         let contentions = self.contention_counter.load(Ordering::Relaxed);
-        
+
         // Upgrade if contention rate > 10% and we have enough samples
         if accesses >= 100 && contentions * 10 > accesses {
             // For this simplified version, we just switch the flag
@@ -151,7 +151,7 @@ where
     pub fn contention_ratio(&self) -> f64 {
         let accesses = self.access_counter.load(Ordering::Relaxed);
         let contentions = self.contention_counter.load(Ordering::Relaxed);
-        
+
         if accesses > 0 {
             contentions as f64 / accesses as f64
         } else {
@@ -171,7 +171,7 @@ where
                 return sharded.len();
             }
         }
-        
+
         if let Ok(map) = self.simple_map.try_lock() {
             map.len()
         } else {
@@ -220,15 +220,15 @@ mod tests {
     #[test]
     fn test_basic_operations() {
         let map = AdaptiveHashMap::new();
-        
+
         // Test insert and get
         assert_eq!(map.insert("key1".to_string(), 42), None);
         assert_eq!(map.get(&"key1".to_string()), Some(42));
-        
+
         // Test update
         assert_eq!(map.insert("key1".to_string(), 43), Some(42));
         assert_eq!(map.get(&"key1".to_string()), Some(43));
-        
+
         // Test remove
         assert_eq!(map.remove(&"key1".to_string()), Some(43));
         assert_eq!(map.get(&"key1".to_string()), None);
