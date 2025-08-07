@@ -8,6 +8,7 @@ pub const HEADER_SIZE: usize = 16;
 pub const ALLOCATION_RECORD_TYPE: u8 = 1;
 
 // Task 6: New segment types for advanced metrics
+#[allow(dead_code)]
 pub const ADVANCED_METRICS_SEGMENT_TYPE: u8 = 2;
 pub const ADVANCED_METRICS_MAGIC: &[u8; 4] = b"ADVD"; // Advanced Data segment identifier
 
@@ -191,6 +192,7 @@ impl MetricsBitmapFlags {
     }
 
     /// Disable a specific metric in the bitmap
+    #[allow(dead_code)]
     pub fn disable(bitmap: u32, flag: MetricsBitmapFlags) -> u32 {
         bitmap & !(flag as u32)
     }

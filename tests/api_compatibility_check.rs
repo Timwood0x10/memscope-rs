@@ -294,8 +294,8 @@ impl ApiCompatibilityChecker {
             let rc_data = Rc::new(vec![1, 2]);
 
             // track_var_smart!(number); // Skip i32 as it doesn't implement Trackable
-            track_var_smart!(test_vec.clone());
-            track_var_smart!(rc_data.clone());
+            let _ = track_var_smart!(test_vec.clone());
+            let _ = track_var_smart!(rc_data.clone());
 
             // Verify variables are still usable
             assert_eq!(number, 42);

@@ -718,7 +718,7 @@ impl MemoryTracker {
     // Private helper methods for drop chain analysis
 
     /// Extract generic type from a generic type name
-    fn extract_generic_type(&self, type_name: &str, container: &str) -> Option<String> {
+    fn extract_generic_type(&self, type_name: &str, _container: &str) -> Option<String> {
         if let Some(start) = type_name.find('<') {
             if let Some(end) = type_name.rfind('>') {
                 let inner = &type_name[start + 1..end];

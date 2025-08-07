@@ -3,7 +3,7 @@
 //! This module contains configuration structures and enums used throughout
 //! the memory tracking system, particularly for export operations.
 
-use crate::export::optimized_json_export::OptimizedExportOptions;
+// use crate::export::optimized_json_export::OptimizedExportOptions;
 
 /// Export options for JSON export - user-controllable settings
 #[derive(Debug, Clone)]

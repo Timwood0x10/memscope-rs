@@ -106,7 +106,7 @@ pub trait SafeUnwrap<T> {
 }
 
 impl<T> SafeUnwrap<T> for Option<T> {
-    fn safe_unwrap(self, fallback: T) -> T {
+    fn safe_unwrap(self, _fallback: T) -> T {
         match self {
             Some(value) => value,
             None => {
@@ -116,7 +116,7 @@ impl<T> SafeUnwrap<T> for Option<T> {
                 #[cfg(not(debug_assertions))]
                 {
                     tracing::warn!("safe_unwrap called on None, using fallback");
-                    fallback
+                    _fallback
                 }
             }
         }
@@ -134,7 +134,7 @@ impl<T> SafeUnwrap<T> for Option<T> {
 }
 
 impl<T, E: std::fmt::Debug> SafeUnwrap<T> for Result<T, E> {
-    fn safe_unwrap(self, fallback: T) -> T {
+    fn safe_unwrap(self, _fallback: T) -> T {
         match self {
             Ok(value) => value,
             Err(e) => {
@@ -144,7 +144,7 @@ impl<T, E: std::fmt::Debug> SafeUnwrap<T> for Result<T, E> {
                 #[cfg(not(debug_assertions))]
                 {
                     tracing::warn!("safe_unwrap called on Err: {:?}, using fallback", e);
-                    fallback
+                    _fallback
                 }
             }
         }

@@ -3,8 +3,6 @@
 //! This module provides a simplified mutex that avoids runtime overhead
 //! by using compile-time feature selection.
 
-use std::sync::{Mutex as StdMutex, MutexGuard};
-
 /// Optimized mutex type selected at compile time
 #[cfg(feature = "parking-lot")]
 pub type OptimizedMutex<T> = parking_lot::Mutex<T>;
@@ -122,7 +120,7 @@ mod tests {
         {
             if let Some(guard) = mutex.try_lock() {
                 assert_eq!(*guard, 42);
-            }
+            };
         }
 
         #[cfg(not(feature = "parking-lot"))]

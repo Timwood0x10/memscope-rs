@@ -1,7 +1,7 @@
 //! Test for backward compatibility with older binary format versions
 
 use memscope_rs::export::binary::BinaryExportError;
-use memscope_rs::export::binary::{BinaryReader, FileHeader, FORMAT_VERSION, MAGIC_BYTES};
+use memscope_rs::export::binary::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};
 
 #[test]
 fn test_version_compatibility_check() {

@@ -126,6 +126,7 @@ fn demonstrate_statistics() {
 }
 
 // Example of how to migrate existing unwrap code
+#[allow(dead_code)]
 fn example_migration() {
     println!("5. Migration example:");
 

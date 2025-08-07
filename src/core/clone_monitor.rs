@@ -117,7 +117,7 @@ impl CloneMonitor {
     }
 
     /// Record an avoided clone (Arc sharing)
-    pub fn record_avoided_clone(&self, type_name: &str, memory_saved: usize) {
+    pub fn record_avoided_clone(&self, _type_name: &str, memory_saved: usize) {
         use std::sync::atomic::Ordering;
 
         self.avoided_clones.fetch_add(1, Ordering::Relaxed);

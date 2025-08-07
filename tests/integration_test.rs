@@ -796,11 +796,11 @@ fn calculate_detailed_metrics_completeness(allocations: &[AllocationInfo]) -> Co
     let type_completeness = type_analysis_complete as f64 / total_allocations as f64;
 
     // Overall completeness is weighted average
-    let overall_completeness = (basic_completeness * 0.3
+    let overall_completeness = basic_completeness * 0.3
         + advanced_completeness * 0.4
         + lifecycle_completeness * 0.1
         + container_completeness * 0.1
-        + type_completeness * 0.1);
+        + type_completeness * 0.1;
 
     CompletenessResult {
         overall_completeness,
@@ -820,7 +820,7 @@ fn analyze_metrics_coverage(allocations: &[AllocationInfo]) -> MetricsCoverage {
     let mut container_analyzed = 0;
     let mut lifecycle_expected = 0;
     let mut lifecycle_analyzed = 0;
-    let mut type_usage_expected = allocations.len(); // All allocations should have type usage
+    let type_usage_expected = allocations.len(); // All allocations should have type usage
     let mut type_usage_analyzed = 0;
 
     for allocation in allocations {
@@ -896,6 +896,7 @@ fn is_container_type(type_name: &str) -> bool {
         || type_name.contains("Map")
 }
 
+#[allow(dead_code)]
 struct MetricsPresenceCheck {
     smart_pointer_found: bool,
     memory_layout_found: bool,
@@ -906,6 +907,7 @@ struct MetricsPresenceCheck {
 }
 
 impl MetricsPresenceCheck {
+    #[allow(dead_code)]
     fn new() -> Self {
         Self {
             smart_pointer_found: false,
@@ -917,6 +919,7 @@ impl MetricsPresenceCheck {
         }
     }
 
+    #[allow(dead_code)]
     fn check_allocation(&mut self, allocation: &AllocationInfo) {
         if allocation.smart_pointer_info.is_some() {
             self.smart_pointer_found = true;
@@ -938,6 +941,7 @@ impl MetricsPresenceCheck {
         }
     }
 
+    #[allow(dead_code)]
     fn calculate_score(&self) -> f64 {
         let metrics = [
             self.smart_pointer_found,

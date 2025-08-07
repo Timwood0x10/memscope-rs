@@ -545,7 +545,7 @@ fn create_multithreaded_scenarios() -> Result<(), Box<dyn std::error::Error>> {
     let work_stats = Arc::new(Mutex::new(vec![0usize; 4])); // work done per thread
 
     // Track work queues and stats
-    for (i, queue) in work_queues.iter().enumerate() {
+    for (_i, queue) in work_queues.iter().enumerate() {
         let queue_for_tracking = Arc::clone(queue);
         track_var!(queue_for_tracking);
     }
@@ -570,13 +570,11 @@ fn create_multithreaded_scenarios() -> Result<(), Box<dyn std::error::Error>> {
 
             // Work loop with stealing
             for _ in 0..12 {
-                let mut work_item = None;
-
                 // Try own queue first
-                {
+                let mut work_item = {
                     let mut my_queue = queues_clone[worker_id].lock().unwrap();
-                    work_item = my_queue.pop_front();
-                }
+                    my_queue.pop_front()
+                };
 
                 // If no work, try to steal from others
                 if work_item.is_none() {

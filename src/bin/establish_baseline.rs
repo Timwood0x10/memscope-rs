@@ -3,7 +3,7 @@
 //! This tool creates baseline measurements that will be used to detect
 //! regressions during the optimization process.
 
-use memscope_rs::*;
+// use memscope_rs::*;
 use std::env;
 use std::fs;
 

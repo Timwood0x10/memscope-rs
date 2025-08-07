@@ -246,11 +246,12 @@ impl MemoryTracker {
     }
 
     /// Analyze padding information
+    #[allow(unused)]
     fn analyze_padding(
         &self,
         fields: &[FieldLayoutInfo],
         total_size: usize,
-        alignment: usize,
+        _alignment: usize,
     ) -> PaddingAnalysis {
         let mut total_padding = 0;
         let mut padding_locations = Vec::new();
@@ -407,9 +408,9 @@ impl MemoryTracker {
     fn calculate_container_efficiency_metrics(
         &self,
         container_type: &ContainerType,
-        size: usize,
+        _size: usize,
         capacity_utilization: &CapacityUtilization,
-        reallocation_patterns: &ReallocationPatterns,
+        _reallocation_patterns: &ReallocationPatterns,
     ) -> ContainerEfficiencyMetrics {
         let access_efficiency = match container_type {
             ContainerType::Vec { .. } | ContainerType::String => 0.95, // O(1) access

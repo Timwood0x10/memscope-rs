@@ -10,11 +10,18 @@ repository = "https://github.com/TimWood0x10/memscope-rs"
 documentation = "https://docs.rs/memscope-rs"
 readme = "README.md"
 keywords = ["memory", "tracking", "allocator", "visualization", "profiling"]
-categories = ["development-tools::profiling", "memory-management", "visualization"]
+categories = [
+    "development-tools::profiling",
+    "memory-management",
+    "visualization",
+]
 
 [dependencies]
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log"] }
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "tracing-log",
+] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 svg = "0.18.0"
@@ -31,7 +38,7 @@ rand = "0.8"
 dashmap = "6.0"
 parking_lot = "0.12"
 crossbeam = "0.8"
-memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0"}
+memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0" }
 
 
 [lib]
@@ -43,7 +50,8 @@ path = "src/lib.rs"
 backtrace = ["dep:backtrace"]
 tracking-allocator = []
 derive = ["dep:memscope-derive"]
-default = ["tracking-allocator"]
+parking-lot = []
+default = ["tracking-allocator", "parking-lot"]
 test = []
 
 [dev-dependencies]
@@ -51,7 +59,7 @@ crossbeam = "0.8"
 rayon = "1.8"
 parking_lot = "0.12"
 tracing-test = "0.2"
-tempfile = "3.10.1" # Or a compatible version
+tempfile = "3.10.1"                                          # Or a compatible version
 tokio = { version = "1.0", features = ["full"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 
@@ -68,3 +76,29 @@ name = "real_optimization_benchmark"
 harness = false
 
 
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = "z"
+debug = false
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+strip = false
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
+# cargo build --profile release-small
+[profile.release-small]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+overflow-checks = false

@@ -5,10 +5,9 @@
 
 use crate::core::atomic_stats::SimpleMemoryStats;
 use crate::core::simple_mutex::SimpleMutex;
-use crate::core::smart_optimization::{SafeUnwrap, SmartMutex, SmartStats};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+
 
 /// Optimized statistics collector that avoids lock contention
 pub struct FastStatsCollector {
@@ -24,6 +23,7 @@ pub struct FastStatsCollector {
 }
 
 #[derive(Default)]
+#[allow(dead_code)]
 struct DetailedStatsData {
     allocation_sizes: Vec<usize>,
     peak_memory: usize,
@@ -263,7 +263,7 @@ mod tests {
         let collector = FastStatsCollector::new();
 
         // Test fast path
-        for i in 0..1000 {
+        for _i in 0..1000 {
             collector.record_allocation_fast(64);
         }
 

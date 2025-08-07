@@ -21,7 +21,7 @@ pub mod lifecycle_analysis;
 pub mod security_violation_analyzer;
 
 // Re-export key analysis functions
-pub use circular_reference::*;
+pub use circular_reference::{CircularReference, CircularReferenceAnalysis, CircularReferenceNode};
 pub use enhanced_memory_analysis::{analyze_memory_with_enhanced_features, EnhancedMemoryAnalyzer};
 pub use unsafe_ffi_tracker::UnsafeFFITracker;
 pub use variable_relationships::{

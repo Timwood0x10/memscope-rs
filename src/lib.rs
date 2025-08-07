@@ -220,8 +220,8 @@ impl<T> Trackable for std::rc::Rc<T> {
 
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
         let tracker = crate::core::tracker::get_global_tracker();
-        let data_ptr = self.get_data_ptr();
-        let strong_count = std::rc::Rc::strong_count(self);
+        let _data_ptr = self.get_data_ptr();
+        let _strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
 
         if let Err(e) = tracker.track_smart_pointer_clone(
@@ -1199,7 +1199,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         if is_smart_pointer {
             // For smart pointers, create specialized allocation
             let ref_count = var.get_ref_count();
-            let data_ptr = var.get_data_ptr();
+            let _data_ptr = var.get_data_ptr();
 
             let _ = tracker.create_smart_pointer_allocation(
                 ptr_val,

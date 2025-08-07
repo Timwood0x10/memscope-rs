@@ -31,6 +31,7 @@ struct PerformanceBaseline {
 
 /// Configuration-specific performance metrics
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ConfigPerformance {
     config_name: String,
     export_time: f64,

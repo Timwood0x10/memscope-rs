@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use memscope_rs::core::targeted_optimizations::{
     efficient_string_concat, BatchProcessor, FastStatsCollector,
 };
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 

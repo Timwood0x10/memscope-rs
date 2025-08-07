@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use memscope_rs::core::{
-    AdaptiveHashMap, AtomicMemoryStats, OptimizedMutex, ShardedRwLock, SimpleMemoryStats,
+    AdaptiveHashMap, OptimizedMutex, ShardedRwLock, SimpleMemoryStats,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

@@ -126,7 +126,7 @@ fn test_drop_chain_performance_analysis() {
         ),
     ];
 
-    for (type_name, expected_min_impact) in types_to_test {
+    for (type_name, _expected_min_impact) in types_to_test {
         let analysis = tracker.analyze_drop_chain(0x7000, type_name).unwrap();
 
         // Verify performance characteristics are reasonable

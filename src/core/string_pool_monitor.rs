@@ -127,6 +127,7 @@ pub enum RecommendationType {
 }
 
 /// String pool monitor that tracks usage and performance
+#[allow(dead_code)]
 pub struct StringPoolMonitor {
     /// Performance tracking
     performance_tracker: Arc<Mutex<PerformanceTracker>>,

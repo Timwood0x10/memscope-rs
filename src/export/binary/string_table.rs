@@ -75,6 +75,7 @@ impl StringTable {
     }
 
     /// Check if the table is empty
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.strings.is_empty()
     }
@@ -90,6 +91,7 @@ impl StringTable {
     }
 
     /// Read a compressed index from the reader
+    #[allow(dead_code)]
     pub fn read_compressed_index<R: std::io::Read>(
         reader: &mut R,
         use_compressed: bool,
@@ -226,6 +228,7 @@ impl Default for StringTable {
 
 /// Statistics about string table compression effectiveness
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CompressionStats {
     /// Total size if all strings were stored inline
     pub original_size: usize,
@@ -281,6 +284,7 @@ impl StringTableBuilder {
     }
 
     /// Create a new builder with advanced compression settings
+    #[allow(dead_code)]
     pub fn with_advanced_compression(min_frequency: usize, enable_advanced: bool) -> Self {
         Self {
             table: StringTable::new(),
@@ -306,6 +310,7 @@ impl StringTableBuilder {
     }
 
     /// Record a string with weight (for strings that appear in critical paths)
+    #[allow(dead_code)]
     pub fn record_string_weighted(&mut self, s: &str, weight: usize) {
         if !s.is_empty() {
             let string_key = s.to_string();
@@ -450,6 +455,7 @@ impl StringTableBuilder {
     }
 
     /// Get current frequency statistics
+    #[allow(dead_code)]
     pub fn frequency_stats(&self) -> FrequencyStats {
         let total_strings = self.frequency_map.len();
         let total_occurrences: usize = self.frequency_map.values().sum();
@@ -470,6 +476,7 @@ impl StringTableBuilder {
 
 /// Statistics about string frequency analysis
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct FrequencyStats {
     /// Total number of unique strings encountered
     pub total_unique_strings: usize,
