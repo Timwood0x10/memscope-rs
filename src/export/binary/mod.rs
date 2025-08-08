@@ -12,6 +12,7 @@ mod cache;
 mod compatibility_wrapper;
 mod config;
 mod error;
+mod error_recovery;
 mod field_parser;
 mod filter_engine;
 mod format;
@@ -47,6 +48,10 @@ pub use compatibility_wrapper::{
 };
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
+pub use error_recovery::{
+    ErrorRecoveryManager, ErrorReport, ErrorStatistics, ErrorTrend,
+    RecoveryConfig, RecoveryResult, RecoveryStrategy,
+};
 pub use field_parser::{FieldParser, FieldParserConfig, FieldParserStats, PartialAllocationInfo};
 pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, FilterStats};
 pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};

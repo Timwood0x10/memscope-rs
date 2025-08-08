@@ -7,6 +7,7 @@
 use crate::export::binary::{
     AdaptiveMultiJsonExporter, AdaptiveExportConfig, BinaryExportError, SelectiveJsonExporter,
     SelectiveJsonExportConfig, JsonType, MultiExportStats, AllocationField,
+    ErrorRecoveryManager, RecoveryConfig,
 };
 
 use std::collections::HashMap;
@@ -27,6 +28,9 @@ pub struct OptimizedBinaryToJsonConverter {
     
     /// Performance statistics
     stats: ConversionStats,
+    
+    /// Error recovery manager
+    error_recovery: ErrorRecoveryManager,
 }
 
 /// Configuration for selective binary-to-JSON conversion
@@ -413,6 +417,7 @@ impl OptimizedBinaryToJsonConverter {
             adaptive_exporter,
             selective_exporter,
             stats: ConversionStats::default(),
+            error_recovery: ErrorRecoveryManager::new(),
         })
     }
 
@@ -599,6 +604,26 @@ impl OptimizedBinaryToJsonConverter {
         &self.config
     }
 
+    /// Get error recovery statistics
+    pub fn get_error_stats(&self) -> &crate::export::binary::ErrorStatistics {
+        self.error_recovery.get_error_stats()
+    }
+
+    /// Generate error recovery report
+    pub fn generate_error_report(&self) -> crate::export::binary::ErrorReport {
+        self.error_recovery.generate_error_report()
+    }
+
+    /// Update error recovery configuration
+    pub fn update_recovery_config(&mut self, recovery_config: RecoveryConfig) {
+        self.error_recovery.update_config(recovery_config);
+    }
+
+    /// Reset error recovery statistics
+    pub fn reset_error_stats(&mut self) {
+        self.error_recovery.reset_stats();
+    }
+
     // Private helper methods
 
     fn build_selective_config(config: &SelectiveConversionConfig) -> Result<SelectiveJsonExportConfig, BinaryExportError> {
@@ -657,17 +682,71 @@ impl OptimizedBinaryToJsonConverter {
         let binary_path = binary_path.as_ref();
         let output_dir = output_dir.as_ref();
 
-        // First attempt with adaptive strategy
-        match self.convert_multi_json(binary_path, output_dir, json_types) {
-            Ok(result) => Ok(result),
-            Err(error) if self.config.enable_error_recovery => {
-                warn!("Primary conversion failed, attempting recovery: {}", error);
-                self.stats.error_recoveries += 1;
-                
-                // Fallback to selective conversion for each JSON type
-                self.fallback_conversion(binary_path, output_dir, json_types)
+        if !self.config.enable_error_recovery {
+            // No recovery enabled, try once
+            return self.convert_multi_json(binary_path, output_dir, json_types);
+        }
+
+        // Manual retry logic with error recovery tracking
+        let max_attempts = 3;
+        let mut last_error = None;
+
+        for attempt in 1..=max_attempts {
+            match self.convert_multi_json(binary_path, output_dir, json_types) {
+                Ok(result) => {
+                    if attempt > 1 {
+                        self.stats.error_recoveries += 1;
+                        info!("Conversion recovered after {} attempts", attempt);
+                    }
+                    return Ok(result);
+                }
+                Err(error) => {
+                    // Record error in recovery manager
+                    {
+                        let stats = self.error_recovery.get_error_stats_mut();
+                        stats.total_errors += 1;
+                        let error_type = format!("{:?}", error);
+                        *stats.errors_by_type.entry(error_type).or_insert(0) += 1;
+                    }
+                    
+                    warn!("Conversion attempt {} failed: {}", attempt, error);
+                    last_error = Some(error);
+                    
+                    if attempt < max_attempts {
+                        // Small delay before retry
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                }
             }
-            Err(error) => Err(error),
+        }
+
+        // All attempts failed, try recovery strategies
+        warn!("All conversion attempts failed, trying recovery strategies");
+        self.stats.error_recoveries += 1;
+        
+        // Check for index corruption and attempt rebuild
+        if let Ok(true) = self.error_recovery.check_index_corruption(binary_path) {
+            info!("Index corruption detected, attempting rebuild");
+            if let Ok(_) = self.error_recovery.rebuild_index(binary_path) {
+                info!("Index rebuilt successfully, retrying conversion");
+                // Retry after index rebuild
+                if let Ok(result) = self.convert_multi_json(binary_path, output_dir, json_types) {
+                    self.error_recovery.get_error_stats_mut().successful_recoveries += 1;
+                    return Ok(result);
+                }
+            }
+        }
+        
+        // Final fallback to selective conversion
+        match self.fallback_conversion(binary_path, output_dir, json_types) {
+            Ok(result) => {
+                self.error_recovery.get_error_stats_mut().successful_recoveries += 1;
+                Ok(result)
+            }
+            Err(fallback_error) => {
+                self.error_recovery.get_error_stats_mut().failed_recoveries += 1;
+                Err(last_error.unwrap_or(fallback_error))
+            }
         }
     }
 
