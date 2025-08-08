@@ -9,6 +9,7 @@
 mod adaptive_multi_json_exporter;
 mod batch_processor;
 mod cache;
+mod compatibility_wrapper;
 mod config;
 mod error;
 mod field_parser;
@@ -18,6 +19,7 @@ mod index;
 mod index_builder;
 
 mod memory_layout_serialization;
+mod optimized_converter;
 mod parser;
 #[cfg(test)]
 mod performance_tests;
@@ -36,6 +38,13 @@ pub use adaptive_multi_json_exporter::{
 };
 pub use batch_processor::{BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch};
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
+pub use compatibility_wrapper::{
+    auto_detect_optimal_config, benchmark_performance, export_selective_json,
+    generate_optimization_suggestions, get_global_stats, initialize_global_converter,
+    initialize_global_converter_with_config, parse_binary_to_standard_json,
+    update_global_config, ConfigChange, ImpactLevel, OptimizationSuggestion,
+    PerformanceComparison, RuntimeConfigUpdate, SuggestionType, UsageStats,
+};
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
 pub use field_parser::{FieldParser, FieldParserConfig, FieldParserStats, PartialAllocationInfo};
@@ -45,6 +54,11 @@ pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMeta
 pub use index_builder::BinaryIndexBuilder;
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
+pub use optimized_converter::{
+    ConversionResult, ConversionStats, OptimizedBinaryToJsonConverter,
+    OptimizationLevel as ConverterOptimizationLevel, SelectiveConversionConfig,
+    SelectiveConversionConfigBuilder, StrategyThresholds,
+};
 pub use selective_json_exporter::{
     OptimizationLevel, SelectiveJsonExportConfig, SelectiveJsonExportConfigBuilder,
     SelectiveJsonExporter, SelectiveJsonExportStats,
