@@ -907,8 +907,22 @@ mod tests {
 
     #[test]
     fn test_selective_json_exporter_creation() {
-        let exporter = SelectiveJsonExporter::new();
-        assert!(exporter.is_ok());
+        // Use a temporary directory for testing to avoid permission issues
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let cache_config = IndexCacheConfig {
+            cache_directory: temp_dir.path().to_path_buf(),
+            max_entries: 1000,
+            max_age_seconds: 3600,
+            enable_compression: false,
+        };
+        
+        let config = SelectiveJsonExportConfig {
+            index_cache_config: cache_config,
+            ..Default::default()
+        };
+        
+        let exporter = SelectiveJsonExporter::with_config(config);
+        assert!(exporter.is_ok(), "Failed to create SelectiveJsonExporter: {:?}", exporter.err());
     }
 
     #[test]

@@ -6,6 +6,7 @@
 //! - Compatible with existing JSON/HTML export APIs
 //! - Modular architecture for easy testing and maintenance
 
+mod adaptive_multi_json_exporter;
 mod batch_processor;
 mod cache;
 mod config;
@@ -30,6 +31,9 @@ mod streaming_json_writer;
 mod string_table;
 mod writer;
 
+pub use adaptive_multi_json_exporter::{
+    AdaptiveExportConfig, AdaptiveMultiJsonExporter, JsonType, MultiExportStats, ProcessingStrategy,
+};
 pub use batch_processor::{BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch};
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
