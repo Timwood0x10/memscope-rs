@@ -25,6 +25,7 @@ mod selective_json_exporter;
 mod selective_reader;
 mod serializable;
 mod smart_pointer_serialization;
+mod streaming_field_processor;
 mod streaming_json_writer;
 mod string_table;
 mod writer;
@@ -47,6 +48,10 @@ pub use selective_json_exporter::{
 pub use selective_reader::{
     AllocationField, AllocationFilter, SelectiveReadOptions, SelectiveReadOptionsBuilder,
     SortField, SortOrder,
+};
+pub use streaming_field_processor::{
+    OptimizedRecord, StreamingFieldProcessor, StreamingFieldProcessorConfig,
+    StreamingFieldProcessorConfigBuilder, StreamingFieldProcessorStats,
 };
 pub use streaming_json_writer::{
     SelectiveSerializationOptions, StreamingJsonWriter, StreamingJsonWriterConfig, 
