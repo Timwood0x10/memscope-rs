@@ -21,6 +21,7 @@ mod parser;
 #[cfg(test)]
 mod performance_tests;
 mod reader;
+mod selective_json_exporter;
 mod selective_reader;
 mod serializable;
 mod smart_pointer_serialization;
@@ -39,6 +40,10 @@ pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMeta
 pub use index_builder::BinaryIndexBuilder;
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
+pub use selective_json_exporter::{
+    OptimizationLevel, SelectiveJsonExportConfig, SelectiveJsonExportConfigBuilder,
+    SelectiveJsonExporter, SelectiveJsonExportStats,
+};
 pub use selective_reader::{
     AllocationField, AllocationFilter, SelectiveReadOptions, SelectiveReadOptionsBuilder,
     SortField, SortOrder,
