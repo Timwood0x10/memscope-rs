@@ -174,6 +174,7 @@ impl BinaryIndexBuilder {
                 uses_compression,
             })
         } else if &marker == b"NONE" {
+            // table_size was already read above, no need to read it again
             Ok(StringTableIndex::default())
         } else {
             Err(BinaryExportError::CorruptedData(
@@ -236,14 +237,16 @@ impl BinaryIndexBuilder {
         &self,
         reader: &mut BufReader<File>,
     ) -> Result<RecordMetadata, BinaryExportError> {
+        let current_position = reader.stream_position().unwrap_or(0);
+        
         // Read Type (1 byte)
         let mut type_byte = [0u8; 1];
         reader.read_exact(&mut type_byte)?;
         
         if type_byte[0] != ALLOCATION_RECORD_TYPE {
             return Err(BinaryExportError::CorruptedData(format!(
-                "Invalid record type: {}",
-                type_byte[0]
+                "Invalid record type: {} at position {}",
+                type_byte[0], current_position
             )));
         }
         
@@ -259,7 +262,7 @@ impl BinaryIndexBuilder {
         
         // Skip the rest of the record for now
         // We could read thread_id and type_name here if needed for bloom filters
-        let remaining_bytes = record_length as i64 - 5 - 24; // 5 (type + length) + 24 (ptr + size + timestamp)
+        let remaining_bytes = record_length as i64 - 24; // 24 (ptr + size + timestamp)
         if remaining_bytes > 0 {
             reader.seek(SeekFrom::Current(remaining_bytes))?;
         }

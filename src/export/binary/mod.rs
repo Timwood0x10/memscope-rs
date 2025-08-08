@@ -6,9 +6,12 @@
 //! - Compatible with existing JSON/HTML export APIs
 //! - Modular architecture for easy testing and maintenance
 
+mod batch_processor;
 mod cache;
 mod config;
 mod error;
+mod field_parser;
+mod filter_engine;
 mod format;
 mod index;
 mod index_builder;
@@ -18,19 +21,27 @@ mod parser;
 #[cfg(test)]
 mod performance_tests;
 mod reader;
+mod selective_reader;
 mod serializable;
 mod smart_pointer_serialization;
 mod string_table;
 mod writer;
 
+pub use batch_processor::{BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch};
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
+pub use field_parser::{FieldParser, FieldParserConfig, FieldParserStats, PartialAllocationInfo};
+pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, FilterStats};
 pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
 pub use index_builder::BinaryIndexBuilder;
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
+pub use selective_reader::{
+    AllocationField, AllocationFilter, SelectiveReadOptions, SelectiveReadOptionsBuilder,
+    SortField, SortOrder,
+};
 pub use writer::BinaryWriter;
 
 use crate::core::types::AllocationInfo;

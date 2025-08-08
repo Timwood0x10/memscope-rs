@@ -128,6 +128,8 @@ impl BinaryParser {
         Ok(allocations)
     }
 
+
+
     /// Generate HTML report using existing template
     fn generate_html_report(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
         // Read the existing HTML template
