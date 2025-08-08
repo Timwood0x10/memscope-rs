@@ -6,9 +6,12 @@
 //! - Compatible with existing JSON/HTML export APIs
 //! - Modular architecture for easy testing and maintenance
 
+mod cache;
 mod config;
 mod error;
 mod format;
+mod index;
+mod index_builder;
 
 mod memory_layout_serialization;
 mod parser;
@@ -20,9 +23,12 @@ mod smart_pointer_serialization;
 mod string_table;
 mod writer;
 
+pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
 pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};
+pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
+pub use index_builder::BinaryIndexBuilder;
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
 pub use writer::BinaryWriter;

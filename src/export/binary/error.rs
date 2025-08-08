@@ -24,6 +24,12 @@ pub enum BinaryExportError {
         /// Actual magic bytes found
         actual: String,
     },
+
+    /// Serialization error
+    SerializationError(String),
+
+    /// Compression error
+    CompressionError(String),
 }
 
 impl fmt::Display for BinaryExportError {
@@ -43,6 +49,12 @@ impl fmt::Display for BinaryExportError {
                     "Invalid magic bytes: expected '{}', got '{}'",
                     expected, actual
                 )
+            }
+            BinaryExportError::SerializationError(msg) => {
+                write!(f, "Serialization error: {}", msg)
+            }
+            BinaryExportError::CompressionError(msg) => {
+                write!(f, "Compression error: {}", msg)
             }
         }
     }

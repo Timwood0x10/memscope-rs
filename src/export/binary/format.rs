@@ -14,7 +14,7 @@ pub const ADVANCED_METRICS_MAGIC: &[u8; 4] = b"ADVD"; // Advanced Data segment i
 
 /// File header structure (16 bytes fixed size)
 #[repr(C)]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FileHeader {
     pub magic: [u8; 8],
     pub version: u32,
