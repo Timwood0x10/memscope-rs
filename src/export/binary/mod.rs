@@ -24,6 +24,7 @@ mod reader;
 mod selective_reader;
 mod serializable;
 mod smart_pointer_serialization;
+mod streaming_json_writer;
 mod string_table;
 mod writer;
 
@@ -41,6 +42,10 @@ pub use reader::BinaryReader;
 pub use selective_reader::{
     AllocationField, AllocationFilter, SelectiveReadOptions, SelectiveReadOptionsBuilder,
     SortField, SortOrder,
+};
+pub use streaming_json_writer::{
+    SelectiveSerializationOptions, StreamingJsonWriter, StreamingJsonWriterConfig, 
+    StreamingJsonWriterConfigBuilder, StreamingJsonStats
 };
 pub use writer::BinaryWriter;
 
