@@ -18,6 +18,7 @@ mod filter_engine;
 mod format;
 mod index;
 mod index_builder;
+mod integration_config;
 
 mod memory_layout_serialization;
 mod optimized_converter;
@@ -57,6 +58,7 @@ pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, Filt
 pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
 pub use index_builder::BinaryIndexBuilder;
+pub use integration_config::{IntegrationConfig, IntegrationMetrics, IntegrationReport};
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
 pub use optimized_converter::{
