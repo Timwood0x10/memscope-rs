@@ -2,6 +2,7 @@
 // This example measures the performance difference between JSON and binary export
 
 use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
@@ -104,6 +105,9 @@ fn main() {
     // Phase 6: Data processing pipeline
     let vars6 = simulate_data_processing_pipeline();
     _keep_alive.extend(vars6);
+
+    // Phase 7: Unsafe/FFI operations for comprehensive analysis
+    simulate_unsafe_ffi_operations();
 
     let data_collection_time = data_collection_start.elapsed();
 
@@ -524,6 +528,107 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
     keep_alive
 }
 
+fn simulate_unsafe_ffi_operations() {
+    println!("🔒 Phase 7: Unsafe/FFI Operations");
+    
+    let unsafe_ffi_tracker = get_global_unsafe_ffi_tracker();
+    
+    // Simulate multiple unsafe operations for comprehensive testing
+    unsafe {
+        use std::alloc::{alloc, dealloc, Layout};
+        
+        // Multiple unsafe allocations with different sizes
+        for i in 0..5 {
+            let size = 1024 * (i + 1);
+            let layout = Layout::from_size_align(size, 8).unwrap();
+            let ptr = alloc(layout);
+            
+            if !ptr.is_null() {
+                // Initialize with pattern
+                std::ptr::write_bytes(ptr, (0x40 + i) as u8, size);
+                
+                // Track the unsafe allocation
+                let _ = unsafe_ffi_tracker.track_unsafe_allocation(
+                    ptr as usize,
+                    size,
+                    format!("examples/complex_lifecycle_showcase_binary.rs:{}:13", 650 + i * 10),
+                );
+                
+                // Record boundary event
+                let _ = unsafe_ffi_tracker.record_boundary_event(
+                    ptr as usize,
+                    BoundaryEventType::RustToFfi,
+                    format!("unsafe_block_{}", i),
+                    format!("ffi_target_{}", i),
+                );
+                
+                dealloc(ptr, layout);
+            }
+        }
+        
+        // Simulate FFI operations with libc
+        extern "C" {
+            fn malloc(size: usize) -> *mut std::ffi::c_void;
+            fn free(ptr: *mut std::ffi::c_void);
+            fn calloc(nmemb: usize, size: usize) -> *mut std::ffi::c_void;
+        }
+        
+        // Multiple FFI allocations
+        for i in 0..3 {
+            let size = 512 * (i + 1);
+            let ffi_ptr = if i % 2 == 0 {
+                malloc(size)
+            } else {
+                calloc(size / 8, 8)
+            };
+            
+            if !ffi_ptr.is_null() {
+                // Write test data
+                std::ptr::write_bytes(ffi_ptr as *mut u8, (0x60 + i) as u8, size);
+                
+                // Track FFI allocation
+                let _ = unsafe_ffi_tracker.track_ffi_allocation(
+                    ffi_ptr as usize,
+                    size,
+                    "libc".to_string(),
+                    if i % 2 == 0 { "malloc" } else { "calloc" }.to_string(),
+                );
+                
+                // Record boundary event
+                let _ = unsafe_ffi_tracker.record_boundary_event(
+                    ffi_ptr as usize,
+                    BoundaryEventType::FfiToRust,
+                    "libc".to_string(),
+                    format!("rust_complex_lifecycle_{}", i),
+                );
+                
+                free(ffi_ptr);
+            }
+        }
+    }
+    
+    // Debug: Show unsafe/FFI tracker statistics
+    if let Ok(enhanced_allocations) = unsafe_ffi_tracker.get_enhanced_allocations() {
+        println!("  📊 Generated {} unsafe/FFI allocations with cross-boundary events", enhanced_allocations.len());
+        
+        let unsafe_count = enhanced_allocations.iter()
+            .filter(|a| matches!(a.source, memscope_rs::analysis::unsafe_ffi_tracker::AllocationSource::UnsafeRust { .. }))
+            .count();
+        let ffi_count = enhanced_allocations.iter()
+            .filter(|a| matches!(a.source, memscope_rs::analysis::unsafe_ffi_tracker::AllocationSource::FfiC { .. }))
+            .count();
+        let total_events: usize = enhanced_allocations.iter()
+            .map(|a| a.cross_boundary_events.len())
+            .sum();
+            
+        println!("  🔒 Unsafe Rust allocations: {}", unsafe_count);
+        println!("  🌉 FFI allocations: {}", ffi_count);
+        println!("  📡 Cross-boundary events: {}", total_events);
+    }
+    
+    println!("  ✅ Unsafe/FFI operations completed for comprehensive analysis");
+}
+
 fn generate_final_analysis_with_binary_export() {
     println!("📊 Final Analysis & Binary Export");
     println!("=================================");
@@ -589,7 +694,12 @@ fn generate_final_analysis_with_binary_export() {
 
     // Step 1: Binary export timing
     let binary_export_start = Instant::now();
-    if let Err(e) = tracker.export_to_binary("complex_lifecycle_binary") {
+    // Create directory first
+    if let Err(e) = std::fs::create_dir_all("MemoryAnalysis/complex_lifecycle_binary") {
+        println!("❌ Failed to create binary directory: {e}");
+        return;
+    }
+    if let Err(e) = tracker.export_to_binary("complex_lifecycle_binary/complex_lifecycle_binary") {
         println!("❌ Binary export failed: {e}");
         return;
     }
@@ -599,20 +709,19 @@ fn generate_final_analysis_with_binary_export() {
         binary_export_time.as_secs_f64() * 1000.0
     );
 
-    // Step 2: Binary -> JSON conversion timing
+    // Step 2: Binary -> 5 JSON files conversion timing
     let conversion_start = Instant::now();
-    let binary_path = "MemoryAnalysis/complex_lifecycle_binary.memscope";
-    let json_path = "MemoryAnalysis/complex_lifecycle_from_binary.json";
+    let binary_path = "MemoryAnalysis/complex_lifecycle_binary/complex_lifecycle_binary.memscope";
 
     let conversion_time = if let Err(e) =
-        memscope_rs::core::tracker::MemoryTracker::parse_binary_to_json(binary_path, json_path)
+        memscope_rs::export::binary::BinaryParser::to_standard_json_files(binary_path, "complex_lifecycle_binary")
     {
-        println!("❌ Binary to JSON conversion failed: {e}");
+        println!("❌ Binary to 5 JSON files conversion failed: {e}");
         conversion_start.elapsed()
     } else {
         let conversion_time = conversion_start.elapsed();
         println!(
-            "✅ Binary -> JSON conversion completed in {:.2}ms",
+            "✅ Binary -> 5 JSON files conversion completed in {:.2}ms",
             conversion_time.as_secs_f64() * 1000.0
         );
         conversion_time
@@ -632,14 +741,19 @@ fn generate_final_analysis_with_binary_export() {
         (binary_export_time + conversion_time).as_secs_f64() * 1000.0
     );
 
-    println!("\n🎯 Binary -> JSON Workflow Analysis:");
-    println!("====================================");
-    println!("Workflow: Data Collection -> Binary Export -> JSON Conversion");
+    println!("\n🎯 Binary -> 5 JSON Files Workflow Analysis:");
+    println!("=============================================");
+    println!("Workflow: Data Collection -> Binary Export -> 5 Specialized JSON Files");
     println!("This approach provides:");
     println!("✓ Fast binary storage for archival");
-    println!("✓ On-demand JSON conversion for compatibility");
-    println!("✓ Efficient two-step data processing pipeline");
-    println!("\nGenerated files:");
+    println!("✓ Specialized JSON analysis files for different use cases");
+    println!("✓ Efficient multi-format data processing pipeline");
+    println!("✓ Complete unsafe/FFI analysis with cross-boundary events");
+    println!("\nGenerated files in MemoryAnalysis/complex_lifecycle_binary/:");
     println!("  1. complex_lifecycle_binary.memscope - Binary format data");
-    println!("  2. complex_lifecycle_from_binary.json - JSON converted from binary");
+    println!("  2. complex_lifecycle_binary_memory_analysis.json - Memory allocation analysis");
+    println!("  3. complex_lifecycle_binary_lifetime.json - Lifetime analysis");
+    println!("  4. complex_lifecycle_binary_performance.json - Performance metrics");
+    println!("  5. complex_lifecycle_binary_unsafe_ffi.json - Unsafe/FFI analysis with cross-boundary events");
+    println!("  6. complex_lifecycle_binary_complex_types.json - Complex types analysis");
 }
