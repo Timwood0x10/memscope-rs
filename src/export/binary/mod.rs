@@ -6,10 +6,8 @@
 //! - Compatible with existing JSON/HTML export APIs
 //! - Modular architecture for easy testing and maintenance
 
-mod adaptive_multi_json_exporter;
 mod batch_processor;
 mod cache;
-mod compatibility_wrapper;
 mod config;
 mod error;
 mod error_recovery;
@@ -18,10 +16,7 @@ mod filter_engine;
 mod format;
 mod index;
 mod index_builder;
-mod integration_config;
-
 mod memory_layout_serialization;
-mod optimized_converter;
 mod parser;
 #[cfg(test)]
 mod performance_tests;
@@ -35,18 +30,9 @@ mod streaming_json_writer;
 mod string_table;
 mod writer;
 
-pub use adaptive_multi_json_exporter::{
-    AdaptiveExportConfig, AdaptiveMultiJsonExporter, JsonType, MultiExportStats, ProcessingStrategy,
-};
 pub use batch_processor::{BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch};
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
-pub use compatibility_wrapper::{
-    auto_detect_optimal_config, benchmark_performance, export_selective_json,
-    generate_optimization_suggestions, get_global_stats, initialize_global_converter,
-    initialize_global_converter_with_config, parse_binary_to_standard_json,
-    update_global_config, ConfigChange, ImpactLevel, OptimizationSuggestion,
-    PerformanceComparison, RuntimeConfigUpdate, SuggestionType, UsageStats,
-};
+
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
 pub use error_recovery::{
@@ -58,14 +44,8 @@ pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, Filt
 pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
 pub use index_builder::BinaryIndexBuilder;
-pub use integration_config::{IntegrationConfig, IntegrationMetrics, IntegrationReport};
 pub use parser::BinaryParser;
 pub use reader::BinaryReader;
-pub use optimized_converter::{
-    ConversionResult, ConversionStats, OptimizedBinaryToJsonConverter,
-    OptimizationLevel as ConverterOptimizationLevel, SelectiveConversionConfig,
-    SelectiveConversionConfigBuilder, StrategyThresholds,
-};
 pub use selective_json_exporter::{
     OptimizationLevel, SelectiveJsonExportConfig, SelectiveJsonExportConfigBuilder,
     SelectiveJsonExporter, SelectiveJsonExportStats,
