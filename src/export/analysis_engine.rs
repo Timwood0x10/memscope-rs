@@ -439,66 +439,32 @@ impl AnalysisEngine for StandardAnalysisEngine {
 
     fn create_unsafe_ffi_analysis(
         &self,
-        allocations: &[AllocationInfo],
+        _allocations: &[AllocationInfo],
     ) -> Result<AnalysisData, AnalysisError> {
-        // Create enhanced FFI data from allocations
-        let enhanced_ffi_data: Vec<serde_json::Value> = allocations
-            .iter()
-            .map(|alloc| {
-                serde_json::json!({
-                    "ptr": format!("0x{:x}", alloc.ptr),
-                    "size": alloc.size,
-                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
-                    "thread_id": alloc.thread_id,
-                    "stack_trace": alloc.stack_trace,
-                    "runtime_state": alloc.runtime_state,
-                    "timestamp": alloc.timestamp_alloc
-                })
-            })
-            .collect();
+        use crate::analysis::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker;
+        
+        // Get enhanced allocations with real unsafe/FFI data
+        let tracker = get_global_unsafe_ffi_tracker();
+        let enhanced_allocations = tracker.get_enhanced_allocations()
+            .map_err(|e| AnalysisError::ProcessingError(format!("Failed to get enhanced allocations: {e}")))?;
 
-        let data = serde_json::json!({
-            "enhanced_ffi_data": enhanced_ffi_data,
-            "boundary_events": [],
-            "ffi_patterns": [],
-            "safety_violations": [],
-            "unsafe_indicators": [],
-            "metadata": {
-                "analysis_type": "integrated_unsafe_ffi_analysis",
-                "export_version": "2.0",
-                "optimization_level": format!("{:?}", self.config.optimization_level),
-                "timestamp": std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                "total_allocations_analyzed": allocations.len(),
-                "pipeline_features": {
-                    "boundary_event_processing": true,
-                    "enhanced_ffi_analysis": self.config.enhanced_ffi_analysis,
-                    "memory_passport_tracking": true
-                }
-            },
-            "summary": {
-                "enhanced_entries": enhanced_ffi_data.len(),
-                "boundary_events": 0,
-                "ffi_count": 0,
-                "unsafe_count": 0,
-                "safety_violations": 0,
-                "total_risk_items": 0,
-                "risk_assessment": "low"
-            }
-        });
+        // For unsafe/FFI analysis, we want ALL enhanced allocations, not just user-defined ones
+        // because unsafe/FFI operations often don't have variable names
+        let user_enhanced_allocations = enhanced_allocations;
+
+        // Convert to the expected JSON format matching snapshot_unsafe_ffi.json
+        let data = serde_json::to_value(&user_enhanced_allocations)
+            .map_err(|e| AnalysisError::SerializationError(format!("Failed to serialize enhanced allocations: {e}")))?;
 
         Ok(AnalysisData {
             data,
             metadata: AnalysisMetadata {
-                analysis_type: "integrated_unsafe_ffi_analysis".to_string(),
+                analysis_type: "unsafe_ffi_analysis".to_string(),
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs(),
-                total_allocations: allocations.len(),
+                total_allocations: user_enhanced_allocations.len(),
                 optimization_level: format!("{:?}", self.config.optimization_level),
             },
         })

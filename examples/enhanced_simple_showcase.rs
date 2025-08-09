@@ -2,6 +2,7 @@
 // Focus on trackable types that will create interesting JSON output
 
 use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::ffi::CString;
 use std::rc::Rc;
@@ -56,7 +57,7 @@ fn main() {
     
     let binary_export_start = Instant::now();
     std::fs::create_dir_all("MemoryAnalysis/enhanced_simple").unwrap();
-    tracker.export_to_binary("MemoryAnalysis/enhanced_simple/enhanced_simple.memscope").unwrap();
+    tracker.export_to_binary("enhanced_simple/enhanced_simple.memscope").unwrap();
     let binary_export_time = binary_export_start.elapsed();
     
     let json_conversion_start = Instant::now();
@@ -167,7 +168,82 @@ fn create_string_and_ffi_operations() {
         .collect();
     track_var!(string_collection);
 
-    println!("  ✅ Created complex strings and FFI-related data");
+    // Add real unsafe/FFI operations to generate cross-boundary events
+    let unsafe_ffi_tracker = get_global_unsafe_ffi_tracker();
+    
+    unsafe {
+        use std::alloc::{alloc, dealloc, Layout};
+        
+        // Unsafe Rust allocation
+        let layout = Layout::new::<[u8; 1024]>();
+        let ptr = alloc(layout);
+        if !ptr.is_null() {
+            // Initialize some data
+            std::ptr::write_bytes(ptr, 0x42, 1024);
+            
+            // First track the unsafe allocation
+            let _ = unsafe_ffi_tracker.track_unsafe_allocation(
+                ptr as usize,
+                1024,
+                "examples/enhanced_simple_showcase.rs:185:13".to_string(),
+            );
+            
+            // Then record boundary event for unsafe allocation
+            let _ = unsafe_ffi_tracker.record_boundary_event(
+                ptr as usize,
+                BoundaryEventType::RustToFfi,
+                "unsafe_rust_block".to_string(),
+                "potential_ffi_target".to_string(),
+            );
+            
+            // Simulate cross-boundary event by using libc
+            extern "C" {
+                fn malloc(size: usize) -> *mut std::ffi::c_void;
+                fn free(ptr: *mut std::ffi::c_void);
+            }
+            
+            // FFI allocation
+            let ffi_ptr = malloc(512);
+            if !ffi_ptr.is_null() {
+                // Write some data through FFI
+                std::ptr::write_bytes(ffi_ptr as *mut u8, 0x55, 512);
+                
+                // Track the FFI allocation
+                let _ = unsafe_ffi_tracker.track_ffi_allocation(
+                    ffi_ptr as usize,
+                    512,
+                    "libc".to_string(),
+                    "malloc".to_string(),
+                );
+                
+                // Record boundary event for FFI allocation
+                let _ = unsafe_ffi_tracker.record_boundary_event(
+                    ffi_ptr as usize,
+                    BoundaryEventType::FfiToRust,
+                    "libc".to_string(),
+                    "rust_main".to_string(),
+                );
+                
+                free(ffi_ptr);
+            }
+            
+            dealloc(ptr, layout);
+        }
+    }
+
+    // Debug: Check if UnsafeFFITracker has any data
+    let debug_tracker = get_global_unsafe_ffi_tracker();
+    if let Ok(enhanced_allocations) = debug_tracker.get_enhanced_allocations() {
+        println!("  📊 UnsafeFFITracker has {} enhanced allocations", enhanced_allocations.len());
+        for (i, alloc) in enhanced_allocations.iter().enumerate() {
+            println!("    {}: ptr=0x{:x}, events={}, source={:?}", 
+                i, alloc.base.ptr, alloc.cross_boundary_events.len(), alloc.source);
+        }
+    } else {
+        println!("  ❌ Failed to get enhanced allocations from UnsafeFFITracker");
+    }
+
+    println!("  ✅ Created complex strings and real FFI operations with cross-boundary events");
 }
 
 fn create_smart_pointers() {
