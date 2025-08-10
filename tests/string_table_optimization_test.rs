@@ -80,7 +80,7 @@ fn test_string_table_optimization_enabled() {
     // Try to read the file back
     let mut reader = BinaryReader::new(temp_file.path()).unwrap();
     let header = reader.read_header().unwrap();
-    assert_eq!(header.count, allocations.len() as u32);
+    assert_eq!(header.total_count, allocations.len() as u32);
 
     // Read back some allocations to verify correctness
     for i in 0..5 {
@@ -110,7 +110,7 @@ fn test_string_table_optimization_disabled() {
     // Try to read the file back
     let mut reader = BinaryReader::new(temp_file.path()).unwrap();
     let header = reader.read_header().unwrap();
-    assert_eq!(header.count, allocations.len() as u32);
+    assert_eq!(header.total_count, allocations.len() as u32);
 
     // Read back some allocations to verify correctness
     for i in 0..5 {
@@ -211,7 +211,7 @@ fn test_string_table_with_unique_strings() {
     // Verify we can read the data back correctly
     let mut reader = BinaryReader::new(temp_file.path()).unwrap();
     let header = reader.read_header().unwrap();
-    assert_eq!(header.count, allocations.len() as u32);
+    assert_eq!(header.total_count, allocations.len() as u32);
 
     // Read back all allocations to verify correctness
     for i in 0..allocations.len() {
@@ -269,7 +269,7 @@ fn test_empty_and_none_strings() {
     // Verify we can read the data back correctly
     let mut reader = BinaryReader::new(temp_file.path()).unwrap();
     let header = reader.read_header().unwrap();
-    assert_eq!(header.count, 1);
+    assert_eq!(header.total_count, 1);
 
     let read_allocation = reader.read_allocation().unwrap();
     assert_eq!(read_allocation.var_name, None);

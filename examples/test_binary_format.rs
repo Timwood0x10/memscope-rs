@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Header: magic={:?}, version={}, count={}",
         std::str::from_utf8(&header.magic).unwrap_or("invalid"),
         header.version,
-        header.count
+        header.total_count
     );
 
     let read_alloc = reader.read_allocation()?;

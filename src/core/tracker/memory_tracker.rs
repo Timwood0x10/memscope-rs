@@ -237,8 +237,12 @@ impl MemoryTracker {
 
         tracing::info!("Filtered {} user allocations for export (excluding system allocations)", user_allocations.len());
 
-        crate::export::binary::export_to_binary(&user_allocations, output_path)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+        crate::export::binary::export_to_binary_with_mode(
+            &user_allocations, 
+            output_path, 
+            crate::export::binary::format::BinaryExportMode::UserOnly,
+            &crate::export::binary::BinaryExportConfig::default()
+        ).map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
 
         tracing::info!("User binary export completed successfully");
         Ok(())
@@ -266,10 +270,14 @@ impl MemoryTracker {
         
         tracing::info!("Exporting {} total allocations (user + system)", all_allocations.len());
 
-        // Export all allocations with null field elimination for full-binary mode
+        // Export all allocations with enhanced header for full-binary mode
         // This ensures complete data integrity without ambiguous null values
-        crate::export::binary::export_to_binary(&all_allocations, output_path)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+        crate::export::binary::export_to_binary_with_mode(
+            &all_allocations, 
+            output_path, 
+            crate::export::binary::format::BinaryExportMode::Full,
+            &crate::export::binary::BinaryExportConfig::default()
+        ).map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
 
         tracing::info!("Full binary export completed successfully");
         Ok(())

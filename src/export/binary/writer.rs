@@ -4,7 +4,7 @@ use crate::core::types::AllocationInfo;
 use crate::export::binary::config::BinaryExportConfig;
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::format::{
-    AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE,
+    AdvancedMetricsHeader, FileHeader, MetricsBitmapFlags, ALLOCATION_RECORD_TYPE, BinaryExportMode,
 };
 use crate::export::binary::serializable::BinarySerializable;
 use crate::export::binary::string_table::{StringTable, StringTableBuilder};
@@ -91,12 +91,34 @@ impl BinaryWriter {
         Ok(())
     }
 
-    /// Write file header with allocation count and optional string table
+    /// Write file header with allocation count and optional string table (legacy compatibility)
     pub fn write_header(&mut self, count: u32) -> Result<(), BinaryExportError> {
-        let header = FileHeader::new(count);
+        let header = FileHeader::new_legacy(count);
         let header_bytes = header.to_bytes();
 
         self.writer.write_all(&header_bytes)?;
+
+        self.write_string_table_if_present()
+    }
+
+    /// Write enhanced file header with export mode and allocation counts
+    pub fn write_enhanced_header(
+        &mut self, 
+        total_count: u32, 
+        export_mode: BinaryExportMode, 
+        user_count: u16, 
+        system_count: u16
+    ) -> Result<(), BinaryExportError> {
+        let header = FileHeader::new(total_count, export_mode, user_count, system_count);
+        let header_bytes = header.to_bytes();
+
+        self.writer.write_all(&header_bytes)?;
+
+        self.write_string_table_if_present()
+    }
+
+    /// Write string table if present (helper method)
+    fn write_string_table_if_present(&mut self) -> Result<(), BinaryExportError> {
 
         // Write string table if present
         if let Some(ref string_table) = self.string_table {

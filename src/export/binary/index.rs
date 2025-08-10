@@ -370,7 +370,7 @@ mod tests {
         let file_path = PathBuf::from("test.memscope");
         let file_hash = 0x123456789ABCDEF0;
         let file_size = 1024;
-        let header = FileHeader::new(100);
+        let header = FileHeader::new_legacy(100);
         
         let index = BinaryIndex::new(file_path.clone(), file_hash, file_size, header.clone());
         
@@ -386,7 +386,7 @@ mod tests {
     fn test_index_validation() {
         let file_path = PathBuf::from("test.memscope");
         let file_hash = 0x123456789ABCDEF0;
-        let header = FileHeader::new(100);
+        let header = FileHeader::new_legacy(100);
         
         let index = BinaryIndex::new(file_path.clone(), file_hash, 1024, header);
         
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn test_record_offset_calculation() {
         let file_path = PathBuf::from("test.memscope");
-        let header = FileHeader::new(3);
+        let header = FileHeader::new_legacy(3);
         let mut index = BinaryIndex::new(file_path, 0x123, 1024, header);
         
         // Add some records to the allocation index

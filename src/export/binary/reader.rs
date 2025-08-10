@@ -318,9 +318,9 @@ impl BinaryReader {
     /// Read all allocation records from file
     pub fn read_all(&mut self) -> Result<Vec<AllocationInfo>, BinaryExportError> {
         let header = self.read_header()?;
-        let mut allocations = Vec::with_capacity(header.count as usize);
+        let mut allocations = Vec::with_capacity(header.total_count as usize);
 
-        for _ in 0..header.count {
+        for _ in 0..header.total_count {
             let allocation = self.read_allocation()?;
             allocations.push(allocation);
         }
@@ -672,7 +672,7 @@ mod tests {
         let mut reader = BinaryReader::new(temp_file.path()).unwrap();
         let header = reader.read_header().unwrap();
 
-        assert_eq!(header.count, 42);
+        assert_eq!(header.total_count, 42);
         assert!(header.is_valid_magic());
         assert!(header.is_compatible_version());
     }

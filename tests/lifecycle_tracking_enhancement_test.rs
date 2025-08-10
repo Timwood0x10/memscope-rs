@@ -80,7 +80,7 @@ fn test_enhanced_lifecycle_tracking_export() {
     // Try to read the file back
     let mut reader = BinaryReader::new(temp_file.path()).unwrap();
     let header = reader.read_header().unwrap();
-    assert_eq!(header.count, allocations.len() as u32);
+    assert_eq!(header.total_count, allocations.len() as u32);
 
     // Read back allocations to verify correctness
     for i in 0..allocations.len() {
@@ -130,11 +130,11 @@ fn test_lifecycle_tracking_with_different_configs() {
     // Both should be readable
     let mut reader_perf = BinaryReader::new(temp_file_perf.path()).unwrap();
     let header_perf = reader_perf.read_header().unwrap();
-    assert_eq!(header_perf.count, allocations.len() as u32);
+    assert_eq!(header_perf.total_count, allocations.len() as u32);
 
     let mut reader_min = BinaryReader::new(temp_file_min.path()).unwrap();
     let header_min = reader_min.read_header().unwrap();
-    assert_eq!(header_min.count, allocations.len() as u32);
+    assert_eq!(header_min.total_count, allocations.len() as u32);
 }
 
 #[test]
@@ -161,7 +161,7 @@ fn test_access_tracking_integration() {
     // Verify the file can be read back
     let mut reader = BinaryReader::new(temp_file.path()).unwrap();
     let header = reader.read_header().unwrap();
-    assert_eq!(header.count, allocations.len() as u32);
+    assert_eq!(header.total_count, allocations.len() as u32);
 
     // Read back and verify different sized allocations
     for i in 0..allocations.len() {
@@ -235,7 +235,7 @@ fn test_lifecycle_patterns_analysis() {
     // Verify file integrity
     let mut reader = BinaryReader::new(temp_file.path()).unwrap();
     let header = reader.read_header().unwrap();
-    assert_eq!(header.count, allocations.len() as u32);
+    assert_eq!(header.total_count, allocations.len() as u32);
 
     println!(
         "Successfully exported {} allocations with lifecycle pattern analysis",

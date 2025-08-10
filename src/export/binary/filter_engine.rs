@@ -483,7 +483,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn create_test_index() -> BinaryIndex {
-        let header = FileHeader::new(100);
+        let header = FileHeader::new_legacy(100);
         let mut index = BinaryIndex::new(
             PathBuf::from("test.bin"),
             0x123456789ABCDEF0,

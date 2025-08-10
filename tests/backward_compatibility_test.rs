@@ -1,7 +1,7 @@
 //! Test for backward compatibility with older binary format versions
 
 use memscope_rs::export::binary::BinaryExportError;
-use memscope_rs::export::binary::{FileHeader, FORMAT_VERSION, MAGIC_BYTES};
+use memscope_rs::export::binary::{FileHeader, FORMAT_VERSION, MAGIC_BYTES, BinaryExportMode};
 
 #[test]
 fn test_version_compatibility_check() {
@@ -9,17 +9,29 @@ fn test_version_compatibility_check() {
     let header_v1 = FileHeader {
         magic: *MAGIC_BYTES,
         version: 1,
-        count: 0,
+        total_count: 0,
+        export_mode: BinaryExportMode::UserOnly as u8,
+        user_count: 0,
+        system_count: 0,
+        reserved: 0,
     };
     let header_v2 = FileHeader {
         magic: *MAGIC_BYTES,
         version: 2,
-        count: 0,
+        total_count: 0,
+        export_mode: BinaryExportMode::UserOnly as u8,
+        user_count: 0,
+        system_count: 0,
+        reserved: 0,
     };
     let header_v3 = FileHeader {
         magic: *MAGIC_BYTES,
         version: 999,
-        count: 0,
+        total_count: 0,
+        export_mode: BinaryExportMode::UserOnly as u8,
+        user_count: 0,
+        system_count: 0,
+        reserved: 0,
     };
 
     assert!(header_v1.is_compatible_version());
@@ -42,7 +54,7 @@ fn test_format_version_constants() {
 #[test]
 fn test_version_detection_logic() {
     // Test the version compatibility logic
-    let current_header = FileHeader::new(0);
+    let current_header = FileHeader::new_legacy(0);
     assert_eq!(current_header.get_version(), FORMAT_VERSION);
     assert!(current_header.is_compatible_version());
     assert!(!current_header.is_legacy_version());
@@ -51,7 +63,11 @@ fn test_version_detection_logic() {
     let old_header = FileHeader {
         magic: *MAGIC_BYTES,
         version: 0,
-        count: 0,
+        total_count: 0,
+        export_mode: BinaryExportMode::UserOnly as u8,
+        user_count: 0,
+        system_count: 0,
+        reserved: 0,
     };
     assert!(!old_header.is_compatible_version());
 }
@@ -72,7 +88,11 @@ fn test_backward_compatibility_range() {
         let header = FileHeader {
             magic: *MAGIC_BYTES,
             version,
-            count: 0,
+            total_count: 0,
+            export_mode: BinaryExportMode::UserOnly as u8,
+            user_count: 0,
+            system_count: 0,
+            reserved: 0,
         };
         assert!(
             header.is_compatible_version(),
@@ -87,7 +107,11 @@ fn test_backward_compatibility_range() {
         let header = FileHeader {
             magic: *MAGIC_BYTES,
             version,
-            count: 0,
+            total_count: 0,
+            export_mode: BinaryExportMode::UserOnly as u8,
+            user_count: 0,
+            system_count: 0,
+            reserved: 0,
         };
         assert!(
             !header.is_compatible_version(),

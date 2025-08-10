@@ -48,16 +48,16 @@
 
 **文件**: `src/export/binary/parser.rs`
 
-- [ ] 保持 `parse_user_binary_to_json()` 使用现有简单 `reader.read_all()` 策略
-- [ ] **重点实现** `parse_full_binary_to_json()` 复用以下现有优化组件：
-  - [ ] **按需读取**: 集成 `SelectiveBinaryReader` + `BinaryIndex` 进行快速定位
-  - [ ] **流式写入**: 集成 `StreamingJsonWriter` + `StreamingFieldProcessor` 恒定内存
-  - [ ] **智能选择**: 集成 `SelectiveJsonExporter` 自适应处理策略
-  - [ ] **批量处理**: 使用 `BatchProcessor` 优化大数据集处理
-  - [ ] **字段解析**: 复用 `FieldParser` 进行选择性字段提取
-  - [ ] **错误恢复**: 集成 `ErrorRecovery` 处理损坏数据
-  - [ ] **缓存优化**: 使用 `Cache` + `StringTable` 减少重复数据
-  - [ ] **过滤引擎**: 集成 `FilterEngine` 进行高效数据筛选
+- [x] 保持 `parse_user_binary_to_json()` 使用现有简单 `reader.read_all()` 策略
+- [x] **重点实现** `parse_full_binary_to_json()` 复用以下现有优化组件：
+  - [x] **按需读取**: 集成 `SelectiveBinaryReader` + `BinaryIndex` 进行快速定位
+  - [x] **流式写入**: 集成 `StreamingJsonWriter` + `StreamingFieldProcessor` 恒定内存
+  - [x] **智能选择**: 集成 `SelectiveJsonExporter` 自适应处理策略
+  - [x] **批量处理**: 使用 `BatchProcessor` 优化大数据集处理
+  - [x] **字段解析**: 复用 `FieldParser` 进行选择性字段提取
+  - [x] **错误恢复**: 集成 `ErrorRecovery` 处理损坏数据
+  - [x] **缓存优化**: 使用 `Cache` + `StringTable` 减少重复数据
+  - [x] **过滤引擎**: 集成 `FilterEngine` 进行高效数据筛选
 
 ### Task 3: 扩展Binary格式头部
 

@@ -4,7 +4,7 @@
 pub const MAGIC_BYTES: &[u8; 8] = b"MEMSCOPE";
 
 pub const FORMAT_VERSION: u32 = 2; // Updated for Task 6: Advanced metrics support
-pub const HEADER_SIZE: usize = 16;
+pub const HEADER_SIZE: usize = 24; // Enhanced header: 8+4+4+1+2+2+1+2(padding) = 24 bytes
 pub const ALLOCATION_RECORD_TYPE: u8 = 1;
 
 // Task 6: New segment types for advanced metrics
@@ -12,21 +12,64 @@ pub const ALLOCATION_RECORD_TYPE: u8 = 1;
 pub const ADVANCED_METRICS_SEGMENT_TYPE: u8 = 2;
 pub const ADVANCED_METRICS_MAGIC: &[u8; 4] = b"ADVD"; // Advanced Data segment identifier
 
-/// File header structure (16 bytes fixed size)
+/// Binary export mode for header identification
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum BinaryExportMode {
+    /// User-only export mode (strict filtering)
+    UserOnly = 0,
+    /// Full export mode (loose filtering, all data)
+    Full = 1,
+}
+
+impl From<u8> for BinaryExportMode {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => BinaryExportMode::UserOnly,
+            1 => BinaryExportMode::Full,
+            _ => BinaryExportMode::UserOnly, // Default fallback
+        }
+    }
+}
+
+/// Enhanced file header structure (24 bytes fixed size)
+/// Extended from original 16 bytes to include export mode and allocation counts
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FileHeader {
-    pub magic: [u8; 8],
-    pub version: u32,
-    pub count: u32,
+    pub magic: [u8; 8],        // 8 bytes: File magic identifier
+    pub version: u32,          // 4 bytes: Format version
+    pub total_count: u32,      // 4 bytes: Total allocation count (user + system)
+    pub export_mode: u8,       // 1 byte: Export mode (user_only vs full)
+    pub user_count: u16,       // 2 bytes: User allocation count (var_name.is_some())
+    pub system_count: u16,     // 2 bytes: System allocation count (var_name.is_none())
+    pub reserved: u8,          // 1 byte: Reserved for future use
 }
 
 impl FileHeader {
-    pub fn new(count: u32) -> Self {
+    /// Create a new file header with enhanced information
+    pub fn new(total_count: u32, export_mode: BinaryExportMode, user_count: u16, system_count: u16) -> Self {
         Self {
             magic: *MAGIC_BYTES,
             version: FORMAT_VERSION,
-            count,
+            total_count,
+            export_mode: export_mode as u8,
+            user_count,
+            system_count,
+            reserved: 0,
+        }
+    }
+
+    /// Create a legacy header for backward compatibility
+    pub fn new_legacy(count: u32) -> Self {
+        Self {
+            magic: *MAGIC_BYTES,
+            version: FORMAT_VERSION,
+            total_count: count,
+            export_mode: BinaryExportMode::UserOnly as u8,
+            user_count: count as u16,
+            system_count: 0,
+            reserved: 0,
         }
     }
 
@@ -47,13 +90,43 @@ impl FileHeader {
         self.version < FORMAT_VERSION
     }
 
+    /// Get the export mode from the header
+    pub fn get_export_mode(&self) -> BinaryExportMode {
+        BinaryExportMode::from(self.export_mode)
+    }
+
+    /// Check if this is a user-only binary
+    pub fn is_user_only(&self) -> bool {
+        self.get_export_mode() == BinaryExportMode::UserOnly
+    }
+
+    /// Check if this is a full binary
+    pub fn is_full_binary(&self) -> bool {
+        self.get_export_mode() == BinaryExportMode::Full
+    }
+
+    /// Get allocation count information
+    pub fn get_allocation_counts(&self) -> (u32, u16, u16) {
+        (self.total_count, self.user_count, self.system_count)
+    }
+
+    /// Validate allocation count consistency
+    pub fn is_count_consistent(&self) -> bool {
+        self.total_count == (self.user_count as u32 + self.system_count as u32)
+    }
+
     /// Convert header to bytes using Little Endian format
     pub fn to_bytes(&self) -> [u8; HEADER_SIZE] {
         let mut bytes = [0u8; HEADER_SIZE];
 
-        bytes[0..8].copy_from_slice(&self.magic);
-        bytes[8..12].copy_from_slice(&self.version.to_le_bytes());
-        bytes[12..16].copy_from_slice(&self.count.to_le_bytes());
+        bytes[0..8].copy_from_slice(&self.magic);                           // 8 bytes: magic
+        bytes[8..12].copy_from_slice(&self.version.to_le_bytes());          // 4 bytes: version
+        bytes[12..16].copy_from_slice(&self.total_count.to_le_bytes());     // 4 bytes: total_count
+        bytes[16] = self.export_mode;                                       // 1 byte: export_mode
+        bytes[17..19].copy_from_slice(&self.user_count.to_le_bytes());      // 2 bytes: user_count
+        bytes[19..21].copy_from_slice(&self.system_count.to_le_bytes());    // 2 bytes: system_count
+        bytes[21] = self.reserved;                                          // 1 byte: reserved
+        // bytes[22..24] remain as padding (0x00)                          // 2 bytes: padding
 
         bytes
     }
@@ -64,12 +137,21 @@ impl FileHeader {
         magic.copy_from_slice(&bytes[0..8]);
 
         let version = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
-        let count = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
+        let total_count = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
+        let export_mode = bytes[16];
+        let user_count = u16::from_le_bytes([bytes[17], bytes[18]]);
+        let system_count = u16::from_le_bytes([bytes[19], bytes[20]]);
+        let reserved = bytes[21];
+        // bytes[22..24] are padding and ignored
 
         Self {
             magic,
             version,
-            count,
+            total_count,
+            export_mode,
+            user_count,
+            system_count,
+            reserved,
         }
     }
 }
@@ -227,21 +309,45 @@ mod tests {
 
     #[test]
     fn test_file_header_creation() {
-        let header = FileHeader::new(100);
+        let header = FileHeader::new(100, BinaryExportMode::Full, 60, 40);
         assert_eq!(header.magic, *MAGIC_BYTES);
         assert_eq!(header.version, FORMAT_VERSION);
-        assert_eq!(header.count, 100);
+        assert_eq!(header.total_count, 100);
+        assert_eq!(header.user_count, 60);
+        assert_eq!(header.system_count, 40);
+        assert_eq!(header.get_export_mode(), BinaryExportMode::Full);
         assert!(header.is_valid_magic());
         assert!(header.is_compatible_version());
+        assert!(header.is_count_consistent());
+        assert!(header.is_full_binary());
+        assert!(!header.is_user_only());
     }
 
     #[test]
     fn test_file_header_serialization() {
-        let header = FileHeader::new(42);
+        let header = FileHeader::new(42, BinaryExportMode::UserOnly, 42, 0);
         let bytes = header.to_bytes();
         let deserialized = FileHeader::from_bytes(&bytes);
 
         assert_eq!(header, deserialized);
+    }
+
+    #[test]
+    fn test_legacy_header_creation() {
+        let header = FileHeader::new_legacy(50);
+        assert_eq!(header.total_count, 50);
+        assert_eq!(header.user_count, 50);
+        assert_eq!(header.system_count, 0);
+        assert_eq!(header.get_export_mode(), BinaryExportMode::UserOnly);
+        assert!(header.is_user_only());
+        assert!(!header.is_full_binary());
+    }
+
+    #[test]
+    fn test_binary_export_mode_conversion() {
+        assert_eq!(BinaryExportMode::from(0), BinaryExportMode::UserOnly);
+        assert_eq!(BinaryExportMode::from(1), BinaryExportMode::Full);
+        assert_eq!(BinaryExportMode::from(255), BinaryExportMode::UserOnly); // Default fallback
     }
 
     #[test]

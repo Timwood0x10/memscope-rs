@@ -191,10 +191,10 @@ impl BinaryIndexBuilder {
     ) -> Result<CompactAllocationIndex, BinaryExportError> {
         let records_start_offset = reader.stream_position()?;
         let mut allocation_index = CompactAllocationIndex::new(records_start_offset);
-        allocation_index.reserve(header.count as usize);
+        allocation_index.reserve(header.total_count as usize);
         
         let mut record_metadata = Vec::new();
-        let mut quick_filter_builder = if header.count >= self.quick_filter_threshold {
+        let mut quick_filter_builder = if header.total_count >= self.quick_filter_threshold {
             Some(QuickFilterBuilder::new(
                 self.quick_filter_batch_size,
                 self.bloom_filter_params.clone(),
@@ -204,7 +204,7 @@ impl BinaryIndexBuilder {
         };
         
         // Scan each allocation record
-        for i in 0..header.count {
+        for i in 0..header.total_count {
             let record_start_offset = reader.stream_position()?;
             
             // Read record metadata without fully parsing the record
@@ -474,7 +474,7 @@ mod tests {
 
         // Verify index properties
         assert_eq!(index.record_count(), 2);
-        assert_eq!(index.header.count, 2);
+        assert_eq!(index.header.total_count, 2);
         assert!(index.file_size > 0);
         assert!(index.file_hash != 0);
         

@@ -172,7 +172,7 @@ impl SelectiveJsonExporter {
             std::path::PathBuf::new(),
             0,
             0,
-            crate::export::binary::format::FileHeader::new(0),
+            crate::export::binary::format::FileHeader::new_legacy(0),
         ));
         let filter_engine = FilterEngine::new(dummy_index);
         let field_parser = FieldParser::new();
