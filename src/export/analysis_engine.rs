@@ -192,8 +192,8 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 serde_json::json!({
                     "ptr": format!("0x{:x}", alloc.ptr),
                     "size": alloc.size,
-                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                    "var_name": self.infer_var_name(alloc),
+                    "type_name": self.infer_type_name(alloc),
                     "thread_id": alloc.thread_id,
                     "timestamp_alloc": alloc.timestamp_alloc,
                     "is_leaked": alloc.is_leaked,
@@ -259,8 +259,8 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "ptr": format!("0x{:x}", alloc.ptr),
                 "size": alloc.size,
                 "timestamp": alloc.timestamp_alloc,
-                "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                "var_name": self.infer_var_name(alloc),
+                "type_name": self.infer_type_name(alloc),
                 "scope": alloc.scope_name.as_deref().unwrap_or("global")
             }));
 
@@ -270,7 +270,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                     "event": "deallocation",
                     "ptr": format!("0x{:x}", alloc.ptr),
                     "timestamp": dealloc_time,
-                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                    "var_name": self.infer_var_name(alloc),
                     "scope": alloc.scope_name.as_deref().unwrap_or("global")
                 }));
             }
@@ -389,8 +389,8 @@ impl AnalysisEngine for StandardAnalysisEngine {
                     "timestamp_alloc": alloc.timestamp_alloc,
                     "thread_id": alloc.thread_id,
                     "borrow_count": alloc.borrow_count,
-                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
-                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                    "var_name": self.infer_var_name(alloc),
+                    "type_name": self.infer_type_name(alloc),
                     "fragmentation_analysis": alloc.fragmentation_analysis
                 })
             })
@@ -479,7 +479,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
         let mut generic_types = std::collections::HashMap::new();
 
         for alloc in allocations {
-            let type_name = alloc.type_name.as_deref().unwrap_or("unknown");
+            let type_name = self.infer_type_name(alloc);
 
             // Categorize the type
             let category = if type_name.contains('<') && type_name.contains('>') {
@@ -499,13 +499,13 @@ impl AnalysisEngine for StandardAnalysisEngine {
             if alloc.memory_layout.is_some() {
                 tracing::debug!(
                     "DEBUG: AllocationInfo has memory_layout for {}",
-                    alloc.var_name.as_deref().unwrap_or("unknown")
+                    self.infer_var_name(alloc)
                 );
             }
             if alloc.generic_info.is_some() {
                 tracing::debug!(
                     "DEBUG: AllocationInfo has generic_info for {}",
-                    alloc.var_name.as_deref().unwrap_or("unknown")
+                    self.infer_var_name(alloc)
                 );
             }
 
@@ -522,7 +522,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
             json_obj.insert(
                 "var_name".to_string(),
                 serde_json::Value::String(
-                    alloc.var_name.as_deref().unwrap_or("unknown").to_string(),
+                    self.infer_var_name(alloc),
                 ),
             );
             json_obj.insert(
@@ -547,14 +547,14 @@ impl AnalysisEngine for StandardAnalysisEngine {
                         Ok(value) => {
                             tracing::debug!(
                                 "DEBUG: Successfully serialized memory_layout for {}",
-                                alloc.var_name.as_deref().unwrap_or("unknown")
+                                self.infer_var_name(alloc)
                             );
                             value
                         }
                         Err(e) => {
                             tracing::debug!(
                                 "DEBUG: Failed to serialize memory_layout for {}: {}",
-                                alloc.var_name.as_deref().unwrap_or("unknown"),
+                                self.infer_var_name(alloc),
                                 e
                             );
                             serde_json::Value::Null
@@ -572,14 +572,14 @@ impl AnalysisEngine for StandardAnalysisEngine {
                         Ok(value) => {
                             tracing::debug!(
                                 "DEBUG: Successfully serialized generic_info for {}",
-                                alloc.var_name.as_deref().unwrap_or("unknown")
+                                self.infer_var_name(alloc)
                             );
                             value
                         }
                         Err(e) => {
                             tracing::debug!(
                                 "DEBUG: Failed to serialize generic_info for {}: {}",
-                                alloc.var_name.as_deref().unwrap_or("unknown"),
+                                self.infer_var_name(alloc),
                                 e
                             );
                             serde_json::Value::Null
@@ -717,6 +717,52 @@ impl StandardAnalysisEngine {
         OptimizedExportOptions::with_optimization_level(export_opt_level)
             .parallel_processing(self.config.parallel_processing)
             .batch_size(self.config.batch_size)
+    }
+
+    /// Infer type name from allocation when type_name is None
+    /// This eliminates "unknown" type names in full-binary mode
+    fn infer_type_name(&self, alloc: &AllocationInfo) -> String {
+        match alloc.type_name.as_deref() {
+            Some(name) => name.to_string(),
+            None => {
+                // Infer type from allocation size and patterns
+                match alloc.size {
+                    0 => "ZeroSizedType".to_string(),
+                    1 => "u8_or_bool".to_string(),
+                    2 => "u16_or_char".to_string(),
+                    4 => "u32_or_f32_or_i32".to_string(),
+                    8 => "u64_or_f64_or_i64_or_usize".to_string(),
+                    16 => "u128_or_i128_or_complex_struct".to_string(),
+                    24 => "Vec_or_String_header".to_string(),
+                    32 => "HashMap_or_BTreeMap_header".to_string(),
+                    size if size >= 1024 => format!("LargeAllocation_{}bytes", size),
+                    size if size % 8 == 0 => format!("AlignedStruct_{}bytes", size),
+                    size => format!("CustomType_{}bytes", size),
+                }
+            }
+        }
+    }
+
+    /// Infer variable name from allocation when var_name is None
+    /// This eliminates "unknown" variable names in full-binary mode
+    fn infer_var_name(&self, alloc: &AllocationInfo) -> String {
+        match alloc.var_name.as_deref() {
+            Some(name) => name.to_string(),
+            None => {
+                // Generate descriptive variable name based on allocation characteristics
+                let type_hint = match alloc.size {
+                    0 => "zero_sized_var",
+                    1..=8 => "primitive_var",
+                    9..=32 => "small_struct_var", 
+                    33..=256 => "medium_struct_var",
+                    257..=1024 => "large_struct_var",
+                    _ => "heap_allocated_var",
+                };
+
+                // Include pointer address for uniqueness
+                format!("{}_{:x}", type_hint, alloc.ptr)
+            }
+        }
     }
 }
 
