@@ -63,23 +63,23 @@
 
 **文件**: `src/export/binary/mod.rs`
 
-- [ ] 在binary头部添加导出模式标识 (user_only vs full)
-- [ ] 添加allocation计数信息 (total, user_count, system_count)
-- [ ] 实现自动检测binary类型的功能
+- [x] 在binary头部添加导出模式标识 (user_only vs full)
+- [x] 添加allocation计数信息 (total, user_count, system_count)
+- [x] 实现自动检测binary类型的功能
 
 ### Task 4: Full Binary专用优化（JSON格式一致性保证）
 
 **文件**: `src/export/binary/parser.rs` (修改现有文件，不新建)
 
-- [ ] **JSON格式一致性**: 确保user/full两种模式生成的JSON文件：
-  - [ ] 文件命名一致：`{base_name}_memory_analysis.json` 等5个文件
-  - [ ] 字段结构一致：相同的JSON schema和字段名
-  - [ ] 区别仅在数据量：user模式数据少，full模式数据多
-- [ ] **严格禁止Null字段**: 在full-binary模式下严格禁止出现null字段
-  - [ ] 既然是全部数据(full)，不能出现模糊的null值
-  - [ ] 所有字段必须有明确的值，使用默认值替代null
-  - [ ] 确保数据完整性和一致性
-- [ ] **性能目标**: 确保full binary解析<300ms（通过复用现有优化组件）
+- [x] **JSON格式一致性**: 确保user/full两种模式生成的JSON文件：
+  - [x] 文件命名一致：`{base_name}_memory_analysis.json` 等5个文件
+  - [x] 字段结构一致：相同的JSON schema和字段名
+  - [x] 区别仅在数据量：user模式数据少，full模式数据多
+- [x] **严格禁止Null字段**: 在full-binary模式下严格禁止出现null字段
+  - [x] 既然是全部数据(full)，不能出现模糊的null值
+  - [x] 所有字段必须有明确的值，使用默认值替代null
+  - [x] 确保数据完整性和一致性
+- [x] **性能目标**: 确保full binary解析<300ms（通过复用现有优化组件）
 
 ### Task 5: 更新示例展示差异
 

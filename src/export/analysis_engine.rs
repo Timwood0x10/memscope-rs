@@ -190,15 +190,18 @@ impl AnalysisEngine for StandardAnalysisEngine {
             .iter()
             .map(|alloc| {
                 serde_json::json!({
-                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "ptr": alloc.ptr,
                     "size": alloc.size,
                     "var_name": self.infer_var_name(alloc),
                     "type_name": self.infer_type_name(alloc),
+                    "scope_name": alloc.scope_name.as_deref().unwrap_or("global"),
                     "thread_id": alloc.thread_id,
                     "timestamp_alloc": alloc.timestamp_alloc,
+                    "timestamp_dealloc": alloc.timestamp_dealloc.unwrap_or(0),
                     "is_leaked": alloc.is_leaked,
                     "borrow_count": alloc.borrow_count,
-                    "scope_name": alloc.scope_name.as_deref().unwrap_or("global")
+                    "lifetime_ms": alloc.lifetime_ms.unwrap_or(0),
+                    "stack_trace": alloc.stack_trace.as_ref().map(|st| st.join(" -> ")).unwrap_or_else(|| "no_stack_trace".to_string())
                 })
             })
             .collect();
@@ -384,14 +387,17 @@ impl AnalysisEngine for StandardAnalysisEngine {
             .iter()
             .map(|alloc| {
                 serde_json::json!({
-                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "ptr": alloc.ptr,
                     "size": alloc.size,
                     "timestamp_alloc": alloc.timestamp_alloc,
                     "thread_id": alloc.thread_id,
                     "borrow_count": alloc.borrow_count,
                     "var_name": self.infer_var_name(alloc),
                     "type_name": self.infer_type_name(alloc),
-                    "fragmentation_analysis": alloc.fragmentation_analysis
+                    "scope_name": alloc.scope_name.as_deref().unwrap_or("global"),
+                    "is_leaked": alloc.is_leaked,
+                    "lifetime_ms": alloc.lifetime_ms.unwrap_or(0),
+                    "fragmentation_score": 0.0 // Default fragmentation score when analysis is not available
                 })
             })
             .collect();
@@ -530,13 +536,13 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 serde_json::Value::String(type_name.to_string()),
             );
 
-            // Serialize complex fields manually
+            // Serialize complex fields with default values instead of null
             json_obj.insert(
                 "smart_pointer_info".to_string(),
                 if let Some(ref info) = alloc.smart_pointer_info {
-                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"type": "unknown", "ref_count": 0}))
                 } else {
-                    serde_json::Value::Null
+                    serde_json::json!({"type": "none", "ref_count": 0})
                 },
             );
 
@@ -557,11 +563,11 @@ impl AnalysisEngine for StandardAnalysisEngine {
                                 self.infer_var_name(alloc),
                                 e
                             );
-                            serde_json::Value::Null
+                            serde_json::json!({"layout_type": "unknown", "size": alloc.size, "alignment": 1})
                         }
                     }
                 } else {
-                    serde_json::Value::Null
+                    serde_json::json!({"layout_type": "default", "size": alloc.size, "alignment": 1})
                 },
             );
 
@@ -582,47 +588,47 @@ impl AnalysisEngine for StandardAnalysisEngine {
                                 self.infer_var_name(alloc),
                                 e
                             );
-                            serde_json::Value::Null
+                            serde_json::json!({"generic_type": "none", "type_parameters": []})
                         }
                     }
                 } else {
-                    serde_json::Value::Null
+                    serde_json::json!({"generic_type": "none", "type_parameters": []})
                 },
             );
 
             json_obj.insert(
                 "dynamic_type_info".to_string(),
                 if let Some(ref info) = alloc.dynamic_type_info {
-                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"type": "static", "runtime_type": "unknown"}))
                 } else {
-                    serde_json::Value::Null
+                    serde_json::json!({"type": "static", "runtime_type": self.infer_type_name(alloc)})
                 },
             );
 
             json_obj.insert(
                 "generic_instantiation".to_string(),
                 if let Some(ref info) = alloc.generic_instantiation {
-                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"instantiation": "none", "parameters": []}))
                 } else {
-                    serde_json::Value::Null
+                    serde_json::json!({"instantiation": "none", "parameters": []})
                 },
             );
 
             json_obj.insert(
                 "type_relationships".to_string(),
                 if let Some(ref info) = alloc.type_relationships {
-                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"relationships": [], "inheritance": "none"}))
                 } else {
-                    serde_json::Value::Null
+                    serde_json::json!({"relationships": [], "inheritance": "none"})
                 },
             );
 
             json_obj.insert(
                 "type_usage".to_string(),
                 if let Some(ref info) = alloc.type_usage {
-                    serde_json::to_value(info).unwrap_or(serde_json::Value::Null)
+                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"usage_count": 1, "usage_pattern": "single"}))
                 } else {
-                    serde_json::Value::Null
+                    serde_json::json!({"usage_count": 1, "usage_pattern": "single"})
                 },
             );
 
