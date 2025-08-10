@@ -203,18 +203,53 @@ impl BinaryIndexBuilder {
             None
         };
         
-        // Scan each allocation record
+        // Get file size for bounds checking
+        let file_size = reader.get_ref().metadata()
+            .map_err(|e| BinaryExportError::CorruptedData(format!("Failed to get file metadata: {}", e)))?
+            .len();
+        
+        // Scan each allocation record with error recovery
         for i in 0..header.total_count {
             let record_start_offset = reader.stream_position()?;
             
-            // Read record metadata without fully parsing the record
-            let metadata = self.read_record_metadata(reader)?;
+            // Check if we're near end of file
+            if record_start_offset >= file_size {
+                return Err(BinaryExportError::CorruptedData(format!(
+                    "Reached end of file while reading record {} of {} at offset {}",
+                    i + 1, header.total_count, record_start_offset
+                )));
+            }
+            
+            // Read record metadata with error recovery
+            let metadata = match self.read_record_metadata(reader) {
+                Ok(metadata) => metadata,
+                Err(e) => {
+                    tracing::warn!("Failed to read record {} at offset {}: {}", 
+                                  i + 1, record_start_offset, e);
+                    
+                    // Try to recover by skipping this record
+                    // This is better than failing completely
+                    continue;
+                }
+            };
+            
             let record_end_offset = reader.stream_position()?;
             
-            let record_size = (record_end_offset - record_start_offset) as u16;
+            // Validate record size is reasonable
+            let record_size_u64 = record_end_offset - record_start_offset;
+            if record_size_u64 > u16::MAX as u64 {
+                tracing::warn!("Record {} has unusually large size: {} bytes, skipping", 
+                              i + 1, record_size_u64);
+                continue;
+            }
+            
+            let record_size = record_size_u64 as u16;
             
             // Add to allocation index
-            allocation_index.add_record(record_start_offset, record_size)?;
+            if let Err(e) = allocation_index.add_record(record_start_offset, record_size) {
+                tracing::warn!("Failed to add record {} to index: {}", i + 1, e);
+                continue;
+            }
             
             // Add to quick filter builder if enabled
             if let Some(ref mut builder) = quick_filter_builder {
@@ -229,6 +264,8 @@ impl BinaryIndexBuilder {
             allocation_index.quick_filter_data = Some(builder.build());
         }
         
+        tracing::info!("Successfully indexed {} allocation records", record_metadata.len());
+        
         Ok(allocation_index)
     }
     
@@ -241,7 +278,12 @@ impl BinaryIndexBuilder {
         
         // Read Type (1 byte)
         let mut type_byte = [0u8; 1];
-        reader.read_exact(&mut type_byte)?;
+        reader.read_exact(&mut type_byte).map_err(|e| {
+            BinaryExportError::CorruptedData(format!(
+                "Failed to read record type at position {}: {}",
+                current_position, e
+            ))
+        })?;
         
         if type_byte[0] != ALLOCATION_RECORD_TYPE {
             return Err(BinaryExportError::CorruptedData(format!(
@@ -252,19 +294,66 @@ impl BinaryIndexBuilder {
         
         // Read Length (4 bytes)
         let mut length_bytes = [0u8; 4];
-        reader.read_exact(&mut length_bytes)?;
+        reader.read_exact(&mut length_bytes).map_err(|e| {
+            BinaryExportError::CorruptedData(format!(
+                "Failed to read record length at position {}: {}",
+                current_position + 1, e
+            ))
+        })?;
         let record_length = u32::from_le_bytes(length_bytes);
         
-        // Read basic fields that we need for indexing
-        let ptr = primitives::read_u64(reader)? as usize;
-        let size = primitives::read_u64(reader)? as usize;
-        let timestamp = primitives::read_u64(reader)?;
+        // Validate record length is reasonable
+        if record_length == 0 || record_length > 1024 * 1024 {
+            return Err(BinaryExportError::CorruptedData(format!(
+                "Invalid record length: {} at position {}",
+                record_length, current_position
+            )));
+        }
         
-        // Skip the rest of the record for now
-        // We could read thread_id and type_name here if needed for bloom filters
-        let remaining_bytes = record_length as i64 - 24; // 24 (ptr + size + timestamp)
+        // Read basic fields that we need for indexing
+        let ptr = primitives::read_u64(reader).map_err(|e| {
+            BinaryExportError::CorruptedData(format!(
+                "Failed to read ptr at position {}: {}",
+                current_position + 5, e
+            ))
+        })? as usize;
+        
+        let size = primitives::read_u64(reader).map_err(|e| {
+            BinaryExportError::CorruptedData(format!(
+                "Failed to read size at position {}: {}",
+                current_position + 13, e
+            ))
+        })? as usize;
+        
+        let timestamp = primitives::read_u64(reader).map_err(|e| {
+            BinaryExportError::CorruptedData(format!(
+                "Failed to read timestamp at position {}: {}",
+                current_position + 21, e
+            ))
+        })?;
+        
+        // Calculate remaining bytes correctly
+        // record_length includes the data after Type+Length fields
+        // We've read: ptr(8) + size(8) + timestamp(8) = 24 bytes of data
+        let bytes_read_from_data = 24u32;
+        
+        if record_length < bytes_read_from_data {
+            return Err(BinaryExportError::CorruptedData(format!(
+                "Record length {} is smaller than minimum required {} at position {}",
+                record_length, bytes_read_from_data, current_position
+            )));
+        }
+        
+        let remaining_bytes = record_length - bytes_read_from_data;
+        
+        // Skip the rest of the record safely
         if remaining_bytes > 0 {
-            reader.seek(SeekFrom::Current(remaining_bytes))?;
+            reader.seek(SeekFrom::Current(remaining_bytes as i64)).map_err(|e| {
+                BinaryExportError::CorruptedData(format!(
+                    "Failed to skip {} remaining bytes at position {}: {}",
+                    remaining_bytes, current_position + 29, e
+                ))
+            })?;
         }
         
         Ok(RecordMetadata::new(ptr, size, timestamp))

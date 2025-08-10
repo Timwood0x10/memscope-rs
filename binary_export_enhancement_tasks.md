@@ -81,7 +81,34 @@
   - [x] 确保数据完整性和一致性
 - [x] **性能目标**: 确保full binary解析<300ms（通过复用现有优化组件）
 
-### Task 5: 更新示例展示差异
+### Task 5: 修复large_scale_binary_comparison性能问题并真正集成优化组件
+
+**文件**: `src/export/binary/parser.rs`, `src/export/binary/reader.rs`
+
+**问题分析**: 当前 `large_scale_binary_comparison` 运行时出现 "failed to fill whole buffer" 错误，且 `parse_full_binary_to_json` 虽然声称使用优化策略，但实际仍在使用 `reader.read_all()` 全量读取方式，没有真正使用已实现的优化组件。
+
+- [x] 5.1 修复BinaryReader的I/O错误处理
+  - 在 `BinaryReader::read_all()` 中添加文件完整性检查
+  - 实现更安全的读取方法，允许部分读取和错误恢复
+  - 添加详细的错误诊断信息，包括文件大小和读取位置
+  - 检查文件大小和读取位置，避免读取超出文件末尾的数据
+  - 使用有意义的错误来代替unwrap，符合要求4
+
+- [x] 5.2 真正集成优化组件到parse_full_binary_to_json
+  - 移除当前的 `Self::load_allocations(binary_path)?` 全量读取方式
+  - 使用 `SelectiveJsonExporter::export_all_standard_json_types()` 进行优化处理
+  - 确保利用已有的 `StreamingJsonWriter`、`BinaryIndex`、`BatchProcessor` 等优化组件
+  - 保持JSON输出格式与user_binary完全一致（5个文件，相同schema）
+  - 严格禁止null字段，符合要求21
+
+- [ ] 5.3 验证性能改进和错误修复
+  - 确保 `large_scale_binary_comparison` 能正常运行无错误
+  - 验证full_binary处理性能达到<300ms目标
+  - 确认输出的JSON文件与MemoryAnalysis/binary_demo_example/*.json格式一致，符合要求19
+  - 测试大数据集处理的稳定性和内存使用
+  - 使用tracing而非println!进行日志输出，符合要求9
+
+### Task 6: 更新示例展示差异
 
 **文件**: `examples/`
 
