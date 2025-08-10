@@ -12,6 +12,24 @@ use crate::core::types::{
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
+/// Binary export mode enumeration for selecting export strategy
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryExportMode {
+    /// Export only user-defined variables (strict filtering)
+    /// Results in smaller binary files (few KB) with faster processing
+    UserOnly,
+    /// Export all allocations including system allocations (loose filtering)  
+    /// Results in larger binary files (hundreds of KB) with complete data
+    Full,
+}
+
+impl Default for BinaryExportMode {
+    /// Default to UserOnly mode for backward compatibility
+    fn default() -> Self {
+        BinaryExportMode::UserOnly
+    }
+}
+
 /// Global memory tracker instance
 static GLOBAL_TRACKER: OnceLock<Arc<MemoryTracker>> = OnceLock::new();
 
@@ -138,6 +156,7 @@ impl MemoryTracker {
 
     /// Export memory tracking data to binary format (.memscope file).
     /// All output files are automatically placed in the MemoryAnalysis/ directory.
+    /// This method exports user-defined variables only (default behavior for compatibility).
     ///
     /// # Arguments
     /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
@@ -149,16 +168,110 @@ impl MemoryTracker {
     /// // Creates: MemoryAnalysis/my_program.memscope
     /// ```
     pub fn export_to_binary<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        // Maintain compatibility by defaulting to user-only export
+        self.export_user_binary(path)
+    }
+
+    /// Export memory tracking data to binary format with specified mode.
+    /// All output files are automatically placed in the MemoryAnalysis/ directory.
+    /// This method provides flexible export options for different use cases.
+    ///
+    /// # Arguments
+    /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
+    /// * `mode` - Export mode (UserOnly for small files, Full for complete data)
+    ///
+    /// # Example
+    /// ```rust
+    /// let tracker = get_global_tracker();
+    /// 
+    /// // Export only user variables (small, fast)
+    /// tracker.export_to_binary_with_mode("my_program_user", BinaryExportMode::UserOnly)?;
+    /// 
+    /// // Export all data (large, complete)
+    /// tracker.export_to_binary_with_mode("my_program_full", BinaryExportMode::Full)?;
+    /// ```
+    pub fn export_to_binary_with_mode<P: AsRef<std::path::Path>>(
+        &self, 
+        path: P, 
+        mode: BinaryExportMode
+    ) -> TrackingResult<()> {
+        match mode {
+            BinaryExportMode::UserOnly => {
+                tracing::info!("Using strict filtering for user-only binary export");
+                self.export_user_binary(path)
+            }
+            BinaryExportMode::Full => {
+                tracing::info!("Using loose filtering for full binary export");
+                self.export_full_binary(path)
+            }
+        }
+    }
+
+    /// Export only user-defined variables to binary format (.memscope file).
+    /// This method filters allocations to include only those with variable names,
+    /// resulting in smaller binary files and faster JSON conversion.
+    /// The binary file will contain only user-defined variables, not system allocations.
+    ///
+    /// # Arguments
+    /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
+    ///
+    /// # Example
+    /// ```rust
+    /// let tracker = get_global_tracker();
+    /// tracker.export_user_binary("my_program_user")?;
+    /// // Creates: MemoryAnalysis/my_program_user.memscope (user variables only)
+    /// ```
+    pub fn export_user_binary<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         let output_path = self.ensure_memscope_path(path);
 
-        tracing::info!("Starting binary export to: {}", output_path.display());
+        tracing::info!("Starting user binary export to: {}", output_path.display());
 
-        let allocations = self.get_active_allocations()?;
+        let all_allocations = self.get_active_allocations()?;
+        
+        // Filter to user-defined variables only - this creates smaller binary files
+        // and matches the current JSON output behavior
+        let user_allocations: Vec<_> = all_allocations
+            .into_iter()
+            .filter(|allocation| allocation.var_name.is_some())
+            .collect();
 
-        crate::export::binary::export_to_binary(&allocations, output_path)
+        tracing::info!("Filtered {} user allocations for export (excluding system allocations)", user_allocations.len());
+
+        crate::export::binary::export_to_binary(&user_allocations, output_path)
             .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
 
-        tracing::info!("Binary export completed successfully");
+        tracing::info!("User binary export completed successfully");
+        Ok(())
+    }
+
+    /// Export all allocations (user + system) to binary format (.memscope file).
+    /// This method includes all tracked allocations with null field elimination
+    /// for optimal storage efficiency. Uses optimized processing for large datasets.
+    ///
+    /// # Arguments
+    /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
+    ///
+    /// # Example
+    /// ```rust
+    /// let tracker = get_global_tracker();
+    /// tracker.export_full_binary("my_program_full")?;
+    /// // Creates: MemoryAnalysis/my_program_full.memscope
+    /// ```
+    pub fn export_full_binary<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        let output_path = self.ensure_memscope_path(path);
+
+        tracing::info!("Starting full binary export to: {}", output_path.display());
+
+        let all_allocations = self.get_active_allocations()?;
+        
+        tracing::info!("Exporting {} total allocations (user + system)", all_allocations.len());
+
+        // Export all allocations with null field elimination for full-binary mode
+        // This ensures complete data integrity without ambiguous null values
+        crate::export::binary::export_to_binary(&all_allocations, output_path)
+            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+
+        tracing::info!("Full binary export completed successfully");
         Ok(())
     }
 

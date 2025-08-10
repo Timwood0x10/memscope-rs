@@ -52,28 +52,49 @@ fn main() {
     println!("  • Active memory: {} bytes ({:.2} MB)", stats.active_memory, stats.active_memory as f64 / 1024.0 / 1024.0);
     println!("  • Peak memory: {} bytes ({:.2} MB)", stats.peak_memory, stats.peak_memory as f64 / 1024.0 / 1024.0);
 
-    // Export to binary and test conversion performance
-    println!("\n🎨 Binary Export and Conversion Performance:");
+    // Export to binary and test conversion performance - comparing user vs full modes
+    println!("\n🎨 Binary Export and Conversion Performance Comparison:");
     
-    let binary_export_start = Instant::now();
+    // Create directory first
     std::fs::create_dir_all("MemoryAnalysis/enhanced_simple").unwrap();
-    tracker.export_to_binary("enhanced_simple/enhanced_simple.memscope").unwrap();
-    let binary_export_time = binary_export_start.elapsed();
     
-    let json_conversion_start = Instant::now();
+    // Test user binary export (only user-defined variables)
+    let user_binary_start = Instant::now();
+    tracker.export_user_binary("enhanced_simple/enhanced_simple_user.memscope").unwrap();
+    let user_binary_time = user_binary_start.elapsed();
+    
+    // Test full binary export (all allocations including system)
+    let full_binary_start = Instant::now();
+    tracker.export_full_binary("enhanced_simple/enhanced_simple_full.memscope").unwrap();
+    let full_binary_time = full_binary_start.elapsed();
+    
+    // Test JSON conversion from user binary
+    let user_json_start = Instant::now();
     memscope_rs::export::binary::BinaryParser::to_standard_json_files(
-        "MemoryAnalysis/enhanced_simple/enhanced_simple.memscope",
-        "enhanced_simple"
+        "MemoryAnalysis/enhanced_simple/enhanced_simple_user.memscope",
+        "enhanced_simple_user"
     ).unwrap();
-    let json_conversion_time = json_conversion_start.elapsed();
+    let user_json_time = user_json_start.elapsed();
+    
+    // Test JSON conversion from full binary  
+    let full_json_start = Instant::now();
+    memscope_rs::export::binary::BinaryParser::to_standard_json_files(
+        "MemoryAnalysis/enhanced_simple/enhanced_simple_full.memscope",
+        "enhanced_simple_full"
+    ).unwrap();
+    let full_json_time = full_json_start.elapsed();
 
-    println!("✅ Binary export completed in {:.2}ms", binary_export_time.as_millis());
-    println!("✅ Binary -> JSON conversion completed in {:.2}ms", json_conversion_time.as_millis());
+    println!("✅ User binary export completed in {:.2}ms", user_binary_time.as_millis());
+    println!("✅ Full binary export completed in {:.2}ms", full_binary_time.as_millis());
+    println!("✅ User binary -> JSON conversion completed in {:.2}ms", user_json_time.as_millis());
+    println!("✅ Full binary -> JSON conversion completed in {:.2}ms", full_json_time.as_millis());
 
     let total_time = total_start.elapsed();
-    println!("\n📊 Performance Summary:");
-    println!("  Binary export: {:.2}ms", binary_export_time.as_millis());
-    println!("  Binary -> JSON: {:.2}ms", json_conversion_time.as_millis());
+    println!("\n📊 Performance Summary Comparison:");
+    println!("  User binary export: {:.2}ms", user_binary_time.as_millis());
+    println!("  Full binary export: {:.2}ms", full_binary_time.as_millis());
+    println!("  User binary -> JSON: {:.2}ms", user_json_time.as_millis());
+    println!("  Full binary -> JSON: {:.2}ms", full_json_time.as_millis());
     println!("  Total workflow: {:.2}ms", total_time.as_millis());
 
     println!("\n🎯 Enhanced User Variable Analysis:");
@@ -85,12 +106,12 @@ fn main() {
     println!("✓ Nested data structures");
     println!("✓ Large data sets");
     println!("\nGenerated files in MemoryAnalysis/enhanced_simple/:");
-    println!("  1. enhanced_simple.memscope - Binary format data");
-    println!("  2. snapshot_memory_analysis.json - Memory analysis");
-    println!("  3. snapshot_lifetime.json - Lifetime analysis");
-    println!("  4. snapshot_performance.json - Performance analysis");
-    println!("  5. snapshot_unsafe_ffi.json - FFI analysis");
-    println!("  6. snapshot_complex_types.json - Complex types analysis");
+    println!("  User Binary Mode (smaller, faster):");
+    println!("    1. enhanced_simple_user.memscope - Binary with user variables only");
+    println!("    2. enhanced_simple_user_*.json - 5 JSON analysis files from user data");
+    println!("  Full Binary Mode (complete, optimized):");
+    println!("    3. enhanced_simple_full.memscope - Binary with all allocations");
+    println!("    4. enhanced_simple_full_*.json - 5 JSON analysis files from full data");
 }
 
 fn create_complex_collections() {

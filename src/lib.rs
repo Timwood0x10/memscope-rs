@@ -37,6 +37,7 @@ pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator;
 pub use core::tracker::{get_global_tracker, ExportOptions, MemoryTracker};
+pub use core::tracker::memory_tracker::BinaryExportMode;
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use export::visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
