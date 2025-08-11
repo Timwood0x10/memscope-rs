@@ -44,7 +44,7 @@ pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, Filt
 pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES, BinaryExportMode};
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
 pub use index_builder::BinaryIndexBuilder;
-pub use parser::BinaryParser;
+pub use parser::{BinaryParser};
 pub use reader::BinaryReader;
 pub use selective_json_exporter::{
     OptimizationLevel, SelectiveJsonExportConfig, SelectiveJsonExportConfigBuilder,
