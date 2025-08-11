@@ -367,7 +367,7 @@ fn analyze_json_outputs() -> Result<(), Box<dyn std::error::Error>> {
     println!("===================");
 
     // Use BinaryIndex for efficient analysis instead of parsing huge JSON files
-    use memscope_rs::export::binary::{BinaryIndex, detect_binary_type};
+    use memscope_rs::export::binary::detect_binary_type;
 
     // Analyze the original binary files directly using BinaryIndex
     let user_binary_info = detect_binary_type("MemoryAnalysis/large_scale_user.memscope")?;
