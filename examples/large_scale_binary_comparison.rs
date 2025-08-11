@@ -163,7 +163,7 @@ fn create_large_scale_data() {
     for i in 0..50 {
         let mut large_vec = Vec::with_capacity(1000);
         for j in 0..2000 {
-            large_vec.push(format!("Item_{}_{}", i, j));
+            large_vec.push(format!("Item_{i}_{j}"));
         }
         track_var!(large_vec);
     }
@@ -173,8 +173,7 @@ fn create_large_scale_data() {
         let mut string_collection = Vec::new();
         for j in 0..500 {
             string_collection.push(format!(
-                "String collection item {} in group {} with extended content for testing large scale binary comparison performance analysis",
-                j, i
+                "String collection item {j} in group {i} with extended content for testing large scale binary comparison performance analysis"
             ));
         }
         track_var!(string_collection);
@@ -185,8 +184,8 @@ fn create_large_scale_data() {
         let mut large_map = HashMap::new();
         for j in 0..1000 {
             large_map.insert(
-                format!("key_with_long_string_{}_{}", i, j),
-                format!("value_with_even_longer_string_data_{}_{}_with_more_content_for_large_scale_testing", i, j),
+                format!("key_with_long_string_{i}_{j}"),
+                format!("value_with_even_longer_string_data_{i}_{j}_with_more_content_for_large_scale_testing"),
             );
         }
         track_var!(large_map);
@@ -206,8 +205,7 @@ fn create_large_scale_data() {
         let mut nested_strings = Vec::new();
         for j in 0..100 {
             nested_strings.push(format!(
-                "Nested string data entry {} in group {} with comprehensive content for performance testing and binary optimization analysis",
-                j, i
+                "Nested string data entry {j} in group {i} with comprehensive content for performance testing and binary optimization analysis"
             ));
         }
         track_var!(nested_strings);
@@ -215,10 +213,10 @@ fn create_large_scale_data() {
 
     // Smart pointers with reference counting
     for i in 0..20 {
-        let shared_data = Rc::new(format!("Shared data {} with reference counting for large scale testing", i));
+        let shared_data = Rc::new(format!("Shared data {i} with reference counting for large scale testing"));
         track_var!(shared_data);
 
-        let thread_safe_data = Arc::new(format!("Thread safe data {} for concurrent access in large scale binary comparison", i));
+        let thread_safe_data = Arc::new(format!("Thread safe data {i} for concurrent access in large scale binary comparison"));
         track_var!(thread_safe_data);
     }
 
@@ -227,8 +225,8 @@ fn create_large_scale_data() {
         let mut nested_btree = BTreeMap::new();
         for j in 0..100 {
             nested_btree.insert(
-                format!("btree_key_{}_{}", i, j),
-                format!("btree_value_with_comprehensive_data_{}_{}_for_large_scale_binary_performance_testing", i, j),
+                format!("btree_key_{i}_{j}"),
+                format!("btree_value_with_comprehensive_data_{i}_{j}_for_large_scale_binary_performance_testing"),
             );
         }
         track_var!(nested_btree);
@@ -239,8 +237,7 @@ fn create_large_scale_data() {
         let mut queue_data = VecDeque::new();
         for j in 0..200 {
             queue_data.push_back(format!(
-                "Queue item {} in collection {} with detailed content for binary optimization testing",
-                j, i
+                "Queue item {j} in collection {i} with detailed content for binary optimization testing"
             ));
         }
         track_var!(queue_data);
@@ -253,8 +250,8 @@ fn simulate_unsafe_ffi_operations() {
     unsafe {
         use std::alloc::{alloc, dealloc, Layout};
 
-        // Multiple unsafe allocations with different sizes
-        for i in 0..20 {
+        // Reduced unsafe allocations (from 20 to 6)
+        for i in 0..6 {
             let size = 1024 * (i + 1);
             let layout = Layout::from_size_align(size, 8).unwrap();
             let ptr = alloc(layout);
@@ -265,31 +262,28 @@ fn simulate_unsafe_ffi_operations() {
                 let _ = unsafe_ffi_tracker.track_unsafe_allocation(
                     ptr as usize,
                     size,
-                    format!(
-                        "examples/large_scale_binary_comparison.rs:{}:13",
-                        300 + i * 10
-                    ),
+                    format!("examples/large_scale_binary_comparison.rs:{}:13", 300 + i * 10),
                 );
 
                 let _ = unsafe_ffi_tracker.record_boundary_event(
                     ptr as usize,
                     BoundaryEventType::RustToFfi,
-                    format!("unsafe_block_{}", i),
-                    format!("ffi_target_{}", i),
+                    format!("unsafe_block_{i}"),
+                    format!("ffi_target_{i}"),
                 );
 
                 dealloc(ptr, layout);
             }
         }
 
-        // FFI operations with libc
+        // Reduced FFI operations (from 15 to 4)
         extern "C" {
             fn malloc(size: usize) -> *mut std::ffi::c_void;
             fn free(ptr: *mut std::ffi::c_void);
             fn calloc(nmemb: usize, size: usize) -> *mut std::ffi::c_void;
         }
 
-        for i in 0..15 {
+        for i in 0..4 {
             let size = 512 * (i + 1);
             let ffi_ptr = if i % 2 == 0 {
                 malloc(size)
@@ -311,7 +305,7 @@ fn simulate_unsafe_ffi_operations() {
                     ffi_ptr as usize,
                     BoundaryEventType::FfiToRust,
                     "libc".to_string(),
-                    format!("rust_large_scale_{}", i),
+                    format!("rust_large_scale_{i}"),
                 );
 
                 free(ffi_ptr);
