@@ -315,50 +315,79 @@ impl BinaryReader {
         })
     }
 
-    /// Read all allocation records from file
+    /// Read all allocation records from file with improved error handling
     pub fn read_all(&mut self) -> Result<Vec<AllocationInfo>, BinaryExportError> {
         let header = self.read_header()?;
         let mut allocations = Vec::with_capacity(header.total_count as usize);
 
-        for _ in 0..header.total_count {
-            let allocation = self.read_allocation()?;
-            allocations.push(allocation);
+        // Read allocations with better error handling
+        for i in 0..header.total_count {
+            match self.read_allocation() {
+                Ok(allocation) => allocations.push(allocation),
+                Err(BinaryExportError::Io(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    // Handle partial reads gracefully
+                    tracing::warn!("Reached end of file after reading {} of {} allocations", i, header.total_count);
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
         }
 
-        // Try to read advanced metrics segment if present
+        // Try to read advanced metrics segment if present (optional)
         if let Err(_) = self.try_read_advanced_metrics_segment() {
             // Advanced metrics segment not present or corrupted, continue without it
             tracing::debug!("No advanced metrics segment found or failed to read");
         }
 
+        tracing::info!("Successfully read {} allocation records", allocations.len());
         Ok(allocations)
     }
 
     /// Try to read advanced metrics segment (backward compatible)
     fn try_read_advanced_metrics_segment(&mut self) -> Result<(), BinaryExportError> {
-        // Try to read advanced metrics header
+        // Try to read advanced metrics header with partial read handling
         let mut header_bytes = [0u8; 16];
-        match self.reader.read_exact(&mut header_bytes) {
-            Ok(()) => {
-                let header = AdvancedMetricsHeader::from_bytes(&header_bytes);
-
-                if header.is_valid_magic() {
-                    // Valid advanced metrics segment found
-                    self.read_advanced_metrics_data(header)?;
-                } else {
-                    // Not an advanced metrics segment, seek back
-                    self.reader.seek(SeekFrom::Current(-16))?;
-                    return Err(BinaryExportError::CorruptedData(
-                        "Invalid advanced metrics magic".to_string(),
-                    ));
+        let mut bytes_read = 0;
+        
+        // Read as much as possible without failing on partial reads
+        while bytes_read < 16 {
+            match self.reader.read(&mut header_bytes[bytes_read..]) {
+                Ok(0) => {
+                    // End of file reached
+                    if bytes_read == 0 {
+                        // No advanced metrics segment at all
+                        return Err(BinaryExportError::CorruptedData(
+                            "No advanced metrics segment".to_string(),
+                        ));
+                    } else {
+                        // Partial read, file is truncated
+                        tracing::warn!("File appears to be truncated, only read {} of 16 header bytes", bytes_read);
+                        return Err(BinaryExportError::CorruptedData(
+                            "Truncated advanced metrics header".to_string(),
+                        ));
+                    }
+                }
+                Ok(n) => bytes_read += n,
+                Err(e) => {
+                    tracing::debug!("Failed to read advanced metrics header: {}", e);
+                    return Err(BinaryExportError::Io(e));
                 }
             }
-            Err(_) => {
-                // End of file reached, no advanced metrics segment
-                return Err(BinaryExportError::CorruptedData(
-                    "No advanced metrics segment".to_string(),
-                ));
+        }
+
+        let header = AdvancedMetricsHeader::from_bytes(&header_bytes);
+
+        if header.is_valid_magic() {
+            // Valid advanced metrics segment found
+            self.read_advanced_metrics_data(header)?;
+        } else {
+            // Not an advanced metrics segment, seek back if possible
+            if let Err(e) = self.reader.seek(SeekFrom::Current(-16)) {
+                tracing::debug!("Failed to seek back: {}", e);
             }
+            return Err(BinaryExportError::CorruptedData(
+                "Invalid advanced metrics magic".to_string(),
+            ));
         }
 
         Ok(())

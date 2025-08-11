@@ -107,6 +107,78 @@ impl MemoryTracker {
         }
     }
 
+    /// Track a memory allocation with enhanced context information
+    /// This method allows providing inferred type and variable names for system allocations
+    pub fn track_allocation_with_context(
+        &self, 
+        ptr: usize, 
+        size: usize,
+        inferred_var_name: String,
+        inferred_type_name: String
+    ) -> TrackingResult<()> {
+        // Create allocation info with enhanced context
+        let mut allocation = AllocationInfo::new(ptr, size);
+        
+        // Set the inferred names - this gives system allocations meaningful names
+        allocation.var_name = Some(inferred_var_name);
+        allocation.type_name = Some(inferred_type_name);
+
+        // Apply Task 4 enhancement: calculate lifetime
+        self.calculate_and_analyze_lifetime(&mut allocation);
+
+        // Use the same locking strategy as regular track_allocation
+        let use_blocking_locks = self.is_fast_mode()
+            || std::env::var("MEMSCOPE_ACCURATE_TRACKING").is_ok()
+            || cfg!(test);
+
+        if use_blocking_locks {
+            // Use blocking locks to ensure all allocations are tracked in tests
+            let mut active = self.active_allocations.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire active_allocations lock".to_string(),
+                )
+            })?;
+            let mut stats = self.stats.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire stats lock".to_string(),
+                )
+            })?;
+
+            // Insert allocation into active tracking
+            active.insert(ptr, allocation.clone());
+
+            // Update statistics with overflow protection
+            stats.total_allocations = stats.total_allocations.saturating_add(1);
+            stats.total_allocated = stats.total_allocated.saturating_add(size);
+            stats.active_allocations = stats.active_allocations.saturating_add(1);
+            stats.active_memory = stats.active_memory.saturating_add(size);
+
+            // Update peaks
+            if stats.active_allocations > stats.peak_allocations {
+                stats.peak_allocations = stats.active_allocations;
+            }
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
+
+            // Release locks before adding to history
+            drop(stats);
+            drop(active);
+
+            // Add to history with separate lock (optional, skip if busy or in fast mode)
+            if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                if let Ok(mut history) = self.allocation_history.try_lock() {
+                    history.push(allocation);
+                }
+            }
+
+            Ok(())
+        } else {
+            // Production mode: use try_lock with improved retry logic
+            self.track_allocation_with_context_retry(ptr, size, allocation)
+        }
+    }
+
     /// Track a memory deallocation.
     pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<()> {
         let dealloc_timestamp = std::time::SystemTime::now()
@@ -1819,5 +1891,52 @@ impl MemoryTracker {
         }
 
         suggestions
+    }
+
+    /// Track allocation with context and retry logic for production mode
+    fn track_allocation_with_context_retry(
+        &self,
+        ptr: usize,
+        size: usize,
+        allocation: AllocationInfo,
+    ) -> TrackingResult<()> {
+        let mut retry_count = 0;
+        const MAX_RETRIES: u32 = 10;
+
+        while retry_count < MAX_RETRIES {
+            match (self.active_allocations.try_lock(), self.stats.try_lock()) {
+                (Ok(mut active), Ok(mut stats)) => {
+                    // Insert allocation into active tracking
+                    active.insert(ptr, allocation.clone());
+
+                    // Update statistics with overflow protection
+                    stats.total_allocations = stats.total_allocations.saturating_add(1);
+                    stats.total_allocated = stats.total_allocated.saturating_add(size);
+                    stats.active_allocations = stats.active_allocations.saturating_add(1);
+                    stats.active_memory = stats.active_memory.saturating_add(size);
+
+                    // Update peaks
+                    if stats.active_allocations > stats.peak_allocations {
+                        stats.peak_allocations = stats.active_allocations;
+                    }
+                    if stats.active_memory > stats.peak_memory {
+                        stats.peak_memory = stats.active_memory;
+                    }
+
+                    return Ok(());
+                }
+                _ => {
+                    retry_count += 1;
+                    if retry_count < MAX_RETRIES {
+                        std::thread::yield_now();
+                    }
+                }
+            }
+        }
+
+        // If all retries failed, return error
+        Err(crate::core::types::TrackingError::LockError(
+            "Failed to acquire locks after retries for context tracking".to_string(),
+        ))
     }
 }
