@@ -301,19 +301,19 @@ fn create_comprehensive_allocation_patterns() -> Vec<(usize, u8)> {
 }
 
 /// Verify allocation consistency
-fn verify_allocation_consistency(_output_name: &str, _expected_patterns: &HashMap<usize, usize>) {
+fn verify_allocation_consistency(output_name: &str, _expected_patterns: &HashMap<usize, usize>) {
     // Implementation would verify JSON data matches expected patterns
     // For now, just verify files exist
-    let memory_json = format!("MemoryAnalysis/{}/{}_memory_analysis.json", _output_name, _output_name);
+    let memory_json = format!("MemoryAnalysis/{}/{}_memory_analysis.json", output_name, output_name);
     if !std::path::Path::new(&memory_json).exists() {
         panic!("Consistency verification failed - memory JSON missing");
     }
 }
 
 /// Verify timestamp ordering
-fn verify_timestamp_ordering(_output_name: &str) {
+fn verify_timestamp_ordering(output_name: &str) {
     // Implementation would parse JSON and verify timestamp ordering
-    let lifetime_json = format!("MemoryAnalysis/{}/{}_lifetime.json", _output_name, _output_name);
+    let lifetime_json = format!("MemoryAnalysis/{}/{}_lifetime.json", output_name, output_name);
     if !std::path::Path::new(&lifetime_json).exists() {
         panic!("Timestamp verification failed - lifetime JSON missing");
     }
@@ -384,9 +384,9 @@ fn create_corrupted_binary_file(original_path: &str, corrupted_path: &str) {
 }
 
 /// Verify round trip preservation
-fn verify_round_trip_preservation(_output_name: &str, _original_patterns: &Vec<(usize, u8)>) {
+fn verify_round_trip_preservation(output_name: &str, _original_patterns: &Vec<(usize, u8)>) {
     // Implementation would verify data matches original patterns
-    let memory_json = format!("MemoryAnalysis/{}/{}_memory_analysis.json", _output_name, _output_name);
+    let memory_json = format!("MemoryAnalysis/{}/{}_memory_analysis.json", output_name, output_name);
     if !std::path::Path::new(&memory_json).exists() {
         panic!("Round trip verification failed - output missing");
     }

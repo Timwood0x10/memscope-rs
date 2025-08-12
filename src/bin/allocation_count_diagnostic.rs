@@ -42,7 +42,7 @@ fn main() {
     }
 
     // wait for system to stabilize
-    std::thread::sleep(std::time::Duration::from_millis(1000));
+    std::thread::sleep(std::time::Duration::from_millis(100)); // Reduced from 1000ms to 100ms
 
     // 诊断分配数量
     diagnose_allocation_count();

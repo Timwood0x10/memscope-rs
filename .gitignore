@@ -84,6 +84,9 @@ temp_*
 /target/doc/
 
 memscope-derive/target/
+
+doc-generator/target/
+
 # Local configuration
 .env
 .env.local

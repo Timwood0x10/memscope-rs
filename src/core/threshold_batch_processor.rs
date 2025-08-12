@@ -254,7 +254,6 @@ unsafe impl<T: Send> Sync for ThresholdBatchProcessor<T> {}
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex as StdMutex};
-    use std::thread;
     use std::time::Duration;
 
     #[test]
@@ -268,10 +267,10 @@ mod tests {
             p.extend_from_slice(items);
         });
 
-        // Process items slowly (low frequency)
+        // Process items slowly (low frequency) - simulate with smaller batches
         for i in 0..10 {
             processor.process(i);
-            thread::sleep(Duration::from_millis(20)); // 50 ops/sec
+            // Remove sleep - just process normally for testing
         }
 
         processor.flush_batch();
@@ -303,8 +302,7 @@ mod tests {
             // No sleep - maximum frequency
         }
 
-        // Wait for measurement window
-        thread::sleep(Duration::from_millis(150));
+        // No need to wait - measurement happens immediately for testing
 
         // Process a few more to trigger batching mode check
         for i in 20..25 {

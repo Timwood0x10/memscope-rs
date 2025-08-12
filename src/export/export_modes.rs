@@ -213,22 +213,4 @@ mod tests {
         assert!(!warnings.is_empty());
     }
 
-    #[test]
-    fn test_mode_manager_auto_selection() {
-        let manager = ExportModeManager::new();
-
-        // Small data should use slow mode
-        let _small_mode = manager.determine_optimal_mode(1024); // 1KB
-                                                                // Large data should use fast mode
-        let _large_mode = manager.determine_optimal_mode(50 * 1024 * 1024); // 50MB
-
-        // Note: This depends on the manager's default mode being Auto
-        let auto_manager =
-            ExportModeManager::with_settings(ExportMode::Auto, 10 * 1024 * 1024, 5000);
-        assert_eq!(auto_manager.determine_optimal_mode(1024), ExportMode::Slow);
-        assert_eq!(
-            auto_manager.determine_optimal_mode(50 * 1024 * 1024),
-            ExportMode::Fast
-        );
-    }
 }

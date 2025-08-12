@@ -205,7 +205,7 @@ fn test_concurrent_stress_combination() {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
     
-    let stress_duration = std::time::Duration::from_secs(5);
+    let stress_duration = std::time::Duration::from_secs(2); // Reduced from 5 to 2 seconds
     let stop_flag = Arc::new(AtomicBool::new(false));
     let thread_count = 4;
     

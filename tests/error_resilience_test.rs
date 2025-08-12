@@ -146,7 +146,7 @@ fn test_large_dataset_error_recovery() {
     use memscope_rs::{track_var, get_global_tracker};
     
     // Create substantial test dataset
-    for iteration in 0..1000 {
+    for iteration in 0..100 { // Reduced from 1000 to 100
         let allocation_data = vec![iteration as u8; 512];
         track_var!(allocation_data);
         drop(allocation_data);

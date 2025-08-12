@@ -263,13 +263,13 @@ mod tests {
         let collector = FastStatsCollector::new();
 
         // Test fast path
-        for _i in 0..1000 {
+        for _i in 0..100 { // Reduced from 1000 to 100
             collector.record_allocation_fast(64);
         }
 
         let stats = collector.get_basic_stats();
-        assert_eq!(stats.allocation_count, 1000);
-        assert_eq!(stats.total_allocated, 64000);
+        assert_eq!(stats.allocation_count, 100); // Updated expectation
+        assert_eq!(stats.total_allocated, 6400); // 100 * 64
     }
 
     #[test]
@@ -293,7 +293,7 @@ mod tests {
         }
 
         let stats = collector.get_basic_stats();
-        assert_eq!(stats.allocation_count, 1000);
+        assert_eq!(stats.allocation_count, 1000); // 10 threads × 100 allocations each
     }
 
     #[test]

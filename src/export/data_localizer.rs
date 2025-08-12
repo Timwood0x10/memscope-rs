@@ -385,8 +385,8 @@ mod tests {
 
         assert!(localizer.is_cache_valid());
 
-        // wait for cache to expire
-        std::thread::sleep(Duration::from_millis(2));
+        // Manually expire cache by setting old timestamp instead of sleeping
+        localizer.last_update = Instant::now() - Duration::from_millis(10);
         assert!(!localizer.is_cache_valid());
     }
 

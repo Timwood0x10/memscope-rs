@@ -40,10 +40,10 @@ fn test_raw_pointer_tracking() {
     let source_data = vec![1u8, 2, 3, 4, 5];
     track_var!(source_data);
     
+    // Create raw pointer and perform operations
+    let raw_ptr = source_data.as_ptr();
+    
     unsafe {
-        // Create raw pointer
-        let raw_ptr = source_data.as_ptr();
-        
         // Perform raw pointer operations
         for offset in 0..source_data.len() {
             let _value = *raw_ptr.add(offset);
@@ -254,7 +254,7 @@ fn test_unsafe_union_tracking() {
         }
     }
     
-    drop(union_data);
+    let _ = union_data; // Consume union_data to avoid unused variable warning
 }
 
 #[test]

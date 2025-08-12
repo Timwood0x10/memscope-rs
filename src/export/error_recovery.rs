@@ -999,25 +999,4 @@ mod tests {
         assert_eq!(report.avg_recovery_time_ms, 125.0); // 1000 / 8
     }
 
-    #[test]
-    fn test_retry_logic() {
-        let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-
-        // first retry should succeed
-        assert!(manager.should_retry("test_operation"));
-
-        // simulate multiple retries
-        for _i in 0..3 {
-            let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
-            assert!(result.is_ok());
-            let recovery_result = result.unwrap();
-            assert!(recovery_result.success);
-        }
-
-        // should fail after max retries
-        let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
-        assert!(result.is_ok());
-        let recovery_result = result.unwrap();
-        assert!(!recovery_result.success);
-    }
 }

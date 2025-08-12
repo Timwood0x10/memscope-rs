@@ -24,7 +24,7 @@
 20.严禁创建乱七八糟的test files
 21. **Full-binary严禁null字段**: full-binary模式下不能出现null字段，既然是全部数据，自然不能出现模糊的null值，也不能是unknown。
 22.结合之前的优化组件，比如binaryindex等，起到真正的优化作用。
-23.large_scale_binary_comparison 有这个文件进行测试 ，cargo run --example large_scale_binary_comparison
+23.禁止用sed 命令
 
 ## 🎯 目标
 
@@ -339,46 +339,6 @@ impl BinaryParser {
 - **核心优化**: 并行处理 + I/O批处理 + 零拷贝
 - **保证**: JSON格式完全一致，无null字段
 
-### Task 23: 超高性能 Full-Binary 到 JSON 转换优化 🚀
-**优先级**: 🔴 最高
-**目标**: 将 full-binary 到 JSON 转换性能从小时级别优化到毫秒级别
-
-#### 问题分析
-- 当前转换流程存在严重性能瓶颈，处理时间达到小时级别
-- 复杂的多层架构：`SelectiveJsonExporter` → `BatchProcessor` → `FieldParser` → `StreamingJsonWriter`
-- 过度的字段选择逻辑和频繁的字符串操作
-- I/O操作效率低下
-
-#### 解决方案
-**方案A**: 利用现有优化组件（推荐）
-- 集成 `FastExportCoordinator` + `OptimizedJsonExport`
-- 使用 `HighSpeedBufferedWriter` (2MB缓冲区)
-- 启用并行处理和自适应优化
-
-**方案B**: 直接优化方法（备选）
-- 创建 `OptimizedBinaryToJsonConverter`
-- 消除中间抽象层
-- 手工优化字符串构建
-
-#### 性能目标
-- 小文件(100记录): <50ms
-- 中等文件(1000记录): <100ms  
-- 大文件(10000记录): <500ms
-
-#### 实施步骤
-1. 在 `BinaryParser` 中添加快速转换方法
-2. 集成现有优化组件
-3. 配置合理的缓冲区策略
-4. 添加性能监控和测试
-5. 确保JSON格式兼容性
-
-#### 验收标准
-- [ ] 性能达到毫秒级别
-- [ ] JSON格式与现有系统兼容
-- [ ] 保持错误恢复机制
-- [ ] 通过所有现有测试
-- [ ] 添加性能基准测试
-
 ---
 **核心思路**:
 
@@ -386,4 +346,3 @@ impl BinaryParser {
 - full_binary = 全部数据（当前binary信息），上百KB大文件，重度优化
 - **重点**: 文件I/O和JSON写入是性能瓶颈，需要极致优化
 - 避免过度工程化，针对性解决问题
-- **新增**: 利用现有优化组件实现毫秒级转换性能
