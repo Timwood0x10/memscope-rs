@@ -76,7 +76,7 @@ struct CorruptionStatus {
     last_checked: SystemTime,
     
     /// Corruption confidence (0.0 to 1.0)
-    confidence: f64,
+    _confidence: f64,
 }
 
 /// Recovery attempt result
@@ -252,7 +252,7 @@ impl ErrorRecoveryManager {
         self.corruption_cache.insert(path_buf, CorruptionStatus {
             is_corrupted: corruption_detected,
             last_checked: SystemTime::now(),
-            confidence: if corruption_detected { 0.9 } else { 0.1 },
+            _confidence: if corruption_detected { 0.9 } else { 0.1 },
         });
 
         if corruption_detected {
@@ -285,7 +285,7 @@ impl ErrorRecoveryManager {
                 self.corruption_cache.insert(binary_path.to_path_buf(), CorruptionStatus {
                     is_corrupted: false,
                     last_checked: SystemTime::now(),
-                    confidence: 0.1,
+                    _confidence: 0.1,
                 });
                 
                 Ok(index)

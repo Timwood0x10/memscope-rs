@@ -173,7 +173,6 @@ impl StreamingJsonStats {
 #[derive(Debug)]
 struct IntelligentBuffer {
     /// Buffer for accumulating small writes
-    write_buffer: Vec<u8>,
     
     /// Current buffer usage
     current_usage: usize,
@@ -194,7 +193,6 @@ struct IntelligentBuffer {
 impl IntelligentBuffer {
     fn new(target_size: usize) -> Self {
         Self {
-            write_buffer: Vec::with_capacity(target_size),
             current_usage: 0,
             target_size,
             writes_since_flush: 0,
@@ -986,10 +984,6 @@ impl<W: Write> StreamingJsonWriter<W> {
         Ok(())
     }
     
-    /// Escape JSON string (basic version)
-    fn escape_json_string(&mut self, s: &str) -> String {
-        self.escape_json_string_optimized(s, &SelectiveSerializationOptions::default())
-    }
     
     /// Escape JSON string with optimization options
     fn escape_json_string_optimized(&mut self, s: &str, options: &SelectiveSerializationOptions) -> String {

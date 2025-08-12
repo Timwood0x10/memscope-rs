@@ -7,7 +7,7 @@
 use crate::export::binary::batch_processor::{BatchProcessor, BatchProcessorConfig};
 use crate::export::binary::cache::{IndexCache, IndexCacheConfig};
 use crate::export::binary::error::BinaryExportError;
-use crate::export::binary::field_parser::{FieldParser, PartialAllocationInfo};
+use crate::export::binary::field_parser::PartialAllocationInfo;
 use crate::export::binary::filter_engine::FilterEngine;
 
 use crate::export::binary::selective_reader::{
@@ -151,7 +151,6 @@ pub struct SelectiveJsonExporter {
     filter_engine: FilterEngine,
 
     /// Field parser for selective field parsing
-    field_parser: FieldParser,
 
     /// Export statistics
     stats: SelectiveJsonExportStats,
@@ -175,14 +174,12 @@ impl SelectiveJsonExporter {
             crate::export::binary::format::FileHeader::new_legacy(0),
         ));
         let filter_engine = FilterEngine::new(dummy_index);
-        let field_parser = FieldParser::new();
 
         Ok(Self {
             config,
             index_cache,
             batch_processor,
             filter_engine,
-            field_parser,
             stats: SelectiveJsonExportStats::default(),
         })
     }

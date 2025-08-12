@@ -447,7 +447,6 @@ impl Default for ConsoleProgressDisplay {
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
-    use std::thread;
     use std::time::Duration;
 
     #[test]

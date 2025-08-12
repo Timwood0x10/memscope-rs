@@ -100,7 +100,7 @@ fn run_performance_test(config: &TestConfig) -> Result<u128, Box<dyn std::error:
     let parse_start = Instant::now();
     
     let output_name = format!("perf_test_{}", config.allocation_count);
-    BinaryParser::parse_full_binary_to_json_with_existing_optimizations(
+    BinaryParser::parse_user_binary_to_json(
         &binary_file,
         &output_name
     )?;
