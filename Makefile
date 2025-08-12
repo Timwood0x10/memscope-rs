@@ -129,7 +129,7 @@ clean:
 .PHONY: test
 test:
 	@echo "$(BLUE)Running all tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --all --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --all --features test -- --test-threads=1
 
 .PHONY: test-unit
 test-unit:

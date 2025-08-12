@@ -1294,9 +1294,9 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// **[New Interface]** Parse binary to JSON using BinaryIndex for maximum performance
+    /// **[New Interface]** Parse binary to JSON using BinaryReader for maximum performance
     /// 
-    /// This is the core high-performance interface that uses BinaryIndex for direct data access,
+    /// This is the core high-performance interface that uses BinaryReader for direct data access,
     /// avoiding the overhead of loading all allocations into memory.
     pub fn parse_binary_to_json_with_index<P: AsRef<Path>>(
         binary_path: P,
@@ -1368,12 +1368,12 @@ impl BinaryParser {
         let mut reader = BinaryReader::new(binary_path)?;
         let header = reader.read_header()?;
         
-        // Write JSON header based on type (matching reference format + keeping our data)
+        // Write JSON header based on type
         match json_type {
-            "memory" => writer.write_all(b"{\"allocations\":[")?,
+            "memory" => writer.write_all(b"{\"data\":{\"allocations\":[")?,
             "lifetime" => writer.write_all(b"{\"lifecycle_events\":[")?,
-            "performance" => writer.write_all(b"{\"allocation_distribution\":{\"allocations\":[")?,
-            "unsafe_ffi" => writer.write_all(b"[")?,
+            "performance" => writer.write_all(b"{\"data\":{\"allocations\":[")?,
+            "unsafe_ffi" => writer.write_all(b"{\"boundary_events\":[],\"enhanced_ffi_data\":[")?,
             "complex_types" => writer.write_all(b"{\"categorized_types\":{\"primitive\":[")?,
             _ => return Err(BinaryExportError::CorruptedData(format!("Unknown JSON type: {}", json_type))),
         }
@@ -1390,41 +1390,26 @@ impl BinaryParser {
             // Read allocation sequentially (most efficient for binary files)
             let allocation = reader.read_allocation()?;
             
-            // Generate JSON record directly (matching reference format + keeping our data)
+            // Generate JSON record directly
             buffer.clear();
             match json_type {
-                "memory" => Self::append_memory_record_compatible(&mut buffer, &allocation),
-                "lifetime" => Self::append_lifetime_record_compatible(&mut buffer, &allocation),
-                "performance" => Self::append_performance_record_compatible(&mut buffer, &allocation),
-                "unsafe_ffi" => Self::append_ffi_record_compatible(&mut buffer, &allocation),
-                "complex_types" => Self::append_complex_record_compatible(&mut buffer, &allocation),
+                "memory" => Self::append_memory_record_optimized(&mut buffer, &allocation),
+                "lifetime" => Self::append_lifetime_record_optimized(&mut buffer, &allocation),
+                "performance" => Self::append_performance_record_optimized(&mut buffer, &allocation),
+                "unsafe_ffi" => Self::append_ffi_record_optimized(&mut buffer, &allocation),
+                "complex_types" => Self::append_complex_record_optimized(&mut buffer, &allocation),
                 _ => unreachable!(),
             }
             
             writer.write_all(buffer.as_bytes())?;
         }
 
-        // Write JSON footer with additional required fields
+        // Write JSON footer
         match json_type {
-            "memory" => {
-                writer.write_all(b"],\"memory_stats\":{\"total_allocations\":")?;
-                writer.write_all(total_count.to_string().as_bytes())?;
-                writer.write_all(b",\"total_size\":0,\"peak_memory\":0},\"metadata\":{\"analysis_type\":\"memory_analysis\",\"export_version\":\"2.0\",\"optimization_level\":\"High\"}}")?;
-            },
-            "lifetime" => {
-                writer.write_all(b"],\"scope_analysis\":{},\"summary\":{\"total_events\":")?;
-                writer.write_all(total_count.to_string().as_bytes())?;
-                writer.write_all(b"},\"metadata\":{\"analysis_type\":\"lifecycle_analysis\",\"export_version\":\"2.0\"}}")?;
-            },
-            "performance" => {
-                writer.write_all(b"]},\"memory_performance\":{},\"export_performance\":{},\"optimization_status\":{},\"pipeline_metrics\":{},\"metadata\":{\"analysis_type\":\"performance_analysis\",\"export_version\":\"2.0\"}}")?;
-            },
-            "unsafe_ffi" => {
-                writer.write_all(b"]")?;
-            },
-            "complex_types" => {
-                writer.write_all(b"]},\"metadata\":{\"analysis_type\":\"complex_types_analysis\",\"export_version\":\"2.0\"}}")?;
-            },
+            "memory" | "performance" => writer.write_all(b"]}}")?,
+            "lifetime" => writer.write_all(b"]}")?,
+            "unsafe_ffi" => writer.write_all(b"]}")?,
+            "complex_types" => writer.write_all(b"]}}")?,
             _ => unreachable!(),
         }
 

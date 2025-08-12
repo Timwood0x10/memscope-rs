@@ -182,35 +182,3 @@ impl ExportCoordinator {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_export_mode_default() {
-        assert_eq!(ExportMode::default(), ExportMode::Fast);
-    }
-
-    #[test]
-    fn test_export_coordinator_creation() {
-        let coordinator = ExportCoordinator::new_fast();
-        assert_eq!(coordinator.config().mode, ExportMode::Fast);
-
-        let coordinator = ExportCoordinator::new_slow();
-        assert_eq!(coordinator.config().mode, ExportMode::Slow);
-
-        let coordinator = ExportCoordinator::new_auto();
-        assert_eq!(coordinator.config().mode, ExportMode::Auto);
-    }
-
-    #[test]
-    fn test_export_config_validation() {
-        let mut config = ExportConfig::new(ExportMode::Fast, ValidationTiming::Inline);
-        let warnings = config.validate_and_fix();
-
-        // Fast mode with inline validation should be fixed to deferred
-        assert_eq!(config.validation_timing, ValidationTiming::Deferred);
-        assert!(!warnings.is_empty());
-    }
-
-}

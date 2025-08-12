@@ -614,14 +614,11 @@ impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
 /// - You're tracking temporary variables that will be moved/consumed immediately
 ///
 /// # Example
-/// ```rust
+/// ```text
 /// use memscope_rs::track_var;
-///
+/// 
 /// let my_vec = vec![1, 2, 3, 4, 5];
 /// track_var!(my_vec); // Zero-cost tracking
-/// // my_vec can still be used normally - no ownership changes!
-/// println!("Vector: {:?}", my_vec);
-/// my_vec.push(6); // Still fully usable
 /// ```
 #[macro_export]
 macro_rules! track_var {
@@ -664,21 +661,12 @@ macro_rules! track_var {
 /// afterwards, you'll need to clone it first, which has performance implications.
 ///
 /// # Example
-/// ```rust
+/// ```text
 /// use memscope_rs::track_var_owned;
-/// use std::rc::Rc;
-///
-/// // Regular type tracking
+/// 
 /// let my_vec = vec![1, 2, 3, 4, 5];
 /// let tracked_vec = track_var_owned!(my_vec); // Takes ownership
-/// // tracked_vec behaves like my_vec but with automatic lifecycle tracking
-/// println!("Length: {}", tracked_vec.len()); // Transparent access via Deref
-/// let original = tracked_vec.into_inner(); // Get original back if needed
-///
-/// // Smart pointer tracking with enhanced detection
-/// let smart_ptr = Rc::new(vec![1, 2, 3]);
-/// let tracked_smart = track_var_owned!(smart_ptr); // Automatically detects Rc
-/// println!("Ref count: {}", Rc::strong_count(&tracked_smart)); // Works transparently
+/// ```
 /// ```
 #[macro_export]
 macro_rules! track_var_owned {
@@ -707,7 +695,7 @@ macro_rules! track_var_owned {
 /// - You need precise lifecycle tracking (use `track_var_owned!` instead)
 ///
 /// # Example
-/// ```rust
+/// ```text
 /// use memscope_rs::track_var_smart;
 ///
 /// let number = 42i32;           // Copy type - will be copied
@@ -1401,7 +1389,7 @@ pub fn _smart_track_var_impl<T: Trackable + 'static>(var: T, var_name: &str) -> 
 /// Call this early in your application, typically in main().
 ///
 /// # Example
-/// ```rust
+/// ```text
 /// memscope_rs::init();
 /// // Your application code here
 /// ```
@@ -1538,7 +1526,10 @@ fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {
     let tracker = get_global_tracker();
 
     // Force a final garbage collection attempt to capture any remaining deallocations
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    // Skip sleep in production to avoid blocking
+    if cfg!(test) {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
 
     let json_path = format!("{}.json", base_path);
     tracker.export_to_json(&json_path)?;

@@ -50,7 +50,7 @@ fn main() {
     }
 
     // wait for system to stabilize
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    std::thread::sleep(std::time::Duration::from_millis(1)); // Reduced for testing
 
     // run core performance tests
     run_core_performance_tests(&output_dir);

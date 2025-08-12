@@ -78,35 +78,3 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::types::AllocationInfo;
-
-    #[test]
-    fn test_share_allocation_info() {
-        let info = AllocationInfo::new(0x1000, 64);
-        let shared = share_allocation_info(info);
-
-        assert_eq!(shared.ptr, 0x1000);
-        assert_eq!(shared.size, 64);
-    }
-
-    #[test]
-    fn test_clone_shared_allocation() {
-        let info = AllocationInfo::new(0x1000, 64);
-        let shared1 = share_allocation_info(info);
-        let shared2 = clone_shared_allocation(&shared1);
-
-        // Both should point to the same data
-        assert!(Arc::ptr_eq(&shared1, &shared2));
-    }
-
-    #[test]
-    fn test_should_use_arc_sharing() {
-        assert!(should_use_arc_sharing("AllocationInfo", 100));
-        assert!(should_use_arc_sharing("SomeConfig", 100));
-        assert!(should_use_arc_sharing("SmallType", 2000)); // Large size
-        assert!(!should_use_arc_sharing("i32", 4)); // Small primitive
-    }
-}

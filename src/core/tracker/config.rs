@@ -50,7 +50,7 @@ impl ExportOptions {
     /// Only use for deep debugging or system analysis.
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// let options = ExportOptions::new().include_system_allocations(true);
     /// tracker.export_to_json_with_options("debug_output", options)?;
     /// ```

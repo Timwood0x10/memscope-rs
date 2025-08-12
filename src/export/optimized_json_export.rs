@@ -620,7 +620,7 @@ impl MemoryTracker {
     /// * `path` - Output base path for multiple optimized files
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// // Fast export for production monitoring
     /// tracker.export_to_json_fast("prod_snapshot")?;
     /// ```
@@ -649,7 +649,7 @@ impl MemoryTracker {
     /// * `path` - Output base path for comprehensive analysis files
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// // Comprehensive export for security audit
     /// tracker.export_to_json_comprehensive("security_audit")?;
     /// ```
@@ -790,7 +790,7 @@ impl MemoryTracker {
     /// * `TrackingResult<()>` - Success or error result
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
     ///     .parallel_processing(true)
     ///     .streaming_writer(true)

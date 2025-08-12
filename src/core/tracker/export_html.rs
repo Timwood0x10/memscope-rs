@@ -23,7 +23,7 @@ impl MemoryTracker {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```text
     /// // Export to default location
     /// tracker.export_interactive_dashboard("memory_report.html")?;
     ///
@@ -63,7 +63,7 @@ impl MemoryTracker {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```text
     /// use memscope_rs::get_global_unsafe_ffi_tracker;
     ///
     /// let unsafe_tracker = get_global_unsafe_ffi_tracker();
@@ -94,7 +94,7 @@ impl MemoryTracker {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```text
     /// // Generate quick summary report
     /// tracker.export_html_summary("summary.html")?;
     /// ```

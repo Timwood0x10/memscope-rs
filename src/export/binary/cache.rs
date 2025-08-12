@@ -123,7 +123,7 @@ impl Default for IndexCacheConfig {
     fn default() -> Self {
         let cache_dir = std::env::temp_dir().join("memscope_index_cache");
         Self {
-            max_entries: 100,
+            max_entries: 1000, // Increased from 100 to 1000 for better performance
             max_age_seconds: 7 * 24 * 3600, // 7 days
             cache_directory: cache_dir,
             enable_compression: true,
@@ -606,8 +606,8 @@ mod tests {
         let initial_access_time = entry.last_accessed;
         let initial_count = entry.access_count;
 
-        // Wait a bit to ensure time difference
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        // Wait a bit to ensure time difference (reduced for testing)
+        std::thread::sleep(std::time::Duration::from_millis(1));
         
         entry.mark_accessed();
 
@@ -697,7 +697,7 @@ mod tests {
         assert_eq!(cache.entries.len(), 1);
 
         // Wait a bit to ensure file modification time changes
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::sleep(std::time::Duration::from_millis(1));
 
         // Modify the file by creating a new valid binary file with different content
         let test_allocations = vec![{

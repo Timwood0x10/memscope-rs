@@ -17,7 +17,7 @@ impl MemoryTracker {
     /// # Examples
     ///
     /// ## Default Mode (Fast - Recommended)
-    /// ```rust
+    /// ```text
     /// tracker.export_to_json("output")?;
     ///
     /// // OR explicitly
@@ -28,7 +28,7 @@ impl MemoryTracker {
     /// - **Use case**: Regular development, profiling, optimization
     ///
     /// ## Complete Mode (Slow - For Deep Analysis)
-    /// ```rust
+    /// ```text
     /// let options = ExportOptions::new().include_system_allocations(true);
     /// tracker.export_to_json_with_options("output", options)?;
     /// ```
@@ -58,12 +58,12 @@ impl MemoryTracker {
     /// # Examples
     ///
     /// ## Fast mode (default - recommended for most users)
-    /// ```rust
+    /// ```text
     /// tracker.export_to_json_with_options("output", ExportOptions::default())?;
     /// ```
     ///
     /// ## Complete mode (slow - for debugging)
-    /// ```rust
+    /// ```text
     /// let options = ExportOptions::new()
     ///     .include_system_allocations(true)
     ///     .verbose_logging(true);

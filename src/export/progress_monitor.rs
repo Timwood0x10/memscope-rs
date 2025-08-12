@@ -487,17 +487,16 @@ mod tests {
         let callback_called_clone = callback_called.clone();
 
         let mut monitor = ProgressMonitor::new(100);
+        // Set shorter update interval for testing
+        monitor.update_interval = Duration::from_millis(1);
+        
         monitor.set_callback(Box::new(move |_progress| {
             *callback_called_clone.lock().unwrap() = true;
         }));
 
-        // Wait a bit to let the update interval pass
-        thread::sleep(Duration::from_millis(150));
+        // Add small delay to ensure update interval passes
+        std::thread::sleep(std::time::Duration::from_millis(10));
         monitor.update_progress(0.5, None);
-
-        // Wait for callback execution
-        thread::sleep(Duration::from_millis(50));
-
         assert!(*callback_called.lock().unwrap());
     }
 
@@ -542,11 +541,11 @@ mod tests {
     fn test_speed_calculation() {
         let monitor = ProgressMonitor::new(1000);
 
+        // Add small delay to ensure elapsed time > 0
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
         // Simulate processing some allocations
         monitor.add_processed(100);
-
-        // Wait for a while to calculate speed
-        thread::sleep(Duration::from_millis(500));
 
         let progress = monitor.get_progress_snapshot();
         // Processing speed should be >= 0

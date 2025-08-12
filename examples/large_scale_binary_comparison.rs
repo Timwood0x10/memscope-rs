@@ -465,4 +465,3 @@ fn analyze_json_outputs() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// Removed slow count_null_values function - using fast string matching instead

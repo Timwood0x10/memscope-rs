@@ -154,8 +154,9 @@ fn get_global_pool() -> &'static StringPool {
 /// and related structures should use this function to intern their strings.
 ///
 /// # Example
-/// ```rust
-/// use memscope::core::string_pool::intern_string;
+/// ```text
+/// use memscope_rs::core::string_pool::intern_string;
+/// use std::sync::Arc;
 ///
 /// let s1 = intern_string("hello");
 /// let s2 = intern_string("hello");

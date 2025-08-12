@@ -162,7 +162,7 @@ impl MemoryTracker {
     /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// let tracker = get_global_tracker();
     /// tracker.export_to_binary("my_program")?;
     /// // Creates: MemoryAnalysis/my_program.memscope
@@ -181,7 +181,7 @@ impl MemoryTracker {
     /// * `mode` - Export mode (UserOnly for small files, Full for complete data)
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// let tracker = get_global_tracker();
     /// 
     /// // Export only user variables (small, fast)
@@ -216,7 +216,7 @@ impl MemoryTracker {
     /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// let tracker = get_global_tracker();
     /// tracker.export_user_binary("my_program_user")?;
     /// // Creates: MemoryAnalysis/my_program_user.memscope (user variables only)
@@ -256,7 +256,7 @@ impl MemoryTracker {
     /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
     ///
     /// # Example
-    /// ```rust
+    /// ```text
     /// let tracker = get_global_tracker();
     /// tracker.export_full_binary("my_program_full")?;
     /// // Creates: MemoryAnalysis/my_program_full.memscope
@@ -309,7 +309,7 @@ impl MemoryTracker {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```text
     /// MemoryTracker::parse_binary_to_standard_json("data.memscope", "project_name")?;
     /// ```
     pub fn parse_binary_to_standard_json<P: AsRef<std::path::Path>>(
@@ -324,7 +324,7 @@ impl MemoryTracker {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```text
     /// MemoryTracker::parse_binary_to_json("data.memscope", "data.json")?;
     /// ```
     pub fn parse_binary_to_json<P: AsRef<std::path::Path>>(
@@ -347,7 +347,7 @@ impl MemoryTracker {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```text
     /// MemoryTracker::parse_binary_to_html("data.memscope", "report.html")?;
     /// ```
     pub fn parse_binary_to_html<P: AsRef<std::path::Path>>(

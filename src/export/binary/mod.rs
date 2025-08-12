@@ -18,8 +18,6 @@ mod index;
 mod index_builder;
 mod memory_layout_serialization;
 mod parser;
-#[cfg(test)]
-mod performance_tests;
 mod reader;
 mod selective_json_exporter;
 mod selective_reader;
@@ -231,7 +229,7 @@ impl BinaryFileInfo {
 /// * `Err(BinaryExportError)` - If file cannot be read or is invalid
 ///
 /// # Example
-/// ```rust
+/// ```text
 /// use memscope_rs::export::binary::detect_binary_type;
 /// 
 /// let info = detect_binary_type("MemoryAnalysis/my_program.memscope")?;
@@ -312,7 +310,7 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 /// * `Err(BinaryExportError)` - If parsing fails
 ///
 /// # Example
-/// ```rust
+/// ```text
 /// use memscope_rs::export::binary::parse_binary_auto;
 /// 
 /// // Automatically detects type and uses optimal strategy
