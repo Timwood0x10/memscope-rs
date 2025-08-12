@@ -10,6 +10,7 @@ use std::time::Instant;
 /// Binary parser for optimized file conversion
 pub struct BinaryParser;
 
+#[allow(dead_code)]
 impl BinaryParser {
     /// Convert binary file to standard JSON files using optimized approach
     pub fn to_standard_json_files<P: AsRef<Path>>(

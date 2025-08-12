@@ -644,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_cache_operations() {
-        let mut parser = FieldParser::new();
+        let parser = FieldParser::new();
         
         // Cache should start empty
         assert_eq!(parser.cache_size(), 0);

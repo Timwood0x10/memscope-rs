@@ -709,12 +709,12 @@ fn generate_final_analysis_with_binary_export() {
         binary_export_time.as_secs_f64() * 1000.0
     );
 
-    // Step 2: Binary -> 5 JSON files conversion timing
+    // Step 2: Binary -> 5 JSON files conversion timing (using optimized interface)
     let conversion_start = Instant::now();
     let binary_path = "MemoryAnalysis/complex_lifecycle_binary/complex_lifecycle_binary.memscope";
 
     let conversion_time = if let Err(e) =
-        memscope_rs::export::binary::BinaryParser::to_standard_json_files(binary_path, "complex_lifecycle_binary")
+        memscope_rs::export::binary::BinaryParser::parse_full_binary_to_json(binary_path, "complex_lifecycle_binary")
     {
         println!("❌ Binary to 5 JSON files conversion failed: {e}");
         conversion_start.elapsed()
