@@ -62,10 +62,13 @@ pub use streaming_json_writer::{
 };
 pub use writer::BinaryWriter;
 
+// Export the auto-detection functions and types (defined below)
+
 // Auto-detection functions are defined below and exported automatically
 
 use crate::core::types::AllocationInfo;
 use std::path::Path;
+
 
 /// Export allocation information to binary format with default configuration
 pub fn export_to_binary<P: AsRef<Path>>(
@@ -229,7 +232,7 @@ impl BinaryFileInfo {
 /// * `Err(BinaryExportError)` - If file cannot be read or is invalid
 ///
 /// # Example
-/// ```text
+/// ```rust
 /// use memscope_rs::export::binary::detect_binary_type;
 /// 
 /// let info = detect_binary_type("MemoryAnalysis/my_program.memscope")?;
@@ -310,7 +313,7 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 /// * `Err(BinaryExportError)` - If parsing fails
 ///
 /// # Example
-/// ```text
+/// ```rust
 /// use memscope_rs::export::binary::parse_binary_auto;
 /// 
 /// // Automatically detects type and uses optimal strategy

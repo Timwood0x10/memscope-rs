@@ -1294,9 +1294,9 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// **[New Interface]** Parse binary to JSON using BinaryReader for maximum performance
+    /// **[New Interface]** Parse binary to JSON using BinaryIndex for maximum performance
     /// 
-    /// This is the core high-performance interface that uses BinaryReader for direct data access,
+    /// This is the core high-performance interface that uses BinaryIndex for direct data access,
     /// avoiding the overhead of loading all allocations into memory.
     pub fn parse_binary_to_json_with_index<P: AsRef<Path>>(
         binary_path: P,
@@ -1368,12 +1368,12 @@ impl BinaryParser {
         let mut reader = BinaryReader::new(binary_path)?;
         let header = reader.read_header()?;
         
-        // Write JSON header based on type
+        // Write JSON header based on type (matching reference format + keeping our data)
         match json_type {
-            "memory" => writer.write_all(b"{\"data\":{\"allocations\":[")?,
+            "memory" => writer.write_all(b"{\"allocations\":[")?,
             "lifetime" => writer.write_all(b"{\"lifecycle_events\":[")?,
-            "performance" => writer.write_all(b"{\"data\":{\"allocations\":[")?,
-            "unsafe_ffi" => writer.write_all(b"{\"boundary_events\":[],\"enhanced_ffi_data\":[")?,
+            "performance" => writer.write_all(b"{\"allocation_distribution\":{\"allocations\":[")?,
+            "unsafe_ffi" => writer.write_all(b"[")?,
             "complex_types" => writer.write_all(b"{\"categorized_types\":{\"primitive\":[")?,
             _ => return Err(BinaryExportError::CorruptedData(format!("Unknown JSON type: {}", json_type))),
         }
@@ -1390,26 +1390,41 @@ impl BinaryParser {
             // Read allocation sequentially (most efficient for binary files)
             let allocation = reader.read_allocation()?;
             
-            // Generate JSON record directly
+            // Generate JSON record directly (matching reference format + keeping our data)
             buffer.clear();
             match json_type {
-                "memory" => Self::append_memory_record_optimized(&mut buffer, &allocation),
-                "lifetime" => Self::append_lifetime_record_optimized(&mut buffer, &allocation),
-                "performance" => Self::append_performance_record_optimized(&mut buffer, &allocation),
-                "unsafe_ffi" => Self::append_ffi_record_optimized(&mut buffer, &allocation),
-                "complex_types" => Self::append_complex_record_optimized(&mut buffer, &allocation),
+                "memory" => Self::append_memory_record_compatible(&mut buffer, &allocation),
+                "lifetime" => Self::append_lifetime_record_compatible(&mut buffer, &allocation),
+                "performance" => Self::append_performance_record_compatible(&mut buffer, &allocation),
+                "unsafe_ffi" => Self::append_ffi_record_compatible(&mut buffer, &allocation),
+                "complex_types" => Self::append_complex_record_compatible(&mut buffer, &allocation),
                 _ => unreachable!(),
             }
             
             writer.write_all(buffer.as_bytes())?;
         }
 
-        // Write JSON footer
+        // Write JSON footer with additional required fields
         match json_type {
-            "memory" | "performance" => writer.write_all(b"]}}")?,
-            "lifetime" => writer.write_all(b"]}")?,
-            "unsafe_ffi" => writer.write_all(b"]}")?,
-            "complex_types" => writer.write_all(b"]}}")?,
+            "memory" => {
+                writer.write_all(b"],\"memory_stats\":{\"total_allocations\":")?;
+                writer.write_all(total_count.to_string().as_bytes())?;
+                writer.write_all(b",\"total_size\":0,\"peak_memory\":0},\"metadata\":{\"analysis_type\":\"memory_analysis\",\"export_version\":\"2.0\",\"optimization_level\":\"High\"}}")?;
+            },
+            "lifetime" => {
+                writer.write_all(b"],\"scope_analysis\":{},\"summary\":{\"total_events\":")?;
+                writer.write_all(total_count.to_string().as_bytes())?;
+                writer.write_all(b"},\"metadata\":{\"analysis_type\":\"lifecycle_analysis\",\"export_version\":\"2.0\"}}")?;
+            },
+            "performance" => {
+                writer.write_all(b"]},\"memory_performance\":{},\"export_performance\":{},\"optimization_status\":{},\"pipeline_metrics\":{},\"metadata\":{\"analysis_type\":\"performance_analysis\",\"export_version\":\"2.0\"}}")?;
+            },
+            "unsafe_ffi" => {
+                writer.write_all(b"]")?;
+            },
+            "complex_types" => {
+                writer.write_all(b"]},\"metadata\":{\"analysis_type\":\"complex_types_analysis\",\"export_version\":\"2.0\"}}")?;
+            },
             _ => unreachable!(),
         }
 
@@ -1714,7 +1729,7 @@ impl BinaryParser {
         Self::append_number(buffer, value);
     }
 
-    /// Generate memory analysis record compatible with reference format
+    /// Generate memory analysis record compatible with binary-op format (optimized)
     #[inline]
     fn append_memory_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"ptr":"0x"#);
@@ -1757,7 +1772,7 @@ impl BinaryParser {
         buffer.push('}');
     }
 
-    /// Generate lifetime analysis record compatible with reference format
+    /// Generate lifetime analysis record compatible with binary-op format (optimized)
     #[inline]
     fn append_lifetime_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"event":"allocation","ptr":"0x"#);
@@ -1793,7 +1808,7 @@ impl BinaryParser {
         buffer.push('}');
     }
 
-    /// Generate performance analysis record compatible with reference format
+    /// Generate performance analysis record compatible with binary-op format (optimized)
     #[inline]
     fn append_performance_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"ptr":"0x"#);
@@ -1825,7 +1840,7 @@ impl BinaryParser {
         buffer.push_str(r#","fragmentation_analysis":{"status":"not_analyzed"}}"#);
     }
 
-    /// Generate FFI analysis record compatible with snapshot_unsafe_ffi.json format
+    /// Generate FFI analysis record compatible with binary-op format (exact copy)
     #[inline]
     fn append_ffi_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"base":{"ptr":"#);
@@ -1873,7 +1888,7 @@ impl BinaryParser {
         buffer.push_str(r#","from_context":"libc","to_context":"rust_main","stack":[{"function_name":"current_function","file_name":"src/unsafe_ffi_tracker.rs","line_number":42,"is_unsafe":true}]}],"safety_violations":[],"ffi_tracked":true,"memory_passport":null,"ownership_history":null}"#);
     }
 
-    /// Generate complex types analysis record compatible with reference format
+    /// Generate complex types analysis record compatible with binary-op format (optimized)
     #[inline]
     fn append_complex_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"ptr":"0x"#);
