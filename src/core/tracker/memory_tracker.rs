@@ -183,17 +183,17 @@ impl MemoryTracker {
     /// # Example
     /// ```text
     /// let tracker = get_global_tracker();
-    /// 
+    ///
     /// // Export only user variables (small, fast)
     /// tracker.export_to_binary_with_mode("my_program_user", BinaryExportMode::UserOnly)?;
-    /// 
+    ///
     /// // Export all data (large, complete)
     /// tracker.export_to_binary_with_mode("my_program_full", BinaryExportMode::Full)?;
     /// ```
     pub fn export_to_binary_with_mode<P: AsRef<std::path::Path>>(
-        &self, 
-        path: P, 
-        mode: BinaryExportMode
+        &self,
+        path: P,
+        mode: BinaryExportMode,
     ) -> TrackingResult<()> {
         match mode {
             BinaryExportMode::UserOnly => {
@@ -227,7 +227,7 @@ impl MemoryTracker {
         tracing::info!("Starting user binary export to: {}", output_path.display());
 
         let all_allocations = self.get_active_allocations()?;
-        
+
         // Filter to user-defined variables only - this creates smaller binary files
         // and matches the current JSON output behavior
         let user_allocations: Vec<_> = all_allocations
@@ -235,14 +235,18 @@ impl MemoryTracker {
             .filter(|allocation| allocation.var_name.is_some())
             .collect();
 
-        tracing::info!("Filtered {} user allocations for export (excluding system allocations)", user_allocations.len());
+        tracing::info!(
+            "Filtered {} user allocations for export (excluding system allocations)",
+            user_allocations.len()
+        );
 
         crate::export::binary::export_to_binary_with_mode(
-            &user_allocations, 
-            output_path, 
+            &user_allocations,
+            output_path,
             crate::export::binary::format::BinaryExportMode::UserOnly,
-            &crate::export::binary::BinaryExportConfig::default()
-        ).map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+            &crate::export::binary::BinaryExportConfig::default(),
+        )
+        .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
 
         tracing::info!("User binary export completed successfully");
         Ok(())
@@ -267,17 +271,21 @@ impl MemoryTracker {
         tracing::info!("Starting full binary export to: {}", output_path.display());
 
         let all_allocations = self.get_active_allocations()?;
-        
-        tracing::info!("Exporting {} total allocations (user + system)", all_allocations.len());
+
+        tracing::info!(
+            "Exporting {} total allocations (user + system)",
+            all_allocations.len()
+        );
 
         // Export all allocations with enhanced header for full-binary mode
         // This ensures complete data integrity without ambiguous null values
         crate::export::binary::export_to_binary_with_mode(
-            &all_allocations, 
-            output_path, 
+            &all_allocations,
+            output_path,
             crate::export::binary::format::BinaryExportMode::Full,
-            &crate::export::binary::BinaryExportConfig::default()
-        ).map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
+            &crate::export::binary::BinaryExportConfig::default(),
+        )
+        .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
 
         tracing::info!("Full binary export completed successfully");
         Ok(())

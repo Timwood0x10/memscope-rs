@@ -334,4 +334,3 @@ pub fn get_unwrap_stats_mut() -> std::sync::MutexGuard<'static, UnwrapStats> {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
     stats_mutex.lock().unwrap()
 }
-

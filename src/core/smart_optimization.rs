@@ -283,12 +283,10 @@ mod tests {
         // In debug builds, safe_unwrap panics on None
         #[cfg(debug_assertions)]
         {
-            let result = std::panic::catch_unwind(|| {
-                none_value.safe_unwrap(99)
-            });
+            let result = std::panic::catch_unwind(|| none_value.safe_unwrap(99));
             assert!(result.is_err());
         }
-        
+
         // In release builds, safe_unwrap returns fallback
         #[cfg(not(debug_assertions))]
         {
@@ -301,7 +299,8 @@ mod tests {
         let stats = SmartStats::new();
 
         // Fast operations
-        for _ in 0..100 { // Reduced from 1000 to 100
+        for _ in 0..100 {
+            // Reduced from 1000 to 100
             stats.record_allocation();
         }
 

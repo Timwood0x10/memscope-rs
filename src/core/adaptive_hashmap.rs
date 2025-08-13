@@ -261,8 +261,12 @@ mod tests {
         // Check contention ratio first for debugging
         let contention_ratio = map.contention_ratio();
         let access_count = map.access_counter.load(Ordering::Relaxed);
-        println!("Access count: {}, Contention ratio: {:.2}%", access_count, contention_ratio * 100.0);
-        
+        println!(
+            "Access count: {}, Contention ratio: {:.2}%",
+            access_count,
+            contention_ratio * 100.0
+        );
+
         // With reduced load, should stay in simple mode
         assert!(!map.is_sharded());
         assert_eq!(map.len(), 40); // 2 threads × 20 operations each

@@ -37,18 +37,23 @@ impl From<u8> for BinaryExportMode {
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FileHeader {
-    pub magic: [u8; 8],        // 8 bytes: File magic identifier
-    pub version: u32,          // 4 bytes: Format version
-    pub total_count: u32,      // 4 bytes: Total allocation count (user + system)
-    pub export_mode: u8,       // 1 byte: Export mode (user_only vs full)
-    pub user_count: u16,       // 2 bytes: User allocation count (var_name.is_some())
-    pub system_count: u16,     // 2 bytes: System allocation count (var_name.is_none())
-    pub reserved: u8,          // 1 byte: Reserved for future use
+    pub magic: [u8; 8],    // 8 bytes: File magic identifier
+    pub version: u32,      // 4 bytes: Format version
+    pub total_count: u32,  // 4 bytes: Total allocation count (user + system)
+    pub export_mode: u8,   // 1 byte: Export mode (user_only vs full)
+    pub user_count: u16,   // 2 bytes: User allocation count (var_name.is_some())
+    pub system_count: u16, // 2 bytes: System allocation count (var_name.is_none())
+    pub reserved: u8,      // 1 byte: Reserved for future use
 }
 
 impl FileHeader {
     /// Create a new file header with enhanced information
-    pub fn new(total_count: u32, export_mode: BinaryExportMode, user_count: u16, system_count: u16) -> Self {
+    pub fn new(
+        total_count: u32,
+        export_mode: BinaryExportMode,
+        user_count: u16,
+        system_count: u16,
+    ) -> Self {
         Self {
             magic: *MAGIC_BYTES,
             version: FORMAT_VERSION,
@@ -119,14 +124,14 @@ impl FileHeader {
     pub fn to_bytes(&self) -> [u8; HEADER_SIZE] {
         let mut bytes = [0u8; HEADER_SIZE];
 
-        bytes[0..8].copy_from_slice(&self.magic);                           // 8 bytes: magic
-        bytes[8..12].copy_from_slice(&self.version.to_le_bytes());          // 4 bytes: version
-        bytes[12..16].copy_from_slice(&self.total_count.to_le_bytes());     // 4 bytes: total_count
-        bytes[16] = self.export_mode;                                       // 1 byte: export_mode
-        bytes[17..19].copy_from_slice(&self.user_count.to_le_bytes());      // 2 bytes: user_count
-        bytes[19..21].copy_from_slice(&self.system_count.to_le_bytes());    // 2 bytes: system_count
-        bytes[21] = self.reserved;                                          // 1 byte: reserved
-        // bytes[22..24] remain as padding (0x00)                          // 2 bytes: padding
+        bytes[0..8].copy_from_slice(&self.magic); // 8 bytes: magic
+        bytes[8..12].copy_from_slice(&self.version.to_le_bytes()); // 4 bytes: version
+        bytes[12..16].copy_from_slice(&self.total_count.to_le_bytes()); // 4 bytes: total_count
+        bytes[16] = self.export_mode; // 1 byte: export_mode
+        bytes[17..19].copy_from_slice(&self.user_count.to_le_bytes()); // 2 bytes: user_count
+        bytes[19..21].copy_from_slice(&self.system_count.to_le_bytes()); // 2 bytes: system_count
+        bytes[21] = self.reserved; // 1 byte: reserved
+                                   // bytes[22..24] remain as padding (0x00)                          // 2 bytes: padding
 
         bytes
     }

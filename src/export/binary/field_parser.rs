@@ -4,10 +4,10 @@
 //! binary allocation records, skipping unnecessary data to improve performance
 //! and reduce memory usage.
 
+use crate::core::types::AllocationInfo;
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::selective_reader::AllocationField;
 use crate::export::binary::serializable::primitives;
-use crate::core::types::AllocationInfo;
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Seek, SeekFrom};
 
@@ -15,9 +15,12 @@ use std::io::{Read, Seek, SeekFrom};
 pub struct FieldParser {
     /// Cache for parsed field values to avoid redundant parsing
     field_cache: HashMap<String, FieldValue>,
-    
+
     /// Statistics about field parsing performance
     stats: FieldParserStats,
+
+    /// Configuration for field parsing
+    config: FieldParserConfig,
 }
 
 /// Configuration for field parsing behavior
@@ -25,13 +28,13 @@ pub struct FieldParser {
 pub struct FieldParserConfig {
     /// Whether to enable field value caching
     pub enable_caching: bool,
-    
+
     /// Maximum number of cached field values
     pub max_cache_size: usize,
-    
+
     /// Whether to validate field existence before parsing
     pub validate_field_existence: bool,
-    
+
     /// Whether to use optimized parsing for common field combinations
     pub enable_optimized_combinations: bool,
 }
@@ -52,19 +55,19 @@ impl Default for FieldParserConfig {
 pub struct FieldParserStats {
     /// Total number of fields parsed
     pub total_fields_parsed: u64,
-    
+
     /// Number of fields skipped due to selective parsing
     pub fields_skipped: u64,
-    
+
     /// Number of cache hits
     pub cache_hits: u64,
-    
+
     /// Number of cache misses
     pub cache_misses: u64,
-    
+
     /// Total time spent parsing fields (in microseconds)
     pub total_parse_time_us: u64,
-    
+
     /// Time saved by skipping fields (estimated, in microseconds)
     pub time_saved_us: u64,
 }
@@ -79,7 +82,7 @@ impl FieldParserStats {
             (self.cache_hits as f64 / total_requests as f64) * 100.0
         }
     }
-    
+
     /// Calculate parsing efficiency (fields skipped / total fields)
     pub fn parsing_efficiency(&self) -> f64 {
         let total_fields = self.total_fields_parsed + self.fields_skipped;
@@ -89,7 +92,7 @@ impl FieldParserStats {
             (self.fields_skipped as f64 / total_fields as f64) * 100.0
         }
     }
-    
+
     /// Get average parse time per field (in microseconds)
     pub fn avg_parse_time_per_field_us(&self) -> f64 {
         if self.total_fields_parsed == 0 {
@@ -103,23 +106,42 @@ impl FieldParserStats {
 /// Cached field value with metadata
 #[derive(Debug, Clone)]
 pub struct FieldValue {
+    /// The actual field value
+    pub value: FieldData,
+
+    /// When this value was cached
+    pub cached_at: std::time::Instant,
+
+    /// How many times this cached value has been accessed
+    pub access_count: u32,
 }
 
+/// Different types of field data that can be cached
+#[derive(Debug, Clone)]
+pub enum FieldData {
+    Usize(usize),
+    U64(u64),
+    String(String),
+    OptionalString(Option<String>),
+    Bool(bool),
+    StringVec(Vec<String>),
+}
 
 impl FieldParser {
     /// Create a new field parser with default configuration
     pub fn new() -> Self {
         Self::with_config(FieldParserConfig::default())
     }
-    
+
     /// Create a new field parser with custom configuration
-    pub fn with_config(_config: FieldParserConfig) -> Self {
+    pub fn with_config(config: FieldParserConfig) -> Self {
         Self {
             field_cache: HashMap::new(),
             stats: FieldParserStats::default(),
+            config,
         }
     }
-    
+
     /// Parse only the requested fields from a binary record
     pub fn parse_selective_fields<R: Read + Seek>(
         &mut self,
@@ -127,30 +149,36 @@ impl FieldParser {
         requested_fields: &HashSet<AllocationField>,
     ) -> Result<PartialAllocationInfo, BinaryExportError> {
         let start_time = std::time::Instant::now();
-        
+
         // Read record type and length first
         let mut type_byte = [0u8; 1];
         reader.read_exact(&mut type_byte)?;
-        
+
         let mut length_bytes = [0u8; 4];
         reader.read_exact(&mut length_bytes)?;
         let record_length = u32::from_le_bytes(length_bytes);
-        
+
         let record_start_pos = reader.stream_position()?;
-        
+
         // Create partial allocation info with only requested fields
         let mut partial_info = PartialAllocationInfo::new();
-        
+
         // Parse fields in the order they appear in the binary format
         self.parse_basic_fields(reader, requested_fields, &mut partial_info)?;
         self.parse_optional_fields(reader, requested_fields, &mut partial_info)?;
-        self.parse_advanced_fields(reader, requested_fields, &mut partial_info, record_start_pos, record_length)?;
-        
+        self.parse_advanced_fields(
+            reader,
+            requested_fields,
+            &mut partial_info,
+            record_start_pos,
+            record_length,
+        )?;
+
         self.stats.total_parse_time_us += start_time.elapsed().as_micros() as u64;
-        
+
         Ok(partial_info)
     }
-    
+
     /// Parse an allocation record with all fields (for compatibility)
     pub fn parse_full_allocation<R: Read + Seek>(
         &mut self,
@@ -160,29 +188,29 @@ impl FieldParser {
         let partial = self.parse_selective_fields(reader, &all_fields)?;
         Ok(partial.to_full_allocation())
     }
-    
+
     /// Get parsing statistics
     pub fn get_stats(&self) -> &FieldParserStats {
         &self.stats
     }
-    
+
     /// Reset parsing statistics
     pub fn reset_stats(&mut self) {
         self.stats = FieldParserStats::default();
     }
-    
+
     /// Clear the field cache
     pub fn clear_cache(&mut self) {
         self.field_cache.clear();
     }
-    
+
     /// Get cache size
     pub fn cache_size(&self) -> usize {
         self.field_cache.len()
     }
-    
+
     // Private helper methods
-    
+
     /// Parse basic fields (always present)
     fn parse_basic_fields<R: Read>(
         &mut self,
@@ -198,7 +226,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse size (always needed for indexing)
         let size = primitives::read_u64(reader)? as usize;
         if requested_fields.contains(&AllocationField::Size) {
@@ -207,7 +235,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse timestamp_alloc (always needed for indexing)
         let timestamp_alloc = primitives::read_u64(reader)?;
         if requested_fields.contains(&AllocationField::TimestampAlloc) {
@@ -216,10 +244,10 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         Ok(())
     }
-    
+
     /// Parse optional fields
     fn parse_optional_fields<R: Read>(
         &mut self,
@@ -243,7 +271,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse var_name
         let var_name = self.parse_optional_string(reader)?;
         if requested_fields.contains(&AllocationField::VarName) {
@@ -252,7 +280,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse type_name
         let type_name = self.parse_optional_string(reader)?;
         if requested_fields.contains(&AllocationField::TypeName) {
@@ -261,7 +289,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse scope_name
         let scope_name = self.parse_optional_string(reader)?;
         if requested_fields.contains(&AllocationField::ScopeName) {
@@ -270,7 +298,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse thread_id
         let thread_id = primitives::read_string(reader)?;
         if requested_fields.contains(&AllocationField::ThreadId) {
@@ -279,7 +307,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse stack_trace
         let stack_trace = self.parse_optional_string_vec(reader)?;
         if requested_fields.contains(&AllocationField::StackTrace) {
@@ -288,7 +316,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse borrow_count
         let borrow_count = primitives::read_u32(reader)? as usize;
         if requested_fields.contains(&AllocationField::BorrowCount) {
@@ -297,7 +325,7 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         // Parse is_leaked
         let is_leaked = primitives::read_u8(reader)? != 0;
         if requested_fields.contains(&AllocationField::IsLeaked) {
@@ -306,10 +334,10 @@ impl FieldParser {
         } else {
             self.stats.fields_skipped += 1;
         }
-        
+
         Ok(())
     }
-    
+
     /// Parse advanced fields (may not be present in all records)
     fn parse_advanced_fields<R: Read + Seek>(
         &mut self,
@@ -323,15 +351,17 @@ impl FieldParser {
         let current_pos = reader.stream_position()?;
         let bytes_read = current_pos - record_start_pos;
         let remaining_bytes = record_length as u64 - bytes_read;
-        
+
         if remaining_bytes == 0 {
             return Ok(()); // No advanced fields
         }
-        
+
         // For now, we'll skip advanced fields if they're not requested
         // In a full implementation, we would parse them selectively
-        let has_advanced_fields = requested_fields.iter().any(|f| f.requires_advanced_metrics());
-        
+        let has_advanced_fields = requested_fields
+            .iter()
+            .any(|f| f.requires_advanced_metrics());
+
         if !has_advanced_fields {
             // Skip remaining bytes
             reader.seek(SeekFrom::Current(remaining_bytes as i64))?;
@@ -341,17 +371,17 @@ impl FieldParser {
             // Parse advanced fields (simplified implementation)
             // In a real implementation, we would parse specific advanced fields
             reader.seek(SeekFrom::Current(remaining_bytes as i64))?;
-            
+
             // Set advanced fields to None for now
             if requested_fields.contains(&AllocationField::LifetimeMs) {
                 partial_info.lifetime_ms = Some(None);
                 self.stats.total_fields_parsed += 1;
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Parse an optional string field
     fn parse_optional_string<R: Read>(
         &mut self,
@@ -364,7 +394,7 @@ impl FieldParser {
             Ok(None)
         }
     }
-    
+
     /// Parse an optional string vector field
     fn parse_optional_string_vec<R: Read>(
         &mut self,
@@ -382,7 +412,61 @@ impl FieldParser {
             Ok(None)
         }
     }
-    
+
+    /// Check if a field exists in the current record
+    fn field_exists(&self, _field: &AllocationField) -> bool {
+        // This would be implemented based on record format analysis
+        // For now, assume all fields might exist
+        true
+    }
+
+    /// Get cached field value if available
+    fn get_cached_field(&mut self, cache_key: &str) -> Option<&FieldValue> {
+        if !self.config.enable_caching {
+            return None;
+        }
+
+        if let Some(cached) = self.field_cache.get_mut(cache_key) {
+            cached.access_count += 1;
+            self.stats.cache_hits += 1;
+            Some(cached)
+        } else {
+            self.stats.cache_misses += 1;
+            None
+        }
+    }
+
+    /// Cache a field value
+    fn cache_field_value(&mut self, cache_key: String, value: FieldData) {
+        if !self.config.enable_caching {
+            return;
+        }
+
+        // Implement LRU eviction if cache is full
+        if self.field_cache.len() >= self.config.max_cache_size {
+            self.evict_lru_cache_entry();
+        }
+
+        let field_value = FieldValue {
+            value,
+            cached_at: std::time::Instant::now(),
+            access_count: 1,
+        };
+
+        self.field_cache.insert(cache_key, field_value);
+    }
+
+    /// Evict the least recently used cache entry
+    fn evict_lru_cache_entry(&mut self) {
+        if let Some((lru_key, _)) = self
+            .field_cache
+            .iter()
+            .min_by_key(|(_, v)| (v.access_count, v.cached_at))
+            .map(|(k, v)| (k.clone(), v.clone()))
+        {
+            self.field_cache.remove(&lru_key);
+        }
+    }
 }
 
 impl Default for FieldParser {
@@ -414,7 +498,7 @@ impl PartialAllocationInfo {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Convert to a full AllocationInfo (filling missing fields with defaults)
     pub fn to_full_allocation(self) -> AllocationInfo {
         AllocationInfo {
@@ -447,7 +531,7 @@ impl PartialAllocationInfo {
             drop_chain_analysis: None,
         }
     }
-    
+
     /// Check if a specific field is present
     pub fn has_field(&self, field: &AllocationField) -> bool {
         match field {
@@ -466,22 +550,46 @@ impl PartialAllocationInfo {
             _ => false, // Advanced fields not implemented yet
         }
     }
-    
+
     /// Get the number of fields that are present
     pub fn field_count(&self) -> usize {
         let mut count = 0;
-        if self.ptr.is_some() { count += 1; }
-        if self.size.is_some() { count += 1; }
-        if self.var_name.is_some() { count += 1; }
-        if self.type_name.is_some() { count += 1; }
-        if self.scope_name.is_some() { count += 1; }
-        if self.timestamp_alloc.is_some() { count += 1; }
-        if self.timestamp_dealloc.is_some() { count += 1; }
-        if self.thread_id.is_some() { count += 1; }
-        if self.borrow_count.is_some() { count += 1; }
-        if self.stack_trace.is_some() { count += 1; }
-        if self.is_leaked.is_some() { count += 1; }
-        if self.lifetime_ms.is_some() { count += 1; }
+        if self.ptr.is_some() {
+            count += 1;
+        }
+        if self.size.is_some() {
+            count += 1;
+        }
+        if self.var_name.is_some() {
+            count += 1;
+        }
+        if self.type_name.is_some() {
+            count += 1;
+        }
+        if self.scope_name.is_some() {
+            count += 1;
+        }
+        if self.timestamp_alloc.is_some() {
+            count += 1;
+        }
+        if self.timestamp_dealloc.is_some() {
+            count += 1;
+        }
+        if self.thread_id.is_some() {
+            count += 1;
+        }
+        if self.borrow_count.is_some() {
+            count += 1;
+        }
+        if self.stack_trace.is_some() {
+            count += 1;
+        }
+        if self.is_leaked.is_some() {
+            count += 1;
+        }
+        if self.lifetime_ms.is_some() {
+            count += 1;
+        }
         count
     }
 }
@@ -493,44 +601,44 @@ mod tests {
 
     fn create_test_binary_record() -> Vec<u8> {
         let mut data = Vec::new();
-        
+
         // Record type and length (simplified)
         data.push(1); // ALLOCATION_RECORD_TYPE
         data.extend_from_slice(&100u32.to_le_bytes()); // Record length
-        
+
         // Basic fields
         data.extend_from_slice(&0x1000u64.to_le_bytes()); // ptr
-        data.extend_from_slice(&1024u64.to_le_bytes());   // size
+        data.extend_from_slice(&1024u64.to_le_bytes()); // size
         data.extend_from_slice(&1234567890u64.to_le_bytes()); // timestamp_alloc
-        
+
         // Optional timestamp_dealloc
         data.push(0); // No dealloc timestamp
-        
+
         // Optional strings
         data.push(1); // Has var_name
         let var_name = "test_var";
         data.extend_from_slice(&(var_name.len() as u32).to_le_bytes());
         data.extend_from_slice(var_name.as_bytes());
-        
+
         data.push(1); // Has type_name
         let type_name = "Vec<u8>";
         data.extend_from_slice(&(type_name.len() as u32).to_le_bytes());
         data.extend_from_slice(type_name.as_bytes());
-        
+
         data.push(0); // No scope_name
-        
+
         // Thread ID
         let thread_id = "main";
         data.extend_from_slice(&(thread_id.len() as u32).to_le_bytes());
         data.extend_from_slice(thread_id.as_bytes());
-        
+
         // Stack trace
         data.push(0); // No stack trace
-        
+
         // Other fields
         data.extend_from_slice(&2u32.to_le_bytes()); // borrow_count
         data.push(0); // is_leaked = false
-        
+
         data
     }
 
@@ -546,25 +654,29 @@ mod tests {
         let mut parser = FieldParser::new();
         let test_data = create_test_binary_record();
         let mut cursor = Cursor::new(test_data);
-        
+
         // Request only basic fields
         let requested_fields = [
             AllocationField::Ptr,
             AllocationField::Size,
             AllocationField::ThreadId,
-        ].into_iter().collect();
-        
-        let partial = parser.parse_selective_fields(&mut cursor, &requested_fields).unwrap();
-        
+        ]
+        .into_iter()
+        .collect();
+
+        let partial = parser
+            .parse_selective_fields(&mut cursor, &requested_fields)
+            .unwrap();
+
         assert!(partial.has_field(&AllocationField::Ptr));
         assert!(partial.has_field(&AllocationField::Size));
         assert!(partial.has_field(&AllocationField::ThreadId));
         assert!(!partial.has_field(&AllocationField::VarName));
-        
+
         assert_eq!(partial.ptr, Some(0x1000));
         assert_eq!(partial.size, Some(1024));
         assert_eq!(partial.thread_id, Some("main".to_string()));
-        
+
         // Check that some fields were skipped
         let stats = parser.get_stats();
         assert!(stats.fields_skipped > 0);
@@ -576,9 +688,9 @@ mod tests {
         let mut parser = FieldParser::new();
         let test_data = create_test_binary_record();
         let mut cursor = Cursor::new(test_data);
-        
+
         let allocation = parser.parse_full_allocation(&mut cursor).unwrap();
-        
+
         assert_eq!(allocation.ptr, 0x1000);
         assert_eq!(allocation.size, 1024);
         assert_eq!(allocation.timestamp_alloc, 1234567890);
@@ -593,17 +705,17 @@ mod tests {
     fn test_partial_allocation_info() {
         let mut partial = PartialAllocationInfo::new();
         assert_eq!(partial.field_count(), 0);
-        
+
         partial.ptr = Some(0x1000);
         partial.size = Some(1024);
         partial.thread_id = Some("main".to_string());
-        
+
         assert_eq!(partial.field_count(), 3);
         assert!(partial.has_field(&AllocationField::Ptr));
         assert!(partial.has_field(&AllocationField::Size));
         assert!(partial.has_field(&AllocationField::ThreadId));
         assert!(!partial.has_field(&AllocationField::VarName));
-        
+
         let full = partial.to_full_allocation();
         assert_eq!(full.ptr, 0x1000);
         assert_eq!(full.size, 1024);
@@ -616,10 +728,14 @@ mod tests {
         let mut parser = FieldParser::new();
         let test_data = create_test_binary_record();
         let mut cursor = Cursor::new(test_data);
-        
-        let requested_fields = [AllocationField::Ptr, AllocationField::Size].into_iter().collect();
-        let _partial = parser.parse_selective_fields(&mut cursor, &requested_fields).unwrap();
-        
+
+        let requested_fields = [AllocationField::Ptr, AllocationField::Size]
+            .into_iter()
+            .collect();
+        let _partial = parser
+            .parse_selective_fields(&mut cursor, &requested_fields)
+            .unwrap();
+
         let stats = parser.get_stats();
         assert!(stats.total_fields_parsed >= 2);
         assert!(stats.fields_skipped > 0);
@@ -636,21 +752,28 @@ mod tests {
             validate_field_existence: false,
             enable_optimized_combinations: false,
         };
-        
+
         let parser = FieldParser::with_config(config);
-        // Config was removed, skip these assertions
-        assert!(parser.field_cache.is_empty());
+        assert!(!parser.config.enable_caching);
+        assert_eq!(parser.config.max_cache_size, 500);
     }
 
     #[test]
     fn test_cache_operations() {
-        let parser = FieldParser::new();
-        
+        let mut parser = FieldParser::new();
+
         // Cache should start empty
         assert_eq!(parser.cache_size(), 0);
-        
-        // cache_field_value and FieldData were removed, skip cache operations
-        // Just test that cache starts empty
+
+        // Add some cache entries (simulated)
+        parser.cache_field_value(
+            "test_key".to_string(),
+            FieldData::String("test_value".to_string()),
+        );
+        assert_eq!(parser.cache_size(), 1);
+
+        // Clear cache
+        parser.clear_cache();
         assert_eq!(parser.cache_size(), 0);
     }
 }

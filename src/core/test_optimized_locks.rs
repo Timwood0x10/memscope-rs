@@ -66,9 +66,12 @@ mod tests {
             // If we get here, the guard was created successfully
             true
         });
-        
-        assert!(result.is_ok(), "ScopeGuard creation and drop should not panic");
-        
+
+        assert!(
+            result.is_ok(),
+            "ScopeGuard creation and drop should not panic"
+        );
+
         // Test that we can create multiple guards without issues
         let result2 = std::panic::catch_unwind(|| {
             let _guard1 = ScopeGuard::enter("raii_test_scope_1").unwrap();
@@ -76,7 +79,10 @@ mod tests {
             // Both guards should be dropped cleanly
             true
         });
-        
-        assert!(result2.is_ok(), "Multiple ScopeGuards should work correctly");
+
+        assert!(
+            result2.is_ok(),
+            "Multiple ScopeGuards should work correctly"
+        );
     }
 }

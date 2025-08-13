@@ -7,7 +7,7 @@
 use crate::export::binary::batch_processor::{BatchProcessor, BatchProcessorConfig};
 use crate::export::binary::cache::{IndexCache, IndexCacheConfig};
 use crate::export::binary::error::BinaryExportError;
-use crate::export::binary::field_parser::PartialAllocationInfo;
+use crate::export::binary::field_parser::{FieldParser, PartialAllocationInfo};
 use crate::export::binary::filter_engine::FilterEngine;
 
 use crate::export::binary::selective_reader::{
@@ -151,6 +151,7 @@ pub struct SelectiveJsonExporter {
     filter_engine: FilterEngine,
 
     /// Field parser for selective field parsing
+    field_parser: FieldParser,
 
     /// Export statistics
     stats: SelectiveJsonExportStats,
@@ -174,12 +175,14 @@ impl SelectiveJsonExporter {
             crate::export::binary::format::FileHeader::new_legacy(0),
         ));
         let filter_engine = FilterEngine::new(dummy_index);
+        let field_parser = FieldParser::new();
 
         Ok(Self {
             config,
             index_cache,
             batch_processor,
             filter_engine,
+            field_parser,
             stats: SelectiveJsonExportStats::default(),
         })
     }
@@ -349,7 +352,7 @@ impl SelectiveJsonExporter {
 
         Ok(results)
     }
-    
+
     /// Export to memory_analysis.json format (compatible with existing format)
     pub fn export_memory_analysis_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
@@ -366,11 +369,13 @@ impl SelectiveJsonExporter {
             AllocationField::TimestampAlloc,
             AllocationField::TypeName,
             AllocationField::VarName,
-        ].into_iter().collect();
-        
+        ]
+        .into_iter()
+        .collect();
+
         self.export_to_json_selective(binary_path, json_path, &fields, &[])
     }
-    
+
     /// Export to lifetime.json format (compatible with existing format)
     pub fn export_lifetime_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
@@ -378,13 +383,13 @@ impl SelectiveJsonExporter {
         json_path: Q,
     ) -> Result<SelectiveJsonExportStats, BinaryExportError> {
         let export_start = Instant::now();
-        
+
         // Build or retrieve index
         let index = self.get_or_build_index(&binary_path)?;
-        
+
         // Open binary file for reading
         let mut binary_file = File::open(&binary_path)?;
-        
+
         // Create JSON writer with lifecycle_events array
         let json_file = File::create(&json_path)?;
         let buffered_writer = BufWriter::new(json_file);
@@ -392,10 +397,11 @@ impl SelectiveJsonExporter {
             buffered_writer,
             self.config.json_writer_config.clone(),
         )?;
-        
+
         // Start JSON document with lifecycle_events array
-        json_writer.write_header_with_array_name(index.record_count() as u64, "lifecycle_events")?;
-        
+        json_writer
+            .write_header_with_array_name(index.record_count() as u64, "lifecycle_events")?;
+
         // Process records and write as lifecycle events
         let fields = [
             AllocationField::Ptr,
@@ -404,51 +410,51 @@ impl SelectiveJsonExporter {
             AllocationField::TimestampAlloc,
             AllocationField::TypeName,
             AllocationField::VarName,
-        ].into_iter().collect();
-        
+        ]
+        .into_iter()
+        .collect();
+
         let mut processed_count = 0;
         let batch_size = self.config.batch_processor_config.batch_size;
-        
+
         for batch_start in (0..index.record_count() as usize).step_by(batch_size) {
             let batch_end = (batch_start + batch_size).min(index.record_count() as usize);
             let batch_offsets: Vec<u64> = (batch_start..batch_end)
                 .filter_map(|i| index.get_record_offset(i))
                 .collect();
-            
+
             if batch_offsets.is_empty() {
                 continue;
             }
-            
+
             // Read and parse records
-            let records = self.batch_processor.process_batch(
-                &mut binary_file,
-                &batch_offsets,
-                &fields,
-            )?;
-            
+            let records =
+                self.batch_processor
+                    .process_batch(&mut binary_file, &batch_offsets, &fields)?;
+
             // Write records as lifecycle events
             for record in &records.records {
                 json_writer.write_lifecycle_event(record, "allocation")?;
             }
-            
+
             processed_count += records.records.len();
         }
-        
+
         // Finalize JSON document
         let json_stats = json_writer.finalize()?;
-        
+
         // Update export statistics
         self.stats.json_writer_stats = json_stats;
         self.stats.total_export_time_us += export_start.elapsed().as_micros() as u64;
         self.stats.files_processed += 1;
         self.stats.total_allocations_exported += processed_count as u64;
         self.stats.total_bytes_written += self.stats.json_writer_stats.bytes_written;
-        
+
         self.update_derived_stats();
-        
+
         Ok(self.stats.clone())
     }
-    
+
     /// Export to performance.json format (compatible with existing format)
     pub fn export_performance_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
@@ -463,11 +469,13 @@ impl SelectiveJsonExporter {
             AllocationField::TimestampAlloc,
             AllocationField::TypeName,
             AllocationField::VarName,
-        ].into_iter().collect();
-        
+        ]
+        .into_iter()
+        .collect();
+
         self.export_to_json_selective(binary_path, json_path, &fields, &[])
     }
-    
+
     /// Export to unsafe_ffi.json format (compatible with existing format)
     pub fn export_unsafe_ffi_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
@@ -475,13 +483,13 @@ impl SelectiveJsonExporter {
         json_path: Q,
     ) -> Result<SelectiveJsonExportStats, BinaryExportError> {
         let export_start = Instant::now();
-        
+
         // Build or retrieve index
         let index = self.get_or_build_index(&binary_path)?;
-        
+
         // Open binary file for reading
         let mut binary_file = File::open(&binary_path)?;
-        
+
         // Create JSON writer
         let json_file = File::create(&json_path)?;
         let buffered_writer = BufWriter::new(json_file);
@@ -489,12 +497,12 @@ impl SelectiveJsonExporter {
             buffered_writer,
             self.config.json_writer_config.clone(),
         )?;
-        
+
         // Start JSON document with specific structure for unsafe_ffi
         json_writer.write_raw("{\n")?;
         json_writer.write_raw("  \"boundary_events\": [],\n")?;
         json_writer.write_raw("  \"enhanced_ffi_data\": [\n")?;
-        
+
         // Process records
         let fields = [
             AllocationField::Ptr,
@@ -504,55 +512,55 @@ impl SelectiveJsonExporter {
             AllocationField::TimestampAlloc,
             AllocationField::TypeName,
             AllocationField::VarName,
-        ].into_iter().collect();
-        
+        ]
+        .into_iter()
+        .collect();
+
         let mut processed_count = 0;
         let batch_size = self.config.batch_processor_config.batch_size;
-        
+
         for batch_start in (0..index.record_count() as usize).step_by(batch_size) {
             let batch_end = (batch_start + batch_size).min(index.record_count() as usize);
             let batch_offsets: Vec<u64> = (batch_start..batch_end)
                 .filter_map(|i| index.get_record_offset(i))
                 .collect();
-            
+
             if batch_offsets.is_empty() {
                 continue;
             }
-            
+
             // Read and parse records
-            let records = self.batch_processor.process_batch(
-                &mut binary_file,
-                &batch_offsets,
-                &fields,
-            )?;
-            
+            let records =
+                self.batch_processor
+                    .process_batch(&mut binary_file, &batch_offsets, &fields)?;
+
             // Write records with unsafe_ffi format
             for record in &records.records {
                 json_writer.write_unsafe_ffi_allocation(record)?;
             }
-            
+
             processed_count += records.records.len();
         }
-        
+
         // Close the enhanced_ffi_data array and root object
         json_writer.write_raw("\n  ]\n")?;
         json_writer.write_raw("}\n")?;
-        
+
         // Finalize JSON document
         let json_stats = json_writer.finalize()?;
-        
+
         // Update export statistics
         self.stats.json_writer_stats = json_stats;
         self.stats.total_export_time_us += export_start.elapsed().as_micros() as u64;
         self.stats.files_processed += 1;
         self.stats.total_allocations_exported += processed_count as u64;
         self.stats.total_bytes_written += self.stats.json_writer_stats.bytes_written;
-        
+
         self.update_derived_stats();
-        
+
         Ok(self.stats.clone())
     }
-    
+
     /// Export to complex_types.json format (compatible with existing format)
     pub fn export_complex_types_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
@@ -560,13 +568,13 @@ impl SelectiveJsonExporter {
         json_path: Q,
     ) -> Result<SelectiveJsonExportStats, BinaryExportError> {
         let export_start = Instant::now();
-        
+
         // Build or retrieve index
         let index = self.get_or_build_index(&binary_path)?;
-        
+
         // Open binary file for reading
         let mut binary_file = File::open(&binary_path)?;
-        
+
         // Create JSON writer
         let json_file = File::create(&json_path)?;
         let buffered_writer = BufWriter::new(json_file);
@@ -574,68 +582,68 @@ impl SelectiveJsonExporter {
             buffered_writer,
             self.config.json_writer_config.clone(),
         )?;
-        
+
         // Start JSON document with categorized_types structure
         json_writer.write_raw("{\n")?;
         json_writer.write_raw("  \"categorized_types\": {\n")?;
         json_writer.write_raw("    \"primitive\": [\n")?;
-        
+
         // Process records
         let fields = [
             AllocationField::Ptr,
             AllocationField::Size,
             AllocationField::TypeName,
             AllocationField::VarName,
-        ].into_iter().collect();
-        
+        ]
+        .into_iter()
+        .collect();
+
         let mut processed_count = 0;
         let batch_size = self.config.batch_processor_config.batch_size;
-        
+
         for batch_start in (0..index.record_count() as usize).step_by(batch_size) {
             let batch_end = (batch_start + batch_size).min(index.record_count() as usize);
             let batch_offsets: Vec<u64> = (batch_start..batch_end)
                 .filter_map(|i| index.get_record_offset(i))
                 .collect();
-            
+
             if batch_offsets.is_empty() {
                 continue;
             }
-            
+
             // Read and parse records
-            let records = self.batch_processor.process_batch(
-                &mut binary_file,
-                &batch_offsets,
-                &fields,
-            )?;
-            
+            let records =
+                self.batch_processor
+                    .process_batch(&mut binary_file, &batch_offsets, &fields)?;
+
             // Write records with complex_types format
             for record in &records.records {
                 json_writer.write_complex_types_allocation(record)?;
             }
-            
+
             processed_count += records.records.len();
         }
-        
+
         // Close the structure
         json_writer.write_raw("\n    ]\n")?;
         json_writer.write_raw("  }\n")?;
         json_writer.write_raw("}\n")?;
-        
+
         // Finalize JSON document
         let json_stats = json_writer.finalize()?;
-        
+
         // Update export statistics
         self.stats.json_writer_stats = json_stats;
         self.stats.total_export_time_us += export_start.elapsed().as_micros() as u64;
         self.stats.files_processed += 1;
         self.stats.total_allocations_exported += processed_count as u64;
         self.stats.total_bytes_written += self.stats.json_writer_stats.bytes_written;
-        
+
         self.update_derived_stats();
-        
+
         Ok(self.stats.clone())
     }
-    
+
     /// Export all 5 JSON types in the standard format (compatible with existing output)
     pub fn export_all_standard_json_types<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
@@ -645,27 +653,27 @@ impl SelectiveJsonExporter {
     ) -> Result<Vec<SelectiveJsonExportStats>, BinaryExportError> {
         let output_dir = output_dir.as_ref();
         let mut results = Vec::new();
-        
+
         // Export memory_analysis.json
         let memory_path = output_dir.join(format!("{}_memory_analysis.json", base_name));
         results.push(self.export_memory_analysis_json(&binary_path, &memory_path)?);
-        
+
         // Export lifetime.json
         let lifetime_path = output_dir.join(format!("{}_lifetime.json", base_name));
         results.push(self.export_lifetime_json(&binary_path, &lifetime_path)?);
-        
+
         // Export performance.json
         let performance_path = output_dir.join(format!("{}_performance.json", base_name));
         results.push(self.export_performance_json(&binary_path, &performance_path)?);
-        
+
         // Export unsafe_ffi.json
         let unsafe_ffi_path = output_dir.join(format!("{}_unsafe_ffi.json", base_name));
         results.push(self.export_unsafe_ffi_json(&binary_path, &unsafe_ffi_path)?);
-        
+
         // Export complex_types.json
         let complex_types_path = output_dir.join(format!("{}_complex_types.json", base_name));
         results.push(self.export_complex_types_json(&binary_path, &complex_types_path)?);
-        
+
         Ok(results)
     }
 
@@ -912,14 +920,18 @@ mod tests {
             max_age_seconds: 3600,
             enable_compression: false,
         };
-        
+
         let config = SelectiveJsonExportConfig {
             index_cache_config: cache_config,
             ..Default::default()
         };
-        
+
         let exporter = SelectiveJsonExporter::with_config(config);
-        assert!(exporter.is_ok(), "Failed to create SelectiveJsonExporter: {:?}", exporter.err());
+        assert!(
+            exporter.is_ok(),
+            "Failed to create SelectiveJsonExporter: {:?}",
+            exporter.err()
+        );
     }
 
     #[test]

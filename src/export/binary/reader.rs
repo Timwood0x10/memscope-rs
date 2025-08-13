@@ -324,9 +324,15 @@ impl BinaryReader {
         for i in 0..header.total_count {
             match self.read_allocation() {
                 Ok(allocation) => allocations.push(allocation),
-                Err(BinaryExportError::Io(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                Err(BinaryExportError::Io(ref e))
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
                     // Handle partial reads gracefully
-                    tracing::warn!("Reached end of file after reading {} of {} allocations", i, header.total_count);
+                    tracing::warn!(
+                        "Reached end of file after reading {} of {} allocations",
+                        i,
+                        header.total_count
+                    );
                     break;
                 }
                 Err(e) => return Err(e),
@@ -348,7 +354,7 @@ impl BinaryReader {
         // Try to read advanced metrics header with partial read handling
         let mut header_bytes = [0u8; 16];
         let mut bytes_read = 0;
-        
+
         // Read as much as possible without failing on partial reads
         while bytes_read < 16 {
             match self.reader.read(&mut header_bytes[bytes_read..]) {
@@ -361,7 +367,10 @@ impl BinaryReader {
                         ));
                     } else {
                         // Partial read, file is truncated
-                        tracing::warn!("File appears to be truncated, only read {} of 16 header bytes", bytes_read);
+                        tracing::warn!(
+                            "File appears to be truncated, only read {} of 16 header bytes",
+                            bytes_read
+                        );
                         return Err(BinaryExportError::CorruptedData(
                             "Truncated advanced metrics header".to_string(),
                         ));

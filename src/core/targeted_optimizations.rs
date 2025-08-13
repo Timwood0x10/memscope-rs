@@ -8,7 +8,6 @@ use crate::core::simple_mutex::SimpleMutex;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-
 /// Optimized statistics collector that avoids lock contention
 pub struct FastStatsCollector {
     // Core memory statistics using cache-line optimized structure
@@ -263,7 +262,8 @@ mod tests {
         let collector = FastStatsCollector::new();
 
         // Test fast path
-        for _i in 0..100 { // Reduced from 1000 to 100
+        for _i in 0..100 {
+            // Reduced from 1000 to 100
             collector.record_allocation_fast(64);
         }
 

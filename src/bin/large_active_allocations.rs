@@ -17,7 +17,8 @@ fn main() {
 
     tracing::info!("📦 create 10,000 active allocations...");
 
-    for i in 0..1000 { // Reduced from 10000 to 1000
+    for i in 0..1000 {
+        // Reduced from 10000 to 1000
         // create different types of allocations
         let large_vec = vec![i; 100];
         let tracked_vec = track_var!(large_vec);

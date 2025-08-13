@@ -998,5 +998,4 @@ mod tests {
         assert_eq!(report.success_rate, 80.0);
         assert_eq!(report.avg_recovery_time_ms, 125.0); // 1000 / 8
     }
-
 }

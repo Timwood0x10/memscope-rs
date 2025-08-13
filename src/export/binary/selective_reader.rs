@@ -4,10 +4,10 @@
 //! specific fields from binary allocation records, with advanced filtering
 //! and optimization features.
 
+use crate::core::types::AllocationInfo;
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::index::BinaryIndex;
 use crate::export::binary::parser::BinaryParser;
-use crate::core::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs::File;
@@ -19,25 +19,25 @@ use std::path::Path;
 pub struct SelectiveReadOptions {
     /// Fields to include in the read operation
     pub include_fields: HashSet<AllocationField>,
-    
+
     /// Filters to apply during reading
     pub filters: Vec<AllocationFilter>,
-    
+
     /// Maximum number of records to read (None for unlimited)
     pub limit: Option<usize>,
-    
+
     /// Number of records to skip from the beginning
     pub offset: Option<usize>,
-    
+
     /// Field to sort results by
     pub sort_by: Option<SortField>,
-    
+
     /// Sort order (ascending or descending)
     pub sort_order: SortOrder,
-    
+
     /// Whether to enable batch processing optimizations
     pub enable_batch_processing: bool,
-    
+
     /// Batch size for processing (default: 1000)
     pub batch_size: usize,
 }
@@ -62,19 +62,19 @@ impl SelectiveReadOptions {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Set the fields to include in the read operation
     pub fn with_fields(mut self, fields: HashSet<AllocationField>) -> Self {
         self.include_fields = fields;
         self
     }
-    
+
     /// Add a single field to include
     pub fn include_field(mut self, field: AllocationField) -> Self {
         self.include_fields.insert(field);
         self
     }
-    
+
     /// Add multiple fields to include
     pub fn include_fields(mut self, fields: &[AllocationField]) -> Self {
         for field in fields {
@@ -82,38 +82,38 @@ impl SelectiveReadOptions {
         }
         self
     }
-    
+
     /// Set filters to apply during reading
     pub fn with_filters(mut self, filters: Vec<AllocationFilter>) -> Self {
         self.filters = filters;
         self
     }
-    
+
     /// Add a single filter
     pub fn add_filter(mut self, filter: AllocationFilter) -> Self {
         self.filters.push(filter);
         self
     }
-    
+
     /// Set the maximum number of records to read
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
         self
     }
-    
+
     /// Set the number of records to skip
     pub fn with_offset(mut self, offset: usize) -> Self {
         self.offset = Some(offset);
         self
     }
-    
+
     /// Set the field to sort by
     pub fn sort_by(mut self, field: SortField, order: SortOrder) -> Self {
         self.sort_by = Some(field);
         self.sort_order = order;
         self
     }
-    
+
     /// Enable or disable batch processing
     pub fn with_batch_processing(mut self, enabled: bool, batch_size: Option<usize>) -> Self {
         self.enable_batch_processing = enabled;
@@ -122,32 +122,32 @@ impl SelectiveReadOptions {
         }
         self
     }
-    
+
     /// Validate the configuration options
     pub fn validate(&self) -> Result<(), BinaryExportError> {
         if self.include_fields.is_empty() {
             return Err(BinaryExportError::CorruptedData(
-                "At least one field must be included".to_string()
+                "At least one field must be included".to_string(),
             ));
         }
-        
+
         if self.batch_size == 0 {
             return Err(BinaryExportError::CorruptedData(
-                "Batch size must be greater than 0".to_string()
+                "Batch size must be greater than 0".to_string(),
             ));
         }
-        
+
         // Note: offset and limit are independent - offset is how many to skip,
         // limit is how many to return after skipping
-        
+
         Ok(())
     }
-    
+
     /// Check if a specific field is included
     pub fn includes_field(&self, field: &AllocationField) -> bool {
         self.include_fields.contains(field)
     }
-    
+
     /// Get the effective limit considering offset
     pub fn effective_limit(&self) -> Option<usize> {
         match (self.limit, self.offset) {
@@ -166,7 +166,7 @@ pub enum AllocationField {
     Size,
     TimestampAlloc,
     ThreadId,
-    
+
     // Optional basic fields
     VarName,
     TypeName,
@@ -175,10 +175,10 @@ pub enum AllocationField {
     BorrowCount,
     IsLeaked,
     LifetimeMs,
-    
+
     // Stack trace information
     StackTrace,
-    
+
     // Advanced fields (may not be available in all files)
     SmartPointerInfo,
     MemoryLayout,
@@ -208,9 +208,11 @@ impl AllocationField {
             Self::VarName,
             Self::TypeName,
             Self::IsLeaked,
-        ].into_iter().collect()
+        ]
+        .into_iter()
+        .collect()
     }
-    
+
     /// Get all available fields
     pub fn all_fields() -> HashSet<Self> {
         [
@@ -241,9 +243,11 @@ impl AllocationField {
             Self::LifecycleTracking,
             Self::AccessTracking,
             Self::DropChainAnalysis,
-        ].into_iter().collect()
+        ]
+        .into_iter()
+        .collect()
     }
-    
+
     /// Get fields needed for memory analysis
     pub fn memory_analysis_fields() -> HashSet<Self> {
         [
@@ -255,9 +259,11 @@ impl AllocationField {
             Self::TimestampAlloc,
             Self::IsLeaked,
             Self::BorrowCount,
-        ].into_iter().collect()
+        ]
+        .into_iter()
+        .collect()
     }
-    
+
     /// Get fields needed for lifetime analysis
     pub fn lifetime_analysis_fields() -> HashSet<Self> {
         [
@@ -267,9 +273,11 @@ impl AllocationField {
             Self::TimestampDealloc,
             Self::LifetimeMs,
             Self::ScopeName,
-        ].into_iter().collect()
+        ]
+        .into_iter()
+        .collect()
     }
-    
+
     /// Get fields needed for performance analysis
     pub fn performance_analysis_fields() -> HashSet<Self> {
         [
@@ -279,9 +287,11 @@ impl AllocationField {
             Self::ThreadId,
             Self::BorrowCount,
             Self::FragmentationAnalysis,
-        ].into_iter().collect()
+        ]
+        .into_iter()
+        .collect()
     }
-    
+
     /// Get fields needed for complex types analysis
     pub fn complex_types_fields() -> HashSet<Self> {
         [
@@ -293,9 +303,11 @@ impl AllocationField {
             Self::MemoryLayout,
             Self::GenericInfo,
             Self::TypeRelationships,
-        ].into_iter().collect()
+        ]
+        .into_iter()
+        .collect()
     }
-    
+
     /// Get fields needed for unsafe FFI analysis
     pub fn unsafe_ffi_fields() -> HashSet<Self> {
         [
@@ -305,34 +317,38 @@ impl AllocationField {
             Self::ThreadId,
             Self::StackTrace,
             Self::RuntimeState,
-        ].into_iter().collect()
+        ]
+        .into_iter()
+        .collect()
     }
-    
+
     /// Check if this field is always available in binary files
     pub fn is_basic_field(&self) -> bool {
-        matches!(self, 
+        matches!(
+            self,
             Self::Ptr | Self::Size | Self::TimestampAlloc | Self::ThreadId
         )
     }
-    
+
     /// Check if this field requires advanced metrics to be enabled
     pub fn requires_advanced_metrics(&self) -> bool {
-        matches!(self,
-            Self::SmartPointerInfo |
-            Self::MemoryLayout |
-            Self::GenericInfo |
-            Self::DynamicTypeInfo |
-            Self::RuntimeState |
-            Self::StackAllocation |
-            Self::TemporaryObject |
-            Self::FragmentationAnalysis |
-            Self::GenericInstantiation |
-            Self::TypeRelationships |
-            Self::TypeUsage |
-            Self::FunctionCallTracking |
-            Self::LifecycleTracking |
-            Self::AccessTracking |
-            Self::DropChainAnalysis
+        matches!(
+            self,
+            Self::SmartPointerInfo
+                | Self::MemoryLayout
+                | Self::GenericInfo
+                | Self::DynamicTypeInfo
+                | Self::RuntimeState
+                | Self::StackAllocation
+                | Self::TemporaryObject
+                | Self::FragmentationAnalysis
+                | Self::GenericInstantiation
+                | Self::TypeRelationships
+                | Self::TypeUsage
+                | Self::FunctionCallTracking
+                | Self::LifecycleTracking
+                | Self::AccessTracking
+                | Self::DropChainAnalysis
         )
     }
 }
@@ -342,49 +358,49 @@ impl AllocationField {
 pub enum AllocationFilter {
     /// Filter by pointer value range
     PtrRange(usize, usize),
-    
+
     /// Filter by allocation size range
     SizeRange(usize, usize),
-    
+
     /// Filter by timestamp range
     TimestampRange(u64, u64),
-    
+
     /// Filter by exact thread ID match
     ThreadEquals(String),
-    
+
     /// Filter by thread ID pattern (contains)
     ThreadContains(String),
-    
+
     /// Filter by exact type name match
     TypeEquals(String),
-    
+
     /// Filter by type name pattern (contains)
     TypeContains(String),
-    
+
     /// Filter by variable name pattern (contains)
     VarNameContains(String),
-    
+
     /// Filter by scope name pattern (contains)
     ScopeNameContains(String),
-    
+
     /// Filter records that have stack trace information
     HasStackTrace,
-    
+
     /// Filter records that don't have stack trace information
     NoStackTrace,
-    
+
     /// Filter leaked allocations only
     LeakedOnly,
-    
+
     /// Filter non-leaked allocations only
     NotLeaked,
-    
+
     /// Filter by minimum borrow count
     MinBorrowCount(usize),
-    
+
     /// Filter by maximum borrow count
     MaxBorrowCount(usize),
-    
+
     /// Filter by lifetime range (in milliseconds)
     LifetimeRange(u64, u64),
 }
@@ -392,17 +408,18 @@ pub enum AllocationFilter {
 impl AllocationFilter {
     /// Check if this filter can be applied using index pre-filtering
     pub fn supports_index_prefiltering(&self) -> bool {
-        matches!(self,
-            Self::PtrRange(_, _) |
-            Self::SizeRange(_, _) |
-            Self::TimestampRange(_, _) |
-            Self::ThreadEquals(_) |
-            Self::ThreadContains(_) |
-            Self::TypeEquals(_) |
-            Self::TypeContains(_)
+        matches!(
+            self,
+            Self::PtrRange(_, _)
+                | Self::SizeRange(_, _)
+                | Self::TimestampRange(_, _)
+                | Self::ThreadEquals(_)
+                | Self::ThreadContains(_)
+                | Self::TypeEquals(_)
+                | Self::TypeContains(_)
         )
     }
-    
+
     /// Apply this filter to an allocation record
     pub fn matches(&self, allocation: &AllocationInfo) -> bool {
         match self {
@@ -413,27 +430,31 @@ impl AllocationFilter {
             }
             Self::ThreadEquals(thread) => allocation.thread_id == *thread,
             Self::ThreadContains(pattern) => allocation.thread_id.contains(pattern),
-            Self::TypeEquals(type_name) => {
-                allocation.type_name.as_ref().map_or(false, |t| t == type_name)
-            }
-            Self::TypeContains(pattern) => {
-                allocation.type_name.as_ref().map_or(false, |t| t.contains(pattern))
-            }
-            Self::VarNameContains(pattern) => {
-                allocation.var_name.as_ref().map_or(false, |v| v.contains(pattern))
-            }
-            Self::ScopeNameContains(pattern) => {
-                allocation.scope_name.as_ref().map_or(false, |s| s.contains(pattern))
-            }
+            Self::TypeEquals(type_name) => allocation
+                .type_name
+                .as_ref()
+                .map_or(false, |t| t == type_name),
+            Self::TypeContains(pattern) => allocation
+                .type_name
+                .as_ref()
+                .map_or(false, |t| t.contains(pattern)),
+            Self::VarNameContains(pattern) => allocation
+                .var_name
+                .as_ref()
+                .map_or(false, |v| v.contains(pattern)),
+            Self::ScopeNameContains(pattern) => allocation
+                .scope_name
+                .as_ref()
+                .map_or(false, |s| s.contains(pattern)),
             Self::HasStackTrace => allocation.stack_trace.is_some(),
             Self::NoStackTrace => allocation.stack_trace.is_none(),
             Self::LeakedOnly => allocation.is_leaked,
             Self::NotLeaked => !allocation.is_leaked,
             Self::MinBorrowCount(min) => allocation.borrow_count >= *min,
             Self::MaxBorrowCount(max) => allocation.borrow_count <= *max,
-            Self::LifetimeRange(min, max) => {
-                allocation.lifetime_ms.map_or(false, |lifetime| lifetime >= *min && lifetime <= *max)
-            }
+            Self::LifetimeRange(min, max) => allocation
+                .lifetime_ms
+                .map_or(false, |lifetime| lifetime >= *min && lifetime <= *max),
         }
     }
 }
@@ -471,7 +492,7 @@ impl SelectiveReadOptionsBuilder {
             options: SelectiveReadOptions::default(),
         }
     }
-    
+
     /// Create a builder for memory analysis
     pub fn for_memory_analysis() -> Self {
         Self {
@@ -481,7 +502,7 @@ impl SelectiveReadOptionsBuilder {
             },
         }
     }
-    
+
     /// Create a builder for lifetime analysis
     pub fn for_lifetime_analysis() -> Self {
         Self {
@@ -491,7 +512,7 @@ impl SelectiveReadOptionsBuilder {
             },
         }
     }
-    
+
     /// Create a builder for performance analysis
     pub fn for_performance_analysis() -> Self {
         Self {
@@ -501,7 +522,7 @@ impl SelectiveReadOptionsBuilder {
             },
         }
     }
-    
+
     /// Create a builder for complex types analysis
     pub fn for_complex_types_analysis() -> Self {
         Self {
@@ -511,7 +532,7 @@ impl SelectiveReadOptionsBuilder {
             },
         }
     }
-    
+
     /// Create a builder for unsafe FFI analysis
     pub fn for_unsafe_ffi_analysis() -> Self {
         Self {
@@ -521,13 +542,13 @@ impl SelectiveReadOptionsBuilder {
             },
         }
     }
-    
+
     /// Add a field to include
     pub fn include_field(mut self, field: AllocationField) -> Self {
         self.options.include_fields.insert(field);
         self
     }
-    
+
     /// Add multiple fields to include
     pub fn include_fields(mut self, fields: &[AllocationField]) -> Self {
         for field in fields {
@@ -535,44 +556,44 @@ impl SelectiveReadOptionsBuilder {
         }
         self
     }
-    
+
     /// Set all fields to include
     pub fn with_fields(mut self, fields: HashSet<AllocationField>) -> Self {
         self.options.include_fields = fields;
         self
     }
-    
+
     /// Add a filter
     pub fn filter(mut self, filter: AllocationFilter) -> Self {
         self.options.filters.push(filter);
         self
     }
-    
+
     /// Add multiple filters
     pub fn filters(mut self, filters: Vec<AllocationFilter>) -> Self {
         self.options.filters.extend(filters);
         self
     }
-    
+
     /// Set the limit
     pub fn limit(mut self, limit: usize) -> Self {
         self.options.limit = Some(limit);
         self
     }
-    
+
     /// Set the offset
     pub fn offset(mut self, offset: usize) -> Self {
         self.options.offset = Some(offset);
         self
     }
-    
+
     /// Set sorting
     pub fn sort_by(mut self, field: SortField, order: SortOrder) -> Self {
         self.options.sort_by = Some(field);
         self.options.sort_order = order;
         self
     }
-    
+
     /// Configure batch processing
     pub fn batch_processing(mut self, enabled: bool, batch_size: Option<usize>) -> Self {
         self.options.enable_batch_processing = enabled;
@@ -581,7 +602,7 @@ impl SelectiveReadOptionsBuilder {
         }
         self
     }
-    
+
     /// Build the final SelectiveReadOptions
     pub fn build(self) -> Result<SelectiveReadOptions, BinaryExportError> {
         self.options.validate()?;
@@ -809,13 +830,13 @@ mod tests {
 pub struct SelectiveBinaryReader {
     /// Binary file index for fast lookups
     index: BinaryIndex,
-    
+
     /// Buffered file reader
     reader: BufReader<File>,
-    
+
     /// Cached allocations for batch processing
     allocation_cache: Vec<AllocationInfo>,
-    
+
     /// Current position in the file
     current_position: u64,
 }
@@ -829,7 +850,7 @@ impl SelectiveBinaryReader {
     ) -> Result<Self, BinaryExportError> {
         let file = File::open(file_path)?;
         let reader = BufReader::new(file);
-        
+
         Ok(Self {
             index,
             reader,
@@ -837,14 +858,14 @@ impl SelectiveBinaryReader {
             current_position: 0,
         })
     }
-    
+
     /// Create a new selective reader and build index automatically
     pub fn new<P: AsRef<Path>>(file_path: P) -> Result<Self, BinaryExportError> {
         let index_builder = crate::export::binary::BinaryIndexBuilder::new();
         let index = index_builder.build_index(&file_path)?;
         Self::new_with_index(file_path, index)
     }
-    
+
     /// Read allocations based on selective options
     pub fn read_selective(
         &mut self,
@@ -852,32 +873,32 @@ impl SelectiveBinaryReader {
     ) -> Result<Vec<AllocationInfo>, BinaryExportError> {
         // Validate options
         options.validate()?;
-        
+
         // Get candidate record indices using index pre-filtering
         let candidate_indices = self.pre_filter_with_index(&options.filters)?;
-        
+
         // Apply offset and limit to candidates
         let filtered_indices = self.apply_offset_limit(&candidate_indices, options);
-        
+
         // Read and parse the selected records
         let mut allocations = self.read_records_by_indices(&filtered_indices, options)?;
-        
+
         // Apply precise filtering to loaded records
         allocations = self.apply_precise_filters(allocations, &options.filters)?;
-        
+
         // Apply sorting if requested
         if let Some(sort_field) = options.sort_by {
             self.sort_allocations(&mut allocations, sort_field, options.sort_order)?;
         }
-        
+
         // Apply final limit after sorting
         if let Some(limit) = options.limit {
             allocations.truncate(limit);
         }
-        
+
         Ok(allocations)
     }
-    
+
     /// Read allocations in streaming mode with a callback
     pub fn read_selective_streaming<F>(
         &mut self,
@@ -889,23 +910,23 @@ impl SelectiveBinaryReader {
     {
         // Validate options
         options.validate()?;
-        
+
         // Get candidate record indices using index pre-filtering
         let candidate_indices = self.pre_filter_with_index(&options.filters)?;
-        
+
         // Apply offset and limit to candidates
         let filtered_indices = self.apply_offset_limit(&candidate_indices, options);
-        
+
         let mut _processed_count = 0;
         let mut returned_count = 0;
-        
+
         // Process records in batches for memory efficiency
         for batch in filtered_indices.chunks(options.batch_size) {
             let batch_allocations = self.read_records_by_indices(batch, options)?;
-            
+
             for allocation in batch_allocations {
                 _processed_count += 1;
-                
+
                 // Apply precise filtering
                 if self.allocation_matches_filters(&allocation, &options.filters)? {
                     // Apply offset
@@ -915,27 +936,27 @@ impl SelectiveBinaryReader {
                             continue;
                         }
                     }
-                    
+
                     // Apply limit
                     if let Some(limit) = options.limit {
                         if returned_count >= limit + options.offset.unwrap_or(0) {
                             break;
                         }
                     }
-                    
+
                     // Call the callback
                     if !callback(&allocation)? {
                         break;
                     }
-                    
+
                     returned_count += 1;
                 }
             }
         }
-        
+
         Ok(returned_count)
     }
-    
+
     /// Read the next allocation record in streaming mode
     pub fn read_next_allocation(&mut self) -> Result<Option<AllocationInfo>, BinaryExportError> {
         // This is a simplified implementation for streaming
@@ -943,7 +964,7 @@ impl SelectiveBinaryReader {
         if self.current_position >= self.index.record_count() as u64 {
             return Ok(None);
         }
-        
+
         let record_index = self.current_position as usize;
         if let Some(offset) = self.index.get_record_offset(record_index) {
             self.reader.seek(SeekFrom::Start(offset))?;
@@ -954,20 +975,24 @@ impl SelectiveBinaryReader {
             Ok(None)
         }
     }
-    
+
     /// Get the underlying index
     pub fn index(&self) -> &BinaryIndex {
         &self.index
     }
-    
+
     /// Get statistics about the binary file
     pub fn get_stats(&self) -> SelectiveReaderStats {
         SelectiveReaderStats {
+            total_records: self.index.record_count(),
+            file_size: self.index.file_size,
+            has_quick_filter: self.index.has_quick_filter_data(),
+            cache_size: self.allocation_cache.len(),
         }
     }
-    
+
     // Private helper methods
-    
+
     /// Pre-filter record indices using the index
     fn pre_filter_with_index(
         &self,
@@ -975,18 +1000,18 @@ impl SelectiveBinaryReader {
     ) -> Result<Vec<usize>, BinaryExportError> {
         let total_records = self.index.record_count() as usize;
         let mut candidates: Vec<usize> = (0..total_records).collect();
-        
+
         // If we have quick filter data, use it for pre-filtering
         if let Some(ref quick_filter) = self.index.allocations.quick_filter_data {
             candidates = self.apply_quick_filters(&candidates, filters, quick_filter)?;
         }
-        
+
         // Apply bloom filter checks for supported filters
         candidates = self.apply_bloom_filter_checks(&candidates, filters)?;
-        
+
         Ok(candidates)
     }
-    
+
     /// Apply quick filters using range data
     fn apply_quick_filters(
         &self,
@@ -995,31 +1020,34 @@ impl SelectiveBinaryReader {
         quick_filter: &crate::export::binary::index::QuickFilterData,
     ) -> Result<Vec<usize>, BinaryExportError> {
         let mut filtered_candidates = Vec::new();
-        
+
         for &candidate_index in candidates {
             let batch_index = candidate_index / quick_filter.batch_size;
             let mut matches = true;
-            
+
             // Check each filter against the batch ranges
             for filter in filters {
                 match filter {
                     AllocationFilter::PtrRange(min, max) => {
-                        if !quick_filter.ptr_might_be_in_batch(batch_index, *min) &&
-                           !quick_filter.ptr_might_be_in_batch(batch_index, *max) {
+                        if !quick_filter.ptr_might_be_in_batch(batch_index, *min)
+                            && !quick_filter.ptr_might_be_in_batch(batch_index, *max)
+                        {
                             matches = false;
                             break;
                         }
                     }
                     AllocationFilter::SizeRange(min, max) => {
-                        if !quick_filter.size_might_be_in_batch(batch_index, *min) &&
-                           !quick_filter.size_might_be_in_batch(batch_index, *max) {
+                        if !quick_filter.size_might_be_in_batch(batch_index, *min)
+                            && !quick_filter.size_might_be_in_batch(batch_index, *max)
+                        {
                             matches = false;
                             break;
                         }
                     }
                     AllocationFilter::TimestampRange(min, max) => {
-                        if !quick_filter.timestamp_might_be_in_batch(batch_index, *min) &&
-                           !quick_filter.timestamp_might_be_in_batch(batch_index, *max) {
+                        if !quick_filter.timestamp_might_be_in_batch(batch_index, *min)
+                            && !quick_filter.timestamp_might_be_in_batch(batch_index, *max)
+                        {
                             matches = false;
                             break;
                         }
@@ -1027,15 +1055,15 @@ impl SelectiveBinaryReader {
                     _ => {} // Other filters can't be pre-filtered with ranges
                 }
             }
-            
+
             if matches {
                 filtered_candidates.push(candidate_index);
             }
         }
-        
+
         Ok(filtered_candidates)
     }
-    
+
     /// Apply bloom filter checks for string-based filters
     fn apply_bloom_filter_checks(
         &self,
@@ -1045,35 +1073,35 @@ impl SelectiveBinaryReader {
         // This is a simplified implementation
         // In a full implementation, this would use the bloom filters from the index
         // to quickly eliminate candidates that definitely don't match string filters
-        
+
         let mut filtered_candidates = Vec::new();
-        
+
         for &candidate_index in candidates {
             let might_match = true;
-            
+
             // For now, we'll just pass through all candidates
             // In a real implementation, we would check bloom filters here
             for filter in filters {
                 match filter {
-                    AllocationFilter::ThreadEquals(_) |
-                    AllocationFilter::ThreadContains(_) |
-                    AllocationFilter::TypeEquals(_) |
-                    AllocationFilter::TypeContains(_) => {
+                    AllocationFilter::ThreadEquals(_)
+                    | AllocationFilter::ThreadContains(_)
+                    | AllocationFilter::TypeEquals(_)
+                    | AllocationFilter::TypeContains(_) => {
                         // TODO: Implement bloom filter checking
                         // For now, assume all candidates might match
                     }
                     _ => {}
                 }
             }
-            
+
             if might_match {
                 filtered_candidates.push(candidate_index);
             }
         }
-        
+
         Ok(filtered_candidates)
     }
-    
+
     /// Apply offset and limit to candidate indices
     fn apply_offset_limit(
         &self,
@@ -1086,14 +1114,14 @@ impl SelectiveBinaryReader {
         } else {
             candidates.len()
         };
-        
+
         if start >= candidates.len() {
             Vec::new()
         } else {
             candidates[start..end].to_vec()
         }
     }
-    
+
     /// Read specific records by their indices
     fn read_records_by_indices(
         &mut self,
@@ -1104,9 +1132,9 @@ impl SelectiveBinaryReader {
         if self.allocation_cache.is_empty() {
             self.allocation_cache = BinaryParser::load_allocations(&self.index.file_path)?;
         }
-        
+
         let mut allocations = Vec::with_capacity(indices.len());
-        
+
         for &index in indices {
             if index < self.allocation_cache.len() {
                 let allocation = &self.allocation_cache[index];
@@ -1115,10 +1143,10 @@ impl SelectiveBinaryReader {
                 allocations.push(filtered_allocation);
             }
         }
-        
+
         Ok(allocations)
     }
-    
+
     /// Parse a single allocation record from the current position
     fn parse_allocation_record(&mut self) -> Result<AllocationInfo, BinaryExportError> {
         // For the initial implementation, we'll load all allocations once and cache them
@@ -1126,17 +1154,17 @@ impl SelectiveBinaryReader {
         if self.allocation_cache.is_empty() {
             self.allocation_cache = BinaryParser::load_allocations(&self.index.file_path)?;
         }
-        
+
         let current_index = self.current_position as usize;
         if current_index < self.allocation_cache.len() {
             Ok(self.allocation_cache[current_index].clone())
         } else {
             Err(BinaryExportError::CorruptedData(
-                "Record index out of bounds".to_string()
+                "Record index out of bounds".to_string(),
             ))
         }
     }
-    
+
     /// Filter allocation fields based on options
     fn filter_allocation_fields(
         &self,
@@ -1146,9 +1174,9 @@ impl SelectiveBinaryReader {
         // Create a new allocation with only the requested fields
         // This is a simplified implementation - in practice, we would
         // have a more efficient way to handle partial field loading
-        
+
         let mut filtered = allocation.clone();
-        
+
         // Clear fields that are not requested
         if !options.includes_field(&AllocationField::VarName) {
             filtered.var_name = None;
@@ -1213,10 +1241,10 @@ impl SelectiveBinaryReader {
         if !options.includes_field(&AllocationField::DropChainAnalysis) {
             filtered.drop_chain_analysis = None;
         }
-        
+
         filtered
     }
-    
+
     /// Apply precise filters to loaded allocations
     fn apply_precise_filters(
         &self,
@@ -1226,17 +1254,17 @@ impl SelectiveBinaryReader {
         if filters.is_empty() {
             return Ok(allocations);
         }
-        
+
         let mut filtered = Vec::new();
         for allocation in allocations {
             if self.allocation_matches_filters(&allocation, filters)? {
                 filtered.push(allocation);
             }
         }
-        
+
         Ok(filtered)
     }
-    
+
     /// Check if an allocation matches all filters
     fn allocation_matches_filters(
         &self,
@@ -1250,7 +1278,7 @@ impl SelectiveBinaryReader {
         }
         Ok(true)
     }
-    
+
     /// Sort allocations by the specified field and order
     fn sort_allocations(
         &self,
@@ -1282,20 +1310,26 @@ impl SelectiveBinaryReader {
             }
             SortField::TypeName => {
                 allocations.sort_by(|a, b| {
-                    a.type_name.as_deref().unwrap_or("").cmp(b.type_name.as_deref().unwrap_or(""))
+                    a.type_name
+                        .as_deref()
+                        .unwrap_or("")
+                        .cmp(b.type_name.as_deref().unwrap_or(""))
                 });
             }
             SortField::VarName => {
                 allocations.sort_by(|a, b| {
-                    a.var_name.as_deref().unwrap_or("").cmp(b.var_name.as_deref().unwrap_or(""))
+                    a.var_name
+                        .as_deref()
+                        .unwrap_or("")
+                        .cmp(b.var_name.as_deref().unwrap_or(""))
                 });
             }
         }
-        
+
         if sort_order == SortOrder::Descending {
             allocations.reverse();
         }
-        
+
         Ok(())
     }
 }
@@ -1303,6 +1337,17 @@ impl SelectiveBinaryReader {
 /// Statistics about the selective reader
 #[derive(Debug, Clone)]
 pub struct SelectiveReaderStats {
+    /// Total number of records in the file
+    pub total_records: u32,
+
+    /// Size of the binary file in bytes
+    pub file_size: u64,
+
+    /// Whether quick filter data is available
+    pub has_quick_filter: bool,
+
+    /// Current size of the allocation cache
+    pub cache_size: usize,
 }
 
 // Additional tests for SelectiveBinaryReader
@@ -1420,49 +1465,67 @@ mod selective_reader_tests {
     #[test]
     fn test_selective_reader_creation() {
         let test_file = create_test_binary_with_multiple_allocations();
-        
+
         // First, let's test if BinaryParser can load the file
-        let allocations_result = crate::export::binary::BinaryParser::load_allocations(test_file.path());
+        let allocations_result =
+            crate::export::binary::BinaryParser::load_allocations(test_file.path());
         if let Err(ref e) = allocations_result {
             println!("Error loading allocations with BinaryParser: {:?}", e);
         }
-        assert!(allocations_result.is_ok(), "BinaryParser should be able to load the file");
-        
+        assert!(
+            allocations_result.is_ok(),
+            "BinaryParser should be able to load the file"
+        );
+
         let allocations = allocations_result.unwrap();
-        println!("Successfully loaded {} allocations with BinaryParser", allocations.len());
-        
+        println!(
+            "Successfully loaded {} allocations with BinaryParser",
+            allocations.len()
+        );
+
         // Let's debug the file structure
         let file_size = std::fs::metadata(test_file.path()).unwrap().len();
         println!("Binary file size: {} bytes", file_size);
-        
+
         // Read the file header manually
         let mut file = std::fs::File::open(test_file.path()).unwrap();
         let mut header_bytes = [0u8; 16];
         std::io::Read::read_exact(&mut file, &mut header_bytes).unwrap();
         println!("Header bytes: {:?}", header_bytes);
-        
+
         // Read string table marker
         let mut marker = [0u8; 4];
         std::io::Read::read_exact(&mut file, &mut marker).unwrap();
-        println!("String table marker: {:?} ({})", marker, String::from_utf8_lossy(&marker));
-        
+        println!(
+            "String table marker: {:?} ({})",
+            marker,
+            String::from_utf8_lossy(&marker)
+        );
+
         // Read string table size
         let mut size_bytes = [0u8; 4];
         std::io::Read::read_exact(&mut file, &mut size_bytes).unwrap();
         let table_size = u32::from_le_bytes(size_bytes);
         println!("String table size: {}", table_size);
-        
+
         // Current position should be where allocation records start
         let current_pos = std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0)).unwrap();
-        println!("Current position after string table header: {}", current_pos);
-        
+        println!(
+            "Current position after string table header: {}",
+            current_pos
+        );
+
         // Skip string table data if any
         if table_size > 0 {
             std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(table_size as i64)).unwrap();
-            let pos_after_table = std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0)).unwrap();
-            println!("Position after skipping string table data: {}", pos_after_table);
+            let pos_after_table =
+                std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0)).unwrap();
+            println!(
+                "Position after skipping string table data: {}",
+                pos_after_table
+            );
         }
-        
+
         // Try to read the first allocation record
         let mut record_type = [0u8; 1];
         if std::io::Read::read_exact(&mut file, &mut record_type).is_ok() {
@@ -1470,51 +1533,57 @@ mod selective_reader_tests {
         } else {
             println!("Failed to read first allocation record type");
         }
-        
+
         // Now test the index builder
         let index_builder = crate::export::binary::BinaryIndexBuilder::new();
         let index_result = index_builder.build_index(test_file.path());
         if let Err(ref e) = index_result {
             println!("Error building index: {:?}", e);
         }
-        assert!(index_result.is_ok(), "BinaryIndexBuilder should be able to build index");
-        
+        assert!(
+            index_result.is_ok(),
+            "BinaryIndexBuilder should be able to build index"
+        );
+
         let index = index_result.unwrap();
-        println!("Successfully built index with {} records", index.record_count());
-        
+        println!(
+            "Successfully built index with {} records",
+            index.record_count()
+        );
+
         // Finally test the selective reader
         let reader = SelectiveBinaryReader::new(test_file.path());
         if let Err(ref e) = reader {
             println!("Error creating reader: {:?}", e);
         }
         assert!(reader.is_ok());
-        
+
         let reader = reader.unwrap();
         let stats = reader.get_stats();
-        // Stats struct is now empty, just verify it can be created
-        let _ = stats;
+        assert_eq!(stats.total_records, 3);
+        assert!(stats.file_size > 0);
     }
 
     #[test]
     fn test_selective_reading_with_filters() {
         let test_file = create_test_binary_with_multiple_allocations();
         let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
-        
+
         // Test size filter
         let options = SelectiveReadOptionsBuilder::new()
             .filter(AllocationFilter::SizeRange(1000, 3000))
             .build()
             .unwrap();
-        
+
         let allocations = reader.read_selective(&options).unwrap();
         assert_eq!(allocations.len(), 2); // Should match 1024 and 2048 byte allocations
-        
+
         // Test thread filter
         let options = SelectiveReadOptionsBuilder::new()
             .filter(AllocationFilter::ThreadEquals("main".to_string()))
             .build()
             .unwrap();
-        
+
         let allocations = reader.read_selective(&options).unwrap();
         assert_eq!(allocations.len(), 2); // Should match allocations from main thread
     }
@@ -1523,23 +1592,20 @@ mod selective_reader_tests {
     fn test_selective_reading_with_limit_and_offset() {
         let test_file = create_test_binary_with_multiple_allocations();
         let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
-        
+
         // Test limit
-        let options = SelectiveReadOptionsBuilder::new()
-            .limit(2)
-            .build()
-            .unwrap();
-        
+        let options = SelectiveReadOptionsBuilder::new().limit(2).build().unwrap();
+
         let allocations = reader.read_selective(&options).unwrap();
         assert_eq!(allocations.len(), 2);
-        
+
         // Test offset
         let options = SelectiveReadOptionsBuilder::new()
             .offset(1)
             .limit(1)
             .build()
             .unwrap();
-        
+
         let allocations = reader.read_selective(&options).unwrap();
         assert_eq!(allocations.len(), 1);
     }
@@ -1548,24 +1614,24 @@ mod selective_reader_tests {
     fn test_selective_reading_with_sorting() {
         let test_file = create_test_binary_with_multiple_allocations();
         let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
-        
+
         // Test sorting by size (ascending)
         let options = SelectiveReadOptionsBuilder::new()
             .sort_by(SortField::Size, SortOrder::Ascending)
             .build()
             .unwrap();
-        
+
         let allocations = reader.read_selective(&options).unwrap();
         assert_eq!(allocations.len(), 3);
         assert!(allocations[0].size <= allocations[1].size);
         assert!(allocations[1].size <= allocations[2].size);
-        
+
         // Test sorting by size (descending)
         let options = SelectiveReadOptionsBuilder::new()
             .sort_by(SortField::Size, SortOrder::Descending)
             .build()
             .unwrap();
-        
+
         let allocations = reader.read_selective(&options).unwrap();
         assert_eq!(allocations.len(), 3);
         assert!(allocations[0].size >= allocations[1].size);
@@ -1576,18 +1642,18 @@ mod selective_reader_tests {
     fn test_streaming_read() {
         let test_file = create_test_binary_with_multiple_allocations();
         let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
-        
+
         let options = SelectiveReadOptionsBuilder::new()
             .filter(AllocationFilter::ThreadEquals("main".to_string()))
             .build()
             .unwrap();
-        
+
         let mut count = 0;
         let result = reader.read_selective_streaming(&options, |_allocation| {
             count += 1;
             Ok(true) // Continue processing
         });
-        
+
         assert!(result.is_ok());
         assert_eq!(count, 2); // Should process 2 allocations from main thread
     }
@@ -1596,22 +1662,26 @@ mod selective_reader_tests {
     fn test_field_filtering() {
         let test_file = create_test_binary_with_multiple_allocations();
         let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
-        
+
         // Only include basic fields
         let options = SelectiveReadOptionsBuilder::new()
-            .with_fields([AllocationField::Ptr, AllocationField::Size].into_iter().collect())
+            .with_fields(
+                [AllocationField::Ptr, AllocationField::Size]
+                    .into_iter()
+                    .collect(),
+            )
             .build()
             .unwrap();
-        
+
         let allocations = reader.read_selective(&options).unwrap();
         assert_eq!(allocations.len(), 3);
-        
+
         // Check that non-included fields are cleared
         for allocation in &allocations {
             // Basic fields should be present
             assert!(allocation.ptr > 0);
             assert!(allocation.size > 0);
-            
+
             // Non-included fields should be None/default
             // Note: This test assumes the field filtering is working correctly
             // In practice, we might need to adjust based on the actual implementation

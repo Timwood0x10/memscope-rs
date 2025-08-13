@@ -34,7 +34,8 @@ fn main() {
 fn test_short_lifetime_allocations() {
     tracing::info!("  create 1000 short lifetime allocations...");
 
-    for i in 0..100 { // Reduced from 1000 to 100
+    for i in 0..100 {
+        // Reduced from 1000 to 100
         let temp_vec = vec![i; 100];
         let _tracked = track_var!(temp_vec);
 

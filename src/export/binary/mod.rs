@@ -28,25 +28,27 @@ mod streaming_json_writer;
 mod string_table;
 mod writer;
 
-pub use batch_processor::{BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch};
+pub use batch_processor::{
+    BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch,
+};
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;
 pub use error_recovery::{
-    ErrorRecoveryManager, ErrorReport, ErrorStatistics, ErrorTrend,
-    RecoveryConfig, RecoveryResult, RecoveryStrategy,
+    ErrorRecoveryManager, ErrorReport, ErrorStatistics, ErrorTrend, RecoveryConfig, RecoveryResult,
+    RecoveryStrategy,
 };
 pub use field_parser::{FieldParser, FieldParserConfig, FieldParserStats, PartialAllocationInfo};
 pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, FilterStats};
-pub use format::{FileHeader, FORMAT_VERSION, MAGIC_BYTES, BinaryExportMode};
+pub use format::{BinaryExportMode, FileHeader, FORMAT_VERSION, MAGIC_BYTES};
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
 pub use index_builder::BinaryIndexBuilder;
-pub use parser::{BinaryParser};
+pub use parser::BinaryParser;
 pub use reader::BinaryReader;
 pub use selective_json_exporter::{
     OptimizationLevel, SelectiveJsonExportConfig, SelectiveJsonExportConfigBuilder,
-    SelectiveJsonExporter, SelectiveJsonExportStats,
+    SelectiveJsonExportStats, SelectiveJsonExporter,
 };
 pub use selective_reader::{
     AllocationField, AllocationFilter, SelectiveReadOptions, SelectiveReadOptionsBuilder,
@@ -57,18 +59,15 @@ pub use streaming_field_processor::{
     StreamingFieldProcessorConfigBuilder, StreamingFieldProcessorStats,
 };
 pub use streaming_json_writer::{
-    SelectiveSerializationOptions, StreamingJsonWriter, StreamingJsonWriterConfig, 
-    StreamingJsonWriterConfigBuilder, StreamingJsonStats
+    SelectiveSerializationOptions, StreamingJsonStats, StreamingJsonWriter,
+    StreamingJsonWriterConfig, StreamingJsonWriterConfigBuilder,
 };
 pub use writer::BinaryWriter;
-
-// Export the auto-detection functions and types (defined below)
 
 // Auto-detection functions are defined below and exported automatically
 
 use crate::core::types::AllocationInfo;
 use std::path::Path;
-
 
 /// Export allocation information to binary format with default configuration
 pub fn export_to_binary<P: AsRef<Path>>(
@@ -91,9 +90,7 @@ pub fn export_to_binary_with_mode<P: AsRef<Path>>(
     writer.build_string_table(allocations)?;
 
     // Calculate user vs system allocation counts
-    let user_count = allocations.iter()
-        .filter(|a| a.var_name.is_some())
-        .count() as u16;
+    let user_count = allocations.iter().filter(|a| a.var_name.is_some()).count() as u16;
     let system_count = (allocations.len() - user_count as usize) as u16;
     let total_count = allocations.len() as u32;
 
@@ -217,7 +214,7 @@ impl BinaryFileInfo {
 }
 
 /// Automatically detect binary file type and characteristics
-/// 
+///
 /// This function reads the binary file header to determine:
 /// - Export mode (user-only vs full)
 /// - Allocation counts (total, user, system)
@@ -232,31 +229,34 @@ impl BinaryFileInfo {
 /// * `Err(BinaryExportError)` - If file cannot be read or is invalid
 ///
 /// # Example
-/// ```no_run
+/// ```rust
 /// use memscope_rs::export::binary::detect_binary_type;
-/// 
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+///
 /// let info = detect_binary_type("MemoryAnalysis/my_program.memscope")?;
 /// println!("Binary type: {}", info.type_description());
 /// println!("Strategy: {}", info.recommended_strategy());
-/// # Ok(())
-/// # }
+///
+/// if info.is_full_binary() {
+///     // Use optimized processing for large files
+///     parse_full_binary_to_json(path, base_name)?;
+/// } else {
+///     // Use simple processing for small files
+///     parse_user_binary_to_json(path, base_name)?;
+/// }
 /// ```
 pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, BinaryExportError> {
     use std::fs::File;
     use std::io::Read;
 
     let path = path.as_ref();
-    
+
     // Get file size
-    let metadata = std::fs::metadata(path)
-        .map_err(|e| BinaryExportError::Io(e))?;
+    let metadata = std::fs::metadata(path).map_err(|e| BinaryExportError::Io(e))?;
     let file_size = metadata.len();
 
     // Open file and read header
-    let mut file = File::open(path)
-        .map_err(|e| BinaryExportError::Io(e))?;
-    
+    let mut file = File::open(path).map_err(|e| BinaryExportError::Io(e))?;
+
     let mut header_bytes = [0u8; format::HEADER_SIZE];
     file.read_exact(&mut header_bytes)
         .map_err(|e| BinaryExportError::Io(e))?;
@@ -271,9 +271,10 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 
     // Check version compatibility
     if !header.is_compatible_version() {
-        return Err(BinaryExportError::CorruptedData(
-            format!("Unsupported format version: {}", header.version)
-        ));
+        return Err(BinaryExportError::CorruptedData(format!(
+            "Unsupported format version: {}",
+            header.version
+        )));
     }
 
     // Extract information
@@ -293,7 +294,7 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 }
 
 /// Automatically choose the optimal parsing strategy based on binary type
-/// 
+///
 /// This function detects the binary type and automatically selects the most
 /// appropriate parsing method:
 /// - User-only binaries: Simple, fast processing
@@ -308,30 +309,27 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 /// * `Err(BinaryExportError)` - If parsing fails
 ///
 /// # Example
-/// ```no_run
+/// ```rust
 /// use memscope_rs::export::binary::parse_binary_auto;
-/// 
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+///
 /// // Automatically detects type and uses optimal strategy
 /// parse_binary_auto("MemoryAnalysis/my_program.memscope", "my_program")?;
-/// # Ok(())
-/// # }
 /// ```
 pub fn parse_binary_auto<P: AsRef<Path>>(
     binary_path: P,
     base_name: &str,
 ) -> Result<(), BinaryExportError> {
     let binary_path = binary_path.as_ref();
-    
+
     // Detect binary type
     let info = detect_binary_type(binary_path)?;
-    
+
     tracing::info!(
         "Auto-detected binary type: {} (version {})",
         info.type_description(),
         info.version
     );
-    
+
     tracing::info!("Using strategy: {}", info.recommended_strategy());
 
     // Choose optimal parsing strategy

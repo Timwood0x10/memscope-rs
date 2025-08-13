@@ -91,4 +91,3 @@ unsafe impl<T: Send> Send for SimpleMutex<T> {}
 
 // Safety: SimpleMutex is Sync if T is Send
 unsafe impl<T: Send> Sync for SimpleMutex<T> {}
-

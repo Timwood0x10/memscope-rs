@@ -4,7 +4,7 @@
 //! building a comprehensive graph for visualization and analysis.
 
 use crate::core::types::{AllocationInfo, TrackingResult};
-use crate::{variable_registry::VariableInfo, analysis::CircularReferenceNode};
+use crate::{analysis::CircularReferenceNode, variable_registry::VariableInfo};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 

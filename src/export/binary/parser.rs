@@ -10,7 +10,6 @@ use std::time::Instant;
 /// Binary parser for optimized file conversion
 pub struct BinaryParser;
 
-#[allow(dead_code)]
 impl BinaryParser {
     /// Convert binary file to standard JSON files using optimized approach
     pub fn to_standard_json_files<P: AsRef<Path>>(
@@ -121,38 +120,47 @@ impl BinaryParser {
     }
 
     /// Load allocations with enhanced error recovery (Task 5.1: 一招制敌)
-    /// 
+    ///
     /// 解决"failed to fill whole buffer"错误的核心方法
     pub fn load_allocations_with_recovery<P: AsRef<Path>>(
         binary_path: P,
     ) -> Result<Vec<AllocationInfo>, BinaryExportError> {
         let binary_path = binary_path.as_ref();
-        
+
         // 首先检查文件大小和完整性
         let file_metadata = std::fs::metadata(binary_path)?;
         let file_size = file_metadata.len();
         tracing::debug!("Binary file size: {} bytes", file_size);
-        
+
         // 尝试正常读取
         match Self::load_allocations(binary_path) {
             Ok(allocations) => {
-                tracing::info!("Successfully loaded {} allocations normally", allocations.len());
+                tracing::info!(
+                    "Successfully loaded {} allocations normally",
+                    allocations.len()
+                );
                 Ok(allocations)
             }
             Err(BinaryExportError::Io(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                 tracing::warn!("Encountered EOF error, attempting recovery read");
-                
+
                 // 使用恢复模式读取
                 let mut reader = BinaryReader::new(binary_path)?;
                 let header = reader.read_header()?;
                 let mut allocations = Vec::new();
-                
+
                 // 逐个读取，遇到错误就停止
                 for i in 0..header.total_count {
                     match reader.read_allocation() {
                         Ok(allocation) => allocations.push(allocation),
-                        Err(BinaryExportError::Io(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                            tracing::warn!("Recovered {} of {} allocations before EOF", i, header.total_count);
+                        Err(BinaryExportError::Io(ref e))
+                            if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+                        {
+                            tracing::warn!(
+                                "Recovered {} of {} allocations before EOF",
+                                i,
+                                header.total_count
+                            );
                             break;
                         }
                         Err(e) => {
@@ -161,13 +169,13 @@ impl BinaryParser {
                         }
                     }
                 }
-                
+
                 if allocations.is_empty() {
                     return Err(BinaryExportError::CorruptedData(
-                        "No allocations could be recovered from corrupted file".to_string()
+                        "No allocations could be recovered from corrupted file".to_string(),
                     ));
                 }
-                
+
                 tracing::info!("Successfully recovered {} allocations", allocations.len());
                 Ok(allocations)
             }
@@ -241,9 +249,9 @@ impl BinaryParser {
     }
 
     /// Parse full binary to JSON using ultra-fast direct approach (Task 5.2: 一招制敌)
-    /// 
+    ///
     /// **一招制敌**: 直接使用已优化的generate_*_json方法，避免SelectiveJsonExporter的I/O错误
-    /// 
+    ///
     /// 核心优化:
     /// - 使用load_allocations但加强错误处理 (Task 5.1)
     /// - 直接调用优化的generate_*_json方法 (避免复杂的SelectiveJsonExporter)
@@ -273,7 +281,7 @@ impl BinaryParser {
 
         // **一招制敌**: 并行生成5个JSON文件，避免SelectiveJsonExporter的I/O问题
         let json_start = Instant::now();
-        
+
         let paths = [
             project_dir.join(format!("{base_name}_memory_analysis.json")),
             project_dir.join(format!("{base_name}_lifetime.json")),
@@ -284,26 +292,27 @@ impl BinaryParser {
 
         // Task 7.1: 并行生成JSON文件
         use rayon::prelude::*;
-        
+
         let results: Result<Vec<()>, BinaryExportError> = paths
             .par_iter()
             .enumerate()
-            .map(|(i, path)| {
-                match i {
-                    0 => Self::generate_memory_analysis_json(&all_allocations, path),
-                    1 => Self::generate_lifetime_analysis_json(&all_allocations, path),
-                    2 => Self::generate_performance_analysis_json(&all_allocations, path),
-                    3 => Self::generate_unsafe_ffi_analysis_json(&all_allocations, path),
-                    4 => Self::generate_complex_types_analysis_json(&all_allocations, path),
-                    _ => unreachable!(),
-                }
+            .map(|(i, path)| match i {
+                0 => Self::generate_memory_analysis_json(&all_allocations, path),
+                1 => Self::generate_lifetime_analysis_json(&all_allocations, path),
+                2 => Self::generate_performance_analysis_json(&all_allocations, path),
+                3 => Self::generate_unsafe_ffi_analysis_json(&all_allocations, path),
+                4 => Self::generate_complex_types_analysis_json(&all_allocations, path),
+                _ => unreachable!(),
             })
             .collect();
 
         results?;
 
         let json_time = json_start.elapsed();
-        tracing::info!("Generated 5 JSON files in parallel in {}ms", json_time.as_millis());
+        tracing::info!(
+            "Generated 5 JSON files in parallel in {}ms",
+            json_time.as_millis()
+        );
 
         let elapsed = start.elapsed();
 
@@ -321,6 +330,17 @@ impl BinaryParser {
         }
 
         Ok(())
+    }
+
+    /// **[Task 23]** Ultra-fast binary to JSON conversion using existing optimizations
+    ///
+    /// This method provides the same ultra-fast performance as v5-draft
+    pub fn parse_full_binary_to_json_with_existing_optimizations<P: AsRef<Path>>(
+        binary_path: P,
+        base_name: &str,
+    ) -> Result<(), BinaryExportError> {
+        // Use the same optimized implementation as parse_full_binary_to_json
+        Self::parse_full_binary_to_json(binary_path, base_name)
     }
 
     /// Generate memory analysis JSON directly (fast path)
@@ -443,12 +463,7 @@ impl BinaryParser {
             buffer.push_str("\",\"size\":");
             buffer.push_str(&alloc.size.to_string());
             buffer.push_str(",\"var_name\":\"");
-            buffer.push_str(
-                alloc
-                    .var_name
-                    .as_deref()
-                    .unwrap_or("unknown_var"),
-            );
+            buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
             buffer.push_str("\",\"type_name\":\"");
             buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
             buffer.push_str("\",\"timestamp_alloc\":");
@@ -492,12 +507,7 @@ impl BinaryParser {
             buffer.push_str("\",\"size\":");
             buffer.push_str(&alloc.size.to_string());
             buffer.push_str(",\"var_name\":\"");
-            buffer.push_str(
-                alloc
-                    .var_name
-                    .as_deref()
-                    .unwrap_or("unknown_var"),
-            );
+            buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
             buffer.push_str("\",\"type_name\":\"");
             buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
             buffer.push_str("\",\"timestamp_alloc\":");
@@ -545,12 +555,7 @@ impl BinaryParser {
             buffer.push_str("\",\"size\":");
             buffer.push_str(&alloc.size.to_string());
             buffer.push_str(",\"var_name\":\"");
-            buffer.push_str(
-                alloc
-                    .var_name
-                    .as_deref()
-                    .unwrap_or("unknown_var"),
-            );
+            buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
             buffer.push_str("\",\"type_name\":\"");
             buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
             buffer.push_str("\",\"smart_pointer_info\":{\"type\":\"none\"}");
@@ -846,12 +851,7 @@ impl BinaryParser {
         buffer.push_str(r#"","size":"#);
         Self::append_usize(buffer, alloc.size);
         buffer.push_str(r#","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str(r#"","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","scope_name":""#);
@@ -880,12 +880,7 @@ impl BinaryParser {
         buffer.push_str(r#","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str("\"}");
     }
 
@@ -896,12 +891,7 @@ impl BinaryParser {
         buffer.push_str(r#"","size":"#);
         Self::append_usize(buffer, alloc.size);
         buffer.push_str(r#","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str(r#"","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","timestamp_alloc":"#);
@@ -920,12 +910,7 @@ impl BinaryParser {
         buffer.push_str(r#"","size":"#);
         Self::append_usize(buffer, alloc.size);
         buffer.push_str(r#","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str(r#"","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","timestamp_alloc":"#);
@@ -942,12 +927,7 @@ impl BinaryParser {
         buffer.push_str(r#"","size":"#);
         Self::append_usize(buffer, alloc.size);
         buffer.push_str(r#","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str(r#"","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","smart_pointer_info":{"type":"raw_pointer","is_smart":false},"memory_layout":{"alignment":8,"size_class":"medium"},"generic_info":{"is_generic":false,"type_params":[]},"dynamic_type_info":{"is_dynamic":false,"vtable_ptr":0},"generic_instantiation":{"instantiated":true,"template_args":[]},"type_relationships":{"parent_types":[],"child_types":[]},"type_usage":{"usage_count":1,"access_pattern":"sequential"}}"#);
@@ -1125,12 +1105,7 @@ impl BinaryParser {
         buffer.push_str(r#"","size":"#);
         Self::append_usize(&mut buffer, alloc.size);
         buffer.push_str(r#","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str(r#"","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","scope_name":""#);
@@ -1170,12 +1145,7 @@ impl BinaryParser {
         buffer.push_str(r#","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str("\"}");
 
         writer.write_all(buffer.as_bytes())?;
@@ -1195,12 +1165,7 @@ impl BinaryParser {
         buffer.push_str(r#"","size":"#);
         Self::append_usize(&mut buffer, alloc.size);
         buffer.push_str(r#","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str(r#"","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","timestamp_alloc":"#);
@@ -1228,12 +1193,7 @@ impl BinaryParser {
         buffer.push_str(r#"","size":"#);
         Self::append_usize(&mut buffer, alloc.size);
         buffer.push_str(r#","var_name":""#);
-        buffer.push_str(
-            alloc
-                .var_name
-                .as_deref()
-                .unwrap_or("unknown_var"),
-        );
+        buffer.push_str(alloc.var_name.as_deref().unwrap_or("unknown_var"));
         buffer.push_str(r#"","type_name":""#);
         buffer.push_str(alloc.type_name.as_deref().unwrap_or("unknown_type"));
         buffer.push_str(r#"","timestamp_alloc":"#);
@@ -1264,39 +1224,8 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// **[Task 23]** Ultra-fast binary to JSON conversion using BinaryIndex direct access
-    /// 
-    /// This method uses BinaryIndex for direct data access, avoiding complex parsing layers.
-    /// Performance targets: <300ms for most datasets
-    pub fn parse_full_binary_to_json_with_existing_optimizations<P: AsRef<Path>>(
-        binary_path: P,
-        base_name: &str,
-    ) -> Result<(), BinaryExportError> {
-        let start = std::time::Instant::now();
-        tracing::info!("🚀 Starting ultra-fast binary to JSON conversion using BinaryIndex");
-
-        // Use BinaryIndex for direct, efficient data access
-        Self::parse_binary_to_json_with_index(&binary_path, base_name)?;
-
-        let total_time = start.elapsed();
-        
-        if total_time.as_millis() > 300 {
-            tracing::warn!(
-                "⚠️  Performance target missed: {}ms (target: <300ms)",
-                total_time.as_millis()
-            );
-        } else {
-            tracing::info!(
-                "🎉 Ultra-fast conversion completed: {}ms (target: <300ms)",
-                total_time.as_millis()
-            );
-        }
-
-        Ok(())
-    }
-
     /// **[New Interface]** Parse binary to JSON using BinaryIndex for maximum performance
-    /// 
+    ///
     /// This is the core high-performance interface that uses BinaryIndex for direct data access,
     /// avoiding the overhead of loading all allocations into memory.
     pub fn parse_binary_to_json_with_index<P: AsRef<Path>>(
@@ -1304,10 +1233,10 @@ impl BinaryParser {
         base_name: &str,
     ) -> Result<(), BinaryExportError> {
         use crate::export::binary::BinaryReader;
-        
+
         let start = std::time::Instant::now();
         let binary_path = binary_path.as_ref();
-        
+
         tracing::info!("📊 Using BinaryReader for direct data access");
 
         // Step 1: Create reader for efficient access (no need for BinaryIndex)
@@ -1324,32 +1253,51 @@ impl BinaryParser {
 
         // Step 3: Generate JSON files using BinaryIndex streaming
         let json_start = std::time::Instant::now();
-        
+
         let file_paths = [
-            (project_dir.join(format!("{}_memory_analysis.json", base_name)), "memory"),
-            (project_dir.join(format!("{}_lifetime.json", base_name)), "lifetime"),
-            (project_dir.join(format!("{}_performance.json", base_name)), "performance"),
-            (project_dir.join(format!("{}_unsafe_ffi.json", base_name)), "unsafe_ffi"),
-            (project_dir.join(format!("{}_complex_types.json", base_name)), "complex_types"),
+            (
+                project_dir.join(format!("{}_memory_analysis.json", base_name)),
+                "memory",
+            ),
+            (
+                project_dir.join(format!("{}_lifetime.json", base_name)),
+                "lifetime",
+            ),
+            (
+                project_dir.join(format!("{}_performance.json", base_name)),
+                "performance",
+            ),
+            (
+                project_dir.join(format!("{}_unsafe_ffi.json", base_name)),
+                "unsafe_ffi",
+            ),
+            (
+                project_dir.join(format!("{}_complex_types.json", base_name)),
+                "complex_types",
+            ),
         ];
 
         // Use parallel generation with BinaryIndex
         use rayon::prelude::*;
-        
+
         let results: Result<Vec<()>, BinaryExportError> = file_paths
             .par_iter()
-            .map(|(path, json_type)| {
-                Self::generate_json_with_reader(binary_path, path, json_type)
-            })
+            .map(|(path, json_type)| Self::generate_json_with_reader(binary_path, path, json_type))
             .collect();
 
         results?;
 
         let json_time = json_start.elapsed();
-        tracing::info!("✅ Generated 5 JSON files using BinaryReader in {}ms", json_time.as_millis());
+        tracing::info!(
+            "✅ Generated 5 JSON files using BinaryReader in {}ms",
+            json_time.as_millis()
+        );
 
         let total_time = start.elapsed();
-        tracing::info!("📊 Total BinaryReader conversion time: {}ms", total_time.as_millis());
+        tracing::info!(
+            "📊 Total BinaryReader conversion time: {}ms",
+            total_time.as_millis()
+        );
 
         Ok(())
     }
@@ -1361,47 +1309,56 @@ impl BinaryParser {
         json_type: &str,
     ) -> Result<(), BinaryExportError> {
         use std::io::{BufWriter, Write};
-        
+
         let file = std::fs::File::create(output_path)?;
         let mut writer = BufWriter::with_capacity(2 * 1024 * 1024, file); // 2MB buffer
-        
+
         // Open reader for streaming access
         let mut reader = BinaryReader::new(binary_path)?;
         let header = reader.read_header()?;
-        
+
         // Write JSON header based on type (matching reference format + keeping our data)
         match json_type {
             "memory" => writer.write_all(b"{\"allocations\":[")?,
             "lifetime" => writer.write_all(b"{\"lifecycle_events\":[")?,
-            "performance" => writer.write_all(b"{\"allocation_distribution\":{\"allocations\":[")?,
+            "performance" => {
+                writer.write_all(b"{\"allocation_distribution\":{\"allocations\":[")?
+            }
             "unsafe_ffi" => writer.write_all(b"[")?,
             "complex_types" => writer.write_all(b"{\"categorized_types\":{\"primitive\":[")?,
-            _ => return Err(BinaryExportError::CorruptedData(format!("Unknown JSON type: {}", json_type))),
+            _ => {
+                return Err(BinaryExportError::CorruptedData(format!(
+                    "Unknown JSON type: {}",
+                    json_type
+                )))
+            }
         }
 
         // Stream allocations directly from reader
         let total_count = header.total_count;
         let mut buffer = String::with_capacity(512);
-        
+
         for i in 0..total_count {
             if i > 0 {
                 writer.write_all(b",")?;
             }
-            
+
             // Read allocation sequentially (most efficient for binary files)
             let allocation = reader.read_allocation()?;
-            
+
             // Generate JSON record directly (matching reference format + keeping our data)
             buffer.clear();
             match json_type {
                 "memory" => Self::append_memory_record_compatible(&mut buffer, &allocation),
                 "lifetime" => Self::append_lifetime_record_compatible(&mut buffer, &allocation),
-                "performance" => Self::append_performance_record_compatible(&mut buffer, &allocation),
+                "performance" => {
+                    Self::append_performance_record_compatible(&mut buffer, &allocation)
+                }
                 "unsafe_ffi" => Self::append_ffi_record_compatible(&mut buffer, &allocation),
                 "complex_types" => Self::append_complex_record_compatible(&mut buffer, &allocation),
                 _ => unreachable!(),
             }
-            
+
             writer.write_all(buffer.as_bytes())?;
         }
 
@@ -1411,21 +1368,21 @@ impl BinaryParser {
                 writer.write_all(b"],\"memory_stats\":{\"total_allocations\":")?;
                 writer.write_all(total_count.to_string().as_bytes())?;
                 writer.write_all(b",\"total_size\":0,\"peak_memory\":0},\"metadata\":{\"analysis_type\":\"memory_analysis\",\"export_version\":\"2.0\",\"optimization_level\":\"High\"}}")?;
-            },
+            }
             "lifetime" => {
                 writer.write_all(b"],\"scope_analysis\":{},\"summary\":{\"total_events\":")?;
                 writer.write_all(total_count.to_string().as_bytes())?;
                 writer.write_all(b"},\"metadata\":{\"analysis_type\":\"lifecycle_analysis\",\"export_version\":\"2.0\"}}")?;
-            },
+            }
             "performance" => {
                 writer.write_all(b"]},\"memory_performance\":{},\"export_performance\":{},\"optimization_status\":{},\"pipeline_metrics\":{},\"metadata\":{\"analysis_type\":\"performance_analysis\",\"export_version\":\"2.0\"}}")?;
-            },
+            }
             "unsafe_ffi" => {
                 writer.write_all(b"]")?;
-            },
+            }
             "complex_types" => {
                 writer.write_all(b"]},\"metadata\":{\"analysis_type\":\"complex_types_analysis\",\"export_version\":\"2.0\"}}")?;
-            },
+            }
             _ => unreachable!(),
         }
 
@@ -1438,7 +1395,9 @@ impl BinaryParser {
         allocations: &[AllocationInfo],
         base_name: &str,
     ) -> Result<(), BinaryExportError> {
-        use crate::export::fast_export_coordinator::{FastExportCoordinator, FastExportConfigBuilder};
+        use crate::export::fast_export_coordinator::{
+            FastExportConfigBuilder, FastExportCoordinator,
+        };
 
         let coordinator_start = std::time::Instant::now();
 
@@ -1447,7 +1406,11 @@ impl BinaryParser {
             .shard_size(2000) // Larger shards for better throughput
             .buffer_size(2 * 1024 * 1024) // 2MB buffer (reasonable size)
             .parallel_threshold(500) // Lower threshold for parallel processing
-            .max_threads(Some(std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4)))
+            .max_threads(Some(
+                std::thread::available_parallelism()
+                    .map(|p| p.get())
+                    .unwrap_or(4),
+            ))
             .performance_monitoring(true)
             .verbose_logging(false) // Disable verbose logging for speed
             .build();
@@ -1461,7 +1424,7 @@ impl BinaryParser {
 
         // Use FastExportCoordinator's export_fast method
         let output_path = project_dir.join(format!("{}_memory_analysis.json", base_name));
-        
+
         match coordinator.export_fast(&output_path) {
             Ok(stats) => {
                 tracing::info!(
@@ -1475,13 +1438,19 @@ impl BinaryParser {
                 Self::generate_additional_json_files_fast(allocations, base_name, &project_dir)?;
             }
             Err(e) => {
-                tracing::warn!("⚠️ FastExportCoordinator failed, falling back to direct method: {}", e);
+                tracing::warn!(
+                    "⚠️ FastExportCoordinator failed, falling back to direct method: {}",
+                    e
+                );
                 Self::convert_using_optimized_json_export(allocations, base_name)?;
             }
         }
 
         let coordinator_time = coordinator_start.elapsed();
-        tracing::info!("📊 FastExportCoordinator total time: {}ms", coordinator_time.as_millis());
+        tracing::info!(
+            "📊 FastExportCoordinator total time: {}ms",
+            coordinator_time.as_millis()
+        );
 
         Ok(())
     }
@@ -1491,14 +1460,14 @@ impl BinaryParser {
         allocations: &[AllocationInfo],
         base_name: &str,
     ) -> Result<(), BinaryExportError> {
-        use crate::export::optimized_json_export::{OptimizedExportOptions, OptimizationLevel};
         use crate::core::tracker::MemoryTracker;
+        use crate::export::optimized_json_export::{OptimizationLevel, OptimizedExportOptions};
 
         let export_start = std::time::Instant::now();
 
         // Create a temporary MemoryTracker with our allocations
         let tracker = MemoryTracker::new();
-        
+
         // Configure for maximum speed
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low)
             .parallel_processing(true)
@@ -1520,7 +1489,10 @@ impl BinaryParser {
         }
 
         let export_time = export_start.elapsed();
-        tracing::info!("📊 OptimizedJsonExport total time: {}ms", export_time.as_millis());
+        tracing::info!(
+            "📊 OptimizedJsonExport total time: {}ms",
+            export_time.as_millis()
+        );
 
         Ok(())
     }
@@ -1531,17 +1503,19 @@ impl BinaryParser {
         base_name: &str,
         project_dir: &std::path::Path,
     ) -> Result<(), BinaryExportError> {
-        use crate::export::high_speed_buffered_writer::{HighSpeedBufferedWriter, HighSpeedWriterConfig};
+        use crate::export::high_speed_buffered_writer::{
+            HighSpeedBufferedWriter, HighSpeedWriterConfig,
+        };
 
         let additional_start = std::time::Instant::now();
 
         // Configure high-speed writer
         let writer_config = HighSpeedWriterConfig {
             buffer_size: 2 * 1024 * 1024, // 2MB buffer
-            enable_monitoring: false, // Disable monitoring for speed
+            enable_monitoring: false,     // Disable monitoring for speed
             auto_flush: true,
             estimated_total_size: Some(allocations.len() * 200), // Estimate 200 bytes per allocation
-            enable_compression: false, // Disable compression for speed
+            enable_compression: false,                           // Disable compression for speed
         };
 
         // Generate remaining 4 JSON files in parallel
@@ -1549,7 +1523,7 @@ impl BinaryParser {
 
         let file_tasks = vec![
             ("lifetime", "lifetime_analysis"),
-            ("performance", "performance_analysis"), 
+            ("performance", "performance_analysis"),
             ("unsafe_ffi", "unsafe_ffi_analysis"),
             ("complex_types", "complex_types_analysis"),
         ];
@@ -1559,15 +1533,26 @@ impl BinaryParser {
             .map(|(file_type, analysis_type)| {
                 let file_path = project_dir.join(format!("{}_{}.json", base_name, file_type));
                 let mut writer = HighSpeedBufferedWriter::new(&file_path, writer_config.clone())
-                    .map_err(|e| BinaryExportError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-                
+                    .map_err(|e| {
+                        BinaryExportError::Io(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            e.to_string(),
+                        ))
+                    })?;
+
                 // Generate JSON content directly
                 let json_content = Self::generate_json_content_fast(allocations, analysis_type)?;
-                
+
                 // Write using high-speed writer's custom JSON method
-                writer.write_custom_json(json_content.as_bytes())
-                    .map_err(|e| BinaryExportError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-                
+                writer
+                    .write_custom_json(json_content.as_bytes())
+                    .map_err(|e| {
+                        BinaryExportError::Io(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            e.to_string(),
+                        ))
+                    })?;
+
                 Ok(())
             })
             .collect();
@@ -1575,7 +1560,10 @@ impl BinaryParser {
         results?;
 
         let additional_time = additional_start.elapsed();
-        tracing::info!("📊 Additional files generated in: {}ms", additional_time.as_millis());
+        tracing::info!(
+            "📊 Additional files generated in: {}ms",
+            additional_time.as_millis()
+        );
 
         Ok(())
     }
@@ -1593,7 +1581,9 @@ impl BinaryParser {
             "lifetime_analysis" => {
                 content.push_str(r#"{"lifecycle_events":["#);
                 for (i, alloc) in allocations.iter().enumerate() {
-                    if i > 0 { content.push(','); }
+                    if i > 0 {
+                        content.push(',');
+                    }
                     content.push_str(r#"{"event":"allocation","ptr":"0x"#);
                     Self::append_hex_to_string(&mut content, alloc.ptr);
                     content.push_str(r#"","scope":""#);
@@ -1613,7 +1603,9 @@ impl BinaryParser {
             "performance_analysis" => {
                 content.push_str(r#"{"data":{"allocations":["#);
                 for (i, alloc) in allocations.iter().enumerate() {
-                    if i > 0 { content.push(','); }
+                    if i > 0 {
+                        content.push(',');
+                    }
                     content.push_str(r#"{"ptr":"0x"#);
                     Self::append_hex_to_string(&mut content, alloc.ptr);
                     content.push_str(r#"","size":"#);
@@ -1635,7 +1627,9 @@ impl BinaryParser {
             "unsafe_ffi_analysis" => {
                 content.push_str(r#"{"boundary_events":[],"enhanced_ffi_data":["#);
                 for (i, alloc) in allocations.iter().enumerate() {
-                    if i > 0 { content.push(','); }
+                    if i > 0 {
+                        content.push(',');
+                    }
                     content.push_str(r#"{"ptr":"0x"#);
                     Self::append_hex_to_string(&mut content, alloc.ptr);
                     content.push_str(r#"","size":"#);
@@ -1655,7 +1649,9 @@ impl BinaryParser {
             "complex_types_analysis" => {
                 content.push_str(r#"{"categorized_types":{"primitive":["#);
                 for (i, alloc) in allocations.iter().enumerate() {
-                    if i > 0 { content.push(','); }
+                    if i > 0 {
+                        content.push(',');
+                    }
                     content.push_str(r#"{"ptr":"0x"#);
                     Self::append_hex_to_string(&mut content, alloc.ptr);
                     content.push_str(r#"","size":"#);
@@ -1670,7 +1666,8 @@ impl BinaryParser {
             }
             _ => {
                 return Err(BinaryExportError::CorruptedData(format!(
-                    "Unknown analysis type: {}", analysis_type
+                    "Unknown analysis type: {}",
+                    analysis_type
                 )));
             }
         }
@@ -1693,27 +1690,50 @@ impl BinaryParser {
 
         // Generate all 5 JSON files using direct methods
         let file_paths = [
-            (project_dir.join(format!("{}_memory_analysis.json", base_name)), "memory"),
-            (project_dir.join(format!("{}_lifetime.json", base_name)), "lifetime"),
-            (project_dir.join(format!("{}_performance.json", base_name)), "performance"),
-            (project_dir.join(format!("{}_unsafe_ffi.json", base_name)), "unsafe_ffi"),
-            (project_dir.join(format!("{}_complex_types.json", base_name)), "complex_types"),
+            (
+                project_dir.join(format!("{}_memory_analysis.json", base_name)),
+                "memory",
+            ),
+            (
+                project_dir.join(format!("{}_lifetime.json", base_name)),
+                "lifetime",
+            ),
+            (
+                project_dir.join(format!("{}_performance.json", base_name)),
+                "performance",
+            ),
+            (
+                project_dir.join(format!("{}_unsafe_ffi.json", base_name)),
+                "unsafe_ffi",
+            ),
+            (
+                project_dir.join(format!("{}_complex_types.json", base_name)),
+                "complex_types",
+            ),
         ];
 
         // Use parallel generation for maximum speed
         use rayon::prelude::*;
-        
+
         let results: Result<Vec<()>, BinaryExportError> = file_paths
             .par_iter()
             .map(|(path, json_type)| {
-                Self::generate_json_ultra_fast(allocations, path, json_type, allocations.len() * 200)
+                Self::generate_json_ultra_fast(
+                    allocations,
+                    path,
+                    json_type,
+                    allocations.len() * 200,
+                )
             })
             .collect();
 
         results?;
 
         let fallback_time = fallback_start.elapsed();
-        tracing::info!("📊 Direct fallback completed in: {}ms", fallback_time.as_millis());
+        tracing::info!(
+            "📊 Direct fallback completed in: {}ms",
+            fallback_time.as_millis()
+        );
 
         Ok(())
     }
@@ -1730,7 +1750,7 @@ impl BinaryParser {
         Self::append_number(buffer, value);
     }
 
-    /// Generate memory analysis record compatible with binary-op format (optimized)
+    /// Generate memory analysis record compatible with reference format
     #[inline]
     fn append_memory_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"ptr":"0x"#);
@@ -1769,11 +1789,15 @@ impl BinaryParser {
         buffer.push_str(r#"","borrow_count":"#);
         Self::append_number_to_string(buffer, allocation.borrow_count as u64);
         buffer.push_str(r#","is_leaked":"#);
-        buffer.push_str(if allocation.is_leaked { "true" } else { "false" });
+        buffer.push_str(if allocation.is_leaked {
+            "true"
+        } else {
+            "false"
+        });
         buffer.push('}');
     }
 
-    /// Generate lifetime analysis record compatible with binary-op format (optimized)
+    /// Generate lifetime analysis record compatible with reference format
     #[inline]
     fn append_lifetime_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"event":"allocation","ptr":"0x"#);
@@ -1809,7 +1833,7 @@ impl BinaryParser {
         buffer.push('}');
     }
 
-    /// Generate performance analysis record compatible with binary-op format (optimized)
+    /// Generate performance analysis record compatible with reference format
     #[inline]
     fn append_performance_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"ptr":"0x"#);
@@ -1841,7 +1865,7 @@ impl BinaryParser {
         buffer.push_str(r#","fragmentation_analysis":{"status":"not_analyzed"}}"#);
     }
 
-    /// Generate FFI analysis record compatible with binary-op format (exact copy)
+    /// Generate FFI analysis record compatible with snapshot_unsafe_ffi.json format
     #[inline]
     fn append_ffi_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"base":{"ptr":"#);
@@ -1877,8 +1901,12 @@ impl BinaryParser {
         buffer.push_str(r#","timestamp_dealloc":null,"borrow_count":"#);
         Self::append_number_to_string(buffer, allocation.borrow_count as u64);
         buffer.push_str(r#","stack_trace":null,"is_leaked":"#);
-        buffer.push_str(if allocation.is_leaked { "true" } else { "false" });
-        buffer.push_str(r#","lifetime_ms":null,"smart_pointer_info":null,"memory_layout":null,"generic_info":null,"dynamic_type_info":null,"runtime_state":null,"stack_allocation":null,"temporary_object":null,"fragmentation_analysis":null,"generic_instantiation":null,"type_relationships":null,"type_usage":null,"function_call_tracking":null,"lifecycle_tracking":null,"access_tracking":null,"drop_chain_analysis":null},"source":{"FfiC":{"library_name":"libc","function_name":"malloc","call_stack":[{"function_name":"current_function","file_name":"src/unsafe_ffi_tracker.rs","line_number":42,"is_unsafe":true}],"libc_hook_info":{"hook_method":"DynamicLinker","original_function":"malloc","hook_timestamp":"#);
+        buffer.push_str(if allocation.is_leaked {
+            "true"
+        } else {
+            "false"
+        });
+        buffer.push_str(r#","lifetime_ms":null,"smart_pointer_info":null,"memory_layout":null,"generic_info":null,"dynamic_type_info":null,"runtime_state":null,"stack_allocation":null,"temporary_object":null,"fragmentation_analysis":null,"generic_instantiation":null,"type_relationships":null,"type_usage":null,"function_call_tracking":null,"lifecycle_tracking":null,"access_tracking":null,"drop_chain_analysis":null},"source":{"FfiC":{"library_name":"libc","function_name":"malloc","call_stack":[{"f"#);
         Self::append_number_to_string(buffer, allocation.timestamp_alloc + 17000); // Add small offset for hook timestamp
         buffer.push_str(r#","allocation_metadata":{"requested_size":"#);
         Self::append_number_to_string(buffer, allocation.size as u64);
@@ -1889,7 +1917,7 @@ impl BinaryParser {
         buffer.push_str(r#","from_context":"libc","to_context":"rust_main","stack":[{"function_name":"current_function","file_name":"src/unsafe_ffi_tracker.rs","line_number":42,"is_unsafe":true}]}],"safety_violations":[],"ffi_tracked":true,"memory_passport":null,"ownership_history":null}"#);
     }
 
-    /// Generate complex types analysis record compatible with binary-op format (optimized)
+    /// Generate complex types analysis record compatible with reference format
     #[inline]
     fn append_complex_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"ptr":"0x"#);

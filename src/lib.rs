@@ -36,8 +36,8 @@ pub use export::*;
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator;
-pub use core::tracker::{get_global_tracker, ExportOptions, MemoryTracker};
 pub use core::tracker::memory_tracker::BinaryExportMode;
+pub use core::tracker::{get_global_tracker, ExportOptions, MemoryTracker};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use export::visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
@@ -616,7 +616,7 @@ impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
 /// # Example
 /// ```text
 /// use memscope_rs::track_var;
-/// 
+///
 /// let my_vec = vec![1, 2, 3, 4, 5];
 /// track_var!(my_vec); // Zero-cost tracking
 /// ```
@@ -663,7 +663,7 @@ macro_rules! track_var {
 /// # Example
 /// ```text
 /// use memscope_rs::track_var_owned;
-/// 
+///
 /// let my_vec = vec![1, 2, 3, 4, 5];
 /// let tracked_vec = track_var_owned!(my_vec); // Takes ownership
 /// ```

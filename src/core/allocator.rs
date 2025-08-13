@@ -20,16 +20,16 @@ impl TrackingAllocator {
         match size {
             // Common Rust type sizes
             1 => "u8".to_string(),
-            2 => "u16".to_string(), 
+            2 => "u16".to_string(),
             4 => "u32".to_string(),
             8 => "u64".to_string(),
             16 => "u128".to_string(),
-            
+
             // String and Vec common sizes
             24 => "alloc::string::String".to_string(),
             32 => "alloc::vec::Vec<T>".to_string(),
             48 => "std::collections::HashMap<K,V>".to_string(),
-            
+
             // Smart pointer sizes
             size if size == std::mem::size_of::<std::sync::Arc<String>>() => {
                 "alloc::sync::Arc<T>".to_string()
@@ -40,12 +40,12 @@ impl TrackingAllocator {
             size if size == std::mem::size_of::<Box<String>>() => {
                 "alloc::boxed::Box<T>".to_string()
             }
-            
+
             // Buffer sizes - likely Vec or String data
             size if size > 1024 => "alloc::vec::Vec<u8>".to_string(),
             size if size > 256 => "alloc::collections::BTreeMap<K,V>".to_string(),
             size if size > 64 => "std::collections::HashMap<K,V>".to_string(),
-            
+
             // Default for other sizes
             _ => format!("system_type_{}bytes", size),
         }
@@ -57,13 +57,13 @@ impl TrackingAllocator {
         match size {
             // Small allocations - likely primitives
             1..=8 => "primitive_data".to_string(),
-            
+
             // Medium allocations - likely structs or small collections
             9..=64 => "struct_data".to_string(),
-            
+
             // Large allocations - likely collections or buffers
             65..=1024 => "collection_data".to_string(),
-            
+
             // Very large allocations - likely buffers or large data structures
             _ => "buffer_data".to_string(),
         }
@@ -96,13 +96,13 @@ unsafe impl GlobalAlloc for TrackingAllocator {
                     // Enhanced tracking: try to infer type and context from allocation size and stack
                     let inferred_type = Self::infer_type_from_allocation_context(layout.size());
                     let inferred_var = Self::infer_variable_from_allocation_context(layout.size());
-                    
+
                     // Ignore errors to prevent allocation failures from breaking the program
                     let _ = tracker.track_allocation_with_context(
-                        ptr as usize, 
+                        ptr as usize,
                         layout.size(),
                         inferred_var,
-                        inferred_type
+                        inferred_type,
                     );
                 }
 

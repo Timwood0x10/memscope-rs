@@ -8,16 +8,16 @@ use crate::export::binary::{BinaryExportError, BinaryIndex, BinaryIndexBuilder};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
-use tracing::{error, warn, info, debug};
+use tracing::{debug, error, info, warn};
 
 /// Simplified error recovery manager
 pub struct ErrorRecoveryManager {
     /// Error statistics for trend analysis
     error_stats: ErrorStatistics,
-    
+
     /// Recovery strategies configuration
     recovery_config: RecoveryConfig,
-    
+
     /// Index corruption detection cache
     corruption_cache: HashMap<PathBuf, CorruptionStatus>,
 }
@@ -27,22 +27,22 @@ pub struct ErrorRecoveryManager {
 pub struct ErrorStatistics {
     /// Total errors encountered
     pub total_errors: u64,
-    
+
     /// Errors by type
     pub errors_by_type: HashMap<String, u64>,
-    
+
     /// Successful recoveries
     pub successful_recoveries: u64,
-    
+
     /// Failed recoveries
     pub failed_recoveries: u64,
-    
+
     /// Index rebuilds performed
     pub index_rebuilds: u64,
-    
+
     /// Last error timestamp
     pub last_error_time: Option<SystemTime>,
-    
+
     /// Error rate (errors per hour)
     pub error_rate: f64,
 }
@@ -52,16 +52,16 @@ pub struct ErrorStatistics {
 pub struct RecoveryConfig {
     /// Enable automatic index rebuilding
     pub enable_auto_rebuild: bool,
-    
+
     /// Maximum retry attempts
     pub max_retry_attempts: u32,
-    
+
     /// Retry delay
     pub retry_delay: Duration,
-    
+
     /// Enable partial result returns
     pub enable_partial_results: bool,
-    
+
     /// Corruption detection threshold
     pub corruption_threshold: f64,
 }
@@ -71,12 +71,12 @@ pub struct RecoveryConfig {
 struct CorruptionStatus {
     /// Whether the index is corrupted
     is_corrupted: bool,
-    
+
     /// Last check timestamp
     last_checked: SystemTime,
-    
+
     /// Corruption confidence (0.0 to 1.0)
-    _confidence: f64,
+    confidence: f64,
 }
 
 /// Recovery attempt result
@@ -84,19 +84,19 @@ struct CorruptionStatus {
 pub struct RecoveryResult<T> {
     /// The recovered result (if any)
     pub result: Option<T>,
-    
+
     /// Whether recovery was successful
     pub success: bool,
-    
+
     /// Recovery strategy used
     pub strategy_used: RecoveryStrategy,
-    
+
     /// Number of attempts made
     pub attempts_made: u32,
-    
+
     /// Time taken for recovery
     pub recovery_time: Duration,
-    
+
     /// Partial results (if enabled)
     pub partial_results: Vec<T>,
 }
@@ -106,16 +106,16 @@ pub struct RecoveryResult<T> {
 pub enum RecoveryStrategy {
     /// Retry the operation
     Retry,
-    
+
     /// Rebuild corrupted index
     RebuildIndex,
-    
+
     /// Fall back to legacy method
     FallbackToLegacy,
-    
+
     /// Return partial results
     PartialResults,
-    
+
     /// Skip corrupted records
     SkipCorrupted,
 }
@@ -148,18 +148,14 @@ impl ErrorRecoveryManager {
     }
 
     /// Attempt to recover from a binary export error
-    pub fn attempt_recovery<T, F>(
-        &mut self,
-        operation: F,
-        context: &str,
-    ) -> RecoveryResult<T>
+    pub fn attempt_recovery<T, F>(&mut self, operation: F, context: &str) -> RecoveryResult<T>
     where
         F: Fn() -> Result<T, BinaryExportError>,
     {
         let start_time = Instant::now();
         let mut attempts = 0;
         let partial_results = Vec::new();
-        
+
         info!("Starting error recovery for: {}", context);
 
         // First attempt - try the operation as-is
@@ -184,14 +180,14 @@ impl ErrorRecoveryManager {
         // Retry with delay
         for attempt in 1..=self.recovery_config.max_retry_attempts {
             attempts += 1;
-            
+
             std::thread::sleep(self.recovery_config.retry_delay);
-            
+
             match operation() {
                 Ok(result) => {
                     self.error_stats.successful_recoveries += 1;
                     info!("Recovery successful after {} attempts", attempts);
-                    
+
                     return RecoveryResult {
                         result: Some(result),
                         success: true,
@@ -229,7 +225,7 @@ impl ErrorRecoveryManager {
     ) -> Result<bool, BinaryExportError> {
         let binary_path = binary_path.as_ref();
         let path_buf = binary_path.to_path_buf();
-        
+
         // Check cache first
         if let Some(status) = self.corruption_cache.get(&path_buf) {
             if status.last_checked.elapsed().unwrap_or(Duration::MAX) < Duration::from_secs(300) {
@@ -249,11 +245,14 @@ impl ErrorRecoveryManager {
         };
 
         // Update cache
-        self.corruption_cache.insert(path_buf, CorruptionStatus {
-            is_corrupted: corruption_detected,
-            last_checked: SystemTime::now(),
-            _confidence: if corruption_detected { 0.9 } else { 0.1 },
-        });
+        self.corruption_cache.insert(
+            path_buf,
+            CorruptionStatus {
+                is_corrupted: corruption_detected,
+                last_checked: SystemTime::now(),
+                confidence: if corruption_detected { 0.9 } else { 0.1 },
+            },
+        );
 
         if corruption_detected {
             warn!("Index corruption detected for: {:?}", binary_path);
@@ -268,26 +267,29 @@ impl ErrorRecoveryManager {
         binary_path: P,
     ) -> Result<BinaryIndex, BinaryExportError> {
         let binary_path = binary_path.as_ref();
-        
+
         info!("Attempting to rebuild index for: {:?}", binary_path);
-        
+
         // Clear corruption cache for this file
         self.corruption_cache.remove(&binary_path.to_path_buf());
-        
+
         // Attempt to rebuild
         let builder = BinaryIndexBuilder::new();
         match builder.build_index(binary_path) {
             Ok(index) => {
                 self.error_stats.index_rebuilds += 1;
                 info!("Index successfully rebuilt for: {:?}", binary_path);
-                
+
                 // Update cache with success
-                self.corruption_cache.insert(binary_path.to_path_buf(), CorruptionStatus {
-                    is_corrupted: false,
-                    last_checked: SystemTime::now(),
-                    _confidence: 0.1,
-                });
-                
+                self.corruption_cache.insert(
+                    binary_path.to_path_buf(),
+                    CorruptionStatus {
+                        is_corrupted: false,
+                        last_checked: SystemTime::now(),
+                        confidence: 0.1,
+                    },
+                );
+
                 Ok(index)
             }
             Err(error) => {
@@ -315,7 +317,8 @@ impl ErrorRecoveryManager {
 
     /// Generate error report
     pub fn generate_error_report(&self) -> ErrorReport {
-        let total_operations = self.error_stats.successful_recoveries + self.error_stats.failed_recoveries;
+        let total_operations =
+            self.error_stats.successful_recoveries + self.error_stats.failed_recoveries;
         let success_rate = if total_operations > 0 {
             self.error_stats.successful_recoveries as f64 / total_operations as f64
         } else {
@@ -343,7 +346,7 @@ impl ErrorRecoveryManager {
     fn record_error(&mut self, error: &BinaryExportError, context: &str) {
         self.error_stats.total_errors += 1;
         self.error_stats.last_error_time = Some(SystemTime::now());
-        
+
         let error_type = match error {
             BinaryExportError::Io(_) => "IO",
             BinaryExportError::InvalidFormat => "InvalidFormat",
@@ -354,13 +357,18 @@ impl ErrorRecoveryManager {
             BinaryExportError::CompressionError(_) => "Compression",
         };
 
-        *self.error_stats.errors_by_type.entry(error_type.to_string()).or_insert(0) += 1;
-        
+        *self
+            .error_stats
+            .errors_by_type
+            .entry(error_type.to_string())
+            .or_insert(0) += 1;
+
         debug!("Recorded error: {} in context: {}", error_type, context);
     }
 
     fn get_most_common_error(&self) -> Option<String> {
-        self.error_stats.errors_by_type
+        self.error_stats
+            .errors_by_type
             .iter()
             .max_by_key(|(_, &count)| count)
             .map(|(error_type, _)| error_type.clone())
@@ -370,18 +378,25 @@ impl ErrorRecoveryManager {
         let mut recommendations = Vec::new();
 
         if self.error_stats.total_errors > 10 {
-            recommendations.push("High error rate detected. Consider checking file integrity.".to_string());
+            recommendations
+                .push("High error rate detected. Consider checking file integrity.".to_string());
         }
 
         if self.error_stats.index_rebuilds > 3 {
-            recommendations.push("Frequent index rebuilds detected. Consider checking storage reliability.".to_string());
+            recommendations.push(
+                "Frequent index rebuilds detected. Consider checking storage reliability."
+                    .to_string(),
+            );
         }
 
         if let Some(most_common) = self.get_most_common_error() {
             match most_common.as_str() {
-                "IO" => recommendations.push("IO errors are common. Check disk space and permissions.".to_string()),
-                "CorruptedData" => recommendations.push("Data corruption detected. Consider backup verification.".to_string()),
-                "InvalidFormat" => recommendations.push("Format errors detected. Ensure file compatibility.".to_string()),
+                "IO" => recommendations
+                    .push("IO errors are common. Check disk space and permissions.".to_string()),
+                "CorruptedData" => recommendations
+                    .push("Data corruption detected. Consider backup verification.".to_string()),
+                "InvalidFormat" => recommendations
+                    .push("Format errors detected. Ensure file compatibility.".to_string()),
                 _ => {}
             }
         }
@@ -395,19 +410,19 @@ impl ErrorRecoveryManager {
 pub struct ErrorReport {
     /// Total errors encountered
     pub total_errors: u64,
-    
+
     /// Recovery success rate
     pub success_rate: f64,
-    
+
     /// Most common error type
     pub most_common_error: Option<String>,
-    
+
     /// Number of index rebuilds
     pub index_rebuilds: u64,
-    
+
     /// Error rate per hour
     pub error_rate: f64,
-    
+
     /// Recommendations for improvement
     pub recommendations: Vec<String>,
 }
@@ -476,15 +491,18 @@ mod tests {
         let attempt_count = std::sync::Arc::new(std::sync::Mutex::new(0));
         let attempt_count_clone = attempt_count.clone();
 
-        let result: RecoveryResult<String> = manager.attempt_recovery(|| {
-            let mut count = attempt_count_clone.lock().unwrap();
-            *count += 1;
-            if *count < 2 {
-                Err(BinaryExportError::InvalidFormat)
-            } else {
-                Ok("success".to_string())
-            }
-        }, "test operation");
+        let result: RecoveryResult<String> = manager.attempt_recovery(
+            || {
+                let mut count = attempt_count_clone.lock().unwrap();
+                *count += 1;
+                if *count < 2 {
+                    Err(BinaryExportError::InvalidFormat)
+                } else {
+                    Ok("success".to_string())
+                }
+            },
+            "test operation",
+        );
 
         assert!(result.success);
         assert_eq!(result.result, Some("success".to_string()));
@@ -500,9 +518,8 @@ mod tests {
             ..Default::default()
         });
 
-        let result: RecoveryResult<String> = manager.attempt_recovery(|| {
-            Err(BinaryExportError::InvalidFormat)
-        }, "test operation");
+        let result: RecoveryResult<String> =
+            manager.attempt_recovery(|| Err(BinaryExportError::InvalidFormat), "test operation");
 
         assert!(!result.success);
         assert_eq!(result.result, None);
@@ -525,17 +542,23 @@ mod tests {
     #[test]
     fn test_error_report_generation() {
         let mut manager = ErrorRecoveryManager::new();
-        
+
         // Simulate some errors
         manager.error_stats.total_errors = 10;
         manager.error_stats.successful_recoveries = 8;
         manager.error_stats.failed_recoveries = 2;
         manager.error_stats.index_rebuilds = 1;
-        manager.error_stats.errors_by_type.insert("IO".to_string(), 6);
-        manager.error_stats.errors_by_type.insert("CorruptedData".to_string(), 4);
+        manager
+            .error_stats
+            .errors_by_type
+            .insert("IO".to_string(), 6);
+        manager
+            .error_stats
+            .errors_by_type
+            .insert("CorruptedData".to_string(), 4);
 
         let report = manager.generate_error_report();
-        
+
         assert_eq!(report.total_errors, 10);
         assert_eq!(report.success_rate, 0.8);
         assert_eq!(report.most_common_error, Some("IO".to_string()));

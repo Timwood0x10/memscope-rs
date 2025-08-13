@@ -488,7 +488,7 @@ mod tests {
         let mut monitor = ProgressMonitor::new(100);
         // Set shorter update interval for testing
         monitor.update_interval = Duration::from_millis(1);
-        
+
         monitor.set_callback(Box::new(move |_progress| {
             *callback_called_clone.lock().unwrap() = true;
         }));

@@ -110,15 +110,15 @@ impl MemoryTracker {
     /// Track a memory allocation with enhanced context information
     /// This method allows providing inferred type and variable names for system allocations
     pub fn track_allocation_with_context(
-        &self, 
-        ptr: usize, 
+        &self,
+        ptr: usize,
         size: usize,
         inferred_var_name: String,
-        inferred_type_name: String
+        inferred_type_name: String,
     ) -> TrackingResult<()> {
         // Create allocation info with enhanced context
         let mut allocation = AllocationInfo::new(ptr, size);
-        
+
         // Set the inferred names - this gives system allocations meaningful names
         allocation.var_name = Some(inferred_var_name);
         allocation.type_name = Some(inferred_type_name);

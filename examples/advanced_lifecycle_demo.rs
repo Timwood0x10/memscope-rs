@@ -1,8 +1,8 @@
 // Complex lifecycle showcase with binary export - Performance comparison version
 // This example measures the performance difference between JSON and binary export
 
-use memscope_rs::{get_global_tracker, init, track_var};
 use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
+use memscope_rs::{get_global_tracker, init, track_var};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
@@ -530,30 +530,33 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
 
 fn simulate_unsafe_ffi_operations() {
     println!("🔒 Phase 7: Unsafe/FFI Operations");
-    
+
     let unsafe_ffi_tracker = get_global_unsafe_ffi_tracker();
-    
+
     // Simulate multiple unsafe operations for comprehensive testing
     unsafe {
         use std::alloc::{alloc, dealloc, Layout};
-        
+
         // Multiple unsafe allocations with different sizes
         for i in 0..5 {
             let size = 1024 * (i + 1);
             let layout = Layout::from_size_align(size, 8).unwrap();
             let ptr = alloc(layout);
-            
+
             if !ptr.is_null() {
                 // Initialize with pattern
                 std::ptr::write_bytes(ptr, (0x40 + i) as u8, size);
-                
+
                 // Track the unsafe allocation
                 let _ = unsafe_ffi_tracker.track_unsafe_allocation(
                     ptr as usize,
                     size,
-                    format!("examples/complex_lifecycle_showcase_binary.rs:{}:13", 650 + i * 10),
+                    format!(
+                        "examples/complex_lifecycle_showcase_binary.rs:{}:13",
+                        650 + i * 10
+                    ),
                 );
-                
+
                 // Record boundary event
                 let _ = unsafe_ffi_tracker.record_boundary_event(
                     ptr as usize,
@@ -561,18 +564,18 @@ fn simulate_unsafe_ffi_operations() {
                     format!("unsafe_block_{}", i),
                     format!("ffi_target_{}", i),
                 );
-                
+
                 dealloc(ptr, layout);
             }
         }
-        
+
         // Simulate FFI operations with libc
         extern "C" {
             fn malloc(size: usize) -> *mut std::ffi::c_void;
             fn free(ptr: *mut std::ffi::c_void);
             fn calloc(nmemb: usize, size: usize) -> *mut std::ffi::c_void;
         }
-        
+
         // Multiple FFI allocations
         for i in 0..3 {
             let size = 512 * (i + 1);
@@ -581,11 +584,11 @@ fn simulate_unsafe_ffi_operations() {
             } else {
                 calloc(size / 8, 8)
             };
-            
+
             if !ffi_ptr.is_null() {
                 // Write test data
                 std::ptr::write_bytes(ffi_ptr as *mut u8, (0x60 + i) as u8, size);
-                
+
                 // Track FFI allocation
                 let _ = unsafe_ffi_tracker.track_ffi_allocation(
                     ffi_ptr as usize,
@@ -593,7 +596,7 @@ fn simulate_unsafe_ffi_operations() {
                     "libc".to_string(),
                     if i % 2 == 0 { "malloc" } else { "calloc" }.to_string(),
                 );
-                
+
                 // Record boundary event
                 let _ = unsafe_ffi_tracker.record_boundary_event(
                     ffi_ptr as usize,
@@ -601,31 +604,47 @@ fn simulate_unsafe_ffi_operations() {
                     "libc".to_string(),
                     format!("rust_complex_lifecycle_{}", i),
                 );
-                
+
                 free(ffi_ptr);
             }
         }
     }
-    
+
     // Debug: Show unsafe/FFI tracker statistics
     if let Ok(enhanced_allocations) = unsafe_ffi_tracker.get_enhanced_allocations() {
-        println!("  📊 Generated {} unsafe/FFI allocations with cross-boundary events", enhanced_allocations.len());
-        
-        let unsafe_count = enhanced_allocations.iter()
-            .filter(|a| matches!(a.source, memscope_rs::analysis::unsafe_ffi_tracker::AllocationSource::UnsafeRust { .. }))
+        println!(
+            "  📊 Generated {} unsafe/FFI allocations with cross-boundary events",
+            enhanced_allocations.len()
+        );
+
+        let unsafe_count = enhanced_allocations
+            .iter()
+            .filter(|a| {
+                matches!(
+                    a.source,
+                    memscope_rs::analysis::unsafe_ffi_tracker::AllocationSource::UnsafeRust { .. }
+                )
+            })
             .count();
-        let ffi_count = enhanced_allocations.iter()
-            .filter(|a| matches!(a.source, memscope_rs::analysis::unsafe_ffi_tracker::AllocationSource::FfiC { .. }))
+        let ffi_count = enhanced_allocations
+            .iter()
+            .filter(|a| {
+                matches!(
+                    a.source,
+                    memscope_rs::analysis::unsafe_ffi_tracker::AllocationSource::FfiC { .. }
+                )
+            })
             .count();
-        let total_events: usize = enhanced_allocations.iter()
+        let total_events: usize = enhanced_allocations
+            .iter()
             .map(|a| a.cross_boundary_events.len())
             .sum();
-            
+
         println!("  🔒 Unsafe Rust allocations: {}", unsafe_count);
         println!("  🌉 FFI allocations: {}", ffi_count);
         println!("  📡 Cross-boundary events: {}", total_events);
     }
-    
+
     println!("  ✅ Unsafe/FFI operations completed for comprehensive analysis");
 }
 
@@ -714,8 +733,10 @@ fn generate_final_analysis_with_binary_export() {
     let binary_path = "MemoryAnalysis/complex_lifecycle_binary/complex_lifecycle_binary.memscope";
 
     let conversion_time = if let Err(e) =
-        memscope_rs::export::binary::BinaryParser::parse_full_binary_to_json(binary_path, "complex_lifecycle_binary")
-    {
+        memscope_rs::export::binary::BinaryParser::parse_full_binary_to_json(
+            binary_path,
+            "complex_lifecycle_binary",
+        ) {
         println!("❌ Binary to 5 JSON files conversion failed: {e}");
         conversion_start.elapsed()
     } else {

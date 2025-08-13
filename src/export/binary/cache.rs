@@ -70,9 +70,12 @@ impl CacheEntry {
     }
 
     /// Check if this cache entry is still valid for the given file
-    pub fn is_valid_for_file<P: AsRef<Path>>(&self, file_path: P) -> Result<bool, BinaryExportError> {
+    pub fn is_valid_for_file<P: AsRef<Path>>(
+        &self,
+        file_path: P,
+    ) -> Result<bool, BinaryExportError> {
         let path = file_path.as_ref();
-        
+
         // Check if file exists
         if !path.exists() {
             return Ok(false);
@@ -81,7 +84,7 @@ impl CacheEntry {
         // Check file metadata
         let metadata = fs::metadata(path)?;
         let file_size = metadata.len();
-        
+
         // Check if file size changed
         if file_size != self.file_size {
             return Ok(false);
@@ -123,7 +126,7 @@ impl Default for IndexCacheConfig {
     fn default() -> Self {
         let cache_dir = std::env::temp_dir().join("memscope_index_cache");
         Self {
-            max_entries: 1000, // Increased from 100 to 1000 for better performance
+            max_entries: 100,
             max_age_seconds: 7 * 24 * 3600, // 7 days
             cache_directory: cache_dir,
             enable_compression: true,
@@ -196,7 +199,7 @@ impl IndexCache {
         }
 
         let metadata_file = config.cache_directory.join("cache_metadata.json");
-        
+
         let mut cache = Self {
             config,
             entries: HashMap::new(),
@@ -206,7 +209,7 @@ impl IndexCache {
 
         // Load existing cache metadata
         cache.load_metadata()?;
-        
+
         // Clean up expired entries
         cache.cleanup_expired_entries()?;
 
@@ -234,13 +237,13 @@ impl IndexCache {
                 let start_time = std::time::Instant::now();
                 let index = self.load_index_from_cache(entry)?;
                 let load_time = start_time.elapsed().as_millis() as u64;
-                
+
                 // Update access statistics
                 if let Some(entry) = self.entries.get_mut(&cache_key) {
                     entry.mark_accessed();
                 }
                 self.stats.record_hit(load_time);
-                
+
                 return Ok(index);
             } else {
                 // Cache entry is invalid - remove it
@@ -345,7 +348,7 @@ impl IndexCache {
     /// Load an index from cache
     fn load_index_from_cache(&self, entry: &CacheEntry) -> Result<BinaryIndex, BinaryExportError> {
         let cache_data = fs::read(&entry.cache_file_path)?;
-        
+
         if self.config.enable_compression {
             // Decompress if compression is enabled
             let decompressed = self.decompress_data(&cache_data)?;
@@ -362,7 +365,7 @@ impl IndexCache {
         cache_file_path: &Path,
     ) -> Result<(), BinaryExportError> {
         let serialized = self.serialize_index(index)?;
-        
+
         let data_to_write = if self.config.enable_compression {
             self.compress_data(&serialized)?
         } else {
@@ -393,9 +396,9 @@ impl IndexCache {
         use std::io::Write;
         let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(data)?;
-        encoder.finish().map_err(|e| {
-            BinaryExportError::CompressionError(format!("Compression failed: {}", e))
-        })
+        encoder
+            .finish()
+            .map_err(|e| BinaryExportError::CompressionError(format!("Compression failed: {}", e)))
     }
 
     /// Decompress data
@@ -428,9 +431,7 @@ impl IndexCache {
         let expired_keys: Vec<String> = self
             .entries
             .iter()
-            .filter(|(_, entry)| {
-                (now - entry.cached_at) > self.config.max_age_seconds
-            })
+            .filter(|(_, entry)| (now - entry.cached_at) > self.config.max_age_seconds)
             .map(|(key, _)| key.clone())
             .collect();
 
@@ -505,7 +506,10 @@ impl IndexCache {
     /// Save cache metadata to disk
     fn save_metadata(&self) -> Result<(), BinaryExportError> {
         let metadata_content = serde_json::to_string_pretty(&self.entries).map_err(|e| {
-            BinaryExportError::SerializationError(format!("Failed to serialize cache metadata: {}", e))
+            BinaryExportError::SerializationError(format!(
+                "Failed to serialize cache metadata: {}",
+                e
+            ))
         })?;
 
         fs::write(&self.metadata_file, metadata_content)?;
@@ -523,8 +527,8 @@ impl Drop for IndexCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::export::binary::writer::BinaryWriter;
     use crate::core::types::AllocationInfo;
+    use crate::export::binary::writer::BinaryWriter;
     use tempfile::{NamedTempFile, TempDir};
 
     fn create_test_allocation() -> AllocationInfo {
@@ -606,9 +610,9 @@ mod tests {
         let initial_access_time = entry.last_accessed;
         let initial_count = entry.access_count;
 
-        // Wait a bit to ensure time difference (reduced for testing)
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        
+        // Wait a bit to ensure time difference
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
         entry.mark_accessed();
 
         assert!(entry.last_accessed >= initial_access_time);
@@ -663,13 +667,17 @@ mod tests {
         let builder = BinaryIndexBuilder::new();
 
         // First access should be a cache miss
-        let index1 = cache.get_or_build_index(test_file.path(), &builder).unwrap();
+        let index1 = cache
+            .get_or_build_index(test_file.path(), &builder)
+            .unwrap();
         assert_eq!(cache.get_stats().cache_misses, 1);
         assert_eq!(cache.get_stats().cache_hits, 0);
         assert_eq!(cache.entries.len(), 1);
 
         // Second access should be a cache hit
-        let index2 = cache.get_or_build_index(test_file.path(), &builder).unwrap();
+        let index2 = cache
+            .get_or_build_index(test_file.path(), &builder)
+            .unwrap();
         assert_eq!(cache.get_stats().cache_misses, 1);
         assert_eq!(cache.get_stats().cache_hits, 1);
         assert_eq!(cache.get_stats().hit_rate(), 50.0);
@@ -692,18 +700,20 @@ mod tests {
         let builder = BinaryIndexBuilder::new();
 
         // First access - cache miss
-        let _index1 = cache.get_or_build_index(test_file.path(), &builder).unwrap();
+        let _index1 = cache
+            .get_or_build_index(test_file.path(), &builder)
+            .unwrap();
         assert_eq!(cache.get_stats().cache_misses, 1);
         assert_eq!(cache.entries.len(), 1);
 
         // Wait a bit to ensure file modification time changes
-        std::thread::sleep(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         // Modify the file by creating a new valid binary file with different content
         let test_allocations = vec![{
             let mut alloc = create_test_allocation();
             alloc.ptr = 0x2000; // Different pointer value
-            alloc.size = 2048;   // Different size
+            alloc.size = 2048; // Different size
             alloc
         }];
 
@@ -720,7 +730,7 @@ mod tests {
         // Next access should be a cache miss due to file change
         let result = cache.get_or_build_index(test_file.path(), &builder);
         assert!(result.is_ok());
-        
+
         // The cache should have detected the file change and invalidated the entry
         // This should result in either 2 misses (if invalidated) or still 1 miss but different content
         assert!(cache.get_stats().cache_misses >= 1);
@@ -767,7 +777,9 @@ mod tests {
         let builder = BinaryIndexBuilder::new();
 
         // Add an entry to cache
-        let _index = cache.get_or_build_index(test_file.path(), &builder).unwrap();
+        let _index = cache
+            .get_or_build_index(test_file.path(), &builder)
+            .unwrap();
         assert_eq!(cache.entries.len(), 1);
 
         // Clear cache

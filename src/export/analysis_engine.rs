@@ -448,19 +448,23 @@ impl AnalysisEngine for StandardAnalysisEngine {
         _allocations: &[AllocationInfo],
     ) -> Result<AnalysisData, AnalysisError> {
         use crate::analysis::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker;
-        
+
         // Get enhanced allocations with real unsafe/FFI data
         let tracker = get_global_unsafe_ffi_tracker();
-        let enhanced_allocations = tracker.get_enhanced_allocations()
-            .map_err(|e| AnalysisError::ProcessingError(format!("Failed to get enhanced allocations: {e}")))?;
+        let enhanced_allocations = tracker.get_enhanced_allocations().map_err(|e| {
+            AnalysisError::ProcessingError(format!("Failed to get enhanced allocations: {e}"))
+        })?;
 
         // For unsafe/FFI analysis, we want ALL enhanced allocations, not just user-defined ones
         // because unsafe/FFI operations often don't have variable names
         let user_enhanced_allocations = enhanced_allocations;
 
         // Convert to the expected JSON format matching snapshot_unsafe_ffi.json
-        let data = serde_json::to_value(&user_enhanced_allocations)
-            .map_err(|e| AnalysisError::SerializationError(format!("Failed to serialize enhanced allocations: {e}")))?;
+        let data = serde_json::to_value(&user_enhanced_allocations).map_err(|e| {
+            AnalysisError::SerializationError(format!(
+                "Failed to serialize enhanced allocations: {e}"
+            ))
+        })?;
 
         Ok(AnalysisData {
             data,
@@ -527,9 +531,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
             );
             json_obj.insert(
                 "var_name".to_string(),
-                serde_json::Value::String(
-                    self.infer_var_name(alloc),
-                ),
+                serde_json::Value::String(self.infer_var_name(alloc)),
             );
             json_obj.insert(
                 "type_name".to_string(),
@@ -540,7 +542,8 @@ impl AnalysisEngine for StandardAnalysisEngine {
             json_obj.insert(
                 "smart_pointer_info".to_string(),
                 if let Some(ref info) = alloc.smart_pointer_info {
-                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"type": "unknown", "ref_count": 0}))
+                    serde_json::to_value(info)
+                        .unwrap_or_else(|_| serde_json::json!({"type": "unknown", "ref_count": 0}))
                 } else {
                     serde_json::json!({"type": "none", "ref_count": 0})
                 },
@@ -608,7 +611,9 @@ impl AnalysisEngine for StandardAnalysisEngine {
             json_obj.insert(
                 "generic_instantiation".to_string(),
                 if let Some(ref info) = alloc.generic_instantiation {
-                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"instantiation": "none", "parameters": []}))
+                    serde_json::to_value(info).unwrap_or_else(
+                        |_| serde_json::json!({"instantiation": "none", "parameters": []}),
+                    )
                 } else {
                     serde_json::json!({"instantiation": "none", "parameters": []})
                 },
@@ -617,7 +622,9 @@ impl AnalysisEngine for StandardAnalysisEngine {
             json_obj.insert(
                 "type_relationships".to_string(),
                 if let Some(ref info) = alloc.type_relationships {
-                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"relationships": [], "inheritance": "none"}))
+                    serde_json::to_value(info).unwrap_or_else(
+                        |_| serde_json::json!({"relationships": [], "inheritance": "none"}),
+                    )
                 } else {
                     serde_json::json!({"relationships": [], "inheritance": "none"})
                 },
@@ -626,7 +633,9 @@ impl AnalysisEngine for StandardAnalysisEngine {
             json_obj.insert(
                 "type_usage".to_string(),
                 if let Some(ref info) = alloc.type_usage {
-                    serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"usage_count": 1, "usage_pattern": "single"}))
+                    serde_json::to_value(info).unwrap_or_else(
+                        |_| serde_json::json!({"usage_count": 1, "usage_pattern": "single"}),
+                    )
                 } else {
                     serde_json::json!({"usage_count": 1, "usage_pattern": "single"})
                 },
@@ -759,7 +768,7 @@ impl StandardAnalysisEngine {
                 let type_hint = match alloc.size {
                     0 => "zero_sized_var",
                     1..=8 => "primitive_var",
-                    9..=32 => "small_struct_var", 
+                    9..=32 => "small_struct_var",
                     33..=256 => "medium_struct_var",
                     257..=1024 => "large_struct_var",
                     _ => "heap_allocated_var",
