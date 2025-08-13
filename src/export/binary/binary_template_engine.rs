@@ -647,6 +647,7 @@ mod tests {
             data_source: "binary_direct".to_string(),
             complex_types: None,
             unsafe_ffi: None,
+            variable_relationships: None,
         }
     }
 

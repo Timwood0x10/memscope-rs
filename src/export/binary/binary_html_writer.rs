@@ -9,6 +9,7 @@ use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::selective_reader::AllocationField;
 use crate::export::binary::complex_type_analyzer::{ComplexTypeAnalyzer, ComplexTypeAnalysis};
 use crate::export::binary::ffi_safety_analyzer::{FfiSafetyAnalyzer, FfiSafetyAnalysis};
+use crate::export::binary::variable_relationship_analyzer::{VariableRelationshipAnalyzer, VariableRelationshipAnalysis};
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufWriter, Write};
@@ -202,6 +203,7 @@ pub struct BinaryTemplateData {
     pub data_source: String,
     pub complex_types: Option<ComplexTypeAnalysis>,
     pub unsafe_ffi: Option<FfiSafetyAnalysis>,
+    pub variable_relationships: Option<VariableRelationshipAnalysis>,
 }
 
 /// Intelligent buffering system for optimized write performance
@@ -474,6 +476,19 @@ impl<W: Write> BinaryHtmlWriter<W> {
             None
         };
 
+        // Perform variable relationship analysis on collected allocations
+        let variable_relationships = if !self.all_allocations.is_empty() {
+            match VariableRelationshipAnalyzer::analyze_allocations(&self.all_allocations) {
+                Ok(analysis) => Some(analysis),
+                Err(e) => {
+                    tracing::warn!("Variable relationship analysis failed: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Ok(BinaryTemplateData {
             project_name: project_name.to_string(),
             allocations: self.allocation_buffer.clone(),
@@ -484,6 +499,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
             data_source: "binary_direct".to_string(),
             complex_types,
             unsafe_ffi,
+            variable_relationships,
         })
     }
 
@@ -561,6 +577,12 @@ impl<W: Write> BinaryHtmlWriter<W> {
         if let Some(ref unsafe_ffi) = data.unsafe_ffi {
             dashboard_data["unsafe_ffi"] = serde_json::to_value(unsafe_ffi)
                 .map_err(|e| BinaryExportError::SerializationError(format!("FFI safety analysis serialization failed: {}", e)))?;
+        }
+
+        // Add variable relationship analysis if available
+        if let Some(ref variable_relationships) = data.variable_relationships {
+            dashboard_data["variable_relationships"] = serde_json::to_value(variable_relationships)
+                .map_err(|e| BinaryExportError::SerializationError(format!("Variable relationship analysis serialization failed: {}", e)))?;
         }
 
         serde_json::to_string_pretty(&dashboard_data).map_err(|e| {

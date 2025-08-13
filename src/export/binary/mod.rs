@@ -14,10 +14,13 @@ mod cache;
 mod complex_type_analyzer;
 mod config;
 mod ffi_safety_analyzer;
+mod variable_relationship_analyzer;
 #[cfg(test)]
 mod integration_test_complex_types;
 #[cfg(test)]
 mod integration_test_ffi_safety;
+#[cfg(test)]
+mod integration_test_variable_relationships;
 mod error;
 mod error_recovery;
 mod field_parser;
@@ -61,6 +64,10 @@ pub use complex_type_analyzer::{
 pub use ffi_safety_analyzer::{
     FfiSafetyAnalysis, FfiSafetyAnalyzer, FfiSafetySummary, UnsafeOperation,
     FfiHotspot, RiskAssessment, FfiCallGraph, UnsafeOperationType, RiskLevel,
+};
+pub use variable_relationship_analyzer::{
+    VariableRelationshipAnalysis, VariableRelationshipAnalyzer, RelationshipGraph,
+    GraphNode, GraphEdge, RelationshipType, NodeCategory, OwnershipStatus,
 };
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
