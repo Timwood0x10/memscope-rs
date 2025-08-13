@@ -27,8 +27,8 @@
     <!-- Binary Data injection script -->
     <script>
         // Global data store - populated directly from binary data
-        window.analysisData = {{BINARY_DATA}};
-        window.embeddedJsonData = {{BINARY_DATA}};
+        window.analysisData = {{ BINARY_DATA }};
+        window.embeddedJsonData = {{ BINARY_DATA }};
         window.dataSource = "binary_direct";
         window.generationTime = "{{GENERATION_TIME}}";
     </script>
@@ -667,7 +667,7 @@
 
     <!-- Binary-specific JavaScript -->
     <script>
-        {{JS_CONTENT}}
+        { { JS_CONTENT } }
 
         // Binary-specific initialization
         document.addEventListener('DOMContentLoaded', function () {

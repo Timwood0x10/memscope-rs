@@ -3,8 +3,8 @@
 //! This module provides a specialized template engine that processes the binary_dashboard.html
 //! template with data directly from binary sources, independent of the JSON → HTML workflow.
 
-use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::binary_html_writer::BinaryTemplateData;
+use crate::export::binary::error::BinaryExportError;
 
 use std::collections::HashMap;
 use std::fs;
@@ -137,12 +137,13 @@ impl BinaryTemplateEngine {
         }
 
         // Load from file
-        let template_content = fs::read_to_string(template_path)
-            .map_err(|e| BinaryExportError::Io(e))?;
+        let template_content =
+            fs::read_to_string(template_path).map_err(|e| BinaryExportError::Io(e))?;
 
         // Cache the template if caching is enabled
         if self.config.enable_cache {
-            self.template_cache.insert(template_path.to_string(), template_content.clone());
+            self.template_cache
+                .insert(template_path.to_string(), template_content.clone());
         }
 
         Ok(template_content)
@@ -191,26 +192,33 @@ impl BinaryTemplateEngine {
     }
 
     /// Serialize template data to JSON format
-    fn serialize_template_data(&self, data: &BinaryTemplateData) -> Result<String, BinaryExportError> {
+    fn serialize_template_data(
+        &self,
+        data: &BinaryTemplateData,
+    ) -> Result<String, BinaryExportError> {
         use serde_json::json;
 
         // Convert binary template data to JSON format compatible with the template
-        let allocations_json: Vec<serde_json::Value> = data.allocations.iter().map(|alloc| {
-            json!({
-                "id": alloc.id,
-                "size": alloc.size,
-                "type_name": alloc.type_name,
-                "scope_name": alloc.scope_name,
-                "timestamp_alloc": alloc.timestamp_alloc,
-                "is_active": alloc.is_active,
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "thread_id": alloc.thread_id,
-                "var_name": alloc.var_name,
-                "borrow_count": alloc.borrow_count,
-                "is_leaked": alloc.is_leaked,
-                "lifetime_ms": alloc.lifetime_ms
+        let allocations_json: Vec<serde_json::Value> = data
+            .allocations
+            .iter()
+            .map(|alloc| {
+                json!({
+                    "id": alloc.id,
+                    "size": alloc.size,
+                    "type_name": alloc.type_name,
+                    "scope_name": alloc.scope_name,
+                    "timestamp_alloc": alloc.timestamp_alloc,
+                    "is_active": alloc.is_active,
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "thread_id": alloc.thread_id,
+                    "var_name": alloc.var_name,
+                    "borrow_count": alloc.borrow_count,
+                    "is_leaked": alloc.is_leaked,
+                    "lifetime_ms": alloc.lifetime_ms
+                })
             })
-        }).collect();
+            .collect();
 
         let dashboard_data = json!({
             "project_name": data.project_name,
@@ -233,8 +241,9 @@ impl BinaryTemplateEngine {
             }
         });
 
-        serde_json::to_string(&dashboard_data)
-            .map_err(|e| BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e)))
+        serde_json::to_string(&dashboard_data).map_err(|e| {
+            BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e))
+        })
     }
 
     /// Process template placeholders with actual data
@@ -254,12 +263,14 @@ impl BinaryTemplateEngine {
         html_content = html_content.replace("{{CSS_CONTENT}}", css_content);
         html_content = html_content.replace("{{JS_CONTENT}}", js_content);
         html_content = html_content.replace(
-            "{{GENERATION_TIME}}", 
-            &chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string()
+            "{{GENERATION_TIME}}",
+            &chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
         );
         html_content = html_content.replace(
-            "{{PROCESSING_TIME}}", 
-            &template_data.processing_time_ms.to_string()
+            "{{PROCESSING_TIME}}",
+            &template_data.processing_time_ms.to_string(),
         );
 
         // Replace performance-specific placeholders
@@ -384,7 +395,8 @@ impl BinaryTemplateEngine {
                 padding: 0.75rem;
             }
         }
-        "#.to_string()
+        "#
+        .to_string()
     }
 
     /// Get embedded JavaScript content
@@ -604,7 +616,10 @@ mod tests {
 
     fn create_test_template_data() -> BinaryTemplateData {
         let mut optional_fields = HashMap::new();
-        optional_fields.insert("test_field".to_string(), BinaryFieldValue::String("test_value".to_string()));
+        optional_fields.insert(
+            "test_field".to_string(),
+            BinaryFieldValue::String("test_value".to_string()),
+        );
 
         let allocation = BinaryAllocationData {
             id: 1,
@@ -630,6 +645,7 @@ mod tests {
             active_allocations_count: 1,
             processing_time_ms: 100,
             data_source: "binary_direct".to_string(),
+            complex_types: None,
         }
     }
 
@@ -643,10 +659,10 @@ mod tests {
     fn test_template_data_serialization() {
         let engine = BinaryTemplateEngine::new().unwrap();
         let template_data = create_test_template_data();
-        
+
         let json_result = engine.serialize_template_data(&template_data);
         assert!(json_result.is_ok());
-        
+
         let json_str = json_result.unwrap();
         assert!(json_str.contains("test_project"));
         assert!(json_str.contains("binary_direct"));
@@ -655,16 +671,16 @@ mod tests {
     #[test]
     fn test_css_and_js_loading() {
         let mut engine = BinaryTemplateEngine::new().unwrap();
-        
+
         let css_result = engine.load_css_resources();
         assert!(css_result.is_ok());
-        
+
         let js_result = engine.load_js_resources();
         assert!(js_result.is_ok());
-        
+
         let css_content = css_result.unwrap();
         let js_content = js_result.unwrap();
-        
+
         assert!(css_content.contains("binary-performance-indicator"));
         assert!(js_content.contains("trackBinaryPerformance"));
     }
@@ -673,12 +689,12 @@ mod tests {
     fn test_placeholder_processing() {
         let engine = BinaryTemplateEngine::new().unwrap();
         let template_data = create_test_template_data();
-        
+
         let template = "Project: {{PROJECT_NAME}}, Time: {{PROCESSING_TIME}}ms";
         let json_data = "{}";
         let css_content = "";
         let js_content = "";
-        
+
         let result = engine.process_template_placeholders(
             template,
             &template_data,
@@ -686,7 +702,7 @@ mod tests {
             css_content,
             js_content,
         );
-        
+
         assert!(result.is_ok());
         let processed = result.unwrap();
         assert!(processed.contains("test_project"));
@@ -697,39 +713,40 @@ mod tests {
     fn test_throughput_calculation() {
         let engine = BinaryTemplateEngine::new().unwrap();
         let template_data = create_test_template_data();
-        
+
         let throughput = engine.calculate_throughput(&template_data);
         assert_eq!(throughput, 10.0); // 1 allocation / 100ms * 1000 = 10 allocs/sec
     }
 
     #[test]
     fn test_caching_functionality() {
-        let mut engine = BinaryTemplateEngine::with_config(
-            BinaryTemplateEngineConfig {
-                enable_cache: true,
-                ..Default::default()
-            }
-        ).unwrap();
-        
+        let mut engine = BinaryTemplateEngine::with_config(BinaryTemplateEngineConfig {
+            enable_cache: true,
+            ..Default::default()
+        })
+        .unwrap();
+
         // Note: Resources are preloaded in constructor when caching is enabled
         // So cache should already be populated
         assert!(engine.css_cache.is_some()); // Preloaded
         assert!(engine.js_cache.is_some()); // Preloaded
-        
+
         // Test that subsequent loads return the same content
         let css1 = engine.load_css_resources().unwrap();
         let css2 = engine.load_css_resources().unwrap();
         assert_eq!(css1, css2); // Should be identical
-        
+
         let js1 = engine.load_js_resources().unwrap();
         let js2 = engine.load_js_resources().unwrap();
         assert_eq!(js1, js2); // Should be identical
-        
+
         // Test template caching by manually adding to cache
         let initial_cache_size = engine.template_cache.len();
-        engine.template_cache.insert("test_template".to_string(), "test_content".to_string());
+        engine
+            .template_cache
+            .insert("test_template".to_string(), "test_content".to_string());
         assert_eq!(engine.template_cache.len(), initial_cache_size + 1);
-        
+
         // Verify stats reflect the cache state
         let stats = engine.get_stats();
         assert_eq!(stats.cached_templates, initial_cache_size + 1);
@@ -737,26 +754,25 @@ mod tests {
 
     #[test]
     fn test_cache_hits_tracking() {
-        let mut engine = BinaryTemplateEngine::with_config(
-            BinaryTemplateEngineConfig {
-                enable_cache: true,
-                ..Default::default()
-            }
-        ).unwrap();
-        
+        let mut engine = BinaryTemplateEngine::with_config(BinaryTemplateEngineConfig {
+            enable_cache: true,
+            ..Default::default()
+        })
+        .unwrap();
+
         // Resources are preloaded in constructor, so cache_hits might already be > 0
         let initial_cache_hits = engine.get_stats().cache_hits;
-        
+
         // Load resources - these should be cache hits since they're preloaded
         engine.load_css_resources().unwrap();
         engine.load_js_resources().unwrap();
         assert_eq!(engine.get_stats().cache_hits, initial_cache_hits + 2);
-        
+
         // Load again - more cache hits
         engine.load_css_resources().unwrap();
         engine.load_js_resources().unwrap();
         assert_eq!(engine.get_stats().cache_hits, initial_cache_hits + 4);
-        
+
         // One more CSS load
         engine.load_css_resources().unwrap();
         assert_eq!(engine.get_stats().cache_hits, initial_cache_hits + 5);
@@ -764,22 +780,21 @@ mod tests {
 
     #[test]
     fn test_cache_disabled() {
-        let mut engine = BinaryTemplateEngine::with_config(
-            BinaryTemplateEngineConfig {
-                enable_cache: false,
-                ..Default::default()
-            }
-        ).unwrap();
-        
+        let mut engine = BinaryTemplateEngine::with_config(BinaryTemplateEngineConfig {
+            enable_cache: false,
+            ..Default::default()
+        })
+        .unwrap();
+
         // With caching disabled, resources should not be preloaded
         assert!(engine.css_cache.is_none());
         assert!(engine.js_cache.is_none());
         assert_eq!(engine.get_stats().cache_hits, 0);
-        
+
         // Load resources - should not be cached
         engine.load_css_resources().unwrap();
         engine.load_js_resources().unwrap();
-        
+
         // Cache should still be empty
         assert!(engine.css_cache.is_none());
         assert!(engine.js_cache.is_none());
@@ -788,24 +803,23 @@ mod tests {
 
     #[test]
     fn test_cache_clearing() {
-        let mut engine = BinaryTemplateEngine::with_config(
-            BinaryTemplateEngineConfig {
-                enable_cache: true,
-                ..Default::default()
-            }
-        ).unwrap();
-        
+        let mut engine = BinaryTemplateEngine::with_config(BinaryTemplateEngineConfig {
+            enable_cache: true,
+            ..Default::default()
+        })
+        .unwrap();
+
         // Load resources to populate cache
         engine.load_css_resources().unwrap();
         engine.load_js_resources().unwrap();
-        
+
         // Verify cache is populated
         assert!(engine.css_cache.is_some());
         assert!(engine.js_cache.is_some());
-        
+
         // Clear cache
         engine.clear_cache();
-        
+
         // Verify cache is cleared
         assert!(engine.template_cache.is_empty());
         assert!(engine.css_cache.is_none());

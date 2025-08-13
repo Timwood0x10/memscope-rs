@@ -492,11 +492,7 @@ mod tests {
 
     #[test]
     fn test_config_recommendations() {
-        // Create temporary files of different sizes for testing
-        let small_file = NamedTempFile::new().unwrap();
-        let medium_file = NamedTempFile::new().unwrap();
-        let large_file = NamedTempFile::new().unwrap();
-
+        
         // We can't easily create files of specific sizes in tests,
         // so we'll test the logic with mock file sizes
         let small_config = BinaryHtmlExportConfig {

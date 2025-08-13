@@ -11,7 +11,10 @@ mod binary_html_export;
 mod binary_html_writer;
 mod binary_template_engine;
 mod cache;
+mod complex_type_analyzer;
 mod config;
+#[cfg(test)]
+mod integration_test_complex_types;
 mod error;
 mod error_recovery;
 mod field_parser;
@@ -48,6 +51,10 @@ pub use binary_template_engine::{
     BinaryTemplateEngine, BinaryTemplateEngineConfig, BinaryTemplateEngineStats,
 };
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
+pub use complex_type_analyzer::{
+    ComplexTypeAnalysis, ComplexTypeAnalyzer, ComplexTypeSummary, CategorizedTypes,
+    TypeInfo, GenericTypeAnalysis, GenericInstantiation, TypeCategory,
+};
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
 pub use error::BinaryExportError;

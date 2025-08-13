@@ -7,6 +7,7 @@
 use crate::core::types::AllocationInfo;
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::selective_reader::AllocationField;
+use crate::export::binary::complex_type_analyzer::{ComplexTypeAnalyzer, ComplexTypeAnalysis};
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufWriter, Write};
@@ -198,6 +199,7 @@ pub struct BinaryTemplateData {
     pub active_allocations_count: usize,
     pub processing_time_ms: u64,
     pub data_source: String,
+    pub complex_types: Option<ComplexTypeAnalysis>,
 }
 
 /// Intelligent buffering system for optimized write performance
@@ -283,6 +285,9 @@ pub struct BinaryHtmlWriter<W: Write> {
     /// Allocation data buffer for batch processing
     allocation_buffer: Vec<BinaryAllocationData>,
 
+    /// All allocations for complex type analysis
+    all_allocations: Vec<AllocationInfo>,
+
     /// Intelligent buffering state
     intelligent_buffer: IntelligentBuffer,
 }
@@ -312,6 +317,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
             start_time,
             current_memory_usage: 0,
             allocation_buffer: Vec::with_capacity(config.chunk_size),
+            all_allocations: Vec::new(),
             intelligent_buffer: IntelligentBuffer::new(config.buffer_size / 4),
         })
     }
@@ -323,6 +329,9 @@ impl<W: Write> BinaryHtmlWriter<W> {
         requested_fields: &HashSet<AllocationField>,
     ) -> Result<(), BinaryExportError> {
         let write_start = Instant::now();
+
+        // Store allocation for complex type analysis
+        self.all_allocations.push(allocation.clone());
 
         // Convert to binary allocation data (direct processing, no JSON)
         let binary_data = BinaryAllocationData::from_allocation(allocation, requested_fields)?;
@@ -437,6 +446,19 @@ impl<W: Write> BinaryHtmlWriter<W> {
             .filter(|a| a.is_active)
             .count();
 
+        // Perform complex type analysis on collected allocations
+        let complex_types = if !self.all_allocations.is_empty() {
+            match ComplexTypeAnalyzer::analyze_allocations(&self.all_allocations) {
+                Ok(analysis) => Some(analysis),
+                Err(e) => {
+                    tracing::warn!("Complex type analysis failed: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Ok(BinaryTemplateData {
             project_name: project_name.to_string(),
             allocations: self.allocation_buffer.clone(),
@@ -445,6 +467,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
             active_allocations_count: active_count,
             processing_time_ms: self.stats.data_processing_time_ms,
             data_source: "binary_direct".to_string(),
+            complex_types,
         })
     }
 
@@ -491,7 +514,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
             })
             .collect();
 
-        let dashboard_data = json!({
+        let mut dashboard_data = json!({
             "project_name": data.project_name,
             "data_source": data.data_source,
             "summary": {
@@ -511,6 +534,12 @@ impl<W: Write> BinaryHtmlWriter<W> {
                 "throughput_allocations_per_sec": self.stats.processing_throughput()
             }
         });
+
+        // Add complex type analysis if available
+        if let Some(ref complex_types) = data.complex_types {
+            dashboard_data["complex_types"] = serde_json::to_value(complex_types)
+                .map_err(|e| BinaryExportError::SerializationError(format!("Complex types serialization failed: {}", e)))?;
+        }
 
         serde_json::to_string_pretty(&dashboard_data).map_err(|e| {
             BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e))
