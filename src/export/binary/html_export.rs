@@ -10,6 +10,10 @@ use std::fs;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
+// Embed CSS and JS content at compile time
+const CSS_CONTENT: &str = include_str!("../../../templates/styles.css");
+const JS_CONTENT: &str = include_str!("../../../templates/script.js");
+
 /// Export binary data directly to HTML dashboard
 pub fn export_binary_to_html<P: AsRef<Path>>(
     binary_path: P,
@@ -31,14 +35,18 @@ pub fn export_binary_to_html<P: AsRef<Path>>(
     // Generate JSON data for the dashboard
     let json_data = generate_dashboard_data(&mut reader, &header, project_name)?;
     
+    // Load SVG images and embed them
+    let svg_images = load_svg_images()?;
+    
     // Replace placeholders in template (matching binary template format)
     let html_content = template_content
         .replace("{{PROJECT_NAME}}", project_name)
         .replace("{{BINARY_DATA}}", &json_data)  // Binary template expects this
         .replace("{{GENERATION_TIME}}", &chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string())
-        .replace("{{PROCESSING_TIME}}", "0")  // Will be updated with actual processing time
-        .replace("{{CSS_CONTENT}}", "")  // Placeholder for CSS content
-        .replace("{{JS_CONTENT}}", "");  // Placeholder for JS content
+        .replace("{{PROCESSING_TIME}}", &start.elapsed().as_millis().to_string())  // Actual processing time
+        .replace("{{CSS_CONTENT}}", CSS_CONTENT)  // Embed CSS content
+        .replace("{{JS_CONTENT}}", JS_CONTENT)   // Embed JS content
+        .replace("{{SVG_IMAGES}}", &svg_images); // Embed SVG images
 
     // Write HTML file
     let output_file = fs::File::create(&output_path)?;
@@ -50,6 +58,42 @@ pub fn export_binary_to_html<P: AsRef<Path>>(
     tracing::info!("✅ HTML dashboard generated in {}ms: {:?}", elapsed.as_millis(), output_path.as_ref());
 
     Ok(())
+}
+
+/// Load SVG images and convert them to embedded data URLs
+fn load_svg_images() -> Result<String, BinaryExportError> {
+    let mut svg_data = String::new();
+    
+    // List of SVG files to embed
+    let svg_files = [
+        ("memoryAnalysis", "images/memoryAnalysis.svg"),
+        ("lifecycleTimeline", "images/lifecycleTimeline.svg"),
+        ("unsafe_ffi_dashboard", "images/unsafe_ffi_dashboard.svg"),
+    ];
+    
+    svg_data.push_str("<script>\n");
+    svg_data.push_str("// Embedded SVG images\n");
+    svg_data.push_str("window.svgImages = {\n");
+    
+    for (name, path) in &svg_files {
+        if let Ok(svg_content) = fs::read_to_string(path) {
+            // Escape the SVG content for JavaScript
+            let escaped_svg = svg_content
+                .replace('\\', "\\\\")
+                .replace('`', "\\`")
+                .replace("${", "\\${");
+            
+            svg_data.push_str(&format!("  {}: `{}`,\n", name, escaped_svg));
+        } else {
+            // If SVG file doesn't exist, create a placeholder
+            svg_data.push_str(&format!("  {}: `<svg width=\"100\" height=\"100\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"100\" height=\"100\" fill=\"#f0f0f0\"/><text x=\"50\" y=\"50\" text-anchor=\"middle\" dy=\".3em\" font-family=\"Arial\" font-size=\"12\" fill=\"#666\">SVG Missing</text></svg>`,\n", name));
+        }
+    }
+    
+    svg_data.push_str("};\n");
+    svg_data.push_str("</script>\n");
+    
+    Ok(svg_data)
 }
 
 /// Generate comprehensive dashboard data from binary
@@ -70,8 +114,17 @@ fn generate_dashboard_data(
         // Update statistics
         memory_stats.update(&allocation);
         
-        // Create lifecycle event
+        // Create lifecycle events (both allocation and deallocation if applicable)
         lifecycle_events.push(LifecycleEvent::from_allocation(&allocation, i));
+        if allocation.timestamp_dealloc.is_some() {
+            lifecycle_events.push(LifecycleEvent {
+                id: allocation.ptr as u64,
+                event_type: "Deallocation".to_string(),
+                timestamp: allocation.timestamp_dealloc.unwrap_or(allocation.timestamp_alloc + 1000),
+                size: allocation.size as u64,
+                location: allocation.scope_name.clone().unwrap_or_else(|| format!("Location_{}", i)),
+            });
+        }
         
         // Update performance data
         performance_data.update(&allocation);
@@ -741,19 +794,62 @@ fn generate_variable_relationships(allocations: &[crate::core::types::Allocation
         entry.count += 1;
     }
 
-    // Create edges based on relationships (simplified - could be enhanced with actual relationship analysis)
+    // Create edges based on relationships (enhanced relationship analysis)
     for (i, alloc1) in allocations.iter().enumerate() {
-        for alloc2 in allocations.iter().skip(i + 1) {
+        for alloc2 in allocations.iter().skip(i + 1).take(10) { // Limit to avoid too many edges
+            let mut should_connect = false;
+            let mut relationship_type = "unknown".to_string();
+            let mut strength = 0.1f32;
+            
+            // Same scope relationship
             if let (Some(scope1), Some(scope2)) = (&alloc1.scope_name, &alloc2.scope_name) {
-                if scope1 == scope2 && alloc1.timestamp_alloc.abs_diff(alloc2.timestamp_alloc) < 1000 {
-                    // Same scope and close in time - likely related
-                    edges.push(GraphEdge {
-                        source: format!("0x{:x}", alloc1.ptr),
-                        target: format!("0x{:x}", alloc2.ptr),
-                        relationship_type: "scope_related".to_string(),
-                        strength: 0.5,
-                    });
+                if scope1 == scope2 {
+                    should_connect = true;
+                    relationship_type = "scope_related".to_string();
+                    strength = 0.6;
                 }
+            }
+            
+            // Type relationship
+            if let (Some(type1), Some(type2)) = (&alloc1.type_name, &alloc2.type_name) {
+                if type1 == type2 {
+                    should_connect = true;
+                    relationship_type = "type_related".to_string();
+                    strength = 0.4;
+                } else if type1.contains('<') && type2.contains('<') {
+                    // Generic types might be related
+                    let base1 = extract_generic_base_type(type1);
+                    let base2 = extract_generic_base_type(type2);
+                    if base1 == base2 {
+                        should_connect = true;
+                        relationship_type = "generic_related".to_string();
+                        strength = 0.3;
+                    }
+                }
+            }
+            
+            // Temporal relationship (allocated close in time)
+            if alloc1.timestamp_alloc.abs_diff(alloc2.timestamp_alloc) < 1000 {
+                should_connect = true;
+                relationship_type = "temporal_related".to_string();
+                strength = strength.max(0.2);
+            }
+            
+            // Size similarity
+            let size_diff = (alloc1.size as i64 - alloc2.size as i64).abs();
+            if size_diff < 100 && alloc1.size > 0 && alloc2.size > 0 {
+                should_connect = true;
+                relationship_type = "size_related".to_string();
+                strength = strength.max(0.2);
+            }
+            
+            if should_connect {
+                edges.push(GraphEdge {
+                    source: format!("0x{:x}", alloc1.ptr),
+                    target: format!("0x{:x}", alloc2.ptr),
+                    relationship_type,
+                    strength,
+                });
             }
         }
     }

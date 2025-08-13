@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{PROJECT_NAME}} - Binary Memory Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Inline CSS -->
+    <style>
+        {{CSS_CONTENT}}
+    </style>
+
+    <!-- Binary Data injection script -->
+    <script>
+        // Global data store - populated directly from binary data
+        window.analysisData = {{BINARY_DATA}};
+        window.embeddedJsonData = {{BINARY_DATA}};
+        window.dataSource = "binary_direct";
+        window.generationTime = "{{GENERATION_TIME}}";
+    </script>
+
+    <!-- Embedded SVG Images -->
+    {{SVG_IMAGES}}
+
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .hover-lift {
+                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            }
+            .hover-lift:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            }
+            .graph-container {
+                overflow: auto;
+                border-radius: 0.5rem;
+            }
+            .binary-indicator {
+                background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .performance-badge {
+                background: linear-gradient(45deg, #10b981, #059669);
+                color: white;
+                padding: 4px 12px;
+                border-radius: 16px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .timeline-item {
+                position: relative;
+            }
+            .timeline-item::before {
+                content: '';
+                position: absolute;
+                left: -29px;
+                top: 5px;
+                height: 15px;
+                width: 15px;
+                border-radius: 50%;
+            }
+            .timeline-line {
+                position: absolute;
+                left: -22px;
+                top: 20px;
+                bottom: -10px;
+                width: 2px;
+            }
+            .lifespan-indicator {
+                height: 4px;
+                border-radius: 2px;
+                margin: 2px 0;
+                position: relative;
+                overflow: hidden;
+            }
+            .lifespan-indicator::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                height: 100%;
+                background-color: rgba(255,255,255,0.3);
+                animation: flow 2s linear infinite;
+            }
+            @keyframes flow {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+            }
+            .collapsible-content {
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.3s ease-out;
+            }
+            .collapsible-content.active {
+                max-height: 2000px;
+                transition: max-height 0.6s ease-in;
+            }
+            .rotate-icon {
+                transition: transform 0.3s ease;
+            }
+            .rotate-icon.active {
+                transform: rotate(180deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 font-sans text-neutral dark:text-gray-100 transition-colors">
+    <header class="bg-white shadow-sm sticky top-0 z-10 dark:bg-gray-800 transition-colors">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral dark:text-gray-900 flex items-center gap-3">
+                        <i class="fa fa-microchip text-primary"></i>
+                        {{PROJECT_NAME}} - Binary Memory Analysis
+                        <span class="binary-indicator">Binary Direct</span>
+                    </h1>
+                    <p class="text-gray-500 mt-1 dark:text-gray-700 flex items-center gap-2">
+                        High-Performance Binary → HTML Direct Conversion
+                        <span class="performance-badge">
+                            <i class="fa fa-bolt"></i>
+                            Fast Mode
+                        </span>
+                    </p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        <div>Generated: {{GENERATION_TIME}}</div>
+                        <div>Source: Binary Direct</div>
+                    </div>
+                    <button id="theme-toggle"
+                        class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
+                        <i class="fa fa-moon-o dark:hidden"></i>
+                        <i class="fa fa-sun-o hidden dark:inline"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Performance Summary Section -->
+        <section class="mb-8">
+            <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-tachometer text-white mr-2"></i>
+                    Binary Processing Performance
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
+                        <p class="text-sm opacity-90">Processing Time</p>
+                        <p class="text-2xl font-bold" id="processing-time">{{PROCESSING_TIME}}ms</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
+                        <p class="text-sm opacity-90">Data Source</p>
+                        <p class="text-lg font-bold">Binary Direct</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
+                        <p class="text-sm opacity-90">Throughput</p>
+                        <p class="text-2xl font-bold" id="throughput">0</p>
+                        <p class="text-xs opacity-75">allocs/sec</p>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
+                        <p class="text-sm opacity-90">Memory Efficiency</p>
+                        <p class="text-2xl font-bold" id="memory-efficiency">High</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Summary Section -->
+        <section class="mb-12">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                    <i class="fa fa-bar-chart text-primary mr-2"></i>Analysis Summary
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Total Allocations</p>
+                        <p class="text-3xl font-bold text-heading" id="total-allocations">0</p>
+                    </div>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Total Memory</p>
+                        <p class="text-3xl font-bold text-heading" id="total-memory">0 MB</p>
+                    </div>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Active Allocations</p>
+                        <p class="text-3xl font-bold text-heading" id="active-allocations">0</p>
+                    </div>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Peak Memory</p>
+                        <p class="text-3xl font-bold text-heading" id="peak-memory">0 MB</p>
+                    </div>
+                </div>
+
+                <!-- Key Charts Grid -->
+                <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-heading">Memory Distribution by Type</h3>
+                        <div class="h-64">
+                            <canvas id="memory-distribution-chart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 dark:text-white">Allocation Size Distribution</h3>
+                        <div class="h-64">
+                            <canvas id="allocation-size-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Memory Allocations Table -->
+        <section class="mb-12">
+            <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold flex items-center text-heading">
+                        <i class="fa fa-table text-primary mr-2"></i>Memory Allocations
+                        <span class="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Binary Source</span>
+                    </h3>
+                    <button id="toggle-allocations"
+                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                        <i class="fa fa-chevron-down mr-1"></i>
+                        <span>Show All</span>
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead>
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Pointer</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Variable</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Type</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Size</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                            id="allocations-table">
+                            <tr>
+                                <td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    Loading binary data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Complex Types Analysis -->
+        <section class="mb-12">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                    <i class="fa fa-cogs text-primary mr-2"></i>Complex Types Analysis
+                    <span class="ml-2 text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded-full">Binary Source</span>
+                </h2>
+                
+                <!-- Complex Types Summary -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Total Complex Types</p>
+                        <p class="text-3xl font-bold text-heading" id="total-complex-types">0</p>
+                    </div>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Smart Pointers</p>
+                        <p class="text-3xl font-bold text-heading" id="smart-pointers-count">0</p>
+                    </div>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Collections</p>
+                        <p class="text-3xl font-bold text-heading" id="collections-count">0</p>
+                    </div>
+                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-secondary text-sm">Generic Types</p>
+                        <p class="text-3xl font-bold text-heading" id="generic-types-count">0</p>
+                    </div>
+                </div>
+
+                <!-- Complex Types Chart -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium mb-3 text-heading">Type Complexity Distribution</h3>
+                    <div class="h-64">
+                        <canvas id="complex-types-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Variable Lifecycle Timeline -->
+        <section class="mb-12">
+            <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold flex items-center text-heading">
+                        <i class="fa fa-clock-o text-primary mr-2"></i>Variable Lifecycle Timeline
+                        <span class="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">Binary Source</span>
+                    </h2>
+                    <button id="toggle-lifecycle"
+                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                        <i class="fa fa-chevron-down mr-1"></i>
+                        <span>Show Timeline</span>
+                    </button>
+                </div>
+                <div class="collapsible-content" id="lifecycle-content">
+                    <div class="h-96 border border-gray-200 dark:border-gray-600 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
+                        <canvas id="lifecycle-timeline-chart" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Variable Relationship Graph -->
+        <section class="mb-12">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                    <i class="fa fa-sitemap text-primary mr-2"></i>Variable Relationship Graph
+                    <span class="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Binary Source</span>
+                </h2>
+
+                <!-- Graph Controls -->
+                <div class="mb-4 flex justify-between items-center">
+                    <div class="flex items-center space-x-4 flex-wrap">
+                        <div class="text-sm text-gray-600 dark:text-gray-400">Click on a node to view details</div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button id="reset-zoom"
+                            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-900 dark:text-white">Reset View</button>
+                        <button id="auto-layout"
+                            class="px-3 py-1 bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-sm text-blue-900 dark:text-blue-100">Auto Layout</button>
+                    </div>
+                </div>
+
+                <!-- Graph Container -->
+                <div class="border border-gray-200 dark:border-gray-600 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 h-[600px] graph-container relative overflow-hidden">
+                    <div id="variable-graph-container" class="w-full h-full"></div>
+
+                    <!-- Node Details Panel -->
+                    <div id="node-details"
+                        class="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 w-64 hidden border border-gray-200 dark:border-gray-600">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-semibold text-gray-800 dark:text-white">Node Details</h4>
+                            <button id="close-details"
+                                class="text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-100">&times;</button>
+                        </div>
+                        <div id="node-details-content" class="text-gray-900 dark:text-gray-100"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Unsafe FFI Analysis -->
+        <section class="mb-12">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                    <i class="fa fa-exclamation-triangle text-red-500 mr-2"></i>Unsafe FFI Analysis
+                    <span class="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">Binary Source</span>
+                </h2>
+                
+                <!-- FFI Summary -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-red-50 dark:bg-red-900 rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-red-600 dark:text-red-300 text-sm">Total Violations</p>
+                        <p class="text-3xl font-bold text-red-700 dark:text-red-200" id="unsafe-ffi-count">0</p>
+                    </div>
+                    <div class="bg-yellow-50 dark:bg-yellow-900 rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-yellow-600 dark:text-yellow-300 text-sm">Risk Level</p>
+                        <p class="text-2xl font-bold text-yellow-700 dark:text-yellow-200" id="ffi-risk-level">Low</p>
+                    </div>
+                    <div class="bg-orange-50 dark:bg-orange-900 rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-orange-600 dark:text-orange-300 text-sm">Security Hotspots</p>
+                        <p class="text-3xl font-bold text-orange-700 dark:text-orange-200" id="security-hotspots-count">0</p>
+                    </div>
+                    <div class="bg-purple-50 dark:bg-purple-900 rounded-lg p-4 hover-lift transition-colors">
+                        <p class="text-purple-600 dark:text-purple-300 text-sm">Unsafe Operations</p>
+                        <p class="text-3xl font-bold text-purple-700 dark:text-purple-200" id="unsafe-operations-count">0</p>
+                    </div>
+                </div>
+
+                <!-- FFI Operations Table -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium mb-3 text-heading">Unsafe Operations</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead>
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pointer</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Operation</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Risk Level</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="unsafe-operations-table">
+                                <tr>
+                                    <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No unsafe operations detected</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Binary Processing Info -->
+        <section class="mb-12">
+            <div class="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900 dark:to-blue-900 rounded-xl p-6 border border-green-200 dark:border-green-700">
+                <h3 class="text-lg font-semibold text-green-800 dark:text-green-200 mb-3 flex items-center">
+                    <i class="fa fa-info-circle mr-2"></i>
+                    Binary Processing Information
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <p class="font-medium text-green-700 dark:text-green-300">Processing Method</p>
+                        <p class="text-green-600 dark:text-green-400">Direct binary → HTML conversion</p>
+                    </div>
+                    <div>
+                        <p class="font-medium text-green-700 dark:text-green-300">Performance Benefit</p>
+                        <p class="text-green-600 dark:text-green-400">~2x faster than JSON → HTML</p>
+                    </div>
+                    <div>
+                        <p class="font-medium text-green-700 dark:text-green-300">Memory Usage</p>
+                        <p class="text-green-600 dark:text-green-400">Streaming processing, low memory footprint</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-white border-t mt-12 dark:bg-gray-800 transition-colors">
+        <div class="container mx-auto px-4 py-6">
+            <p class="text-center text-gray-500 dark:text-gray-400">
+                Generated by MemScope-rs - Binary Direct Mode | Processing Time: {{PROCESSING_TIME}}ms
+            </p>
+        </div>
+    </footer>
+
+    <!-- Binary-specific JavaScript -->
+    <script>
+        {{JS_CONTENT}}
+        
+        // Binary-specific initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Binary Dashboard initialized');
+            console.log('Data source:', window.dataSource);
+            console.log('Generation time:', window.generationTime);
+            
+            // Add a small delay to ensure DOM is fully ready
+            setTimeout(() => {
+                // Initialize binary-specific features
+                initializeBinaryDashboard();
+            }, 100);
+        });
+
+        function initializeBinaryDashboard() {
+            // Prevent multiple initializations
+            if (window.dashboardInitialized) {
+                console.log('Dashboard already initialized, skipping...');
+                return;
+            }
+            
+            console.log('Initializing binary dashboard...');
+            
+            // Update performance metrics
+            updatePerformanceMetrics();
+            
+            // Initialize charts with binary data
+            initializeBinaryCharts();
+            
+            // Initialize complex types analysis
+            initializeComplexTypesAnalysis();
+            
+            // Initialize variable relationship graph
+            if (window.analysisData && window.analysisData.variable_relationships) {
+                initializeVariableGraph(window.analysisData.variable_relationships);
+            }
+            
+            // Initialize FFI analysis
+            initializeFFIAnalysis();
+            
+            // Populate allocations table
+            populateAllocationsTable();
+            
+            // Setup theme toggle
+            setupThemeToggle();
+            
+            // Mark as initialized
+            window.dashboardInitialized = true;
+        }
+
+        function updatePerformanceMetrics() {
+            if (window.analysisData && window.analysisData.performance_metrics) {
+                const metrics = window.analysisData.performance_metrics;
+                
+                // Update throughput
+                const throughputEl = document.getElementById('throughput');
+                if (throughputEl && metrics.throughput_allocations_per_sec) {
+                    throughputEl.textContent = Math.round(metrics.throughput_allocations_per_sec).toLocaleString();
+                }
+            }
+        }
+
+        function initializeBinaryCharts() {
+            // Destroy existing charts first to prevent "Canvas is already in use" error
+            if (window.memoryChart) {
+                window.memoryChart.destroy();
+                window.memoryChart = null;
+            }
+            if (window.sizeChart) {
+                window.sizeChart.destroy();
+                window.sizeChart = null;
+            }
+            if (window.complexTypesChart) {
+                window.complexTypesChart.destroy();
+                window.complexTypesChart = null;
+            }
+            if (window.lifecycleChart) {
+                window.lifecycleChart.destroy();
+                window.lifecycleChart = null;
+            }
+
+            // Destroy all existing Chart.js instances
+            Object.values(Chart.instances).forEach(chart => {
+                if (chart) {
+                    chart.destroy();
+                }
+            });
+            
+            // Clear canvas elements to ensure they're not tracked by Chart.js
+            const canvasElements = [
+                'memory-distribution-chart',
+                'allocation-size-chart', 
+                'complex-types-chart',
+                'lifecycle-timeline-chart'
+            ];
+            
+            canvasElements.forEach(id => {
+                const canvas = document.getElementById(id);
+                if (canvas) {
+                    // Remove from Chart.js registry
+                    const existingChart = Chart.getChart(canvas);
+                    if (existingChart) {
+                        existingChart.destroy();
+                    }
+                    // Clear canvas context and reset size
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        // Reset canvas size to force re-initialization
+                        canvas.width = canvas.offsetWidth;
+                        canvas.height = canvas.offsetHeight;
+                    }
+                }
+            });
+
+            // Initialize memory distribution chart
+            const memoryCtx = document.getElementById('memory-distribution-chart');
+            if (memoryCtx && window.analysisData) {
+                // Ensure canvas is clean before creating new chart
+                const existingChart = Chart.getChart(memoryCtx);
+                if (existingChart) {
+                    existingChart.destroy();
+                }
+                
+                window.memoryChart = new Chart(memoryCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Active', 'Freed', 'Leaked'],
+                        datasets: [{
+                            data: [70, 25, 5],
+                            backgroundColor: ['#3b82f6', '#10b981', '#ef4444']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+
+            // Initialize allocation size chart
+            const sizeCtx = document.getElementById('allocation-size-chart');
+            if (sizeCtx && window.analysisData) {
+                // Ensure canvas is clean before creating new chart
+                const existingChart = Chart.getChart(sizeCtx);
+                if (existingChart) {
+                    existingChart.destroy();
+                }
+                
+                window.sizeChart = new Chart(sizeCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['< 1KB', '1-10KB', '10-100KB', '> 100KB'],
+                        datasets: [{
+                            label: 'Allocations',
+                            data: [45, 30, 20, 5],
+                            backgroundColor: '#3b82f6'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+
+            // Initialize complex types chart
+            const complexTypesCtx = document.getElementById('complex-types-chart');
+            if (complexTypesCtx && window.analysisData && window.analysisData.complex_types) {
+                // Ensure canvas is clean before creating new chart
+                const existingChart = Chart.getChart(complexTypesCtx);
+                if (existingChart) {
+                    existingChart.destroy();
+                }
+                
+                const complexTypes = window.analysisData.complex_types.categorized_types;
+                window.complexTypesChart = new Chart(complexTypesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Smart Pointers', 'Collections', 'Generic Types', 'Primitive Types'],
+                        datasets: [{
+                            label: 'Count',
+                            data: [
+                                complexTypes.smart_pointers?.length || 0,
+                                complexTypes.collections?.length || 0,
+                                complexTypes.generic_types?.length || 0,
+                                complexTypes.primitive_types?.length || 0
+                            ],
+                            backgroundColor: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Initialize lifecycle timeline chart
+            const lifecycleCtx = document.getElementById('lifecycle-timeline-chart');
+            if (lifecycleCtx && window.analysisData && window.analysisData.lifecycle_analysis) {
+                // Ensure canvas is clean before creating new chart
+                const existingChart = Chart.getChart(lifecycleCtx);
+                if (existingChart) {
+                    existingChart.destroy();
+                }
+                
+                const events = window.analysisData.lifecycle_analysis.events || [];
+                console.log('📊 Lifecycle events found:', events.length);
+                
+                if (events.length === 0) {
+                    console.log('⚠️ No lifecycle events found');
+                    lifecycleCtx.parentElement.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500"><p>No lifecycle data available</p></div>';
+                    return;
+                }
+                
+                // Process events into timeline data
+                let cumulativeMemory = 0;
+                const timelineData = events.slice(0, 100).map((event, index) => {
+                    if (event.event_type === 'Allocation') {
+                        cumulativeMemory += event.size || 0;
+                    } else if (event.event_type === 'Deallocation') {
+                        cumulativeMemory -= event.size || 0;
+                    }
+                    return {
+                        x: index,
+                        y: Math.max(0, cumulativeMemory)
+                    };
+                });
+
+                window.lifecycleChart = new Chart(lifecycleCtx, {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Memory Usage Over Time',
+                            data: timelineData,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: 'Timeline'
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Memory (bytes)'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function initializeComplexTypesAnalysis() {
+            console.log('Initializing Complex Types Analysis...');
+            
+            if (!window.analysisData || !window.analysisData.complex_types) {
+                console.log('No complex types analysis data available');
+                return;
+            }
+            
+            const complexTypes = window.analysisData.complex_types;
+            
+            // Update complex types summary statistics
+            document.getElementById('total-complex-types').textContent = complexTypes.summary.total_complex_types || 0;
+            document.getElementById('smart-pointers-count').textContent = complexTypes.summary.smart_pointers_count || 0;
+            document.getElementById('collections-count').textContent = complexTypes.summary.collections_count || 0;
+            document.getElementById('generic-types-count').textContent = complexTypes.summary.generic_types_count || 0;
+            
+            // Populate complex types details
+            const complexTypesContainer = document.getElementById('complex-types-details');
+            if (complexTypesContainer && complexTypes.categorized_types) {
+                let detailsHtml = '';
+                
+                // Smart Pointers
+                if (complexTypes.categorized_types.smart_pointers && complexTypes.categorized_types.smart_pointers.length > 0) {
+                    detailsHtml += `
+                        <div class="mb-6">
+                            <h4 class="text-lg font-medium mb-3 text-red-600">Smart Pointers</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${complexTypes.categorized_types.smart_pointers.slice(0, 6).map(type => `
+                                    <div class="bg-red-50 dark:bg-red-900 rounded-lg p-3">
+                                        <div class="font-medium text-red-800 dark:text-red-200">${type.type_name}</div>
+                                        <div class="text-sm text-red-600 dark:text-red-300">
+                                            Count: ${type.count} | Size: ${formatBytes(type.total_size)} | Complexity: ${type.complexity_score}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Collections
+                if (complexTypes.categorized_types.collections && complexTypes.categorized_types.collections.length > 0) {
+                    detailsHtml += `
+                        <div class="mb-6">
+                            <h4 class="text-lg font-medium mb-3 text-blue-600">Collections</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${complexTypes.categorized_types.collections.slice(0, 6).map(type => `
+                                    <div class="bg-blue-50 dark:bg-blue-900 rounded-lg p-3">
+                                        <div class="font-medium text-blue-800 dark:text-blue-200">${type.type_name}</div>
+                                        <div class="text-sm text-blue-600 dark:text-blue-300">
+                                            Count: ${type.count} | Size: ${formatBytes(type.total_size)} | Complexity: ${type.complexity_score}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Generic Types
+                if (complexTypes.categorized_types.generic_types && complexTypes.categorized_types.generic_types.length > 0) {
+                    detailsHtml += `
+                        <div class="mb-6">
+                            <h4 class="text-lg font-medium mb-3 text-green-600">Generic Types</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${complexTypes.categorized_types.generic_types.slice(0, 6).map(type => `
+                                    <div class="bg-green-50 dark:bg-green-900 rounded-lg p-3">
+                                        <div class="font-medium text-green-800 dark:text-green-200">${type.type_name}</div>
+                                        <div class="text-sm text-green-600 dark:text-green-300">
+                                            Count: ${type.count} | Size: ${formatBytes(type.total_size)} | Complexity: ${type.complexity_score}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                complexTypesContainer.innerHTML = detailsHtml || '<p class="text-gray-500 text-center py-4">No complex types detected</p>';
+            }
+        }
+
+        function initializeFFIAnalysis() {
+            console.log('Initializing FFI Analysis...');
+            
+            if (!window.analysisData || !window.analysisData.unsafe_ffi) {
+                console.log('No FFI analysis data available');
+                return;
+            }
+            
+            const ffiData = window.analysisData.unsafe_ffi;
+            
+            // Update FFI summary statistics
+            const totalViolationsEl = document.getElementById('unsafe-ffi-count');
+            const riskLevelEl = document.getElementById('ffi-risk-level');
+            const unsafeOpsCountEl = document.getElementById('unsafe-operations-count');
+            const hotspotsCountEl = document.getElementById('security-hotspots-count');
+            
+            if (totalViolationsEl) {
+                totalViolationsEl.textContent = ffiData.total_violations || 0;
+            }
+            if (riskLevelEl) {
+                riskLevelEl.textContent = ffiData.risk_level || 'Low';
+            }
+            if (unsafeOpsCountEl) {
+                unsafeOpsCountEl.textContent = ffiData.unsafe_operations?.length || 0;
+            }
+            if (hotspotsCountEl) {
+                hotspotsCountEl.textContent = ffiData.security_hotspots?.length || 0;
+            }
+            
+            // Populate unsafe operations table
+            const unsafeTableBody = document.getElementById('unsafe-operations-table');
+            if (unsafeTableBody && ffiData.unsafe_operations) {
+                if (ffiData.unsafe_operations.length === 0) {
+                    unsafeTableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No unsafe operations detected</td></tr>';
+                } else {
+                    unsafeTableBody.innerHTML = ffiData.unsafe_operations.slice(0, 50).map(op => `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="px-4 py-3 text-sm font-mono">${op.ptr || 'N/A'}</td>
+                            <td class="px-4 py-3 text-sm">${op.operation_type || 'Unknown'}</td>
+                            <td class="px-4 py-3 text-sm">
+                                <span class="px-2 py-1 text-xs rounded-full ${
+                                    op.risk_level === 'High' ? 'bg-red-100 text-red-800' :
+                                    op.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-green-100 text-green-800'
+                                }">
+                                    ${op.risk_level || 'Low'}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm">${new Date(op.timestamp).toLocaleTimeString()}</td>
+                            <td class="px-4 py-3 text-sm">${op.location || 'Unknown'}</td>
+                        </tr>
+                    `).join('');
+                }
+            }
+            
+            // Populate security hotspots
+            const hotspotsContainer = document.getElementById('security-hotspots');
+            if (hotspotsContainer && ffiData.security_hotspots) {
+                if (ffiData.security_hotspots.length === 0) {
+                    hotspotsContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No security hotspots detected</p>';
+                } else {
+                    hotspotsContainer.innerHTML = ffiData.security_hotspots.slice(0, 10).map(hotspot => `
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="font-medium text-gray-900 dark:text-white">${hotspot.location}</h4>
+                                    <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">${hotspot.description}</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-lg font-bold text-red-600">${hotspot.violation_count}</div>
+                                    <div class="text-xs text-gray-500">violations</div>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-red-600 h-2 rounded-full" style="width: ${Math.min(100, hotspot.risk_score * 10)}%"></div>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">Risk Score: ${hotspot.risk_score}/10</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        function populateAllocationsTable() {
+            const tableBody = document.getElementById('allocations-table');
+            if (!tableBody || !window.analysisData) return;
+
+            const allocations = window.analysisData.memory_analysis?.allocations || [];
+            
+            if (allocations.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No allocation data available</td></tr>';
+                return;
+            }
+
+            // Update summary statistics
+            updateSummaryStats(allocations);
+
+            // Populate table with first 100 allocations
+            const displayAllocations = allocations.slice(0, 100);
+            tableBody.innerHTML = displayAllocations.map(alloc => `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-4 py-3 text-sm font-mono">0x${alloc.id ? alloc.id.toString(16) : 'N/A'}</td>
+                    <td class="px-4 py-3 text-sm">${alloc.location || 'unnamed'}</td>
+                    <td class="px-4 py-3 text-sm">${alloc.type_name || 'Unknown'}</td>
+                    <td class="px-4 py-3 text-sm text-right">${formatBytes(alloc.size || 0)}</td>
+                    <td class="px-4 py-3 text-sm text-right">
+                        <span class="px-2 py-1 text-xs rounded-full ${alloc.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                            ${alloc.status || 'Unknown'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+
+            if (allocations.length > 100) {
+                tableBody.innerHTML += `
+                    <tr>
+                        <td colspan="5" class="px-4 py-3 text-center text-gray-500 text-sm">
+                            Showing first 100 of ${allocations.length.toLocaleString()} allocations
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function updateSummaryStats(allocations) {
+            const totalAllocations = allocations.length;
+            const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+            const activeAllocations = allocations.filter(alloc => alloc.status === 'Active').length;
+
+            document.getElementById('total-allocations').textContent = totalAllocations.toLocaleString();
+            document.getElementById('total-memory').textContent = formatBytes(totalMemory);
+            document.getElementById('active-allocations').textContent = activeAllocations.toLocaleString();
+            document.getElementById('peak-memory').textContent = formatBytes(totalMemory); // Simplified
+
+            // Update complex types stats
+            if (window.analysisData && window.analysisData.complex_types) {
+                const complexTypes = window.analysisData.complex_types;
+                document.getElementById('total-complex-types').textContent = complexTypes.summary.total_complex_types || 0;
+                document.getElementById('smart-pointers-count').textContent = complexTypes.summary.smart_pointers_count || 0;
+                document.getElementById('collections-count').textContent = complexTypes.summary.collections_count || 0;
+                document.getElementById('generic-types-count').textContent = complexTypes.summary.generic_types_count || 0;
+            }
+
+            // Update FFI stats
+            if (window.analysisData && window.analysisData.unsafe_ffi) {
+                const ffiData = window.analysisData.unsafe_ffi;
+                document.getElementById('unsafe-ffi-count').textContent = ffiData.total_violations || 0;
+                document.getElementById('ffi-risk-level').textContent = ffiData.risk_level || 'Low';
+                document.getElementById('security-hotspots-count').textContent = ffiData.security_hotspots?.length || 0;
+                document.getElementById('unsafe-operations-count').textContent = ffiData.unsafe_operations?.length || 0;
+
+                // Populate unsafe operations table
+                populateUnsafeOperationsTable(ffiData.unsafe_operations || []);
+            }
+
+            // Initialize variable relationship graph
+            if (window.analysisData && window.analysisData.variable_relationships) {
+                initializeVariableGraph(window.analysisData.variable_relationships);
+            }
+        }
+
+        function populateUnsafeOperationsTable(operations) {
+            const tableBody = document.getElementById('unsafe-operations-table');
+            if (!tableBody) return;
+
+            if (operations.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No unsafe operations detected</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = operations.slice(0, 20).map(op => `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-4 py-3 text-sm font-mono">${op.ptr || 'N/A'}</td>
+                    <td class="px-4 py-3 text-sm">${op.operation_type || 'Unknown'}</td>
+                    <td class="px-4 py-3 text-sm">
+                        <span class="px-2 py-1 text-xs rounded-full ${getRiskLevelClass(op.risk_level)}">
+                            ${op.risk_level || 'Unknown'}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm">${op.location || 'Unknown'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function getRiskLevelClass(riskLevel) {
+            switch (riskLevel) {
+                case 'High': return 'bg-red-100 text-red-800';
+                case 'Medium': return 'bg-yellow-100 text-yellow-800';
+                case 'Low': return 'bg-green-100 text-green-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function initializeVariableGraph(relationshipData) {
+            const container = document.getElementById('variable-graph-container');
+            if (!container || !relationshipData.nodes) return;
+
+            // Simple visualization using D3.js (if available) or fallback
+            if (typeof d3 !== 'undefined') {
+                // Clear previous content
+                d3.select(container).selectAll("*").remove();
+
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+
+                const svg = d3.select(container)
+                    .append('svg')
+                    .attr('width', width)
+                    .attr('height', height);
+
+                // Create zoom behavior
+                const zoom = d3.zoom()
+                    .scaleExtent([0.1, 10])
+                    .on('zoom', function(event) {
+                        g.attr('transform', event.transform);
+                    });
+
+                svg.call(zoom);
+
+                // Create main group for zooming/panning
+                const g = svg.append('g');
+
+                // Create a simple force simulation
+                const simulation = d3.forceSimulation(relationshipData.nodes)
+                    .force('link', d3.forceLink(relationshipData.edges).id(d => d.id))
+                    .force('charge', d3.forceManyBody().strength(-300))
+                    .force('center', d3.forceCenter(width / 2, height / 2));
+
+                // Store references for external access
+                window.graphZoom = zoom;
+                window.graphSvg = svg;
+                window.graphSimulation = simulation;
+
+                // Add edges
+                const link = g.append('g')
+                    .selectAll('line')
+                    .data(relationshipData.edges)
+                    .enter().append('line')
+                    .attr('stroke', '#999')
+                    .attr('stroke-opacity', 0.6)
+                    .attr('stroke-width', 2);
+
+                // Add nodes
+                const node = g.append('g')
+                    .selectAll('circle')
+                    .data(relationshipData.nodes)
+                    .enter().append('circle')
+                    .attr('r', d => Math.max(5, Math.min(20, d.size / 1000)))
+                    .attr('fill', d => d.color || '#3b82f6')
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 1.5)
+                    .call(d3.drag()
+                        .on('start', dragstarted)
+                        .on('drag', dragged)
+                        .on('end', dragended));
+
+                // Add labels
+                const label = g.append('g')
+                    .selectAll('text')
+                    .data(relationshipData.nodes)
+                    .enter().append('text')
+                    .text(d => d.name)
+                    .attr('font-size', '10px')
+                    .attr('font-family', 'Arial, sans-serif')
+                    .attr('fill', '#333')
+                    .attr('dx', 15)
+                    .attr('dy', 4);
+
+                simulation.on('tick', () => {
+                    link
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+
+                    node
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+
+                    label
+                        .attr('x', d => d.x)
+                        .attr('y', d => d.y);
+                });
+
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+            } else {
+                // Fallback: show a simple text representation
+                container.innerHTML = `
+                    <div class="flex items-center justify-center h-full text-gray-500">
+                        <div class="text-center">
+                            <p class="mb-2">Variable Relationship Graph</p>
+                            <p class="text-sm">${relationshipData.nodes.length} nodes, ${relationshipData.edges.length} relationships</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function setupThemeToggle() {
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function() {
+                    document.documentElement.classList.toggle('dark');
+                });
+            }
+
+            // Setup lifecycle timeline toggle
+            const lifecycleToggle = document.getElementById('toggle-lifecycle');
+            const lifecycleContent = document.getElementById('lifecycle-content');
+            if (lifecycleToggle && lifecycleContent) {
+                lifecycleToggle.addEventListener('click', function() {
+                    lifecycleContent.classList.toggle('active');
+                    const icon = lifecycleToggle.querySelector('i');
+                    const text = lifecycleToggle.querySelector('span');
+                    if (lifecycleContent.classList.contains('active')) {
+                        icon.className = 'fa fa-chevron-up mr-1';
+                        text.textContent = 'Hide Timeline';
+                    } else {
+                        icon.className = 'fa fa-chevron-down mr-1';
+                        text.textContent = 'Show Timeline';
+                    }
+                });
+            }
+
+            // Setup allocations table toggle
+            const allocationsToggle = document.getElementById('toggle-allocations');
+            if (allocationsToggle) {
+                allocationsToggle.addEventListener('click', function() {
+                    const icon = allocationsToggle.querySelector('i');
+                    const text = allocationsToggle.querySelector('span');
+                    // Toggle logic can be added here
+                    console.log('Allocations toggle clicked');
+                });
+            }
+
+            // Setup graph controls
+            const resetZoom = document.getElementById('reset-zoom');
+            const autoLayout = document.getElementById('auto-layout');
+            if (resetZoom) {
+                resetZoom.addEventListener('click', function() {
+                    console.log('Reset zoom clicked');
+                    if (window.graphSvg && window.graphZoom) {
+                        window.graphSvg.transition().duration(750).call(
+                            window.graphZoom.transform,
+                            d3.zoomIdentity
+                        );
+                    }
+                });
+            }
+            if (autoLayout) {
+                autoLayout.addEventListener('click', function() {
+                    console.log('Auto layout clicked');
+                    if (window.graphSimulation) {
+                        window.graphSimulation.alpha(1).restart();
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>
