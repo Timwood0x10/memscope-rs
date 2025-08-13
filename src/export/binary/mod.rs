@@ -7,6 +7,7 @@
 //! - Modular architecture for easy testing and maintenance
 
 mod batch_processor;
+mod binary_html_export;
 mod binary_html_writer;
 mod binary_template_engine;
 mod cache;
@@ -33,6 +34,11 @@ mod writer;
 
 pub use batch_processor::{
     BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch,
+};
+pub use binary_html_export::{
+    get_recommended_config, parse_binary_to_html_auto, parse_binary_to_html_direct,
+    parse_binary_to_html_with_config, BinaryHtmlExportConfig, BinaryHtmlExportStats,
+    ProcessingStrategy,
 };
 pub use binary_html_writer::{
     BinaryAllocationData, BinaryHtmlStats, BinaryHtmlWriter, BinaryHtmlWriterConfig,
