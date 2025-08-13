@@ -2376,7 +2376,7 @@ class NodeDetailPanel {
 
         // Calculate relationships
         const sameTypeCount = allocations.filter(alloc =>
-            alloc.type_name === nodeData.type && alloc.var_name !== nodeData.id
+            alloc.type_name === nodeData.type_name && alloc.var_name !== nodeData.id
         ).length;
 
         const sameCategoryCount = allocations.filter(alloc =>
@@ -2397,9 +2397,9 @@ class NodeDetailPanel {
                 
                 <div>
                     <label>Type</label>
-                    <p class="font-mono">${nodeData.type}</p>
+                    <p class="font-mono">${nodeData.type_name || 'Unknown'}</p>
                     <div class="flex items-center mt-1">
-                        <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${getEnhancedTypeColor(nodeData.type, nodeData.category || 'primitive')}"></div>
+                        <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${getEnhancedTypeColor(nodeData.type_name || 'unknown', nodeData.category || 'primitive')}"></div>
                         <span class="text-xs capitalize">${(nodeData.category || 'primitive').replace('_', ' ')}</span>
                     </div>
                 </div>
@@ -2449,7 +2449,7 @@ class NodeDetailPanel {
                 <div>
                     <label>Type Analysis</label>
                     <div class="text-xs space-y-1">
-                        ${getTypeAnalysis(nodeData.type, nodeData.size)}
+                        ${getTypeAnalysis(nodeData.type_name || 'unknown', nodeData.size)}
                     </div>
                 </div>
             </div>

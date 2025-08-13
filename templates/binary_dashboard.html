@@ -17,7 +17,11 @@
 
     <!-- Inline CSS -->
     <style>
-        {{CSS_CONTENT}}
+        {
+                {
+                CSS_CONTENT
+            }
+        }
     </style>
 
     <!-- Binary Data injection script -->
@@ -47,6 +51,167 @@
             .graph-container {
                 overflow: auto;
                 border-radius: 0.5rem;
+            }
+            
+            /* Node Detail Panel Styles */
+            .node-detail-panel {
+                position: absolute;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border: 1px solid #e5e7eb;
+                border-radius: 0.5rem;
+                padding: 1rem;
+                width: 280px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+                z-index: 1000;
+                font-size: 0.875rem;
+            }
+            
+            .dark .node-detail-panel {
+                background: rgba(31, 41, 55, 0.95);
+                border-color: #374151;
+                color: #f9fafb;
+            }
+            
+            .node-detail-panel h3 {
+                font-weight: 600;
+                margin-bottom: 0.75rem;
+                color: #111827;
+            }
+            
+            .dark .node-detail-panel h3 {
+                color: #f9fafb;
+            }
+            
+            .node-detail-panel label {
+                display: block;
+                font-weight: 500;
+                color: #6b7280;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                margin-bottom: 0.25rem;
+            }
+            
+            .dark .node-detail-panel label {
+                color: #9ca3af;
+            }
+            
+            .node-detail-panel .close-button {
+                background: none;
+                border: none;
+                cursor: pointer;
+                color: #6b7280;
+                font-size: 1.25rem;
+                line-height: 1;
+                padding: 0;
+            }
+            
+            .node-detail-panel .close-button:hover {
+                color: #374151;
+            }
+            
+            .dark .node-detail-panel .close-button {
+                color: #9ca3af;
+            }
+            
+            .dark .node-detail-panel .close-button:hover {
+                color: #d1d5db;
+            }
+            
+            /* Graph Node Styles */
+            .graph-node {
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .graph-node:hover {
+                opacity: 1 !important;
+            }
+            
+            .graph-node circle {
+                stroke: var(--graph-node-border, #e5e7eb);
+                stroke-width: 2;
+                transition: all 0.3s ease;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+            }
+            
+            .graph-node:hover circle {
+                stroke-width: 4;
+                filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(1.1);
+                transform: scale(1.1);
+            }
+            
+            .graph-node text {
+                fill: var(--text-primary, #374151);
+                pointer-events: none;
+                font-weight: 500;
+                text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+            }
+            
+            .dark .graph-node text {
+                fill: var(--text-primary, #f9fafb);
+                text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            }
+            
+            /* Enhanced Chart Styles */
+            .chart-container {
+                position: relative;
+                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+                border-radius: 0.75rem;
+                padding: 1rem;
+                box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+            }
+            
+            .dark .chart-container {
+                background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            }
+            
+            /* Animated Loading States */
+            .loading-shimmer {
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: shimmer 2s infinite;
+            }
+            
+            @keyframes shimmer {
+                0% { background-position: -200% 0; }
+                100% { background-position: 200% 0; }
+            }
+            
+            /* Enhanced Summary Cards */
+            .summary-card {
+                background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+                border: 1px solid #e2e8f0;
+                transition: all 0.3s ease;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .summary-card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
+                transform: scaleX(0);
+                transition: transform 0.3s ease;
+            }
+            
+            .summary-card:hover::before {
+                transform: scaleX(1);
+            }
+            
+            .summary-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            }
+            
+            .dark .summary-card {
+                background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+                border-color: #4b5563;
             }
             .binary-indicator {
                 background: linear-gradient(45deg, #3b82f6, #1d4ed8);
@@ -132,7 +297,8 @@
         <div class="container mx-auto px-4 py-6">
             <div class="flex justify-between items-center">
                 <div>
-                    <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral dark:text-gray-900 flex items-center gap-3">
+                    <h1
+                        class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral dark:text-gray-900 flex items-center gap-3">
                         <i class="fa fa-microchip text-primary"></i>
                         {{PROJECT_NAME}} - Binary Memory Analysis
                         <span class="binary-indicator">Binary Direct</span>
@@ -251,15 +417,20 @@
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead>
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Pointer</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Variable</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Type</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th
+                                    class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Size</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th
+                                    class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Status</th>
                             </tr>
                         </thead>
@@ -282,7 +453,7 @@
                     <i class="fa fa-cogs text-primary mr-2"></i>Complex Types Analysis
                     <span class="ml-2 text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded-full">Binary Source</span>
                 </h2>
-                
+
                 <!-- Complex Types Summary -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
@@ -310,6 +481,14 @@
                         <canvas id="complex-types-chart"></canvas>
                     </div>
                 </div>
+
+                <!-- Complex Types Details -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium mb-3 text-heading">Type Details</h3>
+                    <div id="complex-types-details" class="space-y-4">
+                        <!-- Details will be populated by JavaScript -->
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -319,7 +498,8 @@
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold flex items-center text-heading">
                         <i class="fa fa-clock-o text-primary mr-2"></i>Variable Lifecycle Timeline
-                        <span class="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">Binary Source</span>
+                        <span class="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">Binary
+                            Source</span>
                     </h2>
                     <button id="toggle-lifecycle"
                         class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
@@ -328,7 +508,8 @@
                     </button>
                 </div>
                 <div class="collapsible-content" id="lifecycle-content">
-                    <div class="h-96 border border-gray-200 dark:border-gray-600 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
+                    <div
+                        class="h-96 border border-gray-200 dark:border-gray-600 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
                         <canvas id="lifecycle-timeline-chart" class="w-full h-full"></canvas>
                     </div>
                 </div>
@@ -350,14 +531,17 @@
                     </div>
                     <div class="flex items-center space-x-2">
                         <button id="reset-zoom"
-                            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-900 dark:text-white">Reset View</button>
+                            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-900 dark:text-white">Reset
+                            View</button>
                         <button id="auto-layout"
-                            class="px-3 py-1 bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-sm text-blue-900 dark:text-blue-100">Auto Layout</button>
+                            class="px-3 py-1 bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-sm text-blue-900 dark:text-blue-100">Auto
+                            Layout</button>
                     </div>
                 </div>
 
                 <!-- Graph Container -->
-                <div class="border border-gray-200 dark:border-gray-600 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 h-[600px] graph-container relative overflow-hidden">
+                <div
+                    class="border border-gray-200 dark:border-gray-600 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 h-[600px] graph-container relative overflow-hidden">
                     <div id="variable-graph-container" class="w-full h-full"></div>
 
                     <!-- Node Details Panel -->
@@ -381,7 +565,7 @@
                     <i class="fa fa-exclamation-triangle text-red-500 mr-2"></i>Unsafe FFI Analysis
                     <span class="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">Binary Source</span>
                 </h2>
-                
+
                 <!-- FFI Summary -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-red-50 dark:bg-red-900 rounded-lg p-4 hover-lift transition-colors">
@@ -394,11 +578,13 @@
                     </div>
                     <div class="bg-orange-50 dark:bg-orange-900 rounded-lg p-4 hover-lift transition-colors">
                         <p class="text-orange-600 dark:text-orange-300 text-sm">Security Hotspots</p>
-                        <p class="text-3xl font-bold text-orange-700 dark:text-orange-200" id="security-hotspots-count">0</p>
+                        <p class="text-3xl font-bold text-orange-700 dark:text-orange-200" id="security-hotspots-count">
+                            0</p>
                     </div>
                     <div class="bg-purple-50 dark:bg-purple-900 rounded-lg p-4 hover-lift transition-colors">
                         <p class="text-purple-600 dark:text-purple-300 text-sm">Unsafe Operations</p>
-                        <p class="text-3xl font-bold text-purple-700 dark:text-purple-200" id="unsafe-operations-count">0</p>
+                        <p class="text-3xl font-bold text-purple-700 dark:text-purple-200" id="unsafe-operations-count">
+                            0</p>
                     </div>
                 </div>
 
@@ -409,26 +595,46 @@
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead>
                                 <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pointer</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Operation</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Risk Level</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Pointer</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Operation</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Risk Level</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Location</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="unsafe-operations-table">
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                                id="unsafe-operations-table">
                                 <tr>
-                                    <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No unsafe operations detected</td>
+                                    <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No
+                                        unsafe operations detected</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
+
+                <!-- Security Hotspots -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium mb-3 text-heading">Security Hotspots</h3>
+                    <div id="security-hotspots" class="space-y-3">
+                        <!-- Hotspots will be populated by JavaScript -->
+                    </div>
+                </div>
             </div>
         </section>
+        </h3>
 
         <!-- Binary Processing Info -->
         <section class="mb-12">
-            <div class="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900 dark:to-blue-900 rounded-xl p-6 border border-green-200 dark:border-green-700">
+            <div
+                class="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900 dark:to-blue-900 rounded-xl p-6 border border-green-200 dark:border-green-700">
                 <h3 class="text-lg font-semibold text-green-800 dark:text-green-200 mb-3 flex items-center">
                     <i class="fa fa-info-circle mr-2"></i>
                     Binary Processing Information
@@ -462,13 +668,13 @@
     <!-- Binary-specific JavaScript -->
     <script>
         {{JS_CONTENT}}
-        
+
         // Binary-specific initialization
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('Binary Dashboard initialized');
             console.log('Data source:', window.dataSource);
             console.log('Generation time:', window.generationTime);
-            
+
             // Add a small delay to ensure DOM is fully ready
             setTimeout(() => {
                 // Initialize binary-specific features
@@ -482,32 +688,32 @@
                 console.log('Dashboard already initialized, skipping...');
                 return;
             }
-            
+
             console.log('Initializing binary dashboard...');
-            
+
             // Update performance metrics
             updatePerformanceMetrics();
-            
+
             // Initialize charts with binary data
             initializeBinaryCharts();
-            
+
             // Initialize complex types analysis
             initializeComplexTypesAnalysis();
-            
+
             // Initialize variable relationship graph
             if (window.analysisData && window.analysisData.variable_relationships) {
                 initializeVariableGraph(window.analysisData.variable_relationships);
             }
-            
+
             // Initialize FFI analysis
             initializeFFIAnalysis();
-            
+
             // Populate allocations table
             populateAllocationsTable();
-            
+
             // Setup theme toggle
             setupThemeToggle();
-            
+
             // Mark as initialized
             window.dashboardInitialized = true;
         }
@@ -515,7 +721,7 @@
         function updatePerformanceMetrics() {
             if (window.analysisData && window.analysisData.performance_metrics) {
                 const metrics = window.analysisData.performance_metrics;
-                
+
                 // Update throughput
                 const throughputEl = document.getElementById('throughput');
                 if (throughputEl && metrics.throughput_allocations_per_sec) {
@@ -549,15 +755,15 @@
                     chart.destroy();
                 }
             });
-            
+
             // Clear canvas elements to ensure they're not tracked by Chart.js
             const canvasElements = [
                 'memory-distribution-chart',
-                'allocation-size-chart', 
+                'allocation-size-chart',
                 'complex-types-chart',
                 'lifecycle-timeline-chart'
             ];
-            
+
             canvasElements.forEach(id => {
                 const canvas = document.getElementById(id);
                 if (canvas) {
@@ -585,7 +791,7 @@
                 if (existingChart) {
                     existingChart.destroy();
                 }
-                
+
                 window.memoryChart = new Chart(memoryCtx, {
                     type: 'doughnut',
                     data: {
@@ -610,7 +816,7 @@
                 if (existingChart) {
                     existingChart.destroy();
                 }
-                
+
                 window.sizeChart = new Chart(sizeCtx, {
                     type: 'bar',
                     data: {
@@ -636,7 +842,7 @@
                 if (existingChart) {
                     existingChart.destroy();
                 }
-                
+
                 const complexTypes = window.analysisData.complex_types.categorized_types;
                 window.complexTypesChart = new Chart(complexTypesCtx, {
                     type: 'bar',
@@ -673,16 +879,16 @@
                 if (existingChart) {
                     existingChart.destroy();
                 }
-                
+
                 const events = window.analysisData.lifecycle_analysis.events || [];
                 console.log('📊 Lifecycle events found:', events.length);
-                
+
                 if (events.length === 0) {
                     console.log('⚠️ No lifecycle events found');
                     lifecycleCtx.parentElement.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500"><p>No lifecycle data available</p></div>';
                     return;
                 }
-                
+
                 // Process events into timeline data
                 let cumulativeMemory = 0;
                 const timelineData = events.slice(0, 100).map((event, index) => {
@@ -734,25 +940,25 @@
 
         function initializeComplexTypesAnalysis() {
             console.log('Initializing Complex Types Analysis...');
-            
+
             if (!window.analysisData || !window.analysisData.complex_types) {
                 console.log('No complex types analysis data available');
                 return;
             }
-            
+
             const complexTypes = window.analysisData.complex_types;
-            
+
             // Update complex types summary statistics
             document.getElementById('total-complex-types').textContent = complexTypes.summary.total_complex_types || 0;
             document.getElementById('smart-pointers-count').textContent = complexTypes.summary.smart_pointers_count || 0;
             document.getElementById('collections-count').textContent = complexTypes.summary.collections_count || 0;
             document.getElementById('generic-types-count').textContent = complexTypes.summary.generic_types_count || 0;
-            
+
             // Populate complex types details
             const complexTypesContainer = document.getElementById('complex-types-details');
             if (complexTypesContainer && complexTypes.categorized_types) {
                 let detailsHtml = '';
-                
+
                 // Smart Pointers
                 if (complexTypes.categorized_types.smart_pointers && complexTypes.categorized_types.smart_pointers.length > 0) {
                     detailsHtml += `
@@ -771,7 +977,7 @@
                         </div>
                     `;
                 }
-                
+
                 // Collections
                 if (complexTypes.categorized_types.collections && complexTypes.categorized_types.collections.length > 0) {
                     detailsHtml += `
@@ -790,7 +996,7 @@
                         </div>
                     `;
                 }
-                
+
                 // Generic Types
                 if (complexTypes.categorized_types.generic_types && complexTypes.categorized_types.generic_types.length > 0) {
                     detailsHtml += `
@@ -809,27 +1015,27 @@
                         </div>
                     `;
                 }
-                
+
                 complexTypesContainer.innerHTML = detailsHtml || '<p class="text-gray-500 text-center py-4">No complex types detected</p>';
             }
         }
 
         function initializeFFIAnalysis() {
             console.log('Initializing FFI Analysis...');
-            
+
             if (!window.analysisData || !window.analysisData.unsafe_ffi) {
                 console.log('No FFI analysis data available');
                 return;
             }
-            
+
             const ffiData = window.analysisData.unsafe_ffi;
-            
+
             // Update FFI summary statistics
             const totalViolationsEl = document.getElementById('unsafe-ffi-count');
             const riskLevelEl = document.getElementById('ffi-risk-level');
             const unsafeOpsCountEl = document.getElementById('unsafe-operations-count');
             const hotspotsCountEl = document.getElementById('security-hotspots-count');
-            
+
             if (totalViolationsEl) {
                 totalViolationsEl.textContent = ffiData.total_violations || 0;
             }
@@ -842,7 +1048,7 @@
             if (hotspotsCountEl) {
                 hotspotsCountEl.textContent = ffiData.security_hotspots?.length || 0;
             }
-            
+
             // Populate unsafe operations table
             const unsafeTableBody = document.getElementById('unsafe-operations-table');
             if (unsafeTableBody && ffiData.unsafe_operations) {
@@ -854,11 +1060,10 @@
                             <td class="px-4 py-3 text-sm font-mono">${op.ptr || 'N/A'}</td>
                             <td class="px-4 py-3 text-sm">${op.operation_type || 'Unknown'}</td>
                             <td class="px-4 py-3 text-sm">
-                                <span class="px-2 py-1 text-xs rounded-full ${
-                                    op.risk_level === 'High' ? 'bg-red-100 text-red-800' :
-                                    op.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-green-100 text-green-800'
-                                }">
+                                <span class="px-2 py-1 text-xs rounded-full ${op.risk_level === 'High' ? 'bg-red-100 text-red-800' :
+                            op.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                        }">
                                     ${op.risk_level || 'Low'}
                                 </span>
                             </td>
@@ -868,7 +1073,7 @@
                     `).join('');
                 }
             }
-            
+
             // Populate security hotspots
             const hotspotsContainer = document.getElementById('security-hotspots');
             if (hotspotsContainer && ffiData.security_hotspots) {
@@ -904,7 +1109,7 @@
             if (!tableBody || !window.analysisData) return;
 
             const allocations = window.analysisData.memory_analysis?.allocations || [];
-            
+
             if (allocations.length === 0) {
                 tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No allocation data available</td></tr>';
                 return;
@@ -1029,7 +1234,7 @@
                 // Create zoom behavior
                 const zoom = d3.zoom()
                     .scaleExtent([0.1, 10])
-                    .on('zoom', function(event) {
+                    .on('zoom', function (event) {
                         g.attr('transform', event.transform);
                     });
 
@@ -1058,31 +1263,55 @@
                     .attr('stroke-opacity', 0.6)
                     .attr('stroke-width', 2);
 
-                // Add nodes
-                const node = g.append('g')
-                    .selectAll('circle')
+                // Create detail panel
+                const detailPanel = new NodeDetailPanel('variable-graph-container');
+
+                // Add nodes with click functionality
+                const nodeGroup = g.append('g')
+                    .selectAll('g')
                     .data(relationshipData.nodes)
-                    .enter().append('circle')
-                    .attr('r', d => Math.max(5, Math.min(20, d.size / 1000)))
-                    .attr('fill', d => d.color || '#3b82f6')
-                    .attr('stroke', '#fff')
-                    .attr('stroke-width', 1.5)
+                    .enter().append('g')
+                    .attr('class', 'graph-node')
                     .call(d3.drag()
                         .on('start', dragstarted)
                         .on('drag', dragged)
                         .on('end', dragended));
 
-                // Add labels
-                const label = g.append('g')
-                    .selectAll('text')
-                    .data(relationshipData.nodes)
-                    .enter().append('text')
-                    .text(d => d.name)
+                const node = nodeGroup.append('circle')
+                    .attr('r', d => Math.max(8, Math.min(25, Math.sqrt(d.size) / 10 + 5)))
+                    .attr('fill', d => d.color || '#3b82f6')
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2);
+
+                // Add click event to nodes
+                nodeGroup.on('click', function (event, d) {
+                    event.stopPropagation();
+                    console.log('Node clicked:', d.id, d);
+
+                    const position = {
+                        x: event.pageX,
+                        y: event.pageY
+                    };
+
+                    detailPanel.show(d, position);
+                });
+
+                // Click on empty space to hide panel
+                svg.on('click', function (event) {
+                    if (event.target === this) {
+                        detailPanel.hide();
+                    }
+                });
+
+                // Add labels to node groups
+                const label = nodeGroup.append('text')
+                    .text(d => d.name || d.id.substring(0, 8))
                     .attr('font-size', '10px')
                     .attr('font-family', 'Arial, sans-serif')
                     .attr('fill', '#333')
                     .attr('dx', 15)
-                    .attr('dy', 4);
+                    .attr('dy', 4)
+                    .style('pointer-events', 'none');
 
                 simulation.on('tick', () => {
                     link
@@ -1091,13 +1320,8 @@
                         .attr('x2', d => d.target.x)
                         .attr('y2', d => d.target.y);
 
-                    node
-                        .attr('cx', d => d.x)
-                        .attr('cy', d => d.y);
-
-                    label
-                        .attr('x', d => d.x)
-                        .attr('y', d => d.y);
+                    nodeGroup
+                        .attr('transform', d => `translate(${d.x},${d.y})`);
                 });
 
                 function dragstarted(event, d) {
@@ -1140,7 +1364,7 @@
         function setupThemeToggle() {
             const themeToggle = document.getElementById('theme-toggle');
             if (themeToggle) {
-                themeToggle.addEventListener('click', function() {
+                themeToggle.addEventListener('click', function () {
                     document.documentElement.classList.toggle('dark');
                 });
             }
@@ -1149,7 +1373,7 @@
             const lifecycleToggle = document.getElementById('toggle-lifecycle');
             const lifecycleContent = document.getElementById('lifecycle-content');
             if (lifecycleToggle && lifecycleContent) {
-                lifecycleToggle.addEventListener('click', function() {
+                lifecycleToggle.addEventListener('click', function () {
                     lifecycleContent.classList.toggle('active');
                     const icon = lifecycleToggle.querySelector('i');
                     const text = lifecycleToggle.querySelector('span');
@@ -1166,7 +1390,7 @@
             // Setup allocations table toggle
             const allocationsToggle = document.getElementById('toggle-allocations');
             if (allocationsToggle) {
-                allocationsToggle.addEventListener('click', function() {
+                allocationsToggle.addEventListener('click', function () {
                     const icon = allocationsToggle.querySelector('i');
                     const text = allocationsToggle.querySelector('span');
                     // Toggle logic can be added here
@@ -1178,7 +1402,7 @@
             const resetZoom = document.getElementById('reset-zoom');
             const autoLayout = document.getElementById('auto-layout');
             if (resetZoom) {
-                resetZoom.addEventListener('click', function() {
+                resetZoom.addEventListener('click', function () {
                     console.log('Reset zoom clicked');
                     if (window.graphSvg && window.graphZoom) {
                         window.graphSvg.transition().duration(750).call(
@@ -1189,7 +1413,7 @@
                 });
             }
             if (autoLayout) {
-                autoLayout.addEventListener('click', function() {
+                autoLayout.addEventListener('click', function () {
                     console.log('Auto layout clicked');
                     if (window.graphSimulation) {
                         window.graphSimulation.alpha(1).restart();
