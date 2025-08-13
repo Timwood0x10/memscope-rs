@@ -20,6 +20,8 @@ mod integration_test_complex_types;
 #[cfg(test)]
 mod integration_test_ffi_safety;
 #[cfg(test)]
+mod integration_test_template_resources;
+#[cfg(test)]
 mod integration_test_variable_relationships;
 mod error;
 mod error_recovery;
@@ -39,6 +41,7 @@ mod smart_pointer_serialization;
 mod streaming_field_processor;
 mod streaming_json_writer;
 mod string_table;
+mod template_resource_manager;
 mod writer;
 
 pub use batch_processor::{
@@ -99,6 +102,10 @@ pub use streaming_field_processor::{
 pub use streaming_json_writer::{
     SelectiveSerializationOptions, StreamingJsonStats, StreamingJsonWriter,
     StreamingJsonWriterConfig, StreamingJsonWriterConfigBuilder,
+};
+pub use template_resource_manager::{
+    TemplateResourceManager, TemplateData, ResourceConfig, PlaceholderProcessor,
+    create_template_data,
 };
 pub use writer::BinaryWriter;
 
