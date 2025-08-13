@@ -1877,7 +1877,7 @@ impl BinaryParser {
         Self::append_number_to_string(buffer, allocation.borrow_count as u64);
         buffer.push_str(r#","stack_trace":null,"is_leaked":"#);
         buffer.push_str(if allocation.is_leaked { "true" } else { "false" });
-        buffer.push_str(r#","lifetime_ms":null,"smart_pointer_info":null,"memory_layout":null,"generic_info":null,"dynamic_type_info":null,"runtime_state":null,"stack_allocation":null,"temporary_object":null,"fragmentation_analysis":null,"generic_instantiation":null,"type_relationships":null,"type_usage":null,"function_call_tracking":null,"lifecycle_tracking":null,"access_tracking":null,"drop_chain_analysis":null},"source":{"FfiC":{"library_name":"libc","function_name":"malloc","call_stack":[{"function_name":"current_function","file_name":"src/unsafe_ffi_tracker.rs","line_number":42,"is_unsafe":true}],"libc_hook_info":{"hook_method":"DynamicLinker","original_function":"malloc","hook_timestamp":"#);
+        buffer.push_str(r#","lifetime_ms":null,"smart_pointer_info":null,"memory_layout":null,"generic_info":null,"dynamic_type_info":null,"runtime_state":null,"stack_allocation":null,"temporary_object":null,"fragmentation_analysis":null,"generic_instantiation":null,"type_relationships":null,"type_usage":null,"function_call_tracking":null,"lifecycle_tracking":null,"access_tracking":null,"drop_chain_analysis":null},"source":{"FfiC":{"library_name":"libc","function_name":"malloc","call_stack":[{"f"#);
         Self::append_number_to_string(buffer, allocation.timestamp_alloc + 17000); // Add small offset for hook timestamp
         buffer.push_str(r#","allocation_metadata":{"requested_size":"#);
         Self::append_number_to_string(buffer, allocation.size as u64);
