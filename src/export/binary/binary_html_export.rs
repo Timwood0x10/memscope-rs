@@ -5,10 +5,10 @@
 //! parallel processing support for large files.
 
 // Removed unused import
+use crate::export::binary::binary_html_writer::{BinaryHtmlStats, BinaryHtmlWriter};
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::reader::BinaryReader;
 use crate::export::binary::selective_reader::AllocationField;
-use crate::export::binary::binary_html_writer::{BinaryHtmlWriter, BinaryHtmlStats};
 
 use std::fs::File;
 use std::path::Path;
@@ -98,7 +98,8 @@ impl BinaryHtmlExportStats {
         if self.total_export_time_ms == 0 {
             0.0
         } else {
-            (self.writer_stats.allocations_processed as f64 * 1000.0) / self.total_export_time_ms as f64
+            (self.writer_stats.allocations_processed as f64 * 1000.0)
+                / self.total_export_time_ms as f64
         }
     }
 
@@ -146,7 +147,12 @@ pub fn parse_binary_to_html_direct<P: AsRef<Path>>(
     html_path: P,
     project_name: &str,
 ) -> Result<BinaryHtmlExportStats, BinaryExportError> {
-    parse_binary_to_html_with_config(binary_path, html_path, project_name, &BinaryHtmlExportConfig::default())
+    parse_binary_to_html_with_config(
+        binary_path,
+        html_path,
+        project_name,
+        &BinaryHtmlExportConfig::default(),
+    )
 }
 
 /// Binary to HTML conversion with custom configuration
@@ -211,17 +217,29 @@ pub fn parse_binary_to_html_with_config<P: AsRef<Path>>(
         },
         writer_stats: stats,
         total_export_time_ms: total_time,
-        binary_read_time_ms: 0, // Will be filled by individual strategies
+        binary_read_time_ms: 0,     // Will be filled by individual strategies
         html_generation_time_ms: 0, // Will be filled by individual strategies
         file_size_bytes: file_size,
         strategy_used: strategy,
     };
 
     tracing::info!("✅ Binary → HTML conversion completed!");
-    tracing::info!("   Processing time: {}ms", export_stats.total_export_time_ms);
-    tracing::info!("   Allocations processed: {}", export_stats.writer_stats.allocations_processed);
-    tracing::info!("   Throughput: {:.1} allocs/sec", export_stats.throughput_allocations_per_sec);
-    tracing::info!("   Performance improvement: {:.1}%", export_stats.performance_improvement());
+    tracing::info!(
+        "   Processing time: {}ms",
+        export_stats.total_export_time_ms
+    );
+    tracing::info!(
+        "   Allocations processed: {}",
+        export_stats.writer_stats.allocations_processed
+    );
+    tracing::info!(
+        "   Throughput: {:.1} allocs/sec",
+        export_stats.throughput_allocations_per_sec
+    );
+    tracing::info!(
+        "   Performance improvement: {:.1}%",
+        export_stats.performance_improvement()
+    );
 
     Ok(export_stats)
 }
@@ -250,7 +268,10 @@ fn execute_standard_conversion<P: AsRef<Path>>(
     let mut reader = BinaryReader::new(&binary_path)?;
     let header = reader.read_header()?;
 
-    tracing::debug!("📖 Reading {} allocations using standard strategy", header.total_count);
+    tracing::debug!(
+        "📖 Reading {} allocations using standard strategy",
+        header.total_count
+    );
 
     // Create HTML writer
     let html_file = File::create(&html_path)?;
@@ -278,7 +299,10 @@ fn execute_standard_conversion<P: AsRef<Path>>(
     // Finalize HTML generation
     let stats = html_writer.finalize_with_binary_template(project_name)?;
 
-    tracing::debug!("📊 Standard conversion completed in {}ms", read_start.elapsed().as_millis());
+    tracing::debug!(
+        "📊 Standard conversion completed in {}ms",
+        read_start.elapsed().as_millis()
+    );
 
     Ok(stats)
 }
@@ -323,7 +347,10 @@ fn execute_optimized_conversion<P: AsRef<Path>>(
 
     let stats = html_writer.finalize_with_binary_template(project_name)?;
 
-    tracing::debug!("📊 Optimized conversion completed in {}ms", read_start.elapsed().as_millis());
+    tracing::debug!(
+        "📊 Optimized conversion completed in {}ms",
+        read_start.elapsed().as_millis()
+    );
 
     Ok(stats)
 }
@@ -353,7 +380,9 @@ fn execute_parallel_conversion<P: AsRef<Path>>(
         AllocationField::Size,
         AllocationField::TypeName,
         AllocationField::IsLeaked,
-    ].into_iter().collect();
+    ]
+    .into_iter()
+    .collect();
 
     let parallel_batch_size = config.batch_size * 4; // Even larger batches
     let mut allocations_buffer = Vec::with_capacity(parallel_batch_size);
@@ -374,7 +403,10 @@ fn execute_parallel_conversion<P: AsRef<Path>>(
 
     let stats = html_writer.finalize_with_binary_template(project_name)?;
 
-    tracing::debug!("📊 Parallel conversion completed in {}ms", read_start.elapsed().as_millis());
+    tracing::debug!(
+        "📊 Parallel conversion completed in {}ms",
+        read_start.elapsed().as_millis()
+    );
 
     Ok(stats)
 }
@@ -449,7 +481,7 @@ mod tests {
     fn create_test_binary_file() -> Result<NamedTempFile, BinaryExportError> {
         // Create a minimal test binary file
         let mut temp_file = NamedTempFile::new().map_err(BinaryExportError::Io)?;
-        
+
         // Write minimal binary header (simplified)
         let magic = b"MEMSCOPE";
         let version = 2u32.to_le_bytes();
@@ -461,13 +493,25 @@ mod tests {
         let padding = [0u8; 2];
 
         temp_file.write_all(magic).map_err(BinaryExportError::Io)?;
-        temp_file.write_all(&version).map_err(BinaryExportError::Io)?;
+        temp_file
+            .write_all(&version)
+            .map_err(BinaryExportError::Io)?;
         temp_file.write_all(&count).map_err(BinaryExportError::Io)?;
-        temp_file.write_all(&[mode]).map_err(BinaryExportError::Io)?;
-        temp_file.write_all(&user_count).map_err(BinaryExportError::Io)?;
-        temp_file.write_all(&system_count).map_err(BinaryExportError::Io)?;
-        temp_file.write_all(&[reserved]).map_err(BinaryExportError::Io)?;
-        temp_file.write_all(&padding).map_err(BinaryExportError::Io)?;
+        temp_file
+            .write_all(&[mode])
+            .map_err(BinaryExportError::Io)?;
+        temp_file
+            .write_all(&user_count)
+            .map_err(BinaryExportError::Io)?;
+        temp_file
+            .write_all(&system_count)
+            .map_err(BinaryExportError::Io)?;
+        temp_file
+            .write_all(&[reserved])
+            .map_err(BinaryExportError::Io)?;
+        temp_file
+            .write_all(&padding)
+            .map_err(BinaryExportError::Io)?;
 
         temp_file.flush().map_err(BinaryExportError::Io)?;
         Ok(temp_file)
@@ -492,7 +536,6 @@ mod tests {
 
     #[test]
     fn test_config_recommendations() {
-        
         // We can't easily create files of specific sizes in tests,
         // so we'll test the logic with mock file sizes
         let small_config = BinaryHtmlExportConfig {
@@ -548,7 +591,7 @@ mod tests {
     fn test_processing_strategy_enum() {
         assert_eq!(ProcessingStrategy::Standard, ProcessingStrategy::Standard);
         assert_ne!(ProcessingStrategy::Standard, ProcessingStrategy::Parallel);
-        
+
         // Test Debug formatting
         let strategy = ProcessingStrategy::Optimized;
         assert_eq!(format!("{:?}", strategy), "Optimized");

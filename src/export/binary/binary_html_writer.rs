@@ -8,6 +8,7 @@ use crate::core::types::AllocationInfo;
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::selective_reader::AllocationField;
 use crate::export::binary::complex_type_analyzer::{ComplexTypeAnalyzer, ComplexTypeAnalysis};
+use crate::export::binary::ffi_safety_analyzer::{FfiSafetyAnalyzer, FfiSafetyAnalysis};
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufWriter, Write};
@@ -200,6 +201,7 @@ pub struct BinaryTemplateData {
     pub processing_time_ms: u64,
     pub data_source: String,
     pub complex_types: Option<ComplexTypeAnalysis>,
+    pub unsafe_ffi: Option<FfiSafetyAnalysis>,
 }
 
 /// Intelligent buffering system for optimized write performance
@@ -459,6 +461,19 @@ impl<W: Write> BinaryHtmlWriter<W> {
             None
         };
 
+        // Perform FFI safety analysis on collected allocations
+        let unsafe_ffi = if !self.all_allocations.is_empty() {
+            match FfiSafetyAnalyzer::analyze_allocations(&self.all_allocations) {
+                Ok(analysis) => Some(analysis),
+                Err(e) => {
+                    tracing::warn!("FFI safety analysis failed: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Ok(BinaryTemplateData {
             project_name: project_name.to_string(),
             allocations: self.allocation_buffer.clone(),
@@ -468,6 +483,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
             processing_time_ms: self.stats.data_processing_time_ms,
             data_source: "binary_direct".to_string(),
             complex_types,
+            unsafe_ffi,
         })
     }
 
@@ -539,6 +555,12 @@ impl<W: Write> BinaryHtmlWriter<W> {
         if let Some(ref complex_types) = data.complex_types {
             dashboard_data["complex_types"] = serde_json::to_value(complex_types)
                 .map_err(|e| BinaryExportError::SerializationError(format!("Complex types serialization failed: {}", e)))?;
+        }
+
+        // Add FFI safety analysis if available
+        if let Some(ref unsafe_ffi) = data.unsafe_ffi {
+            dashboard_data["unsafe_ffi"] = serde_json::to_value(unsafe_ffi)
+                .map_err(|e| BinaryExportError::SerializationError(format!("FFI safety analysis serialization failed: {}", e)))?;
         }
 
         serde_json::to_string_pretty(&dashboard_data).map_err(|e| {

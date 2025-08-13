@@ -13,8 +13,11 @@ mod binary_template_engine;
 mod cache;
 mod complex_type_analyzer;
 mod config;
+mod ffi_safety_analyzer;
 #[cfg(test)]
 mod integration_test_complex_types;
+#[cfg(test)]
+mod integration_test_ffi_safety;
 mod error;
 mod error_recovery;
 mod field_parser;
@@ -54,6 +57,10 @@ pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
 pub use complex_type_analyzer::{
     ComplexTypeAnalysis, ComplexTypeAnalyzer, ComplexTypeSummary, CategorizedTypes,
     TypeInfo, GenericTypeAnalysis, GenericInstantiation, TypeCategory,
+};
+pub use ffi_safety_analyzer::{
+    FfiSafetyAnalysis, FfiSafetyAnalyzer, FfiSafetySummary, UnsafeOperation,
+    FfiHotspot, RiskAssessment, FfiCallGraph, UnsafeOperationType, RiskLevel,
 };
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};

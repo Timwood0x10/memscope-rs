@@ -646,6 +646,7 @@ mod tests {
             processing_time_ms: 100,
             data_source: "binary_direct".to_string(),
             complex_types: None,
+            unsafe_ffi: None,
         }
     }
 
