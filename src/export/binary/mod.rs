@@ -7,6 +7,8 @@
 //! - Modular architecture for easy testing and maintenance
 
 mod batch_processor;
+mod binary_html_writer;
+mod binary_template_engine;
 mod cache;
 mod config;
 mod error;
@@ -14,6 +16,7 @@ mod error_recovery;
 mod field_parser;
 mod filter_engine;
 pub mod format;
+mod html_export;
 mod index;
 mod index_builder;
 mod memory_layout_serialization;
@@ -31,6 +34,13 @@ mod writer;
 pub use batch_processor::{
     BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch,
 };
+pub use binary_html_writer::{
+    BinaryAllocationData, BinaryHtmlStats, BinaryHtmlWriter, BinaryHtmlWriterConfig,
+    BinaryTemplateData,
+};
+pub use binary_template_engine::{
+    BinaryTemplateEngine, BinaryTemplateEngineConfig, BinaryTemplateEngineStats,
+};
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
 
 pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
@@ -42,6 +52,7 @@ pub use error_recovery::{
 pub use field_parser::{FieldParser, FieldParserConfig, FieldParserStats, PartialAllocationInfo};
 pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, FilterStats};
 pub use format::{BinaryExportMode, FileHeader, FORMAT_VERSION, MAGIC_BYTES};
+pub use html_export::export_binary_to_html;
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
 pub use index_builder::BinaryIndexBuilder;
 pub use parser::BinaryParser;
@@ -311,6 +322,33 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 /// * `Ok(())` - Parsing completed successfully
 /// * `Err(BinaryExportError)` - If parsing fails
 ///
+/// Export binary data directly to interactive HTML dashboard
+///
+/// This function creates a complete HTML dashboard with interactive visualizations
+/// using the templates in ./templates/dashboard.html
+///
+/// # Example
+/// ```no_run
+/// use memscope_rs::export::binary::export_binary_to_html_dashboard;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// // Create interactive HTML dashboard
+/// export_binary_to_html_dashboard(
+///     "MemoryAnalysis/my_program.memscope",
+///     "MemoryAnalysis/my_program/dashboard.html",
+///     "my_program"
+/// )?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn export_binary_to_html_dashboard<P: AsRef<Path>>(
+    binary_path: P,
+    output_path: P,
+    project_name: &str,
+) -> Result<(), BinaryExportError> {
+    export_binary_to_html(binary_path, output_path, project_name)
+}
+
 /// # Example
 /// ```no_run
 /// use memscope_rs::export::binary::parse_binary_auto;

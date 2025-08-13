@@ -641,6 +641,20 @@ validate: ci run-basic run-lifecycle html
 	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
 	@echo "$(BLUE)memscope-rs is ready for use!$(NC)"
 
+# Binary to HTML dashboard conversion (using existing template)
+.PHONY: binary-to-html
+binary-to-html:
+	@echo "$(BLUE)Converting binary files to HTML dashboards using template...$(NC)"
+	@if [ -f "MemoryAnalysis/large_scale_user.memscope" ]; then \
+		echo "Creating dashboard from binary using templates/dashboard.html..."; \
+		cargo run --release --example binary_to_dashboard; \
+		echo "$(GREEN)✅ HTML dashboard created using existing template!$(NC)"; \
+		echo "$(BLUE)📊 Open in browser: file://$(PWD)/MemoryAnalysis/large_scale_user/dashboard_from_binary.html$(NC)"; \
+		echo "$(YELLOW)💡 Compare with existing: file://$(PWD)/MemoryAnalysis/large_scale_user/ccc.html$(NC)"; \
+	else \
+		echo "No binary files found. Run 'make large-scale-test' first."; \
+	fi
+
 # Complete validation including performance
 .PHONY: validate-all
 validate-all: validate perf-validate
