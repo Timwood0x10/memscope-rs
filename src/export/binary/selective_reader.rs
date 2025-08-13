@@ -1338,15 +1338,19 @@ impl SelectiveBinaryReader {
 #[derive(Debug, Clone)]
 pub struct SelectiveReaderStats {
     /// Total number of records in the file
+    #[allow(dead_code)]
     pub total_records: u32,
 
     /// Size of the binary file in bytes
+    #[allow(dead_code)]
     pub file_size: u64,
 
     /// Whether quick filter data is available
+    #[allow(dead_code)]
     pub has_quick_filter: bool,
 
     /// Current size of the allocation cache
+    #[allow(dead_code)]
     pub cache_size: usize,
 }
 

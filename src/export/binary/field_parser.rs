@@ -20,6 +20,7 @@ pub struct FieldParser {
     stats: FieldParserStats,
 
     /// Configuration for field parsing
+    #[allow(dead_code)]
     config: FieldParserConfig,
 }
 
@@ -107,17 +108,21 @@ impl FieldParserStats {
 #[derive(Debug, Clone)]
 pub struct FieldValue {
     /// The actual field value
+    #[allow(dead_code)]
     pub value: FieldData,
 
     /// When this value was cached
+    #[allow(dead_code)]
     pub cached_at: std::time::Instant,
 
     /// How many times this cached value has been accessed
+    #[allow(dead_code)]
     pub access_count: u32,
 }
 
 /// Different types of field data that can be cached
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum FieldData {
     Usize(usize),
     U64(u64),
@@ -414,6 +419,7 @@ impl FieldParser {
     }
 
     /// Check if a field exists in the current record
+    #[allow(dead_code)]
     fn field_exists(&self, _field: &AllocationField) -> bool {
         // This would be implemented based on record format analysis
         // For now, assume all fields might exist
@@ -421,6 +427,7 @@ impl FieldParser {
     }
 
     /// Get cached field value if available
+    #[allow(dead_code)]
     fn get_cached_field(&mut self, cache_key: &str) -> Option<&FieldValue> {
         if !self.config.enable_caching {
             return None;
@@ -437,6 +444,7 @@ impl FieldParser {
     }
 
     /// Cache a field value
+    #[allow(dead_code)]
     fn cache_field_value(&mut self, cache_key: String, value: FieldData) {
         if !self.config.enable_caching {
             return;
@@ -457,6 +465,7 @@ impl FieldParser {
     }
 
     /// Evict the least recently used cache entry
+    #[allow(dead_code)]
     fn evict_lru_cache_entry(&mut self) {
         if let Some((lru_key, _)) = self
             .field_cache

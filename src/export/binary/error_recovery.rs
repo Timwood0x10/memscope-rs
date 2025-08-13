@@ -76,6 +76,7 @@ struct CorruptionStatus {
     last_checked: SystemTime,
 
     /// Corruption confidence (0.0 to 1.0)
+    #[allow(dead_code)]
     confidence: f64,
 }
 

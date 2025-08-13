@@ -151,6 +151,7 @@ pub struct SelectiveJsonExporter {
     filter_engine: FilterEngine,
 
     /// Field parser for selective field parsing
+    #[allow(dead_code)]
     field_parser: FieldParser,
 
     /// Export statistics

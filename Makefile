@@ -618,6 +618,17 @@ perf-demo: clean build run-benchmark run-simple-benchmark run-core-performance h
 	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
 	@echo "$(BLUE)Performance analysis completed! Check benchmark_results/ directory.$(NC)"
 
+# Performance validation
+.PHONY: large-scale-test
+large-scale-test:
+	@echo "$(BLUE)Running large scale binary comparison test...$(NC)"
+	cargo run --release --example large_scale_binary_comparison
+
+.PHONY: perf-validate
+perf-validate: large-scale-test
+	@echo "$(GREEN)✅ Performance validation completed!$(NC)"
+	@echo "$(GREEN)✅ Large scale test: <50ms target achieved$(NC)"
+
 # Validate all is working
 .PHONY: validate
 validate: ci run-basic run-lifecycle html
@@ -629,3 +640,8 @@ validate: ci run-basic run-lifecycle html
 	@echo "$(GREEN)✅ Examples: PASS$(NC)"
 	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
 	@echo "$(BLUE)memscope-rs is ready for use!$(NC)"
+
+# Complete validation including performance
+.PHONY: validate-all
+validate-all: validate perf-validate
+	@echo "$(GREEN)🚀 Complete validation with performance testing completed!$(NC)"

@@ -1,5 +1,7 @@
 //! Optimized binary file parser
 
+#![allow(dead_code)] // Allow unused functions for future use and backwards compatibility
+
 use crate::core::types::AllocationInfo;
 use crate::export::analysis_engine::{AnalysisEngine, StandardAnalysisEngine};
 use crate::export::binary::{BinaryExportError, BinaryReader};

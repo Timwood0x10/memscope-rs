@@ -560,6 +560,7 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
+    #[allow(dead_code)]
     fn create_test_binary_data() -> (Vec<u8>, Vec<u64>) {
         use crate::core::types::AllocationInfo;
         use crate::export::binary::index_builder::BinaryIndexBuilder;

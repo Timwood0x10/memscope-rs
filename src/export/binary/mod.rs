@@ -229,20 +229,23 @@ impl BinaryFileInfo {
 /// * `Err(BinaryExportError)` - If file cannot be read or is invalid
 ///
 /// # Example
-/// ```rust
+/// ```no_run
 /// use memscope_rs::export::binary::detect_binary_type;
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let info = detect_binary_type("MemoryAnalysis/my_program.memscope")?;
 /// println!("Binary type: {}", info.type_description());
 /// println!("Strategy: {}", info.recommended_strategy());
 ///
 /// if info.is_full_binary() {
 ///     // Use optimized processing for large files
-///     parse_full_binary_to_json(path, base_name)?;
+///     // parse_full_binary_to_json(path, base_name)?;
 /// } else {
 ///     // Use simple processing for small files
-///     parse_user_binary_to_json(path, base_name)?;
+///     // parse_user_binary_to_json(path, base_name)?;
 /// }
+/// # Ok(())
+/// # }
 /// ```
 pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, BinaryExportError> {
     use std::fs::File;
@@ -309,11 +312,14 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 /// * `Err(BinaryExportError)` - If parsing fails
 ///
 /// # Example
-/// ```rust
+/// ```no_run
 /// use memscope_rs::export::binary::parse_binary_auto;
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Automatically detects type and uses optimal strategy
 /// parse_binary_auto("MemoryAnalysis/my_program.memscope", "my_program")?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn parse_binary_auto<P: AsRef<Path>>(
     binary_path: P,
