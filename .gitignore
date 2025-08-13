@@ -49,8 +49,6 @@ performance_only_results/
 
 aim/**
 
-docs/**
-
 /partial_exports/
 
 memory_*.json

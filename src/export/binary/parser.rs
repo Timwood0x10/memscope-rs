@@ -339,8 +339,27 @@ impl BinaryParser {
         binary_path: P,
         base_name: &str,
     ) -> Result<(), BinaryExportError> {
-        // Use the same optimized implementation as parse_full_binary_to_json
-        Self::parse_full_binary_to_json(binary_path, base_name)
+        let start = std::time::Instant::now();
+        tracing::info!("🚀 Starting ultra-fast binary to JSON conversion using BinaryReader");
+
+        // Use BinaryReader for direct, efficient data access (v5-draft approach)
+        Self::parse_binary_to_json_with_index(&binary_path, base_name)?;
+
+        let total_time = start.elapsed();
+        
+        if total_time.as_millis() > 300 {
+            tracing::warn!(
+                "⚠️  Performance target missed: {}ms (target: <300ms)",
+                total_time.as_millis()
+            );
+        } else {
+            tracing::info!(
+                "🎉 Ultra-fast conversion completed: {}ms (target: <300ms)",
+                total_time.as_millis()
+            );
+        }
+
+        Ok(())
     }
 
     /// Generate memory analysis JSON directly (fast path)
