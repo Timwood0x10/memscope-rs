@@ -276,7 +276,6 @@ struct RiskTracker {
     type_safety_issues: usize,
     concurrency_issues: usize,
     data_integrity_issues: usize,
-    risk_counts: HashMap<RiskLevel, usize>,
 }
 
 impl FfiSafetyAnalyzer {
@@ -842,7 +841,6 @@ impl RiskTracker {
             type_safety_issues: 0,
             concurrency_issues: 0,
             data_integrity_issues: 0,
-            risk_counts: HashMap::new(),
         }
     }
 }

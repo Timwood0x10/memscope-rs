@@ -7,7 +7,6 @@
 //! - Parallel both formats performance
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use std::path::Path;
 use tempfile::TempDir;
 
 // Mock binary data for testing
@@ -58,7 +57,7 @@ fn create_test_binary_file(temp_dir: &TempDir, size: usize) -> std::path::PathBu
 
 fn bench_json_export_original(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
-    let binary_path = create_test_binary_file(&temp_dir, 1000);
+    let _binary_path = create_test_binary_file(&temp_dir, 1000);
     
     c.bench_function("json_export_original", |b| {
         b.iter(|| {
@@ -71,7 +70,7 @@ fn bench_json_export_original(c: &mut Criterion) {
 
 fn bench_json_export_unified(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
-    let binary_path = create_test_binary_file(&temp_dir, 1000);
+    let _binary_path = create_test_binary_file(&temp_dir, 1000);
     
     c.bench_function("json_export_unified", |b| {
         b.iter(|| {
@@ -84,7 +83,7 @@ fn bench_json_export_unified(c: &mut Criterion) {
 
 fn bench_html_export_unified(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
-    let binary_path = create_test_binary_file(&temp_dir, 1000);
+    let _binary_path = create_test_binary_file(&temp_dir, 1000);
     
     c.bench_function("html_export_unified", |b| {
         b.iter(|| {
@@ -97,7 +96,7 @@ fn bench_html_export_unified(c: &mut Criterion) {
 
 fn bench_both_formats_parallel(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
-    let binary_path = create_test_binary_file(&temp_dir, 1000);
+    let _binary_path = create_test_binary_file(&temp_dir, 1000);
     
     c.bench_function("both_formats_parallel", |b| {
         b.iter(|| {
@@ -110,7 +109,7 @@ fn bench_both_formats_parallel(c: &mut Criterion) {
 
 fn bench_both_formats_sequential(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
-    let binary_path = create_test_binary_file(&temp_dir, 1000);
+    let _binary_path = create_test_binary_file(&temp_dir, 1000);
     
     c.bench_function("both_formats_sequential", |b| {
         b.iter(|| {

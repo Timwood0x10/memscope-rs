@@ -517,19 +517,11 @@ struct RelationshipDetector {
 struct PatternDetector {
     /// Detected patterns
     patterns: Vec<RelationshipPattern>,
-    /// Pattern confidence threshold
-    confidence_threshold: f64,
 }
 
 /// Internal graph optimizer
 #[derive(Debug, Clone)]
 struct GraphOptimizer {
-    /// Clustering threshold
-    clustering_threshold: f64,
-    /// Maximum nodes for full rendering
-    max_full_nodes: usize,
-    /// Simplification factor
-    simplification_factor: f64,
 }
 
 impl VariableRelationshipAnalyzer {
@@ -1105,7 +1097,6 @@ impl PatternDetector {
     fn new() -> Self {
         Self {
             patterns: Vec::new(),
-            confidence_threshold: 0.7,
         }
     }
 
@@ -1153,9 +1144,6 @@ impl PatternDetector {
 impl GraphOptimizer {
     fn new() -> Self {
         Self {
-            clustering_threshold: 0.7,
-            max_full_nodes: 1000,
-            simplification_factor: 0.5,
         }
     }
 

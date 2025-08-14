@@ -475,47 +475,7 @@ pub fn get_recommended_config<P: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
-    fn create_test_binary_file() -> Result<NamedTempFile, BinaryExportError> {
-        // Create a minimal test binary file
-        let mut temp_file = NamedTempFile::new().map_err(BinaryExportError::Io)?;
-
-        // Write minimal binary header (simplified)
-        let magic = b"MEMSCOPE";
-        let version = 2u32.to_le_bytes();
-        let count = 1u32.to_le_bytes();
-        let mode = 1u8; // Full mode
-        let user_count = 1u16.to_le_bytes();
-        let system_count = 0u16.to_le_bytes();
-        let reserved = 0u8;
-        let padding = [0u8; 2];
-
-        temp_file.write_all(magic).map_err(BinaryExportError::Io)?;
-        temp_file
-            .write_all(&version)
-            .map_err(BinaryExportError::Io)?;
-        temp_file.write_all(&count).map_err(BinaryExportError::Io)?;
-        temp_file
-            .write_all(&[mode])
-            .map_err(BinaryExportError::Io)?;
-        temp_file
-            .write_all(&user_count)
-            .map_err(BinaryExportError::Io)?;
-        temp_file
-            .write_all(&system_count)
-            .map_err(BinaryExportError::Io)?;
-        temp_file
-            .write_all(&[reserved])
-            .map_err(BinaryExportError::Io)?;
-        temp_file
-            .write_all(&padding)
-            .map_err(BinaryExportError::Io)?;
-
-        temp_file.flush().map_err(BinaryExportError::Io)?;
-        Ok(temp_file)
-    }
 
     #[test]
     fn test_strategy_selection() {

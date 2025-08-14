@@ -216,11 +216,11 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_binary_template_engine_with_resource_manager() {
         // Create a temporary template directory for the engine
-        let temp_dir = create_test_template_dir().unwrap();
+        let _temp_dir = create_test_template_dir().unwrap();
         
         // We can't easily change the template directory for BinaryTemplateEngine
         // So we'll test that it can be created and used without errors
-        let mut engine = BinaryTemplateEngine::new();
+        let engine = BinaryTemplateEngine::new();
         
         // The engine creation might fail if templates directory doesn't exist
         // This is expected behavior, so we'll just verify the error handling

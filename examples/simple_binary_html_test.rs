@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test with a simple call - use a smaller file first
     let binary_file = "MemoryAnalysis/large_scale_user.memscope";
     let output_file = "MemoryAnalysis/test_output_simple.html";
-    let project_name = "test_project";
+    let _project_name = "test_project";
     
     if std::path::Path::new(binary_file).exists() {
         println!("✅ Found binary file: {binary_file}");

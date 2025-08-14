@@ -555,7 +555,7 @@ impl ComplexTypeAnalyzer {
                 let complexity = self.calculate_type_complexity(full_type);
 
                 frequent_generics.push(GenericInstantiation {
-                    base_type: base_type.clone(),
+                    base_type: stats.base_type.clone(), // Use the base_type field from stats
                     full_type: full_type.clone(),
                     type_parameters: type_params,
                     instance_count: *count,

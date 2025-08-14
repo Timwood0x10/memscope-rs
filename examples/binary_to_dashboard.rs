@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn generate_memory_data_for_template(binary_file: &str, _project_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn generate_memory_data_for_template(_binary_file: &str, _project_name: &str) -> Result<String, Box<dyn std::error::Error>> {
     
     // Generate data that matches window.analysisData structure expected by script.js
     let memory_data = serde_json::json!({

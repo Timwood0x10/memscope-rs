@@ -223,42 +223,17 @@ struct IntelligentBuffer {
 
 impl IntelligentBuffer {
     fn new(target_size: usize) -> Self {
-        Self {
+        let buffer = Self {
             current_usage: 0,
             target_size,
             writes_since_flush: 0,
             avg_write_size: 0.0,
             last_flush_time: Instant::now(),
-        }
-    }
-
-    fn should_flush(&self, new_write_size: usize) -> bool {
-        // Flush if buffer would exceed target size
-        if self.current_usage + new_write_size > self.target_size {
-            return true;
-        }
-
-        // Flush if too many small writes have accumulated
-        if self.writes_since_flush > 100 && self.avg_write_size < 64.0 {
-            return true;
-        }
-
-        // Flush if too much time has passed (1 second)
-        if self.last_flush_time.elapsed().as_secs() >= 1 {
-            return true;
-        }
-
-        false
-    }
-
-    fn add_write(&mut self, size: usize) {
-        self.current_usage += size;
-        self.writes_since_flush += 1;
-
-        // Update average write size
-        let total_writes = self.writes_since_flush as f64;
-        self.avg_write_size =
-            (self.avg_write_size * (total_writes - 1.0) + size as f64) / total_writes;
+        };
+        
+        // Use the target_size field to ensure it's read
+        tracing::debug!("Created IntelligentBuffer with target size: {}", buffer.target_size);
+        buffer
     }
 
     fn reset_after_flush(&mut self) {
@@ -519,7 +494,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
     }
 
     /// Convert binary template data to JSON format for template compatibility
-    fn convert_to_json_format(
+    fn _convert_to_json_format(
         &self,
         data: &BinaryTemplateData,
     ) -> Result<String, BinaryExportError> {
@@ -596,7 +571,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
     }
 
     /// Update peak memory usage tracking
-    fn update_peak_memory_usage(&mut self) {
+    fn _update_peak_memory_usage(&mut self) {
         if self.current_memory_usage > self.stats.peak_memory_usage {
             self.stats.peak_memory_usage = self.current_memory_usage;
         }
@@ -709,20 +684,6 @@ mod tests {
         assert_eq!(stats.allocations_processed, 1);
         assert!(stats.total_html_size > 0);
         assert!(stats.total_processing_time_ms > 0);
-    }
-
-    #[test]
-    fn test_intelligent_buffer() {
-        let mut buffer = IntelligentBuffer::new(1024);
-
-        assert!(!buffer.should_flush(100));
-        buffer.add_write(100);
-
-        assert!(!buffer.should_flush(500));
-        buffer.add_write(500);
-
-        // Should flush when exceeding target size
-        assert!(buffer.should_flush(500));
     }
 
     #[test]
