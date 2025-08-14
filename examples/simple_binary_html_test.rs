@@ -3,9 +3,9 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🧪 Simple Binary to HTML Test");
     
-    // Test with a simple call
+    // Test with a simple call - use a smaller file first
     let binary_file = "MemoryAnalysis/large_scale_user.memscope";
-    let output_file = "MemoryAnalysis/large_scale_user/test_output.html";
+    let output_file = "MemoryAnalysis/test_output_simple.html";
     let project_name = "test_project";
     
     if std::path::Path::new(binary_file).exists() {
@@ -18,7 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         memscope_rs::export::binary::export_binary_to_html(
             binary_file,
             output_file,
-            project_name
         )?;
         
         println!("✅ HTML file created: {output_file}");

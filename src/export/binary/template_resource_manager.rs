@@ -211,10 +211,32 @@ impl TemplateResourceManager {
         mut content: String,
         data: &TemplateData,
     ) -> Result<String, BinaryExportError> {
-        // Process standard placeholders
+        // Process standard placeholders (handle both with and without spaces)
         content = content.replace("{{PROJECT_NAME}}", &data.project_name);
+        content = content.replace("{{ PROJECT_NAME }}", &data.project_name);
         content = content.replace("{{BINARY_DATA}}", &data.binary_data);
+        content = content.replace("{{ BINARY_DATA }}", &data.binary_data);
         content = content.replace("{{GENERATION_TIME}}", &data.generation_time);
+        content = content.replace("{{ GENERATION_TIME }}", &data.generation_time);
+        
+        // Process additional placeholders from custom data
+        for (key, value) in &data.custom_data {
+            let placeholder_with_spaces = format!("{{{{ {} }}}}", key);
+            let placeholder_without_spaces = format!("{{{{{}}}}}", key);
+            content = content.replace(&placeholder_with_spaces, value);
+            content = content.replace(&placeholder_without_spaces, value);
+        }
+        
+        // Handle common placeholders that might be in custom data
+        if let Some(processing_time) = data.custom_data.get("PROCESSING_TIME") {
+            content = content.replace("{{PROCESSING_TIME}}", processing_time);
+            content = content.replace("{{ PROCESSING_TIME }}", processing_time);
+        }
+        
+        if let Some(svg_images) = data.custom_data.get("SVG_IMAGES") {
+            content = content.replace("{{SVG_IMAGES}}", svg_images);
+            content = content.replace("{{ SVG_IMAGES }}", svg_images);
+        }
 
         // Process custom placeholders using registered processors
         for (placeholder, processor) in &self.placeholder_processors {

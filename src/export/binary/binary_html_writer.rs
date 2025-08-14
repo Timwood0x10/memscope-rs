@@ -192,7 +192,7 @@ impl BinaryAllocationData {
 }
 
 /// Binary template data structure for HTML generation
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BinaryTemplateData {
     pub project_name: String,
     pub allocations: Vec<BinaryAllocationData>,

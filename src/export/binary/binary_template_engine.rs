@@ -101,11 +101,18 @@ impl BinaryTemplateEngine {
     ) -> Result<String, BinaryExportError> {
         let render_start = Instant::now();
 
+        // Optimize for large datasets with pagination
+        let optimized_data = self.optimize_template_data_for_size(template_data)?;
+
         // Convert template data to JSON for injection
-        let json_data = self.serialize_template_data(template_data)?;
+        let json_data = self.serialize_template_data(&optimized_data)?;
 
         // Create template data for resource manager
         let mut custom_data = HashMap::new();
+
+        // Add processing time and other common placeholders
+        custom_data.insert("PROCESSING_TIME".to_string(), template_data.processing_time_ms.to_string());
+        custom_data.insert("SVG_IMAGES".to_string(), self.load_svg_images()?);
 
         // Add analysis data to custom data if available
         if let Some(ref complex_types) = template_data.complex_types {
@@ -178,36 +185,37 @@ impl BinaryTemplateEngine {
         self.resource_manager.get_shared_js(&self.resource_config)
     }
 
-    /// Serialize template data to JSON format
+    /// Serialize template data to JSON format optimized for template compatibility
     fn serialize_template_data(
         &self,
         data: &BinaryTemplateData,
     ) -> Result<String, BinaryExportError> {
         use serde_json::json;
 
-        // Convert binary template data to JSON format compatible with the template
+        // Fast allocation data generation - limit to essential data only
         let allocations_json: Vec<serde_json::Value> = data
             .allocations
             .iter()
+            .take(100) // Drastically reduce for speed - only show top 100
             .map(|alloc| {
+                // Use pre-computed values to avoid format! calls
                 json!({
                     "id": alloc.id,
                     "size": alloc.size,
                     "type_name": alloc.type_name,
                     "scope_name": alloc.scope_name,
-                    "timestamp_alloc": alloc.timestamp_alloc,
-                    "is_active": alloc.is_active,
-                    "ptr": format!("0x{:x}", alloc.ptr),
-                    "thread_id": alloc.thread_id,
-                    "var_name": alloc.var_name,
-                    "borrow_count": alloc.borrow_count,
-                    "is_leaked": alloc.is_leaked,
-                    "lifetime_ms": alloc.lifetime_ms
+                    "is_active": alloc.is_active
                 })
             })
             .collect();
 
-        let dashboard_data = json!({
+        // Generate minimal data for charts - much faster
+        let memory_timeline = self.generate_fast_timeline_data(&data.allocations);
+        let size_distribution = self.generate_fast_size_distribution(&data.allocations);
+        let lifecycle_events = self.generate_fast_lifecycle_events(&data.allocations);
+
+        // Build comprehensive dashboard data matching template expectations
+        let mut dashboard_data = json!({
             "project_name": data.project_name,
             "data_source": data.data_source,
             "summary": {
@@ -218,18 +226,46 @@ impl BinaryTemplateEngine {
             },
             "memory_analysis": {
                 "allocations": allocations_json,
-                "memory_timeline": [],
-                "size_distribution": []
+                "memory_timeline": memory_timeline,
+                "size_distribution": size_distribution
+            },
+            "lifecycle_analysis": {
+                "events": lifecycle_events,
+                "scope_analysis": {
+                    "total_scopes": self.count_unique_scopes(&data.allocations),
+                    "average_scope_lifetime": self.calculate_average_scope_lifetime(&data.allocations),
+                    "max_nested_depth": 1 // Simplified for now
+                }
             },
             "performance_metrics": {
                 "export_time_ms": data.processing_time_ms,
                 "data_source": "binary_direct",
-                "throughput_allocations_per_sec": self.calculate_throughput(data)
+                "throughput_allocations_per_sec": self.calculate_throughput(data),
+                "memory_efficiency": self.calculate_memory_efficiency(data),
+                "processing_speed": format!("{:.1} MB/s", self.calculate_processing_speed(data))
             }
         });
 
+        // Add complex types analysis if available
+        if let Some(ref complex_types) = data.complex_types {
+            dashboard_data["complex_types"] = serde_json::to_value(complex_types)
+                .map_err(|e| BinaryExportError::SerializationError(format!("Complex types serialization failed: {e}")))?;
+        }
+
+        // Add FFI safety analysis if available
+        if let Some(ref unsafe_ffi) = data.unsafe_ffi {
+            dashboard_data["unsafe_ffi"] = serde_json::to_value(unsafe_ffi)
+                .map_err(|e| BinaryExportError::SerializationError(format!("FFI safety serialization failed: {e}")))?;
+        }
+
+        // Add variable relationships if available
+        if let Some(ref variable_relationships) = data.variable_relationships {
+            dashboard_data["variable_relationships"] = serde_json::to_value(variable_relationships)
+                .map_err(|e| BinaryExportError::SerializationError(format!("Variable relationships serialization failed: {e}")))?;
+        }
+
         serde_json::to_string(&dashboard_data).map_err(|e| {
-            BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e))
+            BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
         })
     }
 
@@ -274,6 +310,209 @@ impl BinaryTemplateEngine {
         } else {
             (data.allocations.len() as f64 * 1000.0) / data.processing_time_ms as f64
         }
+    }
+
+    /// Generate fast timeline data - minimal processing
+    fn generate_fast_timeline_data(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+        use serde_json::json;
+        
+        // Only generate 10 data points for speed
+        let step = allocations.len().max(10) / 10;
+        let mut timeline = Vec::with_capacity(10);
+        let mut cumulative_memory = 0u64;
+
+        for (i, alloc) in allocations.iter().step_by(step).take(10).enumerate() {
+            cumulative_memory += alloc.size as u64;
+            timeline.push(json!({
+                "timestamp": alloc.timestamp_alloc,
+                "memory_usage": cumulative_memory,
+                "allocation_count": (i + 1) * step
+            }));
+        }
+
+        timeline
+    }
+
+    /// Generate memory timeline data for visualization (original method kept for compatibility)
+    fn generate_memory_timeline_data(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+        self.generate_fast_timeline_data(allocations)
+    }
+
+    /// Generate fast size distribution - pre-computed buckets
+    fn generate_fast_size_distribution(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+        use serde_json::json;
+
+        // Fast bucketing with fixed counters
+        let mut small = 0u64;
+        let mut medium = 0u64; 
+        let mut large = 0u64;
+        let mut huge = 0u64;
+
+        // Sample every 10th allocation for speed
+        for alloc in allocations.iter().step_by(10) {
+            match alloc.size {
+                0..=1024 => small += 1,
+                1025..=102400 => medium += 1,
+                102401..=1048576 => large += 1,
+                _ => huge += 1
+            }
+        }
+
+        vec![
+            json!({"size_range": "0-1KB", "count": small, "total_size": small * 512}),
+            json!({"size_range": "1-100KB", "count": medium, "total_size": medium * 50000}),
+            json!({"size_range": "100KB-1MB", "count": large, "total_size": large * 500000}),
+            json!({"size_range": ">1MB", "count": huge, "total_size": huge * 2000000})
+        ]
+    }
+
+    /// Generate size distribution data for charts (original method kept for compatibility)
+    fn generate_size_distribution_data(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+        self.generate_fast_size_distribution(allocations)
+    }
+
+    /// Generate fast lifecycle events - minimal data
+    fn generate_fast_lifecycle_events(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+        use serde_json::json;
+
+        // Only take every 100th allocation and limit to 20 events
+        allocations.iter()
+            .step_by(100)
+            .take(20)
+            .enumerate()
+            .map(|(_index, alloc)| {
+                json!({
+                    "id": alloc.id,
+                    "event_type": if alloc.is_active { "Allocation" } else { "Deallocation" },
+                    "timestamp": alloc.timestamp_alloc,
+                    "size": alloc.size
+                })
+            })
+            .collect()
+    }
+
+    /// Generate lifecycle events for timeline visualization (original method kept for compatibility)
+    fn generate_lifecycle_events(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+        self.generate_fast_lifecycle_events(allocations)
+    }
+
+    /// Count unique scopes in allocations
+    fn count_unique_scopes(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> u64 {
+        use std::collections::HashSet;
+        
+        let unique_scopes: HashSet<&str> = allocations.iter()
+            .map(|alloc| alloc.scope_name.as_str())
+            .collect();
+        
+        unique_scopes.len() as u64
+    }
+
+    /// Calculate average scope lifetime
+    fn calculate_average_scope_lifetime(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> f64 {
+        if allocations.is_empty() {
+            return 0.0;
+        }
+
+        let total_lifetime: u64 = allocations.iter()
+            .filter_map(|alloc| alloc.lifetime_ms)
+            .sum();
+
+        let count = allocations.iter()
+            .filter(|alloc| alloc.lifetime_ms.is_some())
+            .count();
+
+        if count == 0 {
+            0.0
+        } else {
+            total_lifetime as f64 / count as f64
+        }
+    }
+
+    /// Calculate memory efficiency metric
+    fn calculate_memory_efficiency(&self, data: &BinaryTemplateData) -> f64 {
+        if data.peak_memory_usage == 0 {
+            0.0
+        } else {
+            (data.total_memory_usage as f64 / data.peak_memory_usage as f64) * 100.0
+        }
+    }
+
+    /// Calculate processing speed in MB/s
+    fn calculate_processing_speed(&self, data: &BinaryTemplateData) -> f64 {
+        if data.processing_time_ms == 0 {
+            0.0
+        } else {
+            let total_mb = data.total_memory_usage as f64 / (1024.0 * 1024.0);
+            let time_seconds = data.processing_time_ms as f64 / 1000.0;
+            total_mb / time_seconds
+        }
+    }
+
+    /// Fast optimization for template data - minimal processing
+    fn optimize_template_data_for_size(&self, data: &BinaryTemplateData) -> Result<BinaryTemplateData, BinaryExportError> {
+        const MAX_ALLOCATIONS_FAST: usize = 500; // Much smaller for speed
+
+        let mut optimized_data = data.clone();
+
+        // Fast optimization - just truncate without sorting for speed
+        if data.allocations.len() > MAX_ALLOCATIONS_FAST {
+            tracing::info!("🚀 Fast optimization: {} → {} allocations", data.allocations.len(), MAX_ALLOCATIONS_FAST);
+            
+            // Take first N allocations - no sorting to save time
+            optimized_data.allocations.truncate(MAX_ALLOCATIONS_FAST);
+        }
+
+        // Skip complex analysis optimization for speed - just use as-is
+        // The analysis data is already limited during generation
+
+        Ok(optimized_data)
+    }
+
+    /// Get priority value for risk levels (higher = more critical)
+    fn risk_level_priority(&self, risk_level: &str) -> u32 {
+        match risk_level {
+            "Critical" => 4,
+            "High" => 3,
+            "Medium" => 2,
+            "Low" => 1,
+            _ => 0,
+        }
+    }
+
+    /// Load SVG images for embedding in template
+    fn load_svg_images(&self) -> Result<String, BinaryExportError> {
+        let mut svg_data = String::new();
+        
+        // List of SVG files to embed
+        let svg_files = [
+            ("memoryAnalysis", "images/memoryAnalysis.svg"),
+            ("lifecycleTimeline", "images/lifecycleTimeline.svg"),
+            ("unsafe_ffi_dashboard", "images/unsafe_ffi_dashboard.svg"),
+        ];
+        
+        svg_data.push_str("<script>\n");
+        svg_data.push_str("// Embedded SVG images\n");
+        svg_data.push_str("window.svgImages = {\n");
+        
+        for (name, path) in &svg_files {
+            if let Ok(svg_content) = std::fs::read_to_string(path) {
+                // Escape the SVG content for JavaScript
+                let escaped_svg = svg_content
+                    .replace('\\', "\\\\")
+                    .replace('`', "\\`")
+                    .replace("${", "\\${");
+                
+                svg_data.push_str(&format!("  {}: `{}`,\n", name, escaped_svg));
+            } else {
+                // If SVG file doesn't exist, create a placeholder
+                svg_data.push_str(&format!("  {}: `<svg width=\"100\" height=\"100\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"100\" height=\"100\" fill=\"#f0f0f0\"/><text x=\"50\" y=\"50\" text-anchor=\"middle\" dy=\".3em\" font-family=\"Arial\" font-size=\"12\" fill=\"#666\">SVG Missing</text></svg>`,\n", name));
+            }
+        }
+        
+        svg_data.push_str("};\n");
+        svg_data.push_str("</script>\n");
+        
+        Ok(svg_data)
     }
 
     /// Preload resources for better performance

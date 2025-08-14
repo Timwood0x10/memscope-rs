@@ -82,7 +82,13 @@ pub use error_recovery::{
 pub use field_parser::{FieldParser, FieldParserConfig, FieldParserStats, PartialAllocationInfo};
 pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, FilterStats};
 pub use format::{BinaryExportMode, FileHeader, FORMAT_VERSION, MAGIC_BYTES};
-pub use html_export::export_binary_to_html;
+pub use html_export::{
+    export_binary, export_binary_optimized, export_binary_with_format,
+    export_binary_to_json, export_binary_to_html, export_binary_to_html_system, 
+    export_binary_to_html_both, export_binary_to_both,
+    export_binary_with_config, show_export_options,
+    BinaryOutputFormat,
+};
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
 pub use index_builder::BinaryIndexBuilder;
 pub use parser::BinaryParser;
@@ -377,10 +383,11 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
 /// ```
 pub fn export_binary_to_html_dashboard<P: AsRef<Path>>(
     binary_path: P,
-    output_path: P,
+    _output_path: P,
     project_name: &str,
 ) -> Result<(), BinaryExportError> {
-    export_binary_to_html(binary_path, output_path, project_name)
+    // Use the new unified API - the output path is determined automatically
+    export_binary_to_html(binary_path, project_name)
 }
 
 /// # Example

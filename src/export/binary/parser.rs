@@ -365,7 +365,7 @@ impl BinaryParser {
     }
 
     /// Generate memory analysis JSON directly (fast path)
-    fn generate_memory_analysis_json(
+    pub fn generate_memory_analysis_json(
         allocations: &[AllocationInfo],
         output_path: &std::path::Path,
     ) -> Result<(), BinaryExportError> {
@@ -419,7 +419,7 @@ impl BinaryParser {
     }
 
     /// Generate lifetime analysis JSON directly (fast path)
-    fn generate_lifetime_analysis_json(
+    pub fn generate_lifetime_analysis_json(
         allocations: &[AllocationInfo],
         output_path: &std::path::Path,
     ) -> Result<(), BinaryExportError> {
@@ -461,7 +461,7 @@ impl BinaryParser {
     }
 
     /// Generate performance analysis JSON directly (fast path)
-    fn generate_performance_analysis_json(
+    pub fn generate_performance_analysis_json(
         allocations: &[AllocationInfo],
         output_path: &std::path::Path,
     ) -> Result<(), BinaryExportError> {
@@ -505,7 +505,7 @@ impl BinaryParser {
     }
 
     /// Generate unsafe FFI analysis JSON directly (fast path)
-    fn generate_unsafe_ffi_analysis_json(
+    pub fn generate_unsafe_ffi_analysis_json(
         allocations: &[AllocationInfo],
         output_path: &std::path::Path,
     ) -> Result<(), BinaryExportError> {
@@ -553,7 +553,7 @@ impl BinaryParser {
     }
 
     /// Generate complex types analysis JSON directly (fast path)
-    fn generate_complex_types_analysis_json(
+    pub fn generate_complex_types_analysis_json(
         allocations: &[AllocationInfo],
         output_path: &std::path::Path,
     ) -> Result<(), BinaryExportError> {
