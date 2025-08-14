@@ -204,7 +204,14 @@ impl BinaryTemplateEngine {
                     "size": alloc.size,
                     "type_name": alloc.type_name,
                     "scope_name": alloc.scope_name,
-                    "is_active": alloc.is_active
+                    "var_name": alloc.var_name,
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "timestamp_alloc": alloc.timestamp_alloc,
+                    "is_active": alloc.is_active,
+                    "thread_id": alloc.thread_id,
+                    "borrow_count": alloc.borrow_count,
+                    "is_leaked": alloc.is_leaked,
+                    "lifetime_ms": alloc.lifetime_ms
                 })
             })
             .collect();

@@ -73,7 +73,11 @@ pub use variable_relationship_analyzer::{
     GraphNode, GraphEdge, RelationshipType, NodeCategory, OwnershipStatus,
 };
 
-pub use config::{AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder};
+pub use config::{
+    AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder,
+    DashboardFormat, DataScope, PerformanceMode, AnalysisType,
+    DashboardOptions, DashboardExportStats,
+};
 pub use error::BinaryExportError;
 pub use error_recovery::{
     ErrorRecoveryManager, ErrorReport, ErrorStatistics, ErrorTrend, RecoveryConfig, RecoveryResult,
@@ -87,6 +91,7 @@ pub use html_export::{
     export_binary_to_json, export_binary_to_html, export_binary_to_html_system, 
     export_binary_to_html_both, export_binary_to_both,
     export_binary_with_config, show_export_options,
+    export_binary_to_dashboard, // New unified API
     BinaryOutputFormat,
 };
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};

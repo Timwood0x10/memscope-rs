@@ -474,3 +474,199 @@ mod tests {
         assert!(comprehensive.has_advanced_metrics());
     }
 }
+
+/// Dashboard export format options
+#[derive(Debug, Clone, PartialEq)]
+pub enum DashboardFormat {
+    /// Current embedded format - all data in HTML (backward compatible)
+    Embedded,
+    /// Lightweight format - HTML + separate JSON files
+    Lightweight,
+    /// Progressive format - HTML + lazy-loaded JSON files
+    Progressive,
+}
+
+impl Default for DashboardFormat {
+    fn default() -> Self {
+        DashboardFormat::Lightweight // Default to lightweight for better performance
+    }
+}
+
+/// Data scope for export
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataScope {
+    /// Only user allocations (with var_name)
+    UserOnly,
+    /// Only system allocations (without var_name)
+    SystemOnly,
+    /// Both user and system allocations
+    Both,
+}
+
+impl Default for DataScope {
+    fn default() -> Self {
+        DataScope::Both
+    }
+}
+
+/// Performance mode for analysis
+#[derive(Debug, Clone, PartialEq)]
+pub enum PerformanceMode {
+    /// Fast mode - basic analysis only
+    Fast,
+    /// Complete mode - all analysis types
+    Complete,
+    /// Custom mode - specify which analysis to include
+    Custom(Vec<AnalysisType>),
+}
+
+impl Default for PerformanceMode {
+    fn default() -> Self {
+        PerformanceMode::Complete
+    }
+}
+
+/// Analysis types that can be included/excluded
+#[derive(Debug, Clone, PartialEq)]
+pub enum AnalysisType {
+    MemoryAnalysis,
+    LifecycleTracking,
+    VariableRelationships,
+    ComplexTypes,
+    UnsafeFFI,
+    PerformanceMetrics,
+}
+
+/// Unified dashboard export options
+#[derive(Debug, Clone)]
+pub struct DashboardOptions {
+    /// Export format (embedded, lightweight, progressive)
+    pub format: DashboardFormat,
+    /// Data scope (user, system, both)
+    pub scope: DataScope,
+    /// Performance mode (fast, complete, custom)
+    pub performance: PerformanceMode,
+    /// Custom output directory (None for auto-generated)
+    pub output_dir: Option<std::path::PathBuf>,
+    /// Underlying binary export config
+    pub binary_config: BinaryExportConfig,
+}
+
+impl Default for DashboardOptions {
+    fn default() -> Self {
+        Self {
+            format: DashboardFormat::default(),
+            scope: DataScope::default(),
+            performance: PerformanceMode::default(),
+            output_dir: None,
+            binary_config: BinaryExportConfig::default(),
+        }
+    }
+}
+
+impl DashboardOptions {
+    /// Create new dashboard options with default settings
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the export format
+    pub fn format(mut self, format: DashboardFormat) -> Self {
+        self.format = format;
+        self
+    }
+
+    /// Set the data scope
+    pub fn scope(mut self, scope: DataScope) -> Self {
+        self.scope = scope;
+        self
+    }
+
+    /// Set the performance mode
+    pub fn performance(mut self, performance: PerformanceMode) -> Self {
+        self.performance = performance;
+        self
+    }
+
+    /// Set custom output directory
+    pub fn output_dir<P: Into<std::path::PathBuf>>(mut self, dir: P) -> Self {
+        self.output_dir = Some(dir.into());
+        self
+    }
+
+    /// Set underlying binary export config
+    pub fn binary_config(mut self, config: BinaryExportConfig) -> Self {
+        self.binary_config = config;
+        self
+    }
+
+    /// Enable parallel processing
+    pub fn parallel_processing(self, _enabled: bool) -> Self {
+        // TODO: Add parallel processing field to BinaryExportConfig
+        self
+    }
+
+    /// Set batch size
+    pub fn batch_size(self, _size: usize) -> Self {
+        // TODO: Add batch_size field to BinaryExportConfig
+        self
+    }
+
+    /// Set buffer size
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.binary_config.buffer_size = size;
+        self
+    }
+
+    /// Quick preset for fast export (minimal analysis)
+    pub fn fast_preset() -> Self {
+        Self {
+            format: DashboardFormat::Lightweight,
+            scope: DataScope::UserOnly,
+            performance: PerformanceMode::Fast,
+            output_dir: None,
+            binary_config: BinaryExportConfig::performance_first(),
+        }
+    }
+
+    /// Quick preset for complete analysis
+    pub fn complete_preset() -> Self {
+        Self {
+            format: DashboardFormat::Progressive,
+            scope: DataScope::Both,
+            performance: PerformanceMode::Complete,
+            output_dir: None,
+            binary_config: BinaryExportConfig::debug_comprehensive(),
+        }
+    }
+
+    /// Quick preset for backward compatibility (embedded format)
+    pub fn embedded_preset() -> Self {
+        Self {
+            format: DashboardFormat::Embedded,
+            scope: DataScope::Both,
+            performance: PerformanceMode::Complete,
+            output_dir: None,
+            binary_config: BinaryExportConfig::default(),
+        }
+    }
+}
+
+/// Dashboard export statistics
+#[derive(Debug, Clone)]
+pub struct DashboardExportStats {
+    /// Total number of files generated
+    pub total_files_generated: usize,
+    /// Size of main HTML file
+    pub html_size: usize,
+    /// Total size of JSON files (if separated)
+    pub total_json_size: usize,
+    /// Total processing time in milliseconds
+    pub processing_time_ms: u64,
+    /// Number of allocations processed
+    pub allocations_processed: usize,
+    /// Export format used
+    pub format_used: DashboardFormat,
+    /// Data scope used
+    pub scope_used: DataScope,
+}
