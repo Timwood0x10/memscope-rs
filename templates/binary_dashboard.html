@@ -504,6 +504,14 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Memory Timeline Chart -->
+                <div class="mt-8">
+                    <h3 class="text-lg font-medium mb-3 text-heading">Memory Usage Timeline</h3>
+                    <div class="h-64">
+                        <canvas id="memory-timeline-chart"></canvas>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -575,6 +583,14 @@
                     <h3 class="text-lg font-medium mb-3 text-heading">Type Complexity Distribution</h3>
                     <div class="h-64">
                         <canvas id="complex-types-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Lifecycle Timeline Chart -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium mb-3 text-heading">Variable Lifecycle Timeline</h3>
+                    <div class="h-64">
+                        <canvas id="lifecycle-timeline-chart"></canvas>
                     </div>
                 </div>
 
@@ -797,7 +813,8 @@
             );
 
             // Count unsafe FFI operations
-            const unsafeFFI = window.analysisData.unsafe_ffi_analysis?.unsafe_operations?.length || 0;
+            const unsafeFFI = window.analysisData.unsafe_ffi?.enhanced_ffi_data?.length || 
+                             window.analysisData.unsafe_ffi?.unsafe_operations?.length || 0;
 
             // Update the UI with safe checks
             const userComplexTypesEl = document.getElementById('user-complex-types');
@@ -1002,6 +1019,182 @@
         // Destroy charts before any initialization
         destroyExistingCharts();
 
+        // Force refresh all dashboard components
+        function forceRefreshDashboard() {
+            console.log('🔄 Force refreshing dashboard components...');
+            
+            // Force update FFI data
+            if (window.analysisData && window.analysisData.unsafe_ffi) {
+                const ffiData = window.analysisData.unsafe_ffi;
+                console.log('🔍 FFI Data available:', ffiData);
+                
+                // Update FFI counts immediately
+                safeUpdateElement('unsafe-ffi-count', ffiData.total_violations || ffiData.enhanced_ffi_data?.length || 0);
+                safeUpdateElement('ffi-risk-level', ffiData.risk_level || 'Low');
+                safeUpdateElement('unsafe-operations-count', ffiData.unsafe_operations?.length || 0);
+                safeUpdateElement('security-hotspots-count', ffiData.security_hotspots?.length || 0);
+                
+                // Force populate unsafe operations table
+                const unsafeTableBody = document.getElementById('unsafe-operations-table');
+                if (unsafeTableBody && ffiData.enhanced_ffi_data && ffiData.enhanced_ffi_data.length > 0) {
+                    console.log('📊 Populating unsafe operations table with', ffiData.enhanced_ffi_data.length, 'entries');
+                    const operations = ffiData.enhanced_ffi_data.slice(0, 20);
+                    unsafeTableBody.innerHTML = operations.map(op => `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="px-4 py-3 text-sm font-mono">${op.ptr || 'N/A'}</td>
+                            <td class="px-4 py-3 text-sm">${op.type_name?.includes('*') ? 'Raw Pointer' : 
+                                                                op.type_name?.includes('libc') ? 'FFI Call' : 'Memory Operation'}</td>
+                            <td class="px-4 py-3 text-sm">
+                                <span class="px-2 py-1 text-xs rounded-full ${op.safety_violations > 2 ? 'bg-red-100 text-red-800' :
+                                    op.safety_violations > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                                    ${op.safety_violations > 2 ? 'High' : op.safety_violations > 0 ? 'Medium' : 'Low'}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm">${op.var_name || 'Unknown'}</td>
+                        </tr>
+                    `).join('');
+                }
+            }
+            
+            // Force update complex types
+            if (window.analysisData && window.analysisData.complex_types) {
+                const complexData = window.analysisData.complex_types;
+                console.log('🧩 Complex types data available:', complexData);
+                
+                const summary = complexData.summary || {};
+                safeUpdateElement('system-complex-types', summary.total_complex_types || 0);
+                safeUpdateElement('system-smart-pointers', summary.smart_pointers_count || 0);
+                safeUpdateElement('system-collections', summary.collections_count || 0);
+                safeUpdateElement('system-generic-types', summary.generic_types_count || 0);
+            }
+            
+            // Force create charts
+            setTimeout(() => {
+                try {
+                    createMemoryTimelineChart();
+                    createComplexTypesChart();
+                    createLifecycleChart();
+                } catch (e) {
+                    console.warn('Error creating charts:', e);
+                }
+            }, 500);
+        }
+
+        // Create memory timeline chart
+        function createMemoryTimelineChart() {
+            const ctx = document.getElementById('memory-timeline-chart');
+            if (!ctx || !window.analysisData) return;
+            
+            const timelineData = window.analysisData.memory_analysis?.memory_timeline || [];
+            console.log('📈 Creating memory timeline chart with', timelineData.length, 'data points');
+            
+            if (timelineData.length === 0) return;
+            
+            const existingChart = Chart.getChart(ctx);
+            if (existingChart) existingChart.destroy();
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timelineData.map((_, i) => `${i * 250}ms`),
+                    datasets: [{
+                        label: 'Memory Usage (bytes)',
+                        data: timelineData.map(point => point.memory_usage),
+                        borderColor: '#3B82F6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Memory (bytes)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create complex types chart
+        function createComplexTypesChart() {
+            const ctx = document.getElementById('complex-types-chart');
+            if (!ctx || !window.analysisData) return;
+            
+            const complexData = window.analysisData.complex_types;
+            if (!complexData || !complexData.summary) return;
+            
+            console.log('🧩 Creating complex types chart');
+            
+            const existingChart = Chart.getChart(ctx);
+            if (existingChart) existingChart.destroy();
+            
+            const summary = complexData.summary;
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Smart Pointers', 'Collections', 'Generic Types'],
+                    datasets: [{
+                        label: 'Count',
+                        data: [
+                            summary.smart_pointers_count || 0,
+                            summary.collections_count || 0,
+                            summary.generic_types_count || 0
+                        ],
+                        backgroundColor: ['#FF6B6B', '#4ECDC4', '#45B7D1']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        // Create lifecycle chart
+        function createLifecycleChart() {
+            const ctx = document.getElementById('lifecycle-timeline-chart');
+            if (!ctx || !window.analysisData) return;
+            
+            const events = window.analysisData.lifecycle_analysis?.events || [];
+            console.log('⏱️ Creating lifecycle chart with', events.length, 'events');
+            
+            if (events.length === 0) return;
+            
+            const existingChart = Chart.getChart(ctx);
+            if (existingChart) existingChart.destroy();
+            
+            const timelineData = events.slice(0, 50).map((event, index) => ({
+                x: index,
+                y: event.size || 0
+            }));
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Allocation Size Over Time',
+                        data: timelineData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Event Sequence' } },
+                        y: { beginAtZero: true, title: { display: true, text: 'Size (bytes)' } }
+                    }
+                }
+            });
+        }
+
         // Binary-specific initialization
         document.addEventListener('DOMContentLoaded', function () {
             console.log('Binary Dashboard initialized with safe overrides');
@@ -1042,6 +1235,11 @@
             setTimeout(() => {
                 // Initialize binary-specific features
                 initializeBinaryDashboard();
+                
+                // Force refresh all components to ensure they display correctly
+                setTimeout(() => {
+                    forceRefreshDashboard();
+                }, 1000);
             }, 100);
         });
 
@@ -1089,7 +1287,11 @@
             initializeBinaryCharts();
 
             // Initialize complex types analysis
-            initializeComplexTypesAnalysis();
+            try {
+                initializeComplexTypesAnalysis();
+            } catch (e) {
+                console.warn('Error initializing complex types analysis:', e);
+            }
 
             // Initialize variable relationship graph
             if (window.analysisData && window.analysisData.variable_relationships) {
@@ -1097,10 +1299,25 @@
             }
 
             // Initialize FFI analysis
-            initializeFFIAnalysis();
+            try {
+                initializeFFIAnalysis();
+            } catch (e) {
+                console.warn('Error initializing FFI analysis:', e);
+            }
+
+            // Initialize charts
+            try {
+                initializeBinaryCharts();
+            } catch (e) {
+                console.warn('Error initializing charts:', e);
+            }
 
             // Populate allocations table
-            populateAllocationsTable();
+            try {
+                populateAllocationsTable();
+            } catch (e) {
+                console.warn('Error populating allocations table:', e);
+            }
 
             // Setup theme toggle
             setupThemeToggle();
@@ -1400,6 +1617,8 @@
                 return;
             }
 
+            console.log('Complex types data found:', window.analysisData.complex_types);
+
             const complexTypes = window.analysisData.complex_types;
 
             // Update complex types summary statistics with safe access
@@ -1489,6 +1708,7 @@
             }
 
             const ffiData = window.analysisData.unsafe_ffi;
+            console.log('FFI Data:', ffiData);
 
             // Update FFI summary statistics
             const totalViolationsEl = document.getElementById('unsafe-ffi-count');
@@ -1497,7 +1717,7 @@
             const hotspotsCountEl = document.getElementById('security-hotspots-count');
 
             if (totalViolationsEl) {
-                totalViolationsEl.textContent = ffiData.total_violations || 0;
+                totalViolationsEl.textContent = ffiData.total_violations || ffiData.enhanced_ffi_data?.length || 0;
             }
             if (riskLevelEl) {
                 riskLevelEl.textContent = ffiData.risk_level || 'Low';
@@ -1509,28 +1729,42 @@
                 hotspotsCountEl.textContent = ffiData.security_hotspots?.length || 0;
             }
 
-            // Populate unsafe operations table
+            // Populate unsafe operations table - support both unsafe_operations and enhanced_ffi_data
             const unsafeTableBody = document.getElementById('unsafe-operations-table');
-            if (unsafeTableBody && ffiData.unsafe_operations) {
-                if (ffiData.unsafe_operations.length === 0) {
-                    unsafeTableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No unsafe operations detected</td></tr>';
+            if (unsafeTableBody) {
+                // Use enhanced_ffi_data if available, otherwise fall back to unsafe_operations
+                const operations = ffiData.enhanced_ffi_data || ffiData.unsafe_operations || [];
+                
+                if (operations.length === 0) {
+                    unsafeTableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No unsafe operations detected</td></tr>';
                 } else {
-                    unsafeTableBody.innerHTML = ffiData.unsafe_operations.slice(0, 50).map(op => `
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <td class="px-4 py-3 text-sm font-mono">${op.ptr || 'N/A'}</td>
-                            <td class="px-4 py-3 text-sm">${op.operation_type || 'Unknown'}</td>
-                            <td class="px-4 py-3 text-sm">
-                                <span class="px-2 py-1 text-xs rounded-full ${op.risk_level === 'High' ? 'bg-red-100 text-red-800' :
-                            op.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-green-100 text-green-800'
-                        }">
-                                    ${op.risk_level || 'Low'}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-sm">${new Date(op.timestamp).toLocaleTimeString()}</td>
-                            <td class="px-4 py-3 text-sm">${op.location || 'Unknown'}</td>
-                        </tr>
-                    `).join('');
+                    unsafeTableBody.innerHTML = operations.slice(0, 50).map(op => {
+                        // Handle both enhanced_ffi_data format and unsafe_operations format
+                        const ptr = op.ptr || `0x${op.id ? op.id.toString(16) : 'N/A'}`;
+                        const operationType = op.operation_type || 
+                                            (op.type_name?.includes('*') ? 'Raw Pointer' : 
+                                             op.type_name?.includes('libc') ? 'FFI Call' : 'Memory Operation');
+                        const riskLevel = op.risk_level || 
+                                         (op.safety_violations > 2 ? 'High' : 
+                                          op.safety_violations > 0 ? 'Medium' : 'Low');
+                        const location = op.location || op.var_name || 'Unknown';
+                        
+                        return `
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-4 py-3 text-sm font-mono">${ptr}</td>
+                                <td class="px-4 py-3 text-sm">${operationType}</td>
+                                <td class="px-4 py-3 text-sm">
+                                    <span class="px-2 py-1 text-xs rounded-full ${riskLevel === 'High' ? 'bg-red-100 text-red-800' :
+                                riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-green-100 text-green-800'
+                            }">
+                                        ${riskLevel}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm">${location}</td>
+                            </tr>
+                        `;
+                    }).join('');
                 }
             }
 

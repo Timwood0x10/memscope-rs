@@ -224,6 +224,8 @@ impl TemplateResourceManager {
         content = content.replace("{{ PROJECT_NAME }}", &data.project_name);
         content = content.replace("{{BINARY_DATA}}", &data.binary_data);
         content = content.replace("{{ BINARY_DATA }}", &data.binary_data);
+        content = content.replace("{{json_data}}", &data.binary_data);
+        content = content.replace("{{ json_data }}", &data.binary_data);
         content = content.replace("{{GENERATION_TIME}}", &data.generation_time);
         content = content.replace("{{ GENERATION_TIME }}", &data.generation_time);
         
