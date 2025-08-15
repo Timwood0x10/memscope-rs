@@ -381,9 +381,9 @@
                         <div>Source: Binary Direct</div>
                     </div>
                     <button id="theme-toggle"
-                        class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
-                        <i class="fa fa-moon-o dark:hidden"></i>
-                        <i class="fa fa-sun-o hidden dark:inline"></i>
+                        class="p-3 rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-yellow-100 dark:hover:bg-yellow-200 border-2 border-blue-300 dark:border-yellow-300 transition-all duration-200 shadow-md hover:shadow-lg">
+                        <i class="fa fa-moon-o dark:hidden text-blue-600 text-lg"></i>
+                        <i class="fa fa-sun-o hidden dark:inline text-yellow-600 text-lg"></i>
                     </button>
                 </div>
             </div>
@@ -508,8 +508,15 @@
                 <!-- Memory Timeline Chart -->
                 <div class="mt-8">
                     <h3 class="text-lg font-medium mb-3 text-heading">Memory Usage Timeline</h3>
-                    <div class="h-64">
+                    <div class="h-64 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                         <canvas id="memory-timeline-chart"></canvas>
+                        <div id="memory-timeline-fallback" class="hidden flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                            <div class="text-center">
+                                <i class="fa fa-line-chart text-4xl mb-4"></i>
+                                <p class="text-lg font-semibold mb-2">Memory Timeline</p>
+                                <p class="text-sm">Timeline data will appear here when available</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1083,12 +1090,26 @@
         // Create memory timeline chart
         function createMemoryTimelineChart() {
             const ctx = document.getElementById('memory-timeline-chart');
+            const fallback = document.getElementById('memory-timeline-fallback');
             if (!ctx || !window.analysisData) return;
             
             const timelineData = window.analysisData.memory_analysis?.memory_timeline || [];
             console.log('📈 Creating memory timeline chart with', timelineData.length, 'data points');
             
-            if (timelineData.length === 0) return;
+            if (timelineData.length === 0) {
+                // Show fallback message and hide canvas
+                if (fallback) {
+                    fallback.classList.remove('hidden');
+                    ctx.style.display = 'none';
+                }
+                return;
+            }
+            
+            // Hide fallback and show canvas
+            if (fallback) {
+                fallback.classList.add('hidden');
+                ctx.style.display = 'block';
+            }
             
             const existingChart = Chart.getChart(ctx);
             if (existingChart) existingChart.destroy();
@@ -1491,6 +1512,25 @@
                 }
 
                 const timelineData = window.analysisData.memory_analysis?.memory_timeline || [];
+                
+                // If no timeline data, generate sample data from allocations
+                if (timelineData.length === 0 && window.analysisData.memory_analysis?.allocations) {
+                    const allocations = window.analysisData.memory_analysis.allocations;
+                    const sampleTimeline = generateTimelineFromAllocations(allocations);
+                    if (sampleTimeline.length > 0) {
+                        timelineData.push(...sampleTimeline);
+                    }
+                }
+                
+                if (timelineData.length === 0) {
+                    // Show fallback message
+                    const fallback = document.getElementById('memory-timeline-fallback');
+                    if (fallback) {
+                        fallback.classList.remove('hidden');
+                        memoryTimelineCtx.style.display = 'none';
+                    }
+                    return;
+                }
                 
                 window.memoryTimelineChart = new Chart(memoryTimelineCtx, {
                     type: 'line',
@@ -2054,6 +2094,36 @@
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Generate timeline data from allocations if timeline data is not available
+        function generateTimelineFromAllocations(allocations) {
+            if (!allocations || allocations.length === 0) return [];
+            
+            // Sort allocations by timestamp
+            const sortedAllocs = allocations
+                .filter(alloc => alloc.timestamp_alloc)
+                .sort((a, b) => a.timestamp_alloc - b.timestamp_alloc);
+            
+            if (sortedAllocs.length === 0) return [];
+            
+            // Generate timeline points
+            let cumulativeMemory = 0;
+            const timeline = [];
+            const step = Math.max(1, Math.floor(sortedAllocs.length / 20)); // Max 20 points
+            
+            for (let i = 0; i < sortedAllocs.length; i += step) {
+                const alloc = sortedAllocs[i];
+                cumulativeMemory += alloc.size || 0;
+                
+                timeline.push({
+                    timestamp: alloc.timestamp_alloc,
+                    memory_usage: cumulativeMemory,
+                    allocation_count: i + 1
+                });
+            }
+            
+            return timeline;
         }
 
         function setupThemeToggle() {

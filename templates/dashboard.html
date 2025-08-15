@@ -217,9 +217,9 @@
                         Operations</p>
                 </div>
                 <button id="theme-toggle"
-                    class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
-                    <i class="fa fa-moon-o dark:hidden"></i>
-                    <i class="fa fa-sun-o hidden dark:inline"></i>
+                    class="p-3 rounded-lg bg-indigo-500 hover:bg-indigo-600 dark:bg-yellow-500 dark:hover:bg-yellow-600 border-2 border-indigo-600 dark:border-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl text-white">
+                    <i class="fa fa-moon-o dark:hidden text-white text-lg"></i>
+                    <i class="fa fa-sun-o hidden dark:inline text-white text-lg"></i>
                 </button>
             </div>
         </div>
@@ -313,6 +313,13 @@
                                 <p>Loading lifetime data...</p>
                             </div>
                         </div>
+                        <div id="lifetime-fallback" class="hidden text-center py-8 text-gray-500 dark:text-gray-400">
+                            <div class="text-center">
+                                <i class="fa fa-line-chart text-4xl mb-4"></i>
+                                <p class="text-lg font-semibold mb-2">Memory Usage Timeline</p>
+                                <p class="text-sm">Timeline data will appear here when available</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="mt-4 text-sm text-gray-500 dark:text-gray-400 italic">
@@ -361,6 +368,9 @@
                             <tr>
                                 <th
                                     class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Pointer</th>
+                                <th
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Variable</th>
                                 <th
                                     class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -370,13 +380,13 @@
                                     Size</th>
                                 <th
                                     class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Allocated At</th>
+                                    Status</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
                             id="allocations-table">
                             <tr>
-                                <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                     Loading...</td>
                             </tr>
                         </tbody>
@@ -387,10 +397,22 @@
 
         <!-- FFI Visualization Section -->
         <section class="mb-12">
-            <div id="ffiVisualization">
-                <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                    <i class="fa fa-spinner fa-spin text-2xl mb-2"></i>
-                    <p>Loading FFI analysis...</p>
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
+                    <i class="fa fa-exclamation-triangle text-yellow-500 mr-2"></i>Unsafe/FFI Analysis
+                </h2>
+                <div id="ffiVisualization">
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <i class="fa fa-spinner fa-spin text-2xl mb-2"></i>
+                        <p>Loading FFI analysis...</p>
+                    </div>
+                </div>
+                <div id="ffi-fallback" class="hidden text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div class="text-center">
+                        <i class="fa fa-shield text-4xl mb-4"></i>
+                        <p class="text-lg font-semibold mb-2">Unsafe/FFI Analysis</p>
+                        <p class="text-sm">No unsafe or FFI operations detected</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -565,6 +587,533 @@
 
     <!-- Inline JavaScript -->
     <script>
+        // Add updateSummaryStats function
+        function updateSummaryStats(allocations) {
+            try {
+                if (!allocations || !Array.isArray(allocations)) {
+                    console.warn('Invalid allocations data for summary stats');
+                    return;
+                }
+
+                // Update total allocations
+                const totalAllocationsEl = document.getElementById('total-allocations');
+                if (totalAllocationsEl) {
+                    totalAllocationsEl.textContent = allocations.length;
+                }
+
+                // Calculate total memory
+                const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+                const totalMemoryEl = document.getElementById('total-memory');
+                if (totalMemoryEl) {
+                    totalMemoryEl.textContent = formatBytes(totalMemory);
+                }
+
+                // Update active allocations (those without deallocation timestamp)
+                const activeAllocations = allocations.filter(alloc => !alloc.timestamp_dealloc);
+                const activeAllocationsEl = document.getElementById('active-allocations');
+                if (activeAllocationsEl) {
+                    activeAllocationsEl.textContent = activeAllocations.length;
+                }
+
+                // Calculate active memory
+                const activeMemory = activeAllocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+                const activeMemoryEl = document.getElementById('active-memory');
+                if (activeMemoryEl) {
+                    activeMemoryEl.textContent = formatBytes(activeMemory);
+                }
+
+                console.log('Summary stats updated successfully');
+            } catch (error) {
+                console.error('Error updating summary stats:', error);
+            }
+        }
+
+        // Helper function to format bytes
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Generate timeline data from allocations if timeline data is not available
+        function generateTimelineFromAllocations(allocations) {
+            if (!allocations || allocations.length === 0) return [];
+            
+            // Sort allocations by timestamp
+            const sortedAllocs = allocations
+                .filter(alloc => alloc.timestamp_alloc)
+                .sort((a, b) => a.timestamp_alloc - b.timestamp_alloc);
+            
+            if (sortedAllocs.length === 0) return [];
+            
+            // Generate timeline points
+            let cumulativeMemory = 0;
+            const timeline = [];
+            const step = Math.max(1, Math.floor(sortedAllocs.length / 20)); // Max 20 points
+            
+            for (let i = 0; i < sortedAllocs.length; i += step) {
+                const alloc = sortedAllocs[i];
+                cumulativeMemory += alloc.size || 0;
+                
+                timeline.push({
+                    timestamp: alloc.timestamp_alloc,
+                    memory_usage: cumulativeMemory,
+                    allocation_count: i + 1
+                });
+            }
+            
+            return timeline;
+        }
+
+        // Enhanced lifetime visualization
+        function createLifetimeVisualization() {
+            const container = document.getElementById('lifetimeVisualization');
+            const fallback = document.getElementById('lifetime-fallback');
+            if (!container || !window.analysisData) {
+                console.log('❌ No container or analysisData found');
+                return;
+            }
+            
+            // Try to get lifecycle events from various data sources
+            let lifecycleEvents = [];
+            
+            // Check embedded data first
+            if (window.analysisData.lifetime?.lifecycle_events) {
+                lifecycleEvents = window.analysisData.lifetime.lifecycle_events;
+                console.log('📊 Found lifecycle events in lifetime data:', lifecycleEvents.length);
+            } else if (window.analysisData.lifecycle_events) {
+                lifecycleEvents = window.analysisData.lifecycle_events;
+                console.log('📊 Found lifecycle events in root data:', lifecycleEvents.length);
+            } else if (window.analysisData.memory_analysis?.lifecycle_events) {
+                lifecycleEvents = window.analysisData.memory_analysis.lifecycle_events;
+                console.log('📊 Found lifecycle events in memory_analysis:', lifecycleEvents.length);
+            }
+            
+            const allocations = window.analysisData.memory_analysis?.allocations || [];
+            console.log('📈 Creating lifetime visualization with', lifecycleEvents.length, 'lifecycle events and', allocations.length, 'allocations');
+            
+            if (lifecycleEvents.length === 0 && allocations.length === 0) {
+                // Show fallback message
+                if (fallback) {
+                    fallback.classList.remove('hidden');
+                    container.style.display = 'none';
+                }
+                console.log('⚠️ No lifecycle or allocation data found');
+                return;
+            }
+            
+            // Hide fallback and show visualization
+            if (fallback) {
+                fallback.classList.add('hidden');
+                container.style.display = 'block';
+            }
+            
+            // Generate lifetime visualization from lifecycle events or allocations
+            const lifetimeHtml = lifecycleEvents.length > 0 
+                ? generateLifetimeVisualizationFromEvents(lifecycleEvents)
+                : generateLifetimeVisualization(allocations);
+            container.innerHTML = lifetimeHtml;
+        }
+
+        // Generate lifetime visualization from lifecycle events
+        function generateLifetimeVisualizationFromEvents(lifecycleEvents) {
+            if (!lifecycleEvents || lifecycleEvents.length === 0) {
+                return '<div class="text-center py-8 text-gray-500 dark:text-gray-400"><p>No lifecycle data available</p></div>';
+            }
+            
+            // Group events by pointer to track allocation/deallocation pairs
+            const ptrEvents = {};
+            lifecycleEvents.forEach(event => {
+                if (!ptrEvents[event.ptr]) {
+                    ptrEvents[event.ptr] = [];
+                }
+                ptrEvents[event.ptr].push(event);
+            });
+            
+            // Take first 10 pointers for visualization
+            const visiblePtrs = Object.keys(ptrEvents).slice(0, 10);
+            let html = '';
+            
+            visiblePtrs.forEach((ptr, index) => {
+                const events = ptrEvents[ptr];
+                const allocEvent = events.find(e => e.event === 'allocation');
+                const deallocEvent = events.find(e => e.event === 'deallocation');
+                
+                if (!allocEvent) return;
+                
+                const varName = allocEvent.var_name || `ptr_${index}`;
+                const isActive = !deallocEvent;
+                const duration = deallocEvent ? 
+                    ((deallocEvent.timestamp - allocEvent.timestamp) / 1000000) : // Convert to ms
+                    null;
+                
+                html += `
+                    <div class="flex items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                        <div class="w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200">${varName}</div>
+                        <div class="flex-grow flex items-center relative h-8">
+                            <div class="absolute left-0 w-full h-2 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                            <div class="absolute left-0 h-2 ${isActive ? 'bg-green-500' : 'bg-blue-500'} rounded" 
+                                 style="width: ${isActive ? '100%' : '80%'}"></div>
+                            <div class="absolute left-0 w-2 h-2 bg-green-600 rounded-full" title="Allocation"></div>
+                            ${!isActive ? '<div class="absolute w-2 h-2 bg-red-600 rounded-full" style="left: 80%" title="Deallocation"></div>' : ''}
+                        </div>
+                        <div class="w-20 text-xs text-gray-500 dark:text-gray-400 text-right">
+                            ${formatBytes(allocEvent.size || 0)}
+                        </div>
+                        <div class="w-16 text-xs text-gray-500 dark:text-gray-400 text-right">
+                            ${duration ? duration.toFixed(1) + 'ms' : 'Active'}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (Object.keys(ptrEvents).length > 10) {
+                html += `
+                    <div class="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                        ... and ${Object.keys(ptrEvents).length - 10} more memory objects
+                    </div>
+                `;
+            }
+            
+            return html;
+        }
+
+        // Generate lifetime visualization HTML (fallback for allocations)
+        function generateLifetimeVisualization(allocations) {
+            if (!allocations || allocations.length === 0) {
+                return '<div class="text-center py-8 text-gray-500 dark:text-gray-400"><p>No allocation data available</p></div>';
+            }
+            
+            // Take first 10 allocations for visualization
+            const visibleAllocations = allocations.slice(0, 10);
+            let html = '';
+            
+            visibleAllocations.forEach((alloc, index) => {
+                const varName = alloc.variable_name || `alloc_${index}`;
+                const allocTime = alloc.timestamp_alloc || 0;
+                const deallocTime = alloc.timestamp_dealloc;
+                const isActive = !deallocTime;
+                
+                html += `
+                    <div class="flex items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                        <div class="w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200">${varName}</div>
+                        <div class="flex-grow flex items-center relative h-8">
+                            <div class="absolute left-0 w-full h-2 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                            <div class="absolute left-0 h-2 ${isActive ? 'bg-green-500' : 'bg-blue-500'} rounded" 
+                                 style="width: ${isActive ? '100%' : '70%'}"></div>
+                            <div class="absolute left-0 w-2 h-2 bg-green-600 rounded-full"></div>
+                            ${!isActive ? '<div class="absolute right-0 w-2 h-2 bg-red-600 rounded-full" style="right: 30%"></div>' : ''}
+                        </div>
+                        <div class="w-20 text-xs text-gray-500 dark:text-gray-400 text-right">
+                            ${formatBytes(alloc.size || 0)}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (allocations.length > 10) {
+                html += `
+                    <div class="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                        ... and ${allocations.length - 10} more allocations
+                    </div>
+                `;
+            }
+            
+            return html;
+        }
+
+        // Create Unsafe/FFI Analysis
+        function createUnsafeFfiAnalysis() {
+            const container = document.getElementById('ffiVisualization');
+            const fallback = document.getElementById('ffi-fallback');
+            if (!container || !window.analysisData) {
+                console.log('❌ No container or analysisData found for FFI');
+                return;
+            }
+            
+            // Try to get unsafe/ffi data from various sources
+            let unsafeFfiData = [];
+            
+            // Check embedded data first
+            if (window.analysisData.unsafe_ffi?.enhanced_ffi_data) {
+                unsafeFfiData = window.analysisData.unsafe_ffi.enhanced_ffi_data;
+                console.log('📊 Found FFI data in unsafe_ffi.enhanced_ffi_data:', unsafeFfiData.length);
+            } else if (window.analysisData.enhanced_ffi_data) {
+                unsafeFfiData = window.analysisData.enhanced_ffi_data;
+                console.log('📊 Found FFI data in enhanced_ffi_data:', unsafeFfiData.length);
+            } else if (window.analysisData.unsafe_ffi?.boundary_events) {
+                unsafeFfiData = window.analysisData.unsafe_ffi.boundary_events;
+                console.log('📊 Found FFI data in unsafe_ffi.boundary_events:', unsafeFfiData.length);
+            } else if (window.analysisData.boundary_events) {
+                unsafeFfiData = window.analysisData.boundary_events;
+                console.log('📊 Found FFI data in boundary_events:', unsafeFfiData.length);
+            } else if (window.analysisData.unsafe_ffi_analysis) {
+                unsafeFfiData = window.analysisData.unsafe_ffi_analysis;
+                console.log('📊 Found FFI data in unsafe_ffi_analysis:', unsafeFfiData.length);
+            }
+            
+            console.log('🛡️ Creating unsafe/FFI analysis with', unsafeFfiData.length, 'items');
+            console.log('🔍 Available data keys:', Object.keys(window.analysisData));
+            
+            if (!unsafeFfiData || unsafeFfiData.length === 0) {
+                // Show fallback message
+                if (fallback) {
+                    fallback.classList.remove('hidden');
+                    container.style.display = 'none';
+                }
+                console.log('⚠️ No unsafe/FFI data found');
+                return;
+            }
+            
+            // Hide fallback and show content
+            if (fallback) {
+                fallback.classList.add('hidden');
+                container.style.display = 'block';
+            }
+            
+            // Generate unsafe/FFI analysis HTML
+            const unsafeFfiHtml = generateUnsafeFfiAnalysisHtml(unsafeFfiData);
+            container.innerHTML = unsafeFfiHtml;
+        }
+
+        // Generate Unsafe/FFI Analysis HTML
+        function generateUnsafeFfiAnalysisHtml(unsafeFfiData) {
+            if (!unsafeFfiData || unsafeFfiData.length === 0) {
+                return '<div class="text-center py-8 text-gray-500 dark:text-gray-400"><p>No unsafe/FFI data available</p></div>';
+            }
+            
+            let html = '<div class="grid gap-4">';
+            
+            // Take first 10 items for display
+            const visibleItems = unsafeFfiData.slice(0, 10);
+            
+            visibleItems.forEach((item, index) => {
+                const ptr = item.ptr || 'Unknown';
+                const size = item.size || 0;
+                const varName = item.var_name || `unsafe_item_${index}`;
+                const typeName = item.type_name || 'Unknown Type';
+                const threadId = item.thread_id || 'Unknown Thread';
+                const runtimeState = item.runtime_state?.status || 'not_analyzed';
+                
+                // Determine risk level based on available data
+                let riskLevel = 'Low';
+                let riskColor = 'green';
+                if (size > 1024) {
+                    riskLevel = 'Medium';
+                    riskColor = 'yellow';
+                }
+                if (size > 10240 || typeName.includes('unsafe') || ptr.includes('0x0')) {
+                    riskLevel = 'High';
+                    riskColor = 'red';
+                }
+                
+                html += `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex items-center">
+                                <i class="fa fa-exclamation-triangle text-${riskColor}-500 mr-2"></i>
+                                <h4 class="font-medium text-gray-900 dark:text-gray-100">${varName}</h4>
+                            </div>
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-${riskColor}-100 text-${riskColor}-800 dark:bg-${riskColor}-900 dark:text-${riskColor}-200">
+                                ${riskLevel} Risk
+                            </span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-500 dark:text-gray-400">Pointer:</span>
+                                <span class="ml-2 font-mono text-gray-900 dark:text-gray-100">${ptr}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 dark:text-gray-400">Size:</span>
+                                <span class="ml-2 text-gray-900 dark:text-gray-100">${formatBytes(size)}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 dark:text-gray-400">Type:</span>
+                                <span class="ml-2 text-gray-900 dark:text-gray-100">${typeName}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 dark:text-gray-400">Thread:</span>
+                                <span class="ml-2 text-gray-900 dark:text-gray-100">${threadId}</span>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-gray-500 dark:text-gray-400">Status:</span>
+                                <span class="ml-2 text-gray-900 dark:text-gray-100">${runtimeState}</span>
+                            </div>
+                        </div>
+                        
+                        ${item.stack_trace && item.stack_trace.length > 0 && item.stack_trace[0] !== 'no_stack_trace_available' ? `
+                            <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Stack Trace:</span>
+                                <div class="mt-1 text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                                    ${item.stack_trace.slice(0, 3).join('<br>')}
+                                    ${item.stack_trace.length > 3 ? '<br>...' : ''}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            if (unsafeFfiData.length > 10) {
+                html += `
+                    <div class="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                        ... and ${unsafeFfiData.length - 10} more unsafe/FFI operations
+                    </div>
+                `;
+            }
+            
+            return html;
+        }
+
+        // Enhanced memory timeline chart creation (for canvas charts)
+        function createMemoryTimelineChart() {
+            const ctx = document.getElementById('memory-timeline-chart');
+            const fallback = document.getElementById('memory-timeline-fallback');
+            if (!ctx || !window.analysisData) return;
+            
+            const timelineData = window.analysisData.memory_analysis?.memory_timeline || [];
+            console.log('📈 Creating memory timeline chart with', timelineData.length, 'data points');
+            
+            // If no timeline data, try to generate from allocations
+            if (timelineData.length === 0 && window.analysisData.memory_analysis?.allocations) {
+                const allocations = window.analysisData.memory_analysis.allocations;
+                const generatedTimeline = generateTimelineFromAllocations(allocations);
+                if (generatedTimeline.length > 0) {
+                    timelineData.push(...generatedTimeline);
+                }
+            }
+            
+            if (timelineData.length === 0) {
+                // Show fallback message and hide canvas
+                if (fallback) {
+                    fallback.classList.remove('hidden');
+                    ctx.style.display = 'none';
+                }
+                return;
+            }
+            
+            // Hide fallback and show canvas
+            if (fallback) {
+                fallback.classList.add('hidden');
+                ctx.style.display = 'block';
+            }
+            
+            // Create chart with timeline data
+            if (window.Chart) {
+                const existingChart = Chart.getChart(ctx);
+                if (existingChart) {
+                    existingChart.destroy();
+                }
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: timelineData.map(point => new Date(point.timestamp).toLocaleTimeString()),
+                        datasets: [{
+                            label: 'Memory Usage',
+                            data: timelineData.map(point => point.memory_usage),
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return formatBytes(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Load external JSON data and merge with embedded data
+        async function loadExternalJsonData() {
+            try {
+                // Try to load lifecycle data
+                try {
+                    const lifetimeResponse = await fetch('./comprehensive_demo_lifetime.json');
+                    if (lifetimeResponse.ok) {
+                        const lifetimeData = await lifetimeResponse.json();
+                        window.analysisData.lifetime = lifetimeData;
+                        console.log('✅ Loaded lifetime data:', lifetimeData.lifecycle_events?.length || 0, 'events');
+                    }
+                } catch (e) {
+                    console.log('⚠️ Could not load lifetime data:', e.message);
+                }
+
+                // Try to load unsafe/FFI data
+                try {
+                    const unsafeFfiResponse = await fetch('./comprehensive_demo_unsafe_ffi.json');
+                    if (unsafeFfiResponse.ok) {
+                        const unsafeFfiData = await unsafeFfiResponse.json();
+                        window.analysisData.unsafe_ffi = unsafeFfiData;
+                        console.log('✅ Loaded unsafe/FFI data:', unsafeFfiData.enhanced_ffi_data?.length || 0, 'items');
+                    }
+                } catch (e) {
+                    console.log('⚠️ Could not load unsafe/FFI data:', e.message);
+                }
+            } catch (error) {
+                console.log('⚠️ Error loading external JSON data:', error);
+            }
+        }
+
+        // Fix SVG coordinate formatting
+        function formatSvgCoordinate(value) {
+            if (typeof value === 'string' && value.includes('%')) {
+                // Convert percentage to number
+                return parseFloat(value.replace('%', ''));
+            }
+            return parseFloat(value) || 0;
+        }
+
+        // Initialize all visualizations when data is loaded
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Page loaded, initializing...');
+            
+            // Load external JSON data first
+            await loadExternalJsonData();
+            
+            // Wait for analysis data to be available
+            if (window.analysisData) {
+                initializeAnalysis();
+            } else {
+                // Poll for data availability
+                const checkData = setInterval(() => {
+                    if (window.analysisData) {
+                        clearInterval(checkData);
+                        initializeAnalysis();
+                    }
+                }, 100);
+            }
+        });
+
+        function initializeAnalysis() {
+            console.log('🚀 Initializing analysis with data:', Object.keys(window.analysisData || {}));
+            
+            // Initialize all components
+            createLifetimeVisualization();
+            createUnsafeFfiAnalysis();
+            
+            // Update summary stats if allocations are available
+            if (window.analysisData.memory_analysis?.allocations) {
+                updateSummaryStats(window.analysisData.memory_analysis.allocations);
+            }
+        }
+
         {{JS_CONTENT}}
     </script>
 </body>
