@@ -61,17 +61,28 @@ function initThemeToggle() {
 // Apply theme to all modules
 function applyTheme(isDark) {
     const html = document.documentElement;
+    const body = document.body;
 
     if (isDark) {
         html.classList.remove('light');
         html.classList.add('dark');
+        body.classList.add('dark');
     } else {
         html.classList.remove('dark');
         html.classList.add('light');
+        body.classList.remove('dark');
     }
+
+    // Force immediate repaint
+    html.style.display = 'none';
+    html.offsetHeight; // Trigger reflow
+    html.style.display = '';
 
     // Apply theme to all modules that need explicit dark mode support
     applyThemeToAllModules(isDark);
+
+    // Update theme toggle button icon
+    updateThemeToggleIcon(isDark);
 
     // Destroy existing charts before reinitializing
     destroyAllCharts();
@@ -81,6 +92,21 @@ function applyTheme(isDark) {
         initCharts();
         initFFIRiskChart();
     }, 100);
+}
+
+// Update theme toggle button icon
+function updateThemeToggleIcon(isDark) {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        const icon = themeToggle.querySelector('i');
+        if (icon) {
+            if (isDark) {
+                icon.className = 'fa fa-sun';
+            } else {
+                icon.className = 'fa fa-moon';
+            }
+        }
+    }
 }
 
 // Global chart instances storage
@@ -1147,7 +1173,7 @@ function initAllocationsTable() {
     const allocations = window.analysisData.memory_analysis?.allocations || [];
 
     if (allocations.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
         if (toggleButton) {
             toggleButton.style.display = 'none';
         }
@@ -1164,17 +1190,22 @@ function initAllocationsTable() {
 
         tbody.innerHTML = displayAllocations.map(alloc => `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono">0x${(alloc.ptr || 0).toString(16).padStart(8, '0')}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
-                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}</td>
+                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">
+                    <span class="px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}">
+                        ${alloc.is_active ? 'Active' : 'Deallocated'}
+                    </span>
+                </td>
             </tr>
         `).join('');
 
         if (!showAll && allocations.length > maxInitialRows) {
             tbody.innerHTML += `
                 <tr class="bg-gray-50 dark:bg-gray-700">
-                    <td colspan="4" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">
+                    <td colspan="5" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">
                         ... and ${allocations.length - maxInitialRows} more allocations
                     </td>
                 </tr>
@@ -1185,16 +1216,17 @@ function initAllocationsTable() {
     // Initial render
     renderTable(false);
 
-    // Toggle functionality
+    // Toggle functionality - Fixed event binding
     if (toggleButton && allocations.length > maxInitialRows) {
         console.log('📊 Setting up toggle button for', allocations.length, 'allocations');
 
-        // Remove any existing event listeners
-        const newToggleButton = toggleButton.cloneNode(true);
-        toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
+        // Clear any existing event listeners and add new one
+        toggleButton.replaceWith(toggleButton.cloneNode(true));
+        const newToggleButton = document.getElementById('toggle-allocations');
 
         newToggleButton.addEventListener('click', function (e) {
             e.preventDefault();
+            e.stopPropagation();
             console.log('📊 Toggle button clicked, current state:', isExpanded);
 
             isExpanded = !isExpanded;
@@ -1601,26 +1633,93 @@ function initFFIVisualization() {
     const container = document.getElementById('ffiVisualization');
     if (!container) return;
 
-    const ffiData = window.analysisData.unsafe_ffi;
-    if (!ffiData || !ffiData.enhanced_ffi_data || ffiData.enhanced_ffi_data.length === 0) {
+    // Generate FFI analysis from allocations
+    const allocations = window.analysisData.memory_analysis?.allocations || [];
+    const ffiAnalysis = generateFFIAnalysisFromAllocations(allocations);
+
+    if (ffiAnalysis.totalRisks === 0) {
         container.innerHTML = createFFIEmptyState();
         return;
     }
 
-    const enhancedData = ffiData.enhanced_ffi_data || [];
-    const boundaryEvents = ffiData.boundary_events || [];
-
-    // Calculate statistics
-    const unsafeAllocations = enhancedData.filter(item => !item.ffi_tracked).length;
-    const ffiAllocations = enhancedData.filter(item => item.ffi_tracked).length;
-    const safetyViolations = enhancedData.reduce((sum, item) => sum + (item.safety_violations || 0), 0);
-    const unsafeMemory = enhancedData.reduce((sum, item) => sum + (item.size || 0), 0);
-
     container.innerHTML = createFFIDashboardSVG(
-        unsafeAllocations, ffiAllocations, boundaryEvents.length,
-        safetyViolations, unsafeMemory, enhancedData,
-        boundaryEvents, []
+        ffiAnalysis.unsafeAllocations, 
+        ffiAnalysis.ffiAllocations, 
+        ffiAnalysis.boundaryCrossings,
+        ffiAnalysis.safetyViolations, 
+        ffiAnalysis.unsafeMemory, 
+        ffiAnalysis.enhancedData,
+        ffiAnalysis.boundaryEvents, 
+        ffiAnalysis.violations
     );
+}
+
+// Generate FFI analysis from allocations
+function generateFFIAnalysisFromAllocations(allocations) {
+    let unsafeAllocations = 0;
+    let ffiAllocations = 0;
+    let safetyViolations = 0;
+    let unsafeMemory = 0;
+    const enhancedData = [];
+    const boundaryEvents = [];
+    const violations = [];
+
+    allocations.forEach((alloc, index) => {
+        const typeName = alloc.type_name || '';
+        const varName = alloc.var_name || '';
+        
+        // Check for unsafe patterns
+        const isUnsafe = typeName.includes('*') || typeName.includes('raw') || 
+                        varName.includes('unsafe') || typeName.includes('libc');
+        
+        // Check for FFI patterns
+        const isFFI = typeName.includes('c_') || typeName.includes('CString') || 
+                     typeName.includes('CStr') || varName.includes('ffi');
+
+        if (isUnsafe) {
+            unsafeAllocations++;
+            unsafeMemory += alloc.size || 0;
+            safetyViolations++;
+            
+            violations.push({
+                type: 'Unsafe Memory Access',
+                location: `${varName}:${typeName}`,
+                risk_level: 'High',
+                description: `Potentially unsafe memory operation detected`
+            });
+        }
+
+        if (isFFI) {
+            ffiAllocations++;
+            boundaryEvents.push({
+                timestamp: alloc.timestamp_alloc,
+                type: 'FFI Call',
+                location: varName,
+                size: alloc.size
+            });
+        }
+
+        if (isUnsafe || isFFI) {
+            enhancedData.push({
+                ...alloc,
+                ffi_tracked: isFFI,
+                safety_violations: isUnsafe ? 1 : 0,
+                risk_level: isUnsafe ? 'High' : 'Medium'
+            });
+        }
+    });
+
+    return {
+        unsafeAllocations,
+        ffiAllocations,
+        boundaryCrossings: boundaryEvents.length,
+        safetyViolations,
+        unsafeMemory,
+        enhancedData,
+        boundaryEvents,
+        violations,
+        totalRisks: unsafeAllocations + ffiAllocations + safetyViolations
+    };
 }
 
 // Create FFI empty state

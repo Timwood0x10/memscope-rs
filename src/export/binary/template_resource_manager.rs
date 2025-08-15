@@ -114,12 +114,20 @@ impl TemplateResourceManager {
 
         // Load and embed resources
         if config.embed_css {
-            let css_content = self.load_css_resources(config)?;
+            let css_content = if !data.css_content.is_empty() {
+                data.css_content.clone()
+            } else {
+                self.load_css_resources(config)?
+            };
             template_content = template_content.replace("{{CSS_CONTENT}}", &css_content);
         }
 
         if config.embed_js {
-            let js_content = self.load_js_resources(config)?;
+            let js_content = if !data.js_content.is_empty() {
+                data.js_content.clone()
+            } else {
+                self.load_js_resources(config)?
+            };
             template_content = template_content.replace("{{JS_CONTENT}}", &js_content);
         }
 

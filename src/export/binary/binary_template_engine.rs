@@ -108,6 +108,10 @@ impl BinaryTemplateEngine {
 
         // Convert template data to JSON for injection
         let json_data = self.serialize_template_data(&optimized_data)?;
+        
+        // Debug: Log the first 500 characters of JSON data
+        tracing::info!("JSON data preview: {}", &json_data[..json_data.len().min(500)]);
+        tracing::info!("JSON data length: {} bytes", json_data.len());
 
         // Create template data for resource manager
         let mut custom_data = HashMap::new();
@@ -148,8 +152,12 @@ impl BinaryTemplateEngine {
             custom_data.insert("variable_relationships".to_string(), relationships_json);
         }
 
-        let resource_template_data =
+        let mut resource_template_data =
             create_template_data(&template_data.project_name, &json_data, custom_data);
+
+        // Ensure JS and CSS content are properly set
+        resource_template_data.js_content = self._get_embedded_js();
+        resource_template_data.css_content = self._get_embedded_css();
 
         // Process template with resource manager
         let html_content = self.resource_manager.process_template(
@@ -173,20 +181,21 @@ impl BinaryTemplateEngine {
     ) -> Result<String, BinaryExportError> {
         use serde_json::json;
 
-        // Fast allocation data generation - limit to essential data only
+        // Ultra-fast allocation data generation - minimal processing
         let allocations_json: Vec<serde_json::Value> = data
             .allocations
             .iter()
-            .take(100) // Drastically reduce for speed - only show top 100
+            .take(50) // Even smaller for maximum speed
             .map(|alloc| {
-                // Use pre-computed values to avoid format! calls
+                // Pre-format pointer to avoid runtime formatting
+                let ptr_str = format!("0x{:x}", alloc.ptr);
                 json!({
                     "id": alloc.id,
                     "size": alloc.size,
                     "type_name": alloc.type_name,
                     "scope_name": alloc.scope_name,
                     "var_name": alloc.var_name,
-                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "ptr": ptr_str,
                     "timestamp_alloc": alloc.timestamp_alloc,
                     "is_active": alloc.is_active,
                     "thread_id": alloc.thread_id,
@@ -197,10 +206,24 @@ impl BinaryTemplateEngine {
             })
             .collect();
 
-        // Generate minimal data for charts - much faster
-        let memory_timeline = self.generate_fast_timeline_data(&data.allocations);
+        // Generate ultra-minimal data for charts - maximum speed
+        let memory_timeline = if data.allocations.len() > 1000 {
+            // For large datasets, use minimal timeline
+            vec![
+                json!({"timestamp": 0, "memory_usage": 0, "allocation_count": 0}),
+                json!({"timestamp": 1000000, "memory_usage": data.total_memory_usage, "allocation_count": data.allocations.len()})
+            ]
+        } else {
+            self.generate_fast_timeline_data(&data.allocations)
+        };
+        
         let size_distribution = self.generate_fast_size_distribution(&data.allocations);
-        let lifecycle_events = self.generate_fast_lifecycle_events(&data.allocations);
+        let lifecycle_events = if data.allocations.len() > 500 {
+            // Skip lifecycle events for large datasets
+            vec![]
+        } else {
+            self.generate_fast_lifecycle_events(&data.allocations)
+        };
 
         // Build comprehensive dashboard data matching template expectations
         let mut dashboard_data = json!({
@@ -234,14 +257,137 @@ impl BinaryTemplateEngine {
             }
         });
 
-        // Always add complex types analysis
-        dashboard_data["complex_types"] = generate_complex_types_analysis(&data.allocations);
+        // Generate complex types analysis from allocations
+        let mut smart_pointers = Vec::new();
+        let mut collections = Vec::new();
+        let mut generic_types = Vec::new();
+        let mut primitive_types = Vec::new();
+        
+        for alloc in &data.allocations {
+            let type_name = &alloc.type_name;
+            let type_info = json!({
+                "type_name": type_name,
+                "count": 1,
+                "total_size": alloc.size,
+                "complexity_score": if type_name.contains('<') { 3 } else { 1 }
+            });
+            
+            if type_name.contains("Box<") || type_name.contains("Rc<") || type_name.contains("Arc<") || type_name.contains("RefCell<") {
+                smart_pointers.push(type_info);
+            } else if type_name.contains("Vec<") || type_name.contains("HashMap<") || type_name.contains("BTreeMap<") || 
+                     type_name.contains("HashSet<") || type_name.contains("String") {
+                collections.push(type_info);
+            } else if type_name.contains('<') && type_name.contains('>') {
+                generic_types.push(type_info);
+            } else if !["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64", "bool", "char"].contains(&type_name.as_str()) {
+                primitive_types.push(type_info);
+            }
+        }
+        
+        dashboard_data["complex_types"] = json!({
+            "categorized_types": {
+                "smart_pointers": smart_pointers,
+                "collections": collections,
+                "generic_types": generic_types,
+                "primitive_types": primitive_types
+            },
+            "type_complexity": {},
+            "memory_usage_by_type": {},
+            "summary": {
+                "total_complex_types": smart_pointers.len() + collections.len() + generic_types.len(),
+                "smart_pointers_count": smart_pointers.len(),
+                "collections_count": collections.len(),
+                "generic_types_count": generic_types.len()
+            }
+        });
 
-        // Always add FFI safety analysis
-        dashboard_data["unsafe_ffi"] = generate_unsafe_ffi_analysis(&data.allocations);
+        // Generate unsafe FFI analysis from allocations
+        let mut unsafe_operations = Vec::new();
+        let mut security_hotspots = Vec::new();
+        
+        for alloc in &data.allocations {
+            // Check for potentially unsafe operations
+            if alloc.type_name.contains("*mut") || alloc.type_name.contains("*const") || 
+               alloc.type_name.contains("unsafe") || alloc.size > 1024*1024 {
+                let operation = json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "operation_type": if alloc.type_name.contains("*mut") { "Raw Pointer" } 
+                                     else if alloc.type_name.contains("*const") { "Const Pointer" }
+                                     else if alloc.size > 1024*1024 { "Large Allocation" }
+                                     else { "Unsafe Operation" },
+                    "risk_level": if alloc.size > 10*1024*1024 { "High" }
+                                 else if alloc.size > 1024*1024 { "Medium" }
+                                 else { "Low" },
+                    "location": alloc.var_name.as_ref().unwrap_or(&"unknown".to_string()).clone()
+                });
+                unsafe_operations.push(operation.clone());
+                
+                if alloc.size > 1024*1024 {
+                    security_hotspots.push(operation);
+                }
+            }
+        }
+        
+        let risk_level = if unsafe_operations.len() > 10 { "High" }
+                        else if unsafe_operations.len() > 5 { "Medium" }
+                        else { "Low" };
+        
+        dashboard_data["unsafe_ffi"] = json!({
+            "total_violations": unsafe_operations.len(),
+            "risk_level": risk_level,
+            "unsafe_operations": unsafe_operations,
+            "security_hotspots": security_hotspots,
+            "enhanced_ffi_data": [],
+            "boundary_events": []
+        });
 
-        // Always add variable relationships
-        dashboard_data["variable_relationships"] = generate_variable_relationships_analysis(&data.allocations);
+        // Generate basic variable relationships from allocations
+        let allocations_sample = data.allocations.iter().take(20).collect::<Vec<_>>();
+        let mut nodes = Vec::new();
+        let mut links = Vec::new();
+        
+        for (i, alloc) in allocations_sample.iter().enumerate() {
+            if let Some(var_name) = &alloc.var_name {
+                if !var_name.is_empty() && !var_name.starts_with("__") {
+                    nodes.push(json!({
+                        "id": format!("var_{}", i),
+                        "name": var_name,
+                        "type": &alloc.type_name,
+                        "size": alloc.size,
+                        "group": i % 4 + 1
+                    }));
+                    
+                    // Create some basic relationships based on type similarity
+                    if i > 0 {
+                        let prev_alloc = allocations_sample[i-1];
+                        if alloc.type_name == prev_alloc.type_name {
+                            links.push(json!({
+                                "source": format!("var_{}", i-1),
+                                "target": format!("var_{}", i),
+                                "strength": 0.8,
+                                "type": "type_similarity"
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+        
+        dashboard_data["variable_relationships"] = json!({
+            "graph": {
+                "nodes": nodes,
+                "links": links
+            },
+            "summary": {
+                "total_variables": nodes.len(),
+                "total_relationships": links.len(),
+                "relationship_density": if nodes.len() > 1 { 
+                    links.len() as f64 / (nodes.len() * (nodes.len() - 1) / 2) as f64 
+                } else { 
+                    0.0 
+                }
+            }
+        });
 
         serde_json::to_string(&dashboard_data).map_err(|e| {
             BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
@@ -291,40 +437,45 @@ impl BinaryTemplateEngine {
         }
     }
 
-    /// Generate fast timeline data - minimal processing
+    /// Generate ultra-fast timeline data - minimal processing
     fn generate_fast_timeline_data(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
         use serde_json::json;
         
-        // Only generate 10 data points for speed
-        let step = allocations.len().max(10) / 10;
-        let mut timeline = Vec::with_capacity(10);
-        let mut cumulative_memory = 0u64;
-
-        for (i, alloc) in allocations.iter().step_by(step).take(10).enumerate() {
-            cumulative_memory += alloc.size as u64;
-            timeline.push(json!({
-                "timestamp": alloc.timestamp_alloc,
-                "memory_usage": cumulative_memory,
-                "allocation_count": (i + 1) * step
-            }));
+        // Only generate 5 data points for maximum speed
+        if allocations.is_empty() {
+            return vec![];
         }
-
-        timeline
+        
+        let len = allocations.len();
+        let total_memory: u64 = allocations.iter().map(|a| a.size as u64).sum();
+        
+        // Create simple linear progression
+        vec![
+            json!({"timestamp": 0, "memory_usage": 0, "allocation_count": 0}),
+            json!({"timestamp": 250000, "memory_usage": total_memory / 4, "allocation_count": len / 4}),
+            json!({"timestamp": 500000, "memory_usage": total_memory / 2, "allocation_count": len / 2}),
+            json!({"timestamp": 750000, "memory_usage": total_memory * 3 / 4, "allocation_count": len * 3 / 4}),
+            json!({"timestamp": 1000000, "memory_usage": total_memory, "allocation_count": len})
+        ]
     }
 
 
-    /// Generate fast size distribution - pre-computed buckets
+    /// Generate ultra-fast size distribution - minimal sampling
     fn generate_fast_size_distribution(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
         use serde_json::json;
 
-        // Fast bucketing with fixed counters
+        if allocations.is_empty() {
+            return vec![];
+        }
+
+        // Ultra-fast estimation - sample only first 20 allocations
+        let sample_size = allocations.len().min(20);
         let mut small = 0u64;
         let mut medium = 0u64; 
         let mut large = 0u64;
         let mut huge = 0u64;
 
-        // Sample every 10th allocation for speed
-        for alloc in allocations.iter().step_by(10) {
+        for alloc in allocations.iter().take(sample_size) {
             match alloc.size {
                 0..=1024 => small += 1,
                 1025..=102400 => medium += 1,
@@ -333,11 +484,14 @@ impl BinaryTemplateEngine {
             }
         }
 
+        // Scale up the sample to estimate full distribution
+        let scale_factor = allocations.len() as u64 / sample_size as u64;
+        
         vec![
-            json!({"size_range": "0-1KB", "count": small, "total_size": small * 512}),
-            json!({"size_range": "1-100KB", "count": medium, "total_size": medium * 50000}),
-            json!({"size_range": "100KB-1MB", "count": large, "total_size": large * 500000}),
-            json!({"size_range": ">1MB", "count": huge, "total_size": huge * 2000000})
+            json!({"size_range": "0-1KB", "count": small * scale_factor, "total_size": small * scale_factor * 512}),
+            json!({"size_range": "1-100KB", "count": medium * scale_factor, "total_size": medium * scale_factor * 50000}),
+            json!({"size_range": "100KB-1MB", "count": large * scale_factor, "total_size": large * scale_factor * 500000}),
+            json!({"size_range": ">1MB", "count": huge * scale_factor, "total_size": huge * scale_factor * 2000000})
         ]
     }
 
@@ -415,22 +569,19 @@ impl BinaryTemplateEngine {
         }
     }
 
-    /// Fast optimization for template data - minimal processing
+    /// Ultra-fast optimization for template data - minimal processing
     fn optimize_template_data_for_size(&self, data: &BinaryTemplateData) -> Result<BinaryTemplateData, BinaryExportError> {
-        const MAX_ALLOCATIONS_FAST: usize = 500; // Much smaller for speed
+        const MAX_ALLOCATIONS_ULTRA_FAST: usize = 200; // Even smaller for maximum speed
 
         let mut optimized_data = data.clone();
 
-        // Fast optimization - just truncate without sorting for speed
-        if data.allocations.len() > MAX_ALLOCATIONS_FAST {
-            tracing::info!("🚀 Fast optimization: {} → {} allocations", data.allocations.len(), MAX_ALLOCATIONS_FAST);
+        // Ultra-fast optimization - aggressive truncation
+        if data.allocations.len() > MAX_ALLOCATIONS_ULTRA_FAST {
+            tracing::info!("🚀 Ultra-fast optimization: {} → {} allocations", data.allocations.len(), MAX_ALLOCATIONS_ULTRA_FAST);
             
-            // Take first N allocations - no sorting to save time
-            optimized_data.allocations.truncate(MAX_ALLOCATIONS_FAST);
+            // Take first N allocations - no sorting, no filtering to save maximum time
+            optimized_data.allocations.truncate(MAX_ALLOCATIONS_ULTRA_FAST);
         }
-
-        // Skip complex analysis optimization for speed - just use as-is
-        // The analysis data is already limited during generation
 
         Ok(optimized_data)
     }
@@ -573,7 +724,11 @@ impl BinaryTemplateEngine {
 
     /// Get embedded JavaScript content
     fn _get_embedded_js(&self) -> String {
-        r#"
+        // Load script.js content if available, otherwise use embedded content
+        let script_js_content = std::fs::read_to_string("templates/script.js")
+            .unwrap_or_else(|_| String::new());
+        
+        let embedded_js = r#"
         // Binary Dashboard Specific JavaScript
         
         // Performance monitoring
@@ -716,15 +871,154 @@ impl BinaryTemplateEngine {
             }
         }
 
+        // Safe element update function
+        function safeUpdateElement(id, value) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
+            } else {
+                console.warn('Element not found:', id);
+            }
+        }
+
+        // Destroy existing charts to prevent canvas reuse errors
+        function destroyExistingCharts() {
+            if (window.Chart && window.Chart.getChart) {
+                const canvasIds = ['memory-distribution-chart', 'allocation-size-chart', 'memory-timeline-chart', 'lifecycle-timeline-chart'];
+                canvasIds.forEach(canvasId => {
+                    const existingChart = window.Chart.getChart(canvasId);
+                    if (existingChart) {
+                        existingChart.destroy();
+                        console.log('Destroyed existing chart:', canvasId);
+                    }
+                });
+            }
+        }
+
+        // Wait for all scripts to load, then override functions
+        window.addEventListener('load', function() {
+            console.log('All scripts loaded, applying safe overrides...');
+            
+            // Destroy any existing charts first
+            destroyExistingCharts();
+            
+            // Override the problematic functions with safe versions
+            window.updateSummaryStats = function(allocations) {
+                if (!allocations) return;
+                
+                const totalAllocations = allocations.length;
+                const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+                const activeAllocations = allocations.filter(alloc => alloc.status === 'Active').length;
+
+                // Use safe updates for elements that exist
+                safeUpdateElement('total-allocations', totalAllocations.toLocaleString());
+                safeUpdateElement('total-memory', formatBytes(totalMemory));
+                safeUpdateElement('active-allocations', activeAllocations.toLocaleString());
+                safeUpdateElement('peak-memory', formatBytes(totalMemory));
+
+                // Update complex types stats safely
+                if (window.analysisData && window.analysisData.complex_types) {
+                    const complexTypes = window.analysisData.complex_types;
+                    const summary = complexTypes.summary || {};
+                    safeUpdateElement('system-complex-types', summary.total_complex_types || 0);
+                    safeUpdateElement('system-smart-pointers', summary.smart_pointers_count || 0);
+                    safeUpdateElement('system-collections', summary.collections_count || 0);
+                    safeUpdateElement('system-generic-types', summary.generic_types_count || 0);
+                }
+            };
+
+            window.populateAllocationsTable = function(allocations) {
+                const tableBody = document.getElementById('allocations-table');
+                if (!tableBody) {
+                    console.warn('Allocations table not found');
+                    return;
+                }
+
+                if (!allocations || allocations.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No allocation data available</td></tr>';
+                    return;
+                }
+
+                // Update summary statistics safely
+                window.updateSummaryStats(allocations);
+
+                // Populate table with first 100 allocations
+                const displayAllocations = allocations.slice(0, 100);
+                tableBody.innerHTML = displayAllocations.map(alloc => `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td class="px-4 py-3 text-sm font-mono">0x${alloc.id ? alloc.id.toString(16) : 'N/A'}</td>
+                        <td class="px-4 py-3 text-sm">${alloc.location || alloc.var_name || 'unnamed'}</td>
+                        <td class="px-4 py-3 text-sm">${alloc.type_name || 'Unknown'}</td>
+                        <td class="px-4 py-3 text-sm text-right">${formatBytes(alloc.size || 0)}</td>
+                        <td class="px-4 py-3 text-sm text-right">
+                            <span class="px-2 py-1 text-xs rounded-full ${alloc.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                                ${alloc.status || 'Unknown'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            };
+
+            // Prevent multiple initializations
+            if (window.dashboardInitialized) {
+                console.log('Dashboard already initialized, skipping...');
+                return;
+            }
+
+            // Initialize user data metrics safely
+            if (typeof initializeUserDataMetrics === 'function') {
+                try {
+                    initializeUserDataMetrics();
+                } catch (e) {
+                    console.warn('Error initializing user data metrics:', e);
+                }
+            }
+            
+            if (typeof initializeLifecycleVisualization === 'function') {
+                try {
+                    initializeLifecycleVisualization();
+                } catch (e) {
+                    console.warn('Error initializing lifecycle visualization:', e);
+                }
+            }
+            
+            if (typeof initializeSystemDataMetrics === 'function') {
+                try {
+                    initializeSystemDataMetrics();
+                } catch (e) {
+                    console.warn('Error initializing system data metrics:', e);
+                }
+            }
+
+            // Initialize allocations table if data is available
+            if (window.analysisData && window.analysisData.memory_analysis) {
+                const allocations = window.analysisData.memory_analysis.allocations || [];
+                window.populateAllocationsTable(allocations);
+            }
+
+            window.dashboardInitialized = true;
+            console.log('Safe dashboard initialization complete');
+        });
+
         // Export binary dashboard utilities
         window.binaryDashboard = {
             trackPerformance: trackBinaryPerformance,
             processData: processBinaryData,
             sortTable: sortBinaryTable,
             createCharts: createBinaryCharts,
-            initialize: initializeBinaryFeatures
+            initialize: initializeBinaryFeatures,
+            safeUpdate: safeUpdateElement,
+            updateStats: updateSummaryStats,
+            populateTable: populateAllocationsTable
         };
-        "#.to_string()
+        "#;
+
+        // Combine script.js content with embedded JS
+        if !script_js_content.is_empty() {
+            format!("{}\n\n// === EMBEDDED SAFE OVERRIDES ===\n{}", script_js_content, embedded_js)
+        } else {
+            embedded_js.to_string()
+        }
     }
 
     /// Get performance statistics
@@ -994,7 +1288,7 @@ mod tests {
 // ============================================================================
 
 /// Generate complex types analysis from allocations
-pub fn generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
+fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
     use serde_json::json;
     
     let mut smart_pointers = Vec::new();
@@ -1082,7 +1376,7 @@ pub fn generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> 
 }
 
 /// Generate unsafe FFI analysis from allocations
-pub fn generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
+fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
     use serde_json::json;
     
     let mut unsafe_operations = Vec::new();
@@ -1158,7 +1452,7 @@ pub fn generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> ser
 }
 
 /// Generate variable relationships analysis from allocations
-pub fn generate_variable_relationships_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
+fn _generate_variable_relationships_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
     use serde_json::json;
     
     let user_allocations: Vec<_> = allocations.iter()

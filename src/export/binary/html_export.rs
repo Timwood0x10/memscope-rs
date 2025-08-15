@@ -948,37 +948,14 @@ fn convert_allocation_to_binary_data(
 /// Generate lightweight analysis data optimized for performance
 /// Returns (complex_types, unsafe_ffi, variable_relationships) as Options
 fn generate_lightweight_analysis_simple(
-    allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
+    _allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
 ) -> Result<(
     Option<crate::export::binary::complex_type_analyzer::ComplexTypeAnalysis>,
     Option<crate::export::binary::ffi_safety_analyzer::FfiSafetyAnalysis>,
     Option<crate::export::binary::variable_relationship_analyzer::VariableRelationshipAnalysis>
 ), BinaryExportError> {
-    let start = std::time::Instant::now();
-    
-    // Count user variables for logging
-    let user_var_count = allocations.iter()
-        .filter(|alloc| {
-            if let Some(ref var_name) = alloc.var_name {
-                !var_name.starts_with("__") && !var_name.contains("::") && !var_name.is_empty()
-            } else {
-                false
-            }
-        })
-        .count();
-    
-    tracing::info!("📊 Found {} user variables out of {} allocations", user_var_count, allocations.len());
-    
-    // Skip all heavy analysis for maximum performance - focus on core functionality
-    let complex_types = None;
-    let unsafe_ffi = None;
-    let variable_relationships = None;
-    
-    let elapsed = start.elapsed();
-    tracing::info!("🚀 Ultra-fast analysis completed in {}ms (skipped heavy analysis for performance)", 
-                   elapsed.as_millis());
-    
-    Ok((complex_types, unsafe_ffi, variable_relationships))
+    // Skip all analysis for maximum performance - return None immediately
+    Ok((None, None, None))
 }
 
 /// Generate fast variable relationships for dashboard display
