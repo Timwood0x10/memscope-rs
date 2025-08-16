@@ -1,6 +1,8 @@
 //! Custom global allocator for tracking memory allocations.
 
 use std::alloc::{GlobalAlloc, Layout, System};
+use crate::core::enhanced_type_inference::{TypeInferenceEngine, AllocationContext};
+use std::sync::Mutex;
 
 /// A custom allocator that tracks memory allocations and deallocations.
 ///
@@ -8,15 +10,39 @@ use std::alloc::{GlobalAlloc, Layout, System};
 /// and deallocation events through the global memory tracker.
 pub struct TrackingAllocator;
 
+// Global type inference engine for the allocator
+static TYPE_INFERENCE_ENGINE: std::sync::LazyLock<Mutex<TypeInferenceEngine>> = 
+    std::sync::LazyLock::new(|| Mutex::new(TypeInferenceEngine::new()));
+
 impl TrackingAllocator {
     /// Create a new tracking allocator instance.
     pub const fn new() -> Self {
         Self
     }
 
-    /// Infer likely type name from allocation size and context
-    /// This provides meaningful type information for system allocations
+    /// Enhanced type inference using the new type inference engine
     fn infer_type_from_allocation_context(size: usize) -> String {
+        // Try to use the enhanced type inference engine
+        if let Ok(mut engine) = TYPE_INFERENCE_ENGINE.try_lock() {
+            let context = AllocationContext {
+                size,
+                call_stack: Self::get_simplified_call_stack(),
+                compile_time_type: None,
+                variable_name: None,
+                allocation_site: Some("global_allocator".to_string()),
+                thread_context: Some(format!("{:?}", std::thread::current().id())),
+            };
+            
+            let inferred = engine.infer_type(&context);
+            inferred.type_name
+        } else {
+            // Fallback to simple size-based inference if engine is busy
+            Self::fallback_type_inference(size)
+        }
+    }
+
+    /// Fallback type inference when the engine is unavailable
+    fn fallback_type_inference(size: usize) -> String {
         match size {
             // Common Rust type sizes
             1 => "u8".to_string(),
@@ -49,6 +75,13 @@ impl TrackingAllocator {
             // Default for other sizes
             _ => format!("system_type_{}bytes", size),
         }
+    }
+
+    /// Get a simplified call stack for context
+    fn get_simplified_call_stack() -> Vec<String> {
+        // For now, return a simple placeholder
+        // In a real implementation, this could use backtrace crate
+        vec!["global_allocator".to_string(), "system_alloc".to_string()]
     }
 
     /// Infer likely variable name from allocation size and context

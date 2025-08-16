@@ -10,14 +10,19 @@ pub mod adaptive_hashmap;
 pub mod allocation_adapter;
 pub mod allocator;
 pub mod atomic_stats;
+pub mod bounded_memory_stats;
 pub mod clone_monitor;
+pub mod enhanced_pointer_extractor;
+pub mod enhanced_type_inference;
 pub mod clone_optimizer;
 pub mod clone_utils;
 pub mod error;
 pub mod error_adapter;
+pub mod lifecycle_summary;
 pub mod optimized_locks;
 pub mod optimized_tracker;
 pub mod optimized_types;
+pub mod ownership_history;
 pub mod scope_tracker;
 pub mod sharded_locks;
 pub mod shared_types;
@@ -99,6 +104,37 @@ pub use clone_optimizer::{CloneInfo, CloneOptimizer, CloneStats};
 pub use clone_utils::{clone_shared_allocation, optimized_clone, share_allocation_info};
 pub use optimized_tracker::OptimizedMemoryTracker;
 pub use shared_types::{SharedAllocationCollection, SharedAllocationInfo, SharedConfig};
+
+// Re-export bounded memory stats functionality
+pub use bounded_memory_stats::{
+    AllocationHistoryManager, AllocationSummary, BoundedMemoryStats, BoundedStatsConfig,
+    HistoricalSummary, MemoryUsageStats,
+};
+
+// Re-export enhanced pointer extractor functionality
+pub use enhanced_pointer_extractor::{
+    EnhancedPointerExtractor, EnhancedTrackable, PointerInfo, PointerStatistics, SyntheticReason,
+    TypeCategory, TypeInfo,
+};
+
+// Re-export enhanced type inference functionality
+pub use enhanced_type_inference::{
+    AllocationContext, InferenceMethod, InferenceStatistics, InferredType, TypeConfidence,
+    TypeInferenceEngine, TypeSignature,
+};
+
+// Re-export ownership history functionality
+pub use ownership_history::{
+    ActiveBorrow, BorrowInfo, BorrowType, CloneInfo as OwnershipCloneInfo, HistoryConfig, OwnershipEvent,
+    OwnershipEventDetails, OwnershipEventType, OwnershipHistoryExport, OwnershipHistoryRecorder,
+    OwnershipStatistics, OwnershipSummary, RefCountInfo,
+};
+
+// Re-export lifecycle summary functionality
+pub use lifecycle_summary::{
+    AllocationLifecycleSummary, ExportMetadata, LifecycleEvent, LifecycleEventSummary,
+    LifecycleExportData, LifecyclePattern, LifecycleSummaryGenerator, SummaryConfig, VariableGroup,
+};
 
 #[cfg(test)]
 pub use unwrap_safe::get_unwrap_stats_mut;

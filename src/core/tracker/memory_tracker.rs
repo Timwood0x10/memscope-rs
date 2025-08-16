@@ -8,6 +8,8 @@ use crate::core::types::{
     LeakEvidence, LeakEvidenceType, LeakImpact, LeakRiskLevel, LeakType, MemoryStats,
     ResourceLeakAnalysis, TrackingResult,
 };
+use crate::core::bounded_memory_stats::{BoundedMemoryStats, AllocationHistoryManager, BoundedStatsConfig};
+use crate::core::ownership_history::{OwnershipHistoryRecorder, OwnershipEventType, HistoryConfig};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -50,9 +52,13 @@ pub fn get_global_tracker() -> Arc<MemoryTracker> {
 pub struct MemoryTracker {
     /// Active allocations (ptr -> allocation info)
     pub(crate) active_allocations: Mutex<HashMap<usize, AllocationInfo>>,
-    /// Complete allocation history (for analysis)
-    pub(crate) allocation_history: Mutex<Vec<AllocationInfo>>,
-    /// Memory usage statistics
+    /// Bounded memory statistics (prevents infinite growth)
+    pub(crate) bounded_stats: Mutex<BoundedMemoryStats>,
+    /// Separate allocation history manager (bounded)
+    pub(crate) history_manager: Mutex<AllocationHistoryManager>,
+    /// Ownership history recorder for detailed lifecycle tracking
+    pub(crate) ownership_history: Mutex<OwnershipHistoryRecorder>,
+    /// Legacy stats for compatibility (derived from bounded_stats)
     pub(crate) stats: Mutex<MemoryStats>,
     /// Fast mode flag for testing (reduces overhead)
     pub(crate) fast_mode: std::sync::atomic::AtomicBool,
@@ -63,9 +69,38 @@ impl MemoryTracker {
     pub fn new() -> Self {
         let fast_mode =
             std::env::var("MEMSCOPE_TEST_MODE").is_ok() || cfg!(test) || cfg!(feature = "test");
+        
+        // Configure bounded stats based on environment
+        let config = if fast_mode {
+            // Smaller limits for testing
+            BoundedStatsConfig {
+                max_recent_allocations: 1_000,
+                max_historical_summaries: 100,
+                enable_auto_cleanup: true,
+                cleanup_threshold: 0.8,
+            }
+        } else {
+            // Production limits
+            BoundedStatsConfig::default()
+        };
+        
+        // Configure ownership history based on mode
+        let history_config = if fast_mode {
+            HistoryConfig {
+                max_events_per_allocation: 10,
+                track_borrowing: false,
+                track_cloning: true,
+                track_ownership_transfers: false,
+            }
+        } else {
+            HistoryConfig::default()
+        };
+
         Self {
             active_allocations: Mutex::new(HashMap::new()),
-            allocation_history: Mutex::new(Vec::new()),
+            bounded_stats: Mutex::new(BoundedMemoryStats::with_config(config.clone())),
+            history_manager: Mutex::new(AllocationHistoryManager::with_config(config)),
+            ownership_history: Mutex::new(OwnershipHistoryRecorder::with_config(history_config)),
             stats: Mutex::new(MemoryStats::default()),
             fast_mode: std::sync::atomic::AtomicBool::new(fast_mode),
         }
@@ -73,18 +108,50 @@ impl MemoryTracker {
 
     /// Get current memory statistics with advanced analysis.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
-        let base_stats = match self.stats.lock() {
+        // Get bounded stats
+        let bounded_stats = match self.bounded_stats.lock() {
             Ok(stats) => stats.clone(),
             Err(poisoned) => {
-                // Handle poisoned lock by recovering the data
                 let stats = poisoned.into_inner();
                 stats.clone()
             }
         };
 
-        // For now, return the base stats directly
-        // TODO: Add advanced analysis like in the original implementation
-        Ok(base_stats)
+        // Get history for compatibility
+        let history = match self.history_manager.lock() {
+            Ok(manager) => manager.get_history_vec(),
+            Err(poisoned) => {
+                let manager = poisoned.into_inner();
+                manager.get_history_vec()
+            }
+        };
+
+        // Convert bounded stats to legacy MemoryStats for compatibility
+        let legacy_stats = MemoryStats {
+            total_allocations: bounded_stats.total_allocations,
+            total_allocated: bounded_stats.total_allocated,
+            active_allocations: bounded_stats.active_allocations,
+            active_memory: bounded_stats.active_memory,
+            peak_allocations: bounded_stats.peak_allocations,
+            peak_memory: bounded_stats.peak_memory,
+            total_deallocations: bounded_stats.total_deallocations,
+            total_deallocated: bounded_stats.total_deallocated,
+            leaked_allocations: bounded_stats.leaked_allocations,
+            leaked_memory: bounded_stats.leaked_memory,
+            fragmentation_analysis: bounded_stats.fragmentation_analysis.clone(),
+            lifecycle_stats: bounded_stats.lifecycle_stats.clone(),
+            system_library_stats: bounded_stats.system_library_stats.clone(),
+            concurrency_analysis: bounded_stats.concurrency_analysis.clone(),
+            // Use bounded allocations instead of infinite growth
+            allocations: bounded_stats.get_all_allocations(),
+        };
+
+        // Update the legacy stats cache
+        if let Ok(mut stats) = self.stats.lock() {
+            *stats = legacy_stats.clone();
+        }
+
+        Ok(legacy_stats)
     }
 
     /// Get all currently active allocations.
@@ -101,12 +168,12 @@ impl MemoryTracker {
 
     /// Get the complete allocation history.
     pub fn get_allocation_history(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        match self.allocation_history.lock() {
-            Ok(history) => Ok(history.clone()),
+        match self.history_manager.lock() {
+            Ok(manager) => Ok(manager.get_history_vec()),
             Err(poisoned) => {
                 // Handle poisoned lock by recovering the data
-                let history = poisoned.into_inner();
-                Ok(history.clone())
+                let manager = poisoned.into_inner();
+                Ok(manager.get_history_vec())
             }
         }
     }
