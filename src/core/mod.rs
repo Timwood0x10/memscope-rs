@@ -11,6 +11,7 @@ pub mod allocation_adapter;
 pub mod allocator;
 pub mod atomic_stats;
 pub mod bounded_memory_stats;
+pub mod call_stack_normalizer;
 pub mod clone_monitor;
 pub mod enhanced_pointer_extractor;
 pub mod enhanced_type_inference;
@@ -134,6 +135,13 @@ pub use ownership_history::{
 pub use lifecycle_summary::{
     AllocationLifecycleSummary, ExportMetadata, LifecycleEvent, LifecycleEventSummary,
     LifecycleExportData, LifecyclePattern, LifecycleSummaryGenerator, SummaryConfig, VariableGroup,
+};
+
+// Re-export call stack normalizer functionality
+pub use call_stack_normalizer::{
+    CallStackNormalizer, CallStackRef, CallStackId, NormalizedCallStack,
+    NormalizerConfig, NormalizerStats, get_global_call_stack_normalizer,
+    initialize_global_call_stack_normalizer,
 };
 
 #[cfg(test)]

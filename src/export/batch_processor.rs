@@ -9,6 +9,7 @@ use crate::analysis::unsafe_ffi_tracker::{
     RiskAssessment, RiskLevel,
 };
 use crate::core::types::{TrackingError, TrackingResult};
+
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -613,7 +614,7 @@ impl BatchProcessor {
                     size: allocation.base.size,
                     type_name: allocation.base.type_name.clone(),
                     unsafe_block_location: unsafe_block_location.clone(),
-                    call_stack: call_stack.iter().map(|f| f.function_name.clone()).collect(),
+                    call_stack: call_stack.get_frames().unwrap_or_default().iter().map(|f| f.function_name.clone()).collect(),
                     risk_assessment: risk_assessment.clone(),
                     lifetime_info: LifetimeInfo {
                         allocated_at: allocation.base.timestamp_alloc as u128,
@@ -674,8 +675,7 @@ impl BatchProcessor {
 
         for allocation in allocations {
             if let AllocationSource::FfiC {
-                library_name,
-                function_name,
+                resolved_function,
                 call_stack,
                 libc_hook_info,
             } = &allocation.source
@@ -683,13 +683,13 @@ impl BatchProcessor {
                 processed.push(ProcessedFFIAllocation {
                     ptr: format!("0x{:x}", allocation.base.ptr),
                     size: allocation.base.size,
-                    library_name: library_name.clone(),
-                    function_name: function_name.clone(),
-                    call_stack: call_stack.iter().map(|f| f.function_name.clone()).collect(),
+                    library_name: resolved_function.library_name.clone(),
+                    function_name: resolved_function.function_name.clone(),
+                    call_stack: call_stack.get_frames().unwrap_or_default().iter().map(|f| f.function_name.clone()).collect(),
                     hook_info: libc_hook_info.clone(),
                     ownership_info: OwnershipInfo {
                         owner_context: "FFI".to_string(),
-                        owner_function: function_name.clone(),
+                        owner_function: resolved_function.function_name.clone(),
                         transfer_timestamp: allocation.base.timestamp_alloc as u128,
                         expected_lifetime: None,
                     },

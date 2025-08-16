@@ -3,13 +3,22 @@
 /// File magic bytes for format identification
 pub const MAGIC_BYTES: &[u8; 8] = b"MEMSCOPE";
 
-pub const FORMAT_VERSION: u32 = 2; // Updated for Task 6: Advanced metrics support
-pub const HEADER_SIZE: usize = 24; // Enhanced header: 8+4+4+1+2+2+1+2(padding) = 24 bytes
+pub const FORMAT_VERSION: u32 = 3; // Updated for Task 6.2: Enhanced safety analysis and passport tracking
+pub const HEADER_SIZE: usize = 32; // Enhanced header: 8+4+4+1+2+2+1+4+4+2 = 32 bytes
 pub const ALLOCATION_RECORD_TYPE: u8 = 1;
 
-// Task 6: New segment types for advanced metrics
-#[allow(dead_code)]
-pub const ADVANCED_METRICS_SEGMENT_TYPE: u8 = 2;
+// Task 6.2: New segment types for enhanced safety analysis
+pub const UNSAFE_REPORT_SEGMENT_TYPE: u8 = 2;
+pub const MEMORY_PASSPORT_SEGMENT_TYPE: u8 = 3;
+pub const CALL_STACK_SEGMENT_TYPE: u8 = 4;
+pub const FFI_FUNCTION_SEGMENT_TYPE: u8 = 5;
+pub const ADVANCED_METRICS_SEGMENT_TYPE: u8 = 6;
+
+// Segment magic identifiers
+pub const UNSAFE_REPORT_MAGIC: &[u8; 4] = b"USAF"; // Unsafe Analysis segment
+pub const MEMORY_PASSPORT_MAGIC: &[u8; 4] = b"MPPT"; // Memory Passport segment
+pub const CALL_STACK_MAGIC: &[u8; 4] = b"CSTK"; // Call Stack segment
+pub const FFI_FUNCTION_MAGIC: &[u8; 4] = b"FFIR"; // FFI Function Resolution segment
 pub const ADVANCED_METRICS_MAGIC: &[u8; 4] = b"ADVD"; // Advanced Data segment identifier
 
 /// Binary export mode for header identification
@@ -32,18 +41,39 @@ impl From<u8> for BinaryExportMode {
     }
 }
 
-/// Enhanced file header structure (24 bytes fixed size)
-/// Extended from original 16 bytes to include export mode and allocation counts
+/// Feature flags for enhanced binary format (bit field)
+pub mod feature_flags {
+    /// Call stack normalization enabled
+    pub const CALL_STACK_NORMALIZATION: u8 = 0b00000001;
+    /// FFI function resolution enabled
+    pub const FFI_FUNCTION_RESOLUTION: u8 = 0b00000010;
+    /// Safety analysis enabled
+    pub const SAFETY_ANALYSIS: u8 = 0b00000100;
+    /// Memory passport tracking enabled
+    pub const MEMORY_PASSPORT_TRACKING: u8 = 0b00001000;
+    /// Enhanced lifetime analysis enabled
+    pub const ENHANCED_LIFETIME_ANALYSIS: u8 = 0b00010000;
+    /// Reserved for future use
+    pub const RESERVED_1: u8 = 0b00100000;
+    pub const RESERVED_2: u8 = 0b01000000;
+    pub const RESERVED_3: u8 = 0b10000000;
+}
+
+/// Enhanced file header structure (32 bytes fixed size)
+/// Extended to include safety analysis and passport tracking information
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FileHeader {
-    pub magic: [u8; 8],    // 8 bytes: File magic identifier
-    pub version: u32,      // 4 bytes: Format version
-    pub total_count: u32,  // 4 bytes: Total allocation count (user + system)
-    pub export_mode: u8,   // 1 byte: Export mode (user_only vs full)
-    pub user_count: u16,   // 2 bytes: User allocation count (var_name.is_some())
-    pub system_count: u16, // 2 bytes: System allocation count (var_name.is_none())
-    pub reserved: u8,      // 1 byte: Reserved for future use
+    pub magic: [u8; 8],           // 8 bytes: File magic identifier
+    pub version: u32,             // 4 bytes: Format version
+    pub total_count: u32,         // 4 bytes: Total allocation count (user + system)
+    pub export_mode: u8,          // 1 byte: Export mode (user_only vs full)
+    pub user_count: u16,          // 2 bytes: User allocation count (var_name.is_some())
+    pub system_count: u16,        // 2 bytes: System allocation count (var_name.is_none())
+    pub features_enabled: u8,     // 1 byte: Feature flags (bit field)
+    pub unsafe_report_count: u32, // 4 bytes: Number of unsafe reports
+    pub passport_count: u32,      // 4 bytes: Number of memory passports
+    pub reserved: u16,            // 2 bytes: Reserved for future use
 }
 
 impl FileHeader {

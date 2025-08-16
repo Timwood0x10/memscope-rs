@@ -19,6 +19,9 @@ pub mod closure_analysis;
 pub mod generic_analysis;
 pub mod lifecycle_analysis;
 pub mod security_violation_analyzer;
+pub mod safety_analyzer;
+pub mod memory_passport_tracker;
+pub mod ffi_function_resolver;
 
 // Re-export key analysis functions
 pub use circular_reference::{CircularReference, CircularReferenceAnalysis, CircularReferenceNode};
@@ -39,6 +42,20 @@ pub use closure_analysis::{get_global_closure_analyzer, ClosureAnalysisReport, C
 pub use generic_analysis::{get_global_generic_analyzer, GenericAnalyzer, GenericStatistics};
 pub use lifecycle_analysis::{
     get_global_lifecycle_analyzer, LifecycleAnalysisReport, LifecycleAnalyzer,
+};
+pub use safety_analyzer::{
+    SafetyAnalyzer, UnsafeReport, RiskAssessment, RiskFactor, RiskFactorType,
+    UnsafeSource, DynamicViolation, SafetyAnalysisConfig, SafetyAnalysisStats,
+};
+pub use memory_passport_tracker::{
+    MemoryPassportTracker, MemoryPassport, PassportStatus, PassportEvent, PassportEventType,
+    PassportTrackerConfig, PassportTrackerStats, LeakDetectionResult, LeakDetail,
+    get_global_passport_tracker, initialize_global_passport_tracker,
+};
+pub use unsafe_ffi_tracker::ComprehensiveSafetyReport;
+pub use ffi_function_resolver::{
+    FfiFunctionResolver, ResolvedFfiFunction, FfiFunctionCategory, FfiRiskLevel,
+    ResolverConfig, ResolutionStats, get_global_ffi_resolver, initialize_global_ffi_resolver,
 };
 
 use crate::core::types::*;

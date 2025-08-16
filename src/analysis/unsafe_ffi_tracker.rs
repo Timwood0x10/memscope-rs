@@ -6,6 +6,8 @@
 //! - Cross-boundary memory transfers
 //! - Safety violation detection
 use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
+use crate::core::{CallStackRef, get_global_call_stack_normalizer};
+use crate::analysis::ffi_function_resolver::{get_global_ffi_resolver, ResolvedFfiFunction};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -20,18 +22,16 @@ pub enum AllocationSource {
         /// Location of the unsafe block in source code
         unsafe_block_location: String,
         /// Call stack at the time of allocation
-        call_stack: Vec<StackFrame>,
+        call_stack: CallStackRef,
         /// Risk assessment for this unsafe operation
         risk_assessment: RiskAssessment,
     },
     /// FFI allocation from C library
     FfiC {
-        /// Name of the C library
-        library_name: String,
-        /// Name of the C function that allocated
-        function_name: String,
+        /// Resolved FFI function information
+        resolved_function: ResolvedFfiFunction,
         /// Call stack at the time of allocation
-        call_stack: Vec<StackFrame>,
+        call_stack: CallStackRef,
         /// LibC hook information
         libc_hook_info: LibCHookInfo,
     },
@@ -67,9 +67,9 @@ pub enum SafetyViolation {
     /// Double free detected
     DoubleFree {
         /// Call stack from the first free operation
-        first_free_stack: Vec<StackFrame>,
+        first_free_stack: CallStackRef,
         /// Call stack from the second free operation
-        second_free_stack: Vec<StackFrame>,
+        second_free_stack: CallStackRef,
         /// Timestamp when the double free was detected
         timestamp: u128,
     },
@@ -78,14 +78,14 @@ pub enum SafetyViolation {
         /// The pointer that was attempted to be freed
         attempted_pointer: usize,
         /// Call stack at the time of invalid free
-        stack: Vec<StackFrame>,
+        stack: CallStackRef,
         /// Timestamp when the invalid free was attempted
         timestamp: u128,
     },
     /// Potential memory leak
     PotentialLeak {
         /// Call stack from the original allocation
-        allocation_stack: Vec<StackFrame>,
+        allocation_stack: CallStackRef,
         /// Timestamp when the allocation occurred
         allocation_timestamp: u128,
         /// Timestamp when the leak was detected
@@ -98,7 +98,7 @@ pub enum SafetyViolation {
         /// Description of the risk
         description: String,
         /// Call stack at the time of risk detection
-        stack: Vec<StackFrame>,
+        stack: CallStackRef,
     },
 }
 
@@ -247,7 +247,7 @@ pub struct AllocationOrigin {
     /// Timestamp of original allocation
     pub timestamp: u128,
     /// Call stack at allocation time
-    pub call_stack: Vec<StackFrame>,
+    pub call_stack: CallStackRef,
 }
 
 /// A stamp in the memory passport journey
@@ -340,7 +340,7 @@ pub struct EnhancedAllocationInfo {
     /// Source of the allocation
     pub source: AllocationSource,
     /// Call stack at allocation time
-    pub call_stack: Vec<StackFrame>,
+    pub call_stack: CallStackRef,
     /// Cross-boundary events
     pub cross_boundary_events: Vec<BoundaryEvent>,
     /// Safety violations detected
@@ -365,7 +365,7 @@ pub struct BoundaryEvent {
     /// Context where the crossing ended
     pub to_context: String,
     /// Call stack at the time of crossing
-    pub stack: Vec<StackFrame>,
+    pub stack: CallStackRef,
 }
 
 /// Types of boundary events
@@ -596,7 +596,7 @@ pub struct UnsafeFFITracker {
     /// Enhanced allocations with source tracking
     enhanced_allocations: Mutex<HashMap<usize, EnhancedAllocationInfo>>,
     /// Freed pointers (for double-free detection)
-    freed_pointers: Mutex<HashMap<usize, (Vec<StackFrame>, u128)>>,
+    freed_pointers: Mutex<HashMap<usize, (CallStackRef, u128)>>,
     /// Safety violations log
     violations: Mutex<Vec<SafetyViolation>>,
     /// C library tracking registry
@@ -686,7 +686,12 @@ impl UnsafeFFITracker {
                 context: origin_context.to_string(),
                 allocator_function: "unknown".to_string(),
                 timestamp: current_time,
-                call_stack: Vec::new(),
+                call_stack: {
+                    let normalizer = get_global_call_stack_normalizer();
+                    let empty_frames = vec![];
+                    let id = normalizer.normalize_call_stack(&empty_frames).unwrap_or(0);
+                    CallStackRef::new(id, Some(0))
+                },
             },
             journey: Vec::new(),
             current_owner: OwnershipInfo {
@@ -746,15 +751,30 @@ impl UnsafeFFITracker {
         let base_allocation = AllocationInfo::new(ptr, size);
         let libc_hook_info = self.create_default_libc_hook_info(&function_name, size);
 
+        // Resolve FFI function information
+        let resolver = get_global_ffi_resolver();
+        let resolved_function = resolver.resolve_function(&function_name, Some(&library_name))
+            .unwrap_or_else(|_| {
+                tracing::warn!("Failed to resolve FFI function: {}::{}", library_name, function_name);
+                // Create fallback resolution
+                ResolvedFfiFunction {
+                    library_name: library_name.clone(),
+                    function_name: function_name.clone(),
+                    signature: None,
+                    category: crate::analysis::FfiFunctionCategory::Unknown,
+                    risk_level: crate::analysis::FfiRiskLevel::Medium,
+                    metadata: std::collections::HashMap::new(),
+                }
+            });
+
         let enhanced = EnhancedAllocationInfo {
             base: base_allocation,
             source: AllocationSource::FfiC {
-                library_name,
-                function_name,
+                resolved_function,
                 call_stack: call_stack.clone(),
                 libc_hook_info,
             },
-            call_stack: call_stack.clone(),
+            call_stack,
             cross_boundary_events: Vec::new(),
             safety_violations: Vec::new(),
             ffi_tracked: true,
@@ -966,16 +986,20 @@ impl UnsafeFFITracker {
             .map_err(|e| TrackingError::LockError(e.to_string()))
     }
 
-    /// Capture current call stack (simplified implementation)
-    fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {
+    /// Capture current call stack and normalize it
+    fn capture_call_stack(&self) -> TrackingResult<CallStackRef> {
         // In a real implementation, this would use backtrace crate
         // For now, return a simplified stack
-        Ok(vec![StackFrame {
+        let frames = vec![StackFrame {
             function_name: "current_function".to_string(),
             file_name: Some("src/unsafe_ffi_tracker.rs".to_string()),
             line_number: Some(42),
             is_unsafe: true,
-        }])
+        }];
+
+        let normalizer = get_global_call_stack_normalizer();
+        let id = normalizer.normalize_call_stack(&frames)?;
+        Ok(CallStackRef::new(id, Some(frames.len())))
     }
 
     /// Detect potential memory leaks
@@ -1799,7 +1823,12 @@ impl UnsafeFFITracker {
                             ptr,
                             passport.journey.len()
                         ),
-                        stack: Vec::new(), // Would need to capture actual stack
+                        stack: {
+                            let normalizer = get_global_call_stack_normalizer();
+                            let empty_frames = vec![];
+                            let id = normalizer.normalize_call_stack(&empty_frames).unwrap_or(0);
+                            CallStackRef::new(id, Some(0))
+                        },
                     });
                 }
 
@@ -1808,7 +1837,12 @@ impl UnsafeFFITracker {
                     risks.push(SafetyViolation::CrossBoundaryRisk {
                         risk_level: RiskLevel::High,
                         description: format!("Expired passport detected for memory at {:x}", ptr),
-                        stack: Vec::new(),
+                        stack: {
+                            let normalizer = get_global_call_stack_normalizer();
+                            let empty_frames = vec![];
+                            let id = normalizer.normalize_call_stack(&empty_frames).unwrap_or(0);
+                            CallStackRef::new(id, Some(0))
+                        },
                     });
                 }
             }
@@ -2313,13 +2347,12 @@ impl UnsafeFFITracker {
                     format!("Unsafe block at {unsafe_block_location}"),
                 ),
                 AllocationSource::FfiC {
-                    library_name,
-                    function_name,
+                    resolved_function,
                     ..
                 } => (
                     UnsafeOperationType::FfiCall,
                     RiskLevel::High,
-                    format!("FFI call to {library_name}::{function_name}"),
+                    format!("FFI call to {}::{}", resolved_function.library_name, resolved_function.function_name),
                 ),
                 AllocationSource::CrossBoundary { .. } => (
                     UnsafeOperationType::CrossBoundaryTransfer,
@@ -2343,6 +2376,147 @@ impl UnsafeFFITracker {
 
         stats
     }
+
+    /// Integrate with SafetyAnalyzer for enhanced reporting
+    pub fn integrate_with_safety_analyzer(&self, safety_analyzer: &crate::analysis::SafetyAnalyzer) -> TrackingResult<()> {
+        // Get current violations
+        let violations = if let Ok(violations) = self.violations.lock() {
+            violations.clone()
+        } else {
+            return Err(TrackingError::LockContention("Failed to lock violations".to_string()));
+        };
+
+        // Get current allocations
+        let allocations: Vec<crate::core::types::AllocationInfo> = if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
+            enhanced_allocations.values().map(|ea| ea.base.clone()).collect()
+        } else {
+            return Err(TrackingError::LockContention("Failed to lock allocations".to_string()));
+        };
+
+        // Generate unsafe reports for each violation
+        for violation in &violations {
+            let source = match violation {
+                SafetyViolation::DoubleFree { .. } => {
+                    crate::analysis::UnsafeSource::RawPointer {
+                        operation: "double_free".to_string(),
+                        location: "memory_violation".to_string(),
+                    }
+                }
+                SafetyViolation::InvalidFree { attempted_pointer, .. } => {
+                    crate::analysis::UnsafeSource::RawPointer {
+                        operation: "invalid_free".to_string(),
+                        location: format!("0x{:x}", attempted_pointer),
+                    }
+                }
+                SafetyViolation::PotentialLeak { .. } => {
+                    crate::analysis::UnsafeSource::RawPointer {
+                        operation: "potential_leak".to_string(),
+                        location: "memory_leak".to_string(),
+                    }
+                }
+                SafetyViolation::CrossBoundaryRisk { description, .. } => {
+                    crate::analysis::UnsafeSource::FfiFunction {
+                        library: "unknown".to_string(),
+                        function: "cross_boundary".to_string(),
+                        call_site: description.clone(),
+                    }
+                }
+            };
+
+            let _report_id = safety_analyzer.generate_unsafe_report(source, &allocations, &violations)?;
+        }
+
+        tracing::info!("🔗 Integrated {} violations with SafetyAnalyzer", violations.len());
+        Ok(())
+    }
+
+    /// Integrate with MemoryPassportTracker for FFI boundary tracking
+    pub fn integrate_with_passport_tracker(&self, passport_tracker: &crate::analysis::MemoryPassportTracker) -> TrackingResult<()> {
+        if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
+            for (ptr, allocation) in enhanced_allocations.iter() {
+                // Create passports for FFI allocations
+                if allocation.ffi_tracked {
+                    let _passport_id = passport_tracker.create_passport(
+                        *ptr,
+                        allocation.base.size,
+                        "ffi_integration".to_string(),
+                    )?;
+
+                    // Record boundary events
+                    for event in &allocation.cross_boundary_events {
+                        let event_type = match event.event_type {
+                            BoundaryEventType::RustToFfi => crate::analysis::PassportEventType::HandoverToFfi,
+                            BoundaryEventType::FfiToRust => crate::analysis::PassportEventType::ReclaimedByRust,
+                            BoundaryEventType::OwnershipTransfer => crate::analysis::PassportEventType::OwnershipTransfer,
+                            BoundaryEventType::SharedAccess => crate::analysis::PassportEventType::BoundaryAccess,
+                        };
+
+                        passport_tracker.record_passport_event(
+                            *ptr,
+                            event_type,
+                            event.to_context.clone(),
+                            std::collections::HashMap::new(),
+                        )?;
+                    }
+                }
+            }
+        }
+
+        tracing::info!("🔗 Integrated FFI allocations with MemoryPassportTracker");
+        Ok(())
+    }
+
+    /// Perform comprehensive safety analysis using integrated components
+    pub fn perform_comprehensive_safety_analysis(&self) -> TrackingResult<crate::analysis::ComprehensiveSafetyReport> {
+        // Initialize integrated components
+        let safety_analyzer = crate::analysis::SafetyAnalyzer::default();
+        let passport_tracker = crate::analysis::get_global_passport_tracker();
+
+        // Integrate with components
+        self.integrate_with_safety_analyzer(&safety_analyzer)?;
+        self.integrate_with_passport_tracker(&passport_tracker)?;
+
+        // Detect leaks at shutdown
+        let leak_detection = passport_tracker.detect_leaks_at_shutdown();
+
+        // Get reports and statistics
+        let unsafe_reports = safety_analyzer.get_unsafe_reports();
+        let memory_passports = passport_tracker.get_all_passports();
+        let safety_stats = safety_analyzer.get_stats();
+        let passport_stats = passport_tracker.get_stats();
+
+        let report = crate::analysis::ComprehensiveSafetyReport {
+            unsafe_reports,
+            memory_passports,
+            leak_detection,
+            safety_stats,
+            passport_stats,
+            analysis_timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        };
+
+        tracing::info!("📊 Generated comprehensive safety analysis report");
+        Ok(report)
+    }
+}
+
+/// Comprehensive safety analysis report
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ComprehensiveSafetyReport {
+    /// All unsafe operation reports
+    pub unsafe_reports: std::collections::HashMap<String, crate::analysis::UnsafeReport>,
+    /// All memory passports
+    pub memory_passports: std::collections::HashMap<usize, crate::analysis::MemoryPassport>,
+    /// Leak detection results
+    pub leak_detection: crate::analysis::LeakDetectionResult,
+    /// Safety analysis statistics
+    pub safety_stats: crate::analysis::SafetyAnalysisStats,
+    /// Passport tracker statistics
+    pub passport_stats: crate::analysis::PassportTrackerStats,
+    /// Analysis timestamp
+    pub analysis_timestamp: u64,
 }
 
 /// Global unsafe/FFI tracker instance

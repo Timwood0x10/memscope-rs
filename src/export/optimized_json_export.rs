@@ -7,6 +7,10 @@ use crate::analysis::security_violation_analyzer::{
     AnalysisConfig, SecurityViolationAnalyzer, ViolationSeverity,
 };
 use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};
+use crate::analysis::{
+    SafetyAnalyzer, UnsafeReport, get_global_ffi_resolver,
+    MemoryPassportTracker, MemoryPassport, get_global_passport_tracker,
+};
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::export::adaptive_performance::AdaptivePerformanceOptimizer;
@@ -1641,13 +1645,16 @@ fn create_optimized_memory_analysis(
     }))
 }
 
-/// Create optimized lifetime analysis
+/// Create enhanced lifetime analysis with ownership history and lifecycle events
 fn create_optimized_lifetime_analysis(
     allocations: &[AllocationInfo],
-    _options: &OptimizedExportOptions,
+    options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
-    // Lifetime analysis: group analysis by scope
+    // Enhanced lifetime analysis: group analysis by scope with detailed lifecycle data
     let mut scope_analysis: HashMap<String, (usize, usize, Vec<usize>)> = HashMap::new();
+    let mut lifecycle_events = Vec::new();
+    let mut ownership_patterns = Vec::new();
+    let mut allocation_lifetimes = Vec::new();
 
     for alloc in allocations {
         let scope = alloc.scope_name.as_deref().unwrap_or("global");
@@ -1657,9 +1664,78 @@ fn create_optimized_lifetime_analysis(
         entry.0 += alloc.size; // total size
         entry.1 += 1; // allocation count
         entry.2.push(alloc.size); // size list for statistics
+
+        // Calculate allocation lifetime if deallocated
+        if let Some(dealloc_time) = alloc.timestamp_dealloc {
+            let lifetime_ms = dealloc_time.saturating_sub(alloc.timestamp_alloc);
+            allocation_lifetimes.push(serde_json::json!({
+                "ptr": format!("0x{:x}", alloc.ptr),
+                "size": alloc.size,
+                "type_name": alloc.type_name,
+                "var_name": alloc.var_name,
+                "scope": scope,
+                "allocated_at": alloc.timestamp_alloc,
+                "deallocated_at": dealloc_time,
+                "lifetime_ms": lifetime_ms,
+                "lifetime_category": if lifetime_ms < 1000 {
+                    "short_lived"
+                } else if lifetime_ms < 10000 {
+                    "medium_lived"
+                } else {
+                    "long_lived"
+                }
+            }));
+
+            // Create lifecycle event
+            lifecycle_events.push(serde_json::json!({
+                "event_type": "allocation_lifecycle",
+                "ptr": format!("0x{:x}", alloc.ptr),
+                "scope": scope,
+                "size": alloc.size,
+                "lifetime_ms": lifetime_ms,
+                "timestamp": alloc.timestamp_alloc
+            }));
+        } else {
+            // Still allocated - potential leak or long-lived allocation
+            lifecycle_events.push(serde_json::json!({
+                "event_type": "still_allocated",
+                "ptr": format!("0x{:x}", alloc.ptr),
+                "scope": scope,
+                "size": alloc.size,
+                "allocated_at": alloc.timestamp_alloc,
+                "age_ms": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64 - alloc.timestamp_alloc,
+                "potential_leak": true
+            }));
+        }
+
+        // Analyze ownership patterns based on type names
+        if let Some(type_name) = &alloc.type_name {
+            let ownership_type = if type_name.contains("Box<") {
+                "unique_ownership"
+            } else if type_name.contains("Rc<") || type_name.contains("Arc<") {
+                "shared_ownership"
+            } else if type_name.contains("&mut") {
+                "mutable_borrow"
+            } else if type_name.contains("&") {
+                "immutable_borrow"
+            } else {
+                "direct_ownership"
+            };
+
+            ownership_patterns.push(serde_json::json!({
+                "ptr": format!("0x{:x}", alloc.ptr),
+                "ownership_type": ownership_type,
+                "type_name": type_name,
+                "scope": scope,
+                "size": alloc.size
+            }));
+        }
     }
 
-    // Convert to JSON format
+    // Convert scope analysis to JSON format
     let mut scope_stats: Vec<_> = scope_analysis
         .into_iter()
         .map(|(scope, (total_size, count, sizes))| {
@@ -1667,13 +1743,34 @@ fn create_optimized_lifetime_analysis(
             let max_size = sizes.iter().max().copied().unwrap_or(0);
             let min_size = sizes.iter().min().copied().unwrap_or(0);
 
+            // Calculate scope-specific lifetime statistics
+            let scope_lifetimes: Vec<u64> = allocation_lifetimes
+                .iter()
+                .filter_map(|alloc| {
+                    if alloc.get("scope").and_then(|s| s.as_str()) == Some(&scope) {
+                        alloc.get("lifetime_ms").and_then(|l| l.as_u64())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            let avg_lifetime = if !scope_lifetimes.is_empty() {
+                scope_lifetimes.iter().sum::<u64>() / scope_lifetimes.len() as u64
+            } else {
+                0
+            };
+
             serde_json::json!({
                 "scope_name": scope,
                 "total_size": total_size,
                 "allocation_count": count,
                 "average_size": avg_size,
                 "max_size": max_size,
-                "min_size": min_size
+                "min_size": min_size,
+                "average_lifetime_ms": avg_lifetime,
+                "completed_lifecycles": scope_lifetimes.len(),
+                "still_allocated": count - scope_lifetimes.len()
             })
         })
         .collect();
@@ -1686,39 +1783,208 @@ fn create_optimized_lifetime_analysis(
             .cmp(&a["total_size"].as_u64().unwrap_or(0))
     });
 
+    // Analyze ownership patterns
+    let mut ownership_summary = HashMap::new();
+    for pattern in &ownership_patterns {
+        if let Some(ownership_type) = pattern.get("ownership_type").and_then(|t| t.as_str()) {
+            *ownership_summary.entry(ownership_type.to_string()).or_insert(0) += 1;
+        }
+    }
+
+    // Calculate lifetime statistics
+    let completed_lifetimes: Vec<u64> = allocation_lifetimes
+        .iter()
+        .filter_map(|alloc| alloc.get("lifetime_ms").and_then(|l| l.as_u64()))
+        .collect();
+
+    let lifetime_stats = if !completed_lifetimes.is_empty() {
+        let total_lifetime: u64 = completed_lifetimes.iter().sum();
+        let avg_lifetime = total_lifetime / completed_lifetimes.len() as u64;
+        let max_lifetime = *completed_lifetimes.iter().max().unwrap_or(&0);
+        let min_lifetime = *completed_lifetimes.iter().min().unwrap_or(&0);
+
+        serde_json::json!({
+            "average_lifetime_ms": avg_lifetime,
+            "max_lifetime_ms": max_lifetime,
+            "min_lifetime_ms": min_lifetime,
+            "total_completed_lifecycles": completed_lifetimes.len(),
+            "short_lived_count": completed_lifetimes.iter().filter(|&&l| l < 1000).count(),
+            "medium_lived_count": completed_lifetimes.iter().filter(|&&l| l >= 1000 && l < 10000).count(),
+            "long_lived_count": completed_lifetimes.iter().filter(|&&l| l >= 10000).count()
+        })
+    } else {
+        serde_json::json!({
+            "average_lifetime_ms": 0,
+            "max_lifetime_ms": 0,
+            "min_lifetime_ms": 0,
+            "total_completed_lifecycles": 0,
+            "short_lived_count": 0,
+            "medium_lived_count": 0,
+            "long_lived_count": 0
+        })
+    };
+
     Ok(serde_json::json!({
         "metadata": {
-            "analysis_type": "lifetime_analysis_optimized",
+            "analysis_type": "enhanced_lifetime_analysis",
             "optimization_level": "high",
             "total_scopes": scope_stats.len(),
-            "export_version": "2.0",
+            "export_version": "3.0",
+            "enhanced_features_enabled": true,
             "timestamp": std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
         },
+        "enhanced_analysis": {
+            "allocation_lifetimes": allocation_lifetimes,
+            "lifecycle_events": lifecycle_events,
+            "ownership_patterns": ownership_patterns,
+            "lifetime_statistics": lifetime_stats
+        },
         "scope_analysis": scope_stats,
+        "ownership_summary": ownership_summary,
         "summary": {
             "total_allocations": allocations.len(),
-            "unique_scopes": scope_stats.len()
+            "unique_scopes": scope_stats.len(),
+            "completed_lifecycles": completed_lifetimes.len(),
+            "still_allocated": allocations.len() - completed_lifetimes.len(),
+            "potential_leaks": lifecycle_events.iter().filter(|e| {
+                e.get("potential_leak").and_then(|p| p.as_bool()).unwrap_or(false)
+            }).count(),
+            "ownership_patterns_detected": ownership_patterns.len()
         }
     }))
 }
 
-/// Create optimized unsafe FFI analysis
+/// Create enhanced unsafe FFI analysis with UnsafeReport and MemoryPassport integration
 fn create_optimized_unsafe_ffi_analysis(
     allocations: &[AllocationInfo],
-    _options: &OptimizedExportOptions,
+    options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
-    // Analyze possible unsafe operations and FFI-related allocations
-    let mut unsafe_indicators = Vec::new();
-    let mut ffi_patterns = Vec::new();
+    let mut unsafe_reports = Vec::new();
+    let mut memory_passports = Vec::new();
+    let mut ffi_functions = Vec::new();
+    let mut legacy_unsafe_indicators = Vec::new();
+    let mut legacy_ffi_patterns = Vec::new();
 
+    // Get enhanced data from SafetyAnalyzer and MemoryPassportTracker if enabled
+    if options.enable_enhanced_ffi_analysis {
+        // Get SafetyAnalyzer reports
+        let safety_analyzer = SafetyAnalyzer::default();
+        let reports = safety_analyzer.get_unsafe_reports();
+        
+        for (report_id, report) in reports {
+            unsafe_reports.push(serde_json::json!({
+                "report_id": report_id,
+                "source": {
+                    "type": match report.source {
+                        crate::analysis::UnsafeSource::UnsafeBlock { .. } => "unsafe_block",
+                        crate::analysis::UnsafeSource::FfiFunction { .. } => "ffi_function",
+                        crate::analysis::UnsafeSource::RawPointer { .. } => "raw_pointer",
+                        crate::analysis::UnsafeSource::Transmute { .. } => "transmute",
+                    },
+                    "details": match &report.source {
+                        crate::analysis::UnsafeSource::UnsafeBlock { location, .. } => {
+                            serde_json::json!({ "location": location })
+                        },
+                        crate::analysis::UnsafeSource::FfiFunction { library, function, call_site } => {
+                            serde_json::json!({
+                                "library": library,
+                                "function": function,
+                                "call_site": call_site
+                            })
+                        },
+                        crate::analysis::UnsafeSource::RawPointer { operation, location } => {
+                            serde_json::json!({
+                                "operation": operation,
+                                "location": location
+                            })
+                        },
+                        crate::analysis::UnsafeSource::Transmute { from_type, to_type, location } => {
+                            serde_json::json!({
+                                "from_type": from_type,
+                                "to_type": to_type,
+                                "location": location
+                            })
+                        },
+                    }
+                },
+                "risk_assessment": {
+                    "risk_level": format!("{:?}", report.risk_assessment.risk_level),
+                    "risk_score": report.risk_assessment.risk_score,
+                    "confidence_score": report.risk_assessment.confidence_score,
+                    "risk_factors": report.risk_assessment.risk_factors.iter().map(|factor| {
+                        serde_json::json!({
+                            "factor_type": format!("{:?}", factor.factor_type),
+                            "severity": factor.severity,
+                            "confidence": factor.confidence,
+                            "description": factor.description,
+                            "mitigation": factor.mitigation
+                        })
+                    }).collect::<Vec<_>>(),
+                    "mitigation_suggestions": report.risk_assessment.mitigation_suggestions
+                },
+                "dynamic_violations": report.dynamic_violations.iter().map(|violation| {
+                    serde_json::json!({
+                        "violation_type": format!("{:?}", violation.violation_type),
+                        "memory_address": format!("0x{:x}", violation.memory_address),
+                        "memory_size": violation.memory_size,
+                        "detected_at": violation.detected_at,
+                        "severity": format!("{:?}", violation.severity),
+                        "context": violation.context
+                    })
+                }).collect::<Vec<_>>(),
+                "generated_at": report.generated_at
+            }));
+        }
+
+        // Get MemoryPassport data if passport tracking is enabled
+        if options.enable_memory_passport_tracking {
+            let passport_tracker = get_global_passport_tracker();
+            let passports = passport_tracker.get_all_passports();
+            
+            for (ptr, passport) in passports {
+                memory_passports.push(serde_json::json!({
+                    "passport_id": passport.passport_id,
+                    "memory_address": format!("0x{:x}", ptr),
+                    "size_bytes": passport.size_bytes,
+                    "status_at_shutdown": format!("{:?}", passport.status_at_shutdown),
+                    "lifecycle_events": passport.lifecycle_events.iter().map(|event| {
+                        serde_json::json!({
+                            "event_type": format!("{:?}", event.event_type),
+                            "timestamp": event.timestamp,
+                            "context": event.context,
+                            "sequence_number": event.sequence_number
+                        })
+                    }).collect::<Vec<_>>(),
+                    "created_at": passport.created_at,
+                    "updated_at": passport.updated_at
+                }));
+            }
+        }
+
+        // Get FFI function resolution data
+        let ffi_resolver = get_global_ffi_resolver();
+        let resolver_stats = ffi_resolver.get_stats();
+        
+        ffi_functions.push(serde_json::json!({
+            "resolution_stats": {
+                "total_attempts": resolver_stats.total_attempts,
+                "successful_resolutions": resolver_stats.successful_resolutions,
+                "cache_hits": resolver_stats.cache_hits,
+                "functions_by_category": resolver_stats.functions_by_category,
+                "functions_by_risk": resolver_stats.functions_by_risk
+            }
+        }));
+    }
+
+    // Legacy analysis for backward compatibility
     for alloc in allocations {
         // Check for unsafe patterns in type names
         if let Some(type_name) = &alloc.type_name {
             if type_name.contains("*mut") || type_name.contains("*const") {
-                unsafe_indicators.push(serde_json::json!({
+                legacy_unsafe_indicators.push(serde_json::json!({
                     "ptr": format!("0x{:x}", alloc.ptr),
                     "type": "raw_pointer",
                     "type_name": type_name,
@@ -1726,7 +1992,7 @@ fn create_optimized_unsafe_ffi_analysis(
                     "risk_level": "high"
                 }));
             } else if type_name.contains("extern") || type_name.contains("libc::") {
-                ffi_patterns.push(serde_json::json!({
+                legacy_ffi_patterns.push(serde_json::json!({
                     "ptr": format!("0x{:x}", alloc.ptr),
                     "type": "ffi_related",
                     "type_name": type_name,
@@ -1739,7 +2005,7 @@ fn create_optimized_unsafe_ffi_analysis(
         // Check for unsafe patterns in variable names
         if let Some(var_name) = &alloc.var_name {
             if var_name.contains("unsafe") || var_name.contains("raw") {
-                unsafe_indicators.push(serde_json::json!({
+                legacy_unsafe_indicators.push(serde_json::json!({
                     "ptr": format!("0x{:x}", alloc.ptr),
                     "type": "unsafe_variable",
                     "var_name": var_name,
@@ -1750,29 +2016,82 @@ fn create_optimized_unsafe_ffi_analysis(
         }
     }
 
+    // Create strong association between UnsafeReport and MemoryPassport
+    let mut associated_data = Vec::new();
+    for unsafe_report in &unsafe_reports {
+        if let Some(report_obj) = unsafe_report.as_object() {
+            if let Some(related_passports) = report_obj.get("related_passports") {
+                if let Some(passport_ids) = related_passports.as_array() {
+                    for passport_id in passport_ids {
+                        if let Some(id_str) = passport_id.as_str() {
+                            // Find matching passport
+                            if let Some(passport) = memory_passports.iter().find(|p| {
+                                p.get("passport_id").and_then(|id| id.as_str()) == Some(id_str)
+                            }) {
+                                associated_data.push(serde_json::json!({
+                                    "unsafe_report_id": report_obj.get("report_id"),
+                                    "memory_passport_id": id_str,
+                                    "association_type": "direct_correlation",
+                                    "risk_correlation": "high"
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Ok(serde_json::json!({
         "metadata": {
-            "analysis_type": "unsafe_ffi_analysis_optimized",
+            "analysis_type": "enhanced_unsafe_ffi_analysis",
             "optimization_level": "high",
             "total_allocations_analyzed": allocations.len(),
-            "export_version": "2.0",
+            "export_version": "3.0",
+            "enhanced_features_enabled": options.enable_enhanced_ffi_analysis,
+            "passport_tracking_enabled": options.enable_memory_passport_tracking,
             "timestamp": std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
         },
-        "unsafe_indicators": unsafe_indicators,
-        "ffi_patterns": ffi_patterns,
+        "enhanced_analysis": {
+            "unsafe_reports": unsafe_reports,
+            "memory_passports": memory_passports,
+            "ffi_function_analysis": ffi_functions,
+            "unsafe_passport_associations": associated_data
+        },
+        "legacy_analysis": {
+            "unsafe_indicators": legacy_unsafe_indicators,
+            "ffi_patterns": legacy_ffi_patterns
+        },
         "summary": {
-            "unsafe_count": unsafe_indicators.len(),
-            "ffi_count": ffi_patterns.len(),
-            "total_risk_items": unsafe_indicators.len() + ffi_patterns.len(),
-            "risk_assessment": if unsafe_indicators.len() + ffi_patterns.len() > 10 {
-                "high"
-            } else if unsafe_indicators.len() + ffi_patterns.len() > 5 {
-                "medium"
-            } else {
-                "low"
+            "enhanced_unsafe_reports": unsafe_reports.len(),
+            "memory_passports_tracked": memory_passports.len(),
+            "unsafe_passport_associations": associated_data.len(),
+            "legacy_unsafe_count": legacy_unsafe_indicators.len(),
+            "legacy_ffi_count": legacy_ffi_patterns.len(),
+            "total_risk_items": unsafe_reports.len() + memory_passports.len() + legacy_unsafe_indicators.len() + legacy_ffi_patterns.len(),
+            "risk_assessment": {
+                "level": if unsafe_reports.len() > 5 || memory_passports.iter().any(|p| {
+                    p.get("status_at_shutdown").and_then(|s| s.as_str()) == Some("InForeignCustody")
+                }) {
+                    "critical"
+                } else if unsafe_reports.len() > 2 || memory_passports.len() > 10 {
+                    "high"
+                } else if unsafe_reports.len() > 0 || memory_passports.len() > 5 {
+                    "medium"
+                } else {
+                    "low"
+                },
+                "critical_issues": unsafe_reports.iter().filter(|r| {
+                    r.get("risk_assessment")
+                        .and_then(|ra| ra.get("risk_level"))
+                        .and_then(|rl| rl.as_str()) == Some("Critical")
+                }).count(),
+                "memory_leaks_detected": memory_passports.iter().filter(|p| {
+                    p.get("status_at_shutdown").and_then(|s| s.as_str()) == Some("InForeignCustody")
+                }).count()
             }
         }
     }))

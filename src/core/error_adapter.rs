@@ -74,6 +74,9 @@ impl ErrorAdapter for DefaultErrorAdapter {
             TrackingError::InvalidOperation(msg) => {
                 MemScopeError::memory(MemoryOperation::Tracking, msg)
             }
+            TrackingError::LockContention(msg) => {
+                MemScopeError::memory(MemoryOperation::Tracking, msg)
+            }
         }
     }
 

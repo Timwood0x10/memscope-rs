@@ -58,6 +58,7 @@ pub enum TrackingError {
     /// Input/output operation failed
     IoError(String),
     /// Lock acquisition failed
+    LockContention(String),
     LockError(String),
     /// Channel communication error
     ChannelError(String),
@@ -106,6 +107,7 @@ impl Clone for TrackingError {
             TrackingError::NotImplemented(s) => TrackingError::NotImplemented(s.clone()),
             TrackingError::ValidationError(s) => TrackingError::ValidationError(s.clone()),
             TrackingError::InvalidOperation(s) => TrackingError::InvalidOperation(s.clone()),
+            TrackingError::LockContention(s) => TrackingError::LockContention(s.clone()),
         }
     }
 }
@@ -143,6 +145,7 @@ impl std::fmt::Display for TrackingError {
             TrackingError::NotImplemented(msg) => write!(f, "Not implemented: {msg}"),
             TrackingError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
             TrackingError::InvalidOperation(msg) => write!(f, "Invalid operation: {msg}"),
+            TrackingError::LockContention(msg) => write!(f, "Lock contention: {msg}"),
         }
     }
 }

@@ -1,6 +1,8 @@
 //! Binary serialization trait and implementations for efficient data encoding
 
 use crate::export::binary::error::BinaryExportError;
+use crate::analysis::{UnsafeReport, MemoryPassport, ResolvedFfiFunction};
+use crate::core::CallStackRef;
 use std::io::{Read, Write};
 
 /// Trait for types that can be serialized to/from binary format efficiently
@@ -80,6 +82,19 @@ pub mod primitives {
     pub fn read_usize<R: Read>(reader: &mut R) -> Result<usize, BinaryExportError> {
         let value = read_u64(reader)?;
         Ok(value as usize)
+    }
+
+    /// Write a f32 value in little endian
+    pub fn write_f32<W: Write>(writer: &mut W, value: f32) -> Result<usize, BinaryExportError> {
+        writer.write_all(&value.to_le_bytes())?;
+        Ok(4)
+    }
+
+    /// Read a f32 value in little endian
+    pub fn read_f32<R: Read>(reader: &mut R) -> Result<f32, BinaryExportError> {
+        let mut buffer = [0u8; 4];
+        reader.read_exact(&mut buffer)?;
+        Ok(f32::from_le_bytes(buffer))
     }
 
     /// Write a f64 value in little endian
@@ -227,5 +242,179 @@ mod tests {
         let mut cursor = Cursor::new(&buffer);
         let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).unwrap();
         assert!(read_value.is_none());
+    }
+}
+
+/// Binary serializable wrapper for UnsafeReport
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BinaryUnsafeReport {
+    pub report_id: String,
+    pub source_type: u8, // 0=UnsafeBlock, 1=FfiFunction, 2=RawPointer, 3=Transmute
+    pub source_details: String, // JSON serialized details
+    pub risk_level: u8, // 0=Low, 1=Medium, 2=High, 3=Critical
+    pub risk_score: f32,
+    pub confidence_score: f32,
+    pub generated_at: u64,
+    pub dynamic_violations_count: u32,
+    pub risk_factors_count: u32,
+}
+
+impl BinarySerializable for BinaryUnsafeReport {
+    fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+        let mut bytes_written = 0;
+        bytes_written += primitives::write_string(writer, &self.report_id)?;
+        bytes_written += primitives::write_u8(writer, self.source_type)?;
+        bytes_written += primitives::write_string(writer, &self.source_details)?;
+        bytes_written += primitives::write_u8(writer, self.risk_level)?;
+        bytes_written += primitives::write_f32(writer, self.risk_score)?;
+        bytes_written += primitives::write_f32(writer, self.confidence_score)?;
+        bytes_written += primitives::write_u64(writer, self.generated_at)?;
+        bytes_written += primitives::write_u32(writer, self.dynamic_violations_count)?;
+        bytes_written += primitives::write_u32(writer, self.risk_factors_count)?;
+        Ok(bytes_written)
+    }
+
+    fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+        Ok(BinaryUnsafeReport {
+            report_id: primitives::read_string(reader)?,
+            source_type: primitives::read_u8(reader)?,
+            source_details: primitives::read_string(reader)?,
+            risk_level: primitives::read_u8(reader)?,
+            risk_score: primitives::read_f32(reader)?,
+            confidence_score: primitives::read_f32(reader)?,
+            generated_at: primitives::read_u64(reader)?,
+            dynamic_violations_count: primitives::read_u32(reader)?,
+            risk_factors_count: primitives::read_u32(reader)?,
+        })
+    }
+
+    fn binary_size(&self) -> usize {
+        4 + self.report_id.len() + // string length + content
+        1 + // source_type
+        4 + self.source_details.len() + // string length + content
+        1 + // risk_level
+        4 + // risk_score (f32)
+        4 + // confidence_score (f32)
+        8 + // generated_at (u64)
+        4 + // dynamic_violations_count
+        4   // risk_factors_count
+    }
+}
+
+/// Binary serializable wrapper for MemoryPassport
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BinaryMemoryPassport {
+    pub passport_id: String,
+    pub memory_address: u64,
+    pub size_bytes: u32,
+    pub status_at_shutdown: u8, // 0=FreedByRust, 1=HandoverToFfi, 2=FreedByForeign, 3=ReclaimedByRust, 4=InForeignCustody, 5=Unknown
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub lifecycle_events_count: u32,
+}
+
+impl BinarySerializable for BinaryMemoryPassport {
+    fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+        let mut bytes_written = 0;
+        bytes_written += primitives::write_string(writer, &self.passport_id)?;
+        bytes_written += primitives::write_u64(writer, self.memory_address)?;
+        bytes_written += primitives::write_u32(writer, self.size_bytes)?;
+        bytes_written += primitives::write_u8(writer, self.status_at_shutdown)?;
+        bytes_written += primitives::write_u64(writer, self.created_at)?;
+        bytes_written += primitives::write_u64(writer, self.updated_at)?;
+        bytes_written += primitives::write_u32(writer, self.lifecycle_events_count)?;
+        Ok(bytes_written)
+    }
+
+    fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+        Ok(BinaryMemoryPassport {
+            passport_id: primitives::read_string(reader)?,
+            memory_address: primitives::read_u64(reader)?,
+            size_bytes: primitives::read_u32(reader)?,
+            status_at_shutdown: primitives::read_u8(reader)?,
+            created_at: primitives::read_u64(reader)?,
+            updated_at: primitives::read_u64(reader)?,
+            lifecycle_events_count: primitives::read_u32(reader)?,
+        })
+    }
+
+    fn binary_size(&self) -> usize {
+        4 + self.passport_id.len() + // string length + content
+        8 + // memory_address
+        4 + // size_bytes
+        1 + // status_at_shutdown
+        8 + // created_at
+        8 + // updated_at
+        4   // lifecycle_events_count
+    }
+}
+
+/// Binary serializable wrapper for CallStackRef
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BinaryCallStackRef {
+    pub id: u32,
+    pub depth: u16,
+    pub created_at: u64,
+}
+
+impl BinarySerializable for BinaryCallStackRef {
+    fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+        let mut bytes_written = 0;
+        bytes_written += primitives::write_u32(writer, self.id)?;
+        bytes_written += primitives::write_u16(writer, self.depth)?;
+        bytes_written += primitives::write_u64(writer, self.created_at)?;
+        Ok(bytes_written)
+    }
+
+    fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+        Ok(BinaryCallStackRef {
+            id: primitives::read_u32(reader)?,
+            depth: primitives::read_u16(reader)?,
+            created_at: primitives::read_u64(reader)?,
+        })
+    }
+
+    fn binary_size(&self) -> usize {
+        4 + 2 + 8 // id + depth + created_at
+    }
+}
+
+/// Binary serializable wrapper for ResolvedFfiFunction
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BinaryResolvedFfiFunction {
+    pub library_name: String,
+    pub function_name: String,
+    pub signature: Option<String>,
+    pub category: u8, // Enum index
+    pub risk_level: u8, // Enum index
+}
+
+impl BinarySerializable for BinaryResolvedFfiFunction {
+    fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+        let mut bytes_written = 0;
+        bytes_written += primitives::write_string(writer, &self.library_name)?;
+        bytes_written += primitives::write_string(writer, &self.function_name)?;
+        bytes_written += primitives::write_option(writer, &self.signature)?;
+        bytes_written += primitives::write_u8(writer, self.category)?;
+        bytes_written += primitives::write_u8(writer, self.risk_level)?;
+        Ok(bytes_written)
+    }
+
+    fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+        Ok(BinaryResolvedFfiFunction {
+            library_name: primitives::read_string(reader)?,
+            function_name: primitives::read_string(reader)?,
+            signature: primitives::read_option(reader)?,
+            category: primitives::read_u8(reader)?,
+            risk_level: primitives::read_u8(reader)?,
+        })
+    }
+
+    fn binary_size(&self) -> usize {
+        4 + self.library_name.len() + // string length + content
+        4 + self.function_name.len() + // string length + content
+        1 + self.signature.as_ref().map_or(0, |s| 4 + s.len()) + // option flag + optional string
+        1 + // category
+        1   // risk_level
     }
 }
