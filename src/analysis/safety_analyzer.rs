@@ -7,7 +7,7 @@
 //! - Memory passport tracking for FFI boundaries
 
 use crate::analysis::unsafe_ffi_tracker::{SafetyViolation, RiskLevel, StackFrame};
-use crate::core::types::{AllocationInfo, TrackingResult, TrackingError};
+use crate::core::types::{AllocationInfo, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};

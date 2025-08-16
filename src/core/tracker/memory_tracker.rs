@@ -9,7 +9,7 @@ use crate::core::types::{
     ResourceLeakAnalysis, TrackingResult,
 };
 use crate::core::bounded_memory_stats::{BoundedMemoryStats, AllocationHistoryManager, BoundedStatsConfig};
-use crate::core::ownership_history::{OwnershipHistoryRecorder, OwnershipEventType, HistoryConfig};
+use crate::core::ownership_history::{OwnershipHistoryRecorder, HistoryConfig};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};

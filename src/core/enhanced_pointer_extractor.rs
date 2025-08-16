@@ -258,6 +258,7 @@ pub struct TypeInfo {
 
 /// Categories of types for better analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq)]
 pub enum TypeCategory {
     Primitive,
     Collection,
@@ -389,7 +390,7 @@ mod tests {
     fn test_enhanced_trackable_vec() {
         let vec = vec![1, 2, 3];
         let pointer_info = vec.get_pointer_info();
-        let size_estimate = vec.get_size_estimate();
+        let size_estimate = Trackable::get_size_estimate(&vec);
         let type_info = vec.get_type_info();
         
         match pointer_info {

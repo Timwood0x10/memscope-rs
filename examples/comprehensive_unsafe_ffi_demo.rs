@@ -251,7 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         track_var!(string_map);
         
         let nested_vecs: Vec<Vec<f64>> = (0..15)
-            .map(|i| vec![i as f64 * 3.14; i + 1])
+            .map(|i| vec![i as f64 * std::f64::consts::PI; i + 1])
             .collect();
         track_var!(nested_vecs);
         

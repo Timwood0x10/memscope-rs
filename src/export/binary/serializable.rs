@@ -156,6 +156,35 @@ pub mod primitives {
         }
     }
 
+    /// Write an optional string
+    pub fn write_string_option<W: Write>(
+        writer: &mut W,
+        value: &Option<String>,
+    ) -> Result<usize, BinaryExportError> {
+        match value {
+            Some(s) => {
+                let mut size = write_u8(writer, 1)?; // has value
+                size += write_string(writer, s)?;
+                Ok(size)
+            }
+            None => {
+                write_u8(writer, 0) // no value
+            }
+        }
+    }
+
+    /// Read an optional string
+    pub fn read_string_option<R: Read>(
+        reader: &mut R,
+    ) -> Result<Option<String>, BinaryExportError> {
+        let has_value = read_u8(reader)?;
+        if has_value == 1 {
+            Ok(Some(read_string(reader)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Write a vector with length prefix
     pub fn write_vec<W: Write, T: BinarySerializable>(
         writer: &mut W,
@@ -394,7 +423,7 @@ impl BinarySerializable for BinaryResolvedFfiFunction {
         let mut bytes_written = 0;
         bytes_written += primitives::write_string(writer, &self.library_name)?;
         bytes_written += primitives::write_string(writer, &self.function_name)?;
-        bytes_written += primitives::write_option(writer, &self.signature)?;
+        bytes_written += primitives::write_string_option(writer, &self.signature)?;
         bytes_written += primitives::write_u8(writer, self.category)?;
         bytes_written += primitives::write_u8(writer, self.risk_level)?;
         Ok(bytes_written)
@@ -404,7 +433,7 @@ impl BinarySerializable for BinaryResolvedFfiFunction {
         Ok(BinaryResolvedFfiFunction {
             library_name: primitives::read_string(reader)?,
             function_name: primitives::read_string(reader)?,
-            signature: primitives::read_option(reader)?,
+            signature: primitives::read_string_option(reader)?,
             category: primitives::read_u8(reader)?,
             risk_level: primitives::read_u8(reader)?,
         })
