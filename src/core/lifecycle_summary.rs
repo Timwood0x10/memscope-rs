@@ -632,7 +632,7 @@ mod tests {
         let allocations = vec![create_test_allocation(0x1000, 64, Some("test".to_string()))];
         
         let export_data = generator.generate_lifecycle_export(&ownership_history, &allocations);
-        let json = generator.export_to_json(&export_data).unwrap();
+        let json = generator.export_to_json(&export_data).expect("Failed to export to JSON");
         
         assert!(json.contains("lifecycle_events"));
         assert!(json.contains("variable_groups"));

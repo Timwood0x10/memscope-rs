@@ -462,11 +462,11 @@ mod tests {
         
         recorder.record_event(ptr, OwnershipEventType::Allocated, 1);
         
-        let events = recorder.get_events(ptr).unwrap();
+        let events = recorder.get_events(ptr).expect("Failed to get events");
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0].event_type, OwnershipEventType::Allocated));
         
-        let summary = recorder.get_summary(ptr).unwrap();
+        let summary = recorder.get_summary(ptr).expect("Failed to get summary");
         assert_eq!(summary.allocation_ptr, ptr);
         assert_eq!(summary.total_events, 1);
     }
@@ -483,11 +483,11 @@ mod tests {
         // Record clone event
         recorder.record_event(clone_ptr, OwnershipEventType::Cloned { source_ptr }, 2);
         
-        let clone_summary = recorder.get_summary(clone_ptr).unwrap();
+        let clone_summary = recorder.get_summary(clone_ptr).expect("Failed to get clone summary");
         assert!(clone_summary.clone_info.is_clone);
         assert_eq!(clone_summary.clone_info.original_ptr, Some(source_ptr));
         
-        let source_summary = recorder.get_summary(source_ptr).unwrap();
+        let source_summary = recorder.get_summary(source_ptr).expect("Failed to get source summary");
         assert_eq!(source_summary.clone_info.clone_count, 1);
         assert!(source_summary.clone_info.cloned_ptrs.contains(&clone_ptr));
     }
@@ -536,7 +536,7 @@ mod tests {
             recorder.record_event(ptr, OwnershipEventType::Allocated, i as u32);
         }
         
-        let events = recorder.get_events(ptr).unwrap();
+        let events = recorder.get_events(ptr).expect("Failed to get events");
         assert_eq!(events.len(), 3); // Should be limited to 3
     }
 
@@ -560,7 +560,7 @@ mod tests {
         let mut recorder = OwnershipHistoryRecorder::new();
         recorder.record_event(0x1000, OwnershipEventType::Allocated, 1);
         
-        let json = recorder.export_to_json().unwrap();
+        let json = recorder.export_to_json().expect("Failed to export to JSON");
         assert!(json.contains("summaries"));
         assert!(json.contains("detailed_events"));
         assert!(json.contains("export_timestamp"));

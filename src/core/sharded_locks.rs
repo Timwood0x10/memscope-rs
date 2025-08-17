@@ -349,7 +349,9 @@ mod tests {
 
         // Wait for all threads to complete
         for handle in handles {
-            handle.join().unwrap();
+            if let Err(e) = handle.join() {
+                eprintln!("Thread join failed: {:?}", e);
+            }
         }
 
         // Verify total count

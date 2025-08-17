@@ -532,7 +532,7 @@ mod tests {
     fn test_known_function_resolution() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
         
-        let malloc_result = resolver.resolve_function("malloc", None).unwrap();
+        let malloc_result = resolver.resolve_function("malloc", None).expect("Failed to resolve malloc");
         assert_eq!(malloc_result.library_name, "libc");
         assert_eq!(malloc_result.function_name, "malloc");
         assert_eq!(malloc_result.category, FfiFunctionCategory::MemoryManagement);
@@ -543,7 +543,7 @@ mod tests {
     fn test_auto_discovery() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
         
-        let ssl_result = resolver.resolve_function("SSL_new", None).unwrap();
+        let ssl_result = resolver.resolve_function("SSL_new", None).expect("Failed to resolve SSL_new");
         assert_eq!(ssl_result.library_name, "libssl");
         assert_eq!(ssl_result.category, FfiFunctionCategory::Cryptographic);
     }
@@ -552,7 +552,7 @@ mod tests {
     fn test_library_hint() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
         
-        let custom_result = resolver.resolve_function("custom_func", Some("mylib")).unwrap();
+        let custom_result = resolver.resolve_function("custom_func", Some("mylib")).expect("Failed to resolve custom function");
         assert_eq!(custom_result.library_name, "mylib");
         assert_eq!(custom_result.function_name, "custom_func");
     }
@@ -561,10 +561,10 @@ mod tests {
     fn test_risk_assessment() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
         
-        let strcpy_result = resolver.resolve_function("strcpy", None).unwrap();
+        let strcpy_result = resolver.resolve_function("strcpy", None).expect("Failed to resolve strcpy");
         assert_eq!(strcpy_result.risk_level, FfiRiskLevel::Critical);
         
-        let snprintf_result = resolver.resolve_function("snprintf", None).unwrap();
+        let snprintf_result = resolver.resolve_function("snprintf", None).expect("Failed to resolve snprintf");
         assert_eq!(snprintf_result.risk_level, FfiRiskLevel::Low);
     }
 
@@ -592,9 +592,9 @@ mod tests {
             metadata: HashMap::new(),
         };
         
-        resolver.add_custom_function("my_func".to_string(), custom_func).unwrap();
+        resolver.add_custom_function("my_func".to_string(), custom_func).expect("Failed to add custom function");
         
-        let resolved = resolver.resolve_function("my_func", None).unwrap();
+        let resolved = resolver.resolve_function("my_func", None).expect("Failed to resolve custom function");
         assert_eq!(resolved.library_name, "mylib");
         assert_eq!(resolved.category, FfiFunctionCategory::UserLibrary);
     }

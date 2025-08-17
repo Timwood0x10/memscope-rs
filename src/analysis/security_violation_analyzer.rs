@@ -406,7 +406,7 @@ impl SecurityViolationAnalyzer {
                     variable_name: alloc.var_name.clone(),
                     allocated_at_ns: alloc.timestamp_alloc,
                     is_active: alloc.timestamp_dealloc.is_none(),
-                    relationship: relationship.unwrap(),
+                    relationship: relationship.unwrap_or_default(),
                 });
             }
         }

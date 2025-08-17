@@ -795,7 +795,7 @@ impl UnsafeFFITracker {
         let call_stack = self.capture_call_stack()?;
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
 
         // Check for double free
@@ -862,7 +862,7 @@ impl UnsafeFFITracker {
         let call_stack = self.capture_call_stack()?;
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
 
         let event = BoundaryEvent {
@@ -1006,7 +1006,7 @@ impl UnsafeFFITracker {
     pub fn detect_leaks(&self, threshold_ms: u128) -> TrackingResult<Vec<SafetyViolation>> {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
 
         let mut leaks = Vec::new();

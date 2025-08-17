@@ -462,15 +462,15 @@ mod tests {
         ];
 
         // First normalization should create new entry
-        let id1 = normalizer.normalize_call_stack(&frames1).unwrap();
+        let id1 = normalizer.normalize_call_stack(&frames1).expect("Failed to normalize call stack");
         assert_eq!(id1, 1);
 
         // Second normalization with same frames should return same ID
-        let id2 = normalizer.normalize_call_stack(&frames2).unwrap();
+        let id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
         assert_eq!(id1, id2);
 
         // Verify we can retrieve the frames
-        let retrieved_frames = normalizer.get_call_stack(id1).unwrap();
+        let retrieved_frames = normalizer.get_call_stack(id1).expect("Failed to get call stack");
         assert_eq!(retrieved_frames.len(), 2);
         assert_eq!(retrieved_frames[0].function_name, "main");
         assert_eq!(retrieved_frames[1].function_name, "foo");
@@ -484,13 +484,13 @@ mod tests {
         let id = normalizer.normalize_call_stack(&frames).unwrap();
 
         // Increment reference count
-        normalizer.increment_ref_count(id).unwrap();
+        normalizer.increment_ref_count(id).expect("Failed to increment ref count");
         
         // Decrement reference count
-        normalizer.decrement_ref_count(id).unwrap();
+        normalizer.decrement_ref_count(id).expect("Failed to decrement ref count");
         
         // Should still be able to access
-        let retrieved = normalizer.get_call_stack(id).unwrap();
+        let retrieved = normalizer.get_call_stack(id).expect("Failed to get call stack");
         assert_eq!(retrieved.len(), 1);
     }
 
@@ -503,12 +503,12 @@ mod tests {
             create_test_stack_frame("test", 20),
         ];
         
-        let id = normalizer.normalize_call_stack(&frames).unwrap();
+        let id = normalizer.normalize_call_stack(&frames).expect("Failed to normalize call stack");
         let stack_ref = CallStackRef::new(id, Some(2));
         
-        assert_eq!(stack_ref.get_depth().unwrap(), 2);
+        assert_eq!(stack_ref.get_depth().expect("Failed to get depth"), 2);
         
-        let retrieved_frames = stack_ref.get_frames().unwrap();
+        let retrieved_frames = stack_ref.get_frames().expect("Failed to get frames");
         assert_eq!(retrieved_frames.len(), 2);
         assert_eq!(retrieved_frames[0].function_name, "main");
     }
@@ -526,14 +526,14 @@ mod tests {
         let frames2 = vec![create_test_stack_frame("func2", 2)];
         let frames3 = vec![create_test_stack_frame("func3", 3)];
         
-        let id1 = normalizer.normalize_call_stack(&frames1).unwrap();
-        let id2 = normalizer.normalize_call_stack(&frames2).unwrap();
+        let id1 = normalizer.normalize_call_stack(&frames1).expect("Failed to normalize call stack");
+        let id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
         
         // Increment ref count for id1 to keep it during cleanup
-        normalizer.increment_ref_count(id1).unwrap();
+        normalizer.increment_ref_count(id1).expect("Failed to increment ref count");
         
         // This should trigger cleanup
-        let _id3 = normalizer.normalize_call_stack(&frames3).unwrap();
+        let _id3 = normalizer.normalize_call_stack(&frames3).expect("Failed to normalize call stack");
         
         // id1 should still exist (high ref count)
         assert!(normalizer.get_call_stack(id1).is_ok());
@@ -551,9 +551,9 @@ mod tests {
         let frames2 = vec![create_test_stack_frame("func1", 1)]; // Duplicate
         let frames3 = vec![create_test_stack_frame("func2", 2)]; // New
         
-        normalizer.normalize_call_stack(&frames1).unwrap();
-        normalizer.normalize_call_stack(&frames2).unwrap(); // Should be duplicate
-        normalizer.normalize_call_stack(&frames3).unwrap();
+        normalizer.normalize_call_stack(&frames1).expect("Failed to normalize call stack");
+        normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack"); // Should be duplicate
+        normalizer.normalize_call_stack(&frames3).expect("Failed to normalize call stack");
         
         let stats = normalizer.get_stats();
         assert_eq!(stats.total_processed, 3);

@@ -557,14 +557,14 @@ mod tests {
         // Check it's tracked
         let info = analyzer.get_future_info(0x1000);
         assert!(info.is_some());
-        assert_eq!(info.unwrap().future_type, "async_fn");
+        assert_eq!(info.expect("Failed to get async info").future_type, "async_fn");
 
         // Record state transition
         analyzer.record_state_transition(0x1000, FutureState::Created, FutureState::Pending);
 
         // Check state updated
         let info = analyzer.get_future_info(0x1000);
-        assert_eq!(info.unwrap().current_state, FutureState::Pending);
+        assert_eq!(info.expect("Failed to get async info").current_state, FutureState::Pending);
     }
 
     #[test]

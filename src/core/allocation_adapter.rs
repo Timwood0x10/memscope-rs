@@ -395,8 +395,8 @@ mod tests {
 
         // Verify that the underlying Arc<str> are the same (interned)
         assert!(Arc::ptr_eq(
-            adapter1.inner().var_name.as_ref().unwrap(),
-            adapter2.inner().var_name.as_ref().unwrap()
+            adapter1.inner().var_name.as_ref().expect("Missing variable name"),
+            adapter2.inner().var_name.as_ref().expect("Missing variable name")
         ));
     }
 }

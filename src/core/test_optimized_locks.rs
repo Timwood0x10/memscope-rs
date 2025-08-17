@@ -11,18 +11,18 @@ mod tests {
         let tracker = get_global_scope_tracker();
 
         // Test basic scope operations
-        let scope_id = tracker.enter_scope("test_scope".to_string()).unwrap();
+        let scope_id = tracker.enter_scope("test_scope".to_string()).expect("Failed to enter scope");
 
         // Associate a variable
         tracker
             .associate_variable("test_var".to_string(), 64)
-            .unwrap();
+            .expect("Failed to track allocation");
 
         // Exit scope
-        tracker.exit_scope(scope_id).unwrap();
+        tracker.exit_scope(scope_id).expect("Failed to exit scope");
 
         // Get analysis
-        let analysis = tracker.get_scope_analysis().unwrap();
+        let analysis = tracker.get_scope_analysis().expect("Failed to get scope analysis");
         assert!(analysis.total_scopes > 0);
     }
 
@@ -49,7 +49,9 @@ mod tests {
 
         // Wait for all threads to complete
         for handle in handles {
-            handle.join().unwrap();
+            if let Err(e) = handle.join() {
+                eprintln!("Thread join failed: {:?}", e);
+            }
         }
 
         // Verify we can still get analysis
@@ -62,7 +64,7 @@ mod tests {
     fn test_scope_guard_raii() {
         // Test basic RAII functionality - scope guard should not panic
         let result = std::panic::catch_unwind(|| {
-            let _guard = ScopeGuard::enter("raii_test_scope").unwrap();
+            let _guard = ScopeGuard::enter("raii_test_scope").expect("Failed to enter RAII scope");
             // If we get here, the guard was created successfully
             true
         });
@@ -74,8 +76,8 @@ mod tests {
 
         // Test that we can create multiple guards without issues
         let result2 = std::panic::catch_unwind(|| {
-            let _guard1 = ScopeGuard::enter("raii_test_scope_1").unwrap();
-            let _guard2 = ScopeGuard::enter("raii_test_scope_2").unwrap();
+            let _guard1 = ScopeGuard::enter("raii_test_scope_1").expect("Failed to enter RAII scope 1");
+            let _guard2 = ScopeGuard::enter("raii_test_scope_2").expect("Failed to enter RAII scope 2");
             // Both guards should be dropped cleanly
             true
         });

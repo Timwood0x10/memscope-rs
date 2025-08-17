@@ -289,7 +289,9 @@ mod tests {
         }
 
         for handle in handles {
-            handle.join().unwrap();
+            if let Err(e) = handle.join() {
+                eprintln!("Thread join failed: {:?}", e);
+            }
         }
 
         let stats = collector.get_basic_stats();

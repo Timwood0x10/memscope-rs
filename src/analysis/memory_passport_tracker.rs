@@ -680,10 +680,10 @@ mod tests {
         let ptr = 0x1000;
         let size = 1024;
         
-        let passport_id = tracker.create_passport(ptr, size, "test_context".to_string()).unwrap();
+        let passport_id = tracker.create_passport(ptr, size, "test_context".to_string()).expect("Failed to create passport");
         assert!(!passport_id.is_empty());
         
-        let passport = tracker.get_passport(ptr).unwrap();
+        let passport = tracker.get_passport(ptr).expect("Failed to get passport");
         assert_eq!(passport.allocation_ptr, ptr);
         assert_eq!(passport.size_bytes, size);
         assert_eq!(passport.lifecycle_events.len(), 1);
@@ -695,10 +695,10 @@ mod tests {
         let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
         let ptr = 0x2000;
         
-        tracker.create_passport(ptr, 512, "rust_context".to_string()).unwrap();
-        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string()).unwrap();
+        tracker.create_passport(ptr, 512, "rust_context".to_string()).expect("Failed to create passport");
+        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string()).expect("Failed to record handover");
         
-        let passport = tracker.get_passport(ptr).unwrap();
+        let passport = tracker.get_passport(ptr).expect("Failed to get passport");
         assert_eq!(passport.lifecycle_events.len(), 2);
         assert_eq!(passport.lifecycle_events[1].event_type, PassportEventType::HandoverToFfi);
     }
@@ -709,8 +709,8 @@ mod tests {
         let ptr = 0x3000;
         
         // Create passport and hand over to FFI without reclaim
-        tracker.create_passport(ptr, 256, "rust_context".to_string()).unwrap();
-        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string()).unwrap();
+        tracker.create_passport(ptr, 256, "rust_context".to_string()).expect("Failed to create passport");
+        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string()).expect("Failed to record handover");
         
         // Detect leaks at shutdown
         let leak_result = tracker.detect_leaks_at_shutdown();
@@ -731,9 +731,9 @@ mod tests {
         let ptr = 0x4000;
         
         // Create passport, hand over to FFI, then reclaim
-        tracker.create_passport(ptr, 128, "rust_context".to_string()).unwrap();
-        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string()).unwrap();
-        tracker.record_reclaimed_by_rust(ptr, "rust_context".to_string(), "cleanup".to_string()).unwrap();
+        tracker.create_passport(ptr, 128, "rust_context".to_string()).expect("Failed to create passport");
+        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string()).expect("Failed to record handover");
+        tracker.record_reclaimed_by_rust(ptr, "rust_context".to_string(), "cleanup".to_string()).expect("Failed to record reclaim");
         
         // Detect leaks at shutdown
         let leak_result = tracker.detect_leaks_at_shutdown();
@@ -750,10 +750,10 @@ mod tests {
         let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
         let ptr = 0x5000;
         
-        tracker.create_passport(ptr, 64, "test_context".to_string()).unwrap();
-        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "test_func".to_string()).unwrap();
+        tracker.create_passport(ptr, 64, "test_context".to_string()).expect("Failed to create passport");
+        tracker.record_handover_to_ffi(ptr, "ffi_context".to_string(), "test_func".to_string()).expect("Failed to record handover");
         
-        let is_valid = tracker.validate_passport(ptr).unwrap();
+        let is_valid = tracker.validate_passport(ptr).expect("Failed to validate passport");
         assert!(is_valid);
     }
 }

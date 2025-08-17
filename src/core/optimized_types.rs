@@ -442,8 +442,8 @@ mod tests {
         let info2 = OptimizedAllocationInfo::new(0x2000, 128).with_stack_trace(trace);
 
         // Stack trace frames should have same content
-        let trace1_strs = info1.stack_trace_strs().unwrap();
-        let trace2_strs = info2.stack_trace_strs().unwrap();
+        let trace1_strs = info1.stack_trace_strs().expect("Failed to get stack trace strings");
+        let trace2_strs = info2.stack_trace_strs().expect("Failed to get stack trace strings");
 
         assert_eq!(trace1_strs, trace2_strs);
         assert_eq!(trace1_strs, vec!["main", "function_a", "function_b"]);
