@@ -220,14 +220,14 @@ mod tests {
         // Test u32
         primitives::write_u32(&mut buffer, 0x12345678).unwrap();
         let mut cursor = Cursor::new(&buffer);
-        let value = primitives::read_u32(&mut cursor).unwrap();
+        let value = primitives::read_u32(&mut cursor).expect("Failed to get test value");
         assert_eq!(value, 0x12345678);
 
         // Test string
         buffer.clear();
         primitives::write_string(&mut buffer, "test").unwrap();
         let mut cursor = Cursor::new(&buffer);
-        let string = primitives::read_string(&mut cursor).unwrap();
+        let string = primitives::read_string(&mut cursor).expect("Failed to get test value");
         assert_eq!(string, "test");
     }
 
@@ -254,7 +254,7 @@ mod tests {
 
         // Test Some value
         let some_value = Some(TestStruct(42));
-        primitives::write_option(&mut buffer, &some_value).unwrap();
+        primitives::write_option(&mut buffer, &some_value).expect("Failed to get test value");
 
         let mut cursor = Cursor::new(&buffer);
         let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).unwrap();

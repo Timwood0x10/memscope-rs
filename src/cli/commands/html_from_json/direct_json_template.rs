@@ -479,7 +479,7 @@ fn analyze_memory_growth_trends(allocations: &[Value]) -> Value {
     };
 
     let time_span = if time_points.len() > 1 {
-        let start_time = time_points[0].get("timestamp").unwrap().as_u64().unwrap();
+        let start_time = time_points[0].get("timestamp").expect("Failed to get element from collection").as_u64().expect("Failed to convert to u64");
         let end_time = time_points
             .last()
             .unwrap()

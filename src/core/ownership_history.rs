@@ -501,7 +501,7 @@ mod tests {
         recorder.record_event(ptr, OwnershipEventType::Borrowed { borrower_scope: "scope1".to_string() }, 2);
         recorder.record_event(ptr, OwnershipEventType::MutablyBorrowed { borrower_scope: "scope2".to_string() }, 3);
         
-        let summary = recorder.get_summary(ptr).unwrap();
+        let summary = recorder.get_summary(ptr).expect("Test operation failed");
         assert_eq!(summary.borrow_info.immutable_borrows, 1);
         assert_eq!(summary.borrow_info.mutable_borrows, 1);
         assert_eq!(summary.borrow_info.max_concurrent_borrows, 2);
@@ -517,7 +517,7 @@ mod tests {
         recorder.record_event(ptr, OwnershipEventType::Borrowed { borrower_scope: "scope1".to_string() }, 2);
         recorder.record_event(ptr, OwnershipEventType::BorrowReleased { borrower_scope: "scope1".to_string() }, 3);
         
-        let summary = recorder.get_summary(ptr).unwrap();
+        let summary = recorder.get_summary(ptr).expect("Test operation failed");
         assert_eq!(summary.borrow_info.immutable_borrows, 1);
         assert_eq!(summary.borrow_info.active_borrows.len(), 0);
     }

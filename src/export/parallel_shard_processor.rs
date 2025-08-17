@@ -407,7 +407,7 @@ mod tests {
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
 
-        let (shards, stats) = result.unwrap();
+        let (shards, stats) = result.expect("Failed to process allocations");
         assert_eq!(stats.total_allocations, 100);
         assert!(!stats.used_parallel_processing); // Should use sequential processing
         assert_eq!(shards.len(), 1); // Only one shard
@@ -475,7 +475,7 @@ mod tests {
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
 
-        let (shards, _) = result.unwrap();
+        let (shards, _) = result.expect("Failed to process allocations");
         assert_eq!(shards.len(), 1);
 
         let shard = &shards[0];
@@ -488,6 +488,6 @@ mod tests {
         // Verify that the JSON data is valid
         let parsed: Result<Vec<AllocationInfo>, _> = serde_json::from_slice(&shard.data);
         assert!(parsed.is_ok());
-        assert_eq!(parsed.unwrap().len(), 100);
+        assert_eq!(parsed.expect("Failed to parse JSON").len(), 100);
     }
 }

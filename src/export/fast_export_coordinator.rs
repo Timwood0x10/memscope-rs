@@ -1320,7 +1320,7 @@ mod tests {
     #[test]
     #[ignore] // Skip this test to avoid deadlock in concurrent test environments
     fn test_convenience_functions() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
 
         // Test fast export function (may fail due to lack of actual data, but at least test function exists)
         let result = export_fast(temp_file.path());

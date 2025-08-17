@@ -721,7 +721,7 @@ mod tests {
         assert_eq!(leak_result.leak_details[0].memory_address, ptr);
         
         // Verify passport status
-        let passport = tracker.get_passport(ptr).unwrap();
+        let passport = tracker.get_passport(ptr).expect("Test operation failed");
         assert_eq!(passport.status_at_shutdown, PassportStatus::InForeignCustody);
     }
 
@@ -741,7 +741,7 @@ mod tests {
         assert_eq!(leak_result.total_leaks, 0);
         
         // Verify passport status
-        let passport = tracker.get_passport(ptr).unwrap();
+        let passport = tracker.get_passport(ptr).expect("Test operation failed");
         assert_eq!(passport.status_at_shutdown, PassportStatus::ReclaimedByRust);
     }
 

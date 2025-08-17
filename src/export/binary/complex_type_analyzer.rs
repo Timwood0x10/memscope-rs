@@ -665,7 +665,7 @@ mod tests {
             create_test_allocation("HashMap<String, i32>", 48),
         ];
 
-        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         assert_eq!(analysis.summary.total_types, 4);
         assert_eq!(analysis.summary.primitive_count, 1);

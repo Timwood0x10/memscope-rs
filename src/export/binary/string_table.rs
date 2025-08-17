@@ -499,18 +499,18 @@ mod tests {
         assert_eq!(table.len(), 0);
 
         // Add first string
-        let index1 = table.add_string("Vec<String>").unwrap();
+        let index1 = table.add_string("Vec<String>").expect("Test operation failed");
         assert_eq!(index1, 0);
         assert_eq!(table.len(), 1);
         assert_eq!(table.get_string(0), Some("Vec<String>"));
 
         // Add second string
-        let index2 = table.add_string("HashMap<K,V>").unwrap();
+        let index2 = table.add_string("HashMap<K,V>").expect("Test operation failed");
         assert_eq!(index2, 1);
         assert_eq!(table.len(), 2);
 
         // Add duplicate string - should return existing index
-        let index3 = table.add_string("Vec<String>").unwrap();
+        let index3 = table.add_string("Vec<String>").expect("Test operation failed");
         assert_eq!(index3, 0);
         assert_eq!(table.len(), 2); // No new string added
     }
@@ -518,8 +518,8 @@ mod tests {
     #[test]
     fn test_string_table_serialization_size() {
         let mut table = StringTable::new();
-        table.add_string("test").unwrap();
-        table.add_string("hello").unwrap();
+        table.add_string("test").expect("Test operation failed");
+        table.add_string("hello").expect("Test operation failed");
 
         // Expected size: 1 (compression flag) + 4 (count) + 4 + 4 (test) + 4 + 5 (hello) = 22
         assert_eq!(table.serialized_size(), 22);
@@ -528,8 +528,8 @@ mod tests {
     #[test]
     fn test_compression_stats() {
         let mut table = StringTable::new();
-        table.add_string("Vec<String>").unwrap(); // 11 chars + 4 length = 15 bytes
-        table.add_string("HashMap<K,V>").unwrap(); // 12 chars + 4 length = 16 bytes
+        table.add_string("Vec<String>").expect("Test operation failed"); // 11 chars + 4 length = 15 bytes
+        table.add_string("HashMap<K,V>").expect("Test operation failed"); // 12 chars + 4 length = 16 bytes
 
         let stats = table.compression_stats();
         assert_eq!(stats.original_size, 31); // 15 + 16
@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(stats.total_occurrences, 6);
         assert_eq!(stats.qualifying_strings, 2); // Vec<String> and HashMap<K,V>
 
-        let table = builder.build().unwrap();
+        let table = builder.build().expect("Test operation failed");
         assert_eq!(table.len(), 2); // Only strings with frequency >= 2
     }
 

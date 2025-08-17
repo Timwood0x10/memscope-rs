@@ -385,10 +385,10 @@ mod tests {
 
         for original_reason in reasons {
             let mut buffer = Vec::new();
-            original_reason.write_binary(&mut buffer).unwrap();
+            original_reason.write_binary(&mut buffer).expect("Test operation failed");
 
             let mut cursor = Cursor::new(&buffer);
-            let read_reason = PaddingReason::read_binary(&mut cursor).unwrap();
+            let read_reason = PaddingReason::read_binary(&mut cursor).expect("Failed to get test value");
 
             assert_eq!(original_reason, read_reason);
         }
@@ -406,13 +406,13 @@ mod tests {
         };
 
         let mut buffer = Vec::new();
-        let written_size = field.write_binary(&mut buffer).unwrap();
+        let written_size = field.write_binary(&mut buffer).expect("Test operation failed");
 
         // Verify size calculation
         assert_eq!(written_size, field.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_field = FieldLayoutInfo::read_binary(&mut cursor).unwrap();
+        let read_field = FieldLayoutInfo::read_binary(&mut cursor).expect("Failed to get test value");
 
         assert_eq!(field, read_field);
     }
@@ -436,13 +436,13 @@ mod tests {
 
         for original_potential in potentials {
             let mut buffer = Vec::new();
-            let written_size = original_potential.write_binary(&mut buffer).unwrap();
+            let written_size = original_potential.write_binary(&mut buffer).expect("Test operation failed");
 
             // Verify size calculation
             assert_eq!(written_size, original_potential.binary_size());
 
             let mut cursor = Cursor::new(&buffer);
-            let read_potential = OptimizationPotential::read_binary(&mut cursor).unwrap();
+            let read_potential = OptimizationPotential::read_binary(&mut cursor).expect("Failed to get test value");
 
             assert_eq!(original_potential, read_potential);
         }

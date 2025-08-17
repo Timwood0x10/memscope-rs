@@ -602,16 +602,16 @@ mod tests {
         }
 
         // Write to a temporary file and read back the data
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let config = crate::export::binary::BinaryExportConfig::minimal();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
             writer.write_header(allocations.len() as u32).unwrap();
 
             for alloc in &allocations {
-                writer.write_allocation(alloc).unwrap();
+                writer.write_allocation(alloc).expect("Failed to write allocation");
             }
-            writer.finish().unwrap();
+            writer.finish().expect("Failed to finish writing");
 
             // Use BinaryIndexBuilder to get the correct offsets
             let index_builder = BinaryIndexBuilder::new();

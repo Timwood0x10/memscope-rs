@@ -547,7 +547,7 @@ mod tests {
             AllocationFilter::SizeRange(200, 300),      // Should match first batch
         ];
 
-        let candidates = engine.filter_candidates(&filters).unwrap();
+        let candidates = engine.filter_candidates(&filters).expect("Test operation failed");
 
         // Should have filtered out some candidates
         assert!(candidates.len() <= 100); // Total records in test index
@@ -564,7 +564,7 @@ mod tests {
             AllocationFilter::TypeContains("Vec".to_string()),
         ];
 
-        let _candidates = engine.filter_candidates(&filters).unwrap();
+        let _candidates = engine.filter_candidates(&filters).expect("Test operation failed");
 
         // Bloom filter should have processed the candidates
         // Note: bloom_filter_time_us is always >= 0 as it's u64
@@ -638,7 +638,7 @@ mod tests {
 
         let filters = vec![AllocationFilter::ThreadEquals("main".to_string())];
 
-        let filtered = engine.apply_precise_filters(allocations, &filters).unwrap();
+        let filtered = engine.apply_precise_filters(allocations, &filters).expect("Test operation failed");
 
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].thread_id, "main");
@@ -652,7 +652,7 @@ mod tests {
 
         // Perform some filtering operations
         let filters = vec![AllocationFilter::PtrRange(0x1000, 0x2000)];
-        let _candidates = engine.filter_candidates(&filters).unwrap();
+        let _candidates = engine.filter_candidates(&filters).expect("Test operation failed");
 
         let stats = engine.get_stats();
         assert!(stats.total_operations > 0);

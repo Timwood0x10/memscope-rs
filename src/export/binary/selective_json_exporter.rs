@@ -914,7 +914,7 @@ mod tests {
     #[test]
     fn test_selective_json_exporter_creation() {
         // Use a temporary directory for testing to avoid permission issues
-        let temp_dir = tempfile::TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().expect("Failed to get test value");
         let cache_config = IndexCacheConfig {
             cache_directory: temp_dir.path().to_path_buf(),
             max_entries: 1000,

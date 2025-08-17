@@ -1250,20 +1250,20 @@ mod tests {
 
     #[test]
     fn test_template_data_serialization() {
-        let engine = BinaryTemplateEngine::new().unwrap();
+        let engine = BinaryTemplateEngine::new().expect("Failed to get test value");
         let template_data = create_test_template_data();
 
         let json_result = engine.serialize_template_data(&template_data);
         assert!(json_result.is_ok());
 
-        let json_str = json_result.unwrap();
+        let json_str = json_result.expect("Test operation failed");
         assert!(json_str.contains("test_project"));
         assert!(json_str.contains("binary_direct"));
     }
 
     #[test]
     fn test_css_and_js_loading() {
-        let engine = BinaryTemplateEngine::new().unwrap();
+        let engine = BinaryTemplateEngine::new().expect("Failed to get test value");
 
         let css_content = engine._get_embedded_css();
         let js_content = engine._get_embedded_js();
@@ -1275,7 +1275,7 @@ mod tests {
 
     #[test]
     fn test_placeholder_processing() {
-        let engine = BinaryTemplateEngine::new().unwrap();
+        let engine = BinaryTemplateEngine::new().expect("Failed to get test value");
         let template_data = create_test_template_data();
 
         let template = "Project: {{PROJECT_NAME}}, Time: {{PROCESSING_TIME}}ms";
@@ -1292,14 +1292,14 @@ mod tests {
         );
 
         assert!(result.is_ok());
-        let processed = result.unwrap();
+        let processed = result.expect("Test operation failed");
         assert!(processed.contains("test_project"));
         assert!(processed.contains("100ms"));
     }
 
     #[test]
     fn test_throughput_calculation() {
-        let engine = BinaryTemplateEngine::new().unwrap();
+        let engine = BinaryTemplateEngine::new().expect("Failed to get test value");
         let template_data = create_test_template_data();
 
         let throughput = engine.calculate_throughput(&template_data);
@@ -1577,7 +1577,7 @@ fn _generate_variable_relationships_analysis(allocations: &[BinaryAllocationData
     use serde_json::json;
     
     let user_allocations: Vec<_> = allocations.iter()
-        .filter(|alloc| alloc.var_name.is_some() && alloc.var_name.as_ref().unwrap() != "unknown")
+        .filter(|alloc| alloc.var_name.is_some() && alloc.var_name.as_ref().expect("Value is None") != "unknown")
         .collect();
     
     let mut nodes = Vec::new();

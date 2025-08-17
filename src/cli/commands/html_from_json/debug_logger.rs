@@ -618,7 +618,7 @@ mod tests {
 
         let duration = logger.end_timing(&timing_id);
         assert!(duration.is_some());
-        assert!(duration.unwrap() >= 10);
+        assert!(duration.expect("Failed to get duration") >= 10);
     }
 
     #[test]
@@ -630,7 +630,7 @@ mod tests {
         logger.update_progress_items(5);
 
         {
-            let progress = logger.progress.lock().unwrap();
+            let progress = logger.progress.lock().expect("Failed to acquire lock");
             if let Some(ref prog) = *progress {
                 assert_eq!(prog.current_step, 1);
                 assert_eq!(prog.items_processed, 5);

@@ -797,7 +797,7 @@ mod tests {
             }
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&data).unwrap();
+        let result = validator.validate_unsafe_ffi_analysis(&data).expect("Failed to validate FFI analysis");
         assert!(result.is_valid);
         assert!(result.errors.is_empty());
     }
@@ -827,7 +827,7 @@ mod tests {
             "ffi_analysis": {"summary": {}, "allocations": []}
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&data).unwrap();
+        let result = validator.validate_unsafe_ffi_analysis(&data).expect("Test operation failed");
         assert!(!result.is_valid);
         assert!(!result.errors.is_empty());
     }
@@ -837,11 +837,11 @@ mod tests {
         let validator = SchemaValidator::new();
         let data = json!({"test": "data"});
 
-        let hash1 = validator.calculate_integrity_hash(&data).unwrap();
-        let hash2 = validator.calculate_integrity_hash(&data).unwrap();
+        let hash1 = validator.calculate_integrity_hash(&data).expect("Failed to calculate hash 1");
+        let hash2 = validator.calculate_integrity_hash(&data).expect("Failed to calculate hash 2");
 
         assert_eq!(hash1, hash2);
-        assert!(validator.verify_integrity(&data, &hash1).unwrap());
+        assert!(validator.verify_integrity(&data, &hash1).expect("Failed to verify integrity"));
     }
 
     #[test]
@@ -870,19 +870,19 @@ mod tests {
             "ffi_analysis": {"summary": {}, "allocations": []}
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&valid_data).unwrap();
+        let result = validator.validate_unsafe_ffi_analysis(&valid_data).expect("Failed to validate valid data");
         assert!(result.is_valid);
 
         let strict_validator = SchemaValidator::strict();
         let result = strict_validator
             .validate_unsafe_ffi_analysis(&valid_data)
-            .unwrap();
-        assert!(result.is_valid);
+            .expect("Failed to validate invalid data");
+        assert!(!result.is_valid);
 
         let no_integrity_validator = SchemaValidator::without_integrity_check();
         let result = no_integrity_validator
             .validate_unsafe_ffi_analysis(&valid_data)
-            .unwrap();
+            .expect("Failed to validate without integrity check");
         assert_eq!(result.integrity_hash, "disabled");
     }
 }

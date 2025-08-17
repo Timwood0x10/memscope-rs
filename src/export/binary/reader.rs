@@ -682,13 +682,13 @@ mod tests {
 
     #[test]
     fn test_reader_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
 
         // Create empty file first
         {
             let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
-            writer.write_header(0).unwrap();
-            writer.finish().unwrap();
+            writer.write_header(0).expect("Failed to write header");
+            writer.finish().expect("Failed to finish writing");
         }
 
         let reader = BinaryReader::new(temp_file.path());
@@ -697,18 +697,18 @@ mod tests {
 
     #[test]
     fn test_header_reading() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
 
         // Write test data
         {
             let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
-            writer.write_header(42).unwrap();
-            writer.finish().unwrap();
+            writer.write_header(42).expect("Failed to write header");
+            writer.finish().expect("Failed to finish writing");
         }
 
         // Read and verify
         let mut reader = BinaryReader::new(temp_file.path()).unwrap();
-        let header = reader.read_header().unwrap();
+        let header = reader.read_header().expect("Failed to read from binary file");
 
         assert_eq!(header.total_count, 42);
         assert!(header.is_valid_magic());
@@ -717,20 +717,20 @@ mod tests {
 
     #[test]
     fn test_allocation_round_trip() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let original_alloc = create_test_allocation();
 
         // Write test data
         {
             let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
-            writer.write_header(1).unwrap();
-            writer.write_allocation(&original_alloc).unwrap();
-            writer.finish().unwrap();
+            writer.write_header(1).expect("Failed to write header");
+            writer.write_allocation(&original_alloc).expect("Failed to write allocation");
+            writer.finish().expect("Failed to finish writing");
         }
 
         // Read and verify
         let mut reader = BinaryReader::new(temp_file.path()).unwrap();
-        let allocations = reader.read_all().unwrap();
+        let allocations = reader.read_all().expect("Failed to read from binary file");
 
         assert_eq!(allocations.len(), 1);
         let read_alloc = &allocations[0];
@@ -747,7 +747,7 @@ mod tests {
     fn test_advanced_metrics_round_trip() {
         use crate::export::binary::config::BinaryExportConfig;
 
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let mut original_alloc = create_test_allocation();
         original_alloc.lifetime_ms = Some(2500); // Add lifecycle data
 
@@ -755,17 +755,17 @@ mod tests {
         {
             let config = BinaryExportConfig::debug_comprehensive();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
-            writer.write_header(1).unwrap();
-            writer.write_allocation(&original_alloc).unwrap();
+            writer.write_header(1).expect("Failed to write header");
+            writer.write_allocation(&original_alloc).expect("Failed to write allocation");
             writer
                 .write_advanced_metrics_segment(&[original_alloc.clone()])
                 .unwrap();
-            writer.finish().unwrap();
+            writer.finish().expect("Failed to finish writing");
         }
 
         // Read and verify
         let mut reader = BinaryReader::new(temp_file.path()).unwrap();
-        let allocations = reader.read_all().unwrap();
+        let allocations = reader.read_all().expect("Failed to read from binary file");
 
         assert_eq!(allocations.len(), 1);
         let read_alloc = &allocations[0];
@@ -779,7 +779,7 @@ mod tests {
         let advanced_metrics = reader.get_advanced_metrics();
         assert!(advanced_metrics.is_some());
 
-        let metrics = advanced_metrics.unwrap();
+        let metrics = advanced_metrics.expect("Failed to get test value");
         assert!(metrics
             .lifecycle_metrics
             .contains_key(&(original_alloc.ptr as u64)));
@@ -792,21 +792,21 @@ mod tests {
     fn test_backward_compatibility() {
         use crate::export::binary::config::BinaryExportConfig;
 
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let original_alloc = create_test_allocation();
 
         // Write test data without advanced metrics (old format)
         {
             let config = BinaryExportConfig::minimal();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
-            writer.write_header(1).unwrap();
-            writer.write_allocation(&original_alloc).unwrap();
-            writer.finish().unwrap();
+            writer.write_header(1).expect("Failed to write header");
+            writer.write_allocation(&original_alloc).expect("Failed to write allocation");
+            writer.finish().expect("Failed to finish writing");
         }
 
         // Read with new reader (should handle missing advanced metrics gracefully)
         let mut reader = BinaryReader::new(temp_file.path()).unwrap();
-        let allocations = reader.read_all().unwrap();
+        let allocations = reader.read_all().expect("Failed to read from binary file");
 
         assert_eq!(allocations.len(), 1);
         let read_alloc = &allocations[0];

@@ -54,7 +54,7 @@ fn diagnose_allocation_count() {
     tracing::info!("==============================");
 
     let tracker = get_global_tracker();
-    let stats = tracker.get_stats().unwrap();
+    let stats = tracker.get_stats().expect("Failed to get statistics");
 
     tracing::info!("🔍 global tracker stats:");
     tracing::info!("  • total allocations: {}", stats.total_allocations);

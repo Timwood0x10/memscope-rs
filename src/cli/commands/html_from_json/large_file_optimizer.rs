@@ -365,7 +365,7 @@ impl LargeFileOptimizer {
                 }
 
                 // Check for required fields
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("allocations") && !obj.contains_key("summary") {
                     return Err(LargeFileError::ValidationError(
                         "Memory analysis JSON must contain 'allocations' or 'summary' field"
@@ -380,7 +380,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("enhanced_ffi_data") && !obj.contains_key("summary") {
                     return Err(LargeFileError::ValidationError(
                         "Unsafe FFI JSON must contain 'enhanced_ffi_data' or 'summary' field"
@@ -395,7 +395,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("memory_performance")
                     && !obj.contains_key("allocation_distribution")
                 {
@@ -411,7 +411,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("lifecycle_events") {
                     return Err(LargeFileError::ValidationError(
                         "Lifetime JSON must contain 'lifecycle_events' field".to_string(),
@@ -425,7 +425,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("categorized_types") && !obj.contains_key("generic_types") {
                     return Err(LargeFileError::ValidationError(
                         "Complex types JSON must contain type-related fields".to_string(),
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_process_small_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
         let file_path = temp_dir.path().join("test.json");
 
         let test_data =

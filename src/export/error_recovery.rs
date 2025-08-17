@@ -936,7 +936,7 @@ mod tests {
         let result = manager.handle_export_error(&error, "test_operation", &context);
         assert!(result.is_ok());
 
-        let recovery_result = result.unwrap();
+        let recovery_result = result.expect("Failed to handle export error");
         assert!(recovery_result.success);
         assert_eq!(manager.stats.total_errors, 1);
     }
@@ -949,7 +949,7 @@ mod tests {
             .execute_graceful_degradation(DegradationLevel::Light, "test degradation".to_string());
 
         assert!(result.is_ok());
-        let recovery_result = result.unwrap();
+        let recovery_result = result.expect("Failed to get test value");
         assert!(recovery_result.success);
         assert!(manager.degradation_state.is_degraded);
         assert_eq!(
@@ -971,7 +971,7 @@ mod tests {
         let result = manager.execute_partial_save(save_path.clone(), 75.0, &context);
 
         assert!(result.is_ok());
-        let recovery_result = result.unwrap();
+        let recovery_result = result.expect("Failed to get test value");
         assert!(recovery_result.success);
         assert_eq!(recovery_result.partial_result_path, Some(save_path.clone()));
 

@@ -1078,7 +1078,7 @@ impl MemoryTracker {
             write_json_optimized(&file_path, &data, &options)?;
             tracing::info!(
                 "   ✅ Generated: {}",
-                file_path.file_name().unwrap().to_string_lossy()
+                file_path.file_name().unwrap_or_default().to_string_lossy()
             );
         }
 
@@ -1656,7 +1656,7 @@ impl MemoryTracker {
             write_json_optimized(&file_path, &data, &options)?;
             tracing::info!(
                 "   ✅ Generated: {}",
-                file_path.file_name().unwrap().to_string_lossy()
+                file_path.file_name().unwrap_or_default().to_string_lossy()
             );
         }
 

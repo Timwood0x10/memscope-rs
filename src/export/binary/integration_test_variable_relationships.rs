@@ -111,7 +111,7 @@ mod tests {
         ];
 
         // Test direct analysis
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Verify graph structure
         assert_eq!(analysis.graph.nodes.len(), 5);
@@ -218,16 +218,16 @@ mod tests {
         // Create binary HTML writer
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = BinaryHtmlWriter::new(cursor).unwrap();
+        let mut writer = BinaryHtmlWriter::new(cursor).expect("Failed to get test value");
 
         // Write allocations
         let fields = AllocationField::all_basic_fields();
         for allocation in &allocations {
-            writer.write_binary_allocation(allocation, &fields).unwrap();
+            writer.write_binary_allocation(allocation, &fields).expect("Test operation failed");
         }
 
         // Finalize and get stats
-        let stats = writer.finalize_with_binary_template("test_project").unwrap();
+        let stats = writer.finalize_with_binary_template("test_project").expect("Test operation failed");
 
         // Verify that allocations were processed
         assert_eq!(stats.allocations_processed, 2);
@@ -244,7 +244,7 @@ mod tests {
             create_test_allocation_with_relationships(0x5000, 8, Some("ptr_val"), Some("*mut u8"), Some("main"), 1400, Some(30)),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Find nodes by type and verify categories
         let int_node = analysis.graph.nodes.iter().find(|n| n.name == "int_val").unwrap();
@@ -273,7 +273,7 @@ mod tests {
             create_test_allocation_with_relationships(0x5000, 8, Some("arc_shared"), Some("Arc<i32>"), Some("main"), 1400, Some(300)),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         let owned_node = analysis.graph.nodes.iter().find(|n| n.name == "owned").unwrap();
         assert_eq!(owned_node.ownership, OwnershipStatus::Owner);
@@ -302,7 +302,7 @@ mod tests {
             create_test_allocation_with_relationships(0x6000, 4, Some("active"), Some("i32"), Some("main"), 1500, None),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         let instant_node = analysis.graph.nodes.iter().find(|n| n.name == "instant").unwrap();
         assert_eq!(instant_node.lifetime.category, LifetimeCategory::Instant);
@@ -341,7 +341,7 @@ mod tests {
             create_test_allocation_with_relationships(0x5000, 4, Some("var2"), Some("f64"), Some("helper"), 1500, Some(60)),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should have type similarity relationships
         let type_similarity_count = analysis.graph.links.iter()
@@ -375,7 +375,7 @@ mod tests {
             create_test_allocation_with_relationships(0x2000, 2048, Some("node2"), Some("Box<i32>"), Some("main"), 1100, Some(200)),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Verify D3.js node structure
         for node in &analysis.graph.nodes {
@@ -433,7 +433,7 @@ mod tests {
             ));
         }
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should have performance optimizations configured
         let performance = &analysis.graph.metadata.performance;
@@ -463,7 +463,7 @@ mod tests {
             create_test_allocation_with_relationships(0x3000, 4096, Some("large"), Some("HashMap<String, i32>"), Some("main"), 1200, Some(10000)),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         let insights = &analysis.summary.memory_insights;
         

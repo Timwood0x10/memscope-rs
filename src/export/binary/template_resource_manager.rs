@@ -438,14 +438,14 @@ mod tests {
 
     #[test]
     fn test_template_resource_manager_creation() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let manager = TemplateResourceManager::new(temp_dir.path());
         assert!(manager.is_ok());
     }
 
     #[test]
     fn test_template_processing() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         let template_data = TemplateData {
@@ -462,7 +462,7 @@ mod tests {
         let result = manager.process_template("test_template.html", &template_data, &config);
         
         assert!(result.is_ok());
-        let processed = result.unwrap();
+        let processed = result.expect("Test operation failed");
         assert!(processed.contains("Test Project"));
         assert!(processed.contains(r#"{"test": "data"}"#));
         assert!(processed.contains("body { margin: 0; padding: 0; }"));
@@ -471,27 +471,27 @@ mod tests {
 
     #[test]
     fn test_css_loading() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
         let config = ResourceConfig::default();
 
-        let css_content = manager.get_shared_css(&config).unwrap();
+        let css_content = manager.get_shared_css(&config).expect("Test operation failed");
         assert!(css_content.contains("body { margin: 0; padding: 0; }"));
     }
 
     #[test]
     fn test_js_loading() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
         let config = ResourceConfig::default();
 
-        let js_content = manager.get_shared_js(&config).unwrap();
+        let js_content = manager.get_shared_js(&config).expect("Test operation failed");
         assert!(js_content.contains("console.log('Test script loaded');"));
     }
 
     #[test]
     fn test_css_minification() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let _manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         let css = "body {\n    margin: 0;\n    padding: 0;\n}";
@@ -502,7 +502,7 @@ mod tests {
 
     #[test]
     fn test_placeholder_processors() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let _manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         let mut custom_data = HashMap::new();
@@ -519,21 +519,21 @@ mod tests {
         };
 
         let processor = ComplexTypesProcessor;
-        let result = processor.process(&template_data).unwrap();
+        let result = processor.process(&template_data).expect("Test operation failed");
         assert_eq!(result, r#"{"types": []}"#);
     }
 
     #[test]
     fn test_cache_functionality() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
         let config = ResourceConfig::default();
 
         // First load should read from file
-        let css1 = manager.get_shared_css(&config).unwrap();
+        let css1 = manager.get_shared_css(&config).expect("Test operation failed");
         
         // Second load should use cache
-        let css2 = manager.get_shared_css(&config).unwrap();
+        let css2 = manager.get_shared_css(&config).expect("Test operation failed");
         
         assert_eq!(css1, css2);
         assert!(!manager.css_cache.is_empty());

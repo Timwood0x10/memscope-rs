@@ -631,7 +631,7 @@ mod tests {
         let binary_data = BinaryAllocationData::from_allocation(&allocation, &fields);
         assert!(binary_data.is_ok());
 
-        let data = binary_data.unwrap();
+        let data = binary_data.expect("Failed to get test value");
         assert_eq!(data.size, 1024);
         assert_eq!(data.type_name, "Vec<u8>");
         assert_eq!(data.is_active, true);
@@ -641,7 +641,7 @@ mod tests {
     fn test_write_binary_allocation() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = BinaryHtmlWriter::new(cursor).unwrap();
+        let mut writer = BinaryHtmlWriter::new(cursor).expect("Failed to get test value");
 
         let allocation = create_test_allocation();
         let fields = AllocationField::all_basic_fields();
@@ -655,7 +655,7 @@ mod tests {
     fn test_batch_processing() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = BinaryHtmlWriter::new(cursor).unwrap();
+        let mut writer = BinaryHtmlWriter::new(cursor).expect("Failed to get test value");
 
         let allocations = vec![create_test_allocation(); 5];
         let fields = AllocationField::all_basic_fields();
@@ -669,7 +669,7 @@ mod tests {
     fn test_finalize_with_template() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = BinaryHtmlWriter::new(cursor).unwrap();
+        let mut writer = BinaryHtmlWriter::new(cursor).expect("Failed to get test value");
 
         let allocation = create_test_allocation();
         let fields = AllocationField::all_basic_fields();

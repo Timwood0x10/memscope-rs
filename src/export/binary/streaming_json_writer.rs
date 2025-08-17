@@ -1318,10 +1318,10 @@ mod tests {
     fn test_basic_json_writing() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = StreamingJsonWriter::new(cursor).unwrap();
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to get test value");
 
         // Write header
-        writer.write_header(1).unwrap();
+        writer.write_header(1).expect("Failed to write header");
 
         // Write a simple allocation
         let allocation = PartialAllocationInfo {
@@ -1353,7 +1353,7 @@ mod tests {
             .unwrap();
 
         // Finalize
-        let stats = writer.finalize().unwrap();
+        let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 1);
         assert!(stats.bytes_written > 0);
@@ -1364,9 +1364,9 @@ mod tests {
     fn test_field_optimization() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = StreamingJsonWriter::new(cursor).unwrap();
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to get test value");
 
-        writer.write_header(1).unwrap();
+        writer.write_header(1).expect("Failed to write header");
 
         let allocation = PartialAllocationInfo {
             ptr: Some(0x1000),
@@ -1391,7 +1391,7 @@ mod tests {
         writer
             .write_allocation_selective(&allocation, &requested_fields)
             .unwrap();
-        let stats = writer.finalize().unwrap();
+        let stats = writer.finalize().expect("Test operation failed");
 
         // Should have skipped many fields
         assert!(stats.fields_skipped >= 8);
@@ -1435,9 +1435,9 @@ mod tests {
     fn test_batch_writing() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = StreamingJsonWriter::new(cursor).unwrap();
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to get test value");
 
-        writer.write_header(2).unwrap();
+        writer.write_header(2).expect("Failed to write header");
 
         let allocations = vec![
             PartialAllocationInfo {
@@ -1481,7 +1481,7 @@ mod tests {
         writer
             .write_allocation_batch(&allocations, &requested_fields)
             .unwrap();
-        let stats = writer.finalize().unwrap();
+        let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 2);
         assert!(stats.bytes_written > 0);
@@ -1491,7 +1491,7 @@ mod tests {
     fn test_string_compression() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = StreamingJsonWriter::new(cursor).unwrap();
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to get test value");
 
         let options = SelectiveSerializationOptions {
             compress_large_strings: true,
@@ -1499,7 +1499,7 @@ mod tests {
             ..Default::default()
         };
 
-        writer.write_header(1).unwrap();
+        writer.write_header(1).expect("Failed to write header");
 
         let allocation = PartialAllocationInfo {
             ptr: Some(0x1000),
@@ -1523,7 +1523,7 @@ mod tests {
         writer
             .write_allocation_selective_with_options(&allocation, &requested_fields, &options)
             .unwrap();
-        let stats = writer.finalize().unwrap();
+        let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 1);
     }
@@ -1532,14 +1532,14 @@ mod tests {
     fn test_compact_stack_trace() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = StreamingJsonWriter::new(cursor).unwrap();
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to get test value");
 
         let options = SelectiveSerializationOptions {
             compact_arrays: true,
             ..Default::default()
         };
 
-        writer.write_header(1).unwrap();
+        writer.write_header(1).expect("Failed to write header");
 
         // Create a long stack trace
         let long_stack_trace: Vec<String> =
@@ -1565,7 +1565,7 @@ mod tests {
         writer
             .write_allocation_selective_with_options(&allocation, &requested_fields, &options)
             .unwrap();
-        let stats = writer.finalize().unwrap();
+        let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 1);
     }
@@ -1580,7 +1580,7 @@ mod tests {
             .build();
         let mut writer = StreamingJsonWriter::with_config(cursor, config).unwrap();
 
-        writer.write_header(3).unwrap();
+        writer.write_header(3).expect("Failed to write header");
 
         let allocations = vec![
             PartialAllocationInfo {
@@ -1639,7 +1639,7 @@ mod tests {
         writer
             .write_allocation_batch(&allocations, &requested_fields)
             .unwrap();
-        let stats = writer.finalize().unwrap();
+        let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 3);
         assert_eq!(stats.batch_operations, 1);
@@ -1651,9 +1651,9 @@ mod tests {
     fn test_adaptive_chunking() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = StreamingJsonWriter::new(cursor).unwrap();
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to get test value");
 
-        writer.write_header(5).unwrap();
+        writer.write_header(5).expect("Failed to write header");
 
         // Create a larger dataset
         let allocations: Vec<PartialAllocationInfo> = (0..5)
@@ -1686,7 +1686,7 @@ mod tests {
         writer
             .write_allocation_adaptive_chunked(&allocations, &requested_fields, &options)
             .unwrap();
-        let stats = writer.finalize().unwrap();
+        let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 5);
         assert!(stats.batch_operations > 0);

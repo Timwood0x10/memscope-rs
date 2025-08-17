@@ -1,12 +1,12 @@
 //! Safe Operations - Provides safe lock operations
 //!
 //! This module provides safe lock operations that replace
-//! dangerous .lock().unwrap() calls throughout the codebase.
+//! dangerous .lock().expect("Failed to acquire lock") calls throughout the codebase.
 
 use std::sync::{Mutex, RwLock};
 use crate::core::types::TrackingResult;
 
-/// Safe lock operations - replaces .lock().unwrap()
+/// Safe lock operations - replaces .lock().expect("Failed to acquire lock")
 pub trait SafeLock<T> {
     /// Safely acquire lock with timeout and error handling
     fn safe_lock(&self) -> TrackingResult<std::sync::MutexGuard<T>>;

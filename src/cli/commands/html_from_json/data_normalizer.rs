@@ -355,7 +355,7 @@ impl DataNormalizer {
         defaults.insert("total_allocated".to_string(), Value::Number(0.into()));
         defaults.insert(
             "memory_efficiency".to_string(),
-            Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            Value::Number(serde_json::Number::from_f64(0.0).expect("Failed to create JSON number")),
         );
         defaults
     }

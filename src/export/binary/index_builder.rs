@@ -564,7 +564,7 @@ mod tests {
 
     #[test]
     fn test_build_index_from_binary_file() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let test_allocations = vec![create_test_allocation(), {
             let mut alloc = create_test_allocation();
             alloc.ptr = 0x2000;
@@ -578,9 +578,9 @@ mod tests {
             let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
             writer.write_header(test_allocations.len() as u32).unwrap();
             for alloc in &test_allocations {
-                writer.write_allocation(alloc).unwrap();
+                writer.write_allocation(alloc).expect("Failed to write allocation");
             }
-            writer.finish().unwrap();
+            writer.finish().expect("Failed to finish writing");
         }
 
         // Build index from the binary file
@@ -606,7 +606,7 @@ mod tests {
 
     #[test]
     fn test_file_hash_computation() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
 
         // Write some test data
         std::fs::write(temp_file.path(), b"test data for hashing").unwrap();

@@ -481,7 +481,7 @@ mod tests {
         let normalizer = CallStackNormalizer::new(NormalizerConfig::default());
         
         let frames = vec![create_test_stack_frame("test", 1)];
-        let id = normalizer.normalize_call_stack(&frames).unwrap();
+        let id = normalizer.normalize_call_stack(&frames).expect("Test operation failed");
 
         // Increment reference count
         normalizer.increment_ref_count(id).expect("Failed to increment ref count");

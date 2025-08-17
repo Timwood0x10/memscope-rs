@@ -835,7 +835,7 @@ mod tests {
         let result = engine.create_memory_analysis(&allocations);
         assert!(result.is_ok());
 
-        let analysis_data = result.unwrap();
+        let analysis_data = result.expect("Failed to get analysis data");
         assert_eq!(
             analysis_data.metadata.analysis_type,
             "integrated_memory_analysis"

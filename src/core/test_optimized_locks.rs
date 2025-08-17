@@ -55,7 +55,7 @@ mod tests {
         }
 
         // Verify we can still get analysis
-        let analysis = tracker.get_scope_analysis().unwrap();
+        let analysis = tracker.get_scope_analysis().expect("Test operation failed");
         // analysis.total_scopes is usize, always >= 0, so this check is redundant
         assert!(analysis.total_scopes > 0 || analysis.total_scopes == 0); // Should have some scopes
     }

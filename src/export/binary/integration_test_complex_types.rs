@@ -56,7 +56,7 @@ mod tests {
         ];
 
         // Test direct analysis
-        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Verify analysis results
         assert_eq!(analysis.summary.total_types, 6);
@@ -104,16 +104,16 @@ mod tests {
         // Create binary HTML writer
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = BinaryHtmlWriter::new(cursor).unwrap();
+        let mut writer = BinaryHtmlWriter::new(cursor).expect("Failed to get test value");
 
         // Write allocations
         let fields = AllocationField::all_basic_fields();
         for allocation in &allocations {
-            writer.write_binary_allocation(allocation, &fields).unwrap();
+            writer.write_binary_allocation(allocation, &fields).expect("Test operation failed");
         }
 
         // Finalize and get stats
-        let stats = writer.finalize_with_binary_template("test_project").unwrap();
+        let stats = writer.finalize_with_binary_template("test_project").expect("Test operation failed");
 
         // Verify that allocations were processed
         assert_eq!(stats.allocations_processed, 3);
@@ -126,21 +126,21 @@ mod tests {
         let empty_allocation = create_test_allocation_with_type("", 4, 0x1000);
         let result = ComplexTypeAnalyzer::analyze_allocations(&[empty_allocation]);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("Test operation failed");
         assert_eq!(analysis.summary.total_types, 0); // Empty types should be skipped
 
         // Test unknown type
         let unknown_allocation = create_test_allocation_with_type("Unknown", 4, 0x1000);
         let result = ComplexTypeAnalyzer::analyze_allocations(&[unknown_allocation]);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("Test operation failed");
         assert_eq!(analysis.summary.total_types, 0); // Unknown types should be skipped
 
         // Test very complex nested type
         let complex_allocation = create_test_allocation_with_type("Arc<RwLock<HashMap<String, Vec<Box<dyn Trait>>>>>", 64, 0x1000);
         let result = ComplexTypeAnalyzer::analyze_allocations(&[complex_allocation]);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("Test operation failed");
         assert_eq!(analysis.summary.total_types, 1);
         // The complexity should be capped at 10
         assert_eq!(analysis.complexity_scores.get("Arc<RwLock<HashMap<String, Vec<Box<dyn Trait>>>>>"), Some(&10));
@@ -152,7 +152,7 @@ mod tests {
         let nested_allocation = create_test_allocation_with_type("HashMap<String, Vec<Option<i32>>>", 64, 0x1000);
         let result = ComplexTypeAnalyzer::analyze_allocations(&[nested_allocation]);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("Test operation failed");
         
         // Verify the type was analyzed
         assert_eq!(analysis.summary.total_types, 1);
@@ -164,7 +164,7 @@ mod tests {
         let multi_param_allocation = create_test_allocation_with_type("Result<String, Error>", 32, 0x2000);
         let result = ComplexTypeAnalyzer::analyze_allocations(&[multi_param_allocation]);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("Test operation failed");
         assert_eq!(analysis.summary.total_types, 1);
     }
 
@@ -176,7 +176,7 @@ mod tests {
             create_test_allocation_with_type("Vec<String>", 100, 0x3000),
         ];
 
-        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Find i32 type info
         let i32_info = analysis.categorized_types.primitives

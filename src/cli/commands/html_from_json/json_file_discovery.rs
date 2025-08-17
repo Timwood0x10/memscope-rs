@@ -346,15 +346,15 @@ mod tests {
 
     #[test]
     fn test_discover_files_with_temp_dir() {
-        let temp_dir = TempDir::new().unwrap();
-        let temp_path = temp_dir.path().to_str().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
+        let temp_path = temp_dir.path().to_str().expect("Failed to convert path to string");
 
         // Create a test JSON file
         let test_file_path = format!("{}/test_memory_analysis.json", temp_path);
-        fs::write(&test_file_path, r#"{"test": "data"}"#).unwrap();
+        fs::write(&test_file_path, r#"{"test": "data"}"#).expect("Failed to write test file");
 
         let discovery = JsonFileDiscovery::new(temp_path.to_string(), "test".to_string());
-        let result = discovery.discover_files().unwrap();
+        let result = discovery.discover_files().expect("Failed to discover files");
 
         assert!(!result.found_files.is_empty());
         assert_eq!(result.found_files[0].config.suffix, "memory_analysis");

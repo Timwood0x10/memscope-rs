@@ -98,7 +98,7 @@ window.addEventListener('load', initializeMemoryDashboard);
 
     #[test]
     fn test_template_resource_integration() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         // Create test template data
@@ -121,7 +121,7 @@ window.addEventListener('load', initializeMemoryDashboard);
         );
 
         assert!(result.is_ok());
-        let html_content = result.unwrap();
+        let html_content = result.expect("Test operation failed");
 
         // Verify template processing
         assert!(html_content.contains("Test Project"));
@@ -133,18 +133,18 @@ window.addEventListener('load', initializeMemoryDashboard);
 
     #[test]
     fn test_resource_caching() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         let config = ResourceConfig::default();
 
         // First load should read from files
-        let css1 = resource_manager.get_shared_css(&config).unwrap();
-        let js1 = resource_manager.get_shared_js(&config).unwrap();
+        let css1 = resource_manager.get_shared_css(&config).expect("Test operation failed");
+        let js1 = resource_manager.get_shared_js(&config).expect("Test operation failed");
 
         // Second load should use cache
-        let css2 = resource_manager.get_shared_css(&config).unwrap();
-        let js2 = resource_manager.get_shared_js(&config).unwrap();
+        let css2 = resource_manager.get_shared_css(&config).expect("Test operation failed");
+        let js2 = resource_manager.get_shared_js(&config).expect("Test operation failed");
 
         // Content should be identical
         assert_eq!(css1, css2);
@@ -157,7 +157,7 @@ window.addEventListener('load', initializeMemoryDashboard);
 
     #[test]
     fn test_resource_minification() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         let config_normal = ResourceConfig {
@@ -170,12 +170,12 @@ window.addEventListener('load', initializeMemoryDashboard);
             ..Default::default()
         };
 
-        let css_normal = resource_manager.get_shared_css(&config_normal).unwrap();
+        let css_normal = resource_manager.get_shared_css(&config_normal).expect("Test operation failed");
         
         // Clear cache to force reload with minification
         resource_manager.clear_cache();
         
-        let css_minified = resource_manager.get_shared_css(&config_minified).unwrap();
+        let css_minified = resource_manager.get_shared_css(&config_minified).expect("Test operation failed");
 
         // Minified version should be smaller (or at least not larger)
         assert!(css_minified.len() <= css_normal.len());
@@ -197,16 +197,16 @@ window.addEventListener('load', initializeMemoryDashboard);
         // Create binary HTML writer
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = BinaryHtmlWriter::new(cursor).unwrap();
+        let mut writer = BinaryHtmlWriter::new(cursor).expect("Failed to get test value");
 
         // Write allocations
         let fields = AllocationField::all_basic_fields();
         for allocation in &allocations {
-            writer.write_binary_allocation(allocation, &fields).unwrap();
+            writer.write_binary_allocation(allocation, &fields).expect("Test operation failed");
         }
 
         // Finalize and get stats
-        let stats = writer.finalize_with_binary_template("test_project").unwrap();
+        let stats = writer.finalize_with_binary_template("test_project").expect("Test operation failed");
 
         // Verify that allocations were processed
         assert_eq!(stats.allocations_processed, 3);
@@ -216,7 +216,7 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_binary_template_engine_with_resource_manager() {
         // Create a temporary template directory for the engine
-        let _temp_dir = create_test_template_dir().unwrap();
+        let _temp_dir = create_test_template_dir().expect("Failed to get test value");
         
         // We can't easily change the template directory for BinaryTemplateEngine
         // So we'll test that it can be created and used without errors
@@ -240,7 +240,7 @@ window.addEventListener('load', initializeMemoryDashboard);
 
     #[test]
     fn test_placeholder_processing() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         // Create template data with custom placeholders
@@ -264,7 +264,7 @@ window.addEventListener('load', initializeMemoryDashboard);
         );
 
         assert!(result.is_ok());
-        let html_content = result.unwrap();
+        let html_content = result.expect("Test operation failed");
 
         // Verify placeholder replacement
         assert!(html_content.contains("Placeholder Test"));
@@ -274,7 +274,7 @@ window.addEventListener('load', initializeMemoryDashboard);
 
     #[test]
     fn test_resource_config_options() {
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         let template_data = create_template_data(
@@ -299,7 +299,7 @@ window.addEventListener('load', initializeMemoryDashboard);
         );
 
         assert!(result.is_ok());
-        let html_content = result.unwrap();
+        let html_content = result.expect("Test operation failed");
 
         // Should still contain the template structure
         assert!(html_content.contains("Config Test"));
@@ -314,7 +314,7 @@ window.addEventListener('load', initializeMemoryDashboard);
         assert!(result.is_err());
 
         // Test with valid directory but non-existent template
-        let temp_dir = create_test_template_dir().unwrap();
+        let temp_dir = create_test_template_dir().expect("Failed to get test value");
         let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
 
         let template_data = create_template_data("Test", "{}", HashMap::new());

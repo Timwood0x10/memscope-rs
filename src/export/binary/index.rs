@@ -423,9 +423,9 @@ mod tests {
 
         // Add some records to the allocation index
         index.allocations.records_start_offset = 1000;
-        index.allocations.add_record(1000, 100).unwrap();
-        index.allocations.add_record(1200, 200).unwrap();
-        index.allocations.add_record(1500, 150).unwrap();
+        index.allocations.add_record(1000, 100).expect("Test operation failed");
+        index.allocations.add_record(1200, 200).expect("Test operation failed");
+        index.allocations.add_record(1500, 150).expect("Test operation failed");
 
         // Test offset calculation
         assert_eq!(index.get_record_offset(0), Some(1000));
@@ -488,7 +488,7 @@ mod tests {
 
         // Add some records
         for i in 0..100 {
-            index.add_record(1000 + i * 100, 100).unwrap();
+            index.add_record(1000 + i * 100, 100).expect("Test operation failed");
         }
 
         let memory_usage = index.memory_usage();

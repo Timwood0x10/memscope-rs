@@ -1013,7 +1013,7 @@ mod tests {
         let result = monitor.check_resource_usage();
         assert!(result.is_ok());
 
-        let usage = result.unwrap();
+        let usage = result.expect("Failed to get memory usage");
         assert_eq!(usage.memory_limit, 1024 * 1024 * 1024);
         assert_eq!(usage.disk_limit, 2048 * 1024 * 1024);
         assert_eq!(usage.cpu_limit, 80.0);

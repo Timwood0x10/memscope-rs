@@ -956,7 +956,7 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         assert_eq!(analysis.summary.total_allocations, 2);
         assert!(analysis.summary.unsafe_operations_count > 0);

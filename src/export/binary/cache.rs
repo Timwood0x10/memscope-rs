@@ -564,7 +564,7 @@ mod tests {
     }
 
     fn create_test_binary_file() -> NamedTempFile {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let test_allocations = vec![create_test_allocation()];
 
         // Write test data to binary file
@@ -572,9 +572,9 @@ mod tests {
             let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
             writer.write_header(test_allocations.len() as u32).unwrap();
             for alloc in &test_allocations {
-                writer.write_allocation(alloc).unwrap();
+                writer.write_allocation(alloc).expect("Failed to write allocation");
             }
-            writer.finish().unwrap();
+            writer.finish().expect("Failed to finish writing");
         }
 
         temp_file
@@ -642,20 +642,20 @@ mod tests {
 
     #[test]
     fn test_index_cache_creation() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
         let config = IndexCacheConfig {
             cache_directory: temp_dir.path().to_path_buf(),
             ..Default::default()
         };
 
-        let cache = IndexCache::new(config).unwrap();
+        let cache = IndexCache::new(config).expect("Failed to get test value");
         assert_eq!(cache.entries.len(), 0);
         assert!(temp_dir.path().exists());
     }
 
     #[test]
     fn test_cache_miss_and_build() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
         let config = IndexCacheConfig {
             cache_directory: temp_dir.path().to_path_buf(),
             max_entries: 10,
@@ -689,7 +689,7 @@ mod tests {
 
     #[test]
     fn test_cache_invalidation_on_file_change() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
         let config = IndexCacheConfig {
             cache_directory: temp_dir.path().to_path_buf(),
             ..Default::default()
@@ -722,9 +722,9 @@ mod tests {
             let mut writer = BinaryWriter::new(test_file.path()).unwrap();
             writer.write_header(test_allocations.len() as u32).unwrap();
             for alloc in &test_allocations {
-                writer.write_allocation(alloc).unwrap();
+                writer.write_allocation(alloc).expect("Failed to write allocation");
             }
-            writer.finish().unwrap();
+            writer.finish().expect("Failed to finish writing");
         }
 
         // Next access should be a cache miss due to file change
@@ -738,7 +738,7 @@ mod tests {
 
     #[test]
     fn test_cache_size_limit_enforcement() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
         let config = IndexCacheConfig {
             cache_directory: temp_dir.path().to_path_buf(),
             max_entries: 2, // Small limit for testing
@@ -766,7 +766,7 @@ mod tests {
 
     #[test]
     fn test_cache_clear() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
         let config = IndexCacheConfig {
             cache_directory: temp_dir.path().to_path_buf(),
             ..Default::default()
@@ -783,7 +783,7 @@ mod tests {
         assert_eq!(cache.entries.len(), 1);
 
         // Clear cache
-        cache.clear().unwrap();
+        cache.clear().expect("Test operation failed");
         assert_eq!(cache.entries.len(), 0);
         assert_eq!(cache.get_stats().total_requests, 0);
     }

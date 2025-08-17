@@ -744,20 +744,20 @@ mod tests {
 
     #[test]
     fn test_writer_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let writer = BinaryWriter::new(temp_file.path());
         assert!(writer.is_ok());
     }
 
     #[test]
     fn test_header_writing() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
 
         let result = writer.write_header(42);
         assert!(result.is_ok());
 
-        writer.finish().unwrap();
+        writer.finish().expect("Failed to finish writing");
 
         // Verify file size is at least header size
         let metadata = fs::metadata(temp_file.path()).unwrap();
@@ -766,16 +766,16 @@ mod tests {
 
     #[test]
     fn test_allocation_writing() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
 
-        writer.write_header(1).unwrap();
+        writer.write_header(1).expect("Failed to write header");
 
         let alloc = create_test_allocation();
         let result = writer.write_allocation(&alloc);
         assert!(result.is_ok());
 
-        writer.finish().unwrap();
+        writer.finish().expect("Failed to finish writing");
 
         // Verify file has content beyond header
         let metadata = fs::metadata(temp_file.path()).unwrap();
@@ -784,7 +784,7 @@ mod tests {
 
     #[test]
     fn test_record_size_calculation() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let writer = BinaryWriter::new(temp_file.path()).unwrap();
 
         let alloc = create_test_allocation();
@@ -807,18 +807,18 @@ mod tests {
 
     #[test]
     fn test_advanced_metrics_segment_writing() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = BinaryExportConfig::debug_comprehensive();
         let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
 
-        writer.write_header(1).unwrap();
+        writer.write_header(1).expect("Failed to write header");
 
         let mut alloc = create_test_allocation();
         alloc.lifetime_ms = Some(1500); // Add some lifecycle data
 
-        writer.write_allocation(&alloc).unwrap();
-        writer.write_advanced_metrics_segment(&[alloc]).unwrap();
-        writer.finish().unwrap();
+        writer.write_allocation(&alloc).expect("Failed to write allocation");
+        writer.write_advanced_metrics_segment(&[alloc]).expect("Failed to write metrics segment");
+        writer.finish().expect("Failed to finish writing");
 
         // Verify file has content beyond basic allocation data
         let metadata = std::fs::metadata(temp_file.path()).unwrap();
@@ -827,17 +827,17 @@ mod tests {
 
     #[test]
     fn test_advanced_metrics_disabled() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = BinaryExportConfig::minimal(); // No advanced metrics
         let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
 
-        writer.write_header(1).unwrap();
+        writer.write_header(1).expect("Failed to write header");
         let alloc = create_test_allocation();
-        writer.write_allocation(&alloc).unwrap();
+        writer.write_allocation(&alloc).expect("Failed to write allocation");
 
         // Should not write advanced metrics segment
-        writer.write_advanced_metrics_segment(&[alloc]).unwrap();
-        writer.finish().unwrap();
+        writer.write_advanced_metrics_segment(&[alloc]).expect("Failed to write metrics segment");
+        writer.finish().expect("Failed to finish writing");
 
         // File should be smaller without advanced metrics
         let metadata = std::fs::metadata(temp_file.path()).unwrap();

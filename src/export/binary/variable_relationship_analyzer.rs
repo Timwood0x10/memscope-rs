@@ -1305,7 +1305,7 @@ mod tests {
             create_test_allocation(0x4000, 256, Some("int1"), Some("i32"), Some("helper")),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         assert_eq!(analysis.graph.nodes.len(), 4);
         assert_eq!(analysis.summary.total_variables, 4);

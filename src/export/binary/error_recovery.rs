@@ -494,7 +494,7 @@ mod tests {
 
         let result: RecoveryResult<String> = manager.attempt_recovery(
             || {
-                let mut count = attempt_count_clone.lock().unwrap();
+                let mut count = attempt_count_clone.lock().expect("Failed to acquire lock");
                 *count += 1;
                 if *count < 2 {
                     Err(BinaryExportError::InvalidFormat)

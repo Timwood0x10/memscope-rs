@@ -109,7 +109,7 @@ mod tests {
         ];
 
         // Test direct analysis
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Verify analysis results
         assert_eq!(analysis.summary.total_allocations, 5);
@@ -172,16 +172,16 @@ mod tests {
         // Create binary HTML writer
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let mut writer = BinaryHtmlWriter::new(cursor).unwrap();
+        let mut writer = BinaryHtmlWriter::new(cursor).expect("Failed to get test value");
 
         // Write allocations
         let fields = AllocationField::all_basic_fields();
         for allocation in &allocations {
-            writer.write_binary_allocation(allocation, &fields).unwrap();
+            writer.write_binary_allocation(allocation, &fields).expect("Test operation failed");
         }
 
         // Finalize and get stats
-        let stats = writer.finalize_with_binary_template("test_project").unwrap();
+        let stats = writer.finalize_with_binary_template("test_project").expect("Test operation failed");
 
         // Verify that allocations were processed
         assert_eq!(stats.allocations_processed, 2);
@@ -194,7 +194,7 @@ mod tests {
         let empty_allocations = vec![];
         let result = FfiSafetyAnalyzer::analyze_allocations(&empty_allocations);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("Test operation failed");
         assert_eq!(analysis.summary.total_allocations, 0);
         assert_eq!(analysis.summary.unsafe_operations_count, 0);
 
@@ -245,7 +245,7 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&high_risk_allocations).unwrap();
+        let analysis = FfiSafetyAnalyzer::analyze_allocations(&high_risk_allocations).expect("Failed to get test value");
         
         // Should detect multiple high-risk operations
         assert!(analysis.summary.unsafe_operations_count >= 2);
@@ -283,7 +283,7 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should detect hotspot for repeated FFI function
         assert!(!analysis.ffi_hotspots.is_empty());
@@ -310,7 +310,7 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should generate call graph with nodes
         assert!(!analysis.call_graph.nodes.is_empty());
@@ -348,7 +348,7 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).unwrap();
+        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should detect memory safety issues
         assert!(analysis.risk_assessment.memory_safety.issue_count > 0);
