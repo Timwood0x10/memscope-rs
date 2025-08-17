@@ -515,13 +515,13 @@ mod tests {
 
         let test_data =
             r#"{"allocations": [{"ptr": "0x123", "size": 100}], "summary": {"total": 1}}"#;
-        fs::write(&file_path, test_data).unwrap();
+        fs::write(&file_path, test_data).expect("Failed to write test file");
 
         let optimizer = LargeFileOptimizer::default();
         let result = optimizer.process_file(&file_path, "memory_analysis");
 
         assert!(result.is_ok());
-        let (json_value, stats) = result.unwrap();
+        let (json_value, stats) = result.expect("Test operation failed");
         assert!(json_value.is_object());
         assert!(!stats.streaming_mode_used);
         assert_eq!(stats.objects_processed, 2); // 1 object + 1 allocation

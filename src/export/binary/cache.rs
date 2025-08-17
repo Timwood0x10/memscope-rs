@@ -569,8 +569,8 @@ mod tests {
 
         // Write test data to binary file
         {
-            let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
-            writer.write_header(test_allocations.len() as u32).unwrap();
+            let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
+            writer.write_header(test_allocations.len() as u32).expect("Failed to write header");
             for alloc in &test_allocations {
                 writer.write_allocation(alloc).expect("Failed to write allocation");
             }
@@ -662,14 +662,14 @@ mod tests {
             ..Default::default()
         };
 
-        let mut cache = IndexCache::new(config).unwrap();
+        let mut cache = IndexCache::new(config).expect("Failed to create cache");
         let test_file = create_test_binary_file();
         let builder = BinaryIndexBuilder::new();
 
         // First access should be a cache miss
         let index1 = cache
             .get_or_build_index(test_file.path(), &builder)
-            .unwrap();
+            .expect("Test operation failed");
         assert_eq!(cache.get_stats().cache_misses, 1);
         assert_eq!(cache.get_stats().cache_hits, 0);
         assert_eq!(cache.entries.len(), 1);
@@ -677,7 +677,7 @@ mod tests {
         // Second access should be a cache hit
         let index2 = cache
             .get_or_build_index(test_file.path(), &builder)
-            .unwrap();
+            .expect("Test operation failed");
         assert_eq!(cache.get_stats().cache_misses, 1);
         assert_eq!(cache.get_stats().cache_hits, 1);
         assert_eq!(cache.get_stats().hit_rate(), 50.0);
@@ -695,14 +695,14 @@ mod tests {
             ..Default::default()
         };
 
-        let mut cache = IndexCache::new(config).unwrap();
+        let mut cache = IndexCache::new(config).expect("Failed to create cache");
         let test_file = create_test_binary_file();
         let builder = BinaryIndexBuilder::new();
 
         // First access - cache miss
         let _index1 = cache
             .get_or_build_index(test_file.path(), &builder)
-            .unwrap();
+            .expect("Test operation failed");
         assert_eq!(cache.get_stats().cache_misses, 1);
         assert_eq!(cache.entries.len(), 1);
 
@@ -719,8 +719,8 @@ mod tests {
 
         // Write new test data to binary file
         {
-            let mut writer = BinaryWriter::new(test_file.path()).unwrap();
-            writer.write_header(test_allocations.len() as u32).unwrap();
+            let mut writer = BinaryWriter::new(test_file.path()).expect("Failed to create writer");
+            writer.write_header(test_allocations.len() as u32).expect("Failed to write header");
             for alloc in &test_allocations {
                 writer.write_allocation(alloc).expect("Failed to write allocation");
             }
@@ -745,7 +745,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut cache = IndexCache::new(config).unwrap();
+        let mut cache = IndexCache::new(config).expect("Failed to create cache");
         let builder = BinaryIndexBuilder::new();
 
         // Create multiple test files
@@ -754,12 +754,12 @@ mod tests {
         let file3 = create_test_binary_file();
 
         // Cache first two files
-        let _index1 = cache.get_or_build_index(file1.path(), &builder).unwrap();
-        let _index2 = cache.get_or_build_index(file2.path(), &builder).unwrap();
+        let _index1 = cache.get_or_build_index(file1.path(), &builder).expect("Failed to get or build index");
+        let _index2 = cache.get_or_build_index(file2.path(), &builder).expect("Failed to get or build index");
         assert_eq!(cache.entries.len(), 2);
 
         // Adding third file should evict the least recently used entry
-        let _index3 = cache.get_or_build_index(file3.path(), &builder).unwrap();
+        let _index3 = cache.get_or_build_index(file3.path(), &builder).expect("Failed to get or build index");
         assert_eq!(cache.entries.len(), 2);
         assert!(cache.get_stats().evictions > 0);
     }
@@ -772,14 +772,14 @@ mod tests {
             ..Default::default()
         };
 
-        let mut cache = IndexCache::new(config).unwrap();
+        let mut cache = IndexCache::new(config).expect("Failed to create cache");
         let test_file = create_test_binary_file();
         let builder = BinaryIndexBuilder::new();
 
         // Add an entry to cache
         let _index = cache
             .get_or_build_index(test_file.path(), &builder)
-            .unwrap();
+            .expect("Test operation failed");
         assert_eq!(cache.entries.len(), 1);
 
         // Clear cache

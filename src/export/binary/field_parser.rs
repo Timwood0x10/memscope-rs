@@ -675,7 +675,7 @@ mod tests {
 
         let partial = parser
             .parse_selective_fields(&mut cursor, &requested_fields)
-            .unwrap();
+            .expect("Test operation failed");
 
         assert!(partial.has_field(&AllocationField::Ptr));
         assert!(partial.has_field(&AllocationField::Size));
@@ -743,7 +743,7 @@ mod tests {
             .collect();
         let _partial = parser
             .parse_selective_fields(&mut cursor, &requested_fields)
-            .unwrap();
+            .expect("Test operation failed");
 
         let stats = parser.get_stats();
         assert!(stats.total_fields_parsed >= 2);

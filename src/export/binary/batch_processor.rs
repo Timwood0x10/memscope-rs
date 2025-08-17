@@ -379,8 +379,8 @@ impl BatchProcessor {
         }
 
         // Calculate the range to prefetch
-        let min_offset = *offsets.iter().min().unwrap();
-        let max_offset = *offsets.iter().max().unwrap();
+        let min_offset = *offsets.iter().min().expect("Operation failed");
+        let max_offset = *offsets.iter().max().expect("Operation failed");
 
         // Estimate the size to prefetch (simplified)
         let prefetch_size = (max_offset - min_offset + 1024).min(self.config.buffer_size as u64);
@@ -605,8 +605,8 @@ mod tests {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let config = crate::export::binary::BinaryExportConfig::minimal();
-            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
-            writer.write_header(allocations.len() as u32).unwrap();
+            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).expect("Failed to create temp file");
+            writer.write_header(allocations.len() as u32).expect("Operation failed");
 
             for alloc in &allocations {
                 writer.write_allocation(alloc).expect("Failed to write allocation");
@@ -615,7 +615,7 @@ mod tests {
 
             // Use BinaryIndexBuilder to get the correct offsets
             let index_builder = BinaryIndexBuilder::new();
-            let index = index_builder.build_index(temp_file.path()).unwrap();
+            let index = index_builder.build_index(temp_file.path()).expect("Operation failed");
 
             let mut offsets = Vec::new();
             for i in 0..allocations.len() {
@@ -624,7 +624,7 @@ mod tests {
                 }
             }
 
-            let data = std::fs::read(temp_file.path()).unwrap();
+            let data = std::fs::read(temp_file.path()).expect("Operation failed");
             (data, offsets)
         }
     }
@@ -698,7 +698,7 @@ mod tests {
                 batch_count += 1;
                 Ok(true) // Continue processing
             })
-            .unwrap();
+            .expect("Test operation failed");
 
         // Test basic functionality - no batches should be processed with empty data
         assert_eq!(batch_count, 0);

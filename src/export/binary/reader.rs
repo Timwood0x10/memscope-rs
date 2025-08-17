@@ -686,7 +686,7 @@ mod tests {
 
         // Create empty file first
         {
-            let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
+            let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
             writer.write_header(0).expect("Failed to write header");
             writer.finish().expect("Failed to finish writing");
         }
@@ -701,13 +701,13 @@ mod tests {
 
         // Write test data
         {
-            let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
+            let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
             writer.write_header(42).expect("Failed to write header");
             writer.finish().expect("Failed to finish writing");
         }
 
         // Read and verify
-        let mut reader = BinaryReader::new(temp_file.path()).unwrap();
+        let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create temp file");
         let header = reader.read_header().expect("Failed to read from binary file");
 
         assert_eq!(header.total_count, 42);
@@ -722,14 +722,14 @@ mod tests {
 
         // Write test data
         {
-            let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
+            let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
             writer.write_header(1).expect("Failed to write header");
             writer.write_allocation(&original_alloc).expect("Failed to write allocation");
             writer.finish().expect("Failed to finish writing");
         }
 
         // Read and verify
-        let mut reader = BinaryReader::new(temp_file.path()).unwrap();
+        let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create temp file");
         let allocations = reader.read_all().expect("Failed to read from binary file");
 
         assert_eq!(allocations.len(), 1);
@@ -754,17 +754,17 @@ mod tests {
         // Write test data with advanced metrics
         {
             let config = BinaryExportConfig::debug_comprehensive();
-            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).expect("Failed to create temp file");
             writer.write_header(1).expect("Failed to write header");
             writer.write_allocation(&original_alloc).expect("Failed to write allocation");
             writer
                 .write_advanced_metrics_segment(&[original_alloc.clone()])
-                .unwrap();
+                .expect("Test operation failed");
             writer.finish().expect("Failed to finish writing");
         }
 
         // Read and verify
-        let mut reader = BinaryReader::new(temp_file.path()).unwrap();
+        let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create temp file");
         let allocations = reader.read_all().expect("Failed to read from binary file");
 
         assert_eq!(allocations.len(), 1);
@@ -798,14 +798,14 @@ mod tests {
         // Write test data without advanced metrics (old format)
         {
             let config = BinaryExportConfig::minimal();
-            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+            let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).expect("Failed to create temp file");
             writer.write_header(1).expect("Failed to write header");
             writer.write_allocation(&original_alloc).expect("Failed to write allocation");
             writer.finish().expect("Failed to finish writing");
         }
 
         // Read with new reader (should handle missing advanced metrics gracefully)
-        let mut reader = BinaryReader::new(temp_file.path()).unwrap();
+        let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create temp file");
         let allocations = reader.read_all().expect("Failed to read from binary file");
 
         assert_eq!(allocations.len(), 1);

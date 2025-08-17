@@ -676,10 +676,10 @@ mod tests {
 
         writer
             .write_binary_allocation(&allocation, &fields)
-            .unwrap();
+            .expect("Test operation failed");
         let stats = writer
             .finalize_with_binary_template("test_project")
-            .unwrap();
+            .expect("Test operation failed");
 
         assert_eq!(stats.allocations_processed, 1);
         assert!(stats.total_html_size > 0);

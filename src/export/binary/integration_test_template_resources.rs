@@ -99,7 +99,7 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_template_resource_integration() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         // Create test template data
         let mut custom_data = HashMap::new();
@@ -134,7 +134,7 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_resource_caching() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let config = ResourceConfig::default();
 
@@ -158,7 +158,7 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_resource_minification() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let config_normal = ResourceConfig {
             minify_resources: false,
@@ -241,7 +241,7 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_placeholder_processing() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         // Create template data with custom placeholders
         let mut custom_data = HashMap::new();
@@ -275,7 +275,7 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_resource_config_options() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let template_data = create_template_data(
             "Config Test",
@@ -315,7 +315,7 @@ window.addEventListener('load', initializeMemoryDashboard);
 
         // Test with valid directory but non-existent template
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let template_data = create_template_data("Test", "{}", HashMap::new());
         let config = ResourceConfig::default();

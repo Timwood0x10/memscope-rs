@@ -973,7 +973,7 @@ mod tests {
 
     #[test]
     fn test_field_analysis() {
-        let mut exporter = SelectiveJsonExporter::new().unwrap();
+        let mut exporter = SelectiveJsonExporter::new().expect("Test operation failed");
 
         // Test basic functionality without actual file processing
         let stats = exporter.get_stats();
@@ -986,7 +986,7 @@ mod tests {
 
     #[test]
     fn test_cache_operations() {
-        let mut exporter = SelectiveJsonExporter::new().unwrap();
+        let mut exporter = SelectiveJsonExporter::new().expect("Test operation failed");
 
         // Test cache clearing
         exporter.clear_caches();

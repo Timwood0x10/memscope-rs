@@ -532,7 +532,7 @@ mod tests {
         let engine = FilterEngineBuilder::new()
             .with_index(index)
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         assert_eq!(engine.get_stats().total_operations, 0);
     }

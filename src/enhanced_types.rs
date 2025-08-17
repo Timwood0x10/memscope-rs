@@ -1502,10 +1502,10 @@ pub struct CurrentFragmentationState {
 impl Default for CodeBloatAssessment {
     fn default() -> Self {
         Self {
-            total_code_size: 0,
-            duplicated_code_size: 0,
-            bloat_ratio: 0.0,
-            optimization_opportunities: Vec::new(),
+            bloat_level: BloatLevel::Minimal,
+            estimated_code_size_increase: 0.0,
+            compilation_time_impact: 0.0,
+            binary_size_impact: 0.0,
         }
     }
 }
@@ -1513,9 +1513,10 @@ impl Default for CodeBloatAssessment {
 impl Default for ResourceWasteAnalysis {
     fn default() -> Self {
         Self {
-            waste_categories: Vec::new(),
-            total_wasted_bytes: 0,
+            wasted_allocations: 0,
+            total_wasted_memory: 0,
             waste_percentage: 0.0,
+            waste_categories: Vec::new(),
         }
     }
 }
@@ -1533,9 +1534,10 @@ impl Default for StackHeapInteractionAnalysis {
 impl Default for MemorySpaceCoverage {
     fn default() -> Self {
         Self {
-            stack_coverage: 0.0,
-            heap_coverage: 0.0,
-            total_coverage: 0.0,
+            total_tracked_bytes: 0,
+            stack_coverage_percent: 0.0,
+            heap_coverage_percent: 0.0,
+            unknown_region_percent: 0.0,
         }
     }
 }
@@ -1543,9 +1545,10 @@ impl Default for MemorySpaceCoverage {
 impl Default for BoundaryDetectionAccuracy {
     fn default() -> Self {
         Self {
-            accuracy_percentage: 0.0,
-            false_positives: 0,
-            false_negatives: 0,
+            stack_detection_accuracy: 0.0,
+            heap_detection_accuracy: 0.0,
+            false_positive_rate: 0.0,
+            false_negative_rate: 0.0,
         }
     }
 }
@@ -1553,9 +1556,10 @@ impl Default for BoundaryDetectionAccuracy {
 impl Default for PerformanceImplication {
     fn default() -> Self {
         Self {
-            performance_impact: 0.0,
-            optimization_potential: 0.0,
-            recommendations: Vec::new(),
+            implication_type: PerformanceImplicationType::Neutral,
+            severity: Severity::Low,
+            description: String::new(),
+            mitigation_suggestion: String::new(),
         }
     }
 }

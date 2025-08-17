@@ -182,7 +182,7 @@ mod tests {
         let i32_info = analysis.categorized_types.primitives
             .iter()
             .find(|t| t.name == "i32")
-            .unwrap();
+            .expect("Test operation failed");
 
         assert_eq!(i32_info.allocation_count, 2);
         assert_eq!(i32_info.total_memory, 8);
@@ -193,7 +193,7 @@ mod tests {
         let vec_info = analysis.categorized_types.collections
             .iter()
             .find(|t| t.name == "Vec<String>")
-            .unwrap();
+            .expect("Test operation failed");
 
         assert_eq!(vec_info.allocation_count, 1);
         assert_eq!(vec_info.total_memory, 100);

@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn test_header_writing() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
+        let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
 
         let result = writer.write_header(42);
         assert!(result.is_ok());
@@ -760,14 +760,14 @@ mod tests {
         writer.finish().expect("Failed to finish writing");
 
         // Verify file size is at least header size
-        let metadata = fs::metadata(temp_file.path()).unwrap();
+        let metadata = fs::metadata(temp_file.path()).expect("Failed to create temp file");
         assert!(metadata.len() >= 16);
     }
 
     #[test]
     fn test_allocation_writing() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
+        let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
 
         writer.write_header(1).expect("Failed to write header");
 
@@ -778,14 +778,14 @@ mod tests {
         writer.finish().expect("Failed to finish writing");
 
         // Verify file has content beyond header
-        let metadata = fs::metadata(temp_file.path()).unwrap();
+        let metadata = fs::metadata(temp_file.path()).expect("Failed to create temp file");
         assert!(metadata.len() > 16);
     }
 
     #[test]
     fn test_record_size_calculation() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let writer = BinaryWriter::new(temp_file.path()).unwrap();
+        let writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
 
         let alloc = create_test_allocation();
         let size = writer.calculate_value_size(&alloc);
@@ -809,7 +809,7 @@ mod tests {
     fn test_advanced_metrics_segment_writing() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = BinaryExportConfig::debug_comprehensive();
-        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).expect("Failed to create temp file");
 
         writer.write_header(1).expect("Failed to write header");
 
@@ -821,7 +821,7 @@ mod tests {
         writer.finish().expect("Failed to finish writing");
 
         // Verify file has content beyond basic allocation data
-        let metadata = std::fs::metadata(temp_file.path()).unwrap();
+        let metadata = std::fs::metadata(temp_file.path()).expect("Failed to create temp file");
         assert!(metadata.len() > 100); // Should be larger with advanced metrics
     }
 
@@ -829,7 +829,7 @@ mod tests {
     fn test_advanced_metrics_disabled() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = BinaryExportConfig::minimal(); // No advanced metrics
-        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).unwrap();
+        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).expect("Failed to create temp file");
 
         writer.write_header(1).expect("Failed to write header");
         let alloc = create_test_allocation();
@@ -840,7 +840,7 @@ mod tests {
         writer.finish().expect("Failed to finish writing");
 
         // File should be smaller without advanced metrics
-        let metadata = std::fs::metadata(temp_file.path()).unwrap();
+        let metadata = std::fs::metadata(temp_file.path()).expect("Failed to create temp file");
         assert!(metadata.len() < 150); // Should be smaller without advanced metrics
     }
 }

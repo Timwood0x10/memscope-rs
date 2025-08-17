@@ -1454,8 +1454,6 @@ impl Default for MonomorphizationStatistics {
     fn default() -> Self {
         Self {
             total_instantiations: 0,
-            unique_types: 0,
-            code_bloat_factor: 0.0,
         }
     }
 }
@@ -1464,7 +1462,6 @@ impl Default for EfficiencyMetrics {
     fn default() -> Self {
         Self {
             efficiency_score: 0.0,
-            optimization_potential: 0.0,
         }
     }
 }
@@ -1473,7 +1470,6 @@ impl Default for ObjectRelationshipGraph {
     fn default() -> Self {
         Self {
             nodes: Vec::new(),
-            edges: Vec::new(),
         }
     }
 }
@@ -1481,8 +1477,7 @@ impl Default for ObjectRelationshipGraph {
 impl Default for ActualAccessTracking {
     fn default() -> Self {
         Self {
-            access_patterns: Vec::new(),
-            hot_spots: Vec::new(),
+            total_accesses: 0,
         }
     }
 }
@@ -1491,7 +1486,6 @@ impl Default for BandwidthUtilization {
     fn default() -> Self {
         Self {
             utilization_percentage: 0.0,
-            peak_bandwidth: 0.0,
         }
     }
 }
@@ -1499,8 +1493,7 @@ impl Default for BandwidthUtilization {
 impl Default for LocalityAnalysis {
     fn default() -> Self {
         Self {
-            spatial_locality: 0.0,
-            temporal_locality: 0.0,
+            locality_score: 0.0,
         }
     }
 }
@@ -1508,9 +1501,8 @@ impl Default for LocalityAnalysis {
 impl Default for CacheLineAnalysis {
     fn default() -> Self {
         Self {
-            cache_hits: 0,
-            cache_misses: 0,
-            hit_ratio: 0.0,
+            utilization_percentage: 0.0,
+            estimated_cache_misses: 0,
         }
     }
 }

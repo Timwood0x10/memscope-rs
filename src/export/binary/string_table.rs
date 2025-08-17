@@ -565,7 +565,7 @@ mod tests {
         // Fill up to near the limit (this would be slow in practice, so we'll mock it)
         // In a real scenario, we'd hit the limit with many unique strings
         for i in 0..10 {
-            table.add_string(&format!("string_{}", i)).unwrap();
+            table.add_string(&format!("string_{}", i)).expect("Test operation failed");
         }
 
         assert_eq!(table.len(), 10);

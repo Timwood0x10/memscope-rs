@@ -421,7 +421,7 @@ mod tests {
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
 
-        let (shards, stats) = result.unwrap();
+        let (shards, stats) = result.expect("Test operation failed");
         assert_eq!(stats.total_allocations, 20);
         assert!(shards.len() >= 1);
     }
@@ -442,7 +442,7 @@ mod tests {
         let result = processor.process_allocations_parallel(&data);
         assert!(result.is_ok());
 
-        let (shards, stats) = result.unwrap();
+        let (shards, stats) = result.expect("Test operation failed");
         assert_eq!(stats.total_allocations, 2000);
         assert_eq!(shards.len(), 4); // 2000 / 500 = 4 shards
     }
@@ -463,7 +463,7 @@ mod tests {
         let result = process_allocations_with_config(&data, config);
         assert!(result.is_ok());
 
-        let (shards, _) = result.unwrap();
+        let (shards, _) = result.expect("Test operation failed");
         assert_eq!(shards.len(), 5); // 1500 / 300 = 5 shards
     }
 

@@ -218,14 +218,14 @@ mod tests {
         let mut buffer = Vec::new();
 
         // Test u32
-        primitives::write_u32(&mut buffer, 0x12345678).unwrap();
+        primitives::write_u32(&mut buffer, 0x12345678).expect("Test operation failed");
         let mut cursor = Cursor::new(&buffer);
         let value = primitives::read_u32(&mut cursor).expect("Failed to get test value");
         assert_eq!(value, 0x12345678);
 
         // Test string
         buffer.clear();
-        primitives::write_string(&mut buffer, "test").unwrap();
+        primitives::write_string(&mut buffer, "test").expect("Test operation failed");
         let mut cursor = Cursor::new(&buffer);
         let string = primitives::read_string(&mut cursor).expect("Failed to get test value");
         assert_eq!(string, "test");
@@ -257,17 +257,17 @@ mod tests {
         primitives::write_option(&mut buffer, &some_value).expect("Failed to get test value");
 
         let mut cursor = Cursor::new(&buffer);
-        let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).unwrap();
+        let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).expect("Test operation failed");
         assert!(read_value.is_some());
-        assert_eq!(read_value.unwrap().0, 42);
+        assert_eq!(read_value.expect("Test operation failed").0, 42);
 
         // Test None value
         buffer.clear();
         let none_value: Option<TestStruct> = None;
-        primitives::write_option(&mut buffer, &none_value).unwrap();
+        primitives::write_option(&mut buffer, &none_value).expect("Test operation failed");
 
         let mut cursor = Cursor::new(&buffer);
-        let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).unwrap();
+        let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).expect("Test operation failed");
         assert!(read_value.is_none());
     }
 }

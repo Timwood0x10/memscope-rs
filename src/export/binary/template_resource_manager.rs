@@ -446,7 +446,7 @@ mod tests {
     #[test]
     fn test_template_processing() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let template_data = TemplateData {
             project_name: "Test Project".to_string(),
@@ -472,7 +472,7 @@ mod tests {
     #[test]
     fn test_css_loading() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
         let config = ResourceConfig::default();
 
         let css_content = manager.get_shared_css(&config).expect("Test operation failed");
@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn test_js_loading() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
         let config = ResourceConfig::default();
 
         let js_content = manager.get_shared_js(&config).expect("Test operation failed");
@@ -492,7 +492,7 @@ mod tests {
     #[test]
     fn test_css_minification() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let _manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let _manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let css = "body {\n    margin: 0;\n    padding: 0;\n}";
         let minified = _manager.minify_css(css);
@@ -503,7 +503,7 @@ mod tests {
     #[test]
     fn test_placeholder_processors() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let _manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let _manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let mut custom_data = HashMap::new();
         custom_data.insert("complex_types".to_string(), r#"{"types": []}"#.to_string());
@@ -526,7 +526,7 @@ mod tests {
     #[test]
     fn test_cache_functionality() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).unwrap();
+        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
         let config = ResourceConfig::default();
 
         // First load should read from file

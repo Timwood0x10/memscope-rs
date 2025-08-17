@@ -414,7 +414,7 @@ mod tests {
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).unwrap();
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).expect("Failed to create temp file");
         let stats = writer.write_processed_shards(&shards).expect("Test operation failed");
         assert!(stats.preallocation_effective);
 

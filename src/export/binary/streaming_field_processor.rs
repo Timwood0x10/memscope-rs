@@ -735,7 +735,7 @@ mod tests {
                 processed_count += 1;
                 Ok(())
             })
-            .unwrap();
+            .expect("Test operation failed");
 
         assert_eq!(processed_count, 1);
         assert_eq!(processor.get_stats().records_processed, 1);
@@ -765,7 +765,7 @@ mod tests {
         // Test cache miss
         let result1 = processor
             .get_or_format_field("test_key", &AllocationField::Ptr, &allocation)
-            .unwrap();
+            .expect("Test operation failed");
         assert_eq!(result1, Some("\"0x1000\"".to_string()));
         assert_eq!(processor.get_stats().cache_misses, 1);
         assert_eq!(processor.cache_size(), 1);
@@ -773,7 +773,7 @@ mod tests {
         // Test cache hit
         let result2 = processor
             .get_or_format_field("test_key", &AllocationField::Ptr, &allocation)
-            .unwrap();
+            .expect("Test operation failed");
         assert_eq!(result2, Some("\"0x1000\"".to_string()));
         assert_eq!(processor.get_stats().cache_hits, 1);
         assert_eq!(processor.cache_size(), 1);

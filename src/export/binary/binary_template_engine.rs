@@ -1312,7 +1312,7 @@ mod tests {
             enable_cache: true,
             ..Default::default()
         })
-        .unwrap();
+        .expect("Test operation failed");
 
         // Note: Resources are now managed by TemplateResourceManager
         // Cache functionality is handled internally
@@ -1340,7 +1340,7 @@ mod tests {
             enable_cache: true,
             ..Default::default()
         })
-        .unwrap();
+        .expect("Test operation failed");
 
         // Cache hits are now managed by resource manager internally
         // Test that resources can be loaded multiple times without error
@@ -1365,7 +1365,7 @@ mod tests {
             enable_cache: false,
             ..Default::default()
         })
-        .unwrap();
+        .expect("Test operation failed");
 
         // With caching disabled, resource manager handles loading differently
         // No direct cache access needed
@@ -1386,7 +1386,7 @@ mod tests {
             enable_cache: true,
             ..Default::default()
         })
-        .unwrap();
+        .expect("Test operation failed");
 
         // Load resources to populate cache
         engine._get_embedded_css();

@@ -641,7 +641,7 @@ mod tests {
             .offset(10)
             .sort_by(SortField::Size, SortOrder::Descending)
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         assert!(options.includes_field(&AllocationField::Ptr));
         assert!(options.includes_field(&AllocationField::Size));
@@ -788,19 +788,19 @@ mod tests {
     fn test_specialized_builders() {
         let memory_options = SelectiveReadOptionsBuilder::for_memory_analysis()
             .build()
-            .unwrap();
+            .expect("Test operation failed");
         assert!(memory_options.includes_field(&AllocationField::Ptr));
         assert!(memory_options.includes_field(&AllocationField::IsLeaked));
 
         let lifetime_options = SelectiveReadOptionsBuilder::for_lifetime_analysis()
             .build()
-            .unwrap();
+            .expect("Test operation failed");
         assert!(lifetime_options.includes_field(&AllocationField::TimestampAlloc));
         assert!(lifetime_options.includes_field(&AllocationField::LifetimeMs));
 
         let performance_options = SelectiveReadOptionsBuilder::for_performance_analysis()
             .build()
-            .unwrap();
+            .expect("Test operation failed");
         assert!(performance_options.includes_field(&AllocationField::BorrowCount));
         assert!(performance_options.includes_field(&AllocationField::FragmentationAnalysis));
     }
@@ -1455,8 +1455,8 @@ mod selective_reader_tests {
 
         // Write test data to binary file
         {
-            let mut writer = BinaryWriter::new(temp_file.path()).unwrap();
-            writer.write_header(test_allocations.len() as u32).unwrap();
+            let mut writer = BinaryWriter::new(temp_file.path()).expect("Operation failed");
+            writer.write_header(test_allocations.len() as u32).expect("Operation failed");
             for alloc in &test_allocations {
                 writer.write_allocation(alloc).expect("Failed to write allocation");
             }
@@ -1488,18 +1488,18 @@ mod selective_reader_tests {
         );
 
         // Let's debug the file structure
-        let file_size = std::fs::metadata(test_file.path()).unwrap().len();
+        let file_size = std::fs::metadata(test_file.path()).expect("Test operation failed").len();
         println!("Binary file size: {} bytes", file_size);
 
         // Read the file header manually
-        let mut file = std::fs::File::open(test_file.path()).unwrap();
+        let mut file = std::fs::File::open(test_file.path()).expect("Test operation failed");
         let mut header_bytes = [0u8; 16];
-        std::io::Read::read_exact(&mut file, &mut header_bytes).unwrap();
+        std::io::Read::read_exact(&mut file, &mut header_bytes).expect("Test operation failed");
         println!("Header bytes: {:?}", header_bytes);
 
         // Read string table marker
         let mut marker = [0u8; 4];
-        std::io::Read::read_exact(&mut file, &mut marker).unwrap();
+        std::io::Read::read_exact(&mut file, &mut marker).expect("Test operation failed");
         println!(
             "String table marker: {:?} ({})",
             marker,
@@ -1508,7 +1508,7 @@ mod selective_reader_tests {
 
         // Read string table size
         let mut size_bytes = [0u8; 4];
-        std::io::Read::read_exact(&mut file, &mut size_bytes).unwrap();
+        std::io::Read::read_exact(&mut file, &mut size_bytes).expect("Test operation failed");
         let table_size = u32::from_le_bytes(size_bytes);
         println!("String table size: {}", table_size);
 
@@ -1521,9 +1521,9 @@ mod selective_reader_tests {
 
         // Skip string table data if any
         if table_size > 0 {
-            std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(table_size as i64)).unwrap();
+            std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(table_size as i64)).expect("Operation failed");
             let pos_after_table =
-                std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0)).unwrap();
+                std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0)).expect("Operation failed");
             println!(
                 "Position after skipping string table data: {}",
                 pos_after_table
@@ -1571,13 +1571,13 @@ mod selective_reader_tests {
     #[test]
     fn test_selective_reading_with_filters() {
         let test_file = create_test_binary_with_multiple_allocations();
-        let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
+        let mut reader = SelectiveBinaryReader::new(test_file.path()).expect("Test operation failed");
 
         // Test size filter
         let options = SelectiveReadOptionsBuilder::new()
             .filter(AllocationFilter::SizeRange(1000, 3000))
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         let allocations = reader.read_selective(&options).expect("Failed to read from binary file");
         assert_eq!(allocations.len(), 2); // Should match 1024 and 2048 byte allocations
@@ -1586,7 +1586,7 @@ mod selective_reader_tests {
         let options = SelectiveReadOptionsBuilder::new()
             .filter(AllocationFilter::ThreadEquals("main".to_string()))
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         let allocations = reader.read_selective(&options).expect("Failed to read from binary file");
         assert_eq!(allocations.len(), 2); // Should match allocations from main thread
@@ -1595,10 +1595,10 @@ mod selective_reader_tests {
     #[test]
     fn test_selective_reading_with_limit_and_offset() {
         let test_file = create_test_binary_with_multiple_allocations();
-        let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
+        let mut reader = SelectiveBinaryReader::new(test_file.path()).expect("Test operation failed");
 
         // Test limit
-        let options = SelectiveReadOptionsBuilder::new().limit(2).build().unwrap();
+        let options = SelectiveReadOptionsBuilder::new().limit(2).build().expect("Test operation failed");
 
         let allocations = reader.read_selective(&options).expect("Failed to read from binary file");
         assert_eq!(allocations.len(), 2);
@@ -1608,7 +1608,7 @@ mod selective_reader_tests {
             .offset(1)
             .limit(1)
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         let allocations = reader.read_selective(&options).expect("Failed to read from binary file");
         assert_eq!(allocations.len(), 1);
@@ -1617,13 +1617,13 @@ mod selective_reader_tests {
     #[test]
     fn test_selective_reading_with_sorting() {
         let test_file = create_test_binary_with_multiple_allocations();
-        let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
+        let mut reader = SelectiveBinaryReader::new(test_file.path()).expect("Test operation failed");
 
         // Test sorting by size (ascending)
         let options = SelectiveReadOptionsBuilder::new()
             .sort_by(SortField::Size, SortOrder::Ascending)
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         let allocations = reader.read_selective(&options).expect("Failed to read from binary file");
         assert_eq!(allocations.len(), 3);
@@ -1634,7 +1634,7 @@ mod selective_reader_tests {
         let options = SelectiveReadOptionsBuilder::new()
             .sort_by(SortField::Size, SortOrder::Descending)
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         let allocations = reader.read_selective(&options).expect("Failed to read from binary file");
         assert_eq!(allocations.len(), 3);
@@ -1645,12 +1645,12 @@ mod selective_reader_tests {
     #[test]
     fn test_streaming_read() {
         let test_file = create_test_binary_with_multiple_allocations();
-        let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
+        let mut reader = SelectiveBinaryReader::new(test_file.path()).expect("Test operation failed");
 
         let options = SelectiveReadOptionsBuilder::new()
             .filter(AllocationFilter::ThreadEquals("main".to_string()))
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         let mut count = 0;
         let result = reader.read_selective_streaming(&options, |_allocation| {
@@ -1665,7 +1665,7 @@ mod selective_reader_tests {
     #[test]
     fn test_field_filtering() {
         let test_file = create_test_binary_with_multiple_allocations();
-        let mut reader = SelectiveBinaryReader::new(test_file.path()).unwrap();
+        let mut reader = SelectiveBinaryReader::new(test_file.path()).expect("Test operation failed");
 
         // Only include basic fields
         let options = SelectiveReadOptionsBuilder::new()
@@ -1675,7 +1675,7 @@ mod selective_reader_tests {
                     .collect(),
             )
             .build()
-            .unwrap();
+            .expect("Test operation failed");
 
         let allocations = reader.read_selective(&options).expect("Failed to read from binary file");
         assert_eq!(allocations.len(), 3);

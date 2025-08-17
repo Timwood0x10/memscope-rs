@@ -3631,9 +3631,20 @@ pub enum LeakPreventionType {
 impl Default for PerformanceCharacteristics {
     fn default() -> Self {
         Self {
-            cpu_usage: 0.0,
-            memory_efficiency: 0.0,
-            cache_performance: 0.0,
+            avg_allocation_time_ns: 0.0,
+            avg_deallocation_time_ns: 0.0,
+            access_pattern: MemoryAccessPattern::Sequential,
+            cache_impact: CacheImpact {
+                l1_impact_score: 0.0,
+                l2_impact_score: 0.0,
+                l3_impact_score: 0.0,
+                cache_line_efficiency: 0.0,
+            },
+            branch_prediction_impact: BranchPredictionImpact {
+                misprediction_rate: 0.0,
+                pipeline_stall_impact: 0.0,
+                predictability_score: 0.0,
+            },
         }
     }
 }
@@ -3641,9 +3652,16 @@ impl Default for PerformanceCharacteristics {
 impl Default for LifecycleEfficiencyMetrics {
     fn default() -> Self {
         Self {
-            allocation_efficiency: 0.0,
-            deallocation_efficiency: 0.0,
-            overall_efficiency: 0.0,
+            utilization_ratio: 0.0,
+            memory_efficiency: 0.0,
+            performance_efficiency: 0.0,
+            resource_waste: ResourceWasteAssessment {
+                wasted_memory_percent: 0.0,
+                wasted_cpu_percent: 0.0,
+                premature_destructions: 0,
+                unused_instances: 0,
+                optimization_opportunities: Vec::new(),
+            },
         }
     }
 }

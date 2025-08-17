@@ -247,19 +247,19 @@ mod tests {
         let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Find nodes by type and verify categories
-        let int_node = analysis.graph.nodes.iter().find(|n| n.name == "int_val").unwrap();
+        let int_node = analysis.graph.nodes.iter().find(|n| n.name == "int_val").expect("Test operation failed");
         assert_eq!(int_node.category, NodeCategory::Primitive);
 
-        let vec_node = analysis.graph.nodes.iter().find(|n| n.name == "vec_val").unwrap();
+        let vec_node = analysis.graph.nodes.iter().find(|n| n.name == "vec_val").expect("Test operation failed");
         assert_eq!(vec_node.category, NodeCategory::Collection);
 
-        let box_node = analysis.graph.nodes.iter().find(|n| n.name == "box_val").unwrap();
+        let box_node = analysis.graph.nodes.iter().find(|n| n.name == "box_val").expect("Test operation failed");
         assert_eq!(box_node.category, NodeCategory::SmartPointer);
 
-        let ref_node = analysis.graph.nodes.iter().find(|n| n.name == "ref_val").unwrap();
+        let ref_node = analysis.graph.nodes.iter().find(|n| n.name == "ref_val").expect("Test operation failed");
         assert_eq!(ref_node.category, NodeCategory::Reference);
 
-        let ptr_node = analysis.graph.nodes.iter().find(|n| n.name == "ptr_val").unwrap();
+        let ptr_node = analysis.graph.nodes.iter().find(|n| n.name == "ptr_val").expect("Test operation failed");
         assert_eq!(ptr_node.category, NodeCategory::RawPointer);
     }
 
@@ -275,19 +275,19 @@ mod tests {
 
         let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
-        let owned_node = analysis.graph.nodes.iter().find(|n| n.name == "owned").unwrap();
+        let owned_node = analysis.graph.nodes.iter().find(|n| n.name == "owned").expect("Test operation failed");
         assert_eq!(owned_node.ownership, OwnershipStatus::Owner);
 
-        let borrowed_node = analysis.graph.nodes.iter().find(|n| n.name == "borrowed").unwrap();
+        let borrowed_node = analysis.graph.nodes.iter().find(|n| n.name == "borrowed").expect("Test operation failed");
         assert_eq!(borrowed_node.ownership, OwnershipStatus::BorrowedImmutable);
 
-        let mut_borrowed_node = analysis.graph.nodes.iter().find(|n| n.name == "mut_borrowed").unwrap();
+        let mut_borrowed_node = analysis.graph.nodes.iter().find(|n| n.name == "mut_borrowed").expect("Test operation failed");
         assert_eq!(mut_borrowed_node.ownership, OwnershipStatus::BorrowedMutable);
 
-        let shared_node = analysis.graph.nodes.iter().find(|n| n.name == "shared").unwrap();
+        let shared_node = analysis.graph.nodes.iter().find(|n| n.name == "shared").expect("Test operation failed");
         assert_eq!(shared_node.ownership, OwnershipStatus::Shared);
 
-        let arc_shared_node = analysis.graph.nodes.iter().find(|n| n.name == "arc_shared").unwrap();
+        let arc_shared_node = analysis.graph.nodes.iter().find(|n| n.name == "arc_shared").expect("Test operation failed");
         assert_eq!(arc_shared_node.ownership, OwnershipStatus::Shared);
     }
 
@@ -304,22 +304,22 @@ mod tests {
 
         let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
-        let instant_node = analysis.graph.nodes.iter().find(|n| n.name == "instant").unwrap();
+        let instant_node = analysis.graph.nodes.iter().find(|n| n.name == "instant").expect("Test operation failed");
         assert_eq!(instant_node.lifetime.category, LifetimeCategory::Instant);
 
-        let short_node = analysis.graph.nodes.iter().find(|n| n.name == "short").unwrap();
+        let short_node = analysis.graph.nodes.iter().find(|n| n.name == "short").expect("Test operation failed");
         assert_eq!(short_node.lifetime.category, LifetimeCategory::Short);
 
-        let medium_node = analysis.graph.nodes.iter().find(|n| n.name == "medium").unwrap();
+        let medium_node = analysis.graph.nodes.iter().find(|n| n.name == "medium").expect("Test operation failed");
         assert_eq!(medium_node.lifetime.category, LifetimeCategory::Medium);
 
-        let long_node = analysis.graph.nodes.iter().find(|n| n.name == "long").unwrap();
+        let long_node = analysis.graph.nodes.iter().find(|n| n.name == "long").expect("Test operation failed");
         assert_eq!(long_node.lifetime.category, LifetimeCategory::Long);
 
-        let persistent_node = analysis.graph.nodes.iter().find(|n| n.name == "persistent").unwrap();
+        let persistent_node = analysis.graph.nodes.iter().find(|n| n.name == "persistent").expect("Test operation failed");
         assert_eq!(persistent_node.lifetime.category, LifetimeCategory::Persistent);
 
-        let active_node = analysis.graph.nodes.iter().find(|n| n.name == "active").unwrap();
+        let active_node = analysis.graph.nodes.iter().find(|n| n.name == "active").expect("Test operation failed");
         assert_eq!(active_node.lifetime.category, LifetimeCategory::Active);
         assert!(active_node.lifetime.is_active);
     }

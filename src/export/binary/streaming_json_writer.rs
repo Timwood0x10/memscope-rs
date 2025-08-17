@@ -1350,7 +1350,7 @@ mod tests {
 
         writer
             .write_allocation_selective(&allocation, &requested_fields)
-            .unwrap();
+            .expect("Test operation failed");
 
         // Finalize
         let stats = writer.finalize().expect("Test operation failed");
@@ -1390,7 +1390,7 @@ mod tests {
 
         writer
             .write_allocation_selective(&allocation, &requested_fields)
-            .unwrap();
+            .expect("Test operation failed");
         let stats = writer.finalize().expect("Test operation failed");
 
         // Should have skipped many fields
@@ -1480,7 +1480,7 @@ mod tests {
 
         writer
             .write_allocation_batch(&allocations, &requested_fields)
-            .unwrap();
+            .expect("Test operation failed");
         let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 2);
@@ -1522,7 +1522,7 @@ mod tests {
 
         writer
             .write_allocation_selective_with_options(&allocation, &requested_fields, &options)
-            .unwrap();
+            .expect("Test operation failed");
         let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 1);
@@ -1564,7 +1564,7 @@ mod tests {
 
         writer
             .write_allocation_selective_with_options(&allocation, &requested_fields, &options)
-            .unwrap();
+            .expect("Test operation failed");
         let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 1);
@@ -1578,7 +1578,7 @@ mod tests {
             .buffer_size(1024)
             .max_memory_before_flush(2048)
             .build();
-        let mut writer = StreamingJsonWriter::with_config(cursor, config).unwrap();
+        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Test operation failed");
 
         writer.write_header(3).expect("Failed to write header");
 
@@ -1638,7 +1638,7 @@ mod tests {
 
         writer
             .write_allocation_batch(&allocations, &requested_fields)
-            .unwrap();
+            .expect("Operation failed");
         let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 3);
@@ -1685,7 +1685,7 @@ mod tests {
 
         writer
             .write_allocation_adaptive_chunked(&allocations, &requested_fields, &options)
-            .unwrap();
+            .expect("Test operation failed");
         let stats = writer.finalize().expect("Test operation failed");
 
         assert_eq!(stats.allocations_written, 5);

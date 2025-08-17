@@ -93,7 +93,7 @@ impl StringPool {
         let result = self
             .pool
             .entry(s.to_string())
-            .or_insert_with(|| arc_str.clone())
+            .or_insert_with(|| Arc::clone(&arc_str))
             .clone();
 
         self.metrics.record_intern(string_len, false);

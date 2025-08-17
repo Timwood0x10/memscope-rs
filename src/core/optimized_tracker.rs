@@ -42,7 +42,7 @@ impl OptimizedMemoryTracker {
         match (self.active_allocations.try_lock(), self.stats.try_lock()) {
             (Ok(mut active), Ok(mut stats)) => {
                 // Insert the Arc - no cloning needed
-                active.insert(ptr, shared_allocation.clone());
+                active.insert(ptr, Arc::clone(&shared_allocation));
 
                 // Update statistics
                 stats.total_allocations = stats.total_allocations.saturating_add(1);
