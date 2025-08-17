@@ -419,6 +419,19 @@ pub struct TemporaryObjectAnalysisReport {
     pub performance_impact_assessment: PerformanceImpactAssessment,
 }
 
+impl Default for TemporaryObjectAnalysisReport {
+    fn default() -> Self {
+        Self {
+            temporary_objects: Vec::new(),
+            optimization_candidates: Vec::new(),
+            hot_temporary_patterns: Vec::new(),
+            optimization_suggestions: Vec::new(),
+            pattern_statistics: PatternStatistics::default(),
+            performance_impact_assessment: PerformanceImpactAssessment::default(),
+        }
+    }
+}
+
 /// Optimization candidate
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationCandidate {
@@ -552,6 +565,19 @@ pub struct RealTimeFragmentationAnalysis {
     pub fragmentation_visualization: FragmentationVisualization,
     /// Mitigation recommendations for fragmentation
     pub mitigation_recommendations: Vec<FragmentationMitigationStrategy>,
+}
+
+impl Default for RealTimeFragmentationAnalysis {
+    fn default() -> Self {
+        Self {
+            current_fragmentation: FragmentationMetrics::default(),
+            fragmentation_trends: FragmentationTrends::default(),
+            adaptive_strategies: Vec::new(),
+            real_time_metrics: RealTimeMetrics::default(),
+            fragmentation_visualization: FragmentationVisualization::default(),
+            mitigation_recommendations: Vec::new(),
+        }
+    }
 }
 
 /// Trends in fragmentation over time
@@ -867,6 +893,18 @@ pub struct GenericTypeAnalysisReport {
     pub performance_characteristics: PerformanceCharacteristics,
 }
 
+impl Default for GenericTypeAnalysisReport {
+    fn default() -> Self {
+        Self {
+            instantiation_analysis: Vec::new(),
+            code_bloat_assessment: CodeBloatAssessment::default(),
+            optimization_recommendations: Vec::new(),
+            monomorphization_statistics: crate::enhanced_memory_analysis::MonomorphizationStatistics::default(),
+            performance_characteristics: PerformanceCharacteristics::default(),
+        }
+    }
+}
+
 /// Object lifecycle analysis report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectLifecycleAnalysisReport {
@@ -884,6 +922,19 @@ pub struct ObjectLifecycleAnalysisReport {
     pub object_relationship_graph: crate::enhanced_memory_analysis::ObjectRelationshipGraph,
 }
 
+impl Default for ObjectLifecycleAnalysisReport {
+    fn default() -> Self {
+        Self {
+            lifecycle_reports: Vec::new(),
+            lifecycle_patterns: Vec::new(),
+            resource_waste_analysis: ResourceWasteAnalysis::default(),
+            lifecycle_optimizations: Vec::new(),
+            efficiency_metrics: crate::enhanced_memory_analysis::EfficiencyMetrics::default(),
+            object_relationship_graph: crate::enhanced_memory_analysis::ObjectRelationshipGraph::default(),
+        }
+    }
+}
+
 /// Memory access analysis report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryAccessAnalysisReport {
@@ -897,6 +948,18 @@ pub struct MemoryAccessAnalysisReport {
     pub bandwidth_utilization: crate::enhanced_memory_analysis::BandwidthUtilization,
     /// Locality analysis of memory
     pub locality_analysis: crate::enhanced_memory_analysis::LocalityAnalysis,
+}
+
+impl Default for MemoryAccessAnalysisReport {
+    fn default() -> Self {
+        Self {
+            access_patterns: Vec::new(),
+            layout_recommendations: Vec::new(),
+            actual_access_tracking: crate::enhanced_memory_analysis::ActualAccessTracking::default(),
+            bandwidth_utilization: crate::enhanced_memory_analysis::BandwidthUtilization::default(),
+            locality_analysis: crate::enhanced_memory_analysis::LocalityAnalysis::default(),
+        }
+    }
 }
 
 /// Cache optimization report
@@ -916,6 +979,19 @@ pub struct CacheOptimizationReport {
     pub optimization_recommendations: Vec<OptimizationRecommendation>,
     /// Performance projections of memory
     pub performance_projections: PerformanceImplication,
+}
+
+impl Default for CacheOptimizationReport {
+    fn default() -> Self {
+        Self {
+            cache_line_analysis: crate::enhanced_memory_analysis::CacheLineAnalysis::default(),
+            data_structure_optimizations: Vec::new(),
+            access_pattern_optimizations: Vec::new(),
+            cache_efficiency_metrics: LifecycleEfficiencyMetrics::default(),
+            optimization_recommendations: Vec::new(),
+            performance_projections: PerformanceImplication::default(),
+        }
+    }
 }
 
 /// Enhanced memory analysis report
@@ -960,6 +1036,20 @@ pub struct StackHeapBoundaryAnalysis {
     pub boundary_detection_accuracy: BoundaryDetectionAccuracy,
     /// Optimization opportunities of memory
     pub optimization_opportunities: Vec<StackHeapOptimization>,
+}
+
+impl Default for StackHeapBoundaryAnalysis {
+    fn default() -> Self {
+        Self {
+            stack_allocations: Vec::new(),
+            heap_allocations: Vec::new(),
+            ambiguous_allocations: Vec::new(),
+            stack_heap_interactions: StackHeapInteractionAnalysis::default(),
+            memory_space_coverage: MemorySpaceCoverage::default(),
+            boundary_detection_accuracy: BoundaryDetectionAccuracy::default(),
+            optimization_opportunities: Vec::new(),
+        }
+    }
 }
 
 /// Code bloat assessment

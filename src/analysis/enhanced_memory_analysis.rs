@@ -527,8 +527,14 @@ impl FragmentationMonitor {
         }
 
         // Calculate rate of change
-        let latest = self.history.last().unwrap();
-        let previous = self.history.get(self.history.len() - 2).unwrap();
+        let latest = match self.history.last() {
+            Some(l) => l,
+            None => return,
+        };
+        let previous = match self.history.get(self.history.len() - 2) {
+            Some(p) => p,
+            None => return,
+        };
 
         let time_diff = latest.timestamp.saturating_sub(previous.timestamp);
         if time_diff == 0 {
@@ -893,8 +899,14 @@ impl EnhancedMemoryAnalyzer {
         &self,
         allocations: &[AllocationInfo],
     ) -> StackHeapBoundaryAnalysis {
-        let stack_frame_tracker = self.stack_frame_tracker.read().unwrap();
-        let heap_boundary_detector = self.heap_boundary_detector.read().unwrap();
+        let stack_frame_tracker = match self.stack_frame_tracker.read() {
+            Ok(tracker) => tracker,
+            Err(_) => return StackHeapBoundaryAnalysis::default(),
+        };
+        let heap_boundary_detector = match self.heap_boundary_detector.read() {
+            Ok(detector) => detector,
+            Err(_) => return StackHeapBoundaryAnalysis::default(),
+        };
 
         let mut stack_allocations = Vec::new();
         let mut heap_allocations = Vec::new();
@@ -1025,7 +1037,10 @@ impl EnhancedMemoryAnalyzer {
         &self,
         allocations: &[AllocationInfo],
     ) -> TemporaryObjectAnalysisReport {
-        let mut temp_analyzer = self.temp_object_analyzer.write().unwrap();
+        let mut temp_analyzer = match self.temp_object_analyzer.write() {
+            Ok(analyzer) => analyzer,
+            Err(_) => return TemporaryObjectAnalysisReport::default(),
+        };
 
         // Analyze each allocation for temporary objects
         let mut temporary_objects = Vec::new();
@@ -1091,7 +1106,10 @@ impl EnhancedMemoryAnalyzer {
         &self,
         allocations: &[AllocationInfo],
     ) -> RealTimeFragmentationAnalysis {
-        let mut fragmentation_monitor = self.fragmentation_monitor.write().unwrap();
+        let mut fragmentation_monitor = match self.fragmentation_monitor.write() {
+            Ok(monitor) => monitor,
+            Err(_) => return RealTimeFragmentationAnalysis::default(),
+        };
 
         // Update fragmentation metrics
         fragmentation_monitor.update_metrics(allocations);
@@ -1128,7 +1146,10 @@ impl EnhancedMemoryAnalyzer {
 
     /// Analyze generic types
     fn analyze_generic_types(&self, allocations: &[AllocationInfo]) -> GenericTypeAnalysisReport {
-        let generic_tracker = self.generic_tracker.read().unwrap();
+        let generic_tracker = match self.generic_tracker.read() {
+            Ok(tracker) => tracker,
+            Err(_) => return GenericTypeAnalysisReport::default(),
+        };
 
         // Collect generic instantiations
         let mut instantiation_analysis = Vec::new();
@@ -1180,7 +1201,10 @@ impl EnhancedMemoryAnalyzer {
         &self,
         allocations: &[AllocationInfo],
     ) -> ObjectLifecycleAnalysisReport {
-        let lifecycle_manager = self.lifecycle_manager.read().unwrap();
+        let lifecycle_manager = match self.lifecycle_manager.read() {
+            Ok(manager) => manager,
+            Err(_) => return ObjectLifecycleAnalysisReport::default(),
+        };
 
         // Collect lifecycle reports
         let mut lifecycle_reports = Vec::new();
@@ -1215,7 +1239,10 @@ impl EnhancedMemoryAnalyzer {
         &self,
         allocations: &[AllocationInfo],
     ) -> MemoryAccessAnalysisReport {
-        let access_pattern_analyzer = self.access_pattern_analyzer.read().unwrap();
+        let access_pattern_analyzer = match self.access_pattern_analyzer.read() {
+            Ok(analyzer) => analyzer,
+            Err(_) => return MemoryAccessAnalysisReport::default(),
+        };
 
         // Collect access patterns
         let mut access_patterns = Vec::new();
@@ -1248,7 +1275,10 @@ impl EnhancedMemoryAnalyzer {
         &self,
         _allocations: &[AllocationInfo],
     ) -> CacheOptimizationReport {
-        let cache_optimizer = self.cache_optimizer.read().unwrap();
+        let cache_optimizer = match self.cache_optimizer.read() {
+            Ok(optimizer) => optimizer,
+            Err(_) => return CacheOptimizationReport::default(),
+        };
 
         // Generate data structure optimizations
         let data_structure_optimizations = Vec::new(); // Would generate actual optimizations

@@ -732,6 +732,18 @@ pub struct LifecycleAnalysisReport {
     pub analysis_timestamp: u64,
 }
 
+impl Default for LifecycleAnalysisReport {
+    fn default() -> Self {
+        Self {
+            drop_events: Vec::new(),
+            raii_patterns: Vec::new(),
+            borrow_analysis: BorrowAnalysis::default(),
+            closure_captures: Vec::new(),
+            analysis_timestamp: 0,
+        }
+    }
+}
+
 /// Get current timestamp in nanoseconds
 fn current_timestamp() -> u64 {
     SystemTime::now()

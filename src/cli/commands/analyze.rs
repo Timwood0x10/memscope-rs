@@ -142,10 +142,14 @@ fn _original_main() {
     }
 }
 
-fn handle_run_command(matches: &clap::ArgMatches) {
-    let command_args: Vec<&String> = matches.get_many::<String>("command").unwrap().collect();
-    let export_format = matches.get_one::<String>("export").unwrap();
-    let output_path = matches.get_one::<String>("output").unwrap();
+fn handle_run_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    let command_args: Vec<&String> = matches.get_many::<String>("command")
+        .ok_or("Missing command arguments")?
+        .collect();
+    let export_format = matches.get_one::<String>("export")
+        .ok_or("Missing export format")?;
+    let output_path = matches.get_one::<String>("output")
+        .ok_or("Missing output path")?;
     let auto_track = matches.get_flag("auto-track");
     let wait_completion = matches.get_flag("wait-completion");
 
@@ -194,18 +198,22 @@ fn handle_run_command(matches: &clap::ArgMatches) {
 
             // Post-process the exported data
             // Post-processing would happen here if needed
+            Ok(())
         }
         Err(e) => {
             tracing::error!("❌ Program execution failed: {e}");
-            std::process::exit(1);
+            Err(e)
         }
     }
 }
 
-fn handle_analyze_command(matches: &clap::ArgMatches) {
-    let input_path = matches.get_one::<String>("input").unwrap();
-    let output_path = matches.get_one::<String>("output").unwrap();
-    let format = matches.get_one::<String>("format").unwrap();
+fn handle_analyze_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    let input_path = matches.get_one::<String>("input")
+        .ok_or("Missing input path")?;
+    let output_path = matches.get_one::<String>("output")
+        .ok_or("Missing output path")?;
+    let format = matches.get_one::<String>("format")
+        .ok_or("Missing format")?;
 
     tracing::info!("🔍 Analyzing existing memory snapshot");
     tracing::info!("📄 Input: {}", input_path);
@@ -219,17 +227,19 @@ fn handle_analyze_command(matches: &clap::ArgMatches) {
         Ok(()) => {
             tracing::info!("✅ Analysis completed successfully");
             tracing::info!("📊 Report generated: {}", output_path);
+            Ok(())
         }
         Err(e) => {
             tracing::error!("❌ Analysis failed: {}", e);
-            std::process::exit(1);
+            Err(e)
         }
     }
 }
 
-fn handle_legacy_mode(matches: &clap::ArgMatches) {
+fn handle_legacy_mode(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     let export_format = matches.get_one::<String>("export");
-    let output_path = matches.get_one::<String>("output").unwrap();
+    let output_path = matches.get_one::<String>("output")
+        .ok_or("Missing output path")?;
     let auto_track = matches.get_flag("auto-track");
 
     if let Some(command_args) = matches.get_many::<String>("command") {
@@ -279,15 +289,15 @@ fn handle_legacy_mode(matches: &clap::ArgMatches) {
                     // Post-process the exported data if needed
                     // Post-processing would happen here if needed
                 }
+                Ok(())
             }
             Err(e) => {
                 tracing::error!("❌ Program execution failed: {}", e);
-                std::process::exit(1);
+                Err(e)
             }
         }
     } else {
-        tracing::error!("❌ No command provided. Use 'memscope run <command>' or 'memscope analyze <input> <output>'");
-        std::process::exit(1);
+        Err("No command provided. Use 'memscope run <command>' or 'memscope analyze <input> <output>'".into())
     }
 }
 
@@ -399,6 +409,28 @@ fn execute_with_tracking(
     std::thread::sleep(std::time::Duration::from_millis(200));
 
     Ok(())
+}
+
+// Update function calls to handle Results
+fn handle_run_command_wrapper(matches: &clap::ArgMatches) {
+    if let Err(e) = handle_run_command(matches) {
+        tracing::error!("❌ Run command failed: {}", e);
+        std::process::exit(1);
+    }
+}
+
+fn handle_analyze_command_wrapper(matches: &clap::ArgMatches) {
+    if let Err(e) = handle_analyze_command(matches) {
+        tracing::error!("❌ Analyze command failed: {}", e);
+        std::process::exit(1);
+    }
+}
+
+fn handle_legacy_mode_wrapper(matches: &clap::ArgMatches) {
+    if let Err(e) = handle_legacy_mode(matches) {
+        tracing::error!("❌ Legacy mode failed: {}", e);
+        std::process::exit(1);
+    }
 }
 
 fn _post_process_analysis(output_path: &str, format: &str) {
