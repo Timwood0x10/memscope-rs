@@ -271,6 +271,12 @@ impl RealTimeMetrics {
         // Additional metric updates would go here
     }
 }
+
+impl Default for RealTimeMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 /// Fragmentation causes
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FragmentationCause {
@@ -537,6 +543,16 @@ pub struct PatternStatistics {
     pub memory_impact_by_pattern: HashMap<TemporaryPatternClassification, usize>,
 }
 
+impl Default for PatternStatistics {
+    fn default() -> Self {
+        Self {
+            total_patterns_detected: 0,
+            pattern_frequency_distribution: HashMap::new(),
+            memory_impact_by_pattern: HashMap::new(),
+        }
+    }
+}
+
 /// Assessment of performance impact of memory management
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceImpactAssessment {
@@ -548,6 +564,17 @@ pub struct PerformanceImpactAssessment {
     pub cache_impact: f64,
     /// Overall performance cost
     pub overall_performance_cost: f64,
+}
+
+impl Default for PerformanceImpactAssessment {
+    fn default() -> Self {
+        Self {
+            allocation_overhead: 0.0,
+            deallocation_overhead: 0.0,
+            cache_impact: 0.0,
+            overall_performance_cost: 0.0,
+        }
+    }
 }
 
 /// Real-time Fragmentation Analysis Types
@@ -591,6 +618,16 @@ pub struct FragmentationTrends {
     pub predicted_future_state: FragmentationPrediction,
 }
 
+impl Default for FragmentationTrends {
+    fn default() -> Self {
+        Self {
+            trend_direction: TrendDirection::Stable,
+            rate_of_change: 0.0,
+            predicted_future_state: FragmentationPrediction::default(),
+        }
+    }
+}
+
 /// Direction of fragmentation trend over time
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TrendDirection {
@@ -615,6 +652,16 @@ pub struct FragmentationPrediction {
     pub confidence_level: f64,
 }
 
+impl Default for FragmentationPrediction {
+    fn default() -> Self {
+        Self {
+            predicted_fragmentation_in_1h: 0.0,
+            predicted_fragmentation_in_24h: 0.0,
+            confidence_level: 0.0,
+        }
+    }
+}
+
 /// Time point of fragmentation analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FragmentationTimePoint {
@@ -633,6 +680,15 @@ pub struct FragmentationHeatmapData {
     pub memory_regions: Vec<MemoryRegion>,
     /// Fragmentation scores for each memory region
     pub fragmentation_scores: Vec<f64>,
+}
+
+impl Default for FragmentationHeatmapData {
+    fn default() -> Self {
+        Self {
+            memory_regions: Vec::new(),
+            fragmentation_scores: Vec::new(),
+        }
+    }
 }
 
 /// Memory region information for fragmentation analysis
@@ -681,6 +737,16 @@ pub struct FragmentationVisualization {
     pub fragmentation_heatmap: Vec<f64>,
     /// Allocation timeline of the fragmentation visualization
     pub allocation_timeline: Vec<AllocationEvent>,
+}
+
+impl Default for FragmentationVisualization {
+    fn default() -> Self {
+        Self {
+            memory_map: Vec::new(),
+            fragmentation_heatmap: Vec::new(),
+            allocation_timeline: Vec::new(),
+        }
+    }
 }
 
 /// Memory block information for fragmentation visualization
@@ -1208,6 +1274,20 @@ pub struct FragmentationMetrics {
     pub memory_utilization_ratio: f64,
 }
 
+impl Default for FragmentationMetrics {
+    fn default() -> Self {
+        Self {
+            external_fragmentation_ratio: 0.0,
+            internal_fragmentation_ratio: 0.0,
+            total_fragmentation_ratio: 0.0,
+            largest_free_block: 0,
+            free_block_count: 0,
+            average_free_block_size: 0.0,
+            memory_utilization_ratio: 1.0,
+        }
+    }
+}
+
 /// Severity levels of memory fragmentation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FragmentationSeverity {
@@ -1416,4 +1496,66 @@ pub struct CurrentFragmentationState {
     pub severity_level: FragmentationSeverity,
     /// Timestamp when this state was captured
     pub timestamp: u64,
+}
+
+// Additional Default implementations for missing structures
+impl Default for CodeBloatAssessment {
+    fn default() -> Self {
+        Self {
+            total_code_size: 0,
+            duplicated_code_size: 0,
+            bloat_ratio: 0.0,
+            optimization_opportunities: Vec::new(),
+        }
+    }
+}
+
+impl Default for ResourceWasteAnalysis {
+    fn default() -> Self {
+        Self {
+            waste_categories: Vec::new(),
+            total_wasted_bytes: 0,
+            waste_percentage: 0.0,
+        }
+    }
+}
+
+impl Default for StackHeapInteractionAnalysis {
+    fn default() -> Self {
+        Self {
+            reference_relationships: Vec::new(),
+            lifetime_dependencies: Vec::new(),
+            performance_implications: Vec::new(),
+        }
+    }
+}
+
+impl Default for MemorySpaceCoverage {
+    fn default() -> Self {
+        Self {
+            stack_coverage: 0.0,
+            heap_coverage: 0.0,
+            total_coverage: 0.0,
+        }
+    }
+}
+
+impl Default for BoundaryDetectionAccuracy {
+    fn default() -> Self {
+        Self {
+            accuracy_percentage: 0.0,
+            false_positives: 0,
+            false_negatives: 0,
+        }
+    }
+}
+
+impl Default for PerformanceImplication {
+    fn default() -> Self {
+        Self {
+            performance_impact: 0.0,
+            optimization_potential: 0.0,
+            recommendations: Vec::new(),
+        }
+    }
 }

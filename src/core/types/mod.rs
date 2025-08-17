@@ -3626,3 +3626,24 @@ pub enum LeakPreventionType {
 // pub mod allocation;
 // pub mod visualization;
 // pub mod analysis;
+
+// Default implementations for missing structures
+impl Default for PerformanceCharacteristics {
+    fn default() -> Self {
+        Self {
+            cpu_usage: 0.0,
+            memory_efficiency: 0.0,
+            cache_performance: 0.0,
+        }
+    }
+}
+
+impl Default for LifecycleEfficiencyMetrics {
+    fn default() -> Self {
+        Self {
+            allocation_efficiency: 0.0,
+            deallocation_efficiency: 0.0,
+            overall_efficiency: 0.0,
+        }
+    }
+}

@@ -732,6 +732,18 @@ pub struct LifecycleAnalysisReport {
     pub analysis_timestamp: u64,
 }
 
+impl Default for BorrowAnalysis {
+    fn default() -> Self {
+        Self {
+            conflicts: Vec::new(),
+            active_borrows: 0,
+            borrow_patterns: Vec::new(),
+            long_lived_borrows: Vec::new(),
+            total_borrows: 0,
+        }
+    }
+}
+
 impl Default for LifecycleAnalysisReport {
     fn default() -> Self {
         Self {

@@ -114,6 +114,8 @@ pub enum AllocationRelationship {
     LeakRelated,
     /// Use-after-free related
     UseAfterFreeRelated,
+    /// No relationship
+    None,
 }
 
 /// Memory pressure levels
@@ -406,7 +408,7 @@ impl SecurityViolationAnalyzer {
                     variable_name: alloc.var_name.clone(),
                     allocated_at_ns: alloc.timestamp_alloc,
                     is_active: alloc.timestamp_dealloc.is_none(),
-                    relationship: relationship.unwrap_or_default(),
+                    relationship: relationship.unwrap_or(AllocationRelationship::None),
                 });
             }
         }

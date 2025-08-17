@@ -172,7 +172,7 @@ impl UnifiedExporter {
         let start_time = std::time::Instant::now();
         let filtered_allocations = self.get_filtered_allocations();
         
-        let export_mode = if self.config.include_system_allocations {
+        let _export_mode = if self.config.include_system_allocations {
             BinaryExportMode::Full
         } else {
             BinaryExportMode::UserOnly
@@ -204,7 +204,7 @@ impl UnifiedExporter {
     /// Parses a .memscope binary file and generates JSON files
     pub fn binary_to_json<P: AsRef<Path>>(
         binary_path: P, 
-        base_name: &str
+        _base_name: &str
     ) -> TrackingResult<ExportStats> {
         let start_time = std::time::Instant::now();
         
@@ -230,7 +230,7 @@ impl UnifiedExporter {
     /// Parses a .memscope binary file and generates interactive HTML dashboard
     pub fn binary_to_html<P: AsRef<Path>>(
         binary_path: P, 
-        project_name: &str
+        _project_name: &str
     ) -> TrackingResult<ExportStats> {
         let start_time = std::time::Instant::now();
         
@@ -255,8 +255,8 @@ impl UnifiedExporter {
     /// 
     /// Takes JSON files and generates interactive HTML dashboard
     pub fn json_to_html<P: AsRef<Path>>(
-        json_base_path: P, 
-        html_output_path: P
+        _json_base_path: P, 
+        _html_output_path: P
     ) -> TrackingResult<ExportStats> {
         let start_time = std::time::Instant::now();
         
@@ -304,9 +304,9 @@ impl UnifiedExporter {
     
     fn export_json_with_options<P: AsRef<Path>>(
         &self,
-        base_path: P,
-        allocations: &[AllocationInfo],
-        options: &crate::export::optimized_json_export::OptimizedExportOptions,
+        _base_path: P,
+        _allocations: &[AllocationInfo],
+        _options: &crate::export::optimized_json_export::OptimizedExportOptions,
     ) -> TrackingResult<()> {
         // Implementation would call the existing JSON export
         // This is a placeholder - would need to integrate with existing code

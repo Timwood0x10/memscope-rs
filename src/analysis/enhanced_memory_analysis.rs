@@ -1448,3 +1448,69 @@ pub fn analyze_memory_with_enhanced_features_detailed(
 }
 
 // TODO add model  test cases
+
+// Default implementations for missing structures
+impl Default for MonomorphizationStatistics {
+    fn default() -> Self {
+        Self {
+            total_instantiations: 0,
+            unique_types: 0,
+            code_bloat_factor: 0.0,
+        }
+    }
+}
+
+impl Default for EfficiencyMetrics {
+    fn default() -> Self {
+        Self {
+            efficiency_score: 0.0,
+            optimization_potential: 0.0,
+        }
+    }
+}
+
+impl Default for ObjectRelationshipGraph {
+    fn default() -> Self {
+        Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+        }
+    }
+}
+
+impl Default for ActualAccessTracking {
+    fn default() -> Self {
+        Self {
+            access_patterns: Vec::new(),
+            hot_spots: Vec::new(),
+        }
+    }
+}
+
+impl Default for BandwidthUtilization {
+    fn default() -> Self {
+        Self {
+            utilization_percentage: 0.0,
+            peak_bandwidth: 0.0,
+        }
+    }
+}
+
+impl Default for LocalityAnalysis {
+    fn default() -> Self {
+        Self {
+            spatial_locality: 0.0,
+            temporal_locality: 0.0,
+        }
+    }
+}
+
+impl Default for CacheLineAnalysis {
+    fn default() -> Self {
+        Self {
+            cache_hits: 0,
+            cache_misses: 0,
+            hit_ratio: 0.0,
+        }
+    }
+}

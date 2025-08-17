@@ -2076,7 +2076,7 @@ fn create_optimized_unsafe_ffi_analysis(
                     for passport_id in passport_ids {
                         if let Some(id_str) = passport_id.as_str() {
                             // Find matching passport
-                            if let Some(passport) = memory_passports.iter().find(|p| {
+                            if let Some(_passport) = memory_passports.iter().find(|p| {
                                 p.get("passport_id").and_then(|id| id.as_str()) == Some(id_str)
                             }) {
                                 associated_data.push(serde_json::json!({

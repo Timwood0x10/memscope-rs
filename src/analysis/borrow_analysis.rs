@@ -432,6 +432,8 @@ impl Default for BorrowStatistics {
     }
 }
 
+// BorrowAnalysis struct doesn't exist in this file, removing the Default impl
+
 /// Borrow pattern analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BorrowPatternAnalysis {

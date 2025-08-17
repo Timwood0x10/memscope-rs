@@ -151,9 +151,6 @@ impl ErrorAdapter for DefaultErrorAdapter {
                 SystemErrorType::Network => TrackingError::IoError(message.to_string()),
                 SystemErrorType::FileSystem => TrackingError::IoError(message.to_string()),
             },
-            MemScopeError::Memory { operation: MemoryOperation::Tracking, message, .. } => {
-                TrackingError::DataError(message.to_string())
-            }
             MemScopeError::Internal { message, .. } => {
                 TrackingError::InternalError(message.to_string())
             }

@@ -423,7 +423,8 @@ fn draw_variable_node(
     x: i32,
     y: i32,
 ) -> TrackingResult<Document> {
-    let var_name = allocation.var_name.as_ref().unwrap_or(&"<unknown>".to_string());
+    let default_name = "<unknown>".to_string();
+    let var_name = allocation.var_name.as_ref().unwrap_or(&default_name);
     let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
     let simple_type = get_simple_type(type_name);
     let color = get_type_color(&simple_type);
@@ -1044,7 +1045,8 @@ fn render_scope_matrix_fixed(
     for (i, var) in vars.iter().take(4).enumerate() {
         // Limit to 4 for better layout
         let var_y = var_start_y + (i as i32 * var_spacing);
-        let var_name = var.var_name.as_ref().unwrap_or(&"<unknown>".to_string());
+        let default_name = "<unknown>".to_string();
+        let var_name = var.var_name.as_ref().unwrap_or(&default_name);
         let type_name = get_simple_type(var.type_name.as_ref().unwrap_or(&"Unknown".to_string()));
         let duration_ms = estimate_variable_duration(var);
 

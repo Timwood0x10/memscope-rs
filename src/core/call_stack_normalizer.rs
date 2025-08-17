@@ -466,8 +466,8 @@ mod tests {
         assert_eq!(id1, 1);
 
         // Second normalization with same frames should return same ID
-        let id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
-        assert_eq!(id1, id2);
+        let _id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
+        assert_eq!(id1, _id2);
 
         // Verify we can retrieve the frames
         let retrieved_frames = normalizer.get_call_stack(id1).expect("Failed to get call stack");
