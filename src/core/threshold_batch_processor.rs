@@ -292,8 +292,9 @@ mod tests {
 
         let config = BatchConfig::custom(3, 50, Duration::from_millis(100));
         let processor = ThresholdBatchProcessor::new(config, move |items: &[i32]| {
-            let mut p = processed_clone.lock().unwrap();
-            p.extend_from_slice(items);
+            if let Ok(mut p) = processed_clone.lock() {
+                p.extend_from_slice(items);
+            }
         });
 
         // Process items quickly (high frequency)

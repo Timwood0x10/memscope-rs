@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::core::safe_operations::{SafeLock, SafeArc};
 
 /// Global lifecycle analyzer instance
 static GLOBAL_LIFECYCLE_ANALYZER: OnceLock<Arc<LifecycleAnalyzer>> = OnceLock::new();
@@ -19,29 +20,29 @@ static GLOBAL_LIFECYCLE_ANALYZER: OnceLock<Arc<LifecycleAnalyzer>> = OnceLock::n
 pub fn get_global_lifecycle_analyzer() -> Arc<LifecycleAnalyzer> {
     GLOBAL_LIFECYCLE_ANALYZER
         .get_or_init(|| Arc::new(LifecycleAnalyzer::new()))
-        .clone()
+        .safe_clone()
 }
 
 /// Advanced lifecycle analysis for Rust types
 pub struct LifecycleAnalyzer {
     /// Drop trait execution tracking
-    drop_events: Mutex<Vec<DropEvent>>,
+    drop_events: Mutex<Arc<Vec<DropEvent>>>,
     /// RAII pattern instances
-    raii_patterns: Mutex<Vec<RAIIPattern>>,
+    raii_patterns: Mutex<Arc<Vec<RAIIPattern>>>,
     /// Borrow tracking information
     borrow_tracker: Mutex<BorrowTracker>,
     /// Closure capture analysis
-    closure_captures: Mutex<Vec<ClosureCapture>>,
+    closure_captures: Mutex<Arc<Vec<ClosureCapture>>>,
 }
 
 impl LifecycleAnalyzer {
     /// Create a new lifecycle analyzer
     pub fn new() -> Self {
         Self {
-            drop_events: Mutex::new(Vec::new()),
-            raii_patterns: Mutex::new(Vec::new()),
+            drop_events: Mutex::new(Arc::new(Vec::new())),
+            raii_patterns: Mutex::new(Arc::new(Vec::new())),
             borrow_tracker: Mutex::new(BorrowTracker::new()),
-            closure_captures: Mutex::new(Vec::new()),
+            closure_captures: Mutex::new(Arc::new(Vec::new())),
         }
     }
 
@@ -56,8 +57,10 @@ impl LifecycleAnalyzer {
             call_stack: capture_call_stack(),
         };
 
-        if let Ok(mut events) = self.drop_events.lock() {
-            events.push(event);
+        if let Ok(mut events) = self.drop_events.safe_lock() {
+            let mut new_events = (**events).clone();
+            new_events.push(event);
+            *events = Arc::new(new_events);
         }
     }
 
@@ -74,8 +77,10 @@ impl LifecycleAnalyzer {
         }
 
         // Store detected patterns
-        if let Ok(mut stored_patterns) = self.raii_patterns.lock() {
-            stored_patterns.extend(patterns.clone());
+        if let Ok(mut stored_patterns) = self.raii_patterns.safe_lock() {
+            let mut new_patterns = (**stored_patterns).clone();
+            new_patterns.extend(patterns.clone());
+            *stored_patterns = Arc::new(new_patterns);
         }
 
         patterns
@@ -204,14 +209,14 @@ impl LifecycleAnalyzer {
 
     /// Track borrow operations
     pub fn track_borrow(&self, ptr: usize, borrow_type: BorrowType, location: &str) {
-        if let Ok(mut tracker) = self.borrow_tracker.lock() {
+        if let Ok(mut tracker) = self.borrow_tracker.safe_lock() {
             tracker.track_borrow(ptr, borrow_type, location);
         }
     }
 
     /// Track borrow release
     pub fn track_borrow_release(&self, ptr: usize, borrow_id: u64) {
-        if let Ok(mut tracker) = self.borrow_tracker.lock() {
+        if let Ok(mut tracker) = self.borrow_tracker.safe_lock() {
             tracker.release_borrow(ptr, borrow_id);
         }
     }
@@ -229,23 +234,31 @@ impl LifecycleAnalyzer {
             thread_id: format!("{:?}", std::thread::current().id()),
         };
 
-        if let Ok(mut captures) = self.closure_captures.lock() {
-            captures.push(capture);
+        if let Ok(mut captures) = self.closure_captures.safe_lock() {
+            let mut new_captures = (**captures).clone();
+            new_captures.push(capture);
+            *captures = Arc::new(new_captures);
         }
     }
 
     /// Get comprehensive lifecycle analysis report
     pub fn get_lifecycle_report(&self) -> LifecycleAnalysisReport {
-        let drop_events = self.drop_events.lock().unwrap().clone();
-        let raii_patterns = self.raii_patterns.lock().unwrap().clone();
-        let borrow_analysis = self.borrow_tracker.lock().unwrap().get_analysis();
-        let closure_captures = self.closure_captures.lock().unwrap().clone();
+        let drop_events = self.drop_events.safe_lock().map(|events| events.safe_clone()).unwrap_or_else(|_| Arc::new(Vec::new()));
+        let raii_patterns = self.raii_patterns.safe_lock().map(|patterns| patterns.safe_clone()).unwrap_or_else(|_| Arc::new(Vec::new()));
+        let borrow_analysis = self.borrow_tracker.safe_lock().map(|tracker| tracker.get_analysis()).unwrap_or_else(|_| BorrowAnalysis { 
+            conflicts: Vec::new(), 
+            active_borrows: 0,
+            borrow_patterns: Vec::new(),
+            long_lived_borrows: Vec::new(),
+            total_borrows: 0
+        });
+        let closure_captures = self.closure_captures.safe_lock().map(|captures| captures.safe_clone()).unwrap_or_else(|_| Arc::new(Vec::new()));
 
         LifecycleAnalysisReport {
-            drop_events,
-            raii_patterns,
+            drop_events: (*drop_events).clone(),
+            raii_patterns: (*raii_patterns).clone(),
             borrow_analysis,
-            closure_captures,
+            closure_captures: (*closure_captures).clone(),
             analysis_timestamp: current_timestamp(),
         }
     }
@@ -394,7 +407,7 @@ impl BorrowTracker {
 
         let borrow_info = BorrowInfo {
             borrow_id,
-            borrow_type: borrow_type.clone(),
+            borrow_type,
             start_timestamp: current_timestamp(),
             location: location.to_string(),
             thread_id: format!("{:?}", std::thread::current().id()),

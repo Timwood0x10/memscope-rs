@@ -7,6 +7,7 @@ use parking_lot::Mutex;
 use std::borrow::ToOwned;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+use crate::core::safe_operations::SafeLock;
 
 /// Smart mutex that chooses the best implementation based on usage patterns
 pub enum SmartMutex<T> {
@@ -27,7 +28,7 @@ impl<T> SmartMutex<T> {
         match self {
             SmartMutex::Standard(mutex) => {
                 let start = Instant::now();
-                let guard = mutex.lock().unwrap();
+                let guard = mutex.safe_lock().unwrap_or_else(|_| panic!("Failed to lock standard mutex"));
                 let wait_time = start.elapsed();
 
                 // If we waited too long, this might benefit from parking_lot
