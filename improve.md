@@ -19,7 +19,6 @@
   }
 }
 
-
 提供高级生命周期的摘要
 {
     // ... existing fields like ptr, size, type_name ...

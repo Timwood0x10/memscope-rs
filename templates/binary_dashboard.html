@@ -601,6 +601,53 @@
                     </div>
                 </div>
 
+                <!-- Ownership History and Memory Passport Section -->
+                <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Ownership History Chart -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-heading">Ownership Transfer History</h3>
+                        <div class="h-64">
+                            <canvas id="ownership-history-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Memory Passport Status -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-heading">Memory Passport Status</h3>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 h-64">
+                            <div id="passport-status-container">
+                                <div class="space-y-4">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">Active Passports</span>
+                                        <span id="active-passports-count" class="text-lg font-semibold text-blue-600">0</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">FFI Handovers</span>
+                                        <span id="ffi-handovers-count" class="text-lg font-semibold text-orange-600">0</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">Foreign Custody</span>
+                                        <span id="foreign-custody-count" class="text-lg font-semibold text-red-600">0</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">Reclaimed by Rust</span>
+                                        <span id="reclaimed-count" class="text-lg font-semibold text-green-600">0</span>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <div class="text-xs text-gray-500 mb-2">Passport Health Score</div>
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div id="passport-health-bar" class="bg-green-600 h-3 rounded-full transition-all duration-300" style="width: 100%"></div>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        <span id="passport-health-score">100</span>% Safe
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Complex Types Details -->
                 <div class="mt-6">
                     <h3 class="text-lg font-medium mb-3 text-heading">Type Details</h3>
@@ -948,7 +995,7 @@
         // Destroy existing charts to prevent canvas reuse errors
         function destroyExistingCharts() {
             if (window.Chart && window.Chart.getChart) {
-                const canvasIds = ['memory-distribution-chart', 'allocation-size-chart', 'memory-timeline-chart', 'lifecycle-timeline-chart'];
+                const canvasIds = ['memory-distribution-chart', 'allocation-size-chart', 'memory-timeline-chart', 'lifecycle-timeline-chart', 'ownership-history-chart'];
                 canvasIds.forEach(canvasId => {
                     const existingChart = window.Chart.getChart(canvasId);
                     if (existingChart) {
@@ -1176,6 +1223,135 @@
             });
         }
 
+        // Create ownership history chart
+        function createOwnershipHistoryChart() {
+            const ctx = document.getElementById('ownership-history-chart');
+            if (!ctx || !window.analysisData) return;
+
+            const ownershipData = window.analysisData.lifecycle_analysis?.ownership_history || [];
+            console.log('🔄 Creating ownership history chart with', ownershipData.length, 'events');
+
+            if (ownershipData.length === 0) {
+                ctx.parentElement.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500"><p>No ownership history data available</p></div>';
+                return;
+            }
+
+            const existingChart = Chart.getChart(ctx);
+            if (existingChart) existingChart.destroy();
+
+            const chartData = {
+                labels: ownershipData.map((event, index) => `Event ${index + 1}`),
+                datasets: [{
+                    label: 'Ownership Transfers',
+                    data: ownershipData.map(event => event.transfer_count || 1),
+                    backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            };
+
+            new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Memory Ownership Transfer Timeline'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const event = ownershipData[context.dataIndex];
+                                    return `${event.event_type || 'Transfer'}: ${event.details || 'No details'}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Transfer Count'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Timeline'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update passport status display
+        function updatePassportStatus() {
+            const passportData = window.analysisData.unsafe_ffi_analysis?.memory_passports || [];
+            
+            let activeCount = 0;
+            let handoverCount = 0;
+            let foreignCustodyCount = 0;
+            let reclaimedCount = 0;
+
+            passportData.forEach(passport => {
+                switch (passport.status) {
+                    case 'Active':
+                        activeCount++;
+                        break;
+                    case 'HandoverToFfi':
+                        handoverCount++;
+                        break;
+                    case 'InForeignCustody':
+                        foreignCustodyCount++;
+                        break;
+                    case 'ReclaimedByRust':
+                        reclaimedCount++;
+                        break;
+                }
+            });
+
+            // Update counts
+            const activeElement = document.getElementById('active-passports-count');
+            const handoverElement = document.getElementById('ffi-handovers-count');
+            const foreignElement = document.getElementById('foreign-custody-count');
+            const reclaimedElement = document.getElementById('reclaimed-count');
+
+            if (activeElement) activeElement.textContent = activeCount;
+            if (handoverElement) handoverElement.textContent = handoverCount;
+            if (foreignElement) foreignElement.textContent = foreignCustodyCount;
+            if (reclaimedElement) reclaimedElement.textContent = reclaimedCount;
+
+            // Calculate health score (lower foreign custody = better health)
+            const totalPassports = passportData.length;
+            const healthScore = totalPassports > 0 ? 
+                Math.round(((totalPassports - foreignCustodyCount) / totalPassports) * 100) : 100;
+            
+            const healthScoreElement = document.getElementById('passport-health-score');
+            const healthBarElement = document.getElementById('passport-health-bar');
+            
+            if (healthScoreElement) healthScoreElement.textContent = healthScore;
+            if (healthBarElement) {
+                healthBarElement.style.width = `${healthScore}%`;
+                // Change color based on health score
+                if (healthScore >= 80) {
+                    healthBarElement.className = 'bg-green-600 h-3 rounded-full transition-all duration-300';
+                } else if (healthScore >= 60) {
+                    healthBarElement.className = 'bg-yellow-600 h-3 rounded-full transition-all duration-300';
+                } else {
+                    healthBarElement.className = 'bg-red-600 h-3 rounded-full transition-all duration-300';
+                }
+            }
+
+            console.log('📋 Updated passport status:', { activeCount, handoverCount, foreignCustodyCount, reclaimedCount, healthScore });
+        }
+
         // Create lifecycle chart
         function createLifecycleChart() {
             const ctx = document.getElementById('lifecycle-timeline-chart');
@@ -1329,6 +1505,8 @@
             // Initialize charts
             try {
                 initializeBinaryCharts();
+                createOwnershipHistoryChart();
+                updatePassportStatus();
             } catch (e) {
                 console.warn('Error initializing charts:', e);
             }

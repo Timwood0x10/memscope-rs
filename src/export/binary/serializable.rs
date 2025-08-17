@@ -1,8 +1,6 @@
 //! Binary serialization trait and implementations for efficient data encoding
 
 use crate::export::binary::error::BinaryExportError;
-use crate::analysis::{UnsafeReport, MemoryPassport, ResolvedFfiFunction};
-use crate::core::CallStackRef;
 use std::io::{Read, Write};
 
 /// Trait for types that can be serialized to/from binary format efficiently
