@@ -28,7 +28,7 @@ impl<T> SmartMutex<T> {
         match self {
             SmartMutex::Standard(mutex) => {
                 let start = Instant::now();
-                let guard = mutex.safe_lock().unwrap_or_else(|_| panic!("Failed to lock standard mutex"));
+                let guard = mutex.safe_lock().expect("Failed to lock standard mutex");
                 let wait_time = start.elapsed();
 
                 // If we waited too long, this might benefit from parking_lot

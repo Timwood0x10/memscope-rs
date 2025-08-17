@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+
 /// Configuration for batch processing behavior
 #[derive(Debug, Clone)]
 pub struct BatchConfig {
@@ -252,6 +253,8 @@ unsafe impl<T: Send> Sync for ThresholdBatchProcessor<T> {}
 
 #[cfg(test)]
 mod tests {
+    use crate::core::safe_operations::SafeLock;
+
     use super::*;
     use std::sync::{Arc, Mutex as StdMutex};
     use std::time::Duration;
@@ -263,7 +266,7 @@ mod tests {
 
         let config = BatchConfig::custom(5, 100, Duration::from_millis(100));
         let processor = ThresholdBatchProcessor::new(config, move |items: &[i32]| {
-            let mut p = processed_clone.lock().unwrap();
+            let mut p = processed_clone.safe_lock().expect("Failed to acquire lock on processed");
             p.extend_from_slice(items);
         });
 
@@ -281,7 +284,7 @@ mod tests {
         // Should mostly use direct processing
         assert!(!processor.is_batching_enabled());
 
-        let processed_items = processed.lock().unwrap();
+        let processed_items = processed.safe_lock().expect("Failed to acquire lock on processed");
         assert_eq!(processed_items.len(), 10);
     }
 
@@ -315,7 +318,7 @@ mod tests {
         let stats = processor.stats();
         println!("High frequency stats: {:?}", stats);
 
-        let processed_items = processed.lock().unwrap();
+        let processed_items = processed.safe_lock().expect("Failed to acquire lock on processed");
         assert_eq!(processed_items.len(), 25);
     }
 

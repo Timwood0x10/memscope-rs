@@ -6,6 +6,7 @@
 
 use crate::core::error::{MemScopeError, MemoryOperation, SystemErrorType};
 use std::fmt::Debug;
+use crate::core::safe_operations::SafeLock;
 
 /// Trait for safe unwrapping with logging and error context
 pub trait UnwrapSafe<T> {
@@ -315,7 +316,7 @@ static GLOBAL_UNWRAP_STATS: OnceLock<Mutex<UnwrapStats>> = OnceLock::new();
 /// Get global unwrap statistics (read-only snapshot)
 pub fn get_unwrap_stats() -> UnwrapStats {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    stats_mutex.lock().unwrap().clone()
+    stats_mutex.safe_lock().expect("Failed to acquire lock on global unwrap stats").try_into()
 }
 
 /// Update global unwrap statistics with a closure
@@ -324,7 +325,7 @@ where
     F: FnOnce(&mut UnwrapStats) -> R,
 {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    let mut stats = stats_mutex.lock().unwrap();
+    let mut stats = stats_mutex.safe_lock().expect("Failed to acquire lock on global unwrap stats");
     f(&mut stats)
 }
 
@@ -332,5 +333,5 @@ where
 #[cfg(test)]
 pub fn get_unwrap_stats_mut() -> std::sync::MutexGuard<'static, UnwrapStats> {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    stats_mutex.lock().unwrap()
+    stats_mutex.safe_lock().expect("Failed to acquire lock on global unwrap stats")
 }

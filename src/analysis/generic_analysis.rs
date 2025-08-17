@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::core::safe_operations::SafeLock;
 
 /// Global generic analyzer instance
 static GLOBAL_GENERIC_ANALYZER: OnceLock<Arc<GenericAnalyzer>> = OnceLock::new();
@@ -106,9 +107,9 @@ impl GenericAnalyzer {
 
     /// Get statistics about generic usage
     pub fn get_generic_statistics(&self) -> GenericStatistics {
-        let instances = self.generic_instances.lock().unwrap();
-        let events = self.instantiation_events.lock().unwrap();
-        let violations = self.constraint_violations.lock().unwrap();
+        let instances = self.generic_instances.safe_lock().expect("Failed to acquire lock on generic_instances");
+        let events = self.instantiation_events.safe_lock().expect("Failed to acquire lock on instantiation_events");
+        let violations = self.constraint_violations.safe_lock().expect("Failed to acquire lock on constraint_violations");
 
         let total_instances: usize = instances.values().map(|v| v.len()).sum();
         let unique_base_types = instances.len();

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::core::safe_operations::SafeLock;
 
 /// Global borrow analyzer instance
 static GLOBAL_BORROW_ANALYZER: OnceLock<Arc<BorrowAnalyzer>> = OnceLock::new();
@@ -175,7 +176,7 @@ impl BorrowAnalyzer {
     pub fn get_borrow_statistics(&self) -> BorrowStatistics {
         // Avoid holding multiple locks simultaneously to prevent deadlock
         let (total_borrows, durations, by_type) = {
-            let history = self.borrow_history.lock().unwrap();
+            let history = self.borrow_history.safe_lock().expect("Failed to acquire lock on borrow_history");
             let total = history.len();
             let mut durations = Vec::new();
             let mut by_type = HashMap::new();
@@ -191,12 +192,12 @@ impl BorrowAnalyzer {
         };
 
         let total_conflicts = {
-            let conflicts = self.conflicts.lock().unwrap();
+            let conflicts = self.conflicts.safe_lock().expect("Failed to acquire lock on conflicts");
             conflicts.len()
         };
 
         let active_borrows: usize = {
-            let active = self.active_borrows.lock().unwrap();
+            let active = self.active_borrows.safe_lock().expect("Failed to acquire lock on active_borrows");
             active.values().map(|v| v.len()).sum()
         };
 
@@ -220,13 +221,13 @@ impl BorrowAnalyzer {
 
     /// Get all detected conflicts
     pub fn get_conflicts(&self) -> Vec<BorrowConflict> {
-        self.conflicts.lock().unwrap().clone()
+        self.conflicts.safe_lock().expect("Failed to acquire lock on conflicts").clone()
     }
 
     /// Analyze borrow patterns
     pub fn analyze_borrow_patterns(&self) -> BorrowPatternAnalysis {
-        let history = self.borrow_history.lock().unwrap();
-        let conflicts = self.conflicts.lock().unwrap();
+        let history = self.borrow_history.safe_lock().expect("Failed to acquire lock on borrow_history");
+        let conflicts = self.conflicts.safe_lock().expect("Failed to acquire lock on conflicts");
 
         // Analyze common patterns
         let mut patterns = Vec::new();
@@ -288,7 +289,7 @@ impl BorrowAnalyzer {
 
     /// Calculate maximum concurrent borrows
     fn calculate_max_concurrent_borrows(&self) -> usize {
-        let active = self.active_borrows.lock().unwrap();
+        let active = self.active_borrows.safe_lock().expect("Failed to acquire lock on active_borrows");
         active.values().map(|v| v.len()).max().unwrap_or(0)
     }
 }

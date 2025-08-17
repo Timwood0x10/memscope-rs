@@ -451,7 +451,7 @@ fn draw_variable_node(
     let display_name = if var_name.len() > 8 {
         format!("{}...", &var_name[..6])
     } else {
-        var_name.to_string()
+        var_name.clone()
     };
 
     let name_label = SvgText::new(display_name)
@@ -749,7 +749,7 @@ fn export_scope_analysis_json(
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
-                .to_string(),
+                .clone(),
         ),
     );
     analysis.insert(
@@ -766,7 +766,7 @@ fn export_scope_analysis_json(
         let mut scope_data = Map::new();
         scope_data.insert(
             "scope_name".to_string(),
-            Value::String(scope_name.to_string()),
+            Value::String(scope_name.clone()),
         );
         scope_data.insert(
             "total_memory".to_string(),
@@ -794,10 +794,10 @@ fn export_scope_analysis_json(
         for var in vars {
             if let Some(var_name) = &var.var_name {
                 let mut var_data = Map::new();
-                var_data.insert("name".to_string(), Value::String(var_name.to_string()));
+                var_data.insert("name".to_string(), Value::String(var_name.clone()));
                 var_data.insert(
                     "type".to_string(),
-                    Value::String(var.type_name.as_deref().unwrap_or("Unknown").to_string()),
+                    Value::String(var.type_name.as_deref().unwrap_or("Unknown").clone()),
                 );
                 var_data.insert(
                     "size_bytes".to_string(),
@@ -1257,7 +1257,7 @@ pub fn enhance_type_information(
                 }
             })
             .take(5) // Limit to 5 variable names
-            .map(|s| s.to_string())
+            .map(|s| s.clone())
             .collect();
 
         // Add the main type with subcategory information
@@ -1331,7 +1331,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
 
     // Default case
     (
-        clean_type.to_string(),
+        clean_type.clone(),
         "Other".to_string(),
         "Custom".to_string(),
     )
@@ -1459,14 +1459,14 @@ fn add_dashboard_header(
 
     // Metrics cards
     let metrics = vec![
-        ("Unsafe Allocations", unsafe_count.to_string(), "#e74c3c"),
-        ("FFI Allocations", ffi_count.to_string(), "#3498db"),
+        ("Unsafe Allocations", unsafe_count.clone(), "#e74c3c"),
+        ("FFI Allocations", ffi_count.clone(), "#3498db"),
         (
             "Boundary Crossings",
-            cross_boundary_events.to_string(),
+            cross_boundary_events.clone(),
             "#f39c12",
         ),
-        ("Safety Violations", violations.len().to_string(), "#e67e22"),
+        ("Safety Violations", violations.len().clone(), "#e67e22"),
         (
             "Unsafe Memory",
             format_bytes(total_unsafe_memory),
@@ -1597,7 +1597,7 @@ fn add_allocation_source_breakdown(
             document = document.add(bar);
 
             // Count label
-            let count_text = SvgText::new(count.to_string())
+            let count_text = SvgText::new(count.clone())
                 .set("x", x + 20)
                 .set("y", y - bar_height - 5)
                 .set("text-anchor", "middle")
@@ -1817,7 +1817,7 @@ fn add_boundary_crossing_flow(
             .set("marker-end", "url(#arrowhead)");
         document = document.add(arrow);
 
-        let count_text = SvgText::new(rust_to_ffi.to_string())
+        let count_text = SvgText::new(rust_to_ffi.clone())
             .set("x", start_x + 300)
             .set("y", start_y + 75)
             .set("text-anchor", "middle")
@@ -1828,7 +1828,7 @@ fn add_boundary_crossing_flow(
     }
 
     if ffi_to_rust > 0 {
-        let count_text = SvgText::new(ffi_to_rust.to_string())
+        let count_text = SvgText::new(ffi_to_rust.clone())
             .set("x", start_x + 300)
             .set("y", start_y + 135)
             .set("text-anchor", "middle")

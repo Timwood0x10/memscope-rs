@@ -186,7 +186,7 @@ impl<T> BatchProcessor<T> {
             }
             #[cfg(not(feature = "parking-lot"))]
             {
-                let mut batch = self.batch.lock().expect("Mutex poisoned");
+                let mut batch = self.batch.safe_lock().expect("Failed to lock batch");
                 batch.push(item);
                 batch.len() >= self.batch_size
             }
@@ -206,7 +206,7 @@ impl<T> BatchProcessor<T> {
             }
             #[cfg(not(feature = "parking-lot"))]
             {
-                let mut batch_guard = self.batch.lock().expect("Mutex poisoned");
+                let mut batch_guard = self.batch.safe_lock().expect("Failed to lock batch");
                 std::mem::take(&mut *batch_guard)
             }
         };
@@ -309,7 +309,7 @@ mod tests {
             }
             #[cfg(not(feature = "parking-lot"))]
             {
-                let mut items = processed_clone.lock().expect("Mutex poisoned");
+                let mut items = processed_clone.safe_lock().expect("Failed to lock processed_items");
                 items.extend_from_slice(batch);
             }
         });
@@ -329,7 +329,7 @@ mod tests {
         }
         #[cfg(not(feature = "parking-lot"))]
         {
-            let items = processed_items.lock().expect("Mutex poisoned");
+            let items = processed_items.safe_lock().expect("Failed to lock processed_items");
             assert_eq!(*items, vec![1, 2, 3]);
         }
     }

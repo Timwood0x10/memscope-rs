@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::core::safe_operations::SafeLock;
 
 /// Global async analyzer instance
 static GLOBAL_ASYNC_ANALYZER: OnceLock<Arc<AsyncAnalyzer>> = OnceLock::new();
@@ -179,10 +180,10 @@ impl AsyncAnalyzer {
 
     /// Get async statistics
     pub fn get_async_statistics(&self) -> AsyncStatistics {
-        let futures = self.active_futures.lock().unwrap();
-        let transitions = self.state_transitions.lock().unwrap();
-        let awaits = self.await_points.lock().unwrap();
-        let _events = self.task_events.lock().unwrap();
+        let futures = self.active_futures.safe_lock().expect("Failed to acquire lock on active_futures");
+        let transitions = self.state_transitions.safe_lock().expect("Failed to acquire lock on state_transitions");
+        let awaits = self.await_points.safe_lock().expect("Failed to acquire lock on await_points");
+        let _events = self.task_events.safe_lock().expect("Failed to acquire lock on task_events");
 
         let total_futures = futures.len();
         let completed_futures = futures
@@ -242,8 +243,8 @@ impl AsyncAnalyzer {
 
     /// Analyze async patterns
     pub fn analyze_async_patterns(&self) -> AsyncPatternAnalysis {
-        let futures = self.active_futures.lock().unwrap();
-        let awaits = self.await_points.lock().unwrap();
+        let futures = self.active_futures.safe_lock().expect("Failed to acquire lock on active_futures");
+        let awaits = self.await_points.safe_lock().expect("Failed to acquire lock on await_points");
 
         let mut patterns = Vec::new();
 
@@ -331,7 +332,7 @@ impl AsyncAnalyzer {
 
     /// Get future information
     pub fn get_future_info(&self, ptr: usize) -> Option<FutureInfo> {
-        self.active_futures.lock().unwrap().get(&ptr).cloned()
+        self.active_futures.safe_lock().expect("Failed to acquire lock on active_futures").get(&ptr).cloned()
     }
 }
 
