@@ -7,7 +7,6 @@ use crate::core::types::TrackingResult;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use crate::core::safe_operations::SafeLock;
 
 /// Export progress information
 #[derive(Debug, Clone)]
@@ -483,6 +482,8 @@ mod tests {
 
     #[test]
     fn test_progress_callback() {
+        use crate::core::safe_operations::SafeLock;
+
         let callback_called = Arc::new(Mutex::new(false));
         let callback_called_clone = callback_called.clone();
 

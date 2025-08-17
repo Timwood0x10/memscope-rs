@@ -316,22 +316,28 @@ static GLOBAL_UNWRAP_STATS: OnceLock<Mutex<UnwrapStats>> = OnceLock::new();
 /// Get global unwrap statistics (read-only snapshot)
 pub fn get_unwrap_stats() -> UnwrapStats {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    stats_mutex.safe_lock().expect("Failed to acquire lock on global unwrap stats").try_into()
+    match stats_mutex.safe_lock() {
+        Ok(stats) => stats.clone(),
+        Err(_) => UnwrapStats::new(),
+    }
 }
 
 /// Update global unwrap statistics with a closure
 pub fn update_unwrap_stats<F, R>(f: F) -> R
 where
     F: FnOnce(&mut UnwrapStats) -> R,
+    R: Default,
 {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    let mut stats = stats_mutex.safe_lock().expect("Failed to acquire lock on global unwrap stats");
-    f(&mut stats)
+    match stats_mutex.safe_lock() {
+        Ok(mut stats) => f(&mut stats),
+        Err(_) => R::default(),
+    }
 }
 
 /// Get mutable access to global unwrap statistics (for testing)
 #[cfg(test)]
-pub fn get_unwrap_stats_mut() -> std::sync::MutexGuard<'static, UnwrapStats> {
+pub fn get_unwrap_stats_mut() -> Option<std::sync::MutexGuard<'static, UnwrapStats>> {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    stats_mutex.safe_lock().expect("Failed to acquire lock on global unwrap stats")
+    stats_mutex.safe_lock().ok()
 }

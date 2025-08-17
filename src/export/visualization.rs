@@ -749,7 +749,7 @@ fn export_scope_analysis_json(
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
-                .clone(),
+                .to_string(),
         ),
     );
     analysis.insert(
@@ -797,7 +797,7 @@ fn export_scope_analysis_json(
                 var_data.insert("name".to_string(), Value::String(var_name.clone()));
                 var_data.insert(
                     "type".to_string(),
-                    Value::String(var.type_name.as_deref().unwrap_or("Unknown").clone()),
+                    Value::String(var.type_name.as_deref().unwrap_or("Unknown").to_string()),
                 );
                 var_data.insert(
                     "size_bytes".to_string(),
@@ -1331,7 +1331,7 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
 
     // Default case
     (
-        clean_type.clone(),
+        clean_type.to_string(),
         "Other".to_string(),
         "Custom".to_string(),
     )
@@ -1469,7 +1469,7 @@ fn add_dashboard_header(
         ("Safety Violations", violations.len().clone(), "#e67e22"),
         (
             "Unsafe Memory",
-            format_bytes(total_unsafe_memory),
+            total_unsafe_memory,
             "#9b59b6",
         ),
     ];
@@ -1492,7 +1492,7 @@ fn add_dashboard_header(
         document = document.add(card);
 
         // Value
-        let value_text = SvgText::new(value)
+        let value_text = SvgText::new(&value.to_string())
             .set("x", x)
             .set("y", y - 5)
             .set("text-anchor", "middle")
@@ -1597,7 +1597,7 @@ fn add_allocation_source_breakdown(
             document = document.add(bar);
 
             // Count label
-            let count_text = SvgText::new(count.clone())
+            let count_text = SvgText::new(&count.to_string())
                 .set("x", x + 20)
                 .set("y", y - bar_height - 5)
                 .set("text-anchor", "middle")
@@ -1817,7 +1817,7 @@ fn add_boundary_crossing_flow(
             .set("marker-end", "url(#arrowhead)");
         document = document.add(arrow);
 
-        let count_text = SvgText::new(rust_to_ffi.clone())
+        let count_text = SvgText::new(&rust_to_ffi.to_string())
             .set("x", start_x + 300)
             .set("y", start_y + 75)
             .set("text-anchor", "middle")
@@ -1828,7 +1828,7 @@ fn add_boundary_crossing_flow(
     }
 
     if ffi_to_rust > 0 {
-        let count_text = SvgText::new(ffi_to_rust.clone())
+        let count_text = SvgText::new(&ffi_to_rust.to_string())
             .set("x", start_x + 300)
             .set("y", start_y + 135)
             .set("text-anchor", "middle")

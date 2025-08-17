@@ -90,7 +90,7 @@ pub use adaptive_hashmap::AdaptiveHashMap;
 pub use simple_mutex::SimpleMutex;
 
 // Re-export smart optimization tools
-pub use smart_optimization::{SafeUnwrap, SmartClone, SmartMutex, SmartStats};
+pub use smart_optimization::{SmartClone, SmartMutex, SmartStats};
 
 // Re-export targeted optimizations
 pub use targeted_optimizations::{efficient_string_concat, BatchProcessor, FastStatsCollector};
