@@ -1,14 +1,15 @@
-//! Comprehensive Rust Types Demo with JSON Export and Binary Comparison
+//! Comprehensive Rust Types Demo with New Unified API
 //! 
-//! This example demonstrates:
-//! 1. Basic and advanced Rust types
-//! 2. Unsafe/FFI operations  
-//! 3. Export user-binary format (only user-defined variables)
-//! 4. Generate direct JSON and binary-parsed JSON for comparison
-//! 5. Compare differences between direct JSON and binary-parsed JSON
+//! This example demonstrates the new unified API with:
+//! 1. Basic and advanced Rust types tracking
+//! 2. Unsafe/FFI operations tracking
+//! 3. New unified export API (export_json, export_binary)
+//! 4. Safe error handling (no unwrap)
+//! 5. User variables only export (recommended)
+//! 6. Binary to JSON conversion with new API
 
-use memscope_rs::{track_var_owned, get_global_tracker, get_global_unsafe_ffi_tracker, Trackable, BinaryExportMode};
-use memscope_rs::export::binary::{export_binary_to_html_system, BinaryParser};
+use memscope_rs::{track_var_owned, get_global_tracker, get_global_unsafe_ffi_tracker, Trackable};
+use memscope_rs::export::{UnifiedExporter, ExportConfig, export_user_variables_json, export_user_variables_binary};
 use std::collections::{HashMap, BTreeMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -193,10 +194,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 Total allocations: {}", all_allocations.len());
     println!("📊 User allocations: {}", user_allocations.len());
 
-    // ===== STEP 1: Export User Binary (only user-defined variables) =====
-    println!("\n💾 STEP 1: Export User Binary (user-defined variables only)...");
+    // ===== STEP 1: Export User Binary using New Unified API =====
+    println!("\n💾 STEP 1: Export User Binary using new unified API...");
+    
+    // Get allocations and stats for new API
+    let allocations = tracker.get_active_allocations()?;
+    let stats = tracker.get_stats()?;
+    
+    println!("📊 Total allocations: {}", allocations.len());
+    println!("📊 User allocations: {}", allocations.iter().filter(|a| a.var_name.is_some()).count());
+    
+    // Export user variables to binary using new API
     let binary_path = "comprehensive_user_binary.memscope";
-    tracker.export_to_binary_with_mode(binary_path, BinaryExportMode::UserOnly)?;
+    let binary_export_stats = export_user_variables_binary(allocations.clone(), stats.clone(), binary_path)?;
+    
+    println!("✅ Binary export completed!");
+    println!("   📊 Processed {} allocations in {}ms", 
+        binary_export_stats.allocations_processed, 
+        binary_export_stats.processing_time_ms);
+    println!("   📊 User variables: {}", binary_export_stats.user_variables);
+    println!("   📊 Processing rate: {:.0} allocs/sec", binary_export_stats.processing_rate);
     
     let actual_binary_path = if std::path::Path::new("MemoryAnalysis/comprehensive_user_binary.memscope").exists() {
         "MemoryAnalysis/comprehensive_user_binary.memscope"
@@ -207,15 +224,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let binary_size = std::fs::metadata(actual_binary_path)?.len();
     println!("✅ User binary exported: {} ({} bytes)", actual_binary_path, binary_size);
 
-    // ===== STEP 2: Export Direct JSON =====
-    println!("\n📋 STEP 2: Export Direct JSON...");
-    tracker.export_to_json("comprehensive_direct_json")?;
+    // ===== STEP 2: Export Direct JSON using New Unified API =====
+    println!("\n📋 STEP 2: Export Direct JSON using new unified API...");
+    
+    // Export user variables to JSON using new API
+    let json_export_stats = export_user_variables_json(allocations.clone(), stats.clone(), "comprehensive_direct_json")?;
+    
+    println!("✅ JSON export completed!");
+    println!("   📊 Processed {} allocations in {}ms", 
+        json_export_stats.allocations_processed, 
+        json_export_stats.processing_time_ms);
+    println!("   📊 User variables: {}", json_export_stats.user_variables);
+    println!("   📊 Processing rate: {:.0} allocs/sec", json_export_stats.processing_rate);
     
     // Create directory structure for direct JSON
     let direct_json_dir = "MemoryAnalysis/direct_json_analysis";
     std::fs::create_dir_all(direct_json_dir)?;
     
-    // Check if JSON files were created and move them to organized directory
+    // Check if JSON files were created and organize them
     let default_json_dir = "MemoryAnalysis/comprehensive_direct_json_analysis";
     if std::path::Path::new(default_json_dir).exists() {
         println!("✅ Direct JSON files created, organizing...");
@@ -230,9 +256,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // ===== STEP 3: Parse Binary to JSON =====
-    println!("\n📋 STEP 3: Parse Binary to JSON...");
-    BinaryParser::parse_user_binary_to_json(actual_binary_path, "comprehensive_binary_parsed")?;
+    // ===== STEP 3: Parse Binary to JSON using New Unified API =====
+    println!("\n📋 STEP 3: Parse Binary to JSON using new unified API...");
+    
+    // Use the new unified API for binary to JSON conversion
+    let binary_to_json_stats = UnifiedExporter::binary_to_json(actual_binary_path, "comprehensive_binary_parsed")?;
+    
+    println!("✅ Binary to JSON conversion completed!");
+    println!("   📊 Processing time: {}ms", binary_to_json_stats.processing_time_ms);
     
     // Create directory structure for binary-parsed JSON
     let binary_json_dir = "MemoryAnalysis/binary_parsed_json_analysis";

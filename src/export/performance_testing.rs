@@ -589,8 +589,7 @@ impl PerformanceTestSuite {
 
         let output_path = format!("test_traditional_{}", dataset_size);
 
-        let result = match tracker
-            .export_to_json_with_optimized_options(&output_path, traditional_options)
+        let result = match tracker.export_json_with_options(&output_path, traditional_options)
         {
             Ok(_) => {
                 let export_time = start_time.elapsed();

@@ -1499,7 +1499,7 @@ impl BinaryParser {
             .schema_validation(false); // Disable validation for speed
 
         // Use the optimized export method
-        match tracker.export_to_json_with_optimized_options(base_name, options) {
+        match tracker.export_json_with_options(base_name, options) {
             Ok(_) => {
                 tracing::info!("✅ OptimizedJsonExport completed successfully");
             }

@@ -72,6 +72,8 @@ pub enum TrackingError {
     InvalidOperation(String),
     /// Validation error
     ValidationError(String),
+    /// Data operation error
+    DataError(String),
 }
 
 impl Clone for TrackingError {
@@ -108,6 +110,7 @@ impl Clone for TrackingError {
             TrackingError::ValidationError(s) => TrackingError::ValidationError(s.clone()),
             TrackingError::InvalidOperation(s) => TrackingError::InvalidOperation(s.clone()),
             TrackingError::LockContention(s) => TrackingError::LockContention(s.clone()),
+            TrackingError::DataError(s) => TrackingError::DataError(s.clone()),
         }
     }
 }
@@ -146,6 +149,7 @@ impl std::fmt::Display for TrackingError {
             TrackingError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
             TrackingError::InvalidOperation(msg) => write!(f, "Invalid operation: {msg}"),
             TrackingError::LockContention(msg) => write!(f, "Lock contention: {msg}"),
+            TrackingError::DataError(msg) => write!(f, "Data error: {msg}"),
         }
     }
 }

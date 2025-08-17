@@ -183,16 +183,7 @@ impl<T: Clone> SmartClone<[T]> for Vec<T> {
     }
 }
 
-/// Macro for smart unwrapping
-#[macro_export]
-macro_rules! safe_unwrap {
-    ($expr:expr, $fallback:expr) => {
-        $crate::core::smart_optimization::SafeUnwrap::safe_unwrap($expr, $fallback)
-    };
-    ($expr:expr, $fallback:expr, $context:expr) => {
-        $crate::core::smart_optimization::SafeUnwrap::safe_unwrap_or_log($expr, $context, $fallback)
-    };
-}
+/// Macro for smart unwrapping (removed - use safe_operations instead)
 
 /// Performance-aware statistics that use the right tool for the job
 pub struct SmartStats {

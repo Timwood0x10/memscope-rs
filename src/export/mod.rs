@@ -2,6 +2,16 @@ pub mod adaptive_performance;
 pub mod analysis_engine;
 pub mod batch_processor;
 pub mod binary;
+
+// Unified API - the new clean interface
+pub mod unified_export_api;
+
+// Re-export the unified API for easy access
+pub use unified_export_api::{
+    UnifiedExporter, ExportConfig, ExportStats,
+    export_user_variables_json, export_user_variables_binary, 
+    export_fast, export_comprehensive
+};
 pub mod complex_type_export;
 pub mod config_optimizer;
 pub mod data_localizer;

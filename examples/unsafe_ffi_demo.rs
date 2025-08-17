@@ -7,6 +7,7 @@
 
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::export::{export_user_variables_json, export_user_variables_binary};
 use std::alloc::{alloc, dealloc, Layout};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -135,7 +136,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Export main memory analysis (correct naming for html_from_json)
     let memory_json = format!("{}/snapshot_memory_analysis.json", analysis_dir);
-    tracker.export_to_json(&memory_json)?;
+    // Export using new unified API
+    let allocations = tracker.get_active_allocations()?;
+    let stats = tracker.get_stats()?;
+    
+    println!("📊 Exporting {} allocations using new unified API...", allocations.len());
+    let export_stats = export_user_variables_json(allocations, stats, &memory_json)?;
+    
+    println!("✅ JSON export completed!");
+    println!("   📊 Processed {} allocations in {}ms", 
+        export_stats.allocations_processed, 
+        export_stats.processing_time_ms);
     println!("   ✅ Memory analysis: {}", memory_json);
 
     // Export unsafe/FFI analysis

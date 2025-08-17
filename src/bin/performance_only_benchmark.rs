@@ -88,7 +88,7 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         options.parallel_processing = false; // 传统方式不使用并行
         options.use_streaming_writer = true; // 但保持流式写入
 
-        let result = tracker.export_to_json_with_optimized_options(&output_path, options);
+        let result = tracker.export_json_with_options(&output_path, options);
         let export_time = start_time.elapsed();
 
         match result {
@@ -135,7 +135,7 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         options.buffer_size = 64 * 1024; // 64KB
         options.batch_size = 10000; // large batch
 
-        let result = tracker.export_to_json_with_optimized_options(&output_path, options);
+        let result = tracker.export_json_with_options(&output_path, options);
         let export_time = start_time.elapsed();
 
         match result {

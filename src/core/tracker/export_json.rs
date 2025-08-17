@@ -140,8 +140,8 @@ impl MemoryTracker {
         path: P,
         options: OptimizedExportOptions,
     ) -> TrackingResult<()> {
-        // Delegate to the existing method in optimized_json_export
-        self.export_to_json_with_optimized_options(path, options)
+        // Delegate to the optimized export implementation
+        self.export_json_with_options(path, options)
     }
 
     /// Get memory usage by type for export

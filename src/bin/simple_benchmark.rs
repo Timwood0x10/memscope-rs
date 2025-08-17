@@ -108,7 +108,7 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
         options.enable_fast_export_mode = true; // enable fast export mode
         options.enable_schema_validation = false; // disable schema validation to improve performance
 
-        let result = tracker.export_to_json_with_optimized_options(&output_path, options);
+        let result = tracker.export_json_with_options(&output_path, options);
         let export_time = start_time.elapsed();
 
         match result {

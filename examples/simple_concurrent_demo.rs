@@ -3,6 +3,7 @@
 //! Basic demonstration of memory tracking in concurrent scenarios
 
 use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::export::{export_user_variables_json, export_user_variables_binary};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -185,10 +186,39 @@ fn show_final_stats(total_time: Duration) -> Result<(), Box<dyn std::error::Erro
         let rate = stats.total_allocations as f64 / total_time.as_secs_f64();
         println!("• Allocation rate: {:.0} allocs/sec", rate);
 
-        // Export data
-        println!("\n💾 Exporting trace data...");
+        // Export data using new unified API
+        println!("\n💾 Exporting trace data using new unified API...");
         let export_start = Instant::now();
-        tracker.export_to_binary("simple_concurrent_demo")?;
+        
+        match (tracker.get_active_allocations(), tracker.get_stats()) {
+            (Ok(allocations), Ok(stats)) => {
+                println!("📊 Exporting {} allocations...", allocations.len());
+                
+                // Export to binary (user variables only)
+                match export_user_variables_binary(allocations.clone(), stats.clone(), "simple_concurrent_demo.memscope") {
+                    Ok(export_stats) => {
+                        println!("✅ Binary export successful!");
+                        println!("   📊 Processed {} allocations in {}ms", 
+                            export_stats.allocations_processed, 
+                            export_stats.processing_time_ms);
+                        println!("   📊 User variables: {}", export_stats.user_variables);
+                    }
+                    Err(e) => eprintln!("❌ Binary export failed: {}", e),
+                }
+                
+                // Also export to JSON for analysis
+                match export_user_variables_json(allocations, stats, "simple_concurrent_demo") {
+                    Ok(export_stats) => {
+                        println!("✅ JSON export successful!");
+                        println!("   📊 Processing rate: {:.0} allocs/sec", export_stats.processing_rate);
+                    }
+                    Err(e) => eprintln!("❌ JSON export failed: {}", e),
+                }
+            }
+            (Err(e), _) => eprintln!("❌ Failed to get allocations: {}", e),
+            (_, Err(e)) => eprintln!("❌ Failed to get stats: {}", e),
+        }
+        
         let export_time = export_start.elapsed();
         println!(
             "✅ Export completed in {:.2}ms",

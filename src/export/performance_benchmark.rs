@@ -265,7 +265,7 @@ impl PerformanceBenchmark {
         };
 
         // execute traditional export
-        let export_result = tracker.export_to_json_with_optimized_options(&output_path, options);
+        let export_result = tracker.export_json_with_options(&output_path, options);
         let export_time = start_time.elapsed();
 
         // Get final statistics

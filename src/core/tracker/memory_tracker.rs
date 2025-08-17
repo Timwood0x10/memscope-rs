@@ -10,6 +10,7 @@ use crate::core::types::{
 };
 use crate::core::bounded_memory_stats::{BoundedMemoryStats, AllocationHistoryManager, BoundedStatsConfig};
 use crate::core::ownership_history::{OwnershipHistoryRecorder, HistoryConfig};
+use crate::core::safe_operations::SafeLock;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -108,23 +109,15 @@ impl MemoryTracker {
 
     /// Get current memory statistics with advanced analysis.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
-        // Get bounded stats
-        let bounded_stats = match self.bounded_stats.lock() {
-            Ok(stats) => stats.clone(),
-            Err(poisoned) => {
-                let stats = poisoned.into_inner();
-                stats.clone()
-            }
-        };
+        // Get bounded stats using safe operations
+        let bounded_stats = self.bounded_stats.safe_lock()
+            .map(|stats| stats.clone())
+            .unwrap_or_else(|_| crate::core::bounded_memory_stats::BoundedMemoryStats::default());
 
-        // Get history for compatibility
-        let history = match self.history_manager.lock() {
-            Ok(manager) => manager.get_history_vec(),
-            Err(poisoned) => {
-                let manager = poisoned.into_inner();
-                manager.get_history_vec()
-            }
-        };
+        // Get history for compatibility using safe operations
+        let _history = self.history_manager.safe_lock()
+            .map(|manager| manager.get_history_vec())
+            .unwrap_or_else(|_| Vec::new());
 
         // Convert bounded stats to legacy MemoryStats for compatibility
         let legacy_stats = MemoryStats {
@@ -146,8 +139,8 @@ impl MemoryTracker {
             allocations: bounded_stats.get_all_allocations(),
         };
 
-        // Update the legacy stats cache
-        if let Ok(mut stats) = self.stats.lock() {
+        // Update the legacy stats cache using safe operations
+        if let Ok(mut stats) = self.stats.safe_lock() {
             *stats = legacy_stats.clone();
         }
 
@@ -156,26 +149,16 @@ impl MemoryTracker {
 
     /// Get all currently active allocations.
     pub fn get_active_allocations(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        match self.active_allocations.lock() {
-            Ok(active) => Ok(active.values().cloned().collect()),
-            Err(poisoned) => {
-                // Handle poisoned lock by recovering the data
-                let active = poisoned.into_inner();
-                Ok(active.values().cloned().collect())
-            }
-        }
+        self.active_allocations.safe_lock()
+            .map(|active| active.values().cloned().collect())
+            .map_err(|e| crate::core::types::TrackingError::LockError(format!("Failed to get active allocations: {}", e)))
     }
 
     /// Get the complete allocation history.
     pub fn get_allocation_history(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        match self.history_manager.lock() {
-            Ok(manager) => Ok(manager.get_history_vec()),
-            Err(poisoned) => {
-                // Handle poisoned lock by recovering the data
-                let manager = poisoned.into_inner();
-                Ok(manager.get_history_vec())
-            }
-        }
+        self.history_manager.safe_lock()
+            .map(|manager| manager.get_history_vec())
+            .map_err(|e| crate::core::types::TrackingError::LockError(format!("Failed to get allocation history: {}", e)))
     }
 
     /// Enable or disable fast mode.

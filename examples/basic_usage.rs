@@ -1,6 +1,12 @@
 //! Basic usage example for memscope-rs memory visualizer.
+//! 
+//! This example demonstrates the new unified API with:
+//! - Safe error handling (no unwrap)
+//! - Clean export interface
+//! - User variables only export (recommended)
 
 use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::export::{export_user_variables_json, export_user_variables_binary};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -61,20 +67,48 @@ fn main() {
         println!("  Peak memory: {} bytes", stats.peak_memory);
     }
 
-    // Export memory snapshot to JSON (will be saved to MemoryAnalysis/basic_usage/ directory)
-    println!("\nExporting memory snapshot to MemoryAnalysis/basic_usage/...");
-    if let Err(e) = tracker.export_to_json("basic_usage_snapshot") {
-        eprintln!("Failed to export JSON: {e}");
-    } else {
-        println!("Successfully exported JSON to MemoryAnalysis/basic_usage/");
-    }
-
-    // Export memory usage visualization to SVG (will be saved to MemoryAnalysis/basic_usage/ directory)
-    println!("\nExporting memory usage visualization to MemoryAnalysis/basic_usage/...");
-    if let Err(e) = tracker.export_memory_analysis("basic_usage_graph.svg") {
-        eprintln!("Failed to export SVG: {e}");
-    } else {
-        println!("Successfully exported SVG to MemoryAnalysis/basic_usage/");
+    // Export using new unified API - user variables only (recommended)
+    println!("\n🚀 Exporting memory snapshot using new unified API...");
+    
+    // Get allocations and stats for export
+    match (tracker.get_active_allocations(), tracker.get_stats()) {
+        (Ok(allocations), Ok(stats)) => {
+            // Export to JSON (user variables only - cleaner and faster)
+            println!("📋 Exporting user variables to JSON...");
+            match export_user_variables_json(allocations.clone(), stats.clone(), "basic_usage_snapshot") {
+                Ok(export_stats) => {
+                    println!("✅ JSON export successful!");
+                    println!("   📊 Processed {} allocations in {}ms", 
+                        export_stats.allocations_processed, 
+                        export_stats.processing_time_ms);
+                    println!("   📁 Files saved to MemoryAnalysis/basic_usage_snapshot_analysis/");
+                }
+                Err(e) => eprintln!("❌ JSON export failed: {}", e),
+            }
+            
+            // Export to binary format (efficient for large datasets)
+            println!("\n💾 Exporting user variables to binary...");
+            match export_user_variables_binary(allocations, stats, "basic_usage.memscope") {
+                Ok(export_stats) => {
+                    println!("✅ Binary export successful!");
+                    println!("   📊 Processed {} allocations in {}ms", 
+                        export_stats.allocations_processed, 
+                        export_stats.processing_time_ms);
+                    println!("   📁 Binary file: MemoryAnalysis/basic_usage.memscope");
+                }
+                Err(e) => eprintln!("❌ Binary export failed: {}", e),
+            }
+            
+            // Legacy export for comparison (deprecated but still works)
+            println!("\n🔄 Legacy export for comparison...");
+            if let Err(e) = tracker.export_memory_analysis("basic_usage_graph.svg") {
+                eprintln!("⚠️  Legacy SVG export failed: {e}");
+            } else {
+                println!("✅ Legacy SVG exported to MemoryAnalysis/basic_usage/");
+            }
+        }
+        (Err(e), _) => eprintln!("❌ Failed to get allocations: {}", e),
+        (_, Err(e)) => eprintln!("❌ Failed to get stats: {}", e),
     }
 
     println!("\nExample finished. Check 'basic_usage_snapshot.json' and 'basic_usage_graph.svg'.");

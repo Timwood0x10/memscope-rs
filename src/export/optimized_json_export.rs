@@ -632,7 +632,8 @@ impl MemoryTracker {
     /// - Uses parallel shard processing for large datasets
     /// - Automatically switches to fast export coordinator when beneficial
     /// - Reduces export time by 60-80% for complex programs
-    pub fn export_to_json_fast<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
+    /// Export to JSON with fast performance settings
+    pub fn export_json_fast<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low)
             .parallel_processing(true)
             .streaming_writer(false)
@@ -640,7 +641,7 @@ impl MemoryTracker {
             .fast_export_mode(true) // Force fast export mode
             .auto_fast_export_threshold(Some(1000)); // Lower threshold for fast mode
 
-        self.export_to_json_with_optimized_options(path, options)
+        self.export_json_with_options(path, options)
     }
 
     /// **[CONVENIENCE]** Comprehensive export with all features enabled
@@ -656,12 +657,13 @@ impl MemoryTracker {
     /// // Comprehensive export for security audit
     /// tracker.export_to_json_comprehensive("security_audit")?;
     /// ```
-    pub fn export_to_json_comprehensive<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
+    /// Export to JSON with comprehensive analysis
+    pub fn export_json_comprehensive<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
             .security_analysis(true)
             .adaptive_optimization(true);
 
-        self.export_to_json_with_optimized_options(path, options)
+        self.export_json_with_options(path, options)
     }
 
     /// **[UTILITY]** Display upgrade path information
@@ -800,7 +802,20 @@ impl MemoryTracker {
     ///     .schema_validation(true);
     /// tracker.export_to_json_with_options("output/analysis", options)?;
     /// ```
-    pub fn export_to_json_with_optimized_options<P: AsRef<Path>>(
+    /// Legacy method - use export_json_fast instead
+    #[deprecated(since = "0.1.0", note = "Use export_json_fast instead")]
+    pub fn export_to_json_fast<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
+        self.export_json_fast(path)
+    }
+    
+    /// Legacy method - use export_json_comprehensive instead
+    #[deprecated(since = "0.1.0", note = "Use export_json_comprehensive instead")]
+    pub fn export_to_json_comprehensive<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
+        self.export_json_comprehensive(path)
+    }
+    
+    /// Export to JSON with custom options
+    pub fn export_json_with_options<P: AsRef<Path>>(
         &self,
         base_path: P,
         options: OptimizedExportOptions,
@@ -1160,7 +1175,7 @@ impl MemoryTracker {
         // Test 2: Fast export mode
         let test2_start = std::time::Instant::now();
         let fast_options = OptimizedExportOptions::default().fast_export_mode(true);
-        match self.export_to_json_with_optimized_options("test_compatibility_fast", fast_options) {
+        match self.export_json_with_options("test_compatibility_fast", fast_options) {
             Ok(_) => {
                 test_results.push(serde_json::json!({
                     "test": "fast_export_mode",
@@ -1182,7 +1197,7 @@ impl MemoryTracker {
         // Test 3: Auto mode selection
         let test3_start = std::time::Instant::now();
         let auto_options = OptimizedExportOptions::default().auto_fast_export_threshold(Some(1)); // Force auto mode for any data
-        match self.export_to_json_with_optimized_options("test_compatibility_auto", auto_options) {
+        match self.export_json_with_options("test_compatibility_auto", auto_options) {
             Ok(_) => {
                 test_results.push(serde_json::json!({
                     "test": "auto_mode_selection",
@@ -1213,7 +1228,7 @@ impl MemoryTracker {
                 OptimizedExportOptions::with_optimization_level(level).fast_export_mode(false); // Force traditional export
             let test_name = format!("optimization_level_{:?}", level);
 
-            match self.export_to_json_with_optimized_options(
+            match self.export_json_with_options(
                 &format!("test_compatibility_{:?}", level),
                 level_options,
             ) {
@@ -1446,13 +1461,26 @@ impl MemoryTracker {
 /// Ultra-fast export implementation (legacy methods for backward compatibility)
 impl MemoryTracker {
     /// Optimized export to standard 4 JSON files (replaces export_separated_json_simple)
-    pub fn export_optimized_json_files<P: AsRef<Path>>(&self, base_path: P) -> TrackingResult<()> {
+    /// Export to JSON files - standard interface
+    pub fn export_json_standard<P: AsRef<Path>>(&self, base_path: P) -> TrackingResult<()> {
+        self.export_json_files(base_path)
+    }
+    
+    /// Export to JSON files with default options
+    pub fn export_json_files<P: AsRef<Path>>(&self, base_path: P) -> TrackingResult<()> {
         let options = OptimizedExportOptions::default();
         self.export_optimized_json_files_with_options(base_path, options)
     }
 
     /// Export to 5 JSON files including complex types analysis
-    pub fn export_optimized_json_files_with_complex_types<P: AsRef<Path>>(
+    /// Legacy method - use export_json_standard instead
+    #[deprecated(since = "0.1.0", note = "Use export_json_standard instead")]
+    pub fn export_optimized_json_files<P: AsRef<Path>>(&self, base_path: P) -> TrackingResult<()> {
+        self.export_json_standard(base_path)
+    }
+    
+    /// Export to JSON files with complex type analysis
+    pub fn export_json_with_complex_types<P: AsRef<Path>>(
         &self,
         base_path: P,
     ) -> TrackingResult<()> {

@@ -35,6 +35,8 @@ pub mod targeted_optimizations;
 pub mod test_optimized_locks;
 pub mod threshold_batch_processor;
 pub mod tracker;
+pub mod safe_operations;
+
 /// Type definitions
 pub mod types;
 pub mod unwrap_safe;

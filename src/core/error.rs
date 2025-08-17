@@ -397,6 +397,7 @@ impl From<crate::core::types::TrackingError> for MemScopeError {
             TE::ValidationError(msg) => Self::memory(MemoryOperation::Validation, msg),
             TE::InvalidOperation(msg) => Self::memory(MemoryOperation::Tracking, msg),
             TE::LockContention(msg) => Self::memory(MemoryOperation::Tracking, msg),
+            TE::DataError(msg) => Self::memory(MemoryOperation::Tracking, msg),
         }
     }
 }

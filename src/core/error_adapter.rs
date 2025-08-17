@@ -22,6 +22,9 @@ pub struct DefaultErrorAdapter;
 impl ErrorAdapter for DefaultErrorAdapter {
     fn from_tracking_error(error: TrackingError) -> MemScopeError {
         match error {
+            TrackingError::DataError(msg) => {
+                MemScopeError::memory(MemoryOperation::Tracking, msg)
+            }
             TrackingError::AllocationFailed(msg) => {
                 MemScopeError::memory(MemoryOperation::Allocation, msg)
             }
@@ -148,6 +151,9 @@ impl ErrorAdapter for DefaultErrorAdapter {
                 SystemErrorType::Network => TrackingError::IoError(message.to_string()),
                 SystemErrorType::FileSystem => TrackingError::IoError(message.to_string()),
             },
+            MemScopeError::Memory { operation: MemoryOperation::Tracking, message, .. } => {
+                TrackingError::DataError(message.to_string())
+            }
             MemScopeError::Internal { message, .. } => {
                 TrackingError::InternalError(message.to_string())
             }

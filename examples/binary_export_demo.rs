@@ -9,6 +9,7 @@
 //! - binary_demo_example.html (HTML report from binary)
 
 use memscope_rs::{core::tracker::MemoryTracker, get_global_tracker, track_var};
+use memscope_rs::export::{UnifiedExporter, export_user_variables_binary, export_user_variables_json};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -82,7 +83,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Export to binary format using MemoryTracker
     println!("\n💾 Exporting to binary format...");
     let start_time = std::time::Instant::now();
-    tracker.export_to_binary("binary_demo_example")?;
+    // Export using new unified API
+    let allocations = tracker.get_active_allocations()?;
+    let stats = tracker.get_stats()?;
+    
+    println!("📊 Exporting {} allocations using new unified API...", allocations.len());
+    let export_stats = export_user_variables_binary(allocations, stats, "binary_demo_example")?;
+    
+    println!("✅ Binary export completed!");
+    println!("   📊 Processed {} allocations in {}ms", 
+        export_stats.allocations_processed, 
+        export_stats.processing_time_ms);
+    println!("   📊 User variables: {}", export_stats.user_variables);
     let binary_export_time = start_time.elapsed();
 
     // Find the created binary file
@@ -103,7 +115,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Convert binary to standard JSON files (5 categorized files)
     println!("\n🔄 Converting binary to standard JSON files...");
     let start_time = std::time::Instant::now();
-    MemoryTracker::parse_binary_to_standard_json(&binary_file, "binary_demo_example")?;
+    // Convert binary to JSON using new unified API
+    println!("🔄 Converting binary to JSON using new unified API...");
+    let binary_to_json_stats = UnifiedExporter::binary_to_json(&binary_file, "binary_demo_example")?;
+    println!("✅ Binary to JSON conversion completed in {}ms", binary_to_json_stats.processing_time_ms);
     let json_conversion_time = start_time.elapsed();
 
     // Check the generated JSON files
@@ -138,7 +153,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Convert binary to HTML report
     println!("\n🌐 Converting binary to HTML report...");
     let start_time = std::time::Instant::now();
-    MemoryTracker::parse_binary_to_html(&binary_file, &html_file)?;
+    // Convert binary to HTML using new unified API
+    println!("🔄 Converting binary to HTML using new unified API...");
+    let binary_to_html_stats = UnifiedExporter::binary_to_html(&binary_file, "binary_demo_example")?;
+    println!("✅ Binary to HTML conversion completed in {}ms", binary_to_html_stats.processing_time_ms);
     let html_conversion_time = start_time.elapsed();
 
     let html_size = fs::metadata(&html_file)?.len();
