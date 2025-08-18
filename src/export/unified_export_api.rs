@@ -150,10 +150,43 @@ impl UnifiedExporter {
         // Use the existing optimized JSON export with proper filtering
         let options = self.create_json_export_options();
         
-        // 🔧 CRITICAL FIX: Call the REAL implementation in optimized_json_export.rs
-        // NOT the empty placeholder in this file!
-        let tracker = crate::core::tracker::get_global_tracker();
-        tracker.export_json_with_options(base_path, options)?;
+        // 🔧 SIMPLE FIX: Use the same simple approach as examples
+        // Generate a single clean JSON file like unsafe_ffi_demo.rs does
+        let base_path_str = base_path.as_ref().to_string_lossy();
+        let output_path = if base_path_str.ends_with(".json") {
+            base_path_str.to_string()
+        } else {
+            format!("MemoryAnalysis/{}.json", base_path_str)
+        };
+        
+        // Create directory if needed
+        if let Some(parent) = std::path::Path::new(&output_path).parent() {
+            std::fs::create_dir_all(parent).map_err(|e| TrackingError::IoError(e.to_string()))?;
+        }
+        
+        // 🔧 CRITICAL: Only export user variables like examples do!
+        // Filter to ONLY user-defined variables (var_name.is_some())
+        let user_only_allocations: Vec<_> = filtered_allocations
+            .iter()
+            .filter(|alloc| alloc.var_name.is_some())
+            .cloned()
+            .collect();
+            
+        println!("📊 Exporting {} user variables (filtered from {} total)", 
+                 user_only_allocations.len(), filtered_allocations.len());
+        
+        // Generate simple, clean JSON like examples do - ONLY user variables
+        let json_data = serde_json::json!({
+            "user_variables": user_only_allocations,
+            "stats": &*self._stats,
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        });
+        
+        std::fs::write(&output_path, serde_json::to_string_pretty(&json_data)?)
+            .map_err(|e| TrackingError::IoError(e.to_string()))?;
         
         let processing_time = start_time.elapsed();
         
