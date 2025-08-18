@@ -6,18 +6,20 @@ pub mod binary;
 // Unified API - the new clean interface
 pub mod unified_export_api;
 
-// Re-export the unified API for easy access
-pub use unified_export_api::{
-    UnifiedExporter, ExportConfig as LegacyExportConfig, ExportStats as LegacyExportStats,
-    export_user_variables_json, export_user_variables_binary, 
-    export_fast, export_comprehensive
+// === 推荐的清晰API - 只有4个核心方法 ===
+pub use clean_unified_api::{
+    MemScopeExporter,
+    export_json, export_binary, export_html, export_auto
 };
 
-// New unified API - recommended for new code
-pub use new_unified_api::{
-    MemScopeExporter, ExportConfig, ExportStats, OptimizationLevel,
-    quick_export_json, quick_export_binary
+// === 保留的兼容API - 为了向后兼容 ===
+pub use unified_export_api::{
+    export_user_variables_json, export_user_variables_binary
 };
+
+// 隐藏混乱的API - 不再公开导出
+// pub use unified_export_api::{export_fast, export_comprehensive}; // 太混乱，已隐藏
+// pub use new_unified_api::{...}; // 被clean_unified_api替代
 pub mod complex_type_export;
 pub mod config_optimizer;
 pub mod data_localizer;
@@ -40,3 +42,4 @@ pub mod streaming_json_writer;
 pub mod system_optimizer;
 pub mod visualization;
 pub mod new_unified_api;
+pub mod clean_unified_api;
