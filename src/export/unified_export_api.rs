@@ -150,8 +150,10 @@ impl UnifiedExporter {
         // Use the existing optimized JSON export with proper filtering
         let options = self.create_json_export_options();
         
-        // Call the existing implementation but with proper error handling
-        self.export_json_with_options(base_path, &filtered_allocations, &options)?;
+        // 🔧 CRITICAL FIX: Call the REAL implementation in optimized_json_export.rs
+        // NOT the empty placeholder in this file!
+        let tracker = crate::core::tracker::get_global_tracker();
+        tracker.export_json_with_options(base_path, options)?;
         
         let processing_time = start_time.elapsed();
         

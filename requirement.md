@@ -22,4 +22,7 @@
 20. 严禁创建乱七八糟的test files
 21. 严禁影响到其他的功能，尤其是full-binary ---> json 的导出时间。
 22. 禁止用allow deadcode 来修复warning，必须找到原因，然后修复。
-23.严禁私自git commit
+23.严禁私自 git commit，git push
+24. 严禁私自修改代码，必须按照要求修改代码。
+25. 进行api上层的重构，而不是底层的重构。禁止修改底层的代码
+26. 禁止运行 basic_usage

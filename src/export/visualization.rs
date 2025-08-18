@@ -95,43 +95,43 @@ fn create_memory_analysis_svg(
         .set("style", "background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%); font-family: 'Segoe UI', Arial, sans-serif;");
 
     // 1. Title: Rust Memory Usage Analysis
-    document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
+    document = crate::export::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
     // 3. Performance Dashboard - REMOVED to prevent overlap with header metrics
     // document =
     //     crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
 
     // 4. Memory Allocation Heatmap
-    document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
+    document = crate::export::export_enhanced::add_memory_heatmap(document, allocations)?;
 
     // 5. Left side: Memory Usage by Type
     // Fixed: Get actual memory type data instead of empty array
     let memory_by_type_data = tracker.get_memory_by_type().unwrap_or_default();
     let memory_by_type = enhance_type_information(&memory_by_type_data, allocations);
-    document = crate::export_enhanced::add_enhanced_type_chart(document, &memory_by_type)?;
+    document = crate::export::export_enhanced::add_enhanced_type_chart(document, &memory_by_type)?;
 
     // 6. Right side: Memory Fragmentation Analysis
-    document = crate::export_enhanced::add_fragmentation_analysis(document, allocations)?;
+    document = crate::export::export_enhanced::add_fragmentation_analysis(document, allocations)?;
 
     // 7. Left side: Tracked Variables by Category
     // FIXED: Use same enhanced data source as Memory Usage by Type for consistency
     let categorized = categorize_enhanced_allocations(&memory_by_type);
-    document = crate::export_enhanced::add_categorized_allocations(document, &categorized)?;
+    document = crate::export::export_enhanced::add_categorized_allocations(document, &categorized)?;
 
     // 8. Right side: Call Stack Analysis
-    document = crate::export_enhanced::add_callstack_analysis(document, allocations)?;
+    document = crate::export::export_enhanced::add_callstack_analysis(document, allocations)?;
 
     // 9. Memory Growth Trends
-    document = crate::export_enhanced::add_memory_growth_trends(document, allocations, stats)?;
+    document = crate::export::export_enhanced::add_memory_growth_trends(document, allocations, stats)?;
 
     // 10. Variable Allocation Timeline
-    document = crate::export_enhanced::add_memory_timeline(document, allocations, stats)?;
+    document = crate::export::export_enhanced::add_memory_timeline(document, allocations, stats)?;
 
     // 11. Bottom left: Interactive Legend & Guide
-    document = crate::export_enhanced::add_interactive_legend(document)?;
+    document = crate::export::export_enhanced::add_interactive_legend(document)?;
 
     // 12. Bottom right: Memory Analysis Summary
-    document = crate::export_enhanced::add_comprehensive_summary(document, stats, allocations)?;
+    document = crate::export::export_enhanced::add_comprehensive_summary(document, stats, allocations)?;
 
     Ok(document)
 }
@@ -1229,7 +1229,7 @@ use crate::core::types::TypeMemoryUsage;
 pub fn enhance_type_information(
     memory_by_type: &[TypeMemoryUsage],
     allocations: &[AllocationInfo],
-) -> Vec<crate::export_enhanced::EnhancedTypeInfo> {
+) -> Vec<crate::export::export_enhanced::EnhancedTypeInfo> {
     let mut enhanced_types = Vec::new();
 
     for usage in memory_by_type {
@@ -1263,7 +1263,7 @@ pub fn enhance_type_information(
             .collect();
 
         // Add the main type with subcategory information
-        enhanced_types.push(crate::export_enhanced::EnhancedTypeInfo {
+        enhanced_types.push(crate::export::export_enhanced::EnhancedTypeInfo {
             simplified_name,
             category,
             subcategory,
@@ -1341,9 +1341,9 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
 
 /// Categorize enhanced allocations by type category - delegate to export_enhanced
 pub fn categorize_enhanced_allocations(
-    enhanced_types: &[crate::export_enhanced::EnhancedTypeInfo],
-) -> Vec<crate::export_enhanced::AllocationCategory> {
-    crate::export_enhanced::categorize_enhanced_allocations(enhanced_types)
+    enhanced_types: &[crate::export::export_enhanced::EnhancedTypeInfo],
+) -> Vec<crate::export::export_enhanced::AllocationCategory> {
+    crate::export::export_enhanced::categorize_enhanced_allocations(enhanced_types)
 }
 
 /// Export comprehensive unsafe/FFI memory analysis to dedicated SVG

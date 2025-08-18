@@ -29,8 +29,28 @@ pub mod variable_registry;
 pub mod enhanced_types;
 pub use advanced_types::*;
 pub use analysis::*;
-pub use export::*;
-// Note: Macros are automatically available when the crate is imported
+
+// === PERFORMANCE-FIRST EXPORT API ===
+// Only the highest performance APIs (core functions)
+
+// 🏃 TIER 1: High Performance JSON/Binary Export (compatibility)
+pub use export::{
+    export_user_variables_json,     // Standard JSON for compatibility
+    export_user_variables_binary,   // Standard binary for compatibility
+};
+
+// ⚡ TIER 2: Lifecycle Export (detailed ownership tracking)
+pub use export::{
+    LifecycleExporter,              // Configurable lifecycle data exporter
+    LifecycleExportConfig,          // Configuration for lifecycle export
+    export_lifecycle_data,          // Convenience function for one-shot export
+};
+
+// 🔧 TIER 3: Binary Analysis Tools (proven in examples)
+pub use export::{
+    binary::BinaryParser,           // High-performance binary parsing
+    binary::detect_binary_type,     // Binary type detection
+};
 
 // Re-export main types for easier use
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
@@ -39,7 +59,6 @@ pub use core::allocator::TrackingAllocator;
 pub use core::tracker::memory_tracker::BinaryExportMode;
 pub use core::tracker::{get_global_tracker, ExportOptions, MemoryTracker};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
-pub use export::visualization::{export_lifecycle_timeline, export_memory_analysis};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
 // Re-export the derive macro when the derive feature is enabled
