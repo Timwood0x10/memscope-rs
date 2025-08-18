@@ -1,155 +1,235 @@
 //! Safe unwrap utilities for memscope-rs
 //!
-//! This module provides safe alternatives to unwrap() calls while maintaining
-//! the same behavior as the original code. It includes error tracking and
-//! recovery mechanisms without changing the program logic.
+//! This module provides safe, panic-free alternatives to unwrap() calls.
+//! It includes comprehensive error tracking and recovery mechanisms.
 
 use crate::core::error::{MemScopeError, MemoryOperation, SystemErrorType};
-use std::fmt::Debug;
 use crate::core::safe_operations::SafeLock;
+use std::fmt::{self, Debug, Display};
+use std::backtrace::Backtrace;
+use std::error::Error as StdError;
 
-/// Trait for safe unwrapping with logging and error context
+/// Custom error type for unwrap operations
+#[derive(Debug)]
+pub enum UnwrapError {
+    NoneValue {
+        context: &'static str,
+        location: Option<&'static str>,
+        backtrace: Backtrace,
+    },
+    ResultError {
+        source: Box<dyn StdError + Send + Sync>,
+        context: &'static str,
+        location: Option<&'static str>,
+        backtrace: Backtrace,
+    },
+}
+
+impl Display for UnwrapError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoneValue { context, location, .. } => {
+                if let Some(loc) = location {
+                    write!(f, "Attempt to unwrap None at {}: {}", loc, context)
+                } else {
+                    write!(f, "Attempt to unwrap None: {}", context)
+                }
+            }
+            Self::ResultError { source, context, location, .. } => {
+                if let Some(loc) = location {
+                    write!(f, "Unwrap failed at {} ({}): {}", loc, context, source)
+                } else {
+                    write!(f, "Unwrap failed ({}): {}", context, source)
+                }
+            }
+        }
+    }
+}
+
+impl StdError for UnwrapError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::NoneValue { .. } => None,
+            Self::ResultError { source, .. } => Some(&**source),
+        }
+    }
+}
+
+impl UnwrapError {
+    /// Get the backtrace for this error
+    pub fn backtrace(&self) -> &Backtrace {
+        match self {
+            Self::NoneValue { backtrace, .. } |
+            Self::ResultError { backtrace, .. } => backtrace,
+        }
+    }
+}
+
+/// Extension trait for safe, panic-free unwrapping
 pub trait UnwrapSafe<T> {
-    /// Unwrap with context information for better error messages
-    fn unwrap_safe(self, context: &str) -> T;
+    /// Try to unwrap a value, returning a Result
+    fn try_unwrap(self, context: &'static str) -> Result<T, UnwrapError>;
 
-    /// Unwrap with context and location information
-    fn unwrap_safe_at(self, context: &str, location: &str) -> T;
-
-    /// Unwrap with a default value if the operation fails
-    fn unwrap_or_default_safe(self, default: T, context: &str) -> T;
-
-    /// Unwrap with a closure to provide default value
-    fn unwrap_or_else_safe<F>(self, default_fn: F, context: &str) -> T
+    /// Try to unwrap with location information
+    fn try_unwrap_at(self, context: &'static str, location: &'static str) -> Result<T, UnwrapError>
     where
-        F: FnOnce() -> T;
+        Self: Sized,
+    {
+        self.try_unwrap(context).map_err(|mut e| {
+            match &mut e {
+                UnwrapError::NoneValue { location: loc, .. } |
+                UnwrapError::ResultError { location: loc, .. } => {
+                    *loc = Some(location);
+                }
+            }
+            e
+        })
+    }
 
-    /// Try to unwrap safely, returning an error instead of panicking
-    fn try_unwrap_safe(self, context: &str) -> Result<T, MemScopeError>;
+    /// Unwrap or return a default value
+    fn unwrap_or_default_safe(self, default: T, context: &'static str) -> T
+    where
+        Self: Sized,
+    {
+        self.try_unwrap(context).unwrap_or_else(|e| {
+            tracing::warn!("{}", e);
+            default
+        })
+    }
+
+    /// Unwrap or compute a default value
+    fn unwrap_or_else_safe<F>(self, default_fn: F, context: &'static str) -> T
+    where
+        Self: Sized,
+        F: FnOnce() -> T,
+    {
+        self.try_unwrap(context).unwrap_or_else(|e| {
+            tracing::warn!("{}", e);
+            default_fn()
+        })
+    }
+
+    /// Backwards compatibility method (deprecated)
+    #[deprecated(note = "Use try_unwrap() instead")]
+    fn try_unwrap_safe(self, context: &'static str) -> Result<T, MemScopeError>
+    where
+        Self: Sized,
+    {
+        self.try_unwrap(context).map_err(|e| {
+            MemScopeError::memory(
+                MemoryOperation::Allocation,
+                format!("Failed to unwrap value: {}", e)
+            )
+        })
+    }
+
+    /// Unwrap with context information (deprecated)
+    /// Unwrap or abort the process
+    /// 
+    /// # Safety
+    /// This method will abort the process on error. Only use when the program
+    /// cannot continue without this value.
+    #[deprecated(note = "Use try_unwrap() instead")]
+    fn unwrap_safe(self, context: &'static str) -> T
+    where
+        Self: Sized,
+    {
+        self.try_unwrap(context).unwrap_or_else(|e| {
+            tracing::error!("Fatal error: {}\nBacktrace:\n{:?}", e, e.backtrace());
+            std::process::abort();
+        })
+    }
+
+    /// Unwrap with context and location information (deprecated)
+    /// Unwrap or abort the process with location information
+    /// 
+    /// # Safety
+    /// This method will abort the process on error. Only use when the program
+    /// cannot continue without this value.
+    #[deprecated(note = "Use try_unwrap_at() instead")]
+    fn unwrap_safe_at(self, context: &'static str, location: &'static str) -> T
+    where
+        Self: Sized,
+    {
+        self.try_unwrap_at(context, location).unwrap_or_else(|e| {
+            let backtrace = e.backtrace();
+            tracing::error!(
+                "Fatal error at {}: {}\nBacktrace:\n{:?}", 
+                location, 
+                e, 
+                backtrace
+            );
+            std::process::abort();
+        })
+    }
 }
 
 impl<T> UnwrapSafe<T> for Option<T> {
-    fn unwrap_safe(self, context: &str) -> T {
+    fn try_unwrap(self, context: &'static str) -> Result<T, UnwrapError> {
         match self {
             Some(value) => {
-                tracing::trace!("Safe unwrap succeeded: {}", context);
-                value
-            }
-            None => {
-                tracing::error!("Safe unwrap failed (None): {}", context);
-                // Maintain original panic behavior for compatibility
-                panic!(
-                    "called `Option::unwrap()` on a `None` value in context: {}",
-                    context
-                );
-            }
-        }
-    }
-
-    fn unwrap_safe_at(self, context: &str, location: &str) -> T {
-        match self {
-            Some(value) => {
-                tracing::trace!("Safe unwrap succeeded at {}: {}", location, context);
-                value
-            }
-            None => {
-                tracing::error!("Safe unwrap failed (None) at {}: {}", location, context);
-                // Maintain original panic behavior for compatibility
-                panic!(
-                    "called `Option::unwrap()` on a `None` value at {} in context: {}",
-                    location, context
-                );
-            }
-        }
-    }
-
-    fn unwrap_or_default_safe(self, default: T, context: &str) -> T {
-        match self {
-            Some(value) => {
-                tracing::trace!("Safe unwrap succeeded: {}", context);
-                value
-            }
-            None => {
-                tracing::warn!("Safe unwrap failed (None), using default: {}", context);
-                default
-            }
-        }
-    }
-
-    fn unwrap_or_else_safe<F>(self, default_fn: F, context: &str) -> T
-    where
-        F: FnOnce() -> T,
-    {
-        match self {
-            Some(value) => {
-                tracing::trace!("Safe unwrap succeeded: {}", context);
-                value
-            }
-            None => {
-                tracing::warn!(
-                    "Safe unwrap failed (None), using default function: {}",
-                    context
-                );
-                default_fn()
-            }
-        }
-    }
-
-    fn try_unwrap_safe(self, context: &str) -> Result<T, MemScopeError> {
-        match self {
-            Some(value) => {
-                tracing::trace!("Safe unwrap succeeded: {}", context);
+                tracing::trace!("Unwrap succeeded: {}", context);
                 Ok(value)
             }
             None => {
-                tracing::error!("Safe unwrap failed (None): {}", context);
-                Err(MemScopeError::memory(
-                    MemoryOperation::Validation,
-                    format!("Option unwrap failed in context: {}", context),
-                ))
+                let error = UnwrapError::NoneValue {
+                    context,
+                    location: None,
+                    backtrace: Backtrace::capture(),
+                };
+                tracing::error!("Unwrap failed: {}", error);
+                Err(error)
             }
         }
+    }
+
+    fn unwrap_or_else_safe<F>(self, default_fn: F, context: &'static str) -> T
+    where
+        F: FnOnce() -> T,
+    {
+        self.try_unwrap(context).unwrap_or_else(|e| {
+            tracing::warn!("Using default value: {}", e);
+            default_fn()
+        })
+    }
+
+    fn try_unwrap_safe(self, context: &'static str) -> Result<T, MemScopeError> {
+        self.try_unwrap(context).map_err(|e| {
+            MemScopeError::memory(
+                MemoryOperation::Allocation,
+                format!("Failed to unwrap value: {}", e)
+            )
+        })
     }
 }
 
-impl<T, E: Debug> UnwrapSafe<T> for Result<T, E> {
-    fn unwrap_safe(self, context: &str) -> T {
+impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
+    fn try_unwrap(self, context: &'static str) -> Result<T, UnwrapError> {
         match self {
             Ok(value) => {
-                tracing::trace!("Safe unwrap succeeded: {}", context);
-                value
+                tracing::trace!("Result unwrap succeeded: {}", context);
+                Ok(value)
             }
             Err(error) => {
-                tracing::error!("Safe unwrap failed (Error: {:?}): {}", error, context);
-                // Maintain original panic behavior for compatibility
-                panic!(
-                    "called `Result::unwrap()` on an `Err` value: {:?} in context: {}",
-                    error, context
-                );
+                let error = UnwrapError::ResultError {
+                    source: Box::new(error),
+                    context,
+                    location: None,
+                    backtrace: Backtrace::capture(),
+                };
+                tracing::error!("Result unwrap failed: {}", error);
+                Err(error)
             }
         }
     }
 
-    fn unwrap_safe_at(self, context: &str, location: &str) -> T {
-        match self {
-            Ok(value) => {
-                tracing::trace!("Safe unwrap succeeded at {}: {}", location, context);
-                value
+    fn try_unwrap_at(self, context: &'static str, location: &'static str) -> Result<T, UnwrapError> {
+        self.try_unwrap(context).map_err(|mut e| {
+            if let UnwrapError::ResultError { location: loc, .. } = &mut e {
+                *loc = Some(location);
             }
-            Err(error) => {
-                tracing::error!(
-                    "Safe unwrap failed (Error: {:?}) at {}: {}",
-                    error,
-                    location,
-                    context
-                );
-                // Maintain original panic behavior for compatibility
-                panic!(
-                    "called `Result::unwrap()` on an `Err` value: {:?} at {} in context: {}",
-                    error, location, context
-                );
-            }
-        }
+            e
+        })
     }
 
     fn unwrap_or_default_safe(self, default: T, context: &str) -> T {
@@ -329,7 +409,7 @@ where
     R: Default,
 {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    match stats_mutex.safe_lock() {
+    match stats_mutex.try_lock() {
         Ok(mut stats) => f(&mut stats),
         Err(_) => R::default(),
     }
@@ -339,5 +419,5 @@ where
 #[cfg(test)]
 pub fn get_unwrap_stats_mut() -> Option<std::sync::MutexGuard<'static, UnwrapStats>> {
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
-    stats_mutex.safe_lock().ok()
+    stats_mutex.try_lock().ok()
 }
