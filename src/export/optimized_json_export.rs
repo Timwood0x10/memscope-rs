@@ -1699,7 +1699,7 @@ fn create_optimized_memory_analysis(
 /// Create enhanced lifetime analysis with ownership history and lifecycle events
 fn create_optimized_lifetime_analysis(
     allocations: &[AllocationInfo],
-    options: &OptimizedExportOptions,
+    _options: &OptimizedExportOptions,
 ) -> TrackingResult<serde_json::Value> {
     // Enhanced lifetime analysis: group analysis by scope with detailed lifecycle data
     let mut scope_analysis: HashMap<String, (usize, usize, Vec<usize>)> = HashMap::new();

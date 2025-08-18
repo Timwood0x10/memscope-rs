@@ -175,7 +175,7 @@ impl MemoryTracker {
     fn track_allocation_with_retry(
         &self,
         ptr: usize,
-        size: usize,
+        _size: usize,
         allocation: AllocationInfo,
     ) -> TrackingResult<()> {
         let mut retry_count = 0;

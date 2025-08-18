@@ -527,7 +527,7 @@ mod tests {
         let frames3 = vec![create_test_stack_frame("func3", 3)];
         
         let id1 = normalizer.normalize_call_stack(&frames1).expect("Failed to normalize call stack");
-        let id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
+        let _id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
         
         // Increment ref count for id1 to keep it during cleanup
         normalizer.increment_ref_count(id1).expect("Failed to increment ref count");

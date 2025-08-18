@@ -21,3 +21,4 @@
 19. 要保证输出的html，和没改动之前的json一致啊，也就是说binary中生存的json file 是5个，要和MemoryAnalysis/binary_demo_example/*.json 一致
 20. 严禁创建乱七八糟的test files
 21. 严禁影响到其他的功能，尤其是full-binary ---> json 的导出时间。
+22. 禁止用allow deadcode 来修复warning，必须找到原因，然后修复。

@@ -334,9 +334,9 @@ pub struct SafetyAnalysisStats {
 /// Risk assessment engine for evaluating unsafe operations
 pub struct RiskAssessmentEngine {
     /// Risk factor weights
-    risk_weights: HashMap<RiskFactorType, f64>,
+    _risk_weights: HashMap<RiskFactorType, f64>,
     /// Historical risk data
-    historical_data: HashMap<String, Vec<f64>>,
+    _historical_data: HashMap<String, Vec<f64>>,
 }
 
 impl RiskAssessmentEngine {

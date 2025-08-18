@@ -102,7 +102,7 @@ pub struct ExportStats {
 /// Unified export interface - replaces all scattered export functions
 pub struct UnifiedExporter {
     allocations: Arc<Vec<AllocationInfo>>,
-    stats: Arc<MemoryStats>,
+    _stats: Arc<MemoryStats>,
     config: ExportConfig,
 }
 

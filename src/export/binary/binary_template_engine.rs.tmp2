@@ -550,7 +550,6 @@ impl BinaryTemplateEngine {
     }
 
     /// Calculate processing throughput
-    #[allow(dead_code)]
     fn calculate_throughput(&self, data: &BinaryTemplateData) -> f64 {
         if data.processing_time_ms == 0 {
             0.0
@@ -640,7 +639,6 @@ impl BinaryTemplateEngine {
 
 
     /// Count unique scopes in allocations
-    #[allow(dead_code)]
     fn count_unique_scopes(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> u64 {
         use std::collections::HashSet;
         
@@ -652,7 +650,6 @@ impl BinaryTemplateEngine {
     }
 
     /// Calculate average scope lifetime
-    #[allow(dead_code)]
     fn calculate_average_scope_lifetime(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> f64 {
         if allocations.is_empty() {
             return 0.0;
@@ -674,7 +671,6 @@ impl BinaryTemplateEngine {
     }
 
     /// Calculate memory efficiency metric
-    #[allow(dead_code)]
     fn calculate_memory_efficiency(&self, data: &BinaryTemplateData) -> f64 {
         if data.peak_memory_usage == 0 {
             0.0
@@ -684,7 +680,6 @@ impl BinaryTemplateEngine {
     }
 
     /// Calculate processing speed in MB/s
-    #[allow(dead_code)]
     fn calculate_processing_speed(&self, data: &BinaryTemplateData) -> f64 {
         if data.processing_time_ms == 0 {
             0.0
@@ -1639,248 +1634,28 @@ fn _generate_variable_relationships_analysis(allocations: &[BinaryAllocationData
 }
 
 // Helper functions for type analysis
-#[allow(dead_code)]
-fn extract_smart_pointer_type(type_name: &str) -> &str {
-    if type_name.contains("Box<") { "Box" }
-    else if type_name.contains("Rc<") { "Rc" }
-    else if type_name.contains("Arc<") { "Arc" }
-    else if type_name.contains("RefCell<") { "RefCell" }
-    else if type_name.contains("Mutex<") { "Mutex" }
-    else { "Unknown" }
-}
 
-#[allow(dead_code)]
-fn extract_collection_type(type_name: &str) -> &str {
-    if type_name.contains("Vec<") { "Vec" }
-    else if type_name.contains("HashMap<") { "HashMap" }
-    else if type_name.contains("BTreeMap<") { "BTreeMap" }
-    else if type_name.contains("HashSet<") { "HashSet" }
-    else if type_name.contains("BTreeSet<") { "BTreeSet" }
-    else { "Unknown" }
-}
 
-#[allow(dead_code)]
-fn extract_inner_type(type_name: &str) -> String {
-    if let Some(start) = type_name.find("<") {
-        if let Some(end) = type_name.rfind(">") {
-            return type_name[start + 1..end].to_string();
-        }
-    }
-    "Unknown".to_string()
-}
 
-#[allow(dead_code)]
-fn extract_base_type(type_name: &str) -> String {
-    if let Some(pos) = type_name.find("<") {
-        type_name[..pos].to_string()
-    } else {
-        type_name.to_string()
-    }
-}
 
-#[allow(dead_code)]
-fn extract_type_parameters(type_name: &str) -> Vec<String> {
-    if let Some(start) = type_name.find("<") {
-        if let Some(end) = type_name.rfind(">") {
-            let params = &type_name[start + 1..end];
-            return params.split(",").map(|s| s.trim().to_string()).collect();
-        }
-    }
-    vec![]
-}
 
-#[allow(dead_code)]
-fn calculate_type_complexity(type_name: &str) -> u32 {
-    let mut complexity = 0;
-    complexity += type_name.matches("<").count() as u32; // Generic depth
-    complexity += type_name.matches(",").count() as u32; // Parameter count
-    if type_name.contains("Arc") || type_name.contains("Mutex") { complexity += 2; }
-    if type_name.contains("RefCell") { complexity += 1; }
-    complexity
-}
 
-#[allow(dead_code)]
-fn is_complex_type(type_name: &str) -> bool {
-    type_name.contains("<") || type_name.len() > 20 || 
-    type_name.contains("::") && type_name.matches("::").count() > 2
-}
 
-#[allow(dead_code)]
-fn calculate_memory_efficiency(size: usize, type_name: &str) -> f64 {
-    let base_size = match type_name {
-        t if t.contains("String") => 24,
-        t if t.contains("Vec") => 24,
-        t if t.contains("HashMap") => 48,
-        _ => 8,
-    };
-    
-    if size > 0 {
-        (base_size as f64 / size as f64).min(1.0)
-    } else {
-        0.0
-    }
-}
 
-#[allow(dead_code)]
-fn suggest_optimization(type_name: &str) -> String {
-    if type_name.contains("String") && type_name.contains("Vec") {
-        "Consider using &str for read-only strings".to_string()
-    } else if type_name.contains("HashMap") {
-        "Consider BTreeMap for ordered data".to_string()
-    } else if type_name.contains("RefCell") {
-        "Consider using Mutex for thread safety".to_string()
-    } else {
-        "No specific optimization suggested".to_string()
-    }
-}
 
-#[allow(dead_code)]
-fn categorize_type(type_name: &str) -> &str {
-    if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc") {
-        "Smart Pointer"
-    } else if type_name.contains("Vec") || type_name.contains("HashMap") || type_name.contains("BTreeMap") {
-        "Collection"
-    } else if type_name.contains("<") {
-        "Generic"
-    } else {
-        "Primitive"
-    }
-}
 
-#[allow(dead_code)]
-fn generate_optimization_recommendations() -> Vec<String> {
-    vec![
-        "Consider using Box<T> for large structs to reduce stack usage".to_string(),
-        "Use Rc<T> instead of Arc<T> for single-threaded scenarios".to_string(),
-        "Consider Vec::with_capacity() to pre-allocate collections".to_string(),
-        "Use &str instead of String for read-only string data".to_string(),
-    ]
-}
 
 // Helper functions for unsafe/FFI analysis
-#[allow(dead_code)]
-fn is_potentially_unsafe(alloc: &BinaryAllocationData) -> bool {
-    alloc.type_name.contains("*") || 
-    alloc.type_name.contains("raw") ||
-    alloc.size > 1024 * 1024 // Large allocations might be risky
-}
 
-#[allow(dead_code)]
-fn is_ffi_related(alloc: &BinaryAllocationData) -> bool {
-    alloc.type_name.contains("c_") || 
-    alloc.type_name.contains("libc") ||
-    alloc.type_name.contains("extern")
-}
 
-#[allow(dead_code)]
-fn is_security_hotspot(alloc: &BinaryAllocationData) -> bool {
-    alloc.size > 10 * 1024 * 1024 || // Very large allocations
-    alloc.type_name.contains("unsafe") ||
-    !alloc.is_active // Potential leaks
-}
 
-#[allow(dead_code)]
-fn assess_risk_level(alloc: &BinaryAllocationData) -> &str {
-    if alloc.size > 1024 * 1024 { "High" }
-    else if alloc.size > 1024 { "Medium" }
-    else { "Low" }
-}
 
-#[allow(dead_code)]
-fn assess_severity(alloc: &BinaryAllocationData) -> &str {
-    if !alloc.is_active && alloc.size > 1024 * 1024 { "Critical" }
-    else if !alloc.is_active { "High" }
-    else if alloc.size > 10 * 1024 * 1024 { "Medium" }
-    else { "Low" }
-}
 
-#[allow(dead_code)]
-fn count_safety_violations(alloc: &BinaryAllocationData) -> u32 {
-    let mut violations = 0;
-    if alloc.type_name.contains("*") { violations += 1; }
-    if alloc.size > 1024 * 1024 { violations += 1; }
-    if !alloc.is_active { violations += 1; }
-    violations
-}
 
-#[allow(dead_code)]
-fn suggest_mitigation(alloc: &BinaryAllocationData) -> String {
-    if alloc.type_name.contains("*") {
-        "Use safe Rust alternatives like Box or Vec".to_string()
-    } else if alloc.size > 1024 * 1024 {
-        "Consider streaming or chunked processing".to_string()
-    } else {
-        "Follow Rust safety guidelines".to_string()
-    }
-}
 
 // Helper functions for variable relationships
-#[allow(dead_code)]
-fn categorize_variable(alloc: &BinaryAllocationData) -> &str {
-    if alloc.type_name.contains("String") { "String" }
-    else if alloc.type_name.contains("Vec") { "Collection" }
-    else if alloc.type_name.contains("Box") || alloc.type_name.contains("Rc") { "Smart Pointer" }
-    else { "Primitive" }
-}
 
-#[allow(dead_code)]
-fn get_variable_group(type_name: &str) -> u32 {
-    if type_name.contains("String") { 1 }
-    else if type_name.contains("Vec") || type_name.contains("HashMap") { 2 }
-    else if type_name.contains("Box") || type_name.contains("Rc") { 3 }
-    else { 0 }
-}
 
-#[allow(dead_code)]
-fn are_related(type_a: &str, type_b: &str) -> bool {
-    let a_base = extract_base_type(type_a);
-    let b_base = extract_base_type(type_b);
-    
-    a_base == b_base || 
-    (type_a.contains("String") && type_b.contains("str")) ||
-    (type_a.contains("Vec") && type_b.contains("slice"))
-}
 
-#[allow(dead_code)]
-fn determine_relationship(type_a: &str, type_b: &str) -> &'static str {
-    if extract_base_type(type_a) == extract_base_type(type_b) {
-        "same_type"
-    } else if (type_a.contains("String") && type_b.contains("str")) ||
-              (type_a.contains("Vec") && type_b.contains("slice")) {
-        "compatible"
-    } else {
-        "related"
-    }
-}
 
-#[allow(dead_code)]
-fn calculate_relationship_strength(alloc_a: &BinaryAllocationData, alloc_b: &BinaryAllocationData) -> f64 {
-    let mut strength = 0.0;
-    
-    // Same scope increases strength
-    if alloc_a.scope_name == alloc_b.scope_name {
-        strength += 0.5;
-    }
-    
-    // Similar sizes increase strength
-    let size_ratio = (alloc_a.size as f64 / alloc_b.size as f64).min(alloc_b.size as f64 / alloc_a.size as f64);
-    strength += size_ratio * 0.3;
-    
-    // Type similarity
-    if are_related(&alloc_a.type_name, &alloc_b.type_name) {
-        strength += 0.2;
-    }
-    
-    strength.min(1.0)
-}
 
-#[allow(dead_code)]
-fn estimate_capacity(size: usize, type_name: &str) -> usize {
-    if type_name.contains("Vec") {
-        size / 8 // Rough estimate for Vec<T> where T is pointer-sized
-    } else if type_name.contains("String") {
-        size
-    } else {
-        size / 4 // Default estimate
-    }
-}

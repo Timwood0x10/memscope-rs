@@ -1,6 +1,6 @@
 // 新的统一API - 替代混乱的多个导出接口
 use crate::core::tracker::memory_tracker::MemoryTracker;
-use crate::core::types::{AllocationInfo, MemoryStats, TrackingResult, TrackingError};
+use crate::core::types::TrackingResult;
 use std::path::Path;
 use std::sync::Arc;
 
