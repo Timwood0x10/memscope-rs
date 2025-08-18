@@ -6,7 +6,8 @@
 //! - New HTML export performance
 //! - Parallel both formats performance
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 use tempfile::TempDir;
 
 // Mock binary data for testing

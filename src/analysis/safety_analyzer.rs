@@ -354,8 +354,8 @@ impl RiskAssessmentEngine {
         risk_weights.insert(RiskFactorType::LifetimeViolation, 8.0);
 
         Self {
-            risk_weights,
-            historical_data: HashMap::new(),
+            _risk_weights: risk_weights,
+            _historical_data: HashMap::new(),
         }
     }
 

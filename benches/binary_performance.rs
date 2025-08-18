@@ -1,6 +1,7 @@
 //! Performance benchmarks for binary export functionality
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 use memscope_rs::core::types::AllocationInfo;
 use memscope_rs::export::binary;
 use std::time::Instant;

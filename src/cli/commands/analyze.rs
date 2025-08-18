@@ -133,11 +133,17 @@ fn _original_main() {
             tracing::info!("Run command is deprecated. Use 'analyze' instead.");
         }
         Some(("analyze", sub_matches)) => {
-            handle_analyze_command(sub_matches);
+            if let Err(e) = handle_analyze_command(sub_matches) {
+                eprintln!("Error in analyze command: {}", e);
+                std::process::exit(1);
+            }
         }
         _ => {
             // Legacy mode for backward compatibility
-            handle_legacy_mode(&matches);
+            if let Err(e) = handle_legacy_mode(&matches) {
+                eprintln!("Error in legacy mode: {}", e);
+                std::process::exit(1);
+            }
         }
     }
 }

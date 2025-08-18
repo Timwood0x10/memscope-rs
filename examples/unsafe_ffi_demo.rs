@@ -7,7 +7,7 @@
 
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 use memscope_rs::{get_global_tracker, init, track_var};
-use memscope_rs::export::{export_user_variables_json, export_user_variables_binary};
+use memscope_rs::export::export_user_variables_json;
 use std::alloc::{alloc, dealloc, Layout};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

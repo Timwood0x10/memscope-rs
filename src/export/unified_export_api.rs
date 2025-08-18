@@ -115,7 +115,7 @@ impl UnifiedExporter {
     ) -> Self {
         Self {
             allocations: Arc::new(allocations),
-            stats: Arc::new(stats),
+            _stats: Arc::new(stats),
             config,
         }
     }
