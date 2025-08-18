@@ -4,7 +4,16 @@
 
 use crate::core::types::TrackingResult;
 use crate::export::fast_export_coordinator::FastExportConfigBuilder;
-use crate::export::performance_testing::{OptimizationTarget, PerformanceTestResult};
+// use crate::export::performance_testing::{OptimizationTarget, PerformanceTestResult}; // Removed - using local definitions
+use crate::export::config_optimizer::OptimizationTarget;
+
+/// Performance test result
+#[derive(Debug, Clone)]
+pub struct PerformanceTestResult {
+    pub duration_ms: u64,
+    pub memory_usage_mb: f64,
+    pub success: bool,
+}
 
 use serde::{Deserialize, Serialize};
 

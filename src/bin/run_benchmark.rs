@@ -3,7 +3,52 @@
 //! this program runs complex_lifecycle_showcase.rs performance benchmark,
 //! comparing the performance of traditional export system and fast export system.
 
-use memscope_rs::export::performance_benchmark::{BenchmarkConfig, PerformanceBenchmark};
+// use memscope_rs::export::performance_benchmark::{BenchmarkConfig, PerformanceBenchmark}; // Removed - test code
+
+// Local definitions for benchmark functionality
+#[derive(Debug, Clone)]
+pub struct BenchmarkConfig {
+    pub iterations: usize,
+    pub data_size: usize,
+    pub test_runs: usize,
+    pub output_dir: PathBuf,
+    pub verbose: bool,
+    pub verify_consistency: bool,
+    pub generate_detailed_report: bool,
+}
+
+pub struct PerformanceBenchmark;
+
+impl PerformanceBenchmark {
+    pub fn new(_config: BenchmarkConfig) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self)
+    }
+    
+    pub fn run_all_benchmarks(&self) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Benchmark functionality removed - use cargo bench instead");
+        Ok(())
+    }
+    
+    pub fn run_full_benchmark(&mut self) -> Result<BenchmarkComparison, Box<dyn std::error::Error>> {
+        println!("Full benchmark functionality removed - use cargo bench instead");
+        Ok(BenchmarkComparison::default())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct BenchmarkComparison {
+    pub performance_improvement: PerformanceImprovement,
+}
+
+#[derive(Debug, Default)]
+pub struct PerformanceImprovement {
+    pub avg_time_improvement_percent: f64,
+    pub avg_memory_improvement_percent: f64,
+    pub avg_throughput_improvement_percent: f64,
+    pub avg_write_speed_improvement_percent: f64,
+    pub best_time_improvement_percent: f64,
+    pub consistency_score: f64,
+}
 use std::path::PathBuf;
 use std::process;
 
@@ -14,6 +59,8 @@ fn main() {
 
     // configure benchmark
     let config = BenchmarkConfig {
+        iterations: 100,
+        data_size: 1000,
         test_runs: 5,
         output_dir: PathBuf::from("benchmark_results"),
         verbose: true,

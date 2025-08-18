@@ -8,12 +8,12 @@ pub mod unified_export_api;
 
 // Re-export the unified API for easy access
 pub use unified_export_api::{
-    UnifiedExporter, ExportConfig as OldExportConfig, ExportStats as OldExportStats,
+    UnifiedExporter, ExportConfig as LegacyExportConfig, ExportStats as LegacyExportStats,
     export_user_variables_json, export_user_variables_binary, 
     export_fast, export_comprehensive
 };
 
-// 新的统一API - 推荐使用
+// New unified API - recommended for new code
 pub use new_unified_api::{
     MemScopeExporter, ExportConfig, ExportStats, OptimizationLevel,
     quick_export_json, quick_export_binary
@@ -30,9 +30,9 @@ pub mod high_speed_buffered_writer;
 pub mod html_export;
 pub mod optimized_json_export;
 pub mod parallel_shard_processor;
-pub mod performance_benchmark;
-pub mod performance_comparison;
-pub mod performance_testing;
+// pub mod performance_benchmark; // Removed - test code should not be in main library
+// pub mod performance_comparison; // Removed - test code should not be in main library
+// pub mod performance_testing; // Removed - test code should not be in main library
 pub mod progress_monitor;
 pub mod quality_validator;
 pub mod schema_validator;

@@ -4,7 +4,15 @@
 
 use crate::core::types::TrackingResult;
 use crate::export::fast_export_coordinator::FastExportConfigBuilder;
-use crate::export::performance_testing::OptimizationTarget;
+// use crate::export::performance_testing::OptimizationTarget; // Removed - using local definition
+
+/// Optimization target for configuration
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum OptimizationTarget {
+    Speed,
+    Memory,
+    Balanced,
+}
 use crate::export::system_optimizer::SystemOptimizer;
 use serde::{Deserialize, Serialize};
 
