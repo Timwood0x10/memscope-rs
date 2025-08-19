@@ -1482,24 +1482,23 @@ impl BinaryParser {
         base_name: &str,
     ) -> Result<(), BinaryExportError> {
         use crate::core::tracker::MemoryTracker;
-        use crate::export::optimized_json_export::{OptimizationLevel, OptimizedExportOptions};
+        use crate::export::optimized_json_export::OptimizationLevel;
+        use crate::core::tracker::export_json::ExportJsonOptions;
 
         let export_start = std::time::Instant::now();
 
         // Create a temporary MemoryTracker with our allocations
         let tracker = MemoryTracker::new();
 
-        // Configure for maximum speed
-        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low)
+        // Configure for maximum speed using ExportJsonOptions
+        let options = ExportJsonOptions::with_optimization_level(OptimizationLevel::Low)
             .parallel_processing(true)
             .buffer_size(2 * 1024 * 1024) // 2MB buffer
             .fast_export_mode(true)
-            .auto_fast_export_threshold(Some(100)) // Very low threshold
-            .streaming_writer(false) // Disable for small datasets
             .schema_validation(false); // Disable validation for speed
 
         // Use the optimized export method
-        match tracker.export_json_with_options(base_name, options) {
+        match tracker.export_to_json_with_options(base_name, options) {
             Ok(_) => {
                 tracing::info!("✅ OptimizedJsonExport completed successfully");
             }

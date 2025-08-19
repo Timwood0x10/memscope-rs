@@ -102,13 +102,12 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
 
         // get tracker and use optimized export
         let tracker = get_global_tracker();
-        let mut options =
-            memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
-        options.parallel_processing = true; // enable parallel processing
-        options.enable_fast_export_mode = true; // enable fast export mode
-        options.enable_schema_validation = false; // disable schema validation to improve performance
+        let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
+            .parallel_processing(true) // enable parallel processing
+            .fast_export_mode(true) // enable fast export mode
+            .schema_validation(false); // disable schema validation to improve performance
 
-        let result = tracker.export_json_with_options(&output_path, options);
+        let result = tracker.export_to_json_with_options(&output_path, options);
         let export_time = start_time.elapsed();
 
         match result {

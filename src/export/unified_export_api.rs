@@ -306,32 +306,6 @@ impl UnifiedExporter {
         })
     }
     
-    // Private helper methods
-    
-    fn create_json_export_options(&self) -> crate::export::optimized_json_export::OptimizedExportOptions {
-        use crate::export::optimized_json_export::{OptimizedExportOptions, OptimizationLevel};
-        
-        let mut options = if self.config.include_system_allocations {
-            OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
-        } else {
-            OptimizedExportOptions::with_optimization_level(OptimizationLevel::High)
-        };
-        
-        if let Some(parallel) = self.config.parallel_processing {
-            options = options.parallel_processing(parallel);
-        }
-        
-        options = options
-            .buffer_size(self.config.buffer_size)
-            .schema_validation(self.config.validate_output);
-            
-        if let Some(thread_count) = self.config.thread_count {
-            options = options.thread_count(Some(thread_count));
-        }
-        
-        options
-    }
-
 }
 
 

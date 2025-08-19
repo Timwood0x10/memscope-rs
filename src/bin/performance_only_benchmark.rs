@@ -75,20 +75,12 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
 
         // get tracker and export (use minimal configuration)
         let tracker = get_global_tracker();
-        let mut options =
-            memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
+        let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
+            .parallel_processing(false) // 传统方式不使用并行
+            .fast_export_mode(true)
+            .schema_validation(false);
 
-        // disable all validation and additional features
-        options.enable_schema_validation = false;
-        options.enable_enhanced_ffi_analysis = false;
-        options.enable_boundary_event_processing = false;
-        options.enable_memory_passport_tracking = false;
-        options.enable_security_analysis = false;
-        options.enable_adaptive_optimization = false;
-        options.parallel_processing = false; // 传统方式不使用并行
-        options.use_streaming_writer = true; // 但保持流式写入
-
-        let result = tracker.export_json_with_options(&output_path, options);
+        let result = tracker.export_to_json_with_options(&output_path, options);
         let export_time = start_time.elapsed();
 
         match result {
@@ -115,27 +107,14 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
 
         // get tracker and use fast export (disable validation)
         let tracker = get_global_tracker();
-        let mut options =
-            memscope_rs::export::optimized_json_export::OptimizedExportOptions::default();
+        let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
+            .parallel_processing(true)
+            .fast_export_mode(true)
+            .schema_validation(false)
+            .buffer_size(64 * 1024) // 64KB
+            .batch_size(10000); // large batch
 
-        // enable fast export but disable all validation
-        options.enable_fast_export_mode = true;
-        options.parallel_processing = true;
-        options.use_streaming_writer = true;
-
-        // disable all validation and additional analysis
-        options.enable_schema_validation = false;
-        options.enable_enhanced_ffi_analysis = false;
-        options.enable_boundary_event_processing = false;
-        options.enable_memory_passport_tracking = false;
-        options.enable_security_analysis = false;
-        options.enable_adaptive_optimization = false;
-
-        // set minimum buffer size to reduce overhead
-        options.buffer_size = 64 * 1024; // 64KB
-        options.batch_size = 10000; // large batch
-
-        let result = tracker.export_json_with_options(&output_path, options);
+        let result = tracker.export_to_json_with_options(&output_path, options);
         let export_time = start_time.elapsed();
 
         match result {

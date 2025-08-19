@@ -71,7 +71,7 @@ impl ExportConfig {
     }
 
     pub fn schema_validation(self, _enabled: bool) -> Self {
-        // 兼容性方法，暂时忽略schema_validation
+        
         self
     }
 }
