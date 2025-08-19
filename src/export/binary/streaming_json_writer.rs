@@ -1578,7 +1578,8 @@ mod tests {
             .buffer_size(1024)
             .max_memory_before_flush(2048)
             .build();
-        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Test operation failed");
+        let mut writer =
+            StreamingJsonWriter::with_config(cursor, config).expect("Test operation failed");
 
         writer.write_header(3).expect("Failed to write header");
 

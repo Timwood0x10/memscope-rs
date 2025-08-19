@@ -149,12 +149,15 @@ fn _original_main() {
 }
 
 fn handle_run_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
-    let command_args: Vec<&String> = matches.get_many::<String>("command")
+    let command_args: Vec<&String> = matches
+        .get_many::<String>("command")
         .ok_or("Missing command arguments")?
         .collect();
-    let export_format = matches.get_one::<String>("export")
+    let export_format = matches
+        .get_one::<String>("export")
         .ok_or("Missing export format")?;
-    let output_path = matches.get_one::<String>("output")
+    let output_path = matches
+        .get_one::<String>("output")
         .ok_or("Missing output path")?;
     let auto_track = matches.get_flag("auto-track");
     let wait_completion = matches.get_flag("wait-completion");
@@ -214,11 +217,14 @@ fn handle_run_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
 }
 
 fn handle_analyze_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
-    let input_path = matches.get_one::<String>("input")
+    let input_path = matches
+        .get_one::<String>("input")
         .ok_or("Missing input path")?;
-    let output_path = matches.get_one::<String>("output")
+    let output_path = matches
+        .get_one::<String>("output")
         .ok_or("Missing output path")?;
-    let format = matches.get_one::<String>("format")
+    let format = matches
+        .get_one::<String>("format")
         .ok_or("Missing format")?;
 
     tracing::info!("🔍 Analyzing existing memory snapshot");
@@ -244,7 +250,8 @@ fn handle_analyze_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std:
 
 fn handle_legacy_mode(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     let export_format = matches.get_one::<String>("export");
-    let output_path = matches.get_one::<String>("output")
+    let output_path = matches
+        .get_one::<String>("output")
         .ok_or("Missing output path")?;
     let auto_track = matches.get_flag("auto-track");
 

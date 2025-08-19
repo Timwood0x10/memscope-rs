@@ -91,7 +91,8 @@ impl FileHeader {
             export_mode: export_mode as u8,
             user_count,
             system_count,
-            features_enabled: feature_flags::CALL_STACK_NORMALIZATION | feature_flags::FFI_FUNCTION_RESOLUTION,
+            features_enabled: feature_flags::CALL_STACK_NORMALIZATION
+                | feature_flags::FFI_FUNCTION_RESOLUTION,
             unsafe_report_count: 0,
             passport_count: 0,
             reserved: 0,
@@ -167,7 +168,7 @@ impl FileHeader {
         bytes[17..19].copy_from_slice(&self.user_count.to_le_bytes()); // 2 bytes: user_count
         bytes[19..21].copy_from_slice(&self.system_count.to_le_bytes()); // 2 bytes: system_count
         bytes[21] = self.reserved as u8; // 1 byte: reserved
-                                   // bytes[22..24] remain as padding (0x00)                          // 2 bytes: padding
+                                         // bytes[22..24] remain as padding (0x00)                          // 2 bytes: padding
 
         bytes
     }

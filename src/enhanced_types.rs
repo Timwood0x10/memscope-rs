@@ -965,7 +965,8 @@ impl Default for GenericTypeAnalysisReport {
             instantiation_analysis: Vec::new(),
             code_bloat_assessment: CodeBloatAssessment::default(),
             optimization_recommendations: Vec::new(),
-            monomorphization_statistics: crate::enhanced_memory_analysis::MonomorphizationStatistics::default(),
+            monomorphization_statistics:
+                crate::enhanced_memory_analysis::MonomorphizationStatistics::default(),
             performance_characteristics: PerformanceCharacteristics::default(),
         }
     }
@@ -996,7 +997,8 @@ impl Default for ObjectLifecycleAnalysisReport {
             resource_waste_analysis: ResourceWasteAnalysis::default(),
             lifecycle_optimizations: Vec::new(),
             efficiency_metrics: crate::enhanced_memory_analysis::EfficiencyMetrics::default(),
-            object_relationship_graph: crate::enhanced_memory_analysis::ObjectRelationshipGraph::default(),
+            object_relationship_graph:
+                crate::enhanced_memory_analysis::ObjectRelationshipGraph::default(),
         }
     }
 }
@@ -1021,7 +1023,8 @@ impl Default for MemoryAccessAnalysisReport {
         Self {
             access_patterns: Vec::new(),
             layout_recommendations: Vec::new(),
-            actual_access_tracking: crate::enhanced_memory_analysis::ActualAccessTracking::default(),
+            actual_access_tracking: crate::enhanced_memory_analysis::ActualAccessTracking::default(
+            ),
             bandwidth_utilization: crate::enhanced_memory_analysis::BandwidthUtilization::default(),
             locality_analysis: crate::enhanced_memory_analysis::LocalityAnalysis::default(),
         }

@@ -3,7 +3,9 @@
 //! This module provides functionality to generate high-level lifecycle summaries
 //! from detailed ownership history, creating the data needed for lifetime.json export.
 
-use crate::core::ownership_history::{OwnershipHistoryRecorder, OwnershipSummary, BorrowInfo, CloneInfo};
+use crate::core::ownership_history::{
+    BorrowInfo, CloneInfo, OwnershipHistoryRecorder, OwnershipSummary,
+};
 use crate::core::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -176,7 +178,9 @@ impl LifecycleSummaryGenerator {
         let user_variables_count = lifecycle_events
             .iter()
             .filter(|event| {
-                event.var_name.as_ref()
+                event
+                    .var_name
+                    .as_ref()
                     .map(|name| self.is_user_variable(name))
                     .unwrap_or(false)
             })
@@ -312,16 +316,35 @@ impl LifecycleSummaryGenerator {
     }
 
     /// Format ownership event type for display
-    fn format_event_type(&self, event_type: &crate::core::ownership_history::OwnershipEventType) -> String {
+    fn format_event_type(
+        &self,
+        event_type: &crate::core::ownership_history::OwnershipEventType,
+    ) -> String {
         match event_type {
-            crate::core::ownership_history::OwnershipEventType::Allocated => "Allocation".to_string(),
-            crate::core::ownership_history::OwnershipEventType::Cloned { .. } => "Clone".to_string(),
-            crate::core::ownership_history::OwnershipEventType::Dropped => "Deallocation".to_string(),
-            crate::core::ownership_history::OwnershipEventType::OwnershipTransferred { .. } => "OwnershipTransfer".to_string(),
-            crate::core::ownership_history::OwnershipEventType::Borrowed { .. } => "Borrow".to_string(),
-            crate::core::ownership_history::OwnershipEventType::MutablyBorrowed { .. } => "MutableBorrow".to_string(),
-            crate::core::ownership_history::OwnershipEventType::BorrowReleased { .. } => "BorrowRelease".to_string(),
-            crate::core::ownership_history::OwnershipEventType::RefCountChanged { .. } => "RefCountChange".to_string(),
+            crate::core::ownership_history::OwnershipEventType::Allocated => {
+                "Allocation".to_string()
+            }
+            crate::core::ownership_history::OwnershipEventType::Cloned { .. } => {
+                "Clone".to_string()
+            }
+            crate::core::ownership_history::OwnershipEventType::Dropped => {
+                "Deallocation".to_string()
+            }
+            crate::core::ownership_history::OwnershipEventType::OwnershipTransferred { .. } => {
+                "OwnershipTransfer".to_string()
+            }
+            crate::core::ownership_history::OwnershipEventType::Borrowed { .. } => {
+                "Borrow".to_string()
+            }
+            crate::core::ownership_history::OwnershipEventType::MutablyBorrowed { .. } => {
+                "MutableBorrow".to_string()
+            }
+            crate::core::ownership_history::OwnershipEventType::BorrowReleased { .. } => {
+                "BorrowRelease".to_string()
+            }
+            crate::core::ownership_history::OwnershipEventType::RefCountChanged { .. } => {
+                "RefCountChange".to_string()
+            }
         }
     }
 
@@ -338,11 +361,20 @@ impl LifecycleSummaryGenerator {
     }
 
     /// Calculate efficiency score for an allocation
-    fn calculate_efficiency_score(&self, allocation: &AllocationInfo, ownership_summary: &OwnershipSummary) -> f64 {
+    fn calculate_efficiency_score(
+        &self,
+        allocation: &AllocationInfo,
+        ownership_summary: &OwnershipSummary,
+    ) -> f64 {
         let mut score: f64 = 0.5; // Base score
 
         // Bonus for having a meaningful variable name
-        if allocation.var_name.as_ref().map(|name| self.is_user_variable(name)).unwrap_or(false) {
+        if allocation
+            .var_name
+            .as_ref()
+            .map(|name| self.is_user_variable(name))
+            .unwrap_or(false)
+        {
             score += 0.1;
         }
 
@@ -381,14 +413,20 @@ impl LifecycleSummaryGenerator {
     }
 
     /// Generate variable groups for organization
-    fn generate_variable_groups(&self, lifecycle_events: &[LifecycleEventSummary]) -> Vec<VariableGroup> {
+    fn generate_variable_groups(
+        &self,
+        lifecycle_events: &[LifecycleEventSummary],
+    ) -> Vec<VariableGroup> {
         let mut groups: HashMap<String, Vec<&LifecycleEventSummary>> = HashMap::new();
 
         // Group by type name
         for event in lifecycle_events {
             if let Some(ref type_name) = event.type_name {
                 let group_name = self.extract_base_type_name(type_name);
-                groups.entry(group_name).or_insert_with(Vec::new).push(event);
+                groups
+                    .entry(group_name)
+                    .or_insert_with(Vec::new)
+                    .push(event);
             }
         }
 
@@ -396,18 +434,13 @@ impl LifecycleSummaryGenerator {
         groups
             .into_iter()
             .map(|(name, events)| {
-                let variables: Vec<String> = events
-                    .iter()
-                    .filter_map(|e| e.var_name.clone())
-                    .collect();
+                let variables: Vec<String> =
+                    events.iter().filter_map(|e| e.var_name.clone()).collect();
 
                 let total_memory: usize = events.iter().map(|e| e.size).sum();
 
                 let average_lifetime_ms = if !events.is_empty() {
-                    let total_lifetime: u64 = events
-                        .iter()
-                        .filter_map(|e| e.lifetime_ms)
-                        .sum();
+                    let total_lifetime: u64 = events.iter().filter_map(|e| e.lifetime_ms).sum();
                     let count = events.iter().filter(|e| e.lifetime_ms.is_some()).count();
                     if count > 0 {
                         total_lifetime as f64 / count as f64
@@ -463,7 +496,7 @@ impl Default for LifecycleSummaryGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::ownership_history::{OwnershipHistoryRecorder, OwnershipEventType};
+    use crate::core::ownership_history::{OwnershipEventType, OwnershipHistoryRecorder};
 
     fn create_test_allocation(ptr: usize, size: usize, var_name: Option<String>) -> AllocationInfo {
         AllocationInfo {
@@ -508,11 +541,26 @@ mod tests {
     fn test_lifecycle_pattern_classification() {
         let generator = LifecycleSummaryGenerator::new();
 
-        assert!(matches!(generator.classify_lifecycle_pattern(None), LifecyclePattern::Leaked));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(0)), LifecyclePattern::Ephemeral));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(50)), LifecyclePattern::ShortTerm));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(500)), LifecyclePattern::MediumTerm));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(15000)), LifecyclePattern::LongTerm));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(None),
+            LifecyclePattern::Leaked
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(0)),
+            LifecyclePattern::Ephemeral
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(50)),
+            LifecyclePattern::ShortTerm
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(500)),
+            LifecyclePattern::MediumTerm
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(15000)),
+            LifecyclePattern::LongTerm
+        ));
     }
 
     #[test]
@@ -531,7 +579,10 @@ mod tests {
         let generator = LifecycleSummaryGenerator::new();
 
         assert_eq!(generator.extract_base_type_name("Vec<i32>"), "Vec");
-        assert_eq!(generator.extract_base_type_name("std::collections::HashMap<K,V>"), "HashMap");
+        assert_eq!(
+            generator.extract_base_type_name("std::collections::HashMap<K,V>"),
+            "HashMap"
+        );
         assert_eq!(generator.extract_base_type_name("String"), "String");
     }
 
@@ -539,17 +590,17 @@ mod tests {
     fn test_lifecycle_export_generation() {
         let generator = LifecycleSummaryGenerator::new();
         let mut ownership_history = OwnershipHistoryRecorder::new();
-        
+
         // Create test allocation
         let allocation = create_test_allocation(0x1000, 64, Some("test_var".to_string()));
-        
+
         // Record some ownership events
         ownership_history.record_event(0x1000, OwnershipEventType::Allocated, 1);
         ownership_history.record_event(0x1000, OwnershipEventType::Dropped, 2);
-        
+
         let allocations = vec![allocation];
         let export_data = generator.generate_lifecycle_export(&ownership_history, &allocations);
-        
+
         assert_eq!(export_data.lifecycle_events.len(), 1);
         assert_eq!(export_data.user_variables_count, 1);
         assert!(export_data.visualization_ready);
@@ -559,7 +610,7 @@ mod tests {
     #[test]
     fn test_variable_grouping() {
         let generator = LifecycleSummaryGenerator::new();
-        
+
         let events = vec![
             LifecycleEventSummary {
                 allocation_ptr: 0x1000,
@@ -616,9 +667,9 @@ mod tests {
                 },
             },
         ];
-        
+
         let groups = generator.generate_variable_groups(&events);
-        
+
         assert_eq!(groups.len(), 1); // Both should be grouped under "Vec"
         assert_eq!(groups[0].name, "Vec");
         assert_eq!(groups[0].variables.len(), 2);
@@ -630,10 +681,12 @@ mod tests {
         let generator = LifecycleSummaryGenerator::new();
         let ownership_history = OwnershipHistoryRecorder::new();
         let allocations = vec![create_test_allocation(0x1000, 64, Some("test".to_string()))];
-        
+
         let export_data = generator.generate_lifecycle_export(&ownership_history, &allocations);
-        let json = generator.export_to_json(&export_data).expect("Failed to export to JSON");
-        
+        let json = generator
+            .export_to_json(&export_data)
+            .expect("Failed to export to JSON");
+
         assert!(json.contains("lifecycle_events"));
         assert!(json.contains("variable_groups"));
         assert!(json.contains("user_variables_count"));

@@ -32,7 +32,6 @@ impl MemScopeExporter {
         let allocations = self.tracker.get_active_allocations()?;
         let stats = self.tracker.get_stats()?;
         
-        // 调用现有的保护接口
         crate::export::unified_export_api::export_user_variables_json(
             allocations, stats, path
         )?;

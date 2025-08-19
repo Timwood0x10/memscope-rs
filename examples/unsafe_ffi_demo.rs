@@ -5,9 +5,9 @@
 //! - FFI memory operations
 //! - Safety violation detection
 
+use memscope_rs::export::export_user_variables_json;
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 use memscope_rs::{get_global_tracker, init, track_var};
-use memscope_rs::export::export_user_variables_json;
 use std::alloc::{alloc, dealloc, Layout};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -139,14 +139,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Export using new unified API
     let allocations = tracker.get_active_allocations()?;
     let stats = tracker.get_stats()?;
-    
-    println!("📊 Exporting {} allocations using new unified API...", allocations.len());
+
+    println!(
+        "📊 Exporting {} allocations using new unified API...",
+        allocations.len()
+    );
     let export_stats = export_user_variables_json(allocations, stats, &memory_json)?;
-    
+
     println!("✅ JSON export completed!");
-    println!("   📊 Processed {} allocations in {}ms", 
-        export_stats.allocations_processed, 
-        export_stats.processing_time_ms);
+    println!(
+        "   📊 Processed {} allocations in {}ms",
+        export_stats.allocations_processed, export_stats.processing_time_ms
+    );
     println!("   ✅ Memory analysis: {}", memory_json);
 
     // Export unsafe/FFI analysis

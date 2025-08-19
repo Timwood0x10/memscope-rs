@@ -3,14 +3,16 @@
 //! This module contains the main MemoryTracker struct and its basic methods
 //! for creating, configuring, and managing the memory tracking system.
 
+use crate::core::bounded_memory_stats::{
+    AllocationHistoryManager, BoundedMemoryStats, BoundedStatsConfig,
+};
+use crate::core::ownership_history::{HistoryConfig, OwnershipHistoryRecorder};
+use crate::core::safe_operations::SafeLock;
 use crate::core::types::{
     AllocationInfo, DropChainNode, DropChainPerformanceMetrics, EnhancedPotentialLeak,
     LeakEvidence, LeakEvidenceType, LeakImpact, LeakRiskLevel, LeakType, MemoryStats,
     ResourceLeakAnalysis, TrackingResult,
 };
-use crate::core::bounded_memory_stats::{BoundedMemoryStats, AllocationHistoryManager, BoundedStatsConfig};
-use crate::core::ownership_history::{OwnershipHistoryRecorder, HistoryConfig};
-use crate::core::safe_operations::SafeLock;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -70,7 +72,7 @@ impl MemoryTracker {
     pub fn new() -> Self {
         let fast_mode =
             std::env::var("MEMSCOPE_TEST_MODE").is_ok() || cfg!(test) || cfg!(feature = "test");
-        
+
         // Configure bounded stats based on environment
         let config = if fast_mode {
             // Smaller limits for testing
@@ -84,7 +86,7 @@ impl MemoryTracker {
             // Production limits
             BoundedStatsConfig::default()
         };
-        
+
         // Configure ownership history based on mode
         let history_config = if fast_mode {
             HistoryConfig {
@@ -110,12 +112,16 @@ impl MemoryTracker {
     /// Get current memory statistics with advanced analysis.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
         // Get bounded stats using safe operations
-        let bounded_stats = self.bounded_stats.safe_lock()
+        let bounded_stats = self
+            .bounded_stats
+            .safe_lock()
             .map(|stats| stats.clone())
             .unwrap_or_else(|_| crate::core::bounded_memory_stats::BoundedMemoryStats::default());
 
         // Get history for compatibility using safe operations
-        let _history = self.history_manager.safe_lock()
+        let _history = self
+            .history_manager
+            .safe_lock()
             .map(|manager| manager.get_history_vec())
             .unwrap_or_else(|_| Vec::new());
 
@@ -149,16 +155,28 @@ impl MemoryTracker {
 
     /// Get all currently active allocations.
     pub fn get_active_allocations(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        self.active_allocations.safe_lock()
+        self.active_allocations
+            .safe_lock()
             .map(|active| active.values().cloned().collect())
-            .map_err(|e| crate::core::types::TrackingError::LockError(format!("Failed to get active allocations: {}", e)))
+            .map_err(|e| {
+                crate::core::types::TrackingError::LockError(format!(
+                    "Failed to get active allocations: {}",
+                    e
+                ))
+            })
     }
 
     /// Get the complete allocation history.
     pub fn get_allocation_history(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        self.history_manager.safe_lock()
+        self.history_manager
+            .safe_lock()
             .map(|manager| manager.get_history_vec())
-            .map_err(|e| crate::core::types::TrackingError::LockError(format!("Failed to get allocation history: {}", e)))
+            .map_err(|e| {
+                crate::core::types::TrackingError::LockError(format!(
+                    "Failed to get allocation history: {}",
+                    e
+                ))
+            })
     }
 
     /// Enable or disable fast mode.

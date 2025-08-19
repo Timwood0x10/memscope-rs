@@ -869,7 +869,9 @@ mod tests {
     fn test_fallback_data_generation() {
         let handler = HtmlErrorHandler::new();
 
-        let fallback = handler.get_fallback_data("memory_analysis").expect("Failed to get fallback data");
+        let fallback = handler
+            .get_fallback_data("memory_analysis")
+            .expect("Failed to get fallback data");
         assert!(fallback.is_object());
         assert!(fallback.get("allocations").is_some());
         assert!(fallback.get("summary").is_some());

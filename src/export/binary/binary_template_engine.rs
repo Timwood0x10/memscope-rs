@@ -3,7 +3,7 @@
 //! This module provides a specialized template engine that processes the binary_dashboard.html
 //! template with data directly from binary sources, independent of the JSON → HTML workflow.
 
-use crate::export::binary::binary_html_writer::{BinaryTemplateData, BinaryAllocationData};
+use crate::export::binary::binary_html_writer::{BinaryAllocationData, BinaryTemplateData};
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::template_resource_manager::{
     create_template_data, ResourceConfig, TemplateResourceManager,
@@ -81,8 +81,11 @@ impl BinaryTemplateEngine {
             custom_paths: HashMap::new(),
         };
 
-        tracing::debug!("BinaryTemplateEngine configured with cache: {}, precompilation: {}", 
-                       config.enable_cache, config.enable_precompilation);
+        tracing::debug!(
+            "BinaryTemplateEngine configured with cache: {}, precompilation: {}",
+            config.enable_cache,
+            config.enable_precompilation
+        );
 
         let engine = Self {
             resource_manager,
@@ -108,16 +111,22 @@ impl BinaryTemplateEngine {
 
         // Convert template data to JSON for injection
         let json_data = self.serialize_template_data(&optimized_data)?;
-        
+
         // Debug: Log the first 500 characters of JSON data
-        tracing::info!("JSON data preview: {}", &json_data[..json_data.len().min(500)]);
+        tracing::info!(
+            "JSON data preview: {}",
+            &json_data[..json_data.len().min(500)]
+        );
         tracing::info!("JSON data length: {} bytes", json_data.len());
 
         // Create template data for resource manager
         let mut custom_data = HashMap::new();
 
         // Add processing time and other common placeholders
-        custom_data.insert("PROCESSING_TIME".to_string(), template_data.processing_time_ms.to_string());
+        custom_data.insert(
+            "PROCESSING_TIME".to_string(),
+            template_data.processing_time_ms.to_string(),
+        );
         custom_data.insert("SVG_IMAGES".to_string(), self.load_svg_images()?);
 
         // Add analysis data to custom data if available
@@ -173,7 +182,6 @@ impl BinaryTemplateEngine {
         Ok(html_content)
     }
 
-
     /// Serialize template data to JSON format optimized for template compatibility
     fn serialize_template_data(
         &self,
@@ -211,12 +219,12 @@ impl BinaryTemplateEngine {
             // For large datasets, use minimal timeline
             vec![
                 json!({"timestamp": 0, "memory_usage": 0, "allocation_count": 0}),
-                json!({"timestamp": 1000000, "memory_usage": data.total_memory_usage, "allocation_count": data.allocations.len()})
+                json!({"timestamp": 1000000, "memory_usage": data.total_memory_usage, "allocation_count": data.allocations.len()}),
             ]
         } else {
             self.generate_fast_timeline_data(&data.allocations)
         };
-        
+
         let size_distribution = self.generate_fast_size_distribution(&data.allocations);
         let lifecycle_events = if data.allocations.len() > 500 {
             // Skip lifecycle events for large datasets
@@ -282,7 +290,7 @@ impl BinaryTemplateEngine {
         let mut collections = Vec::new();
         let mut generic_types = Vec::new();
         let mut primitive_types = Vec::new();
-        
+
         for alloc in &data.allocations {
             let type_name = &alloc.type_name;
             let type_info = json!({
@@ -291,19 +299,31 @@ impl BinaryTemplateEngine {
                 "total_size": alloc.size,
                 "complexity_score": if type_name.contains('<') { 3 } else { 1 }
             });
-            
-            if type_name.contains("Box<") || type_name.contains("Rc<") || type_name.contains("Arc<") || type_name.contains("RefCell<") {
+
+            if type_name.contains("Box<")
+                || type_name.contains("Rc<")
+                || type_name.contains("Arc<")
+                || type_name.contains("RefCell<")
+            {
                 smart_pointers.push(type_info);
-            } else if type_name.contains("Vec<") || type_name.contains("HashMap<") || type_name.contains("BTreeMap<") || 
-                     type_name.contains("HashSet<") || type_name.contains("String") {
+            } else if type_name.contains("Vec<")
+                || type_name.contains("HashMap<")
+                || type_name.contains("BTreeMap<")
+                || type_name.contains("HashSet<")
+                || type_name.contains("String")
+            {
                 collections.push(type_info);
             } else if type_name.contains('<') && type_name.contains('>') {
                 generic_types.push(type_info);
-            } else if !["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64", "bool", "char"].contains(&type_name.as_str()) {
+            } else if ![
+                "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64", "bool", "char",
+            ]
+            .contains(&type_name.as_str())
+            {
                 primitive_types.push(type_info);
             }
         }
-        
+
         dashboard_data["complex_types"] = json!({
             "categorized_types": {
                 "smart_pointers": smart_pointers,
@@ -328,7 +348,7 @@ impl BinaryTemplateEngine {
         let mut security_hotspots = Vec::new();
         let mut enhanced_ffi_data = Vec::new();
         let mut boundary_events = Vec::new();
-        
+
         for alloc in &data.allocations {
             // Check for potentially unsafe operations based on type patterns and size
             // More comprehensive detection for demonstration purposes
@@ -343,15 +363,19 @@ impl BinaryTemplateEngine {
                            (alloc.var_name.as_ref().map_or(false, |name| name.contains("ffi") || name.contains("unsafe"))) ||
                            // Include some common patterns that might indicate unsafe operations
                            (alloc.size > 100*1024 && !alloc.type_name.contains("Vec") && !alloc.type_name.contains("String"));
-            
+
             if is_unsafe {
-                let risk_level = if alloc.size > 10*1024*1024 { "High" }
-                               else if alloc.size > 1024*1024 { "Medium" }
-                               else { "Low" };
-                
+                let risk_level = if alloc.size > 10 * 1024 * 1024 {
+                    "High"
+                } else if alloc.size > 1024 * 1024 {
+                    "Medium"
+                } else {
+                    "Low"
+                };
+
                 let operation = json!({
                     "ptr": format!("0x{:x}", alloc.ptr),
-                    "operation_type": if alloc.type_name.contains("*mut") { "Raw Pointer Mutation" } 
+                    "operation_type": if alloc.type_name.contains("*mut") { "Raw Pointer Mutation" }
                                      else if alloc.type_name.contains("*const") { "Raw Pointer Access" }
                                      else if alloc.type_name.contains("libc") { "FFI Call" }
                                      else if alloc.size > 1024*1024 { "Large Allocation" }
@@ -365,7 +389,7 @@ impl BinaryTemplateEngine {
                                         else { 1 }
                 });
                 unsafe_operations.push(operation.clone());
-                
+
                 // Add to enhanced FFI data with more detailed information
                 enhanced_ffi_data.push(json!({
                     "ptr": format!("0x{:x}", alloc.ptr),
@@ -381,7 +405,7 @@ impl BinaryTemplateEngine {
                                         else if alloc.size > 1024*1024 { 2 }
                                         else { 1 }
                 }));
-                
+
                 // Add boundary events for FFI-related allocations
                 if alloc.type_name.contains("libc") || alloc.type_name.contains("*") {
                     boundary_events.push(json!({
@@ -397,9 +421,9 @@ impl BinaryTemplateEngine {
                         })]
                     }));
                 }
-                
+
                 // Create security hotspots for high-risk operations
-                if risk_level == "High" || alloc.size > 1024*1024 {
+                if risk_level == "High" || alloc.size > 1024 * 1024 {
                     security_hotspots.push(json!({
                         "location": alloc.var_name.as_ref().unwrap_or(&"unknown".to_string()).clone(),
                         "description": format!("High-risk {} operation detected", operation["operation_type"]),
@@ -409,15 +433,20 @@ impl BinaryTemplateEngine {
                 }
             }
         }
-        
-        let total_violations = unsafe_operations.iter()
+
+        let total_violations = unsafe_operations
+            .iter()
             .map(|op| op["safety_violations"].as_u64().unwrap_or(0))
             .sum::<u64>();
-        
-        let risk_level = if total_violations > 20 { "High" }
-                        else if total_violations > 10 { "Medium" }
-                        else { "Low" };
-        
+
+        let risk_level = if total_violations > 20 {
+            "High"
+        } else if total_violations > 10 {
+            "Medium"
+        } else {
+            "Low"
+        };
+
         dashboard_data["unsafe_ffi"] = json!({
             "summary": {
                 "total_risk_items": enhanced_ffi_data.len(),
@@ -448,7 +477,7 @@ impl BinaryTemplateEngine {
         let allocations_sample = data.allocations.iter().take(20).collect::<Vec<_>>();
         let mut nodes = Vec::new();
         let mut links = Vec::new();
-        
+
         for (i, alloc) in allocations_sample.iter().enumerate() {
             if let Some(var_name) = &alloc.var_name {
                 if !var_name.is_empty() && !var_name.starts_with("__") {
@@ -459,10 +488,10 @@ impl BinaryTemplateEngine {
                         "size": alloc.size,
                         "group": i % 4 + 1
                     }));
-                    
+
                     // Create some basic relationships based on type similarity
                     if i > 0 {
-                        let prev_alloc = allocations_sample[i-1];
+                        let prev_alloc = allocations_sample[i - 1];
                         if alloc.type_name == prev_alloc.type_name {
                             links.push(json!({
                                 "source": format!("var_{}", i-1),
@@ -475,17 +504,17 @@ impl BinaryTemplateEngine {
                 }
             }
         }
-        
+
         dashboard_data["variable_relationships"] = json!({
             "nodes": nodes,
             "edges": links,
             "summary": {
                 "total_variables": nodes.len(),
                 "total_relationships": links.len(),
-                "relationship_density": if nodes.len() > 1 { 
-                    links.len() as f64 / (nodes.len() * (nodes.len() - 1) / 2) as f64 
-                } else { 
-                    0.0 
+                "relationship_density": if nodes.len() > 1 {
+                    links.len() as f64 / (nodes.len() * (nodes.len() - 1) / 2) as f64
+                } else {
+                    0.0
                 }
             }
         });
@@ -560,30 +589,35 @@ impl BinaryTemplateEngine {
     }
 
     /// Generate ultra-fast timeline data - minimal processing
-    fn generate_fast_timeline_data(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+    fn generate_fast_timeline_data(
+        &self,
+        allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
+    ) -> Vec<serde_json::Value> {
         use serde_json::json;
-        
+
         // Only generate 5 data points for maximum speed
         if allocations.is_empty() {
             return vec![];
         }
-        
+
         let len = allocations.len();
         let total_memory: u64 = allocations.iter().map(|a| a.size as u64).sum();
-        
+
         // Create simple linear progression
         vec![
             json!({"timestamp": 0, "memory_usage": 0, "allocation_count": 0}),
             json!({"timestamp": 250000, "memory_usage": total_memory / 4, "allocation_count": len / 4}),
             json!({"timestamp": 500000, "memory_usage": total_memory / 2, "allocation_count": len / 2}),
             json!({"timestamp": 750000, "memory_usage": total_memory * 3 / 4, "allocation_count": len * 3 / 4}),
-            json!({"timestamp": 1000000, "memory_usage": total_memory, "allocation_count": len})
+            json!({"timestamp": 1000000, "memory_usage": total_memory, "allocation_count": len}),
         ]
     }
 
-
     /// Generate ultra-fast size distribution - minimal sampling
-    fn generate_fast_size_distribution(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+    fn generate_fast_size_distribution(
+        &self,
+        allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
+    ) -> Vec<serde_json::Value> {
         use serde_json::json;
 
         if allocations.is_empty() {
@@ -593,7 +627,7 @@ impl BinaryTemplateEngine {
         // Ultra-fast estimation - sample only first 20 allocations
         let sample_size = allocations.len().min(20);
         let mut small = 0u64;
-        let mut medium = 0u64; 
+        let mut medium = 0u64;
         let mut large = 0u64;
         let mut huge = 0u64;
 
@@ -602,28 +636,31 @@ impl BinaryTemplateEngine {
                 0..=1024 => small += 1,
                 1025..=102400 => medium += 1,
                 102401..=1048576 => large += 1,
-                _ => huge += 1
+                _ => huge += 1,
             }
         }
 
         // Scale up the sample to estimate full distribution
         let scale_factor = allocations.len() as u64 / sample_size as u64;
-        
+
         vec![
             json!({"size_range": "0-1KB", "count": small * scale_factor, "total_size": small * scale_factor * 512}),
             json!({"size_range": "1-100KB", "count": medium * scale_factor, "total_size": medium * scale_factor * 50000}),
             json!({"size_range": "100KB-1MB", "count": large * scale_factor, "total_size": large * scale_factor * 500000}),
-            json!({"size_range": ">1MB", "count": huge * scale_factor, "total_size": huge * scale_factor * 2000000})
+            json!({"size_range": ">1MB", "count": huge * scale_factor, "total_size": huge * scale_factor * 2000000}),
         ]
     }
 
-
     /// Generate fast lifecycle events - minimal data
-    fn generate_fast_lifecycle_events(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> Vec<serde_json::Value> {
+    fn generate_fast_lifecycle_events(
+        &self,
+        allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
+    ) -> Vec<serde_json::Value> {
         use serde_json::json;
 
         // Only take every 100th allocation and limit to 20 events
-        allocations.iter()
+        allocations
+            .iter()
             .step_by(100)
             .take(20)
             .enumerate()
@@ -638,31 +675,39 @@ impl BinaryTemplateEngine {
             .collect()
     }
 
-
     /// Count unique scopes in allocations
     #[allow(dead_code)]
-    fn count_unique_scopes(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> u64 {
+    fn count_unique_scopes(
+        &self,
+        allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
+    ) -> u64 {
         use std::collections::HashSet;
-        
-        let unique_scopes: HashSet<&str> = allocations.iter()
+
+        let unique_scopes: HashSet<&str> = allocations
+            .iter()
             .map(|alloc| alloc.scope_name.as_str())
             .collect();
-        
+
         unique_scopes.len() as u64
     }
 
     /// Calculate average scope lifetime
     #[allow(dead_code)]
-    fn calculate_average_scope_lifetime(&self, allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData]) -> f64 {
+    fn calculate_average_scope_lifetime(
+        &self,
+        allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
+    ) -> f64 {
         if allocations.is_empty() {
             return 0.0;
         }
 
-        let total_lifetime: u64 = allocations.iter()
+        let total_lifetime: u64 = allocations
+            .iter()
             .filter_map(|alloc| alloc.lifetime_ms)
             .sum();
 
-        let count = allocations.iter()
+        let count = allocations
+            .iter()
             .filter(|alloc| alloc.lifetime_ms.is_some())
             .count();
 
@@ -696,38 +741,46 @@ impl BinaryTemplateEngine {
     }
 
     /// Ultra-fast optimization for template data - minimal processing
-    fn optimize_template_data_for_size(&self, data: &BinaryTemplateData) -> Result<BinaryTemplateData, BinaryExportError> {
+    fn optimize_template_data_for_size(
+        &self,
+        data: &BinaryTemplateData,
+    ) -> Result<BinaryTemplateData, BinaryExportError> {
         const MAX_ALLOCATIONS_ULTRA_FAST: usize = 200; // Even smaller for maximum speed
 
         let mut optimized_data = data.clone();
 
         // Ultra-fast optimization - aggressive truncation
         if data.allocations.len() > MAX_ALLOCATIONS_ULTRA_FAST {
-            tracing::info!("🚀 Ultra-fast optimization: {} → {} allocations", data.allocations.len(), MAX_ALLOCATIONS_ULTRA_FAST);
-            
+            tracing::info!(
+                "🚀 Ultra-fast optimization: {} → {} allocations",
+                data.allocations.len(),
+                MAX_ALLOCATIONS_ULTRA_FAST
+            );
+
             // Take first N allocations - no sorting, no filtering to save maximum time
-            optimized_data.allocations.truncate(MAX_ALLOCATIONS_ULTRA_FAST);
+            optimized_data
+                .allocations
+                .truncate(MAX_ALLOCATIONS_ULTRA_FAST);
         }
 
         Ok(optimized_data)
     }
 
-
     /// Load SVG images for embedding in template
     fn load_svg_images(&self) -> Result<String, BinaryExportError> {
         let mut svg_data = String::new();
-        
+
         // List of SVG files to embed
         let svg_files = [
             ("memoryAnalysis", "images/memoryAnalysis.svg"),
             ("lifecycleTimeline", "images/lifecycleTimeline.svg"),
             ("unsafe_ffi_dashboard", "images/unsafe_ffi_dashboard.svg"),
         ];
-        
+
         svg_data.push_str("<script>\n");
         svg_data.push_str("// Embedded SVG images\n");
         svg_data.push_str("window.svgImages = {\n");
-        
+
         for (name, path) in &svg_files {
             if let Ok(svg_content) = std::fs::read_to_string(path) {
                 // Escape the SVG content for JavaScript
@@ -735,20 +788,19 @@ impl BinaryTemplateEngine {
                     .replace('\\', "\\\\")
                     .replace('`', "\\`")
                     .replace("${", "\\${");
-                
+
                 svg_data.push_str(&format!("  {}: `{}`,\n", name, escaped_svg));
             } else {
                 // If SVG file doesn't exist, create a placeholder
                 svg_data.push_str(&format!("  {}: `<svg width=\"100\" height=\"100\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"100\" height=\"100\" fill=\"#f0f0f0\"/><text x=\"50\" y=\"50\" text-anchor=\"middle\" dy=\".3em\" font-family=\"Arial\" font-size=\"12\" fill=\"#666\">SVG Missing</text></svg>`,\n", name));
             }
         }
-        
+
         svg_data.push_str("};\n");
         svg_data.push_str("</script>\n");
-        
+
         Ok(svg_data)
     }
-
 
     /// Get embedded CSS content
     fn _get_embedded_css(&self) -> String {
@@ -851,9 +903,9 @@ impl BinaryTemplateEngine {
     /// Get embedded JavaScript content
     fn _get_embedded_js(&self) -> String {
         // Load script.js content if available, otherwise use embedded content
-        let script_js_content = std::fs::read_to_string("templates/script.js")
-            .unwrap_or_else(|_| String::new());
-        
+        let script_js_content =
+            std::fs::read_to_string("templates/script.js").unwrap_or_else(|_| String::new());
+
         let embedded_js = r#"
         // Binary Dashboard Specific JavaScript
         
@@ -1141,7 +1193,10 @@ impl BinaryTemplateEngine {
 
         // Combine script.js content with embedded JS
         if !script_js_content.is_empty() {
-            format!("{}\n\n// === EMBEDDED SAFE OVERRIDES ===\n{}", script_js_content, embedded_js)
+            format!(
+                "{}\n\n// === EMBEDDED SAFE OVERRIDES ===\n{}",
+                script_js_content, embedded_js
+            )
         } else {
             embedded_js.to_string()
         }
@@ -1151,8 +1206,11 @@ impl BinaryTemplateEngine {
     pub fn get_stats(&self) -> BinaryTemplateEngineStats {
         // Use config field to ensure it's read
         let cache_enabled = self.config.enable_cache;
-        tracing::debug!("Getting stats for engine with cache enabled: {}", cache_enabled);
-        
+        tracing::debug!(
+            "Getting stats for engine with cache enabled: {}",
+            cache_enabled
+        );
+
         BinaryTemplateEngineStats {
             templates_processed: self.templates_processed,
             last_render_time_ms: self.last_render_time_ms,
@@ -1242,7 +1300,7 @@ mod tests {
             processing_time_ms: 100,
             data_source: "binary_direct".to_string(),
             complex_types: None, // Use proper analyzer instead of JSON functions
-            unsafe_ffi: None,    // Use proper analyzer instead of JSON functions  
+            unsafe_ffi: None,    // Use proper analyzer instead of JSON functions
             variable_relationships: None, // Use proper analyzer instead of JSON functions
         }
     }
@@ -1408,7 +1466,6 @@ mod tests {
     }
 }
 
-
 // ============================================================================
 // DATA GENERATION FUNCTIONS FOR MISSING ANALYSIS TYPES
 // ============================================================================
@@ -1416,19 +1473,23 @@ mod tests {
 /// Generate complex types analysis from allocations
 fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
     use serde_json::json;
-    
+
     let mut smart_pointers = Vec::new();
     let mut collections = Vec::new();
     let mut generic_types = Vec::new();
     let mut complex_type_analysis = Vec::new();
-    
+
     // Categorize types based on type_name
     for alloc in allocations.iter().filter(|a| a.var_name.is_some()) {
         let type_name = &alloc.type_name;
-        
+
         // Detect smart pointers
-        if type_name.contains("Box<") || type_name.contains("Rc<") || type_name.contains("Arc<") || 
-           type_name.contains("RefCell<") || type_name.contains("Mutex<") {
+        if type_name.contains("Box<")
+            || type_name.contains("Rc<")
+            || type_name.contains("Arc<")
+            || type_name.contains("RefCell<")
+            || type_name.contains("Mutex<")
+        {
             smart_pointers.push(json!({
                 "var_name": alloc.var_name,
                 "type_name": type_name,
@@ -1440,10 +1501,15 @@ fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> ser
                 "is_thread_safe": type_name.contains("Arc") || type_name.contains("Mutex")
             }));
         }
-        
+
         // Detect collections
-        if type_name.contains("Vec<") || type_name.contains("HashMap<") || type_name.contains("BTreeMap<") ||
-           type_name.contains("HashSet<") || type_name.contains("BTreeSet<") || type_name.contains("VecDeque<") {
+        if type_name.contains("Vec<")
+            || type_name.contains("HashMap<")
+            || type_name.contains("BTreeMap<")
+            || type_name.contains("HashSet<")
+            || type_name.contains("BTreeSet<")
+            || type_name.contains("VecDeque<")
+        {
             collections.push(json!({
                 "var_name": alloc.var_name,
                 "type_name": type_name,
@@ -1455,7 +1521,7 @@ fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> ser
                 "is_growable": !type_name.contains("Array")
             }));
         }
-        
+
         // Detect generic types
         if type_name.contains("<") && type_name.contains(">") {
             generic_types.push(json!({
@@ -1468,7 +1534,7 @@ fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> ser
                 "complexity_score": calculate_type_complexity(type_name)
             }));
         }
-        
+
         // Add to complex type analysis
         if is_complex_type(type_name) {
             complex_type_analysis.push(json!({
@@ -1483,7 +1549,7 @@ fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> ser
             }));
         }
     }
-    
+
     json!({
         "summary": {
             "total_complex_types": complex_type_analysis.len(),
@@ -1504,12 +1570,12 @@ fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> ser
 /// Generate unsafe FFI analysis from allocations
 fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
     use serde_json::json;
-    
+
     let mut unsafe_operations = Vec::new();
     let mut security_hotspots = Vec::new();
     let mut enhanced_ffi_data = Vec::new();
     let mut boundary_events = Vec::new();
-    
+
     // Analyze allocations for unsafe patterns
     for alloc in allocations {
         // Detect potential unsafe operations
@@ -1525,7 +1591,7 @@ fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_
                 "mitigation": suggest_mitigation(alloc)
             }));
         }
-        
+
         // Detect FFI boundary crossings
         if is_ffi_related(alloc) {
             boundary_events.push(json!({
@@ -1535,7 +1601,7 @@ fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_
                 "size": alloc.size,
                 "direction": "Rust_to_C"
             }));
-            
+
             enhanced_ffi_data.push(json!({
                 "ptr": format!("0x{:x}", alloc.ptr),
                 "size": alloc.size,
@@ -1545,7 +1611,7 @@ fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_
                 "type_name": alloc.type_name
             }));
         }
-        
+
         // Detect security hotspots
         if is_security_hotspot(alloc) {
             security_hotspots.push(json!({
@@ -1558,15 +1624,20 @@ fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_
             }));
         }
     }
-    
-    let total_violations = unsafe_operations.iter()
+
+    let total_violations = unsafe_operations
+        .iter()
         .map(|op| op["safety_violations"].as_u64().unwrap_or(0))
         .sum::<u64>();
-    
-    let risk_level = if total_violations > 10 { "High" }
-                    else if total_violations > 3 { "Medium" }
-                    else { "Low" };
-    
+
+    let risk_level = if total_violations > 10 {
+        "High"
+    } else if total_violations > 3 {
+        "Medium"
+    } else {
+        "Low"
+    };
+
     json!({
         "total_violations": total_violations,
         "risk_level": risk_level,
@@ -1578,16 +1649,21 @@ fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_
 }
 
 /// Generate variable relationships analysis from allocations
-fn _generate_variable_relationships_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
+fn _generate_variable_relationships_analysis(
+    allocations: &[BinaryAllocationData],
+) -> serde_json::Value {
     use serde_json::json;
-    
-    let user_allocations: Vec<_> = allocations.iter()
-        .filter(|alloc| alloc.var_name.is_some() && alloc.var_name.as_ref().expect("Value is None") != "unknown")
+
+    let user_allocations: Vec<_> = allocations
+        .iter()
+        .filter(|alloc| {
+            alloc.var_name.is_some() && alloc.var_name.as_ref().expect("Value is None") != "unknown"
+        })
         .collect();
-    
+
     let mut nodes = Vec::new();
     let mut links = Vec::new();
-    
+
     // Create nodes for each user variable
     for (i, alloc) in user_allocations.iter().enumerate() {
         if let Some(ref var_name) = alloc.var_name {
@@ -1604,13 +1680,13 @@ fn _generate_variable_relationships_analysis(allocations: &[BinaryAllocationData
             }));
         }
     }
-    
+
     // Create relationships based on type similarity and scope
     for i in 0..user_allocations.len() {
         for j in (i + 1)..user_allocations.len() {
             let alloc_a = user_allocations[i];
             let alloc_b = user_allocations[j];
-            
+
             if let (Some(ref name_a), Some(ref name_b)) = (&alloc_a.var_name, &alloc_b.var_name) {
                 if are_related(&alloc_a.type_name, &alloc_b.type_name) {
                     links.push(json!({
@@ -1624,7 +1700,7 @@ fn _generate_variable_relationships_analysis(allocations: &[BinaryAllocationData
             }
         }
     }
-    
+
     json!({
         "nodes": nodes,
         "links": links,
@@ -1641,22 +1717,36 @@ fn _generate_variable_relationships_analysis(allocations: &[BinaryAllocationData
 // Helper functions for type analysis
 #[allow(dead_code)]
 fn extract_smart_pointer_type(type_name: &str) -> &str {
-    if type_name.contains("Box<") { "Box" }
-    else if type_name.contains("Rc<") { "Rc" }
-    else if type_name.contains("Arc<") { "Arc" }
-    else if type_name.contains("RefCell<") { "RefCell" }
-    else if type_name.contains("Mutex<") { "Mutex" }
-    else { "Unknown" }
+    if type_name.contains("Box<") {
+        "Box"
+    } else if type_name.contains("Rc<") {
+        "Rc"
+    } else if type_name.contains("Arc<") {
+        "Arc"
+    } else if type_name.contains("RefCell<") {
+        "RefCell"
+    } else if type_name.contains("Mutex<") {
+        "Mutex"
+    } else {
+        "Unknown"
+    }
 }
 
 #[allow(dead_code)]
 fn extract_collection_type(type_name: &str) -> &str {
-    if type_name.contains("Vec<") { "Vec" }
-    else if type_name.contains("HashMap<") { "HashMap" }
-    else if type_name.contains("BTreeMap<") { "BTreeMap" }
-    else if type_name.contains("HashSet<") { "HashSet" }
-    else if type_name.contains("BTreeSet<") { "BTreeSet" }
-    else { "Unknown" }
+    if type_name.contains("Vec<") {
+        "Vec"
+    } else if type_name.contains("HashMap<") {
+        "HashMap"
+    } else if type_name.contains("BTreeMap<") {
+        "BTreeMap"
+    } else if type_name.contains("HashSet<") {
+        "HashSet"
+    } else if type_name.contains("BTreeSet<") {
+        "BTreeSet"
+    } else {
+        "Unknown"
+    }
 }
 
 #[allow(dead_code)]
@@ -1694,15 +1784,20 @@ fn calculate_type_complexity(type_name: &str) -> u32 {
     let mut complexity = 0;
     complexity += type_name.matches("<").count() as u32; // Generic depth
     complexity += type_name.matches(",").count() as u32; // Parameter count
-    if type_name.contains("Arc") || type_name.contains("Mutex") { complexity += 2; }
-    if type_name.contains("RefCell") { complexity += 1; }
+    if type_name.contains("Arc") || type_name.contains("Mutex") {
+        complexity += 2;
+    }
+    if type_name.contains("RefCell") {
+        complexity += 1;
+    }
     complexity
 }
 
 #[allow(dead_code)]
 fn is_complex_type(type_name: &str) -> bool {
-    type_name.contains("<") || type_name.len() > 20 || 
-    type_name.contains("::") && type_name.matches("::").count() > 2
+    type_name.contains("<")
+        || type_name.len() > 20
+        || type_name.contains("::") && type_name.matches("::").count() > 2
 }
 
 #[allow(dead_code)]
@@ -1713,7 +1808,7 @@ fn calculate_memory_efficiency(size: usize, type_name: &str) -> f64 {
         t if t.contains("HashMap") => 48,
         _ => 8,
     };
-    
+
     if size > 0 {
         (base_size as f64 / size as f64).min(1.0)
     } else {
@@ -1738,7 +1833,10 @@ fn suggest_optimization(type_name: &str) -> String {
 fn categorize_type(type_name: &str) -> &str {
     if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc") {
         "Smart Pointer"
-    } else if type_name.contains("Vec") || type_name.contains("HashMap") || type_name.contains("BTreeMap") {
+    } else if type_name.contains("Vec")
+        || type_name.contains("HashMap")
+        || type_name.contains("BTreeMap")
+    {
         "Collection"
     } else if type_name.contains("<") {
         "Generic"
@@ -1760,16 +1858,15 @@ fn generate_optimization_recommendations() -> Vec<String> {
 // Helper functions for unsafe/FFI analysis
 #[allow(dead_code)]
 fn is_potentially_unsafe(alloc: &BinaryAllocationData) -> bool {
-    alloc.type_name.contains("*") || 
-    alloc.type_name.contains("raw") ||
-    alloc.size > 1024 * 1024 // Large allocations might be risky
+    alloc.type_name.contains("*") || alloc.type_name.contains("raw") || alloc.size > 1024 * 1024
+    // Large allocations might be risky
 }
 
 #[allow(dead_code)]
 fn is_ffi_related(alloc: &BinaryAllocationData) -> bool {
-    alloc.type_name.contains("c_") || 
-    alloc.type_name.contains("libc") ||
-    alloc.type_name.contains("extern")
+    alloc.type_name.contains("c_")
+        || alloc.type_name.contains("libc")
+        || alloc.type_name.contains("extern")
 }
 
 #[allow(dead_code)]
@@ -1781,25 +1878,40 @@ fn is_security_hotspot(alloc: &BinaryAllocationData) -> bool {
 
 #[allow(dead_code)]
 fn assess_risk_level(alloc: &BinaryAllocationData) -> &str {
-    if alloc.size > 1024 * 1024 { "High" }
-    else if alloc.size > 1024 { "Medium" }
-    else { "Low" }
+    if alloc.size > 1024 * 1024 {
+        "High"
+    } else if alloc.size > 1024 {
+        "Medium"
+    } else {
+        "Low"
+    }
 }
 
 #[allow(dead_code)]
 fn assess_severity(alloc: &BinaryAllocationData) -> &str {
-    if !alloc.is_active && alloc.size > 1024 * 1024 { "Critical" }
-    else if !alloc.is_active { "High" }
-    else if alloc.size > 10 * 1024 * 1024 { "Medium" }
-    else { "Low" }
+    if !alloc.is_active && alloc.size > 1024 * 1024 {
+        "Critical"
+    } else if !alloc.is_active {
+        "High"
+    } else if alloc.size > 10 * 1024 * 1024 {
+        "Medium"
+    } else {
+        "Low"
+    }
 }
 
 #[allow(dead_code)]
 fn count_safety_violations(alloc: &BinaryAllocationData) -> u32 {
     let mut violations = 0;
-    if alloc.type_name.contains("*") { violations += 1; }
-    if alloc.size > 1024 * 1024 { violations += 1; }
-    if !alloc.is_active { violations += 1; }
+    if alloc.type_name.contains("*") {
+        violations += 1;
+    }
+    if alloc.size > 1024 * 1024 {
+        violations += 1;
+    }
+    if !alloc.is_active {
+        violations += 1;
+    }
     violations
 }
 
@@ -1817,36 +1929,47 @@ fn suggest_mitigation(alloc: &BinaryAllocationData) -> String {
 // Helper functions for variable relationships
 #[allow(dead_code)]
 fn categorize_variable(alloc: &BinaryAllocationData) -> &str {
-    if alloc.type_name.contains("String") { "String" }
-    else if alloc.type_name.contains("Vec") { "Collection" }
-    else if alloc.type_name.contains("Box") || alloc.type_name.contains("Rc") { "Smart Pointer" }
-    else { "Primitive" }
+    if alloc.type_name.contains("String") {
+        "String"
+    } else if alloc.type_name.contains("Vec") {
+        "Collection"
+    } else if alloc.type_name.contains("Box") || alloc.type_name.contains("Rc") {
+        "Smart Pointer"
+    } else {
+        "Primitive"
+    }
 }
 
 #[allow(dead_code)]
 fn get_variable_group(type_name: &str) -> u32 {
-    if type_name.contains("String") { 1 }
-    else if type_name.contains("Vec") || type_name.contains("HashMap") { 2 }
-    else if type_name.contains("Box") || type_name.contains("Rc") { 3 }
-    else { 0 }
+    if type_name.contains("String") {
+        1
+    } else if type_name.contains("Vec") || type_name.contains("HashMap") {
+        2
+    } else if type_name.contains("Box") || type_name.contains("Rc") {
+        3
+    } else {
+        0
+    }
 }
 
 #[allow(dead_code)]
 fn are_related(type_a: &str, type_b: &str) -> bool {
     let a_base = extract_base_type(type_a);
     let b_base = extract_base_type(type_b);
-    
-    a_base == b_base || 
-    (type_a.contains("String") && type_b.contains("str")) ||
-    (type_a.contains("Vec") && type_b.contains("slice"))
+
+    a_base == b_base
+        || (type_a.contains("String") && type_b.contains("str"))
+        || (type_a.contains("Vec") && type_b.contains("slice"))
 }
 
 #[allow(dead_code)]
 fn determine_relationship(type_a: &str, type_b: &str) -> &'static str {
     if extract_base_type(type_a) == extract_base_type(type_b) {
         "same_type"
-    } else if (type_a.contains("String") && type_b.contains("str")) ||
-              (type_a.contains("Vec") && type_b.contains("slice")) {
+    } else if (type_a.contains("String") && type_b.contains("str"))
+        || (type_a.contains("Vec") && type_b.contains("slice"))
+    {
         "compatible"
     } else {
         "related"
@@ -1854,23 +1977,27 @@ fn determine_relationship(type_a: &str, type_b: &str) -> &'static str {
 }
 
 #[allow(dead_code)]
-fn calculate_relationship_strength(alloc_a: &BinaryAllocationData, alloc_b: &BinaryAllocationData) -> f64 {
+fn calculate_relationship_strength(
+    alloc_a: &BinaryAllocationData,
+    alloc_b: &BinaryAllocationData,
+) -> f64 {
     let mut strength = 0.0;
-    
+
     // Same scope increases strength
     if alloc_a.scope_name == alloc_b.scope_name {
         strength += 0.5;
     }
-    
+
     // Similar sizes increase strength
-    let size_ratio = (alloc_a.size as f64 / alloc_b.size as f64).min(alloc_b.size as f64 / alloc_a.size as f64);
+    let size_ratio =
+        (alloc_a.size as f64 / alloc_b.size as f64).min(alloc_b.size as f64 / alloc_a.size as f64);
     strength += size_ratio * 0.3;
-    
+
     // Type similarity
     if are_related(&alloc_a.type_name, &alloc_b.type_name) {
         strength += 0.2;
     }
-    
+
     strength.min(1.0)
 }
 

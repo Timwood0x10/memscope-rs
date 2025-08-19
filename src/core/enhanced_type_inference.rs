@@ -82,7 +82,7 @@ impl TypeInferenceEngine {
             size_hints: HashMap::new(),
             call_stack_patterns: HashMap::new(),
         };
-        
+
         engine.initialize_default_patterns();
         engine
     }
@@ -90,32 +90,77 @@ impl TypeInferenceEngine {
     /// Initialize default patterns and hints
     fn initialize_default_patterns(&mut self) {
         // Initialize size-based hints
-        self.size_hints.insert(1, vec!["u8".to_string(), "i8".to_string(), "bool".to_string()]);
-        self.size_hints.insert(2, vec!["u16".to_string(), "i16".to_string()]);
-        self.size_hints.insert(4, vec!["u32".to_string(), "i32".to_string(), "f32".to_string()]);
-        self.size_hints.insert(8, vec!["u64".to_string(), "i64".to_string(), "f64".to_string(), "usize".to_string(), "isize".to_string()]);
-        self.size_hints.insert(16, vec!["u128".to_string(), "i128".to_string()]);
-        self.size_hints.insert(24, vec!["String".to_string(), "Vec<T>".to_string()]);
-        self.size_hints.insert(48, vec!["HashMap<K,V>".to_string(), "BTreeMap<K,V>".to_string()]);
+        self.size_hints.insert(
+            1,
+            vec!["u8".to_string(), "i8".to_string(), "bool".to_string()],
+        );
+        self.size_hints
+            .insert(2, vec!["u16".to_string(), "i16".to_string()]);
+        self.size_hints.insert(
+            4,
+            vec!["u32".to_string(), "i32".to_string(), "f32".to_string()],
+        );
+        self.size_hints.insert(
+            8,
+            vec![
+                "u64".to_string(),
+                "i64".to_string(),
+                "f64".to_string(),
+                "usize".to_string(),
+                "isize".to_string(),
+            ],
+        );
+        self.size_hints
+            .insert(16, vec!["u128".to_string(), "i128".to_string()]);
+        self.size_hints
+            .insert(24, vec!["String".to_string(), "Vec<T>".to_string()]);
+        self.size_hints.insert(
+            48,
+            vec!["HashMap<K,V>".to_string(), "BTreeMap<K,V>".to_string()],
+        );
 
         // Initialize call stack patterns
-        self.call_stack_patterns.insert("vec".to_string(), vec!["Vec<T>".to_string(), "VecDeque<T>".to_string()]);
-        self.call_stack_patterns.insert("string".to_string(), vec!["String".to_string(), "CString".to_string()]);
-        self.call_stack_patterns.insert("hash".to_string(), vec!["HashMap<K,V>".to_string(), "HashSet<T>".to_string()]);
-        self.call_stack_patterns.insert("btree".to_string(), vec!["BTreeMap<K,V>".to_string(), "BTreeSet<T>".to_string()]);
-        self.call_stack_patterns.insert("box".to_string(), vec!["Box<T>".to_string()]);
-        self.call_stack_patterns.insert("rc".to_string(), vec!["Rc<T>".to_string(), "Weak<T>".to_string()]);
-        self.call_stack_patterns.insert("arc".to_string(), vec!["Arc<T>".to_string(), "Weak<T>".to_string()]);
-        self.call_stack_patterns.insert("mutex".to_string(), vec!["Mutex<T>".to_string()]);
-        self.call_stack_patterns.insert("rwlock".to_string(), vec!["RwLock<T>".to_string()]);
-        self.call_stack_patterns.insert("channel".to_string(), vec!["Sender<T>".to_string(), "Receiver<T>".to_string()]);
+        self.call_stack_patterns.insert(
+            "vec".to_string(),
+            vec!["Vec<T>".to_string(), "VecDeque<T>".to_string()],
+        );
+        self.call_stack_patterns.insert(
+            "string".to_string(),
+            vec!["String".to_string(), "CString".to_string()],
+        );
+        self.call_stack_patterns.insert(
+            "hash".to_string(),
+            vec!["HashMap<K,V>".to_string(), "HashSet<T>".to_string()],
+        );
+        self.call_stack_patterns.insert(
+            "btree".to_string(),
+            vec!["BTreeMap<K,V>".to_string(), "BTreeSet<T>".to_string()],
+        );
+        self.call_stack_patterns
+            .insert("box".to_string(), vec!["Box<T>".to_string()]);
+        self.call_stack_patterns.insert(
+            "rc".to_string(),
+            vec!["Rc<T>".to_string(), "Weak<T>".to_string()],
+        );
+        self.call_stack_patterns.insert(
+            "arc".to_string(),
+            vec!["Arc<T>".to_string(), "Weak<T>".to_string()],
+        );
+        self.call_stack_patterns
+            .insert("mutex".to_string(), vec!["Mutex<T>".to_string()]);
+        self.call_stack_patterns
+            .insert("rwlock".to_string(), vec!["RwLock<T>".to_string()]);
+        self.call_stack_patterns.insert(
+            "channel".to_string(),
+            vec!["Sender<T>".to_string(), "Receiver<T>".to_string()],
+        );
     }
 
     /// Perform enhanced type inference
     pub fn infer_type(&mut self, context: &AllocationContext) -> InferredType {
         // Create signature for caching
         let signature = self.create_type_signature(context);
-        
+
         // Check cache first
         if let Some(cached_type) = self.type_cache.get(&signature) {
             return cached_type.clone();
@@ -123,10 +168,10 @@ impl TypeInferenceEngine {
 
         // Perform inference
         let inferred_type = self.perform_inference(context);
-        
+
         // Cache the result
         self.type_cache.insert(signature, inferred_type.clone());
-        
+
         inferred_type
     }
 
@@ -134,11 +179,11 @@ impl TypeInferenceEngine {
     fn create_type_signature(&self, context: &AllocationContext) -> TypeSignature {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         context.call_stack.hash(&mut hasher);
         let call_stack_hash = hasher.finish();
-        
+
         let mut context_hints = Vec::new();
         if let Some(ref var_name) = context.variable_name {
             context_hints.push(var_name.clone());
@@ -146,7 +191,7 @@ impl TypeInferenceEngine {
         if let Some(ref alloc_site) = context.allocation_site {
             context_hints.push(alloc_site.clone());
         }
-        
+
         TypeSignature {
             size: context.size,
             call_stack_hash,
@@ -209,7 +254,7 @@ impl TypeInferenceEngine {
     fn infer_from_call_stack(&self, call_stack: &[String]) -> Option<InferredType> {
         for frame in call_stack {
             let frame_lower = frame.to_lowercase();
-            
+
             // Look for patterns in the call stack
             for (pattern, types) in &self.call_stack_patterns {
                 if frame_lower.contains(pattern) {
@@ -221,7 +266,7 @@ impl TypeInferenceEngine {
                     });
                 }
             }
-            
+
             // Look for specific function patterns
             if frame_lower.contains("alloc") && frame_lower.contains("vec") {
                 return Some(InferredType {
@@ -231,8 +276,10 @@ impl TypeInferenceEngine {
                     alternative_types: vec!["VecDeque<T>".to_string()],
                 });
             }
-            
-            if frame_lower.contains("string") && (frame_lower.contains("new") || frame_lower.contains("from")) {
+
+            if frame_lower.contains("string")
+                && (frame_lower.contains("new") || frame_lower.contains("from"))
+            {
                 return Some(InferredType {
                     type_name: "String".to_string(),
                     confidence: TypeConfidence::High,
@@ -240,8 +287,10 @@ impl TypeInferenceEngine {
                     alternative_types: vec!["CString".to_string()],
                 });
             }
-            
-            if frame_lower.contains("hashmap") || (frame_lower.contains("hash") && frame_lower.contains("insert")) {
+
+            if frame_lower.contains("hashmap")
+                || (frame_lower.contains("hash") && frame_lower.contains("insert"))
+            {
                 return Some(InferredType {
                     type_name: "HashMap<K,V>".to_string(),
                     confidence: TypeConfidence::High,
@@ -250,7 +299,7 @@ impl TypeInferenceEngine {
                 });
             }
         }
-        
+
         None
     }
 
@@ -258,9 +307,10 @@ impl TypeInferenceEngine {
     fn infer_from_variable_name(&self, var_name: &Option<String>) -> Option<InferredType> {
         let var_name = var_name.as_ref()?;
         let name_lower = var_name.to_lowercase();
-        
+
         // Common variable naming patterns
-        if name_lower.contains("vec") || name_lower.contains("list") || name_lower.contains("array") {
+        if name_lower.contains("vec") || name_lower.contains("list") || name_lower.contains("array")
+        {
             return Some(InferredType {
                 type_name: "Vec<T>".to_string(),
                 confidence: TypeConfidence::Medium,
@@ -268,8 +318,12 @@ impl TypeInferenceEngine {
                 alternative_types: vec!["VecDeque<T>".to_string(), "LinkedList<T>".to_string()],
             });
         }
-        
-        if name_lower.contains("str") || name_lower.contains("text") || name_lower.contains("msg") || name_lower.contains("message") {
+
+        if name_lower.contains("str")
+            || name_lower.contains("text")
+            || name_lower.contains("msg")
+            || name_lower.contains("message")
+        {
             return Some(InferredType {
                 type_name: "String".to_string(),
                 confidence: TypeConfidence::Medium,
@@ -277,8 +331,9 @@ impl TypeInferenceEngine {
                 alternative_types: vec!["&str".to_string(), "CString".to_string()],
             });
         }
-        
-        if name_lower.contains("map") || name_lower.contains("dict") || name_lower.contains("table") {
+
+        if name_lower.contains("map") || name_lower.contains("dict") || name_lower.contains("table")
+        {
             return Some(InferredType {
                 type_name: "HashMap<K,V>".to_string(),
                 confidence: TypeConfidence::Medium,
@@ -286,7 +341,7 @@ impl TypeInferenceEngine {
                 alternative_types: vec!["BTreeMap<K,V>".to_string()],
             });
         }
-        
+
         if name_lower.contains("set") || name_lower.contains("collection") {
             return Some(InferredType {
                 type_name: "HashSet<T>".to_string(),
@@ -295,7 +350,7 @@ impl TypeInferenceEngine {
                 alternative_types: vec!["BTreeSet<T>".to_string()],
             });
         }
-        
+
         if name_lower.contains("box") || name_lower.contains("ptr") {
             return Some(InferredType {
                 type_name: "Box<T>".to_string(),
@@ -304,7 +359,7 @@ impl TypeInferenceEngine {
                 alternative_types: vec!["*mut T".to_string(), "*const T".to_string()],
             });
         }
-        
+
         None
     }
 
@@ -318,7 +373,7 @@ impl TypeInferenceEngine {
                 alternative_types: types[1..].to_vec(),
             });
         }
-        
+
         // Handle common size ranges
         match size {
             0 => Some(InferredType {
@@ -358,12 +413,16 @@ impl TypeInferenceEngine {
     pub fn get_statistics(&self) -> InferenceStatistics {
         let mut method_counts = HashMap::new();
         let mut confidence_counts = HashMap::new();
-        
+
         for inferred_type in self.type_cache.values() {
-            *method_counts.entry(inferred_type.inference_method.clone()).or_insert(0) += 1;
-            *confidence_counts.entry(inferred_type.confidence.clone()).or_insert(0) += 1;
+            *method_counts
+                .entry(inferred_type.inference_method.clone())
+                .or_insert(0) += 1;
+            *confidence_counts
+                .entry(inferred_type.confidence.clone())
+                .or_insert(0) += 1;
         }
-        
+
         InferenceStatistics {
             total_inferences: self.type_cache.len(),
             cache_size: self.type_cache.len(),
@@ -418,7 +477,7 @@ mod tests {
             allocation_site: None,
             thread_context: None,
         };
-        
+
         let result = engine.infer_type(&context);
         assert_eq!(result.type_name, "Vec<i32>");
         assert_eq!(result.confidence, TypeConfidence::Exact);
@@ -436,7 +495,7 @@ mod tests {
             allocation_site: None,
             thread_context: None,
         };
-        
+
         let result = engine.infer_type(&context);
         assert_eq!(result.type_name, "Vec<T>");
         assert_eq!(result.confidence, TypeConfidence::High);
@@ -454,7 +513,7 @@ mod tests {
             allocation_site: None,
             thread_context: None,
         };
-        
+
         let result = engine.infer_type(&context);
         assert_eq!(result.type_name, "Vec<T>");
         assert_eq!(result.confidence, TypeConfidence::Medium);
@@ -472,7 +531,7 @@ mod tests {
             allocation_site: None,
             thread_context: None,
         };
-        
+
         let result = engine.infer_type(&context);
         assert_eq!(result.type_name, "u64");
         assert_eq!(result.confidence, TypeConfidence::Low);
@@ -490,13 +549,13 @@ mod tests {
             allocation_site: None,
             thread_context: None,
         };
-        
+
         // First inference
         let result1 = engine.infer_type(&context);
-        
+
         // Second inference should use cache
         let result2 = engine.infer_type(&context);
-        
+
         assert_eq!(result1.type_name, result2.type_name);
         assert_eq!(engine.type_cache.len(), 1);
     }
@@ -504,10 +563,10 @@ mod tests {
     #[test]
     fn test_custom_patterns() {
         let mut engine = TypeInferenceEngine::new();
-        
+
         // Add custom pattern
         engine.add_call_stack_pattern("custom".to_string(), vec!["CustomType".to_string()]);
-        
+
         let context = AllocationContext {
             size: 100,
             call_stack: vec!["custom::function".to_string()],
@@ -516,7 +575,7 @@ mod tests {
             allocation_site: None,
             thread_context: None,
         };
-        
+
         let result = engine.infer_type(&context);
         assert_eq!(result.type_name, "CustomType");
         assert_eq!(result.confidence, TypeConfidence::High);

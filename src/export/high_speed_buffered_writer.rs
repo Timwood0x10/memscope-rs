@@ -367,7 +367,8 @@ mod tests {
     fn test_write_processed_shards() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = HighSpeedWriterConfig::default();
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).expect("Failed to create writer");
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let shards = create_test_shards(3, 100);
         let result = writer.write_processed_shards(&shards);
@@ -388,7 +389,8 @@ mod tests {
     fn test_write_custom_json() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = HighSpeedWriterConfig::default();
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).expect("Failed to create writer");
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let json_data = b"{\"test\": \"data\"}";
         let result = writer.write_custom_json(json_data);
@@ -414,8 +416,11 @@ mod tests {
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).expect("Failed to create temp file");
-        let stats = writer.write_processed_shards(&shards).expect("Test operation failed");
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create temp file");
+        let stats = writer
+            .write_processed_shards(&shards)
+            .expect("Test operation failed");
         assert!(stats.preallocation_effective);
 
         // Test ineffective preallocation
@@ -425,8 +430,11 @@ mod tests {
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer2 = HighSpeedBufferedWriter::new(temp_file2.path(), config2).expect("Failed to create writer 2");
-        let stats2 = writer2.write_processed_shards(&shards).expect("Failed to write shards 2");
+        let mut writer2 = HighSpeedBufferedWriter::new(temp_file2.path(), config2)
+            .expect("Failed to create writer 2");
+        let stats2 = writer2
+            .write_processed_shards(&shards)
+            .expect("Failed to write shards 2");
         assert!(!stats2.preallocation_effective);
     }
 
@@ -458,10 +466,13 @@ mod tests {
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).expect("Failed to create writer");
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let shards = create_test_shards(1, 100);
-        let _stats = writer.write_processed_shards(&shards).expect("Failed to write shards");
+        let _stats = writer
+            .write_processed_shards(&shards)
+            .expect("Failed to write shards");
 
         // Manually flush
         let flush_result = writer.flush();
@@ -476,10 +487,13 @@ mod tests {
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).expect("Failed to create writer");
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let shards = create_test_shards(2, 100);
-        let _stats = writer.write_processed_shards(&shards).expect("Failed to write shards");
+        let _stats = writer
+            .write_processed_shards(&shards)
+            .expect("Failed to write shards");
 
         let final_stats = writer.finalize();
         assert!(final_stats.is_ok());

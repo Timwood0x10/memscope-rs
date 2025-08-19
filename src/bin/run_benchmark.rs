@@ -23,13 +23,15 @@ impl PerformanceBenchmark {
     pub fn new(_config: BenchmarkConfig) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self)
     }
-    
+
     pub fn run_all_benchmarks(&self) -> Result<(), Box<dyn std::error::Error>> {
         println!("Benchmark functionality removed - use cargo bench instead");
         Ok(())
     }
-    
-    pub fn run_full_benchmark(&mut self) -> Result<BenchmarkComparison, Box<dyn std::error::Error>> {
+
+    pub fn run_full_benchmark(
+        &mut self,
+    ) -> Result<BenchmarkComparison, Box<dyn std::error::Error>> {
         println!("Full benchmark functionality removed - use cargo bench instead");
         Ok(BenchmarkComparison::default())
     }

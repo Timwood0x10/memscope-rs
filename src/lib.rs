@@ -35,21 +35,21 @@ pub use analysis::*;
 
 // 🏃 TIER 1: High Performance JSON/Binary Export (compatibility)
 pub use export::{
-    export_user_variables_json,     // Standard JSON for compatibility
-    export_user_variables_binary,   // Standard binary for compatibility
+    export_user_variables_binary, // Standard binary for compatibility
+    export_user_variables_json,   // Standard JSON for compatibility
 };
 
 // ⚡ TIER 2: Lifecycle Export (detailed ownership tracking)
 pub use export::{
-    LifecycleExporter,              // Configurable lifecycle data exporter
-    LifecycleExportConfig,          // Configuration for lifecycle export
-    export_lifecycle_data,          // Convenience function for one-shot export
+    export_lifecycle_data, // Convenience function for one-shot export
+    LifecycleExportConfig, // Configuration for lifecycle export
+    LifecycleExporter,     // Configurable lifecycle data exporter
 };
 
 // 🔧 TIER 3: Binary Analysis Tools (proven in examples)
 pub use export::{
-    binary::BinaryParser,           // High-performance binary parsing
-    binary::detect_binary_type,     // Binary type detection
+    binary::detect_binary_type, // Binary type detection
+    binary::BinaryParser,       // High-performance binary parsing
 };
 
 // Re-export main types for easier use

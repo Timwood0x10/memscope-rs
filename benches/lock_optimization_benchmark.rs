@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use std::hint::black_box;
 use memscope_rs::core::{AdaptiveHashMap, OptimizedMutex, ShardedRwLock, SimpleMemoryStats};
 use std::collections::HashMap;
+use std::hint::black_box;
 use std::sync::{Arc, Mutex};
 use std::thread;
 

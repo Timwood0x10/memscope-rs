@@ -5,11 +5,13 @@
 //! It works alongside the existing JSON → HTML functionality without interference.
 
 use crate::core::types::AllocationInfo;
+use crate::export::binary::complex_type_analyzer::{ComplexTypeAnalysis, ComplexTypeAnalyzer};
 use crate::export::binary::error::BinaryExportError;
+use crate::export::binary::ffi_safety_analyzer::{FfiSafetyAnalysis, FfiSafetyAnalyzer};
 use crate::export::binary::selective_reader::AllocationField;
-use crate::export::binary::complex_type_analyzer::{ComplexTypeAnalyzer, ComplexTypeAnalysis};
-use crate::export::binary::ffi_safety_analyzer::{FfiSafetyAnalyzer, FfiSafetyAnalysis};
-use crate::export::binary::variable_relationship_analyzer::{VariableRelationshipAnalyzer, VariableRelationshipAnalysis};
+use crate::export::binary::variable_relationship_analyzer::{
+    VariableRelationshipAnalysis, VariableRelationshipAnalyzer,
+};
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufWriter, Write};
@@ -230,9 +232,12 @@ impl IntelligentBuffer {
             avg_write_size: 0.0,
             last_flush_time: Instant::now(),
         };
-        
+
         // Use the target_size field to ensure it's read
-        tracing::debug!("Created IntelligentBuffer with target size: {}", buffer.target_size);
+        tracing::debug!(
+            "Created IntelligentBuffer with target size: {}",
+            buffer.target_size
+        );
         buffer
     }
 
@@ -484,11 +489,12 @@ impl<W: Write> BinaryHtmlWriter<W> {
         data: &BinaryTemplateData,
     ) -> Result<String, BinaryExportError> {
         use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
-        
+
         // Create and use the binary template engine
-        let mut template_engine = BinaryTemplateEngine::new()
-            .map_err(|e| BinaryExportError::CorruptedData(format!("Failed to create template engine: {}", e)))?;
-        
+        let mut template_engine = BinaryTemplateEngine::new().map_err(|e| {
+            BinaryExportError::CorruptedData(format!("Failed to create template engine: {}", e))
+        })?;
+
         // Render the template with binary data
         template_engine.render_binary_template(data)
     }
@@ -544,20 +550,33 @@ impl<W: Write> BinaryHtmlWriter<W> {
 
         // Add complex type analysis if available
         if let Some(ref complex_types) = data.complex_types {
-            dashboard_data["complex_types"] = serde_json::to_value(complex_types)
-                .map_err(|e| BinaryExportError::SerializationError(format!("Complex types serialization failed: {}", e)))?;
+            dashboard_data["complex_types"] = serde_json::to_value(complex_types).map_err(|e| {
+                BinaryExportError::SerializationError(format!(
+                    "Complex types serialization failed: {}",
+                    e
+                ))
+            })?;
         }
 
         // Add FFI safety analysis if available
         if let Some(ref unsafe_ffi) = data.unsafe_ffi {
-            dashboard_data["unsafe_ffi"] = serde_json::to_value(unsafe_ffi)
-                .map_err(|e| BinaryExportError::SerializationError(format!("FFI safety analysis serialization failed: {}", e)))?;
+            dashboard_data["unsafe_ffi"] = serde_json::to_value(unsafe_ffi).map_err(|e| {
+                BinaryExportError::SerializationError(format!(
+                    "FFI safety analysis serialization failed: {}",
+                    e
+                ))
+            })?;
         }
 
         // Add variable relationship analysis if available
         if let Some(ref variable_relationships) = data.variable_relationships {
             dashboard_data["variable_relationships"] = serde_json::to_value(variable_relationships)
-                .map_err(|e| BinaryExportError::SerializationError(format!("Variable relationship analysis serialization failed: {}", e)))?;
+                .map_err(|e| {
+                    BinaryExportError::SerializationError(format!(
+                        "Variable relationship analysis serialization failed: {}",
+                        e
+                    ))
+                })?;
         }
 
         serde_json::to_string_pretty(&dashboard_data).map_err(|e| {

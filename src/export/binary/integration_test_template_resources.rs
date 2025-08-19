@@ -7,15 +7,15 @@
 mod tests {
     use crate::core::types::AllocationInfo;
     use crate::export::binary::binary_html_writer::BinaryHtmlWriter;
+    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
     use crate::export::binary::selective_reader::AllocationField;
     use crate::export::binary::template_resource_manager::{
-        TemplateResourceManager, ResourceConfig, create_template_data,
+        create_template_data, ResourceConfig, TemplateResourceManager,
     };
-    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
     use std::collections::HashMap;
+    use std::fs;
     use std::io::Cursor;
     use tempfile::TempDir;
-    use std::fs;
 
     fn create_test_allocation(ptr: usize, size: usize, type_name: &str) -> AllocationInfo {
         AllocationInfo {
@@ -51,7 +51,7 @@ mod tests {
 
     fn create_test_template_dir() -> Result<TempDir, std::io::Error> {
         let temp_dir = TempDir::new()?;
-        
+
         // Create test binary dashboard template
         let template_content = r#"
 <!DOCTYPE html>
@@ -68,7 +68,10 @@ mod tests {
 </body>
 </html>
 "#;
-        fs::write(temp_dir.path().join("binary_dashboard.html"), template_content)?;
+        fs::write(
+            temp_dir.path().join("binary_dashboard.html"),
+            template_content,
+        )?;
 
         // Create test CSS file
         let css_content = r#"
@@ -99,7 +102,8 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_template_resource_integration() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut resource_manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         // Create test template data
         let mut custom_data = HashMap::new();
@@ -114,11 +118,8 @@ window.addEventListener('load', initializeMemoryDashboard);
         let config = ResourceConfig::default();
 
         // Process template with resources
-        let result = resource_manager.process_template(
-            "binary_dashboard.html",
-            &template_data,
-            &config,
-        );
+        let result =
+            resource_manager.process_template("binary_dashboard.html", &template_data, &config);
 
         assert!(result.is_ok());
         let html_content = result.expect("Test operation failed");
@@ -134,17 +135,26 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_resource_caching() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut resource_manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let config = ResourceConfig::default();
 
         // First load should read from files
-        let css1 = resource_manager.get_shared_css(&config).expect("Test operation failed");
-        let js1 = resource_manager.get_shared_js(&config).expect("Test operation failed");
+        let css1 = resource_manager
+            .get_shared_css(&config)
+            .expect("Test operation failed");
+        let js1 = resource_manager
+            .get_shared_js(&config)
+            .expect("Test operation failed");
 
         // Second load should use cache
-        let css2 = resource_manager.get_shared_css(&config).expect("Test operation failed");
-        let js2 = resource_manager.get_shared_js(&config).expect("Test operation failed");
+        let css2 = resource_manager
+            .get_shared_css(&config)
+            .expect("Test operation failed");
+        let js2 = resource_manager
+            .get_shared_js(&config)
+            .expect("Test operation failed");
 
         // Content should be identical
         assert_eq!(css1, css2);
@@ -158,7 +168,8 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_resource_minification() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut resource_manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let config_normal = ResourceConfig {
             minify_resources: false,
@@ -170,16 +181,20 @@ window.addEventListener('load', initializeMemoryDashboard);
             ..Default::default()
         };
 
-        let css_normal = resource_manager.get_shared_css(&config_normal).expect("Test operation failed");
-        
+        let css_normal = resource_manager
+            .get_shared_css(&config_normal)
+            .expect("Test operation failed");
+
         // Clear cache to force reload with minification
         resource_manager.clear_cache();
-        
-        let css_minified = resource_manager.get_shared_css(&config_minified).expect("Test operation failed");
+
+        let css_minified = resource_manager
+            .get_shared_css(&config_minified)
+            .expect("Test operation failed");
 
         // Minified version should be smaller (or at least not larger)
         assert!(css_minified.len() <= css_normal.len());
-        
+
         // Both should contain the same essential content
         assert!(css_normal.contains("font-family"));
         assert!(css_minified.contains("font-family"));
@@ -202,11 +217,15 @@ window.addEventListener('load', initializeMemoryDashboard);
         // Write allocations
         let fields = AllocationField::all_basic_fields();
         for allocation in &allocations {
-            writer.write_binary_allocation(allocation, &fields).expect("Test operation failed");
+            writer
+                .write_binary_allocation(allocation, &fields)
+                .expect("Test operation failed");
         }
 
         // Finalize and get stats
-        let stats = writer.finalize_with_binary_template("test_project").expect("Test operation failed");
+        let stats = writer
+            .finalize_with_binary_template("test_project")
+            .expect("Test operation failed");
 
         // Verify that allocations were processed
         assert_eq!(stats.allocations_processed, 3);
@@ -217,11 +236,11 @@ window.addEventListener('load', initializeMemoryDashboard);
     fn test_binary_template_engine_with_resource_manager() {
         // Create a temporary template directory for the engine
         let _temp_dir = create_test_template_dir().expect("Failed to get test value");
-        
+
         // We can't easily change the template directory for BinaryTemplateEngine
         // So we'll test that it can be created and used without errors
         let engine = BinaryTemplateEngine::new();
-        
+
         // The engine creation might fail if templates directory doesn't exist
         // This is expected behavior, so we'll just verify the error handling
         match engine {
@@ -241,27 +260,28 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_placeholder_processing() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut resource_manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         // Create template data with custom placeholders
         let mut custom_data = HashMap::new();
-        custom_data.insert("complex_types".to_string(), r#"{"types": ["Vec<String>", "HashMap<i32, String>"]}"#.to_string());
-        custom_data.insert("unsafe_ffi".to_string(), r#"{"unsafe_operations": []}"#.to_string());
-
-        let template_data = create_template_data(
-            "Placeholder Test",
-            r#"{"test": "data"}"#,
-            custom_data,
+        custom_data.insert(
+            "complex_types".to_string(),
+            r#"{"types": ["Vec<String>", "HashMap<i32, String>"]}"#.to_string(),
         );
+        custom_data.insert(
+            "unsafe_ffi".to_string(),
+            r#"{"unsafe_operations": []}"#.to_string(),
+        );
+
+        let template_data =
+            create_template_data("Placeholder Test", r#"{"test": "data"}"#, custom_data);
 
         let config = ResourceConfig::default();
 
         // Process template
-        let result = resource_manager.process_template(
-            "binary_dashboard.html",
-            &template_data,
-            &config,
-        );
+        let result =
+            resource_manager.process_template("binary_dashboard.html", &template_data, &config);
 
         assert!(result.is_ok());
         let html_content = result.expect("Test operation failed");
@@ -275,13 +295,10 @@ window.addEventListener('load', initializeMemoryDashboard);
     #[test]
     fn test_resource_config_options() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut resource_manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
-        let template_data = create_template_data(
-            "Config Test",
-            "{}",
-            HashMap::new(),
-        );
+        let template_data = create_template_data("Config Test", "{}", HashMap::new());
 
         // Test with CSS embedding disabled
         let config_no_css = ResourceConfig {
@@ -303,8 +320,8 @@ window.addEventListener('load', initializeMemoryDashboard);
 
         // Should still contain the template structure
         assert!(html_content.contains("Config Test"));
-        assert!(html_content.contains("{{CSS_CONTENT}}"));  // Not replaced
-        assert!(html_content.contains("initializeMemoryDashboard"));  // JS should be embedded
+        assert!(html_content.contains("{{CSS_CONTENT}}")); // Not replaced
+        assert!(html_content.contains("initializeMemoryDashboard")); // JS should be embedded
     }
 
     #[test]
@@ -315,7 +332,8 @@ window.addEventListener('load', initializeMemoryDashboard);
 
         // Test with valid directory but non-existent template
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut resource_manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut resource_manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let template_data = create_template_data("Test", "{}", HashMap::new());
         let config = ResourceConfig::default();

@@ -3,7 +3,10 @@
 //! This module provides memory statistics structures that use bounded containers
 //! to prevent memory leaks during long-running applications.
 
-use crate::core::types::{AllocationInfo, FragmentationAnalysis, ScopeLifecycleMetrics, SystemLibraryStats, ConcurrencyAnalysis};
+use crate::core::types::{
+    AllocationInfo, ConcurrencyAnalysis, FragmentationAnalysis, ScopeLifecycleMetrics,
+    SystemLibraryStats,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
@@ -65,7 +68,7 @@ pub struct BoundedMemoryStats {
     /// Configuration for this instance
     #[serde(skip)]
     pub config: BoundedStatsConfig,
-    
+
     /// Basic statistics (these don't grow infinitely)
     pub total_allocations: usize,
     pub total_allocated: usize,
@@ -77,17 +80,17 @@ pub struct BoundedMemoryStats {
     pub total_deallocated: usize,
     pub leaked_allocations: usize,
     pub leaked_memory: usize,
-    
+
     /// Analysis data (bounded)
     pub fragmentation_analysis: FragmentationAnalysis,
     pub lifecycle_stats: ScopeLifecycleMetrics,
     pub system_library_stats: SystemLibraryStats,
     pub concurrency_analysis: ConcurrencyAnalysis,
-    
+
     /// Bounded containers for detailed data
     pub recent_allocations: VecDeque<AllocationSummary>,
     pub historical_summaries: VecDeque<HistoricalSummary>,
-    
+
     /// Cleanup statistics
     pub cleanup_count: u32,
     pub last_cleanup_timestamp: Option<u64>,
@@ -102,7 +105,7 @@ pub struct HistoricalSummary {
     pub total_memory: usize,
     pub active_allocations: usize,
     pub active_memory: usize,
-    pub allocation_rate: f64, // allocations per second
+    pub allocation_rate: f64,    // allocations per second
     pub memory_growth_rate: f64, // bytes per second
 }
 
@@ -111,7 +114,7 @@ impl BoundedMemoryStats {
     pub fn new() -> Self {
         Self::with_config(BoundedStatsConfig::default())
     }
-    
+
     /// Create new bounded memory statistics with custom configuration
     pub fn with_config(config: BoundedStatsConfig) -> Self {
         Self {
@@ -159,7 +162,7 @@ impl BoundedMemoryStats {
             total_allocations_processed: 0,
         }
     }
-    
+
     /// Add a new allocation, automatically managing bounds
     pub fn add_allocation(&mut self, alloc: &AllocationInfo) {
         // Update basic statistics
@@ -168,7 +171,7 @@ impl BoundedMemoryStats {
         self.active_allocations += 1;
         self.active_memory += alloc.size;
         self.total_allocations_processed += 1;
-        
+
         // Update peaks
         if self.active_allocations > self.peak_allocations {
             self.peak_allocations = self.active_allocations;
@@ -176,24 +179,24 @@ impl BoundedMemoryStats {
         if self.active_memory > self.peak_memory {
             self.peak_memory = self.active_memory;
         }
-        
+
         // Add to recent allocations with bounds checking
         let summary = AllocationSummary::from(alloc);
         self.add_allocation_summary(summary);
-        
+
         // Check if cleanup is needed
         if self.config.enable_auto_cleanup {
             self.check_and_cleanup();
         }
     }
-    
+
     /// Record a deallocation
     pub fn record_deallocation(&mut self, ptr: usize, size: usize) {
         self.total_deallocations += 1;
         self.total_deallocated += size;
         self.active_allocations = self.active_allocations.saturating_sub(1);
         self.active_memory = self.active_memory.saturating_sub(size);
-        
+
         // Update the corresponding allocation summary if found
         let current_timestamp = self.get_current_timestamp();
         if let Some(summary) = self.recent_allocations.iter_mut().find(|s| s.ptr == ptr) {
@@ -203,13 +206,13 @@ impl BoundedMemoryStats {
             }
         }
     }
-    
+
     /// Record a memory leak
     pub fn record_leak(&mut self, size: usize) {
         self.leaked_allocations += 1;
         self.leaked_memory += size;
     }
-    
+
     /// Add allocation summary with bounds management
     fn add_allocation_summary(&mut self, summary: AllocationSummary) {
         // Check if we need to make room
@@ -220,10 +223,10 @@ impl BoundedMemoryStats {
                 self.maybe_create_historical_summary(&old_summary);
             }
         }
-        
+
         self.recent_allocations.push_back(summary);
     }
-    
+
     /// Create historical summary from removed allocation data
     fn maybe_create_historical_summary(&mut self, _removed_summary: &AllocationSummary) {
         // Create historical summary periodically (e.g., every 1000 allocations)
@@ -237,7 +240,7 @@ impl BoundedMemoryStats {
                 allocation_rate: self.calculate_allocation_rate(),
                 memory_growth_rate: self.calculate_memory_growth_rate(),
             };
-            
+
             // Add to historical summaries with bounds checking
             if self.historical_summaries.len() >= self.config.max_historical_summaries {
                 self.historical_summaries.pop_front();
@@ -245,14 +248,16 @@ impl BoundedMemoryStats {
             self.historical_summaries.push_back(summary);
         }
     }
-    
+
     /// Check if cleanup is needed and perform it
     fn check_and_cleanup(&mut self) {
-        let recent_threshold = (self.config.max_recent_allocations as f32 * self.config.cleanup_threshold) as usize;
-        let historical_threshold = (self.config.max_historical_summaries as f32 * self.config.cleanup_threshold) as usize;
-        
+        let recent_threshold =
+            (self.config.max_recent_allocations as f32 * self.config.cleanup_threshold) as usize;
+        let historical_threshold =
+            (self.config.max_historical_summaries as f32 * self.config.cleanup_threshold) as usize;
+
         let mut cleaned = false;
-        
+
         // Cleanup recent allocations if needed
         if self.recent_allocations.len() >= recent_threshold {
             let remove_count = self.recent_allocations.len() / 4; // Remove 25%
@@ -263,7 +268,7 @@ impl BoundedMemoryStats {
             }
             cleaned = true;
         }
-        
+
         // Cleanup historical summaries if needed
         if self.historical_summaries.len() >= historical_threshold {
             let remove_count = self.historical_summaries.len() / 4; // Remove 25%
@@ -272,13 +277,13 @@ impl BoundedMemoryStats {
             }
             cleaned = true;
         }
-        
+
         if cleaned {
             self.cleanup_count += 1;
             self.last_cleanup_timestamp = Some(self.get_current_timestamp());
         }
     }
-    
+
     /// Get current timestamp in nanoseconds
     fn get_current_timestamp(&self) -> u64 {
         std::time::SystemTime::now()
@@ -286,7 +291,7 @@ impl BoundedMemoryStats {
             .unwrap_or_default()
             .as_nanos() as u64
     }
-    
+
     /// Calculate allocation rate (allocations per second)
     fn calculate_allocation_rate(&self) -> f64 {
         if let Some(oldest) = self.recent_allocations.front() {
@@ -298,7 +303,7 @@ impl BoundedMemoryStats {
         }
         0.0
     }
-    
+
     /// Calculate memory growth rate (bytes per second)
     fn calculate_memory_growth_rate(&self) -> f64 {
         if let Some(oldest) = self.historical_summaries.front() {
@@ -311,13 +316,15 @@ impl BoundedMemoryStats {
         }
         0.0
     }
-    
+
     /// Get memory usage statistics for this stats instance
     pub fn get_memory_usage(&self) -> MemoryUsageStats {
-        let recent_allocations_size = self.recent_allocations.len() * std::mem::size_of::<AllocationSummary>();
-        let historical_summaries_size = self.historical_summaries.len() * std::mem::size_of::<HistoricalSummary>();
+        let recent_allocations_size =
+            self.recent_allocations.len() * std::mem::size_of::<AllocationSummary>();
+        let historical_summaries_size =
+            self.historical_summaries.len() * std::mem::size_of::<HistoricalSummary>();
         let base_size = std::mem::size_of::<Self>();
-        
+
         MemoryUsageStats {
             total_size: base_size + recent_allocations_size + historical_summaries_size,
             recent_allocations_size,
@@ -327,7 +334,7 @@ impl BoundedMemoryStats {
             historical_summaries_count: self.historical_summaries.len(),
         }
     }
-    
+
     /// Force cleanup of old data
     pub fn force_cleanup(&mut self) {
         let old_cleanup_threshold = self.config.cleanup_threshold;
@@ -335,42 +342,45 @@ impl BoundedMemoryStats {
         self.check_and_cleanup();
         self.config.cleanup_threshold = old_cleanup_threshold;
     }
-    
+
     /// Get all allocations as a Vec (for compatibility with existing code)
     pub fn get_all_allocations(&self) -> Vec<AllocationInfo> {
-        self.recent_allocations.iter().map(|summary| {
-            // Convert summary back to AllocationInfo for compatibility
-            AllocationInfo {
-                ptr: summary.ptr,
-                size: summary.size,
-                var_name: summary.var_name.clone(),
-                type_name: summary.type_name.clone(),
-                scope_name: Some("tracked".to_string()),
-                timestamp_alloc: summary.timestamp_alloc,
-                timestamp_dealloc: summary.timestamp_dealloc,
-                thread_id: "main".to_string(), // Default thread ID
-                borrow_count: 0,
-                stack_trace: None,
-                is_leaked: summary.is_leaked,
-                lifetime_ms: summary.lifetime_ms,
-                // Set other fields to default/None for compatibility
-                smart_pointer_info: None,
-                memory_layout: None,
-                generic_info: None,
-                dynamic_type_info: None,
-                runtime_state: None,
-                stack_allocation: None,
-                temporary_object: None,
-                fragmentation_analysis: None,
-                generic_instantiation: None,
-                type_relationships: None,
-                type_usage: None,
-                function_call_tracking: None,
-                lifecycle_tracking: None,
-                access_tracking: None,
-                drop_chain_analysis: None,
-            }
-        }).collect()
+        self.recent_allocations
+            .iter()
+            .map(|summary| {
+                // Convert summary back to AllocationInfo for compatibility
+                AllocationInfo {
+                    ptr: summary.ptr,
+                    size: summary.size,
+                    var_name: summary.var_name.clone(),
+                    type_name: summary.type_name.clone(),
+                    scope_name: Some("tracked".to_string()),
+                    timestamp_alloc: summary.timestamp_alloc,
+                    timestamp_dealloc: summary.timestamp_dealloc,
+                    thread_id: "main".to_string(), // Default thread ID
+                    borrow_count: 0,
+                    stack_trace: None,
+                    is_leaked: summary.is_leaked,
+                    lifetime_ms: summary.lifetime_ms,
+                    // Set other fields to default/None for compatibility
+                    smart_pointer_info: None,
+                    memory_layout: None,
+                    generic_info: None,
+                    dynamic_type_info: None,
+                    runtime_state: None,
+                    stack_allocation: None,
+                    temporary_object: None,
+                    fragmentation_analysis: None,
+                    generic_instantiation: None,
+                    type_relationships: None,
+                    type_usage: None,
+                    function_call_tracking: None,
+                    lifecycle_tracking: None,
+                    access_tracking: None,
+                    drop_chain_analysis: None,
+                }
+            })
+            .collect()
     }
 }
 
@@ -407,7 +417,7 @@ impl AllocationHistoryManager {
     pub fn new() -> Self {
         Self::with_config(BoundedStatsConfig::default())
     }
-    
+
     /// Create new history manager with custom configuration
     pub fn with_config(config: BoundedStatsConfig) -> Self {
         Self {
@@ -417,7 +427,7 @@ impl AllocationHistoryManager {
             last_cleanup_timestamp: None,
         }
     }
-    
+
     /// Add allocation to history
     pub fn add_allocation(&mut self, alloc: AllocationInfo) {
         // Check bounds and cleanup if needed
@@ -431,32 +441,31 @@ impl AllocationHistoryManager {
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_nanos() as u64
+                    .as_nanos() as u64,
             );
         }
-        
+
         self.history.push_back(alloc);
     }
-    
+
     /// Get all history entries
     pub fn get_history(&self) -> &VecDeque<AllocationInfo> {
         &self.history
     }
-    
+
     /// Get history as Vec for compatibility
     pub fn get_history_vec(&self) -> Vec<AllocationInfo> {
         self.history.iter().cloned().collect()
     }
-    
+
     /// Clear all history
     pub fn clear(&mut self) {
         self.history.clear();
     }
-    
+
     /// Get memory usage of this history manager
     pub fn get_memory_usage(&self) -> usize {
-        std::mem::size_of::<Self>() + 
-        self.history.len() * std::mem::size_of::<AllocationInfo>()
+        std::mem::size_of::<Self>() + self.history.len() * std::mem::size_of::<AllocationInfo>()
     }
 }
 
@@ -470,7 +479,7 @@ impl Default for AllocationHistoryManager {
 mod tests {
     use super::*;
     use crate::core::types::AllocationInfo;
-    
+
     fn create_test_allocation(id: usize) -> AllocationInfo {
         AllocationInfo {
             ptr: 0x1000 + id,
@@ -502,7 +511,7 @@ mod tests {
             drop_chain_analysis: None,
         }
     }
-    
+
     #[test]
     fn test_bounded_memory_stats_no_overflow() {
         let mut stats = BoundedMemoryStats::with_config(BoundedStatsConfig {
@@ -511,66 +520,66 @@ mod tests {
             enable_auto_cleanup: true,
             cleanup_threshold: 0.9,
         });
-        
+
         // Add 150 allocations
         for i in 0..150 {
             let alloc = create_test_allocation(i);
             stats.add_allocation(&alloc);
         }
-        
+
         // Verify bounds are respected
         assert!(stats.recent_allocations.len() <= 100);
         assert_eq!(stats.total_allocations, 150);
         assert!(stats.cleanup_count > 0);
     }
-    
+
     #[test]
     fn test_allocation_history_manager_bounds() {
         let mut manager = AllocationHistoryManager::with_config(BoundedStatsConfig {
             max_recent_allocations: 50,
             ..Default::default()
         });
-        
+
         // Add 100 allocations
         for i in 0..100 {
             let alloc = create_test_allocation(i);
             manager.add_allocation(alloc);
         }
-        
+
         // Verify bounds are respected
         assert!(manager.history.len() <= 50);
         assert!(manager.cleanup_count > 0);
     }
-    
+
     #[test]
     fn test_memory_usage_calculation() {
         let stats = BoundedMemoryStats::new();
         let usage = stats.get_memory_usage();
-        
+
         assert!(usage.total_size > 0);
         assert_eq!(usage.recent_allocations_count, 0);
         assert_eq!(usage.historical_summaries_count, 0);
     }
-    
+
     #[test]
     fn test_deallocation_tracking() {
         let mut stats = BoundedMemoryStats::new();
         let alloc = create_test_allocation(1);
-        
+
         stats.add_allocation(&alloc);
         assert_eq!(stats.active_allocations, 1);
         assert_eq!(stats.active_memory, alloc.size);
-        
+
         stats.record_deallocation(alloc.ptr, alloc.size);
         assert_eq!(stats.active_allocations, 0);
         assert_eq!(stats.active_memory, 0);
         assert_eq!(stats.total_deallocations, 1);
     }
-    
+
     #[test]
     fn test_leak_tracking() {
         let mut stats = BoundedMemoryStats::new();
-        
+
         stats.record_leak(1024);
         assert_eq!(stats.leaked_allocations, 1);
         assert_eq!(stats.leaked_memory, 1024);

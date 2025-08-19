@@ -257,7 +257,8 @@ mod tests {
         primitives::write_option(&mut buffer, &some_value).expect("Failed to get test value");
 
         let mut cursor = Cursor::new(&buffer);
-        let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).expect("Test operation failed");
+        let read_value: Option<TestStruct> =
+            primitives::read_option(&mut cursor).expect("Test operation failed");
         assert!(read_value.is_some());
         assert_eq!(read_value.expect("Test operation failed").0, 42);
 
@@ -267,7 +268,8 @@ mod tests {
         primitives::write_option(&mut buffer, &none_value).expect("Test operation failed");
 
         let mut cursor = Cursor::new(&buffer);
-        let read_value: Option<TestStruct> = primitives::read_option(&mut cursor).expect("Test operation failed");
+        let read_value: Option<TestStruct> =
+            primitives::read_option(&mut cursor).expect("Test operation failed");
         assert!(read_value.is_none());
     }
 }
@@ -278,7 +280,7 @@ pub struct BinaryUnsafeReport {
     pub report_id: String,
     pub source_type: u8, // 0=UnsafeBlock, 1=FfiFunction, 2=RawPointer, 3=Transmute
     pub source_details: String, // JSON serialized details
-    pub risk_level: u8, // 0=Low, 1=Medium, 2=High, 3=Critical
+    pub risk_level: u8,  // 0=Low, 1=Medium, 2=High, 3=Critical
     pub risk_score: f32,
     pub confidence_score: f32,
     pub generated_at: u64,
@@ -324,7 +326,7 @@ impl BinarySerializable for BinaryUnsafeReport {
         4 + // confidence_score (f32)
         8 + // generated_at (u64)
         4 + // dynamic_violations_count
-        4   // risk_factors_count
+        4 // risk_factors_count
     }
 }
 
@@ -372,7 +374,7 @@ impl BinarySerializable for BinaryMemoryPassport {
         1 + // status_at_shutdown
         8 + // created_at
         8 + // updated_at
-        4   // lifecycle_events_count
+        4 // lifecycle_events_count
     }
 }
 
@@ -412,7 +414,7 @@ pub struct BinaryResolvedFfiFunction {
     pub library_name: String,
     pub function_name: String,
     pub signature: Option<String>,
-    pub category: u8, // Enum index
+    pub category: u8,   // Enum index
     pub risk_level: u8, // Enum index
 }
 
@@ -442,6 +444,6 @@ impl BinarySerializable for BinaryResolvedFfiFunction {
         4 + self.function_name.len() + // string length + content
         1 + self.signature.as_ref().map_or(0, |s| 4 + s.len()) + // option flag + optional string
         1 + // category
-        1   // risk_level
+        1 // risk_level
     }
 }

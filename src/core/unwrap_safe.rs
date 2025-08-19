@@ -5,9 +5,9 @@
 
 use crate::core::error::{MemScopeError, MemoryOperation, SystemErrorType};
 use crate::core::safe_operations::SafeLock;
-use std::fmt::{self, Debug, Display};
 use std::backtrace::Backtrace;
 use std::error::Error as StdError;
+use std::fmt::{self, Debug, Display};
 
 /// Custom error type for unwrap operations
 #[derive(Debug)]
@@ -28,14 +28,21 @@ pub enum UnwrapError {
 impl Display for UnwrapError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NoneValue { context, location, .. } => {
+            Self::NoneValue {
+                context, location, ..
+            } => {
                 if let Some(loc) = location {
                     write!(f, "Attempt to unwrap None at {}: {}", loc, context)
                 } else {
                     write!(f, "Attempt to unwrap None: {}", context)
                 }
             }
-            Self::ResultError { source, context, location, .. } => {
+            Self::ResultError {
+                source,
+                context,
+                location,
+                ..
+            } => {
                 if let Some(loc) = location {
                     write!(f, "Unwrap failed at {} ({}): {}", loc, context, source)
                 } else {
@@ -59,8 +66,7 @@ impl UnwrapError {
     /// Get the backtrace for this error
     pub fn backtrace(&self) -> &Backtrace {
         match self {
-            Self::NoneValue { backtrace, .. } |
-            Self::ResultError { backtrace, .. } => backtrace,
+            Self::NoneValue { backtrace, .. } | Self::ResultError { backtrace, .. } => backtrace,
         }
     }
 }
@@ -77,8 +83,8 @@ pub trait UnwrapSafe<T> {
     {
         self.try_unwrap(context).map_err(|mut e| {
             match &mut e {
-                UnwrapError::NoneValue { location: loc, .. } |
-                UnwrapError::ResultError { location: loc, .. } => {
+                UnwrapError::NoneValue { location: loc, .. }
+                | UnwrapError::ResultError { location: loc, .. } => {
                     *loc = Some(location);
                 }
             }
@@ -118,14 +124,14 @@ pub trait UnwrapSafe<T> {
         self.try_unwrap(context).map_err(|e| {
             MemScopeError::memory(
                 MemoryOperation::Allocation,
-                format!("Failed to unwrap value: {}", e)
+                format!("Failed to unwrap value: {}", e),
             )
         })
     }
 
     /// Unwrap with context information (deprecated)
     /// Unwrap or abort the process
-    /// 
+    ///
     /// # Safety
     /// This method will abort the process on error. Only use when the program
     /// cannot continue without this value.
@@ -142,7 +148,7 @@ pub trait UnwrapSafe<T> {
 
     /// Unwrap with context and location information (deprecated)
     /// Unwrap or abort the process with location information
-    /// 
+    ///
     /// # Safety
     /// This method will abort the process on error. Only use when the program
     /// cannot continue without this value.
@@ -154,9 +160,9 @@ pub trait UnwrapSafe<T> {
         self.try_unwrap_at(context, location).unwrap_or_else(|e| {
             let backtrace = e.backtrace();
             tracing::error!(
-                "Fatal error at {}: {}\nBacktrace:\n{:?}", 
-                location, 
-                e, 
+                "Fatal error at {}: {}\nBacktrace:\n{:?}",
+                location,
+                e,
                 backtrace
             );
             std::process::abort();
@@ -197,7 +203,7 @@ impl<T> UnwrapSafe<T> for Option<T> {
         self.try_unwrap(context).map_err(|e| {
             MemScopeError::memory(
                 MemoryOperation::Allocation,
-                format!("Failed to unwrap value: {}", e)
+                format!("Failed to unwrap value: {}", e),
             )
         })
     }
@@ -223,7 +229,11 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
         }
     }
 
-    fn try_unwrap_at(self, context: &'static str, location: &'static str) -> Result<T, UnwrapError> {
+    fn try_unwrap_at(
+        self,
+        context: &'static str,
+        location: &'static str,
+    ) -> Result<T, UnwrapError> {
         self.try_unwrap(context).map_err(|mut e| {
             if let UnwrapError::ResultError { location: loc, .. } = &mut e {
                 *loc = Some(location);

@@ -797,7 +797,9 @@ mod tests {
             }
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&data).expect("Failed to validate FFI analysis");
+        let result = validator
+            .validate_unsafe_ffi_analysis(&data)
+            .expect("Failed to validate FFI analysis");
         assert!(result.is_valid);
         assert!(result.errors.is_empty());
     }
@@ -827,7 +829,9 @@ mod tests {
             "ffi_analysis": {"summary": {}, "allocations": []}
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&data).expect("Test operation failed");
+        let result = validator
+            .validate_unsafe_ffi_analysis(&data)
+            .expect("Test operation failed");
         assert!(!result.is_valid);
         assert!(!result.errors.is_empty());
     }
@@ -837,11 +841,17 @@ mod tests {
         let validator = SchemaValidator::new();
         let data = json!({"test": "data"});
 
-        let hash1 = validator.calculate_integrity_hash(&data).expect("Failed to calculate hash 1");
-        let hash2 = validator.calculate_integrity_hash(&data).expect("Failed to calculate hash 2");
+        let hash1 = validator
+            .calculate_integrity_hash(&data)
+            .expect("Failed to calculate hash 1");
+        let hash2 = validator
+            .calculate_integrity_hash(&data)
+            .expect("Failed to calculate hash 2");
 
         assert_eq!(hash1, hash2);
-        assert!(validator.verify_integrity(&data, &hash1).expect("Failed to verify integrity"));
+        assert!(validator
+            .verify_integrity(&data, &hash1)
+            .expect("Failed to verify integrity"));
     }
 
     #[test]
@@ -870,7 +880,9 @@ mod tests {
             "ffi_analysis": {"summary": {}, "allocations": []}
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&valid_data).expect("Failed to validate valid data");
+        let result = validator
+            .validate_unsafe_ffi_analysis(&valid_data)
+            .expect("Failed to validate valid data");
         assert!(result.is_valid);
 
         let strict_validator = SchemaValidator::strict();

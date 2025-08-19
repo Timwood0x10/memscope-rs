@@ -22,9 +22,7 @@ pub struct DefaultErrorAdapter;
 impl ErrorAdapter for DefaultErrorAdapter {
     fn from_tracking_error(error: TrackingError) -> MemScopeError {
         match error {
-            TrackingError::DataError(msg) => {
-                MemScopeError::memory(MemoryOperation::Tracking, msg)
-            }
+            TrackingError::DataError(msg) => MemScopeError::memory(MemoryOperation::Tracking, msg),
             TrackingError::AllocationFailed(msg) => {
                 MemScopeError::memory(MemoryOperation::Allocation, msg)
             }

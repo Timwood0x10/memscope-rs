@@ -492,13 +492,17 @@ mod tests {
         monitor.update_interval = Duration::from_millis(1);
 
         monitor.set_callback(Box::new(move |_progress| {
-            *callback_called_clone.safe_lock().expect("Failed to acquire lock on callback_called") = true;
+            *callback_called_clone
+                .safe_lock()
+                .expect("Failed to acquire lock on callback_called") = true;
         }));
 
         // Add small delay to ensure update interval passes
         std::thread::sleep(std::time::Duration::from_millis(10));
         monitor.update_progress(0.5, None);
-        assert!(*callback_called.safe_lock().expect("Failed to acquire lock on callback_called"));
+        assert!(*callback_called
+            .safe_lock()
+            .expect("Failed to acquire lock on callback_called"));
     }
 
     #[test]

@@ -521,8 +521,7 @@ struct PatternDetector {
 
 /// Internal graph optimizer
 #[derive(Debug, Clone)]
-struct GraphOptimizer {
-}
+struct GraphOptimizer {}
 
 impl VariableRelationshipAnalyzer {
     /// Create a new variable relationship analyzer
@@ -562,17 +561,26 @@ impl VariableRelationshipAnalyzer {
     }
 
     /// Create a graph node from allocation info
-    fn create_node_from_allocation(&mut self, allocation: &AllocationInfo) -> Result<(), BinaryExportError> {
+    fn create_node_from_allocation(
+        &mut self,
+        allocation: &AllocationInfo,
+    ) -> Result<(), BinaryExportError> {
         let node_id = format!("node_{}", self.node_counter);
         self.node_counter += 1;
 
-        let name = allocation.var_name.clone()
+        let name = allocation
+            .var_name
+            .clone()
             .unwrap_or_else(|| format!("alloc_{:x}", allocation.ptr));
-        
-        let type_name = allocation.type_name.clone()
+
+        let type_name = allocation
+            .type_name
+            .clone()
             .unwrap_or_else(|| "unknown".to_string());
-        
-        let scope = allocation.scope_name.clone()
+
+        let scope = allocation
+            .scope_name
+            .clone()
             .unwrap_or_else(|| "global".to_string());
 
         let category = self.determine_node_category(&type_name, allocation);
@@ -602,24 +610,46 @@ impl VariableRelationshipAnalyzer {
         };
 
         // Update relationship detector mappings
-        self.relationship_detector.address_map.insert(allocation.ptr, node_id.clone());
-        self.relationship_detector.type_map.entry(type_name).or_insert_with(Vec::new).push(node_id.clone());
-        self.relationship_detector.scope_map.entry(scope).or_insert_with(Vec::new).push(node_id.clone());
-        self.relationship_detector.temporal_order.push((node_id.clone(), allocation.timestamp_alloc));
+        self.relationship_detector
+            .address_map
+            .insert(allocation.ptr, node_id.clone());
+        self.relationship_detector
+            .type_map
+            .entry(type_name)
+            .or_insert_with(Vec::new)
+            .push(node_id.clone());
+        self.relationship_detector
+            .scope_map
+            .entry(scope)
+            .or_insert_with(Vec::new)
+            .push(node_id.clone());
+        self.relationship_detector
+            .temporal_order
+            .push((node_id.clone(), allocation.timestamp_alloc));
 
         self.nodes.insert(node_id, node);
         Ok(())
     }
 
     /// Determine node category from type and allocation info
-    fn determine_node_category(&self, type_name: &str, allocation: &AllocationInfo) -> NodeCategory {
-        if type_name.starts_with("Box<") || type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
+    fn determine_node_category(
+        &self,
+        type_name: &str,
+        allocation: &AllocationInfo,
+    ) -> NodeCategory {
+        if type_name.starts_with("Box<")
+            || type_name.starts_with("Rc<")
+            || type_name.starts_with("Arc<")
+        {
             NodeCategory::SmartPointer
         } else if type_name.starts_with("&") {
             NodeCategory::Reference
         } else if type_name.starts_with("*const") || type_name.starts_with("*mut") {
             NodeCategory::RawPointer
-        } else if type_name.starts_with("Vec<") || type_name.starts_with("HashMap<") || type_name.starts_with("HashSet<") {
+        } else if type_name.starts_with("Vec<")
+            || type_name.starts_with("HashMap<")
+            || type_name.starts_with("HashSet<")
+        {
             NodeCategory::Collection
         } else if self.is_primitive_type(type_name) {
             NodeCategory::Primitive
@@ -636,9 +666,22 @@ impl VariableRelationshipAnalyzer {
     fn is_primitive_type(&self, type_name: &str) -> bool {
         matches!(
             type_name,
-            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
-            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
-            "f32" | "f64" | "bool" | "char" | "()"
+            "i8" | "i16"
+                | "i32"
+                | "i64"
+                | "i128"
+                | "isize"
+                | "u8"
+                | "u16"
+                | "u32"
+                | "u64"
+                | "u128"
+                | "usize"
+                | "f32"
+                | "f64"
+                | "bool"
+                | "char"
+                | "()"
         )
     }
 
@@ -666,7 +709,7 @@ impl VariableRelationshipAnalyzer {
         let start = allocation.timestamp_alloc;
         let end = allocation.timestamp_dealloc;
         let duration_ms = allocation.lifetime_ms;
-        
+
         let category = if let Some(duration) = duration_ms {
             if duration < 1 {
                 LifetimeCategory::Instant
@@ -695,16 +738,16 @@ impl VariableRelationshipAnalyzer {
     /// Create visual properties for node
     fn create_node_visual(&self, category: &NodeCategory, size: usize) -> NodeVisual {
         let radius = (size as f64).log10().max(3.0).min(20.0);
-        
+
         let color = match category {
-            NodeCategory::Stack => "#4CAF50".to_string(),        // Green
-            NodeCategory::Heap => "#2196F3".to_string(),         // Blue
+            NodeCategory::Stack => "#4CAF50".to_string(), // Green
+            NodeCategory::Heap => "#2196F3".to_string(),  // Blue
             NodeCategory::SmartPointer => "#FF9800".to_string(), // Orange
-            NodeCategory::Reference => "#9C27B0".to_string(),    // Purple
-            NodeCategory::RawPointer => "#F44336".to_string(),   // Red
-            NodeCategory::Collection => "#00BCD4".to_string(),   // Cyan
-            NodeCategory::Primitive => "#8BC34A".to_string(),    // Light Green
-            NodeCategory::Custom => "#607D8B".to_string(),       // Blue Grey
+            NodeCategory::Reference => "#9C27B0".to_string(), // Purple
+            NodeCategory::RawPointer => "#F44336".to_string(), // Red
+            NodeCategory::Collection => "#00BCD4".to_string(), // Cyan
+            NodeCategory::Primitive => "#8BC34A".to_string(), // Light Green
+            NodeCategory::Custom => "#607D8B".to_string(), // Blue Grey
         };
 
         let css_class = format!("node-{:?}", category).to_lowercase();
@@ -721,9 +764,14 @@ impl VariableRelationshipAnalyzer {
     }
 
     /// Detect relationships between nodes
-    fn detect_relationships(&mut self, _allocations: &[AllocationInfo]) -> Result<(), BinaryExportError> {
+    fn detect_relationships(
+        &mut self,
+        _allocations: &[AllocationInfo],
+    ) -> Result<(), BinaryExportError> {
         // Sort by temporal order for temporal relationships
-        self.relationship_detector.temporal_order.sort_by_key(|(_, timestamp)| *timestamp);
+        self.relationship_detector
+            .temporal_order
+            .sort_by_key(|(_, timestamp)| *timestamp);
 
         // Detect various types of relationships
         self.detect_ownership_relationships()?;
@@ -804,7 +852,9 @@ impl VariableRelationshipAnalyzer {
 
     /// Detect memory adjacency relationships
     fn detect_memory_adjacency_relationships(&mut self) -> Result<(), BinaryExportError> {
-        let mut addresses: Vec<(usize, String)> = self.nodes.iter()
+        let mut addresses: Vec<(usize, String)> = self
+            .nodes
+            .iter()
             .map(|(id, node)| (node.address, id.clone()))
             .collect();
         addresses.sort_by_key(|(addr, _)| *addr);
@@ -812,10 +862,10 @@ impl VariableRelationshipAnalyzer {
         for i in 0..addresses.len().saturating_sub(1) {
             let (addr1, id1) = &addresses[i];
             let (addr2, id2) = &addresses[i + 1];
-            
+
             let node1 = &self.nodes[id1];
             let _node2 = &self.nodes[id2];
-            
+
             // Check if allocations are adjacent in memory
             if addr1 + node1.size == *addr2 {
                 let edge = self.create_edge(
@@ -833,10 +883,15 @@ impl VariableRelationshipAnalyzer {
 
     /// Detect temporal relationships
     fn detect_temporal_relationships(&mut self) -> Result<(), BinaryExportError> {
-        for i in 0..self.relationship_detector.temporal_order.len().saturating_sub(1) {
+        for i in 0..self
+            .relationship_detector
+            .temporal_order
+            .len()
+            .saturating_sub(1)
+        {
             let (id1, _) = &self.relationship_detector.temporal_order[i];
             let (id2, _) = &self.relationship_detector.temporal_order[i + 1];
-            
+
             // Create temporal relationship for consecutive allocations
             let edge = self.create_edge(
                 id1.clone(),
@@ -853,9 +908,9 @@ impl VariableRelationshipAnalyzer {
     /// Check if one node could be owned by another
     fn could_be_owned_by(&self, owner: &GraphNode, owned: &GraphNode) -> bool {
         // Simple heuristic: smart pointers could own heap allocations
-        matches!(owner.category, NodeCategory::SmartPointer) &&
-        matches!(owned.category, NodeCategory::Heap | NodeCategory::Custom) &&
-        owner.scope == owned.scope
+        matches!(owner.category, NodeCategory::SmartPointer)
+            && matches!(owned.category, NodeCategory::Heap | NodeCategory::Custom)
+            && owner.scope == owned.scope
     }
 
     /// Create an edge between two nodes
@@ -890,17 +945,17 @@ impl VariableRelationshipAnalyzer {
     /// Create visual properties for edge
     fn create_edge_visual(&self, relationship: &RelationshipType, strength: f64) -> EdgeVisual {
         let width = (strength * 3.0).max(1.0);
-        
+
         let color = match relationship {
-            RelationshipType::Ownership => "#FF5722".to_string(),      // Deep Orange
-            RelationshipType::Borrowing => "#3F51B5".to_string(),      // Indigo
-            RelationshipType::Reference => "#9C27B0".to_string(),      // Purple
-            RelationshipType::Containment => "#4CAF50".to_string(),    // Green
-            RelationshipType::Dependency => "#FF9800".to_string(),     // Orange
+            RelationshipType::Ownership => "#FF5722".to_string(), // Deep Orange
+            RelationshipType::Borrowing => "#3F51B5".to_string(), // Indigo
+            RelationshipType::Reference => "#9C27B0".to_string(), // Purple
+            RelationshipType::Containment => "#4CAF50".to_string(), // Green
+            RelationshipType::Dependency => "#FF9800".to_string(), // Orange
             RelationshipType::SharedOwnership => "#E91E63".to_string(), // Pink
-            RelationshipType::Temporal => "#607D8B".to_string(),       // Blue Grey
+            RelationshipType::Temporal => "#607D8B".to_string(),  // Blue Grey
             RelationshipType::MemoryAdjacency => "#00BCD4".to_string(), // Cyan
-            RelationshipType::TypeSimilarity => "#795548".to_string(),  // Brown
+            RelationshipType::TypeSimilarity => "#795548".to_string(), // Brown
         };
 
         let style = match relationship {
@@ -921,17 +976,23 @@ impl VariableRelationshipAnalyzer {
 
     /// Detect patterns in the graph
     fn detect_patterns(&mut self) -> Result<(), BinaryExportError> {
-        self.pattern_detector.detect_ownership_chains(&self.nodes, &self.edges)?;
-        self.pattern_detector.detect_circular_references(&self.nodes, &self.edges)?;
-        self.pattern_detector.detect_hub_patterns(&self.nodes, &self.edges)?;
-        self.pattern_detector.detect_memory_leaks(&self.nodes, &self.edges)?;
+        self.pattern_detector
+            .detect_ownership_chains(&self.nodes, &self.edges)?;
+        self.pattern_detector
+            .detect_circular_references(&self.nodes, &self.edges)?;
+        self.pattern_detector
+            .detect_hub_patterns(&self.nodes, &self.edges)?;
+        self.pattern_detector
+            .detect_memory_leaks(&self.nodes, &self.edges)?;
         Ok(())
     }
 
     /// Optimize graph for performance
     fn optimize_graph(&mut self) -> Result<(), BinaryExportError> {
-        self.optimizer.create_clusters(&mut self.nodes, &self.edges)?;
-        self.optimizer.create_simplified_graph(&self.nodes, &self.edges)?;
+        self.optimizer
+            .create_clusters(&mut self.nodes, &self.edges)?;
+        self.optimizer
+            .create_simplified_graph(&self.nodes, &self.edges)?;
         self.optimizer.create_lod_levels(&self.nodes, &self.edges)?;
         Ok(())
     }
@@ -942,7 +1003,7 @@ impl VariableRelationshipAnalyzer {
         let links = self.edges.clone();
 
         let metadata = self.create_graph_metadata(&nodes, &links);
-        
+
         let graph = RelationshipGraph {
             nodes,
             links,
@@ -1016,7 +1077,10 @@ impl VariableRelationshipAnalyzer {
     }
 
     /// Create relationship summary
-    fn create_relationship_summary(&self, graph: &RelationshipGraph) -> Result<RelationshipSummary, BinaryExportError> {
+    fn create_relationship_summary(
+        &self,
+        graph: &RelationshipGraph,
+    ) -> Result<RelationshipSummary, BinaryExportError> {
         let total_variables = graph.nodes.len();
         let total_relationships = graph.links.len();
 
@@ -1024,11 +1088,15 @@ impl VariableRelationshipAnalyzer {
         let mut ownership_distribution = HashMap::new();
 
         for edge in &graph.links {
-            *relationship_distribution.entry(edge.relationship.clone()).or_insert(0) += 1;
+            *relationship_distribution
+                .entry(edge.relationship.clone())
+                .or_insert(0) += 1;
         }
 
         for node in &graph.nodes {
-            *ownership_distribution.entry(node.ownership.clone()).or_insert(0) += 1;
+            *ownership_distribution
+                .entry(node.ownership.clone())
+                .or_insert(0) += 1;
         }
 
         let average_relationships = if total_variables > 0 {
@@ -1056,17 +1124,19 @@ impl VariableRelationshipAnalyzer {
         let base_score = (graph.metadata.density * 50.0) as u32;
         let edge_penalty = (graph.links.len() / 10).min(30) as u32;
         let node_penalty = (graph.nodes.len() / 50).min(20) as u32;
-        
+
         (base_score + edge_penalty + node_penalty).min(100)
     }
 
     /// Create memory insights
     fn create_memory_insights(&self, graph: &RelationshipGraph) -> MemoryInsights {
         let total_memory: usize = graph.nodes.iter().map(|n| n.size).sum();
-        
+
         let mut lifetime_distribution = HashMap::new();
         for node in &graph.nodes {
-            *lifetime_distribution.entry(node.lifetime.category.clone()).or_insert(0) += 1;
+            *lifetime_distribution
+                .entry(node.lifetime.category.clone())
+                .or_insert(0) += 1;
         }
 
         MemoryInsights {
@@ -1100,25 +1170,44 @@ impl PatternDetector {
         }
     }
 
-    fn detect_ownership_chains(&mut self, _nodes: &HashMap<String, GraphNode>, _edges: &[GraphEdge]) -> Result<(), BinaryExportError> {
+    fn detect_ownership_chains(
+        &mut self,
+        _nodes: &HashMap<String, GraphNode>,
+        _edges: &[GraphEdge],
+    ) -> Result<(), BinaryExportError> {
         // Implementation would detect chains of ownership relationships
         Ok(())
     }
 
-    fn detect_circular_references(&mut self, _nodes: &HashMap<String, GraphNode>, _edges: &[GraphEdge]) -> Result<(), BinaryExportError> {
+    fn detect_circular_references(
+        &mut self,
+        _nodes: &HashMap<String, GraphNode>,
+        _edges: &[GraphEdge],
+    ) -> Result<(), BinaryExportError> {
         // Implementation would detect circular reference patterns
         Ok(())
     }
 
-    fn detect_hub_patterns(&mut self, _nodes: &HashMap<String, GraphNode>, _edges: &[GraphEdge]) -> Result<(), BinaryExportError> {
+    fn detect_hub_patterns(
+        &mut self,
+        _nodes: &HashMap<String, GraphNode>,
+        _edges: &[GraphEdge],
+    ) -> Result<(), BinaryExportError> {
         // Implementation would detect hub patterns (nodes with many connections)
         Ok(())
     }
 
-    fn detect_memory_leaks(&mut self, nodes: &HashMap<String, GraphNode>, _edges: &[GraphEdge]) -> Result<(), BinaryExportError> {
+    fn detect_memory_leaks(
+        &mut self,
+        nodes: &HashMap<String, GraphNode>,
+        _edges: &[GraphEdge],
+    ) -> Result<(), BinaryExportError> {
         // Detect potential memory leaks
-        let leaked_nodes: Vec<String> = nodes.iter()
-            .filter(|(_, node)| !node.lifetime.is_active && node.lifetime.category == LifetimeCategory::Persistent)
+        let leaked_nodes: Vec<String> = nodes
+            .iter()
+            .filter(|(_, node)| {
+                !node.lifetime.is_active && node.lifetime.category == LifetimeCategory::Persistent
+            })
             .map(|(id, _)| id.clone())
             .collect();
 
@@ -1143,26 +1232,40 @@ impl PatternDetector {
 
 impl GraphOptimizer {
     fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
 
-    fn create_clusters(&mut self, _nodes: &mut HashMap<String, GraphNode>, _edges: &[GraphEdge]) -> Result<(), BinaryExportError> {
+    fn create_clusters(
+        &mut self,
+        _nodes: &mut HashMap<String, GraphNode>,
+        _edges: &[GraphEdge],
+    ) -> Result<(), BinaryExportError> {
         // Implementation would create node clusters for performance
         Ok(())
     }
 
-    fn create_simplified_graph(&mut self, _nodes: &HashMap<String, GraphNode>, _edges: &[GraphEdge]) -> Result<(), BinaryExportError> {
+    fn create_simplified_graph(
+        &mut self,
+        _nodes: &HashMap<String, GraphNode>,
+        _edges: &[GraphEdge],
+    ) -> Result<(), BinaryExportError> {
         // Implementation would create simplified version of graph
         Ok(())
     }
 
-    fn create_lod_levels(&mut self, _nodes: &HashMap<String, GraphNode>, _edges: &[GraphEdge]) -> Result<(), BinaryExportError> {
+    fn create_lod_levels(
+        &mut self,
+        _nodes: &HashMap<String, GraphNode>,
+        _edges: &[GraphEdge],
+    ) -> Result<(), BinaryExportError> {
         // Implementation would create level-of-detail configurations
         Ok(())
     }
 
-    fn create_optimization_data(&self, _graph: &RelationshipGraph) -> Result<GraphOptimization, BinaryExportError> {
+    fn create_optimization_data(
+        &self,
+        _graph: &RelationshipGraph,
+    ) -> Result<GraphOptimization, BinaryExportError> {
         Ok(GraphOptimization {
             simplified: None,
             clusters: Vec::new(),
@@ -1242,8 +1345,9 @@ mod tests {
     #[test]
     fn test_node_category_determination() {
         let analyzer = VariableRelationshipAnalyzer::new();
-        let allocation = create_test_allocation(0x1000, 1024, Some("test"), Some("Vec<u8>"), Some("main"));
-        
+        let allocation =
+            create_test_allocation(0x1000, 1024, Some("test"), Some("Vec<u8>"), Some("main"));
+
         let category = analyzer.determine_node_category("Vec<u8>", &allocation);
         assert_eq!(category, NodeCategory::Collection);
 
@@ -1260,16 +1364,19 @@ mod tests {
     #[test]
     fn test_ownership_status_determination() {
         let analyzer = VariableRelationshipAnalyzer::new();
-        
-        let allocation = create_test_allocation(0x1000, 1024, Some("test"), Some("&mut i32"), Some("main"));
+
+        let allocation =
+            create_test_allocation(0x1000, 1024, Some("test"), Some("&mut i32"), Some("main"));
         let ownership = analyzer.determine_ownership_status(&allocation);
         assert_eq!(ownership, OwnershipStatus::BorrowedMutable);
 
-        let allocation = create_test_allocation(0x1000, 1024, Some("test"), Some("&i32"), Some("main"));
+        let allocation =
+            create_test_allocation(0x1000, 1024, Some("test"), Some("&i32"), Some("main"));
         let ownership = analyzer.determine_ownership_status(&allocation);
         assert_eq!(ownership, OwnershipStatus::BorrowedImmutable);
 
-        let allocation = create_test_allocation(0x1000, 1024, Some("test"), Some("Rc<i32>"), Some("main"));
+        let allocation =
+            create_test_allocation(0x1000, 1024, Some("test"), Some("Rc<i32>"), Some("main"));
         let ownership = analyzer.determine_ownership_status(&allocation);
         assert_eq!(ownership, OwnershipStatus::Shared);
     }
@@ -1277,8 +1384,9 @@ mod tests {
     #[test]
     fn test_lifetime_category_determination() {
         let analyzer = VariableRelationshipAnalyzer::new();
-        
-        let mut allocation = create_test_allocation(0x1000, 1024, Some("test"), Some("i32"), Some("main"));
+
+        let mut allocation =
+            create_test_allocation(0x1000, 1024, Some("test"), Some("i32"), Some("main"));
         allocation.lifetime_ms = Some(0);
         let lifetime = analyzer.create_lifetime_info(&allocation);
         assert_eq!(lifetime.category, LifetimeCategory::Instant);
@@ -1305,7 +1413,8 @@ mod tests {
             create_test_allocation(0x4000, 256, Some("int1"), Some("i32"), Some("helper")),
         ];
 
-        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis = VariableRelationshipAnalyzer::analyze_allocations(&allocations)
+            .expect("Failed to get test value");
 
         assert_eq!(analysis.graph.nodes.len(), 4);
         assert_eq!(analysis.summary.total_variables, 4);
@@ -1317,7 +1426,7 @@ mod tests {
     #[test]
     fn test_primitive_type_detection() {
         let analyzer = VariableRelationshipAnalyzer::new();
-        
+
         assert!(analyzer.is_primitive_type("i32"));
         assert!(analyzer.is_primitive_type("f64"));
         assert!(analyzer.is_primitive_type("bool"));
@@ -1328,41 +1437,39 @@ mod tests {
 
     #[test]
     fn test_graph_metadata_creation() {
-        let nodes = vec![
-            GraphNode {
-                id: "node1".to_string(),
-                name: "test1".to_string(),
-                address: 0x1000,
-                size: 1024,
-                type_name: "i32".to_string(),
-                scope: "main".to_string(),
-                category: NodeCategory::Primitive,
-                ownership: OwnershipStatus::Owner,
-                lifetime: LifetimeInfo {
-                    start: 1000,
-                    end: None,
-                    duration_ms: None,
-                    category: LifetimeCategory::Active,
-                    is_active: true,
-                },
-                visual: NodeVisual {
-                    x: None,
-                    y: None,
-                    radius: 5.0,
-                    color: "#4CAF50".to_string(),
-                    opacity: 0.8,
-                    css_class: "node-primitive".to_string(),
-                    fixed: false,
-                },
-                stats: NodeStats {
-                    in_degree: 0,
-                    out_degree: 1,
-                    centrality: 0.5,
-                    clustering: 0.0,
-                    page_rank: 0.25,
-                },
+        let nodes = vec![GraphNode {
+            id: "node1".to_string(),
+            name: "test1".to_string(),
+            address: 0x1000,
+            size: 1024,
+            type_name: "i32".to_string(),
+            scope: "main".to_string(),
+            category: NodeCategory::Primitive,
+            ownership: OwnershipStatus::Owner,
+            lifetime: LifetimeInfo {
+                start: 1000,
+                end: None,
+                duration_ms: None,
+                category: LifetimeCategory::Active,
+                is_active: true,
             },
-        ];
+            visual: NodeVisual {
+                x: None,
+                y: None,
+                radius: 5.0,
+                color: "#4CAF50".to_string(),
+                opacity: 0.8,
+                css_class: "node-primitive".to_string(),
+                fixed: false,
+            },
+            stats: NodeStats {
+                in_degree: 0,
+                out_degree: 1,
+                centrality: 0.5,
+                clustering: 0.0,
+                page_rank: 0.25,
+            },
+        }];
 
         let edges = vec![];
         let analyzer = VariableRelationshipAnalyzer::new();
@@ -1377,7 +1484,7 @@ mod tests {
     #[test]
     fn test_edge_creation() {
         let analyzer = VariableRelationshipAnalyzer::new();
-        
+
         let edge = analyzer.create_edge(
             "node1".to_string(),
             "node2".to_string(),
@@ -1396,41 +1503,39 @@ mod tests {
     #[test]
     fn test_memory_insights_creation() {
         let graph = RelationshipGraph {
-            nodes: vec![
-                GraphNode {
-                    id: "node1".to_string(),
-                    name: "test1".to_string(),
-                    address: 0x1000,
-                    size: 1024,
-                    type_name: "i32".to_string(),
-                    scope: "main".to_string(),
-                    category: NodeCategory::Primitive,
-                    ownership: OwnershipStatus::Owner,
-                    lifetime: LifetimeInfo {
-                        start: 1000,
-                        end: None,
-                        duration_ms: Some(100),
-                        category: LifetimeCategory::Short,
-                        is_active: false,
-                    },
-                    visual: NodeVisual {
-                        x: None,
-                        y: None,
-                        radius: 5.0,
-                        color: "#4CAF50".to_string(),
-                        opacity: 0.8,
-                        css_class: "node-primitive".to_string(),
-                        fixed: false,
-                    },
-                    stats: NodeStats {
-                        in_degree: 0,
-                        out_degree: 0,
-                        centrality: 0.0,
-                        clustering: 0.0,
-                        page_rank: 0.0,
-                    },
+            nodes: vec![GraphNode {
+                id: "node1".to_string(),
+                name: "test1".to_string(),
+                address: 0x1000,
+                size: 1024,
+                type_name: "i32".to_string(),
+                scope: "main".to_string(),
+                category: NodeCategory::Primitive,
+                ownership: OwnershipStatus::Owner,
+                lifetime: LifetimeInfo {
+                    start: 1000,
+                    end: None,
+                    duration_ms: Some(100),
+                    category: LifetimeCategory::Short,
+                    is_active: false,
                 },
-            ],
+                visual: NodeVisual {
+                    x: None,
+                    y: None,
+                    radius: 5.0,
+                    color: "#4CAF50".to_string(),
+                    opacity: 0.8,
+                    css_class: "node-primitive".to_string(),
+                    fixed: false,
+                },
+                stats: NodeStats {
+                    in_degree: 0,
+                    out_degree: 0,
+                    centrality: 0.0,
+                    clustering: 0.0,
+                    page_rank: 0.0,
+                },
+            }],
             links: vec![],
             metadata: GraphMetadata {
                 node_count: 1,

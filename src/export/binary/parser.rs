@@ -348,7 +348,7 @@ impl BinaryParser {
         Self::parse_binary_to_json_with_index(&binary_path, base_name)?;
 
         let total_time = start.elapsed();
-        
+
         if total_time.as_millis() > 300 {
             tracing::warn!(
                 "⚠️  Performance target missed: {}ms (target: <300ms)",
@@ -1481,9 +1481,9 @@ impl BinaryParser {
         allocations: &[AllocationInfo],
         base_name: &str,
     ) -> Result<(), BinaryExportError> {
+        use crate::core::tracker::export_json::ExportJsonOptions;
         use crate::core::tracker::MemoryTracker;
         use crate::export::optimized_json_export::OptimizationLevel;
-        use crate::core::tracker::export_json::ExportJsonOptions;
 
         let export_start = std::time::Instant::now();
 

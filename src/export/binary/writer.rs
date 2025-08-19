@@ -809,15 +809,20 @@ mod tests {
     fn test_advanced_metrics_segment_writing() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = BinaryExportConfig::debug_comprehensive();
-        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).expect("Failed to create temp file");
+        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
+            .expect("Failed to create temp file");
 
         writer.write_header(1).expect("Failed to write header");
 
         let mut alloc = create_test_allocation();
         alloc.lifetime_ms = Some(1500); // Add some lifecycle data
 
-        writer.write_allocation(&alloc).expect("Failed to write allocation");
-        writer.write_advanced_metrics_segment(&[alloc]).expect("Failed to write metrics segment");
+        writer
+            .write_allocation(&alloc)
+            .expect("Failed to write allocation");
+        writer
+            .write_advanced_metrics_segment(&[alloc])
+            .expect("Failed to write metrics segment");
         writer.finish().expect("Failed to finish writing");
 
         // Verify file has content beyond basic allocation data
@@ -829,14 +834,19 @@ mod tests {
     fn test_advanced_metrics_disabled() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = BinaryExportConfig::minimal(); // No advanced metrics
-        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config).expect("Failed to create temp file");
+        let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
+            .expect("Failed to create temp file");
 
         writer.write_header(1).expect("Failed to write header");
         let alloc = create_test_allocation();
-        writer.write_allocation(&alloc).expect("Failed to write allocation");
+        writer
+            .write_allocation(&alloc)
+            .expect("Failed to write allocation");
 
         // Should not write advanced metrics segment
-        writer.write_advanced_metrics_segment(&[alloc]).expect("Failed to write metrics segment");
+        writer
+            .write_advanced_metrics_segment(&[alloc])
+            .expect("Failed to write metrics segment");
         writer.finish().expect("Failed to finish writing");
 
         // File should be smaller without advanced metrics

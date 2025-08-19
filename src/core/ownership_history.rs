@@ -179,7 +179,12 @@ impl OwnershipHistoryRecorder {
     }
 
     /// Record a new ownership event
-    pub fn record_event(&mut self, ptr: usize, event_type: OwnershipEventType, source_stack_id: u32) {
+    pub fn record_event(
+        &mut self,
+        ptr: usize,
+        event_type: OwnershipEventType,
+        source_stack_id: u32,
+    ) {
         let event_id = EVENT_ID_GENERATOR.fetch_add(1, Ordering::Relaxed);
         let timestamp = self.get_current_timestamp();
 
@@ -244,7 +249,10 @@ impl OwnershipHistoryRecorder {
                 ref_count_info: None,
                 context: Some("Borrow released".to_string()),
             },
-            OwnershipEventType::RefCountChanged { old_count, new_count } => OwnershipEventDetails {
+            OwnershipEventType::RefCountChanged {
+                old_count,
+                new_count,
+            } => OwnershipEventDetails {
                 clone_source_ptr: None,
                 transfer_target_var: None,
                 borrower_scope: None,
@@ -253,7 +261,10 @@ impl OwnershipHistoryRecorder {
                     weak_count: 0, // Would need to be provided separately
                     data_ptr: 0,   // Would need to be provided separately
                 }),
-                context: Some(format!("Reference count changed from {} to {}", old_count, new_count)),
+                context: Some(format!(
+                    "Reference count changed from {} to {}",
+                    old_count, new_count
+                )),
             },
             _ => OwnershipEventDetails {
                 clone_source_ptr: None,
@@ -266,26 +277,34 @@ impl OwnershipHistoryRecorder {
     }
 
     /// Update the ownership summary for an allocation
-    fn update_ownership_summary(&mut self, ptr: usize, event_type: &OwnershipEventType, timestamp: u64) {
-        let summary = self.ownership_summaries.entry(ptr).or_insert_with(|| OwnershipSummary {
-            allocation_ptr: ptr,
-            lifetime_ms: None,
-            borrow_info: BorrowInfo {
-                immutable_borrows: 0,
-                mutable_borrows: 0,
-                max_concurrent_borrows: 0,
-                last_borrow_timestamp: None,
-                active_borrows: Vec::new(),
-            },
-            clone_info: CloneInfo {
-                clone_count: 0,
-                is_clone: false,
-                original_ptr: None,
-                cloned_ptrs: Vec::new(),
-            },
-            ownership_history_available: true,
-            total_events: 0,
-        });
+    fn update_ownership_summary(
+        &mut self,
+        ptr: usize,
+        event_type: &OwnershipEventType,
+        timestamp: u64,
+    ) {
+        let summary = self
+            .ownership_summaries
+            .entry(ptr)
+            .or_insert_with(|| OwnershipSummary {
+                allocation_ptr: ptr,
+                lifetime_ms: None,
+                borrow_info: BorrowInfo {
+                    immutable_borrows: 0,
+                    mutable_borrows: 0,
+                    max_concurrent_borrows: 0,
+                    last_borrow_timestamp: None,
+                    active_borrows: Vec::new(),
+                },
+                clone_info: CloneInfo {
+                    clone_count: 0,
+                    is_clone: false,
+                    original_ptr: None,
+                    cloned_ptrs: Vec::new(),
+                },
+                ownership_history_available: true,
+                total_events: 0,
+            });
 
         summary.total_events += 1;
 
@@ -298,9 +317,11 @@ impl OwnershipHistoryRecorder {
                     borrow_type: BorrowType::Immutable,
                     start_timestamp: timestamp,
                 });
-                summary.borrow_info.max_concurrent_borrows = 
-                    summary.borrow_info.max_concurrent_borrows.max(summary.borrow_info.active_borrows.len() as u32);
-            },
+                summary.borrow_info.max_concurrent_borrows = summary
+                    .borrow_info
+                    .max_concurrent_borrows
+                    .max(summary.borrow_info.active_borrows.len() as u32);
+            }
             OwnershipEventType::MutablyBorrowed { borrower_scope } => {
                 summary.borrow_info.mutable_borrows += 1;
                 summary.borrow_info.last_borrow_timestamp = Some(timestamp);
@@ -309,23 +330,28 @@ impl OwnershipHistoryRecorder {
                     borrow_type: BorrowType::Mutable,
                     start_timestamp: timestamp,
                 });
-                summary.borrow_info.max_concurrent_borrows = 
-                    summary.borrow_info.max_concurrent_borrows.max(summary.borrow_info.active_borrows.len() as u32);
-            },
+                summary.borrow_info.max_concurrent_borrows = summary
+                    .borrow_info
+                    .max_concurrent_borrows
+                    .max(summary.borrow_info.active_borrows.len() as u32);
+            }
             OwnershipEventType::BorrowReleased { borrower_scope } => {
                 // Remove the corresponding active borrow
-                summary.borrow_info.active_borrows.retain(|borrow| borrow.borrower_scope != *borrower_scope);
-            },
+                summary
+                    .borrow_info
+                    .active_borrows
+                    .retain(|borrow| borrow.borrower_scope != *borrower_scope);
+            }
             OwnershipEventType::Cloned { source_ptr } => {
                 summary.clone_info.is_clone = true;
                 summary.clone_info.original_ptr = Some(*source_ptr);
-                
+
                 // Update the source allocation's clone info
                 if let Some(source_summary) = self.ownership_summaries.get_mut(source_ptr) {
                     source_summary.clone_info.clone_count += 1;
                     source_summary.clone_info.cloned_ptrs.push(ptr);
                 }
-            },
+            }
             _ => {
                 // Other events don't need special summary updates
             }
@@ -355,7 +381,7 @@ impl OwnershipHistoryRecorder {
             export_timestamp: self.get_current_timestamp(),
             config: self.config.clone(),
         };
-        
+
         serde_json::to_string_pretty(&export_data)
     }
 
@@ -368,8 +394,12 @@ impl OwnershipHistoryRecorder {
     /// Get statistics about the ownership history
     pub fn get_statistics(&self) -> OwnershipStatistics {
         let total_allocations = self.ownership_summaries.len();
-        let total_events = self.ownership_events.values().map(|events| events.len()).sum();
-        
+        let total_events = self
+            .ownership_events
+            .values()
+            .map(|events| events.len())
+            .sum();
+
         let mut event_type_counts = HashMap::new();
         for events in self.ownership_events.values() {
             for event in events {
@@ -383,16 +413,24 @@ impl OwnershipHistoryRecorder {
                     OwnershipEventType::BorrowReleased { .. } => "BorrowReleased",
                     OwnershipEventType::RefCountChanged { .. } => "RefCountChanged",
                 };
-                *event_type_counts.entry(event_type_name.to_string()).or_insert(0) += 1;
+                *event_type_counts
+                    .entry(event_type_name.to_string())
+                    .or_insert(0) += 1;
             }
         }
 
-        let cloned_allocations = self.ownership_summaries.values()
+        let cloned_allocations = self
+            .ownership_summaries
+            .values()
             .filter(|summary| summary.clone_info.is_clone)
             .count();
 
-        let allocations_with_borrows = self.ownership_summaries.values()
-            .filter(|summary| summary.borrow_info.immutable_borrows > 0 || summary.borrow_info.mutable_borrows > 0)
+        let allocations_with_borrows = self
+            .ownership_summaries
+            .values()
+            .filter(|summary| {
+                summary.borrow_info.immutable_borrows > 0 || summary.borrow_info.mutable_borrows > 0
+            })
             .count();
 
         OwnershipStatistics {
@@ -401,10 +439,10 @@ impl OwnershipHistoryRecorder {
             event_type_counts,
             cloned_allocations,
             allocations_with_borrows,
-            average_events_per_allocation: if total_allocations > 0 { 
-                total_events as f64 / total_allocations as f64 
-            } else { 
-                0.0 
+            average_events_per_allocation: if total_allocations > 0 {
+                total_events as f64 / total_allocations as f64
+            } else {
+                0.0
             },
         }
     }
@@ -459,13 +497,16 @@ mod tests {
     fn test_record_allocation_event() {
         let mut recorder = OwnershipHistoryRecorder::new();
         let ptr = 0x1000;
-        
+
         recorder.record_event(ptr, OwnershipEventType::Allocated, 1);
-        
+
         let events = recorder.get_events(ptr).expect("Failed to get events");
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0].event_type, OwnershipEventType::Allocated));
-        
+        assert!(matches!(
+            events[0].event_type,
+            OwnershipEventType::Allocated
+        ));
+
         let summary = recorder.get_summary(ptr).expect("Failed to get summary");
         assert_eq!(summary.allocation_ptr, ptr);
         assert_eq!(summary.total_events, 1);
@@ -476,18 +517,22 @@ mod tests {
         let mut recorder = OwnershipHistoryRecorder::new();
         let source_ptr = 0x1000;
         let clone_ptr = 0x2000;
-        
+
         // Record allocation for source
         recorder.record_event(source_ptr, OwnershipEventType::Allocated, 1);
-        
+
         // Record clone event
         recorder.record_event(clone_ptr, OwnershipEventType::Cloned { source_ptr }, 2);
-        
-        let clone_summary = recorder.get_summary(clone_ptr).expect("Failed to get clone summary");
+
+        let clone_summary = recorder
+            .get_summary(clone_ptr)
+            .expect("Failed to get clone summary");
         assert!(clone_summary.clone_info.is_clone);
         assert_eq!(clone_summary.clone_info.original_ptr, Some(source_ptr));
-        
-        let source_summary = recorder.get_summary(source_ptr).expect("Failed to get source summary");
+
+        let source_summary = recorder
+            .get_summary(source_ptr)
+            .expect("Failed to get source summary");
         assert_eq!(source_summary.clone_info.clone_count, 1);
         assert!(source_summary.clone_info.cloned_ptrs.contains(&clone_ptr));
     }
@@ -496,11 +541,23 @@ mod tests {
     fn test_record_borrow_events() {
         let mut recorder = OwnershipHistoryRecorder::new();
         let ptr = 0x1000;
-        
+
         recorder.record_event(ptr, OwnershipEventType::Allocated, 1);
-        recorder.record_event(ptr, OwnershipEventType::Borrowed { borrower_scope: "scope1".to_string() }, 2);
-        recorder.record_event(ptr, OwnershipEventType::MutablyBorrowed { borrower_scope: "scope2".to_string() }, 3);
-        
+        recorder.record_event(
+            ptr,
+            OwnershipEventType::Borrowed {
+                borrower_scope: "scope1".to_string(),
+            },
+            2,
+        );
+        recorder.record_event(
+            ptr,
+            OwnershipEventType::MutablyBorrowed {
+                borrower_scope: "scope2".to_string(),
+            },
+            3,
+        );
+
         let summary = recorder.get_summary(ptr).expect("Test operation failed");
         assert_eq!(summary.borrow_info.immutable_borrows, 1);
         assert_eq!(summary.borrow_info.mutable_borrows, 1);
@@ -512,11 +569,23 @@ mod tests {
     fn test_borrow_release() {
         let mut recorder = OwnershipHistoryRecorder::new();
         let ptr = 0x1000;
-        
+
         recorder.record_event(ptr, OwnershipEventType::Allocated, 1);
-        recorder.record_event(ptr, OwnershipEventType::Borrowed { borrower_scope: "scope1".to_string() }, 2);
-        recorder.record_event(ptr, OwnershipEventType::BorrowReleased { borrower_scope: "scope1".to_string() }, 3);
-        
+        recorder.record_event(
+            ptr,
+            OwnershipEventType::Borrowed {
+                borrower_scope: "scope1".to_string(),
+            },
+            2,
+        );
+        recorder.record_event(
+            ptr,
+            OwnershipEventType::BorrowReleased {
+                borrower_scope: "scope1".to_string(),
+            },
+            3,
+        );
+
         let summary = recorder.get_summary(ptr).expect("Test operation failed");
         assert_eq!(summary.borrow_info.immutable_borrows, 1);
         assert_eq!(summary.borrow_info.active_borrows.len(), 0);
@@ -530,12 +599,12 @@ mod tests {
         };
         let mut recorder = OwnershipHistoryRecorder::with_config(config);
         let ptr = 0x1000;
-        
+
         // Record more events than the limit
         for i in 0..5 {
             recorder.record_event(ptr, OwnershipEventType::Allocated, i as u32);
         }
-        
+
         let events = recorder.get_events(ptr).expect("Failed to get events");
         assert_eq!(events.len(), 3); // Should be limited to 3
     }
@@ -543,11 +612,17 @@ mod tests {
     #[test]
     fn test_statistics() {
         let mut recorder = OwnershipHistoryRecorder::new();
-        
+
         recorder.record_event(0x1000, OwnershipEventType::Allocated, 1);
         recorder.record_event(0x2000, OwnershipEventType::Cloned { source_ptr: 0x1000 }, 2);
-        recorder.record_event(0x1000, OwnershipEventType::Borrowed { borrower_scope: "scope1".to_string() }, 3);
-        
+        recorder.record_event(
+            0x1000,
+            OwnershipEventType::Borrowed {
+                borrower_scope: "scope1".to_string(),
+            },
+            3,
+        );
+
         let stats = recorder.get_statistics();
         assert_eq!(stats.total_allocations, 2);
         assert_eq!(stats.total_events, 3);
@@ -559,7 +634,7 @@ mod tests {
     fn test_json_export() {
         let mut recorder = OwnershipHistoryRecorder::new();
         recorder.record_event(0x1000, OwnershipEventType::Allocated, 1);
-        
+
         let json = recorder.export_to_json().expect("Failed to export to JSON");
         assert!(json.contains("summaries"));
         assert!(json.contains("detailed_events"));

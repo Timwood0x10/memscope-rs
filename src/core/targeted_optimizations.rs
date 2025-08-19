@@ -311,7 +311,9 @@ mod tests {
             }
             #[cfg(not(feature = "parking-lot"))]
             {
-                let mut items = processed_clone.safe_lock().expect("Failed to lock processed_items");
+                let mut items = processed_clone
+                    .safe_lock()
+                    .expect("Failed to lock processed_items");
                 items.extend_from_slice(batch);
             }
         });
@@ -331,7 +333,9 @@ mod tests {
         }
         #[cfg(not(feature = "parking-lot"))]
         {
-            let items = processed_items.safe_lock().expect("Failed to lock processed_items");
+            let items = processed_items
+                .safe_lock()
+                .expect("Failed to lock processed_items");
             assert_eq!(*items, vec![1, 2, 3]);
         }
     }

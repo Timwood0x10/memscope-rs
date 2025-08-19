@@ -5,11 +5,11 @@
 //! - Runtime borrow checking integration
 //! - Borrow conflict detection
 
+use crate::core::safe_operations::SafeLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::core::safe_operations::SafeLock;
 
 /// Global borrow analyzer instance
 static GLOBAL_BORROW_ANALYZER: OnceLock<Arc<BorrowAnalyzer>> = OnceLock::new();
@@ -230,7 +230,10 @@ impl BorrowAnalyzer {
 
     /// Get all detected conflicts
     pub fn get_conflicts(&self) -> Vec<BorrowConflict> {
-        self.conflicts.safe_lock().map(|c| c.clone()).unwrap_or_default()
+        self.conflicts
+            .safe_lock()
+            .map(|c| c.clone())
+            .unwrap_or_default()
     }
 
     /// Analyze borrow patterns
@@ -304,7 +307,8 @@ impl BorrowAnalyzer {
 
     /// Calculate maximum concurrent borrows
     fn calculate_max_concurrent_borrows(&self) -> usize {
-        self.active_borrows.safe_lock()
+        self.active_borrows
+            .safe_lock()
             .map(|active| active.values().map(|v| v.len()).max().unwrap_or(0))
             .unwrap_or(0)
     }

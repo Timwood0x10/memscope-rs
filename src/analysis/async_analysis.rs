@@ -5,11 +5,11 @@
 //! - Async task lifecycle tracking
 //! - Await point analysis
 
+use crate::core::safe_operations::SafeLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::core::safe_operations::SafeLock;
 
 /// Global async analyzer instance
 static GLOBAL_ASYNC_ANALYZER: OnceLock<Arc<AsyncAnalyzer>> = OnceLock::new();
@@ -180,10 +180,22 @@ impl AsyncAnalyzer {
 
     /// Get async statistics
     pub fn get_async_statistics(&self) -> AsyncStatistics {
-        let futures = self.active_futures.safe_lock().expect("Failed to acquire lock on active_futures");
-        let transitions = self.state_transitions.safe_lock().expect("Failed to acquire lock on state_transitions");
-        let awaits = self.await_points.safe_lock().expect("Failed to acquire lock on await_points");
-        let _events = self.task_events.safe_lock().expect("Failed to acquire lock on task_events");
+        let futures = self
+            .active_futures
+            .safe_lock()
+            .expect("Failed to acquire lock on active_futures");
+        let transitions = self
+            .state_transitions
+            .safe_lock()
+            .expect("Failed to acquire lock on state_transitions");
+        let awaits = self
+            .await_points
+            .safe_lock()
+            .expect("Failed to acquire lock on await_points");
+        let _events = self
+            .task_events
+            .safe_lock()
+            .expect("Failed to acquire lock on task_events");
 
         let total_futures = futures.len();
         let completed_futures = futures
@@ -243,8 +255,14 @@ impl AsyncAnalyzer {
 
     /// Analyze async patterns
     pub fn analyze_async_patterns(&self) -> AsyncPatternAnalysis {
-        let futures = self.active_futures.safe_lock().expect("Failed to acquire lock on active_futures");
-        let awaits = self.await_points.safe_lock().expect("Failed to acquire lock on await_points");
+        let futures = self
+            .active_futures
+            .safe_lock()
+            .expect("Failed to acquire lock on active_futures");
+        let awaits = self
+            .await_points
+            .safe_lock()
+            .expect("Failed to acquire lock on await_points");
 
         let mut patterns = Vec::new();
 
@@ -332,7 +350,11 @@ impl AsyncAnalyzer {
 
     /// Get future information
     pub fn get_future_info(&self, ptr: usize) -> Option<FutureInfo> {
-        self.active_futures.safe_lock().expect("Failed to acquire lock on active_futures").get(&ptr).cloned()
+        self.active_futures
+            .safe_lock()
+            .expect("Failed to acquire lock on active_futures")
+            .get(&ptr)
+            .cloned()
     }
 }
 
@@ -557,14 +579,20 @@ mod tests {
         // Check it's tracked
         let info = analyzer.get_future_info(0x1000);
         assert!(info.is_some());
-        assert_eq!(info.expect("Failed to get async info").future_type, "async_fn");
+        assert_eq!(
+            info.expect("Failed to get async info").future_type,
+            "async_fn"
+        );
 
         // Record state transition
         analyzer.record_state_transition(0x1000, FutureState::Created, FutureState::Pending);
 
         // Check state updated
         let info = analyzer.get_future_info(0x1000);
-        assert_eq!(info.expect("Failed to get async info").current_state, FutureState::Pending);
+        assert_eq!(
+            info.expect("Failed to get async info").current_state,
+            FutureState::Pending
+        );
     }
 
     #[test]

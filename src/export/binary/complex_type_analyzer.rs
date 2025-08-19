@@ -188,13 +188,16 @@ impl ComplexTypeAnalyzer {
         let generic_params = self.extract_generic_parameters(&type_name);
 
         // Update type statistics
-        let stats = self.type_stats.entry(type_name.clone()).or_insert(TypeStats {
-            allocation_count: 0,
-            total_memory: 0,
-            sizes: Vec::new(),
-            category: category.clone(),
-            generic_parameters: generic_params.clone(),
-        });
+        let stats = self
+            .type_stats
+            .entry(type_name.clone())
+            .or_insert(TypeStats {
+                allocation_count: 0,
+                total_memory: 0,
+                sizes: Vec::new(),
+                category: category.clone(),
+                generic_parameters: generic_params.clone(),
+            });
 
         stats.allocation_count += 1;
         stats.total_memory += allocation.size;
@@ -332,7 +335,11 @@ impl ComplexTypeAnalyzer {
     }
 
     /// Track generic type instantiations
-    fn track_generic_type(&mut self, type_name: &str, size: usize) -> Result<(), BinaryExportError> {
+    fn track_generic_type(
+        &mut self,
+        type_name: &str,
+        size: usize,
+    ) -> Result<(), BinaryExportError> {
         let base_type = self.extract_base_generic_type(type_name);
         let complexity = self.calculate_type_complexity(type_name);
 
@@ -346,7 +353,10 @@ impl ComplexTypeAnalyzer {
                 complexity_scores: Vec::new(),
             });
 
-        *stats.instantiations.entry(type_name.to_string()).or_insert(0) += 1;
+        *stats
+            .instantiations
+            .entry(type_name.to_string())
+            .or_insert(0) += 1;
         stats.total_memory += size;
         stats.complexity_scores.push(complexity);
 
@@ -627,8 +637,14 @@ mod tests {
         let analyzer = ComplexTypeAnalyzer::new();
 
         assert_eq!(analyzer.categorize_type("i32"), TypeCategory::Primitive);
-        assert_eq!(analyzer.categorize_type("Vec<String>"), TypeCategory::Collection);
-        assert_eq!(analyzer.categorize_type("Box<i32>"), TypeCategory::SmartPointer);
+        assert_eq!(
+            analyzer.categorize_type("Vec<String>"),
+            TypeCategory::Collection
+        );
+        assert_eq!(
+            analyzer.categorize_type("Box<i32>"),
+            TypeCategory::SmartPointer
+        );
         assert_eq!(analyzer.categorize_type("Option<T>"), TypeCategory::Generic);
         assert_eq!(analyzer.categorize_type("MyStruct"), TypeCategory::Custom);
     }
@@ -639,7 +655,10 @@ mod tests {
 
         assert_eq!(analyzer.calculate_type_complexity("i32"), 1);
         assert_eq!(analyzer.calculate_type_complexity("Vec<String>"), 4);
-        assert_eq!(analyzer.calculate_type_complexity("Arc<Mutex<HashMap<String, Vec<i32>>>>"), 10);
+        assert_eq!(
+            analyzer.calculate_type_complexity("Arc<Mutex<HashMap<String, Vec<i32>>>>"),
+            10
+        );
     }
 
     #[test]
@@ -665,7 +684,8 @@ mod tests {
             create_test_allocation("HashMap<String, i32>", 48),
         ];
 
-        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations)
+            .expect("Failed to get test value");
 
         assert_eq!(analysis.summary.total_types, 4);
         assert_eq!(analysis.summary.primitive_count, 1);
@@ -681,6 +701,9 @@ mod tests {
         assert_eq!(analyzer.calculate_generic_depth("i32"), 0);
         assert_eq!(analyzer.calculate_generic_depth("Vec<String>"), 1);
         assert_eq!(analyzer.calculate_generic_depth("Vec<Vec<String>>"), 2);
-        assert_eq!(analyzer.calculate_generic_depth("Arc<Mutex<Vec<String>>>"), 3);
+        assert_eq!(
+            analyzer.calculate_generic_depth("Arc<Mutex<Vec<String>>>"),
+            3
+        );
     }
 }

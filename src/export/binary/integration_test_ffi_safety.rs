@@ -7,8 +7,10 @@
 mod tests {
     use crate::core::types::AllocationInfo;
     use crate::export::binary::binary_html_writer::BinaryHtmlWriter;
+    use crate::export::binary::ffi_safety_analyzer::{
+        FfiSafetyAnalyzer, RiskLevel, UnsafeOperationType,
+    };
     use crate::export::binary::selective_reader::AllocationField;
-    use crate::export::binary::ffi_safety_analyzer::{FfiSafetyAnalyzer, RiskLevel, UnsafeOperationType};
     use std::io::Cursor;
 
     fn create_test_allocation_with_ffi(
@@ -60,7 +62,10 @@ mod tests {
                 1024,
                 Some("Vec<u8>"),
                 Some("safe_function"),
-                Some(vec!["main::safe_function".to_string(), "std::vec::Vec::new".to_string()]),
+                Some(vec![
+                    "main::safe_function".to_string(),
+                    "std::vec::Vec::new".to_string(),
+                ]),
                 false,
             ),
             // FFI boundary allocation
@@ -109,7 +114,8 @@ mod tests {
         ];
 
         // Test direct analysis
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis =
+            FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Verify analysis results
         assert_eq!(analysis.summary.total_allocations, 5);
@@ -119,13 +125,19 @@ mod tests {
 
         // Verify unsafe operations detection
         assert!(!analysis.unsafe_operations.is_empty());
-        
+
         // Check for specific unsafe operation types
-        let has_raw_pointer = analysis.unsafe_operations.iter()
+        let has_raw_pointer = analysis
+            .unsafe_operations
+            .iter()
             .any(|op| op.operation_type == UnsafeOperationType::RawPointerDeref);
-        let has_use_after_free = analysis.unsafe_operations.iter()
+        let has_use_after_free = analysis
+            .unsafe_operations
+            .iter()
             .any(|op| op.operation_type == UnsafeOperationType::UseAfterFree);
-        let has_buffer_overflow = analysis.unsafe_operations.iter()
+        let has_buffer_overflow = analysis
+            .unsafe_operations
+            .iter()
             .any(|op| op.operation_type == UnsafeOperationType::BufferOverflow);
 
         assert!(has_raw_pointer);
@@ -134,7 +146,9 @@ mod tests {
 
         // Verify FFI hotspots
         assert!(!analysis.ffi_hotspots.is_empty());
-        let ffi_hotspot = analysis.ffi_hotspots.iter()
+        let ffi_hotspot = analysis
+            .ffi_hotspots
+            .iter()
             .find(|h| h.name.contains("ffi") || h.name.contains("libc"));
         assert!(ffi_hotspot.is_some());
 
@@ -144,7 +158,10 @@ mod tests {
 
         // Verify call graph
         assert!(!analysis.call_graph.nodes.is_empty());
-        assert_eq!(analysis.call_graph.statistics.node_count, analysis.call_graph.nodes.len());
+        assert_eq!(
+            analysis.call_graph.statistics.node_count,
+            analysis.call_graph.nodes.len()
+        );
     }
 
     #[test]
@@ -177,11 +194,15 @@ mod tests {
         // Write allocations
         let fields = AllocationField::all_basic_fields();
         for allocation in &allocations {
-            writer.write_binary_allocation(allocation, &fields).expect("Test operation failed");
+            writer
+                .write_binary_allocation(allocation, &fields)
+                .expect("Test operation failed");
         }
 
         // Finalize and get stats
-        let stats = writer.finalize_with_binary_template("test_project").expect("Test operation failed");
+        let stats = writer
+            .finalize_with_binary_template("test_project")
+            .expect("Test operation failed");
 
         // Verify that allocations were processed
         assert_eq!(stats.allocations_processed, 2);
@@ -245,11 +266,15 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&high_risk_allocations).expect("Failed to get test value");
-        
+        let analysis = FfiSafetyAnalyzer::analyze_allocations(&high_risk_allocations)
+            .expect("Failed to get test value");
+
         // Should detect multiple high-risk operations
         assert!(analysis.summary.unsafe_operations_count >= 2);
-        assert!(matches!(analysis.summary.risk_level, RiskLevel::High | RiskLevel::Critical));
+        assert!(matches!(
+            analysis.summary.risk_level,
+            RiskLevel::High | RiskLevel::Critical
+        ));
         assert!(analysis.summary.safety_score < 80); // Should be penalized for unsafe operations
     }
 
@@ -283,7 +308,8 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis =
+            FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should detect hotspot for repeated FFI function
         assert!(!analysis.ffi_hotspots.is_empty());
@@ -295,33 +321,37 @@ mod tests {
 
     #[test]
     fn test_call_graph_generation() {
-        let allocations = vec![
-            create_test_allocation_with_ffi(
-                0x1000,
-                1024,
-                Some("CString"),
-                Some("main"),
-                Some(vec![
-                    "main::function".to_string(),
-                    "module::ffi::wrapper".to_string(),
-                    "libc::malloc".to_string(),
-                ]),
-                false,
-            ),
-        ];
+        let allocations = vec![create_test_allocation_with_ffi(
+            0x1000,
+            1024,
+            Some("CString"),
+            Some("main"),
+            Some(vec![
+                "main::function".to_string(),
+                "module::ffi::wrapper".to_string(),
+                "libc::malloc".to_string(),
+            ]),
+            false,
+        )];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis =
+            FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should generate call graph with nodes
         assert!(!analysis.call_graph.nodes.is_empty());
-        assert_eq!(analysis.call_graph.statistics.node_count, analysis.call_graph.nodes.len());
-        
+        assert_eq!(
+            analysis.call_graph.statistics.node_count,
+            analysis.call_graph.nodes.len()
+        );
+
         // Nodes should have proper classification
-        let has_rust_function = analysis.call_graph.nodes.iter()
-            .any(|node| node.node_type == crate::export::binary::ffi_safety_analyzer::NodeType::RustFunction);
-        let has_external_lib = analysis.call_graph.nodes.iter()
-            .any(|node| node.node_type == crate::export::binary::ffi_safety_analyzer::NodeType::ExternalLibrary);
-        
+        let has_rust_function = analysis.call_graph.nodes.iter().any(|node| {
+            node.node_type == crate::export::binary::ffi_safety_analyzer::NodeType::RustFunction
+        });
+        let has_external_lib = analysis.call_graph.nodes.iter().any(|node| {
+            node.node_type == crate::export::binary::ffi_safety_analyzer::NodeType::ExternalLibrary
+        });
+
         assert!(has_rust_function || has_external_lib);
     }
 
@@ -348,18 +378,23 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis =
+            FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         // Should detect memory safety issues
         assert!(analysis.risk_assessment.memory_safety.issue_count > 0);
         assert!(analysis.risk_assessment.data_integrity.issue_count > 0);
-        
+
         // Should have buffer overflow and use-after-free operations
-        let has_buffer_overflow = analysis.unsafe_operations.iter()
+        let has_buffer_overflow = analysis
+            .unsafe_operations
+            .iter()
             .any(|op| op.operation_type == UnsafeOperationType::BufferOverflow);
-        let has_use_after_free = analysis.unsafe_operations.iter()
+        let has_use_after_free = analysis
+            .unsafe_operations
+            .iter()
             .any(|op| op.operation_type == UnsafeOperationType::UseAfterFree);
-        
+
         assert!(has_buffer_overflow);
         assert!(has_use_after_free);
     }

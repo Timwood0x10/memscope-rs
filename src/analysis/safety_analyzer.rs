@@ -6,7 +6,7 @@
 //! - Confidence scoring for safety violations
 //! - Memory passport tracking for FFI boundaries
 
-use crate::analysis::unsafe_ffi_tracker::{SafetyViolation, RiskLevel, StackFrame};
+use crate::analysis::unsafe_ffi_tracker::{RiskLevel, SafetyViolation, StackFrame};
 use crate::core::types::{AllocationInfo, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -375,13 +375,17 @@ impl RiskAssessmentEngine {
             UnsafeSource::UnsafeBlock { location, .. } => {
                 risk_factors.extend(self.analyze_unsafe_block(location, call_stack));
             }
-            UnsafeSource::FfiFunction { library, function, .. } => {
+            UnsafeSource::FfiFunction {
+                library, function, ..
+            } => {
                 risk_factors.extend(self.analyze_ffi_function(library, function, call_stack));
             }
             UnsafeSource::RawPointer { operation, .. } => {
                 risk_factors.extend(self.analyze_raw_pointer(operation, call_stack));
             }
-            UnsafeSource::Transmute { from_type, to_type, .. } => {
+            UnsafeSource::Transmute {
+                from_type, to_type, ..
+            } => {
                 risk_factors.extend(self.analyze_transmute(from_type, to_type, call_stack));
             }
         }
@@ -421,7 +425,8 @@ impl RiskAssessmentEngine {
         };
 
         // Generate mitigation suggestions
-        let mitigation_suggestions = self.generate_mitigation_suggestions(&risk_factors, &risk_level);
+        let mitigation_suggestions =
+            self.generate_mitigation_suggestions(&risk_factors, &risk_level);
 
         RiskAssessment {
             risk_level,
@@ -470,7 +475,12 @@ impl RiskAssessmentEngine {
     }
 
     /// Analyze FFI function call for risk factors
-    fn analyze_ffi_function(&self, library: &str, function: &str, call_stack: &[StackFrame]) -> Vec<RiskFactor> {
+    fn analyze_ffi_function(
+        &self,
+        library: &str,
+        function: &str,
+        call_stack: &[StackFrame],
+    ) -> Vec<RiskFactor> {
         let mut factors = Vec::new();
 
         // Base FFI risk
@@ -519,7 +529,12 @@ impl RiskAssessmentEngine {
     }
 
     /// Analyze transmute operation for risk factors
-    fn analyze_transmute(&self, from_type: &str, to_type: &str, call_stack: &[StackFrame]) -> Vec<RiskFactor> {
+    fn analyze_transmute(
+        &self,
+        from_type: &str,
+        to_type: &str,
+        call_stack: &[StackFrame],
+    ) -> Vec<RiskFactor> {
         let mut factors = Vec::new();
 
         let severity = if from_type.contains("*") || to_type.contains("*") {
@@ -542,21 +557,33 @@ impl RiskAssessmentEngine {
     }
 
     /// Generate mitigation suggestions based on risk factors
-    fn generate_mitigation_suggestions(&self, risk_factors: &[RiskFactor], risk_level: &RiskLevel) -> Vec<String> {
+    fn generate_mitigation_suggestions(
+        &self,
+        risk_factors: &[RiskFactor],
+        risk_level: &RiskLevel,
+    ) -> Vec<String> {
         let mut suggestions = Vec::new();
 
         // Add general suggestions based on risk level
         match risk_level {
             RiskLevel::Critical => {
-                suggestions.push("URGENT: Critical safety issues detected - immediate review required".to_string());
-                suggestions.push("Consider refactoring to eliminate unsafe code where possible".to_string());
+                suggestions.push(
+                    "URGENT: Critical safety issues detected - immediate review required"
+                        .to_string(),
+                );
+                suggestions.push(
+                    "Consider refactoring to eliminate unsafe code where possible".to_string(),
+                );
             }
             RiskLevel::High => {
-                suggestions.push("High-risk operations detected - thorough testing recommended".to_string());
+                suggestions.push(
+                    "High-risk operations detected - thorough testing recommended".to_string(),
+                );
                 suggestions.push("Add comprehensive error handling and validation".to_string());
             }
             RiskLevel::Medium => {
-                suggestions.push("Moderate risks detected - review and add safety checks".to_string());
+                suggestions
+                    .push("Moderate risks detected - review and add safety checks".to_string());
             }
             RiskLevel::Low => {
                 suggestions.push("Low-level risks detected - monitor for issues".to_string());
@@ -605,8 +632,14 @@ impl SafetyAnalyzer {
     /// Create new safety analyzer
     pub fn new(config: SafetyAnalysisConfig) -> Self {
         tracing::info!("🔒 Initializing Safety Analyzer");
-        tracing::info!("   • Detailed risk assessment: {}", config.detailed_risk_assessment);
-        tracing::info!("   • Passport tracking: {}", config.enable_passport_tracking);
+        tracing::info!(
+            "   • Detailed risk assessment: {}",
+            config.detailed_risk_assessment
+        );
+        tracing::info!(
+            "   • Passport tracking: {}",
+            config.enable_passport_tracking
+        );
         tracing::info!("   • Min risk level: {:?}", config.min_risk_level);
 
         Self {
@@ -632,7 +665,7 @@ impl SafetyAnalyzer {
         violations: &[SafetyViolation],
     ) -> TrackingResult<String> {
         let report_id = self.generate_report_id(&source);
-        
+
         tracing::info!("🔍 Generating unsafe report: {}", report_id);
 
         // Create memory context
@@ -643,7 +676,8 @@ impl SafetyAnalyzer {
 
         // Perform risk assessment
         let risk_assessment = if self.config.detailed_risk_assessment {
-            self.risk_engine.assess_risk(&source, &memory_context, &call_stack)
+            self.risk_engine
+                .assess_risk(&source, &memory_context, &call_stack)
         } else {
             self.create_basic_risk_assessment(&source)
         };
@@ -692,7 +726,11 @@ impl SafetyAnalyzer {
         // Update statistics
         self.update_stats(&report_id, &risk_assessment.risk_level);
 
-        tracing::info!("✅ Generated unsafe report: {} (risk: {:?})", report_id, risk_assessment.risk_level);
+        tracing::info!(
+            "✅ Generated unsafe report: {} (risk: {:?})",
+            report_id,
+            risk_assessment.risk_level
+        );
 
         Ok(report_id)
     }
@@ -708,8 +746,14 @@ impl SafetyAnalyzer {
             return Ok(String::new());
         }
 
-        let passport_id = format!("passport_{:x}_{}", allocation_ptr, 
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos());
+        let passport_id = format!(
+            "passport_{:x}_{}",
+            allocation_ptr,
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
 
         let call_stack = self.capture_call_stack()?;
         let current_time = SystemTime::now()
@@ -761,7 +805,11 @@ impl SafetyAnalyzer {
             stats.total_passports += 1;
         }
 
-        tracing::info!("📋 Created memory passport: {} for 0x{:x}", passport_id, allocation_ptr);
+        tracing::info!(
+            "📋 Created memory passport: {} for 0x{:x}",
+            passport_id,
+            allocation_ptr
+        );
 
         Ok(passport_id)
     }
@@ -795,7 +843,7 @@ impl SafetyAnalyzer {
             if let Some(passport) = passports.get_mut(&allocation_ptr) {
                 passport.lifecycle_events.push(event);
                 passport.updated_at = current_time;
-                
+
                 tracing::info!("📝 Recorded passport event for 0x{:x}", allocation_ptr);
             }
         }
@@ -816,8 +864,11 @@ impl SafetyAnalyzer {
                 // Check for leaks
                 if matches!(final_status, PassportStatus::InForeignCustody) {
                     leaked_passports.push(passport.passport_id.clone());
-                    tracing::warn!("🚨 Memory leak detected: passport {} (0x{:x}) in foreign custody", 
-                        passport.passport_id, ptr);
+                    tracing::warn!(
+                        "🚨 Memory leak detected: passport {} (0x{:x}) in foreign custody",
+                        passport.passport_id,
+                        ptr
+                    );
                 }
             }
 
@@ -830,34 +881,46 @@ impl SafetyAnalyzer {
             }
         }
 
-        tracing::info!("🏁 Finalized {} passports, {} leaks detected", 
-            self.get_passport_count(), leaked_passports.len());
+        tracing::info!(
+            "🏁 Finalized {} passports, {} leaks detected",
+            self.get_passport_count(),
+            leaked_passports.len()
+        );
 
         leaked_passports
     }
 
     /// Get all unsafe reports
     pub fn get_unsafe_reports(&self) -> HashMap<String, UnsafeReport> {
-        self.unsafe_reports.lock().unwrap_or_else(|_| {
-            tracing::error!("Failed to lock unsafe reports");
-            std::process::exit(1);
-        }).clone()
+        self.unsafe_reports
+            .lock()
+            .unwrap_or_else(|_| {
+                tracing::error!("Failed to lock unsafe reports");
+                std::process::exit(1);
+            })
+            .clone()
     }
 
     /// Get all memory passports
     pub fn get_memory_passports(&self) -> HashMap<usize, MemoryPassport> {
-        self.memory_passports.lock().unwrap_or_else(|_| {
-            tracing::error!("Failed to lock memory passports");
-            std::process::exit(1);
-        }).clone()
+        self.memory_passports
+            .lock()
+            .unwrap_or_else(|_| {
+                tracing::error!("Failed to lock memory passports");
+                std::process::exit(1);
+            })
+            .clone()
     }
 
     /// Get analysis statistics
     pub fn get_stats(&self) -> SafetyAnalysisStats {
-        self.stats.lock().unwrap_or_else(|_| {
-            tracing::error!("Failed to lock stats");
-            std::process::exit(1);
-        }).clone()
+        self.stats
+            .lock()
+            .unwrap_or_else(|_| {
+                tracing::error!("Failed to lock stats");
+                std::process::exit(1);
+            })
+            .clone()
     }
 
     // Private helper methods
@@ -880,7 +943,10 @@ impl SafetyAnalyzer {
 
     fn create_memory_context(&self, allocations: &[AllocationInfo]) -> MemoryContext {
         let total_allocated = allocations.iter().map(|a| a.size).sum();
-        let active_allocations = allocations.iter().filter(|a| a.timestamp_dealloc.is_none()).count();
+        let active_allocations = allocations
+            .iter()
+            .filter(|a| a.timestamp_dealloc.is_none())
+            .count();
 
         let memory_pressure = if total_allocated > 1024 * 1024 * 1024 {
             MemoryPressureLevel::Critical
@@ -903,14 +969,12 @@ impl SafetyAnalyzer {
     fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {
         // Simplified call stack capture
         // In a real implementation, this would use backtrace or similar
-        Ok(vec![
-            StackFrame {
-                function_name: "safety_analyzer".to_string(),
-                file_name: Some("src/analysis/safety_analyzer.rs".to_string()),
-                line_number: Some(1),
-                is_unsafe: false,
-            }
-        ])
+        Ok(vec![StackFrame {
+            function_name: "safety_analyzer".to_string(),
+            file_name: Some("src/analysis/safety_analyzer.rs".to_string()),
+            line_number: Some(1),
+            is_unsafe: false,
+        }])
     }
 
     fn create_basic_risk_assessment(&self, source: &UnsafeSource) -> RiskAssessment {
@@ -947,49 +1011,66 @@ impl SafetyAnalyzer {
     }
 
     fn convert_safety_violations(&self, violations: &[SafetyViolation]) -> Vec<DynamicViolation> {
-        violations.iter().map(|v| {
-            match v {
-                SafetyViolation::DoubleFree { timestamp, .. } => DynamicViolation {
-                    violation_type: ViolationType::DoubleFree,
-                    memory_address: 0, // Would need to extract from violation
-                    memory_size: 0,
-                    detected_at: (*timestamp as u64),
-                    call_stack: Vec::new(),
-                    severity: RiskLevel::Critical,
-                    context: "Double free detected".to_string(),
-                },
-                SafetyViolation::InvalidFree { attempted_pointer, timestamp, .. } => DynamicViolation {
-                    violation_type: ViolationType::InvalidAccess,
-                    memory_address: *attempted_pointer,
-                    memory_size: 0,
-                    detected_at: (*timestamp as u64),
-                    call_stack: Vec::new(),
-                    severity: RiskLevel::High,
-                    context: "Invalid free attempted".to_string(),
-                },
-                SafetyViolation::PotentialLeak { leak_detection_timestamp, .. } => DynamicViolation {
-                    violation_type: ViolationType::InvalidAccess,
-                    memory_address: 0,
-                    memory_size: 0,
-                    detected_at: (*leak_detection_timestamp as u64),
-                    call_stack: Vec::new(),
-                    severity: RiskLevel::Medium,
-                    context: "Potential memory leak".to_string(),
-                },
-                SafetyViolation::CrossBoundaryRisk { .. } => DynamicViolation {
-                    violation_type: ViolationType::FfiBoundaryViolation,
-                    memory_address: 0,
-                    memory_size: 0,
-                    detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs(),
-                    call_stack: Vec::new(),
-                    severity: RiskLevel::Medium,
-                    context: "Cross-boundary risk detected".to_string(),
-                },
-            }
-        }).collect()
+        violations
+            .iter()
+            .map(|v| {
+                match v {
+                    SafetyViolation::DoubleFree { timestamp, .. } => DynamicViolation {
+                        violation_type: ViolationType::DoubleFree,
+                        memory_address: 0, // Would need to extract from violation
+                        memory_size: 0,
+                        detected_at: (*timestamp as u64),
+                        call_stack: Vec::new(),
+                        severity: RiskLevel::Critical,
+                        context: "Double free detected".to_string(),
+                    },
+                    SafetyViolation::InvalidFree {
+                        attempted_pointer,
+                        timestamp,
+                        ..
+                    } => DynamicViolation {
+                        violation_type: ViolationType::InvalidAccess,
+                        memory_address: *attempted_pointer,
+                        memory_size: 0,
+                        detected_at: (*timestamp as u64),
+                        call_stack: Vec::new(),
+                        severity: RiskLevel::High,
+                        context: "Invalid free attempted".to_string(),
+                    },
+                    SafetyViolation::PotentialLeak {
+                        leak_detection_timestamp,
+                        ..
+                    } => DynamicViolation {
+                        violation_type: ViolationType::InvalidAccess,
+                        memory_address: 0,
+                        memory_size: 0,
+                        detected_at: (*leak_detection_timestamp as u64),
+                        call_stack: Vec::new(),
+                        severity: RiskLevel::Medium,
+                        context: "Potential memory leak".to_string(),
+                    },
+                    SafetyViolation::CrossBoundaryRisk { .. } => DynamicViolation {
+                        violation_type: ViolationType::FfiBoundaryViolation,
+                        memory_address: 0,
+                        memory_size: 0,
+                        detected_at: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs(),
+                        call_stack: Vec::new(),
+                        severity: RiskLevel::Medium,
+                        context: "Cross-boundary risk detected".to_string(),
+                    },
+                }
+            })
+            .collect()
     }
 
-    fn find_related_passports(&self, _source: &UnsafeSource, _allocations: &[AllocationInfo]) -> Vec<String> {
+    fn find_related_passports(
+        &self,
+        _source: &UnsafeSource,
+        _allocations: &[AllocationInfo],
+    ) -> Vec<String> {
         // Simplified implementation - could be enhanced with actual correlation logic
         Vec::new()
     }

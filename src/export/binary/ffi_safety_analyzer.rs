@@ -408,7 +408,10 @@ impl FfiSafetyAnalyzer {
     }
 
     /// Analyze memory safety patterns
-    fn analyze_memory_safety(&mut self, allocation: &AllocationInfo) -> Result<(), BinaryExportError> {
+    fn analyze_memory_safety(
+        &mut self,
+        allocation: &AllocationInfo,
+    ) -> Result<(), BinaryExportError> {
         // Check for potential use-after-free
         if allocation.is_leaked {
             let operation = UnsafeOperation {
@@ -416,7 +419,10 @@ impl FfiSafetyAnalyzer {
                 operation_type: UnsafeOperationType::UseAfterFree,
                 memory_address: allocation.ptr,
                 memory_size: allocation.size,
-                location: allocation.scope_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                location: allocation
+                    .scope_name
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string()),
                 stack_trace: allocation.stack_trace.clone().unwrap_or_default(),
                 risk_level: RiskLevel::High,
                 description: "Potential memory leak detected".to_string(),
@@ -434,7 +440,10 @@ impl FfiSafetyAnalyzer {
                 operation_type: UnsafeOperationType::BufferOverflow,
                 memory_address: allocation.ptr,
                 memory_size: allocation.size,
-                location: allocation.scope_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                location: allocation
+                    .scope_name
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string()),
                 stack_trace: allocation.stack_trace.clone().unwrap_or_default(),
                 risk_level: RiskLevel::Medium,
                 description: format!("Large allocation detected: {} bytes", allocation.size),
@@ -492,15 +501,18 @@ impl FfiSafetyAnalyzer {
         _index: usize,
     ) -> Result<(), BinaryExportError> {
         let location = self.extract_function_name(frame);
-        
-        let tracker = self.hotspots.entry(location.clone()).or_insert(FfiHotspotTracker {
-            call_count: 0,
-            total_memory: 0,
-            sizes: Vec::new(),
-            operation_types: Vec::new(),
-            unsafe_operations: Vec::new(),
-            risk_factors: Vec::new(),
-        });
+
+        let tracker = self
+            .hotspots
+            .entry(location.clone())
+            .or_insert(FfiHotspotTracker {
+                call_count: 0,
+                total_memory: 0,
+                sizes: Vec::new(),
+                operation_types: Vec::new(),
+                unsafe_operations: Vec::new(),
+                risk_factors: Vec::new(),
+            });
 
         tracker.call_count += 1;
         tracker.total_memory += allocation.size;
@@ -542,7 +554,7 @@ impl FfiSafetyAnalyzer {
         type_name: &str,
     ) -> Result<(), BinaryExportError> {
         let location = format!("ffi_type_{}", type_name);
-        
+
         let tracker = self.hotspots.entry(location).or_insert(FfiHotspotTracker {
             call_count: 0,
             total_memory: 0,
@@ -567,10 +579,18 @@ impl FfiSafetyAnalyzer {
             if let Some(end) = frame[start + 2..].find("::") {
                 frame[start + 2..start + 2 + end].to_string()
             } else {
-                frame[start + 2..].split_whitespace().next().unwrap_or("unknown").to_string()
+                frame[start + 2..]
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("unknown")
+                    .to_string()
             }
         } else {
-            frame.split_whitespace().next().unwrap_or("unknown").to_string()
+            frame
+                .split_whitespace()
+                .next()
+                .unwrap_or("unknown")
+                .to_string()
         }
     }
 
@@ -599,7 +619,10 @@ impl FfiSafetyAnalyzer {
     }
 
     /// Generate the final analysis results
-    fn generate_analysis(&mut self, total_allocations: usize) -> Result<FfiSafetyAnalysis, BinaryExportError> {
+    fn generate_analysis(
+        &mut self,
+        total_allocations: usize,
+    ) -> Result<FfiSafetyAnalysis, BinaryExportError> {
         // Calculate summary statistics
         let ffi_allocations_count = self.hotspots.values().map(|h| h.call_count).sum();
         let ffi_memory_usage = self.hotspots.values().map(|h| h.total_memory).sum();
@@ -656,10 +679,14 @@ impl FfiSafetyAnalyzer {
 
     /// Determine overall risk level
     fn determine_overall_risk_level(&self) -> RiskLevel {
-        let critical_count = self.unsafe_operations.iter()
+        let critical_count = self
+            .unsafe_operations
+            .iter()
             .filter(|op| op.risk_level == RiskLevel::Critical)
             .count();
-        let high_count = self.unsafe_operations.iter()
+        let high_count = self
+            .unsafe_operations
+            .iter()
             .filter(|op| op.risk_level == RiskLevel::High)
             .count();
 
@@ -727,7 +754,11 @@ impl FfiSafetyAnalyzer {
     /// Generate risk assessment
     fn generate_risk_assessment(&self) -> Result<RiskAssessment, BinaryExportError> {
         let memory_safety = CategoryRisk {
-            level: if self.risk_tracker.memory_safety_issues > 5 { RiskLevel::High } else { RiskLevel::Medium },
+            level: if self.risk_tracker.memory_safety_issues > 5 {
+                RiskLevel::High
+            } else {
+                RiskLevel::Medium
+            },
             issue_count: self.risk_tracker.memory_safety_issues,
             description: "Memory safety issues detected in FFI operations".to_string(),
             recommendations: vec![
@@ -738,7 +769,11 @@ impl FfiSafetyAnalyzer {
         };
 
         let type_safety = CategoryRisk {
-            level: if self.risk_tracker.type_safety_issues > 3 { RiskLevel::High } else { RiskLevel::Low },
+            level: if self.risk_tracker.type_safety_issues > 3 {
+                RiskLevel::High
+            } else {
+                RiskLevel::Low
+            },
             issue_count: self.risk_tracker.type_safety_issues,
             description: "Type safety concerns in FFI boundaries".to_string(),
             recommendations: vec![
@@ -755,7 +790,11 @@ impl FfiSafetyAnalyzer {
         };
 
         let data_integrity = CategoryRisk {
-            level: if self.risk_tracker.data_integrity_issues > 2 { RiskLevel::Medium } else { RiskLevel::Low },
+            level: if self.risk_tracker.data_integrity_issues > 2 {
+                RiskLevel::Medium
+            } else {
+                RiskLevel::Low
+            },
             issue_count: self.risk_tracker.data_integrity_issues,
             description: "Data integrity concerns".to_string(),
             recommendations: vec!["Validate data consistency".to_string()],
@@ -764,7 +803,9 @@ impl FfiSafetyAnalyzer {
         // Count risk distribution
         let mut risk_distribution = HashMap::new();
         for operation in &self.unsafe_operations {
-            *risk_distribution.entry(operation.risk_level.clone()).or_insert(0) += 1;
+            *risk_distribution
+                .entry(operation.risk_level.clone())
+                .or_insert(0) += 1;
         }
 
         Ok(RiskAssessment {
@@ -786,7 +827,11 @@ impl CallGraphBuilder {
         }
     }
 
-    fn add_call_frame(&mut self, frame: &str, allocation: &AllocationInfo) -> Result<(), BinaryExportError> {
+    fn add_call_frame(
+        &mut self,
+        frame: &str,
+        allocation: &AllocationInfo,
+    ) -> Result<(), BinaryExportError> {
         let node_id = format!("node_{}", self.node_counter);
         self.node_counter += 1;
 
@@ -821,8 +866,11 @@ impl CallGraphBuilder {
         let statistics = GraphStatistics {
             node_count: nodes.len(),
             edge_count: edges.len(),
-            ffi_boundaries: edges.iter().filter(|e| e.edge_type == EdgeType::FfiBoundary).count(),
-            max_depth: 0, // Would be calculated in real implementation
+            ffi_boundaries: edges
+                .iter()
+                .filter(|e| e.edge_type == EdgeType::FfiBoundary)
+                .count(),
+            max_depth: 0,            // Would be calculated in real implementation
             connected_components: 1, // Simplified
         };
 
@@ -894,7 +942,7 @@ mod tests {
     #[test]
     fn test_ffi_boundary_detection() {
         let analyzer = FfiSafetyAnalyzer::new();
-        
+
         assert!(analyzer.is_ffi_boundary("module::ffi::function"));
         assert!(analyzer.is_ffi_boundary("extern \"C\" fn test"));
         assert!(analyzer.is_ffi_boundary("libc::malloc"));
@@ -904,7 +952,7 @@ mod tests {
     #[test]
     fn test_unsafe_operation_detection() {
         let analyzer = FfiSafetyAnalyzer::new();
-        
+
         assert!(analyzer.is_unsafe_operation("unsafe { transmute(ptr) }"));
         assert!(analyzer.is_unsafe_operation("Vec::from_raw_parts"));
         assert!(analyzer.is_unsafe_operation("slice.as_mut_ptr()"));
@@ -914,7 +962,7 @@ mod tests {
     #[test]
     fn test_raw_pointer_type_detection() {
         let analyzer = FfiSafetyAnalyzer::new();
-        
+
         assert!(analyzer.is_raw_pointer_type("*const u8"));
         assert!(analyzer.is_raw_pointer_type("*mut i32"));
         assert!(analyzer.is_raw_pointer_type("NonNull<T>"));
@@ -925,7 +973,7 @@ mod tests {
     #[test]
     fn test_ffi_type_detection() {
         let analyzer = FfiSafetyAnalyzer::new();
-        
+
         assert!(analyzer.is_ffi_type("c_int"));
         assert!(analyzer.is_ffi_type("CString"));
         assert!(analyzer.is_ffi_type("CStr"));
@@ -956,7 +1004,8 @@ mod tests {
             ),
         ];
 
-        let analysis = FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis =
+            FfiSafetyAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
 
         assert_eq!(analysis.summary.total_allocations, 2);
         assert!(analysis.summary.unsafe_operations_count > 0);
@@ -968,26 +1017,35 @@ mod tests {
     #[test]
     fn test_risk_level_assessment() {
         let analyzer = FfiSafetyAnalyzer::new();
-        
+
         assert_eq!(analyzer.assess_risk_level("transmute"), RiskLevel::High);
         assert_eq!(analyzer.assess_risk_level("from_raw"), RiskLevel::High);
-        assert_eq!(analyzer.assess_risk_level("unsafe block"), RiskLevel::Medium);
+        assert_eq!(
+            analyzer.assess_risk_level("unsafe block"),
+            RiskLevel::Medium
+        );
         assert_eq!(analyzer.assess_risk_level("safe_function"), RiskLevel::Low);
     }
 
     #[test]
     fn test_function_name_extraction() {
         let analyzer = FfiSafetyAnalyzer::new();
-        
-        assert_eq!(analyzer.extract_function_name("module::submodule::function"), "submodule");
+
+        assert_eq!(
+            analyzer.extract_function_name("module::submodule::function"),
+            "submodule"
+        );
         assert_eq!(analyzer.extract_function_name("std::vec::Vec::new"), "vec");
-        assert_eq!(analyzer.extract_function_name("simple_function"), "simple_function");
+        assert_eq!(
+            analyzer.extract_function_name("simple_function"),
+            "simple_function"
+        );
     }
 
     #[test]
     fn test_safety_score_calculation() {
         let mut analyzer = FfiSafetyAnalyzer::new();
-        
+
         // Add some unsafe operations
         analyzer.unsafe_operations.push(UnsafeOperation {
             id: "test1".to_string(),

@@ -7,11 +7,15 @@
 mod tests {
     use crate::core::types::AllocationInfo;
     use crate::export::binary::binary_html_writer::BinaryHtmlWriter;
-    use crate::export::binary::selective_reader::AllocationField;
     use crate::export::binary::complex_type_analyzer::{ComplexTypeAnalyzer, TypeCategory};
+    use crate::export::binary::selective_reader::AllocationField;
     use std::io::Cursor;
 
-    fn create_test_allocation_with_type(type_name: &str, size: usize, ptr: usize) -> AllocationInfo {
+    fn create_test_allocation_with_type(
+        type_name: &str,
+        size: usize,
+        ptr: usize,
+    ) -> AllocationInfo {
         AllocationInfo {
             ptr,
             size,
@@ -56,20 +60,26 @@ mod tests {
         ];
 
         // Test direct analysis
-        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations)
+            .expect("Failed to get test value");
 
         // Verify analysis results
         assert_eq!(analysis.summary.total_types, 6);
         assert_eq!(analysis.summary.primitive_count, 1); // i32
         assert_eq!(analysis.summary.collection_count, 2); // Vec<String>, HashMap<String, i32>
         assert_eq!(analysis.summary.smart_pointer_count, 2); // Box<Vec<u8>>, Arc<Mutex<HashMap<String, Vec<i32>>>>
-        // MyCustomStruct should be in custom_types
+                                                             // MyCustomStruct should be in custom_types
         assert_eq!(analysis.categorized_types.custom_types.len(), 1);
 
         // Verify complexity scores
         assert_eq!(analysis.complexity_scores.get("i32"), Some(&1));
         assert_eq!(analysis.complexity_scores.get("Vec<String>"), Some(&4));
-        assert_eq!(analysis.complexity_scores.get("Arc<Mutex<HashMap<String, Vec<i32>>>>"), Some(&10));
+        assert_eq!(
+            analysis
+                .complexity_scores
+                .get("Arc<Mutex<HashMap<String, Vec<i32>>>>"),
+            Some(&10)
+        );
 
         // Verify categorization
         let primitives = &analysis.categorized_types.primitives;
@@ -109,11 +119,15 @@ mod tests {
         // Write allocations
         let fields = AllocationField::all_basic_fields();
         for allocation in &allocations {
-            writer.write_binary_allocation(allocation, &fields).expect("Test operation failed");
+            writer
+                .write_binary_allocation(allocation, &fields)
+                .expect("Test operation failed");
         }
 
         // Finalize and get stats
-        let stats = writer.finalize_with_binary_template("test_project").expect("Test operation failed");
+        let stats = writer
+            .finalize_with_binary_template("test_project")
+            .expect("Test operation failed");
 
         // Verify that allocations were processed
         assert_eq!(stats.allocations_processed, 3);
@@ -137,23 +151,33 @@ mod tests {
         assert_eq!(analysis.summary.total_types, 0); // Unknown types should be skipped
 
         // Test very complex nested type
-        let complex_allocation = create_test_allocation_with_type("Arc<RwLock<HashMap<String, Vec<Box<dyn Trait>>>>>", 64, 0x1000);
+        let complex_allocation = create_test_allocation_with_type(
+            "Arc<RwLock<HashMap<String, Vec<Box<dyn Trait>>>>>",
+            64,
+            0x1000,
+        );
         let result = ComplexTypeAnalyzer::analyze_allocations(&[complex_allocation]);
         assert!(result.is_ok());
         let analysis = result.expect("Test operation failed");
         assert_eq!(analysis.summary.total_types, 1);
         // The complexity should be capped at 10
-        assert_eq!(analysis.complexity_scores.get("Arc<RwLock<HashMap<String, Vec<Box<dyn Trait>>>>>"), Some(&10));
+        assert_eq!(
+            analysis
+                .complexity_scores
+                .get("Arc<RwLock<HashMap<String, Vec<Box<dyn Trait>>>>>"),
+            Some(&10)
+        );
     }
 
     #[test]
     fn test_generic_parameter_parsing_edge_cases() {
         // Test nested generics through analysis
-        let nested_allocation = create_test_allocation_with_type("HashMap<String, Vec<Option<i32>>>", 64, 0x1000);
+        let nested_allocation =
+            create_test_allocation_with_type("HashMap<String, Vec<Option<i32>>>", 64, 0x1000);
         let result = ComplexTypeAnalyzer::analyze_allocations(&[nested_allocation]);
         assert!(result.is_ok());
         let analysis = result.expect("Test operation failed");
-        
+
         // Verify the type was analyzed
         assert_eq!(analysis.summary.total_types, 1);
         // The type should have generic parameters even if not categorized as Generic
@@ -161,7 +185,8 @@ mod tests {
         assert!(!type_info.generic_parameters.is_empty());
 
         // Test multiple parameter types
-        let multi_param_allocation = create_test_allocation_with_type("Result<String, Error>", 32, 0x2000);
+        let multi_param_allocation =
+            create_test_allocation_with_type("Result<String, Error>", 32, 0x2000);
         let result = ComplexTypeAnalyzer::analyze_allocations(&[multi_param_allocation]);
         assert!(result.is_ok());
         let analysis = result.expect("Test operation failed");
@@ -176,10 +201,13 @@ mod tests {
             create_test_allocation_with_type("Vec<String>", 100, 0x3000),
         ];
 
-        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations).expect("Failed to get test value");
+        let analysis = ComplexTypeAnalyzer::analyze_allocations(&allocations)
+            .expect("Failed to get test value");
 
         // Find i32 type info
-        let i32_info = analysis.categorized_types.primitives
+        let i32_info = analysis
+            .categorized_types
+            .primitives
             .iter()
             .find(|t| t.name == "i32")
             .expect("Test operation failed");
@@ -190,7 +218,9 @@ mod tests {
         assert!(i32_info.memory_efficiency > 0.0);
 
         // Find Vec<String> type info
-        let vec_info = analysis.categorized_types.collections
+        let vec_info = analysis
+            .categorized_types
+            .collections
             .iter()
             .find(|t| t.name == "Vec<String>")
             .expect("Test operation failed");

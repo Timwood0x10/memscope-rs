@@ -12,10 +12,7 @@ pub enum PointerInfo {
     /// Real heap pointer obtained from the actual allocation
     Real(usize),
     /// Synthetic pointer generated when real pointer is unavailable
-    Synthetic {
-        ptr: usize,
-        reason: SyntheticReason,
-    },
+    Synthetic { ptr: usize, reason: SyntheticReason },
 }
 
 /// Reasons why a synthetic pointer was generated
@@ -40,9 +37,7 @@ impl EnhancedPointerExtractor {
     /// Extract pointer information with validation and categorization
     pub fn extract_pointer_info<T: Trackable>(value: &T) -> PointerInfo {
         match value.get_heap_ptr() {
-            Some(ptr) if Self::is_valid_heap_pointer(ptr) => {
-                PointerInfo::Real(ptr)
-            }
+            Some(ptr) if Self::is_valid_heap_pointer(ptr) => PointerInfo::Real(ptr),
             Some(ptr) if Self::is_synthetic_pointer(ptr) => {
                 // This is already a synthetic pointer from the Trackable implementation
                 let reason = Self::determine_synthetic_reason(ptr);
@@ -122,7 +117,7 @@ impl EnhancedPointerExtractor {
     fn generate_synthetic_pointer() -> usize {
         use std::sync::atomic::{AtomicUsize, Ordering};
         static SYNTHETIC_COUNTER: AtomicUsize = AtomicUsize::new(0);
-        
+
         let id = SYNTHETIC_COUNTER.fetch_add(1, Ordering::Relaxed);
         0x9000_0000 + (id % 0x0FFF_FFFF)
     }
@@ -181,7 +176,9 @@ impl EnhancedPointerExtractor {
     }
 
     /// Enhanced extraction for HashMap with bucket validation
-    pub fn extract_hashmap_pointer<K, V, S>(map: &std::collections::HashMap<K, V, S>) -> PointerInfo {
+    pub fn extract_hashmap_pointer<K, V, S>(
+        map: &std::collections::HashMap<K, V, S>,
+    ) -> PointerInfo {
         if map.is_empty() {
             PointerInfo::Synthetic {
                 ptr: Self::generate_synthetic_pointer(),
@@ -213,7 +210,11 @@ impl EnhancedPointerExtractor {
         }
 
         let total = pointers.len();
-        let real_ratio = if total > 0 { real_count as f64 / total as f64 } else { 0.0 };
+        let real_ratio = if total > 0 {
+            real_count as f64 / total as f64
+        } else {
+            0.0
+        };
 
         PointerStatistics {
             total_pointers: total,
@@ -239,10 +240,10 @@ pub struct PointerStatistics {
 pub trait EnhancedTrackable {
     /// Get enhanced pointer information
     fn get_pointer_info(&self) -> PointerInfo;
-    
+
     /// Get size estimate for the tracked data
     fn get_size_estimate(&self) -> usize;
-    
+
     /// Get type information
     fn get_type_info(&self) -> TypeInfo;
 }
@@ -257,8 +258,7 @@ pub struct TypeInfo {
 }
 
 /// Categories of types for better analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TypeCategory {
     Primitive,
     Collection,
@@ -336,14 +336,18 @@ mod tests {
         // Valid heap pointers
         assert!(EnhancedPointerExtractor::is_valid_heap_pointer(0x1000));
         assert!(EnhancedPointerExtractor::is_valid_heap_pointer(0x7FFF_0000));
-        
+
         // Invalid pointers
         assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0));
         assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0x100));
-        
+
         // Synthetic pointers
-        assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0x8000_0000));
-        assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0xA000_0000));
+        assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(
+            0x8000_0000
+        ));
+        assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(
+            0xA000_0000
+        ));
     }
 
     #[test]
@@ -351,7 +355,7 @@ mod tests {
         assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x5000_0000));
         assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x8000_0000));
         assert!(EnhancedPointerExtractor::is_synthetic_pointer(0xA000_0000));
-        
+
         assert!(!EnhancedPointerExtractor::is_synthetic_pointer(0x1000));
         assert!(!EnhancedPointerExtractor::is_synthetic_pointer(0x7FFF_0000));
     }
@@ -360,7 +364,7 @@ mod tests {
     fn test_vec_pointer_extraction() {
         let vec = vec![1, 2, 3, 4, 5];
         let pointer_info = EnhancedPointerExtractor::extract_vec_pointer(&vec);
-        
+
         match pointer_info {
             PointerInfo::Real(_) => {
                 // This is expected for a Vec with capacity
@@ -375,9 +379,12 @@ mod tests {
     fn test_empty_vec_pointer_extraction() {
         let vec: Vec<i32> = Vec::new();
         let pointer_info = EnhancedPointerExtractor::extract_vec_pointer(&vec);
-        
+
         match pointer_info {
-            PointerInfo::Synthetic { reason: SyntheticReason::EmptyContainer, .. } => {
+            PointerInfo::Synthetic {
+                reason: SyntheticReason::EmptyContainer,
+                ..
+            } => {
                 // This is expected for an empty Vec
             }
             _ => {
@@ -392,14 +399,14 @@ mod tests {
         let pointer_info = vec.get_pointer_info();
         let size_estimate = Trackable::get_size_estimate(&vec);
         let type_info = vec.get_type_info();
-        
+
         match pointer_info {
             PointerInfo::Real(_) => {
                 // Expected for Vec with data
             }
             _ => panic!("Expected real pointer for Vec with data"),
         }
-        
+
         assert!(size_estimate > 0);
         assert_eq!(type_info.category, TypeCategory::Collection);
         assert!(type_info.is_heap_allocated);
@@ -419,9 +426,9 @@ mod tests {
                 reason: SyntheticReason::ComplexType,
             },
         ];
-        
+
         let stats = EnhancedPointerExtractor::get_pointer_statistics(&pointers);
-        
+
         assert_eq!(stats.total_pointers, 4);
         assert_eq!(stats.real_pointers, 2);
         assert_eq!(stats.synthetic_pointers, 2);

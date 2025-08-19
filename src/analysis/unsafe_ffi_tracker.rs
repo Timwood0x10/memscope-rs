@@ -5,9 +5,9 @@
 //! - FFI memory operations (malloc, free from C libraries)
 //! - Cross-boundary memory transfers
 //! - Safety violation detection
-use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
-use crate::core::{CallStackRef, get_global_call_stack_normalizer};
 use crate::analysis::ffi_function_resolver::{get_global_ffi_resolver, ResolvedFfiFunction};
+use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
+use crate::core::{get_global_call_stack_normalizer, CallStackRef};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -753,9 +753,14 @@ impl UnsafeFFITracker {
 
         // Resolve FFI function information
         let resolver = get_global_ffi_resolver();
-        let resolved_function = resolver.resolve_function(&function_name, Some(&library_name))
+        let resolved_function = resolver
+            .resolve_function(&function_name, Some(&library_name))
             .unwrap_or_else(|_| {
-                tracing::warn!("Failed to resolve FFI function: {}::{}", library_name, function_name);
+                tracing::warn!(
+                    "Failed to resolve FFI function: {}::{}",
+                    library_name,
+                    function_name
+                );
                 // Create fallback resolution
                 ResolvedFfiFunction {
                     library_name: library_name.clone(),
@@ -2347,12 +2352,14 @@ impl UnsafeFFITracker {
                     format!("Unsafe block at {unsafe_block_location}"),
                 ),
                 AllocationSource::FfiC {
-                    resolved_function,
-                    ..
+                    resolved_function, ..
                 } => (
                     UnsafeOperationType::FfiCall,
                     RiskLevel::High,
-                    format!("FFI call to {}::{}", resolved_function.library_name, resolved_function.function_name),
+                    format!(
+                        "FFI call to {}::{}",
+                        resolved_function.library_name, resolved_function.function_name
+                    ),
                 ),
                 AllocationSource::CrossBoundary { .. } => (
                     UnsafeOperationType::CrossBoundaryTransfer,
@@ -2378,36 +2385,45 @@ impl UnsafeFFITracker {
     }
 
     /// Integrate with SafetyAnalyzer for enhanced reporting
-    pub fn integrate_with_safety_analyzer(&self, safety_analyzer: &crate::analysis::SafetyAnalyzer) -> TrackingResult<()> {
+    pub fn integrate_with_safety_analyzer(
+        &self,
+        safety_analyzer: &crate::analysis::SafetyAnalyzer,
+    ) -> TrackingResult<()> {
         // Get current violations
         let violations = if let Ok(violations) = self.violations.lock() {
             violations.clone()
         } else {
-            return Err(TrackingError::LockContention("Failed to lock violations".to_string()));
+            return Err(TrackingError::LockContention(
+                "Failed to lock violations".to_string(),
+            ));
         };
 
         // Get current allocations
-        let allocations: Vec<crate::core::types::AllocationInfo> = if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
-            enhanced_allocations.values().map(|ea| ea.base.clone()).collect()
-        } else {
-            return Err(TrackingError::LockContention("Failed to lock allocations".to_string()));
-        };
+        let allocations: Vec<crate::core::types::AllocationInfo> =
+            if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
+                enhanced_allocations
+                    .values()
+                    .map(|ea| ea.base.clone())
+                    .collect()
+            } else {
+                return Err(TrackingError::LockContention(
+                    "Failed to lock allocations".to_string(),
+                ));
+            };
 
         // Generate unsafe reports for each violation
         for violation in &violations {
             let source = match violation {
-                SafetyViolation::DoubleFree { .. } => {
-                    crate::analysis::UnsafeSource::RawPointer {
-                        operation: "double_free".to_string(),
-                        location: "memory_violation".to_string(),
-                    }
-                }
-                SafetyViolation::InvalidFree { attempted_pointer, .. } => {
-                    crate::analysis::UnsafeSource::RawPointer {
-                        operation: "invalid_free".to_string(),
-                        location: format!("0x{:x}", attempted_pointer),
-                    }
-                }
+                SafetyViolation::DoubleFree { .. } => crate::analysis::UnsafeSource::RawPointer {
+                    operation: "double_free".to_string(),
+                    location: "memory_violation".to_string(),
+                },
+                SafetyViolation::InvalidFree {
+                    attempted_pointer, ..
+                } => crate::analysis::UnsafeSource::RawPointer {
+                    operation: "invalid_free".to_string(),
+                    location: format!("0x{:x}", attempted_pointer),
+                },
                 SafetyViolation::PotentialLeak { .. } => {
                     crate::analysis::UnsafeSource::RawPointer {
                         operation: "potential_leak".to_string(),
@@ -2423,15 +2439,22 @@ impl UnsafeFFITracker {
                 }
             };
 
-            let _report_id = safety_analyzer.generate_unsafe_report(source, &allocations, &violations)?;
+            let _report_id =
+                safety_analyzer.generate_unsafe_report(source, &allocations, &violations)?;
         }
 
-        tracing::info!("🔗 Integrated {} violations with SafetyAnalyzer", violations.len());
+        tracing::info!(
+            "🔗 Integrated {} violations with SafetyAnalyzer",
+            violations.len()
+        );
         Ok(())
     }
 
     /// Integrate with MemoryPassportTracker for FFI boundary tracking
-    pub fn integrate_with_passport_tracker(&self, passport_tracker: &crate::analysis::MemoryPassportTracker) -> TrackingResult<()> {
+    pub fn integrate_with_passport_tracker(
+        &self,
+        passport_tracker: &crate::analysis::MemoryPassportTracker,
+    ) -> TrackingResult<()> {
         if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
             for (ptr, allocation) in enhanced_allocations.iter() {
                 // Create passports for FFI allocations
@@ -2445,10 +2468,18 @@ impl UnsafeFFITracker {
                     // Record boundary events
                     for event in &allocation.cross_boundary_events {
                         let event_type = match event.event_type {
-                            BoundaryEventType::RustToFfi => crate::analysis::PassportEventType::HandoverToFfi,
-                            BoundaryEventType::FfiToRust => crate::analysis::PassportEventType::ReclaimedByRust,
-                            BoundaryEventType::OwnershipTransfer => crate::analysis::PassportEventType::OwnershipTransfer,
-                            BoundaryEventType::SharedAccess => crate::analysis::PassportEventType::BoundaryAccess,
+                            BoundaryEventType::RustToFfi => {
+                                crate::analysis::PassportEventType::HandoverToFfi
+                            }
+                            BoundaryEventType::FfiToRust => {
+                                crate::analysis::PassportEventType::ReclaimedByRust
+                            }
+                            BoundaryEventType::OwnershipTransfer => {
+                                crate::analysis::PassportEventType::OwnershipTransfer
+                            }
+                            BoundaryEventType::SharedAccess => {
+                                crate::analysis::PassportEventType::BoundaryAccess
+                            }
                         };
 
                         passport_tracker.record_passport_event(
@@ -2467,7 +2498,9 @@ impl UnsafeFFITracker {
     }
 
     /// Perform comprehensive safety analysis using integrated components
-    pub fn perform_comprehensive_safety_analysis(&self) -> TrackingResult<crate::analysis::ComprehensiveSafetyReport> {
+    pub fn perform_comprehensive_safety_analysis(
+        &self,
+    ) -> TrackingResult<crate::analysis::ComprehensiveSafetyReport> {
         // Initialize integrated components
         let safety_analyzer = crate::analysis::SafetyAnalyzer::default();
         let passport_tracker = crate::analysis::get_global_passport_tracker();

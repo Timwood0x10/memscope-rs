@@ -204,10 +204,13 @@ mod tests {
 
         for original_type in types {
             let mut buffer = Vec::new();
-            original_type.write_binary(&mut buffer).expect("Test operation failed");
+            original_type
+                .write_binary(&mut buffer)
+                .expect("Test operation failed");
 
             let mut cursor = Cursor::new(&buffer);
-            let read_type = SmartPointerType::read_binary(&mut cursor).expect("Failed to get test value");
+            let read_type =
+                SmartPointerType::read_binary(&mut cursor).expect("Failed to get test value");
 
             assert_eq!(original_type, read_type);
         }
@@ -222,10 +225,13 @@ mod tests {
         };
 
         let mut buffer = Vec::new();
-        snapshot.write_binary(&mut buffer).expect("Test operation failed");
+        snapshot
+            .write_binary(&mut buffer)
+            .expect("Test operation failed");
 
         let mut cursor = Cursor::new(&buffer);
-        let read_snapshot = RefCountSnapshot::read_binary(&mut cursor).expect("Failed to get test value");
+        let read_snapshot =
+            RefCountSnapshot::read_binary(&mut cursor).expect("Failed to get test value");
 
         assert_eq!(snapshot, read_snapshot);
     }
@@ -256,13 +262,16 @@ mod tests {
         };
 
         let mut buffer = Vec::new();
-        let written_size = info.write_binary(&mut buffer).expect("Test operation failed");
+        let written_size = info
+            .write_binary(&mut buffer)
+            .expect("Test operation failed");
 
         // Verify size calculation
         assert_eq!(written_size, info.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_info = SmartPointerInfo::read_binary(&mut cursor).expect("Failed to get test value");
+        let read_info =
+            SmartPointerInfo::read_binary(&mut cursor).expect("Failed to get test value");
 
         assert_eq!(info, read_info);
     }
@@ -282,10 +291,12 @@ mod tests {
         };
 
         let mut buffer = Vec::new();
-        info.write_binary(&mut buffer).expect("Test operation failed");
+        info.write_binary(&mut buffer)
+            .expect("Test operation failed");
 
         let mut cursor = Cursor::new(&buffer);
-        let read_info = SmartPointerInfo::read_binary(&mut cursor).expect("Failed to get test value");
+        let read_info =
+            SmartPointerInfo::read_binary(&mut cursor).expect("Failed to get test value");
 
         assert_eq!(info, read_info);
     }

@@ -13,8 +13,15 @@ mod binary_template_engine;
 mod cache;
 mod complex_type_analyzer;
 mod config;
+mod error;
+mod error_recovery;
 mod ffi_safety_analyzer;
-mod variable_relationship_analyzer;
+mod field_parser;
+mod filter_engine;
+pub mod format;
+mod html_export;
+mod index;
+mod index_builder;
 #[cfg(test)]
 mod integration_test_complex_types;
 #[cfg(test)]
@@ -23,14 +30,6 @@ mod integration_test_ffi_safety;
 mod integration_test_template_resources;
 #[cfg(test)]
 mod integration_test_variable_relationships;
-mod error;
-mod error_recovery;
-mod field_parser;
-mod filter_engine;
-pub mod format;
-mod html_export;
-mod index;
-mod index_builder;
 mod memory_layout_serialization;
 mod parser;
 mod reader;
@@ -42,6 +41,7 @@ mod streaming_field_processor;
 mod streaming_json_writer;
 mod string_table;
 mod template_resource_manager;
+mod variable_relationship_analyzer;
 mod writer;
 
 pub use batch_processor::{
@@ -61,22 +61,21 @@ pub use binary_template_engine::{
 };
 pub use cache::{CacheEntry, CacheStats, IndexCache, IndexCacheConfig};
 pub use complex_type_analyzer::{
-    ComplexTypeAnalysis, ComplexTypeAnalyzer, ComplexTypeSummary, CategorizedTypes,
-    TypeInfo, GenericTypeAnalysis, GenericInstantiation, TypeCategory,
+    CategorizedTypes, ComplexTypeAnalysis, ComplexTypeAnalyzer, ComplexTypeSummary,
+    GenericInstantiation, GenericTypeAnalysis, TypeCategory, TypeInfo,
 };
 pub use ffi_safety_analyzer::{
-    FfiSafetyAnalysis, FfiSafetyAnalyzer, FfiSafetySummary, UnsafeOperation,
-    FfiHotspot, RiskAssessment, FfiCallGraph, UnsafeOperationType, RiskLevel,
+    FfiCallGraph, FfiHotspot, FfiSafetyAnalysis, FfiSafetyAnalyzer, FfiSafetySummary,
+    RiskAssessment, RiskLevel, UnsafeOperation, UnsafeOperationType,
 };
 pub use variable_relationship_analyzer::{
-    VariableRelationshipAnalysis, VariableRelationshipAnalyzer, RelationshipGraph,
-    GraphNode, GraphEdge, RelationshipType, NodeCategory, OwnershipStatus,
+    GraphEdge, GraphNode, NodeCategory, OwnershipStatus, RelationshipGraph, RelationshipType,
+    VariableRelationshipAnalysis, VariableRelationshipAnalyzer,
 };
 
 pub use config::{
-    AdvancedMetricsLevel, BinaryExportConfig, BinaryExportConfigBuilder,
-    DashboardFormat, DataScope, PerformanceMode, AnalysisType,
-    DashboardOptions, DashboardExportStats,
+    AdvancedMetricsLevel, AnalysisType, BinaryExportConfig, BinaryExportConfigBuilder,
+    DashboardExportStats, DashboardFormat, DashboardOptions, DataScope, PerformanceMode,
 };
 pub use error::BinaryExportError;
 pub use error_recovery::{
@@ -87,11 +86,17 @@ pub use field_parser::{FieldParser, FieldParserConfig, FieldParserStats, Partial
 pub use filter_engine::{FilterEngine, FilterEngineBuilder, FilterOptimizer, FilterStats};
 pub use format::{BinaryExportMode, FileHeader, FORMAT_VERSION, MAGIC_BYTES};
 pub use html_export::{
-    export_binary, export_binary_optimized, export_binary_with_format,
-    export_binary_to_json, export_binary_to_html, export_binary_to_html_system, 
-    export_binary_to_html_both, export_binary_to_both,
-    export_binary_with_config, show_export_options,
+    export_binary,
+    export_binary_optimized,
+    export_binary_to_both,
     export_binary_to_dashboard, // New unified API
+    export_binary_to_html,
+    export_binary_to_html_both,
+    export_binary_to_html_system,
+    export_binary_to_json,
+    export_binary_with_config,
+    export_binary_with_format,
+    show_export_options,
     BinaryOutputFormat,
 };
 pub use index::{BinaryIndex, CompactAllocationIndex, QuickFilterData, RecordMetadata};
@@ -115,8 +120,8 @@ pub use streaming_json_writer::{
     StreamingJsonWriterConfig, StreamingJsonWriterConfigBuilder,
 };
 pub use template_resource_manager::{
-    TemplateResourceManager, TemplateData, ResourceConfig, PlaceholderProcessor,
-    create_template_data,
+    create_template_data, PlaceholderProcessor, ResourceConfig, TemplateData,
+    TemplateResourceManager,
 };
 pub use writer::BinaryWriter;
 

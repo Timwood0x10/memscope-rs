@@ -3,11 +3,10 @@
 //! This module provides direct conversion from binary files to HTML dashboards
 //! using the templates in ./templates/
 
-use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::config::{
-    DashboardOptions, DashboardExportStats, 
-    DashboardFormat, DataScope
+    DashboardExportStats, DashboardFormat, DashboardOptions, DataScope,
 };
+use crate::export::binary::error::BinaryExportError;
 use std::path::Path;
 
 /// Output format for binary export
@@ -115,7 +114,7 @@ impl BinaryExportConfig {
 // CSS and JS content are now loaded from templates directly
 
 /// **[UNIFIED ENTRY POINT]** Ultra-fast binary export with format selection and parallel processing
-/// 
+///
 /// This is the main unified entry point that supports JSON, HTML, or both formats with optimized performance.
 /// Uses parallel processing and streaming for large datasets, inspired by optimized_json_export.rs.
 /// Designed to match or exceed full-binary → JSON performance while adding HTML support.
@@ -152,14 +151,20 @@ pub fn export_binary_optimized<P: AsRef<Path>>(
     let start = std::time::Instant::now();
     let binary_path = binary_path.as_ref();
 
-    tracing::info!("🚀 Starting optimized binary export for {:?} format", format);
-    tracing::info!("   - Parallel processing: {}", config.enable_parallel_processing);
+    tracing::info!(
+        "🚀 Starting optimized binary export for {:?} format",
+        format
+    );
+    tracing::info!(
+        "   - Parallel processing: {}",
+        config.enable_parallel_processing
+    );
     tracing::info!("   - Streaming: {}", config.enable_streaming);
     tracing::info!("   - Batch size: {}", config.batch_size);
 
     // Step 1: Pre-flight checks and setup
     let setup_start = std::time::Instant::now();
-    
+
     // Create output directory
     let base_memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
     let project_dir = base_memory_analysis_dir.join(base_name);
@@ -170,7 +175,9 @@ pub fn export_binary_optimized<P: AsRef<Path>>(
         rayon::ThreadPoolBuilder::new()
             .num_threads(thread_count)
             .build_global()
-            .map_err(|e| BinaryExportError::CorruptedData(format!("Failed to configure thread pool: {}", e)))?;
+            .map_err(|e| {
+                BinaryExportError::CorruptedData(format!("Failed to configure thread pool: {}", e))
+            })?;
     }
 
     let setup_time = setup_start.elapsed();
@@ -198,21 +205,22 @@ pub fn export_binary_optimized<P: AsRef<Path>>(
             // Generate both user and system HTML dashboards
             let user_html_path = project_dir.join(format!("{}_user_dashboard.html", base_name));
             let system_html_path = project_dir.join(format!("{}_system_dashboard.html", base_name));
-            
+
             // Use parallel processing for both HTML files
             use rayon::prelude::*;
-            let results: Result<Vec<()>, BinaryExportError> = [
-                ("user", true),
-                ("system", false),
-            ]
-            .par_iter()
-            .map(|(data_type, is_user_only)| {
-                let html_path = if *is_user_only { &user_html_path } else { &system_html_path };
-                tracing::info!("🧵 [{}] Starting HTML generation", data_type.to_uppercase());
-                export_html_filtered(binary_path, html_path, base_name, &config, *is_user_only)
-            })
-            .collect();
-            
+            let results: Result<Vec<()>, BinaryExportError> = [("user", true), ("system", false)]
+                .par_iter()
+                .map(|(data_type, is_user_only)| {
+                    let html_path = if *is_user_only {
+                        &user_html_path
+                    } else {
+                        &system_html_path
+                    };
+                    tracing::info!("🧵 [{}] Starting HTML generation", data_type.to_uppercase());
+                    export_html_filtered(binary_path, html_path, base_name, &config, *is_user_only)
+                })
+                .collect();
+
             results?;
         }
         BinaryOutputFormat::Both => {
@@ -268,9 +276,9 @@ fn export_html_optimized<P: AsRef<Path>>(
     project_name: &str,
     config: &BinaryExportConfig,
 ) -> Result<(), BinaryExportError> {
-    use crate::export::binary::reader::BinaryReader;
-    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
     use crate::export::binary::binary_html_writer::BinaryTemplateData;
+    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
+    use crate::export::binary::reader::BinaryReader;
 
     let start = std::time::Instant::now();
     let binary_path = binary_path.as_ref();
@@ -282,7 +290,11 @@ fn export_html_optimized<P: AsRef<Path>>(
     let header = reader.read_header()?;
     let total_count = header.total_count;
 
-    tracing::info!("📊 Processing {} allocations with batch size {}", total_count, config.batch_size);
+    tracing::info!(
+        "📊 Processing {} allocations with batch size {}",
+        total_count,
+        config.batch_size
+    );
 
     // Step 2: Process allocations in optimized batches
     let mut all_allocations = Vec::new();
@@ -291,26 +303,31 @@ fn export_html_optimized<P: AsRef<Path>>(
 
     // Use batched processing for better memory management
     let batch_count = (total_count as usize + config.batch_size - 1) / config.batch_size;
-    
+
     for batch_idx in 0..batch_count {
         let batch_start = batch_idx * config.batch_size;
         let batch_end = std::cmp::min(batch_start + config.batch_size, total_count as usize);
-        
-        tracing::debug!("Processing batch {}/{} (allocations {}-{})", 
-                       batch_idx + 1, batch_count, batch_start, batch_end);
+
+        tracing::debug!(
+            "Processing batch {}/{} (allocations {}-{})",
+            batch_idx + 1,
+            batch_count,
+            batch_start,
+            batch_end
+        );
 
         for i in batch_start..batch_end {
             match reader.read_allocation() {
                 Ok(allocation) => {
                     // Convert to BinaryAllocationData for template
                     let binary_data = convert_allocation_to_binary_data(&allocation, i)?;
-                    
+
                     // Update statistics
                     total_memory += allocation.size as u64;
                     if allocation.is_active() {
                         active_count += 1;
                     }
-                    
+
                     all_allocations.push(binary_data);
                 }
                 Err(e) => {
@@ -322,19 +339,23 @@ fn export_html_optimized<P: AsRef<Path>>(
 
         // Optional: Flush memory if batch is large
         if config.enable_streaming && all_allocations.len() > config.batch_size * 2 {
-            tracing::debug!("💾 Memory management: {} allocations in buffer", all_allocations.len());
+            tracing::debug!(
+                "💾 Memory management: {} allocations in buffer",
+                all_allocations.len()
+            );
         }
     }
 
     // Step 3: Create template data with full analysis
     let analysis_start = std::time::Instant::now();
-    
+
     // Generate lightweight analysis data for performance
-    let (complex_types, unsafe_ffi, variable_relationships) = generate_lightweight_analysis_simple(&all_allocations)?;
-    
+    let (complex_types, unsafe_ffi, variable_relationships) =
+        generate_lightweight_analysis_simple(&all_allocations)?;
+
     let analysis_time = analysis_start.elapsed();
     tracing::info!("📊 Analysis completed in {}ms", analysis_time.as_millis());
-    
+
     let template_data = BinaryTemplateData {
         project_name: project_name.to_string(),
         allocations: all_allocations,
@@ -370,7 +391,6 @@ fn export_html_optimized<P: AsRef<Path>>(
     Ok(())
 }
 
-
 /// **[FILTERED HTML EXPORT]** Generate HTML with user/system data filtering for optimal performance
 fn export_html_filtered<P: AsRef<Path>>(
     binary_path: P,
@@ -379,20 +399,24 @@ fn export_html_filtered<P: AsRef<Path>>(
     _config: &BinaryExportConfig,
     user_only: bool,
 ) -> Result<(), BinaryExportError> {
-    use crate::export::binary::parser::BinaryParser;
-    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
     use crate::export::binary::binary_html_writer::BinaryTemplateData;
+    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
+    use crate::export::binary::parser::BinaryParser;
 
     let start = std::time::Instant::now();
     let data_type = if user_only { "USER" } else { "SYSTEM" };
 
-    tracing::info!("🚀 Starting {} HTML generation for {}", data_type, project_name);
+    tracing::info!(
+        "🚀 Starting {} HTML generation for {}",
+        data_type,
+        project_name
+    );
 
     // **OPTIMIZATION**: Load data once using the same ultra-fast approach as JSON
     let load_start = std::time::Instant::now();
     let all_allocations = BinaryParser::load_allocations_with_recovery(binary_path)?;
     let load_time = load_start.elapsed();
-    
+
     // **FILTERING**: Separate user and system allocations
     let filtered_allocations: Vec<_> = all_allocations
         .into_iter()
@@ -422,25 +446,30 @@ fn export_html_filtered<P: AsRef<Path>>(
 
     for (i, allocation) in filtered_allocations.iter().enumerate() {
         let binary_data = convert_allocation_to_binary_data(allocation, i)?;
-        
+
         total_memory += allocation.size as u64;
         if allocation.is_active() {
             active_count += 1;
         }
-        
+
         binary_allocations.push(binary_data);
     }
     let process_time = process_start.elapsed();
 
     // Create template data with full analysis for filtered data
     let analysis_start = std::time::Instant::now();
-    
+
     // Generate lightweight analysis data for filtered allocations
-    let (complex_types, unsafe_ffi, variable_relationships) = generate_lightweight_analysis_simple(&binary_allocations)?;
-    
+    let (complex_types, unsafe_ffi, variable_relationships) =
+        generate_lightweight_analysis_simple(&binary_allocations)?;
+
     let analysis_time = analysis_start.elapsed();
-    tracing::info!("📊 {} analysis completed in {}ms", data_type, analysis_time.as_millis());
-    
+    tracing::info!(
+        "📊 {} analysis completed in {}ms",
+        data_type,
+        analysis_time.as_millis()
+    );
+
     let template_data = BinaryTemplateData {
         project_name: format!("{} ({})", project_name, data_type),
         allocations: binary_allocations,
@@ -448,7 +477,10 @@ fn export_html_filtered<P: AsRef<Path>>(
         peak_memory_usage: total_memory,
         active_allocations_count: active_count,
         processing_time_ms: start.elapsed().as_millis() as u64,
-        data_source: format!("binary_{}_filtered", if user_only { "user" } else { "system" }),
+        data_source: format!(
+            "binary_{}_filtered",
+            if user_only { "user" } else { "system" }
+        ),
         complex_types,
         unsafe_ffi,
         variable_relationships,
@@ -480,7 +512,7 @@ fn export_html_filtered<P: AsRef<Path>>(
 }
 
 /// **[ULTRA-FAST PARALLEL EXPORT]** Generate both JSON and HTML in parallel with shared data optimization
-/// 
+///
 /// This implementation uses the same ultra-fast approach as parse_full_binary_to_json but extends it
 /// to support parallel HTML generation. Key optimizations:
 /// - Shared data loading (single binary read)
@@ -492,8 +524,8 @@ fn export_both_formats_parallel<P: AsRef<Path>>(
     base_name: &str,
     config: &BinaryExportConfig,
 ) -> Result<(), BinaryExportError> {
-    use rayon::prelude::*;
     use crate::export::binary::parser::BinaryParser;
+    use rayon::prelude::*;
 
     let binary_path = binary_path.as_ref();
     let start = std::time::Instant::now();
@@ -524,7 +556,7 @@ fn export_both_formats_parallel<P: AsRef<Path>>(
         .par_iter()
         .map(|(format_name, format)| {
             let thread_start = std::time::Instant::now();
-            
+
             let result = match format {
                 BinaryOutputFormat::Json => {
                     tracing::info!("🧵 [JSON Thread] Starting ultra-fast JSON generation");
@@ -535,15 +567,24 @@ fn export_both_formats_parallel<P: AsRef<Path>>(
                     tracing::info!("🧵 [HTML Thread] Starting ultra-fast USER HTML generation");
                     let html_path = project_dir.join(format!("{}_user_dashboard.html", base_name));
                     // Use optimized HTML generation with shared data (user only)
-                    export_html_with_shared_data_filtered(&all_allocations, &html_path, base_name, config, true)
+                    export_html_with_shared_data_filtered(
+                        &all_allocations,
+                        &html_path,
+                        base_name,
+                        config,
+                        true,
+                    )
                 }
                 _ => unreachable!(),
             };
 
             let thread_time = thread_start.elapsed();
-            tracing::info!("🧵 [{}] Thread completed in {}ms", 
-                          format_name.to_uppercase(), thread_time.as_millis());
-            
+            tracing::info!(
+                "🧵 [{}] Thread completed in {}ms",
+                format_name.to_uppercase(),
+                thread_time.as_millis()
+            );
+
             result
         })
         .collect();
@@ -553,7 +594,7 @@ fn export_both_formats_parallel<P: AsRef<Path>>(
         // Sequential execution if parallel processing is disabled
         tracing::info!("📝 Sequential export mode (still optimized)");
         export_json_optimized(binary_path, base_name, config)?;
-        
+
         let base_memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
         let project_dir = base_memory_analysis_dir.join(base_name);
         let html_path = project_dir.join(format!("{}_dashboard.html", base_name));
@@ -561,7 +602,10 @@ fn export_both_formats_parallel<P: AsRef<Path>>(
     }
 
     let total_time = start.elapsed();
-    tracing::info!("✅ Ultra-fast parallel export completed in {}ms", total_time.as_millis());
+    tracing::info!(
+        "✅ Ultra-fast parallel export completed in {}ms",
+        total_time.as_millis()
+    );
 
     Ok(())
 }
@@ -581,12 +625,12 @@ fn provide_performance_feedback(
         tracing::info!("✅ Good performance: {}ms", elapsed_ms);
     } else {
         tracing::warn!("⚠️  Consider optimization: {}ms", elapsed_ms);
-        
+
         // Provide optimization suggestions
         if !config.enable_parallel_processing && matches!(format, BinaryOutputFormat::Both) {
             tracing::info!("💡 Suggestion: Enable parallel processing for Both format");
         }
-        
+
         if config.batch_size < 1000 {
             tracing::info!("💡 Suggestion: Increase batch size to 2000+ for better performance");
         }
@@ -608,9 +652,13 @@ fn provide_performance_feedback(
         }
         BinaryOutputFormat::Both => {
             if config.enable_parallel_processing {
-                tracing::info!("🚀 Parallel export completed - maximum efficiency with shared data");
+                tracing::info!(
+                    "🚀 Parallel export completed - maximum efficiency with shared data"
+                );
             } else {
-                tracing::info!("📝 Sequential export completed - consider enabling parallel processing");
+                tracing::info!(
+                    "📝 Sequential export completed - consider enabling parallel processing"
+                );
             }
         }
     }
@@ -628,35 +676,35 @@ pub fn export_binary_to_json<P: AsRef<Path>>(
 }
 
 /// **[UNIFIED API]** Export binary to dashboard with unified configuration
-/// 
+///
 /// This is the new unified entry point that replaces all the scattered export functions.
 /// It supports different formats (embedded, lightweight, progressive) and maintains
 /// backward compatibility while providing better performance and flexibility.
-/// 
+///
 /// # Arguments
 /// * `binary_path` - Path to the binary file
 /// * `project_name` - Name of the project (used for output files)
 /// * `options` - Dashboard export options (format, scope, performance mode)
-/// 
+///
 /// # Returns
 /// * `DashboardExportStats` - Statistics about the export process
-/// 
+///
 /// # Examples
 /// ```no_run
 /// use memscope_rs::export::binary::{export_binary_to_dashboard, DashboardOptions, DashboardFormat};
-/// 
+///
 /// // Default lightweight export (recommended)
 /// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::default())?;
-/// 
+///
 /// // Fast export for quick analysis
 /// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::fast_preset())?;
-/// 
+///
 /// // Complete analysis with progressive loading
 /// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::complete_preset())?;
-/// 
+///
 /// // Backward compatible embedded format
 /// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::embedded_preset())?;
-/// 
+///
 /// // Custom configuration
 /// let options = DashboardOptions::new()
 ///     .format(DashboardFormat::Lightweight)
@@ -673,18 +721,18 @@ pub fn export_binary_to_dashboard<P: AsRef<Path>>(
     options: DashboardOptions,
 ) -> Result<DashboardExportStats, BinaryExportError> {
     use crate::export::binary::config::DashboardFormat;
-    
+
     let _start_time = std::time::Instant::now();
-    
+
     match options.format {
         DashboardFormat::Embedded => {
             // Use existing embedded implementation for backward compatibility
             export_binary_to_html_embedded_impl(binary_path, project_name, &options)
-        },
+        }
         DashboardFormat::Lightweight => {
             // New lightweight implementation (HTML + separate JSON files)
             export_binary_to_html_lightweight_impl(binary_path, project_name, &options)
-        },
+        }
         DashboardFormat::Progressive => {
             // Progressive loading implementation (HTML + lazy-loaded JSON)
             export_binary_to_html_progressive_impl(binary_path, project_name, &options)
@@ -702,7 +750,7 @@ pub fn export_binary_to_html<P: AsRef<Path>>(
     let options = DashboardOptions::new()
         .format(DashboardFormat::Lightweight)
         .scope(DataScope::UserOnly);
-    
+
     let _stats = export_binary_to_dashboard(binary_path, base_name, options)?;
     Ok(())
 }
@@ -759,9 +807,13 @@ pub fn show_export_options() {
     tracing::info!("   export_binary(\"data.bin\", \"project\", BinaryOutputFormat::Both)?;      // JSON + HTML user (parallel)");
     tracing::info!("");
     tracing::info!("📊 **CONVENIENCE FUNCTIONS:**");
-    tracing::info!("   export_binary_to_json(\"data.bin\", \"project\")?;        // JSON only (ultra-fast)");
+    tracing::info!(
+        "   export_binary_to_json(\"data.bin\", \"project\")?;        // JSON only (ultra-fast)"
+    );
     tracing::info!("   export_binary_to_html(\"data.bin\", \"project\")?;        // HTML user data (lightweight)");
-    tracing::info!("   export_binary_to_html_system(\"data.bin\", \"project\")?; // HTML system data");
+    tracing::info!(
+        "   export_binary_to_html_system(\"data.bin\", \"project\")?; // HTML system data"
+    );
     tracing::info!("   export_binary_to_html_both(\"data.bin\", \"project\")?;   // Both HTML files (parallel)");
     tracing::info!("   export_binary_to_both(\"data.bin\", \"project\")?;        // JSON + HTML user (parallel)");
     tracing::info!("");
@@ -777,16 +829,22 @@ pub fn show_export_options() {
     tracing::info!("");
     tracing::info!("🎯 **PERFORMANCE TIPS:**");
     tracing::info!("   ✅ Use BinaryOutputFormat::Json for fastest export (existing performance)");
-    tracing::info!("   ✅ Use BinaryOutputFormat::Both with parallel processing for maximum efficiency");
+    tracing::info!(
+        "   ✅ Use BinaryOutputFormat::Both with parallel processing for maximum efficiency"
+    );
     tracing::info!("   ✅ Increase batch_size to 3000+ for large files (>100MB)");
     tracing::info!("   ✅ Set thread_count to match your CPU cores for parallel processing");
     tracing::info!("   ✅ Use larger buffer_size (512KB+) for very large files");
     tracing::info!("");
     tracing::info!("📈 **EXPECTED PERFORMANCE:**");
-    tracing::info!("   - JSON only: Same ultra-fast performance as parse_full_binary_to_json (<300ms)");
+    tracing::info!(
+        "   - JSON only: Same ultra-fast performance as parse_full_binary_to_json (<300ms)"
+    );
     tracing::info!("   - HTML only: Matches JSON performance with shared data optimization");
     tracing::info!("   - Both formats: 60-80% faster than sequential with parallel processing");
-    tracing::info!("   - Large files (>1M allocations): Up to 90% improvement with shared data loading");
+    tracing::info!(
+        "   - Large files (>1M allocations): Up to 90% improvement with shared data loading"
+    );
 }
 
 /// **[ULTRA-FAST JSON GENERATION]** Generate 5 JSON files in parallel using shared data
@@ -834,7 +892,6 @@ fn generate_json_files_parallel(
     Ok(())
 }
 
-
 /// **[ULTRA-FAST HTML GENERATION WITH FILTERING]** Generate HTML using shared data with user/system filtering
 fn export_html_with_shared_data_filtered(
     allocations: &[crate::core::types::AllocationInfo],
@@ -843,13 +900,17 @@ fn export_html_with_shared_data_filtered(
     _config: &BinaryExportConfig,
     user_only: bool,
 ) -> Result<(), BinaryExportError> {
-    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
     use crate::export::binary::binary_html_writer::BinaryTemplateData;
+    use crate::export::binary::binary_template_engine::BinaryTemplateEngine;
 
     let start = std::time::Instant::now();
     let data_type = if user_only { "USER" } else { "SYSTEM" };
 
-    tracing::info!("🎨 Starting ultra-fast {} HTML generation with shared data for {}", data_type, project_name);
+    tracing::info!(
+        "🎨 Starting ultra-fast {} HTML generation with shared data for {}",
+        data_type,
+        project_name
+    );
 
     // **FILTERING**: Filter allocations based on user_only flag
     let filtered_allocations: Vec<_> = allocations
@@ -865,7 +926,11 @@ fn export_html_with_shared_data_filtered(
         })
         .collect();
 
-    tracing::info!("📊 Filtered {} {} allocations (no I/O overhead)", filtered_allocations.len(), data_type);
+    tracing::info!(
+        "📊 Filtered {} {} allocations (no I/O overhead)",
+        filtered_allocations.len(),
+        data_type
+    );
 
     // **OPTIMIZATION**: No I/O needed - data is already loaded and filtered
     let mut all_allocations = Vec::with_capacity(filtered_allocations.len());
@@ -875,12 +940,12 @@ fn export_html_with_shared_data_filtered(
     // Convert filtered allocations to BinaryAllocationData format
     for (i, allocation) in filtered_allocations.iter().enumerate() {
         let binary_data = convert_allocation_to_binary_data(allocation, i)?;
-        
+
         total_memory += allocation.size as u64;
         if allocation.is_active() {
             active_count += 1;
         }
-        
+
         all_allocations.push(binary_data);
     }
 
@@ -892,9 +957,12 @@ fn export_html_with_shared_data_filtered(
         peak_memory_usage: total_memory,
         active_allocations_count: active_count,
         processing_time_ms: start.elapsed().as_millis() as u64,
-        data_source: format!("binary_ultra_fast_shared_{}", if user_only { "user" } else { "system" }),
-        complex_types: None, // Skip for performance
-        unsafe_ffi: None,    // Skip for performance
+        data_source: format!(
+            "binary_ultra_fast_shared_{}",
+            if user_only { "user" } else { "system" }
+        ),
+        complex_types: None,          // Skip for performance
+        unsafe_ffi: None,             // Skip for performance
         variable_relationships: None, // Skip for performance
     };
 
@@ -927,33 +995,44 @@ fn convert_allocation_to_binary_data(
     _index: usize,
 ) -> Result<crate::export::binary::binary_html_writer::BinaryAllocationData, BinaryExportError> {
     use std::collections::HashMap;
-    
-    Ok(crate::export::binary::binary_html_writer::BinaryAllocationData {
-        id: allocation.ptr as u64,
-        size: allocation.size,
-        type_name: allocation.type_name.clone().unwrap_or_else(|| "unknown_type".to_string()),
-        scope_name: allocation.scope_name.clone().unwrap_or_else(|| "global".to_string()),
-        timestamp_alloc: allocation.timestamp_alloc,
-        is_active: allocation.is_active(),
-        ptr: allocation.ptr,
-        thread_id: allocation.thread_id.clone(),
-        var_name: allocation.var_name.clone(),
-        borrow_count: allocation.borrow_count,
-        is_leaked: allocation.is_leaked,
-        lifetime_ms: allocation.lifetime_ms,
-        optional_fields: HashMap::new(), // Empty for now, can be extended later
-    })
+
+    Ok(
+        crate::export::binary::binary_html_writer::BinaryAllocationData {
+            id: allocation.ptr as u64,
+            size: allocation.size,
+            type_name: allocation
+                .type_name
+                .clone()
+                .unwrap_or_else(|| "unknown_type".to_string()),
+            scope_name: allocation
+                .scope_name
+                .clone()
+                .unwrap_or_else(|| "global".to_string()),
+            timestamp_alloc: allocation.timestamp_alloc,
+            is_active: allocation.is_active(),
+            ptr: allocation.ptr,
+            thread_id: allocation.thread_id.clone(),
+            var_name: allocation.var_name.clone(),
+            borrow_count: allocation.borrow_count,
+            is_leaked: allocation.is_leaked,
+            lifetime_ms: allocation.lifetime_ms,
+            optional_fields: HashMap::new(), // Empty for now, can be extended later
+        },
+    )
 }
 
 /// Generate lightweight analysis data optimized for performance
 /// Returns (complex_types, unsafe_ffi, variable_relationships) as Options
 fn generate_lightweight_analysis_simple(
     _allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
-) -> Result<(
-    Option<crate::export::binary::complex_type_analyzer::ComplexTypeAnalysis>,
-    Option<crate::export::binary::ffi_safety_analyzer::FfiSafetyAnalysis>,
-    Option<crate::export::binary::variable_relationship_analyzer::VariableRelationshipAnalysis>
-), BinaryExportError> {
+) -> Result<
+    (
+        Option<crate::export::binary::complex_type_analyzer::ComplexTypeAnalysis>,
+        Option<crate::export::binary::ffi_safety_analyzer::FfiSafetyAnalysis>,
+        Option<crate::export::binary::variable_relationship_analyzer::VariableRelationshipAnalysis>,
+    ),
+    BinaryExportError,
+> {
     // Skip all analysis for maximum performance - return None immediately
     Ok((None, None, None))
 }
@@ -963,11 +1042,14 @@ fn generate_lightweight_analysis_simple(
 #[allow(dead_code)]
 fn _generate_fast_variable_relationships(
     _allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
-) -> Result<crate::export::binary::variable_relationship_analyzer::VariableRelationshipAnalysis, BinaryExportError> {
+) -> Result<
+    crate::export::binary::variable_relationship_analyzer::VariableRelationshipAnalysis,
+    BinaryExportError,
+> {
     // use crate::export::binary::variable_relationship_analyzer::*;
-    
+
     let start = std::time::Instant::now();
-    
+
     // All implementation commented out due to API changes
     /*
     let user_allocations: Vec<_> = _allocations.iter()
@@ -980,10 +1062,10 @@ fn _generate_fast_variable_relationships(
         })
         .take(20) // Limit to 20 for performance
         .collect();
-    
+
     tracing::info!("🔗 Found {} user variables for relationship graph", user_allocations.len());
     */
-    
+
     /*
     // Create nodes with proper structure
     let mut nodes = Vec::new();
@@ -1022,14 +1104,14 @@ fn _generate_fast_variable_relationships(
             nodes.push(node);
         }
     }
-    
+
     // Create simple edges based on type relationships
     let mut links = Vec::new();
     for i in 0..nodes.len() {
         for j in (i + 1)..nodes.len() {
             let node_a = &nodes[i];
             let node_b = &nodes[j];
-            
+
             // Create edge if types are related
             if types_are_related(&node_a.type_name, &node_b.type_name) {
                 links.push(GraphEdge {
@@ -1054,15 +1136,15 @@ fn _generate_fast_variable_relationships(
             }
         }
     }
-    
+
     let graph = RelationshipGraph {
         nodes,
         links,
         metadata: GraphMetadata {
             node_count: user_allocations.len(),
             edge_count: links.len(),
-            density: if user_allocations.len() > 1 { 
-                links.len() as f64 / (user_allocations.len() * (user_allocations.len() - 1) / 2) as f64 
+            density: if user_allocations.len() > 1 {
+                links.len() as f64 / (user_allocations.len() * (user_allocations.len() - 1) / 2) as f64
             } else { 0.0 },
             clustering_coefficient: 0.0,
             average_path_length: 0.0,
@@ -1082,11 +1164,14 @@ fn _generate_fast_variable_relationships(
             },
         },
     };
-    
+
     */
-    
+
     let elapsed = start.elapsed();
-    tracing::info!("🚀 Fast variable relationships generated in {}ms (using placeholder)", elapsed.as_millis());
+    tracing::info!(
+        "🚀 Fast variable relationships generated in {}ms (using placeholder)",
+        elapsed.as_millis()
+    );
     // Return a placeholder - this function needs to be rewritten for the new API
     Err(BinaryExportError::InvalidFormat)
 
@@ -1097,8 +1182,8 @@ fn _generate_fast_variable_relationships(
         summary: RelationshipSummary {
             total_variables: user_allocations.len(),
             total_relationships: links.len(),
-            relationship_density: if user_allocations.len() > 1 { 
-                links.len() as f64 / (user_allocations.len() * (user_allocations.len() - 1) / 2) as f64 
+            relationship_density: if user_allocations.len() > 1 {
+                links.len() as f64 / (user_allocations.len() * (user_allocations.len() - 1) / 2) as f64
             } else { 0.0 },
             most_connected_variable: user_allocations.first()
                 .and_then(|alloc| alloc.var_name.clone())
@@ -1122,13 +1207,6 @@ fn _generate_fast_variable_relationships(
     })
     */
 }
-
-
-
-
-
-
-
 
 #[derive(serde::Serialize)]
 struct AllocationData {
@@ -1174,17 +1252,26 @@ fn export_binary_to_html_embedded_impl<P: AsRef<Path>>(
     options: &DashboardOptions,
 ) -> Result<DashboardExportStats, BinaryExportError> {
     let _start_time = std::time::Instant::now();
-    
+
     // For now, use the existing export_binary function as fallback
     export_binary(binary_path, project_name, BinaryOutputFormat::Html)?;
-    
+
     // Calculate basic stats - try multiple possible paths
     let possible_paths = vec![
-        format!("MemoryAnalysis/{}/{}_dashboard.html", project_name, project_name),
-        format!("MemoryAnalysis/{}/{}_user_dashboard.html", project_name, project_name),
-        format!("MemoryAnalysis/{}/{}_system_dashboard.html", project_name, project_name),
+        format!(
+            "MemoryAnalysis/{}/{}_dashboard.html",
+            project_name, project_name
+        ),
+        format!(
+            "MemoryAnalysis/{}/{}_user_dashboard.html",
+            project_name, project_name
+        ),
+        format!(
+            "MemoryAnalysis/{}/{}_system_dashboard.html",
+            project_name, project_name
+        ),
     ];
-    
+
     let mut html_size = 0;
     for path in &possible_paths {
         if let Ok(metadata) = std::fs::metadata(path) {
@@ -1193,7 +1280,7 @@ fn export_binary_to_html_embedded_impl<P: AsRef<Path>>(
             break;
         }
     }
-    
+
     Ok(DashboardExportStats {
         total_files_generated: 1,
         html_size,
@@ -1212,14 +1299,14 @@ fn export_binary_to_html_lightweight_impl<P: AsRef<Path>>(
     options: &DashboardOptions,
 ) -> Result<DashboardExportStats, BinaryExportError> {
     let _start_time = std::time::Instant::now();
-    
+
     // For now, use embedded implementation as placeholder
     // TODO: Implement actual lightweight format in next iteration
     tracing::info!("🚀 Lightweight format requested - using embedded format as fallback for now");
-    
+
     let mut stats = export_binary_to_html_embedded_impl(binary_path, project_name, options)?;
     stats.format_used = DashboardFormat::Lightweight;
-    
+
     Ok(stats)
 }
 
@@ -1230,13 +1317,13 @@ fn export_binary_to_html_progressive_impl<P: AsRef<Path>>(
     options: &DashboardOptions,
 ) -> Result<DashboardExportStats, BinaryExportError> {
     let _start_time = std::time::Instant::now();
-    
+
     // For now, use embedded implementation as placeholder
     // TODO: Implement actual progressive format in next iteration
     tracing::info!("🚀 Progressive format requested - using embedded format as fallback for now");
-    
+
     let mut stats = export_binary_to_html_embedded_impl(binary_path, project_name, options)?;
     stats.format_used = DashboardFormat::Progressive;
-    
+
     Ok(stats)
 }

@@ -78,7 +78,7 @@ impl TemplateResourceManager {
     /// Create a new template resource manager
     pub fn new<P: AsRef<Path>>(template_dir: P) -> Result<Self, BinaryExportError> {
         let template_dir = template_dir.as_ref().to_path_buf();
-        
+
         if !template_dir.exists() {
             return Err(BinaryExportError::CorruptedData(format!(
                 "Template directory does not exist: {}",
@@ -109,8 +109,8 @@ impl TemplateResourceManager {
     ) -> Result<String, BinaryExportError> {
         // Load template content
         let template_path = self.template_dir.join(template_name);
-        let mut template_content = fs::read_to_string(&template_path)
-            .map_err(|e| BinaryExportError::Io(e))?;
+        let mut template_content =
+            fs::read_to_string(&template_path).map_err(|e| BinaryExportError::Io(e))?;
 
         // Load and embed resources
         if config.embed_css {
@@ -156,8 +156,8 @@ impl TemplateResourceManager {
 
             let css_path = self.template_dir.join(css_file);
             if css_path.exists() {
-                let css_content = fs::read_to_string(&css_path)
-                    .map_err(|e| BinaryExportError::Io(e))?;
+                let css_content =
+                    fs::read_to_string(&css_path).map_err(|e| BinaryExportError::Io(e))?;
 
                 let processed_css = if config.minify_resources {
                     self.minify_css(&css_content)
@@ -165,7 +165,8 @@ impl TemplateResourceManager {
                     css_content
                 };
 
-                self.css_cache.insert(css_file.to_string(), processed_css.clone());
+                self.css_cache
+                    .insert(css_file.to_string(), processed_css.clone());
                 combined_css.push_str(&processed_css);
                 combined_css.push('\n');
             }
@@ -188,8 +189,8 @@ impl TemplateResourceManager {
 
             let js_path = self.template_dir.join(js_file);
             if js_path.exists() {
-                let js_content = fs::read_to_string(&js_path)
-                    .map_err(|e| BinaryExportError::Io(e))?;
+                let js_content =
+                    fs::read_to_string(&js_path).map_err(|e| BinaryExportError::Io(e))?;
 
                 let processed_js = if config.minify_resources {
                     self.minify_js(&js_content)
@@ -197,7 +198,8 @@ impl TemplateResourceManager {
                     js_content
                 };
 
-                self.js_cache.insert(js_file.to_string(), processed_js.clone());
+                self.js_cache
+                    .insert(js_file.to_string(), processed_js.clone());
                 combined_js.push_str(&processed_js);
                 combined_js.push('\n');
             }
@@ -207,7 +209,10 @@ impl TemplateResourceManager {
     }
 
     /// Load SVG resources from templates directory
-    fn load_svg_resources(&mut self, _config: &ResourceConfig) -> Result<String, BinaryExportError> {
+    fn load_svg_resources(
+        &mut self,
+        _config: &ResourceConfig,
+    ) -> Result<String, BinaryExportError> {
         // For now, return empty string as SVG embedding is not implemented
         // In a real implementation, this would scan for SVG files and embed them
         Ok(String::new())
@@ -228,7 +233,7 @@ impl TemplateResourceManager {
         content = content.replace("{{ json_data }}", &data.binary_data);
         content = content.replace("{{GENERATION_TIME}}", &data.generation_time);
         content = content.replace("{{ GENERATION_TIME }}", &data.generation_time);
-        
+
         // Process additional placeholders from custom data
         for (key, value) in &data.custom_data {
             let placeholder_with_spaces = format!("{{{{ {} }}}}", key);
@@ -236,13 +241,13 @@ impl TemplateResourceManager {
             content = content.replace(&placeholder_with_spaces, value);
             content = content.replace(&placeholder_without_spaces, value);
         }
-        
+
         // Handle common placeholders that might be in custom data
         if let Some(processing_time) = data.custom_data.get("PROCESSING_TIME") {
             content = content.replace("{{PROCESSING_TIME}}", processing_time);
             content = content.replace("{{ PROCESSING_TIME }}", processing_time);
         }
-        
+
         if let Some(svg_images) = data.custom_data.get("SVG_IMAGES") {
             content = content.replace("{{SVG_IMAGES}}", svg_images);
             content = content.replace("{{ SVG_IMAGES }}", svg_images);
@@ -262,18 +267,14 @@ impl TemplateResourceManager {
 
     /// Register default placeholder processors
     fn register_default_processors(&mut self) {
-        self.placeholder_processors.insert(
-            "MEMORY_DATA".to_string(),
-            Box::new(MemoryDataProcessor),
-        );
+        self.placeholder_processors
+            .insert("MEMORY_DATA".to_string(), Box::new(MemoryDataProcessor));
         self.placeholder_processors.insert(
             "COMPLEX_TYPES_DATA".to_string(),
             Box::new(ComplexTypesProcessor),
         );
-        self.placeholder_processors.insert(
-            "FFI_SAFETY_DATA".to_string(),
-            Box::new(FfiSafetyProcessor),
-        );
+        self.placeholder_processors
+            .insert("FFI_SAFETY_DATA".to_string(), Box::new(FfiSafetyProcessor));
         self.placeholder_processors.insert(
             "RELATIONSHIP_DATA".to_string(),
             Box::new(RelationshipProcessor),
@@ -387,7 +388,9 @@ pub fn create_template_data(
     binary_data_json: &str,
     custom_data: HashMap<String, String>,
 ) -> TemplateData {
-    let generation_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string();
+    let generation_time = chrono::Utc::now()
+        .format("%Y-%m-%d %H:%M:%S UTC")
+        .to_string();
 
     TemplateData {
         project_name: project_name.to_string(),
@@ -408,7 +411,7 @@ mod tests {
 
     fn create_test_template_dir() -> Result<TempDir, std::io::Error> {
         let temp_dir = TempDir::new()?;
-        
+
         // Create test template file
         let template_content = r#"
 <!DOCTYPE html>
@@ -446,7 +449,8 @@ mod tests {
     #[test]
     fn test_template_processing() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let template_data = TemplateData {
             project_name: "Test Project".to_string(),
@@ -460,7 +464,7 @@ mod tests {
 
         let config = ResourceConfig::default();
         let result = manager.process_template("test_template.html", &template_data, &config);
-        
+
         assert!(result.is_ok());
         let processed = result.expect("Test operation failed");
         assert!(processed.contains("Test Project"));
@@ -472,27 +476,34 @@ mod tests {
     #[test]
     fn test_css_loading() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
         let config = ResourceConfig::default();
 
-        let css_content = manager.get_shared_css(&config).expect("Test operation failed");
+        let css_content = manager
+            .get_shared_css(&config)
+            .expect("Test operation failed");
         assert!(css_content.contains("body { margin: 0; padding: 0; }"));
     }
 
     #[test]
     fn test_js_loading() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
         let config = ResourceConfig::default();
 
-        let js_content = manager.get_shared_js(&config).expect("Test operation failed");
+        let js_content = manager
+            .get_shared_js(&config)
+            .expect("Test operation failed");
         assert!(js_content.contains("console.log('Test script loaded');"));
     }
 
     #[test]
     fn test_css_minification() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let _manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let _manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let css = "body {\n    margin: 0;\n    padding: 0;\n}";
         let minified = _manager.minify_css(css);
@@ -503,7 +514,8 @@ mod tests {
     #[test]
     fn test_placeholder_processors() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let _manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let _manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
 
         let mut custom_data = HashMap::new();
         custom_data.insert("complex_types".to_string(), r#"{"types": []}"#.to_string());
@@ -519,22 +531,29 @@ mod tests {
         };
 
         let processor = ComplexTypesProcessor;
-        let result = processor.process(&template_data).expect("Test operation failed");
+        let result = processor
+            .process(&template_data)
+            .expect("Test operation failed");
         assert_eq!(result, r#"{"types": []}"#);
     }
 
     #[test]
     fn test_cache_functionality() {
         let temp_dir = create_test_template_dir().expect("Failed to get test value");
-        let mut manager = TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
+        let mut manager =
+            TemplateResourceManager::new(temp_dir.path()).expect("Test operation failed");
         let config = ResourceConfig::default();
 
         // First load should read from file
-        let css1 = manager.get_shared_css(&config).expect("Test operation failed");
-        
+        let css1 = manager
+            .get_shared_css(&config)
+            .expect("Test operation failed");
+
         // Second load should use cache
-        let css2 = manager.get_shared_css(&config).expect("Test operation failed");
-        
+        let css2 = manager
+            .get_shared_css(&config)
+            .expect("Test operation failed");
+
         assert_eq!(css1, css2);
         assert!(!manager.css_cache.is_empty());
 
@@ -548,15 +567,14 @@ mod tests {
         let mut custom_data = HashMap::new();
         custom_data.insert("test_key".to_string(), "test_value".to_string());
 
-        let template_data = create_template_data(
-            "My Project",
-            r#"{"data": "test"}"#,
-            custom_data,
-        );
+        let template_data = create_template_data("My Project", r#"{"data": "test"}"#, custom_data);
 
         assert_eq!(template_data.project_name, "My Project");
         assert_eq!(template_data.binary_data, r#"{"data": "test"}"#);
         assert!(template_data.generation_time.contains("UTC"));
-        assert_eq!(template_data.custom_data.get("test_key"), Some(&"test_value".to_string()));
+        assert_eq!(
+            template_data.custom_data.get("test_key"),
+            Some(&"test_value".to_string())
+        );
     }
 }

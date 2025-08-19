@@ -569,10 +569,15 @@ mod tests {
 
         // Write test data to binary file
         {
-            let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
-            writer.write_header(test_allocations.len() as u32).expect("Failed to write header");
+            let mut writer =
+                BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
+            writer
+                .write_header(test_allocations.len() as u32)
+                .expect("Failed to write header");
             for alloc in &test_allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
@@ -720,9 +725,13 @@ mod tests {
         // Write new test data to binary file
         {
             let mut writer = BinaryWriter::new(test_file.path()).expect("Failed to create writer");
-            writer.write_header(test_allocations.len() as u32).expect("Failed to write header");
+            writer
+                .write_header(test_allocations.len() as u32)
+                .expect("Failed to write header");
             for alloc in &test_allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
@@ -754,12 +763,18 @@ mod tests {
         let file3 = create_test_binary_file();
 
         // Cache first two files
-        let _index1 = cache.get_or_build_index(file1.path(), &builder).expect("Failed to get or build index");
-        let _index2 = cache.get_or_build_index(file2.path(), &builder).expect("Failed to get or build index");
+        let _index1 = cache
+            .get_or_build_index(file1.path(), &builder)
+            .expect("Failed to get or build index");
+        let _index2 = cache
+            .get_or_build_index(file2.path(), &builder)
+            .expect("Failed to get or build index");
         assert_eq!(cache.entries.len(), 2);
 
         // Adding third file should evict the least recently used entry
-        let _index3 = cache.get_or_build_index(file3.path(), &builder).expect("Failed to get or build index");
+        let _index3 = cache
+            .get_or_build_index(file3.path(), &builder)
+            .expect("Failed to get or build index");
         assert_eq!(cache.entries.len(), 2);
         assert!(cache.get_stats().evictions > 0);
     }

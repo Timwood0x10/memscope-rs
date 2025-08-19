@@ -698,7 +698,9 @@ mod tests {
         let test_data = create_test_binary_record();
         let mut cursor = Cursor::new(test_data);
 
-        let allocation = parser.parse_full_allocation(&mut cursor).expect("Test operation failed");
+        let allocation = parser
+            .parse_full_allocation(&mut cursor)
+            .expect("Test operation failed");
 
         assert_eq!(allocation.ptr, 0x1000);
         assert_eq!(allocation.size, 1024);

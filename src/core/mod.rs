@@ -13,10 +13,10 @@ pub mod atomic_stats;
 pub mod bounded_memory_stats;
 pub mod call_stack_normalizer;
 pub mod clone_monitor;
-pub mod enhanced_pointer_extractor;
-pub mod enhanced_type_inference;
 pub mod clone_optimizer;
 pub mod clone_utils;
+pub mod enhanced_pointer_extractor;
+pub mod enhanced_type_inference;
 pub mod error;
 pub mod error_adapter;
 pub mod lifecycle_summary;
@@ -24,6 +24,7 @@ pub mod optimized_locks;
 pub mod optimized_tracker;
 pub mod optimized_types;
 pub mod ownership_history;
+pub mod safe_operations;
 pub mod scope_tracker;
 pub mod sharded_locks;
 pub mod shared_types;
@@ -35,7 +36,6 @@ pub mod targeted_optimizations;
 pub mod test_optimized_locks;
 pub mod threshold_batch_processor;
 pub mod tracker;
-pub mod safe_operations;
 
 /// Type definitions
 pub mod types;
@@ -128,9 +128,9 @@ pub use enhanced_type_inference::{
 
 // Re-export ownership history functionality
 pub use ownership_history::{
-    ActiveBorrow, BorrowInfo, BorrowType, CloneInfo as OwnershipCloneInfo, HistoryConfig, OwnershipEvent,
-    OwnershipEventDetails, OwnershipEventType, OwnershipHistoryExport, OwnershipHistoryRecorder,
-    OwnershipStatistics, OwnershipSummary, RefCountInfo,
+    ActiveBorrow, BorrowInfo, BorrowType, CloneInfo as OwnershipCloneInfo, HistoryConfig,
+    OwnershipEvent, OwnershipEventDetails, OwnershipEventType, OwnershipHistoryExport,
+    OwnershipHistoryRecorder, OwnershipStatistics, OwnershipSummary, RefCountInfo,
 };
 
 // Re-export lifecycle summary functionality
@@ -141,9 +141,8 @@ pub use lifecycle_summary::{
 
 // Re-export call stack normalizer functionality
 pub use call_stack_normalizer::{
-    CallStackNormalizer, CallStackRef, CallStackId, NormalizedCallStack,
-    NormalizerConfig, NormalizerStats, get_global_call_stack_normalizer,
-    initialize_global_call_stack_normalizer,
+    get_global_call_stack_normalizer, initialize_global_call_stack_normalizer, CallStackId,
+    CallStackNormalizer, CallStackRef, NormalizedCallStack, NormalizerConfig, NormalizerStats,
 };
 
 #[cfg(test)]

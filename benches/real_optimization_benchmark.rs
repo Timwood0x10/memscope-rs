@@ -1,8 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use std::hint::black_box;
 use memscope_rs::core::targeted_optimizations::{
     efficient_string_concat, BatchProcessor, FastStatsCollector,
 };
+use std::hint::black_box;
 use std::sync::{Arc, Mutex};
 use std::thread;
 

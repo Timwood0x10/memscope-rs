@@ -3,12 +3,12 @@
 //! This module provides an adaptive data structure that starts with a simple mutex-protected
 //! HashMap and upgrades to a sharded version when contention is detected.
 
+use crate::core::safe_operations::SafeLock;
 use crate::core::sharded_locks::ShardedRwLock;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
-use crate::core::safe_operations::SafeLock;
 
 /// Simplified adaptive HashMap that chooses mode at creation time
 /// This avoids runtime switching complexity while providing the benefits
@@ -79,7 +79,10 @@ where
                 self.contention_counter.fetch_add(1, Ordering::Relaxed);
                 self.check_upgrade_to_sharded();
                 // Fall back to blocking lock
-                let mut map = self.simple_map.safe_lock().expect("Failed to acquire lock on simple_map");
+                let mut map = self
+                    .simple_map
+                    .safe_lock()
+                    .expect("Failed to acquire lock on simple_map");
                 map.insert(key, value)
             }
         }
@@ -102,7 +105,10 @@ where
                 self.contention_counter.fetch_add(1, Ordering::Relaxed);
                 self.check_upgrade_to_sharded();
                 // Fall back to blocking lock
-                let map = self.simple_map.safe_lock().expect("Failed to acquire lock on simple_map");
+                let map = self
+                    .simple_map
+                    .safe_lock()
+                    .expect("Failed to acquire lock on simple_map");
                 map.get(key).cloned()
             }
         }
@@ -125,7 +131,10 @@ where
                 self.contention_counter.fetch_add(1, Ordering::Relaxed);
                 self.check_upgrade_to_sharded();
                 // Fall back to blocking lock
-                let mut map = self.simple_map.safe_lock().expect("Failed to acquire lock on simple_map");
+                let mut map = self
+                    .simple_map
+                    .safe_lock()
+                    .expect("Failed to acquire lock on simple_map");
                 map.remove(key)
             }
         }

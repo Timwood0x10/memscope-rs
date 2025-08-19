@@ -6,6 +6,8 @@
 use super::memory_tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemoryUsage};
 use crate::export::optimized_json_export::OptimizationLevel;
+use crate::export::schema_validator::SchemaValidator;
+use rayon::prelude::*;
 use serde_json::json;
 use std::{
     collections::HashMap,
@@ -13,8 +15,6 @@ use std::{
     io::{BufWriter, Write},
     path::Path,
 };
-use crate::export::schema_validator::SchemaValidator;
-use rayon::prelude::*;
 
 // Optimized export options with intelligent defaults
 #[derive(Debug, Clone)]
@@ -55,7 +55,7 @@ impl Default for ExportJsonOptions {
     fn default() -> Self {
         Self {
             parallel_processing: true,
-            buffer_size: 256 * 1024, // 256KB
+            buffer_size: 256 * 1024,  // 256KB
             use_compact_format: None, // Auto-detect
             enable_type_cache: true,
             batch_size: 1000,
@@ -65,10 +65,10 @@ impl Default for ExportJsonOptions {
             max_cache_size: 10_000,
             security_analysis: false, // Off by default for speed
             include_low_severity: false,
-            integrity_hashes: false,  // Off by default for speed
+            integrity_hashes: false, // Off by default for speed
             fast_export_mode: false,
             auto_fast_export_threshold: Some(10_000), // Auto-enable fast mode for >10k allocations
-            thread_count: None,       // Use default thread count
+            thread_count: None,                       // Use default thread count
         }
     }
 }
@@ -114,7 +114,7 @@ impl ExportJsonOptions {
             },
             OptimizationLevel::Maximum => Self {
                 parallel_processing: true,
-                buffer_size: 1024 * 1024,  // 1MB buffer for maximum performance
+                buffer_size: 1024 * 1024, // 1MB buffer for maximum performance
                 use_compact_format: Some(true),
                 enable_type_cache: true,
                 batch_size: 1000,
@@ -131,23 +131,23 @@ impl ExportJsonOptions {
             },
         }
     }
-    
+
     // Builder pattern methods for options
     pub fn parallel_processing(mut self, enabled: bool) -> Self {
         self.parallel_processing = enabled;
         self
     }
-    
+
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
-    
+
     pub fn fast_export_mode(mut self, enabled: bool) -> Self {
         self.fast_export_mode = enabled;
         self
     }
-    
+
     pub fn security_analysis(mut self, enabled: bool) -> Self {
         self.security_analysis = enabled;
         self
@@ -158,64 +158,61 @@ impl ExportJsonOptions {
         self.streaming_writer = enabled;
         self
     }
-    
+
     pub fn schema_validation(mut self, enabled: bool) -> Self {
         self.schema_validation = enabled;
         self
     }
-    
+
     pub fn integrity_hashes(mut self, enabled: bool) -> Self {
         self.integrity_hashes = enabled;
         self
     }
-    
+
     /// Set the batch size for processing allocations
     pub fn batch_size(mut self, size: usize) -> Self {
         self.batch_size = size;
         self
     }
 
-        /// Enable or disable adaptive optimization
-        pub fn adaptive_optimization(mut self, enabled: bool) -> Self {
-            self.adaptive_optimization = enabled;
-            self
-        }
-    
-        /// Set maximum cache size
-        pub fn max_cache_size(mut self, size: usize) -> Self {
-            self.max_cache_size = size;
-            self
-        }
-    
+    /// Enable or disable adaptive optimization
+    pub fn adaptive_optimization(mut self, enabled: bool) -> Self {
+        self.adaptive_optimization = enabled;
+        self
+    }
 
-        /// Include low severity violations in reports
-        pub fn include_low_severity(mut self, include: bool) -> Self {
-            self.include_low_severity = include;
-            self
-        }
-    
+    /// Set maximum cache size
+    pub fn max_cache_size(mut self, size: usize) -> Self {
+        self.max_cache_size = size;
+        self
+    }
 
-        /// Set thread count for parallel processing (None for auto-detect)
-        pub fn thread_count(mut self, count: Option<usize>) -> Self {
-            self.thread_count = count;
-            self
-        }
+    /// Include low severity violations in reports
+    pub fn include_low_severity(mut self, include: bool) -> Self {
+        self.include_low_severity = include;
+        self
+    }
 
+    /// Set thread count for parallel processing (None for auto-detect)
+    pub fn thread_count(mut self, count: Option<usize>) -> Self {
+        self.thread_count = count;
+        self
+    }
 }
 
 // Type inference cache for performance optimization
-static TYPE_CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, String>>> = 
+static TYPE_CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, String>>> =
     std::sync::OnceLock::new();
 
 /// Get cached type information or compute and cache it
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
     let cache = TYPE_CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
-    
+
     if let Ok(mut cache) = cache.lock() {
         if let Some(cached) = cache.get(type_name) {
             return cached.clone();
         }
-        
+
         let result = compute_enhanced_type_info(type_name, size);
         cache.insert(type_name.to_string(), result.clone());
         result
@@ -252,31 +249,29 @@ fn process_allocation_batch(
     allocations: &[AllocationInfo],
 ) -> TrackingResult<Vec<serde_json::Value>> {
     let mut result = Vec::with_capacity(allocations.len());
-    
+
     for alloc in allocations {
-        let type_info = get_or_compute_type_info(
-            alloc.type_name.as_deref().unwrap_or("unknown"),
-            alloc.size,
-        );
-        
+        let type_info =
+            get_or_compute_type_info(alloc.type_name.as_deref().unwrap_or("unknown"), alloc.size);
+
         let mut entry = json!({
             "address": format!("0x{:x}", alloc.ptr),
             "size": alloc.size,
             "type": type_info,
             "timestamp": alloc.timestamp_alloc,
         });
-        
+
         if let Some(var_name) = &alloc.var_name {
             entry["var_name"] = json!(var_name);
         }
-        
+
         if let Some(type_name) = &alloc.type_name {
             entry["type_name"] = json!(type_name);
         }
-        
+
         result.push(entry);
     }
-    
+
     Ok(result)
 }
 
@@ -287,29 +282,30 @@ fn process_allocation_batch_enhanced(
 ) -> TrackingResult<Vec<serde_json::Value>> {
     let start_time = std::time::Instant::now();
     let batch_size = allocations.len();
-    
+
     // Process in parallel if enabled and batch size is large enough
     let result = if options.parallel_processing && batch_size > options.batch_size {
         let chunk_size = (batch_size / num_cpus::get()).max(1);
-        
+
         // Process chunks in parallel and flatten the results
         allocations
             .par_chunks(chunk_size)
             .map(|chunk| process_allocation_batch(chunk))
-            .reduce(|| Ok(Vec::new()), |acc, chunk_result| {
-                match (acc, chunk_result) {
+            .reduce(
+                || Ok(Vec::new()),
+                |acc, chunk_result| match (acc, chunk_result) {
                     (Ok(mut vec), Ok(chunk)) => {
                         vec.extend(chunk);
                         Ok(vec)
                     }
                     (Err(e), _) | (_, Err(e)) => Err(e),
-                }
-            })
+                },
+            )
     } else {
         // Process everything in a single chunk
         process_allocation_batch(allocations)
     };
-    
+
     let elapsed = start_time.elapsed();
     tracing::debug!(
         "Processed {} allocations in {:.2?} ({} allocs/sec)",
@@ -317,7 +313,7 @@ fn process_allocation_batch_enhanced(
         elapsed,
         (batch_size as f64 / elapsed.as_secs_f64()) as u64
     );
-    
+
     result
 }
 
@@ -392,7 +388,6 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
     }
 }
 
-
 impl MemoryTracker {
     /// Export memory tracking data to 4 separate JSON files.
     ///
@@ -462,7 +457,7 @@ impl MemoryTracker {
         let output_path = self.ensure_memory_analysis_path(path);
         let allocations = self.get_active_allocations()?;
         let stats = self.get_stats()?;
-        
+
         // Process allocations based on options
         let processed = if options.fast_export_mode {
             process_allocation_batch_enhanced(&allocations, &options)?
@@ -476,20 +471,20 @@ impl MemoryTracker {
                     "type": get_or_compute_type_info(alloc.type_name.as_deref().unwrap_or("unknown"), alloc.size),
                     "timestamp": alloc.timestamp_alloc,
                 });
-                
+
                 if let Some(var_name) = &alloc.var_name {
                     entry["var_name"] = json!(var_name);
                 }
-                
+
                 if let Some(type_name) = &alloc.type_name {
                     entry["type_name"] = json!(type_name);
                 }
-                
+
                 result.push(entry);
             }
             result
         };
-        
+
         // Prepare output data
         let output_data = json!({
             "metadata": {
@@ -504,11 +499,11 @@ impl MemoryTracker {
             },
             "allocations": processed,
         });
-        
+
         // Write output file
         let output_path = output_path.join("memory_analysis.json");
         write_json_optimized(output_path, &output_data, &options)?;
-        
+
         Ok(())
     }
 

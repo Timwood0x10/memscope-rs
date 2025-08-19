@@ -3,7 +3,7 @@
 //! This module provides enhanced FFI function name resolution to replace
 //! vague "potential_ffi_target" with specific function and library information.
 
-use crate::core::types::{TrackingResult, TrackingError};
+use crate::core::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -141,7 +141,11 @@ impl FfiFunctionResolver {
     }
 
     /// Resolve FFI function name and library
-    pub fn resolve_function(&self, function_name: &str, library_hint: Option<&str>) -> TrackingResult<ResolvedFfiFunction> {
+    pub fn resolve_function(
+        &self,
+        function_name: &str,
+        library_hint: Option<&str>,
+    ) -> TrackingResult<ResolvedFfiFunction> {
         self.update_stats_attempt();
 
         // Check cache first
@@ -176,33 +180,51 @@ impl FfiFunctionResolver {
         }
 
         self.update_stats_success();
-        tracing::debug!("🔍 Resolved function: {} -> {}::{}", 
-            function_name, resolved.library_name, resolved.function_name);
+        tracing::debug!(
+            "🔍 Resolved function: {} -> {}::{}",
+            function_name,
+            resolved.library_name,
+            resolved.function_name
+        );
 
         Ok(resolved)
     }
 
     /// Resolve multiple functions in batch
-    pub fn resolve_functions_batch(&self, function_names: &[String]) -> Vec<TrackingResult<ResolvedFfiFunction>> {
-        function_names.iter()
+    pub fn resolve_functions_batch(
+        &self,
+        function_names: &[String],
+    ) -> Vec<TrackingResult<ResolvedFfiFunction>> {
+        function_names
+            .iter()
             .map(|name| self.resolve_function(name, None))
             .collect()
     }
 
     /// Add custom function to database
-    pub fn add_custom_function(&self, function_name: String, resolved: ResolvedFfiFunction) -> TrackingResult<()> {
+    pub fn add_custom_function(
+        &self,
+        function_name: String,
+        resolved: ResolvedFfiFunction,
+    ) -> TrackingResult<()> {
         if let Ok(mut db) = self.function_database.lock() {
             db.insert(function_name.clone(), resolved.clone());
-            
+
             if let Ok(mut mapping) = self.library_mapping.lock() {
                 mapping.insert(function_name.clone(), resolved.library_name.clone());
             }
-            
-            tracing::info!("📚 Added custom function: {} -> {}::{}", 
-                function_name, resolved.library_name, resolved.function_name);
+
+            tracing::info!(
+                "📚 Added custom function: {} -> {}::{}",
+                function_name,
+                resolved.library_name,
+                resolved.function_name
+            );
             Ok(())
         } else {
-            Err(TrackingError::LockContention("Failed to lock function database".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock function database".to_string(),
+            ))
         }
     }
 
@@ -231,100 +253,161 @@ impl FfiFunctionResolver {
     fn initialize_known_functions(&self) {
         let known_functions = vec![
             // Memory management functions
-            ("malloc", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "malloc".to_string(),
-                signature: Some("void* malloc(size_t size)".to_string()),
-                category: FfiFunctionCategory::MemoryManagement,
-                risk_level: FfiRiskLevel::Medium,
-                metadata: [("description".to_string(), "Allocate memory".to_string())].into(),
-            }),
-            ("free", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "free".to_string(),
-                signature: Some("void free(void* ptr)".to_string()),
-                category: FfiFunctionCategory::MemoryManagement,
-                risk_level: FfiRiskLevel::High,
-                metadata: [("description".to_string(), "Free allocated memory".to_string())].into(),
-            }),
-            ("realloc", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "realloc".to_string(),
-                signature: Some("void* realloc(void* ptr, size_t size)".to_string()),
-                category: FfiFunctionCategory::MemoryManagement,
-                risk_level: FfiRiskLevel::High,
-                metadata: [("description".to_string(), "Reallocate memory".to_string())].into(),
-            }),
-            ("calloc", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "calloc".to_string(),
-                signature: Some("void* calloc(size_t num, size_t size)".to_string()),
-                category: FfiFunctionCategory::MemoryManagement,
-                risk_level: FfiRiskLevel::Medium,
-                metadata: [("description".to_string(), "Allocate and zero memory".to_string())].into(),
-            }),
-
+            (
+                "malloc",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "malloc".to_string(),
+                    signature: Some("void* malloc(size_t size)".to_string()),
+                    category: FfiFunctionCategory::MemoryManagement,
+                    risk_level: FfiRiskLevel::Medium,
+                    metadata: [("description".to_string(), "Allocate memory".to_string())].into(),
+                },
+            ),
+            (
+                "free",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "free".to_string(),
+                    signature: Some("void free(void* ptr)".to_string()),
+                    category: FfiFunctionCategory::MemoryManagement,
+                    risk_level: FfiRiskLevel::High,
+                    metadata: [(
+                        "description".to_string(),
+                        "Free allocated memory".to_string(),
+                    )]
+                    .into(),
+                },
+            ),
+            (
+                "realloc",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "realloc".to_string(),
+                    signature: Some("void* realloc(void* ptr, size_t size)".to_string()),
+                    category: FfiFunctionCategory::MemoryManagement,
+                    risk_level: FfiRiskLevel::High,
+                    metadata: [("description".to_string(), "Reallocate memory".to_string())].into(),
+                },
+            ),
+            (
+                "calloc",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "calloc".to_string(),
+                    signature: Some("void* calloc(size_t num, size_t size)".to_string()),
+                    category: FfiFunctionCategory::MemoryManagement,
+                    risk_level: FfiRiskLevel::Medium,
+                    metadata: [(
+                        "description".to_string(),
+                        "Allocate and zero memory".to_string(),
+                    )]
+                    .into(),
+                },
+            ),
             // String manipulation functions
-            ("strcpy", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "strcpy".to_string(),
-                signature: Some("char* strcpy(char* dest, const char* src)".to_string()),
-                category: FfiFunctionCategory::StringManipulation,
-                risk_level: FfiRiskLevel::Critical,
-                metadata: [("description".to_string(), "Copy string (unsafe)".to_string())].into(),
-            }),
-            ("strncpy", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "strncpy".to_string(),
-                signature: Some("char* strncpy(char* dest, const char* src, size_t n)".to_string()),
-                category: FfiFunctionCategory::StringManipulation,
-                risk_level: FfiRiskLevel::Medium,
-                metadata: [("description".to_string(), "Copy string with length limit".to_string())].into(),
-            }),
-            ("sprintf", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "sprintf".to_string(),
-                signature: Some("int sprintf(char* str, const char* format, ...)".to_string()),
-                category: FfiFunctionCategory::StringManipulation,
-                risk_level: FfiRiskLevel::Critical,
-                metadata: [("description".to_string(), "Format string (unsafe)".to_string())].into(),
-            }),
-            ("snprintf", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "snprintf".to_string(),
-                signature: Some("int snprintf(char* str, size_t size, const char* format, ...)".to_string()),
-                category: FfiFunctionCategory::StringManipulation,
-                risk_level: FfiRiskLevel::Low,
-                metadata: [("description".to_string(), "Safe format string".to_string())].into(),
-            }),
-
+            (
+                "strcpy",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "strcpy".to_string(),
+                    signature: Some("char* strcpy(char* dest, const char* src)".to_string()),
+                    category: FfiFunctionCategory::StringManipulation,
+                    risk_level: FfiRiskLevel::Critical,
+                    metadata: [(
+                        "description".to_string(),
+                        "Copy string (unsafe)".to_string(),
+                    )]
+                    .into(),
+                },
+            ),
+            (
+                "strncpy",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "strncpy".to_string(),
+                    signature: Some(
+                        "char* strncpy(char* dest, const char* src, size_t n)".to_string(),
+                    ),
+                    category: FfiFunctionCategory::StringManipulation,
+                    risk_level: FfiRiskLevel::Medium,
+                    metadata: [(
+                        "description".to_string(),
+                        "Copy string with length limit".to_string(),
+                    )]
+                    .into(),
+                },
+            ),
+            (
+                "sprintf",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "sprintf".to_string(),
+                    signature: Some("int sprintf(char* str, const char* format, ...)".to_string()),
+                    category: FfiFunctionCategory::StringManipulation,
+                    risk_level: FfiRiskLevel::Critical,
+                    metadata: [(
+                        "description".to_string(),
+                        "Format string (unsafe)".to_string(),
+                    )]
+                    .into(),
+                },
+            ),
+            (
+                "snprintf",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "snprintf".to_string(),
+                    signature: Some(
+                        "int snprintf(char* str, size_t size, const char* format, ...)".to_string(),
+                    ),
+                    category: FfiFunctionCategory::StringManipulation,
+                    risk_level: FfiRiskLevel::Low,
+                    metadata: [("description".to_string(), "Safe format string".to_string())]
+                        .into(),
+                },
+            ),
             // File I/O functions
-            ("fopen", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "fopen".to_string(),
-                signature: Some("FILE* fopen(const char* filename, const char* mode)".to_string()),
-                category: FfiFunctionCategory::FileIO,
-                risk_level: FfiRiskLevel::Low,
-                metadata: [("description".to_string(), "Open file".to_string())].into(),
-            }),
-            ("fclose", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "fclose".to_string(),
-                signature: Some("int fclose(FILE* stream)".to_string()),
-                category: FfiFunctionCategory::FileIO,
-                risk_level: FfiRiskLevel::Low,
-                metadata: [("description".to_string(), "Close file".to_string())].into(),
-            }),
-
+            (
+                "fopen",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "fopen".to_string(),
+                    signature: Some(
+                        "FILE* fopen(const char* filename, const char* mode)".to_string(),
+                    ),
+                    category: FfiFunctionCategory::FileIO,
+                    risk_level: FfiRiskLevel::Low,
+                    metadata: [("description".to_string(), "Open file".to_string())].into(),
+                },
+            ),
+            (
+                "fclose",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "fclose".to_string(),
+                    signature: Some("int fclose(FILE* stream)".to_string()),
+                    category: FfiFunctionCategory::FileIO,
+                    risk_level: FfiRiskLevel::Low,
+                    metadata: [("description".to_string(), "Close file".to_string())].into(),
+                },
+            ),
             // System calls
-            ("fork", ResolvedFfiFunction {
-                library_name: "libc".to_string(),
-                function_name: "fork".to_string(),
-                signature: Some("pid_t fork(void)".to_string()),
-                category: FfiFunctionCategory::SystemCall,
-                risk_level: FfiRiskLevel::Medium,
-                metadata: [("description".to_string(), "Create child process".to_string())].into(),
-            }),
+            (
+                "fork",
+                ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "fork".to_string(),
+                    signature: Some("pid_t fork(void)".to_string()),
+                    category: FfiFunctionCategory::SystemCall,
+                    risk_level: FfiRiskLevel::Medium,
+                    metadata: [(
+                        "description".to_string(),
+                        "Create child process".to_string(),
+                    )]
+                    .into(),
+                },
+            ),
         ];
 
         if let Ok(mut db) = self.function_database.lock() {
@@ -347,7 +430,11 @@ impl FfiFunctionResolver {
         }
     }
 
-    fn resolve_with_library_hint(&self, function_name: &str, library_hint: &str) -> TrackingResult<ResolvedFfiFunction> {
+    fn resolve_with_library_hint(
+        &self,
+        function_name: &str,
+        library_hint: &str,
+    ) -> TrackingResult<ResolvedFfiFunction> {
         let category = self.infer_category_from_name(function_name);
         let risk_level = self.assess_risk_from_name(function_name, &category);
 
@@ -398,7 +485,10 @@ impl FfiFunctionResolver {
             "libGL".to_string()
         } else if function_name.starts_with("sqlite3_") {
             "libsqlite3".to_string()
-        } else if ["malloc", "free", "printf", "scanf", "fopen", "fork"].iter().any(|&f| function_name.contains(f)) {
+        } else if ["malloc", "free", "printf", "scanf", "fopen", "fork"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             "libc".to_string()
         } else {
             "unknown".to_string()
@@ -406,30 +496,61 @@ impl FfiFunctionResolver {
     }
 
     fn infer_category_from_name(&self, function_name: &str) -> FfiFunctionCategory {
-        if ["malloc", "free", "realloc", "calloc"].iter().any(|&f| function_name.contains(f)) {
+        if ["malloc", "free", "realloc", "calloc"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             FfiFunctionCategory::MemoryManagement
-        } else if ["str", "sprintf", "printf"].iter().any(|&f| function_name.contains(f)) {
+        } else if ["str", "sprintf", "printf"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             FfiFunctionCategory::StringManipulation
-        } else if ["fopen", "fread", "fwrite", "fclose"].iter().any(|&f| function_name.contains(f)) {
+        } else if ["fopen", "fread", "fwrite", "fclose"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             FfiFunctionCategory::FileIO
-        } else if ["socket", "connect", "send", "recv"].iter().any(|&f| function_name.contains(f)) {
+        } else if ["socket", "connect", "send", "recv"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             FfiFunctionCategory::Network
-        } else if ["SSL_", "crypto_"].iter().any(|&f| function_name.starts_with(f)) {
+        } else if ["SSL_", "crypto_"]
+            .iter()
+            .any(|&f| function_name.starts_with(f))
+        {
             FfiFunctionCategory::Cryptographic
-        } else if ["fork", "exec", "signal", "kill"].iter().any(|&f| function_name.contains(f)) {
+        } else if ["fork", "exec", "signal", "kill"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             FfiFunctionCategory::SystemCall
-        } else if ["gl", "GL", "Direct"].iter().any(|&f| function_name.contains(f)) {
+        } else if ["gl", "GL", "Direct"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             FfiFunctionCategory::Graphics
-        } else if ["sqlite", "mysql", "postgres"].iter().any(|&f| function_name.contains(f)) {
+        } else if ["sqlite", "mysql", "postgres"]
+            .iter()
+            .any(|&f| function_name.contains(f))
+        {
             FfiFunctionCategory::Database
         } else {
             FfiFunctionCategory::Unknown
         }
     }
 
-    fn assess_risk_from_name(&self, function_name: &str, category: &FfiFunctionCategory) -> FfiRiskLevel {
+    fn assess_risk_from_name(
+        &self,
+        function_name: &str,
+        category: &FfiFunctionCategory,
+    ) -> FfiRiskLevel {
         // High-risk functions
-        if ["strcpy", "sprintf", "gets", "scanf"].iter().any(|&f| function_name == f) {
+        if ["strcpy", "sprintf", "gets", "scanf"]
+            .iter()
+            .any(|&f| function_name == f)
+        {
             return FfiRiskLevel::Critical;
         }
 
@@ -453,17 +574,22 @@ impl FfiFunctionResolver {
         }
     }
 
-    fn cache_function(&self, function_name: &str, resolved: &ResolvedFfiFunction) -> TrackingResult<()> {
+    fn cache_function(
+        &self,
+        function_name: &str,
+        resolved: &ResolvedFfiFunction,
+    ) -> TrackingResult<()> {
         if let Ok(mut db) = self.function_database.lock() {
             // Check cache size limit
             if db.len() >= self.config.max_cache_size {
                 // Remove some non-builtin entries
-                let keys_to_remove: Vec<String> = db.iter()
+                let keys_to_remove: Vec<String> = db
+                    .iter()
                     .filter(|(_, func)| !self.is_builtin_function(func))
                     .take(10)
                     .map(|(k, _)| k.clone())
                     .collect();
-                
+
                 for key in keys_to_remove {
                     db.remove(&key);
                 }
@@ -472,7 +598,9 @@ impl FfiFunctionResolver {
             db.insert(function_name.to_string(), resolved.clone());
             Ok(())
         } else {
-            Err(TrackingError::LockContention("Failed to lock function database".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock function database".to_string(),
+            ))
         }
     }
 
@@ -506,13 +634,14 @@ impl Default for FfiFunctionResolver {
 }
 
 /// Global FFI function resolver instance
-static GLOBAL_FFI_RESOLVER: std::sync::OnceLock<Arc<FfiFunctionResolver>> = std::sync::OnceLock::new();
+static GLOBAL_FFI_RESOLVER: std::sync::OnceLock<Arc<FfiFunctionResolver>> =
+    std::sync::OnceLock::new();
 
 /// Get global FFI function resolver instance
 pub fn get_global_ffi_resolver() -> Arc<FfiFunctionResolver> {
-    GLOBAL_FFI_RESOLVER.get_or_init(|| {
-        Arc::new(FfiFunctionResolver::new(ResolverConfig::default()))
-    }).clone()
+    GLOBAL_FFI_RESOLVER
+        .get_or_init(|| Arc::new(FfiFunctionResolver::new(ResolverConfig::default())))
+        .clone()
 }
 
 /// Initialize global FFI function resolver with custom config
@@ -531,19 +660,26 @@ mod tests {
     #[test]
     fn test_known_function_resolution() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
-        
-        let malloc_result = resolver.resolve_function("malloc", None).expect("Failed to resolve malloc");
+
+        let malloc_result = resolver
+            .resolve_function("malloc", None)
+            .expect("Failed to resolve malloc");
         assert_eq!(malloc_result.library_name, "libc");
         assert_eq!(malloc_result.function_name, "malloc");
-        assert_eq!(malloc_result.category, FfiFunctionCategory::MemoryManagement);
+        assert_eq!(
+            malloc_result.category,
+            FfiFunctionCategory::MemoryManagement
+        );
         assert_eq!(malloc_result.risk_level, FfiRiskLevel::Medium);
     }
 
     #[test]
     fn test_auto_discovery() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
-        
-        let ssl_result = resolver.resolve_function("SSL_new", None).expect("Failed to resolve SSL_new");
+
+        let ssl_result = resolver
+            .resolve_function("SSL_new", None)
+            .expect("Failed to resolve SSL_new");
         assert_eq!(ssl_result.library_name, "libssl");
         assert_eq!(ssl_result.category, FfiFunctionCategory::Cryptographic);
     }
@@ -551,8 +687,10 @@ mod tests {
     #[test]
     fn test_library_hint() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
-        
-        let custom_result = resolver.resolve_function("custom_func", Some("mylib")).expect("Failed to resolve custom function");
+
+        let custom_result = resolver
+            .resolve_function("custom_func", Some("mylib"))
+            .expect("Failed to resolve custom function");
         assert_eq!(custom_result.library_name, "mylib");
         assert_eq!(custom_result.function_name, "custom_func");
     }
@@ -560,21 +698,29 @@ mod tests {
     #[test]
     fn test_risk_assessment() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
-        
-        let strcpy_result = resolver.resolve_function("strcpy", None).expect("Failed to resolve strcpy");
+
+        let strcpy_result = resolver
+            .resolve_function("strcpy", None)
+            .expect("Failed to resolve strcpy");
         assert_eq!(strcpy_result.risk_level, FfiRiskLevel::Critical);
-        
-        let snprintf_result = resolver.resolve_function("snprintf", None).expect("Failed to resolve snprintf");
+
+        let snprintf_result = resolver
+            .resolve_function("snprintf", None)
+            .expect("Failed to resolve snprintf");
         assert_eq!(snprintf_result.risk_level, FfiRiskLevel::Low);
     }
 
     #[test]
     fn test_batch_resolution() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
-        
-        let functions = vec!["malloc".to_string(), "free".to_string(), "strcpy".to_string()];
+
+        let functions = vec![
+            "malloc".to_string(),
+            "free".to_string(),
+            "strcpy".to_string(),
+        ];
         let results = resolver.resolve_functions_batch(&functions);
-        
+
         assert_eq!(results.len(), 3);
         assert!(results.iter().all(|r| r.is_ok()));
     }
@@ -582,7 +728,7 @@ mod tests {
     #[test]
     fn test_custom_function() {
         let resolver = FfiFunctionResolver::new(ResolverConfig::default());
-        
+
         let custom_func = ResolvedFfiFunction {
             library_name: "mylib".to_string(),
             function_name: "my_func".to_string(),
@@ -591,10 +737,14 @@ mod tests {
             risk_level: FfiRiskLevel::Low,
             metadata: HashMap::new(),
         };
-        
-        resolver.add_custom_function("my_func".to_string(), custom_func).expect("Failed to add custom function");
-        
-        let resolved = resolver.resolve_function("my_func", None).expect("Failed to resolve custom function");
+
+        resolver
+            .add_custom_function("my_func".to_string(), custom_func)
+            .expect("Failed to add custom function");
+
+        let resolved = resolver
+            .resolve_function("my_func", None)
+            .expect("Failed to resolve custom function");
         assert_eq!(resolved.library_name, "mylib");
         assert_eq!(resolved.category, FfiFunctionCategory::UserLibrary);
     }

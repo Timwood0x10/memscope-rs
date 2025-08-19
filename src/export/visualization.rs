@@ -122,7 +122,8 @@ fn create_memory_analysis_svg(
     document = crate::export::export_enhanced::add_callstack_analysis(document, allocations)?;
 
     // 9. Memory Growth Trends
-    document = crate::export::export_enhanced::add_memory_growth_trends(document, allocations, stats)?;
+    document =
+        crate::export::export_enhanced::add_memory_growth_trends(document, allocations, stats)?;
 
     // 10. Variable Allocation Timeline
     document = crate::export::export_enhanced::add_memory_timeline(document, allocations, stats)?;
@@ -131,7 +132,8 @@ fn create_memory_analysis_svg(
     document = crate::export::export_enhanced::add_interactive_legend(document)?;
 
     // 12. Bottom right: Memory Analysis Summary
-    document = crate::export::export_enhanced::add_comprehensive_summary(document, stats, allocations)?;
+    document =
+        crate::export::export_enhanced::add_comprehensive_summary(document, stats, allocations)?;
 
     Ok(document)
 }
@@ -765,10 +767,7 @@ fn export_scope_analysis_json(
         let is_displayed = displayed_scopes.iter().any(|(name, _)| name == scope_name);
 
         let mut scope_data = Map::new();
-        scope_data.insert(
-            "scope_name".to_string(),
-            Value::String(scope_name.clone()),
-        );
+        scope_data.insert("scope_name".to_string(), Value::String(scope_name.clone()));
         scope_data.insert(
             "total_memory".to_string(),
             Value::Number((total_memory as u64).into()),
@@ -1469,11 +1468,7 @@ fn add_dashboard_header(
             "#f39c12",
         ),
         ("Safety Violations", violations.len().clone(), "#e67e22"),
-        (
-            "Unsafe Memory",
-            total_unsafe_memory,
-            "#9b59b6",
-        ),
+        ("Unsafe Memory", total_unsafe_memory, "#9b59b6"),
     ];
 
     for (i, (label, value, color)) in metrics.iter().enumerate() {

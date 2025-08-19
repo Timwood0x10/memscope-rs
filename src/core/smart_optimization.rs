@@ -3,11 +3,11 @@
 //! This module provides targeted optimizations based on real performance data,
 //! avoiding the over-engineering that led to performance degradation.
 
+use crate::core::safe_operations::SafeLock;
 use parking_lot::Mutex;
 use std::borrow::ToOwned;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use crate::core::safe_operations::SafeLock;
 
 /// Smart mutex that chooses the best implementation based on usage patterns
 pub enum SmartMutex<T> {

@@ -476,7 +476,6 @@ pub fn get_recommended_config<P: AsRef<Path>>(
 mod tests {
     use super::*;
 
-
     #[test]
     fn test_strategy_selection() {
         let config = BinaryHtmlExportConfig::default();

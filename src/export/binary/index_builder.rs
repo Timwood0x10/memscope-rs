@@ -575,17 +575,24 @@ mod tests {
 
         // Write test data to binary file
         {
-            let mut writer = BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
-            writer.write_header(test_allocations.len() as u32).expect("Failed to write header");
+            let mut writer =
+                BinaryWriter::new(temp_file.path()).expect("Failed to create temp file");
+            writer
+                .write_header(test_allocations.len() as u32)
+                .expect("Failed to write header");
             for alloc in &test_allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
 
         // Build index from the binary file
         let builder = BinaryIndexBuilder::new();
-        let index = builder.build_index(temp_file.path()).expect("Failed to create temp file");
+        let index = builder
+            .build_index(temp_file.path())
+            .expect("Failed to create temp file");
 
         // Verify index properties
         assert_eq!(index.record_count(), 2);
@@ -609,18 +616,26 @@ mod tests {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
 
         // Write some test data
-        std::fs::write(temp_file.path(), b"test data for hashing").expect("Failed to create temp file");
+        std::fs::write(temp_file.path(), b"test data for hashing")
+            .expect("Failed to create temp file");
 
         let builder = BinaryIndexBuilder::new();
-        let hash1 = builder.compute_file_hash(temp_file.path()).expect("Failed to create temp file");
-        let hash2 = builder.compute_file_hash(temp_file.path()).expect("Failed to create temp file");
+        let hash1 = builder
+            .compute_file_hash(temp_file.path())
+            .expect("Failed to create temp file");
+        let hash2 = builder
+            .compute_file_hash(temp_file.path())
+            .expect("Failed to create temp file");
 
         // Same file should produce same hash
         assert_eq!(hash1, hash2);
 
         // Different content should produce different hash
-        std::fs::write(temp_file.path(), b"different test data").expect("Failed to create temp file");
-        let hash3 = builder.compute_file_hash(temp_file.path()).expect("Failed to create temp file");
+        std::fs::write(temp_file.path(), b"different test data")
+            .expect("Failed to create temp file");
+        let hash3 = builder
+            .compute_file_hash(temp_file.path())
+            .expect("Failed to create temp file");
         assert_ne!(hash1, hash3);
     }
 

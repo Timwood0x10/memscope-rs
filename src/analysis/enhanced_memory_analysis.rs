@@ -1468,17 +1468,13 @@ impl Default for EfficiencyMetrics {
 
 impl Default for ObjectRelationshipGraph {
     fn default() -> Self {
-        Self {
-            nodes: Vec::new(),
-        }
+        Self { nodes: Vec::new() }
     }
 }
 
 impl Default for ActualAccessTracking {
     fn default() -> Self {
-        Self {
-            total_accesses: 0,
-        }
+        Self { total_accesses: 0 }
     }
 }
 

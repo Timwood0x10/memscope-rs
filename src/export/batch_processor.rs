@@ -614,7 +614,12 @@ impl BatchProcessor {
                     size: allocation.base.size,
                     type_name: allocation.base.type_name.clone(),
                     unsafe_block_location: unsafe_block_location.clone(),
-                    call_stack: call_stack.get_frames().unwrap_or_default().iter().map(|f| f.function_name.clone()).collect(),
+                    call_stack: call_stack
+                        .get_frames()
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|f| f.function_name.clone())
+                        .collect(),
                     risk_assessment: risk_assessment.clone(),
                     lifetime_info: LifetimeInfo {
                         allocated_at: allocation.base.timestamp_alloc as u128,
@@ -685,7 +690,12 @@ impl BatchProcessor {
                     size: allocation.base.size,
                     library_name: resolved_function.library_name.clone(),
                     function_name: resolved_function.function_name.clone(),
-                    call_stack: call_stack.get_frames().unwrap_or_default().iter().map(|f| f.function_name.clone()).collect(),
+                    call_stack: call_stack
+                        .get_frames()
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|f| f.function_name.clone())
+                        .collect(),
                     hook_info: libc_hook_info.clone(),
                     ownership_info: OwnershipInfo {
                         owner_context: "FFI".to_string(),

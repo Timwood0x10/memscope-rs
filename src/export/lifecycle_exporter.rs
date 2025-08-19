@@ -1,20 +1,20 @@
 use crate::core::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
-use std::time::{Duration, Instant};
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LifecycleExportError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
-    
+
     #[error("Export error: {0}")]
     Other(String),
 }
@@ -34,26 +34,12 @@ pub enum OwnershipEventType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum OwnershipEventDetails {
-    Allocated { 
-        size: usize, 
-        type_name: String 
-    },
-    Cloned { 
-        source_ptr: usize 
-    },
-    Dropped { 
-        reason: String 
-    },
-    OwnershipTransferred { 
-        new_owner: String 
-    },
-    Borrowed { 
-        is_mutable: bool, 
-        scope: String 
-    },
-    BorrowReleased { 
-        is_mutable: bool 
-    },
+    Allocated { size: usize, type_name: String },
+    Cloned { source_ptr: usize },
+    Dropped { reason: String },
+    OwnershipTransferred { new_owner: String },
+    Borrowed { is_mutable: bool, scope: String },
+    BorrowReleased { is_mutable: bool },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,13 +135,13 @@ impl LifecycleExporter {
                         writer.write_all(b",")?;
                     }
                     first = false;
-                    
+
                     let json = if self.config.pretty_print {
                         serde_json::to_vec_pretty(&lifecycle)?
                     } else {
                         serde_json::to_vec(&lifecycle)?
                     };
-                    
+
                     writer.write_all(&json)?;
                     objects_exported += 1;
                 }
@@ -177,11 +163,7 @@ impl LifecycleExporter {
             serde_json::to_string(&metadata)?
         };
 
-        write!(
-            writer,
-            "],\"metadata\":{}}}",
-            metadata_json
-        )?;
+        write!(writer, "],\"metadata\":{}}}", metadata_json)?;
 
         writer.flush()?;
 
@@ -192,21 +174,21 @@ impl LifecycleExporter {
         })
     }
 
-    fn build_object_lifecycle(
-        &self,
-        alloc: &AllocationInfo,
-    ) -> Result<Option<ObjectLifecycle>> {
+    fn build_object_lifecycle(&self, alloc: &AllocationInfo) -> Result<Option<ObjectLifecycle>> {
         // Skip system allocations if configured
         if !self.config.include_system_allocations && alloc.var_name.is_none() {
             return Ok(None);
         }
 
         let ownership_history = self.build_ownership_history(alloc)?;
-        
+
         Ok(Some(ObjectLifecycle {
             allocation_ptr: alloc.ptr as usize,
             size_bytes: alloc.size,
-            type_name: alloc.type_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            type_name: alloc
+                .type_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
             var_name: alloc.var_name.clone(),
             ownership_history,
             status_at_shutdown: self.determine_shutdown_status(alloc),
@@ -215,7 +197,7 @@ impl LifecycleExporter {
 
     fn build_ownership_history(&self, alloc: &AllocationInfo) -> Result<Vec<OwnershipEvent>> {
         let mut events = Vec::new();
-        
+
         // Add allocation event
         events.push(OwnershipEvent {
             timestamp: alloc.timestamp_alloc,
@@ -223,7 +205,10 @@ impl LifecycleExporter {
             source_stack_id: self.next_stack_id(),
             details: OwnershipEventDetails::Allocated {
                 size: alloc.size,
-                type_name: alloc.type_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                type_name: alloc
+                    .type_name
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string()),
             },
         });
 

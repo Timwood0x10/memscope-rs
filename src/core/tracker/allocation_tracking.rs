@@ -4,8 +4,8 @@
 //! for the MemoryTracker, using BoundedMemoryStats to prevent infinite growth.
 
 use super::memory_tracker::MemoryTracker;
-use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::core::ownership_history::OwnershipEventType;
+use crate::core::types::{AllocationInfo, TrackingResult};
 
 impl MemoryTracker {
     /// Fast track allocation for testing (minimal overhead)
@@ -28,9 +28,10 @@ impl MemoryTracker {
         self.calculate_and_analyze_lifetime(&mut allocation);
 
         // Try to update both active allocations and bounded stats
-        if let (Ok(mut active), Ok(mut bounded_stats)) =
-            (self.active_allocations.try_lock(), self.bounded_stats.try_lock())
-        {
+        if let (Ok(mut active), Ok(mut bounded_stats)) = (
+            self.active_allocations.try_lock(),
+            self.bounded_stats.try_lock(),
+        ) {
             active.insert(ptr, allocation.clone());
             bounded_stats.add_allocation(&allocation);
         }
@@ -57,7 +58,7 @@ impl MemoryTracker {
                     "Failed to acquire active_allocations lock".to_string(),
                 )
             })?;
-            
+
             let mut bounded_stats = self.bounded_stats.lock().map_err(|_| {
                 crate::core::types::TrackingError::LockError(
                     "Failed to acquire bounded_stats lock".to_string(),
@@ -118,7 +119,7 @@ impl MemoryTracker {
                     "Failed to acquire active_allocations lock".to_string(),
                 )
             })?;
-            
+
             let mut bounded_stats = self.bounded_stats.lock().map_err(|_| {
                 crate::core::types::TrackingError::LockError(
                     "Failed to acquire bounded_stats lock".to_string(),
@@ -182,7 +183,10 @@ impl MemoryTracker {
         const MAX_RETRIES: u32 = 10;
 
         while retry_count < MAX_RETRIES {
-            match (self.active_allocations.try_lock(), self.bounded_stats.try_lock()) {
+            match (
+                self.active_allocations.try_lock(),
+                self.bounded_stats.try_lock(),
+            ) {
                 (Ok(mut active), Ok(mut bounded_stats)) => {
                     // Insert allocation into active tracking
                     active.insert(ptr, allocation.clone());
@@ -218,7 +222,10 @@ impl MemoryTracker {
         const MAX_RETRIES: u32 = 10;
 
         while retry_count < MAX_RETRIES {
-            match (self.active_allocations.try_lock(), self.bounded_stats.try_lock()) {
+            match (
+                self.active_allocations.try_lock(),
+                self.bounded_stats.try_lock(),
+            ) {
                 (Ok(mut active), Ok(mut bounded_stats)) => {
                     // Insert allocation into active tracking
                     active.insert(ptr, allocation.clone());
@@ -259,7 +266,7 @@ impl MemoryTracker {
                 "Failed to acquire active_allocations lock".to_string(),
             )
         })?;
-        
+
         let mut bounded_stats = self.bounded_stats.lock().map_err(|_| {
             crate::core::types::TrackingError::LockError(
                 "Failed to acquire bounded_stats lock".to_string(),
@@ -298,7 +305,10 @@ impl MemoryTracker {
         const MAX_RETRIES: u32 = 10;
 
         while retry_count < MAX_RETRIES {
-            match (self.active_allocations.try_lock(), self.bounded_stats.try_lock()) {
+            match (
+                self.active_allocations.try_lock(),
+                self.bounded_stats.try_lock(),
+            ) {
                 (Ok(mut active), Ok(mut bounded_stats)) => {
                     if let Some(mut allocation) = active.remove(&ptr) {
                         // Set deallocation timestamp
@@ -392,7 +402,7 @@ impl MemoryTracker {
         let mut allocation = AllocationInfo::new(ptr, size);
         allocation.var_name = Some(var_name);
         allocation.type_name = Some(type_name);
-        
+
         self.track_allocation(ptr, size)
     }
 
@@ -555,7 +565,10 @@ impl MemoryTracker {
         self.enhance_allocation_info(&mut allocation);
 
         // Use try_lock to avoid blocking
-        match (self.active_allocations.try_lock(), self.bounded_stats.try_lock()) {
+        match (
+            self.active_allocations.try_lock(),
+            self.bounded_stats.try_lock(),
+        ) {
             (Ok(mut active), Ok(mut bounded_stats)) => {
                 // Add to active allocations
                 active.insert(ptr, allocation.clone());
@@ -590,9 +603,10 @@ impl MemoryTracker {
                 // Use a brief retry strategy instead of immediate failure
                 for attempt in 0..3 {
                     std::thread::sleep(std::time::Duration::from_nanos(100 * (attempt + 1)));
-                    if let (Ok(mut active), Ok(mut bounded_stats)) =
-                        (self.active_allocations.try_lock(), self.bounded_stats.try_lock())
-                    {
+                    if let (Ok(mut active), Ok(mut bounded_stats)) = (
+                        self.active_allocations.try_lock(),
+                        self.bounded_stats.try_lock(),
+                    ) {
                         active.insert(ptr, allocation.clone());
                         bounded_stats.add_allocation(&allocation);
                         drop(bounded_stats);
@@ -641,7 +655,10 @@ impl MemoryTracker {
             .as_nanos() as u64;
 
         // Use try_lock to avoid blocking during high deallocation activity
-        match (self.active_allocations.try_lock(), self.bounded_stats.try_lock()) {
+        match (
+            self.active_allocations.try_lock(),
+            self.bounded_stats.try_lock(),
+        ) {
             (Ok(mut active), Ok(mut bounded_stats)) => {
                 if let Some(mut allocation) = active.remove(&ptr) {
                     // Set deallocation timestamp and lifetime
@@ -693,7 +710,10 @@ impl MemoryTracker {
     }
 
     /// Get ownership summary for an allocation
-    pub fn get_ownership_summary(&self, ptr: usize) -> Option<crate::core::ownership_history::OwnershipSummary> {
+    pub fn get_ownership_summary(
+        &self,
+        ptr: usize,
+    ) -> Option<crate::core::ownership_history::OwnershipSummary> {
         if let Ok(ownership_history) = self.ownership_history.try_lock() {
             ownership_history.get_summary(ptr).cloned()
         } else {
@@ -704,13 +724,11 @@ impl MemoryTracker {
     /// Export ownership history to JSON
     pub fn export_ownership_history(&self) -> Result<String, String> {
         if let Ok(ownership_history) = self.ownership_history.try_lock() {
-            ownership_history.export_to_json().map_err(|e| e.to_string())
+            ownership_history
+                .export_to_json()
+                .map_err(|e| e.to_string())
         } else {
             Err("Failed to acquire ownership history lock".to_string())
         }
     }
-
-
-
-
 }

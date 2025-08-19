@@ -6,12 +6,12 @@
 //! 3. Borrow checker integration - Track borrow and mutable borrow lifetimes
 //! 4. Closure capture analysis - Track closure captured variable lifetimes
 
+use crate::core::safe_operations::SafeLock;
 use crate::core::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::core::safe_operations::SafeLock;
 
 /// Global lifecycle analyzer instance
 static GLOBAL_LIFECYCLE_ANALYZER: OnceLock<Arc<LifecycleAnalyzer>> = OnceLock::new();
@@ -243,16 +243,32 @@ impl LifecycleAnalyzer {
 
     /// Get comprehensive lifecycle analysis report
     pub fn get_lifecycle_report(&self) -> LifecycleAnalysisReport {
-        let drop_events = self.drop_events.safe_lock().map(|events| Arc::clone(&events)).unwrap_or_else(|_| Arc::new(Vec::new()));
-        let raii_patterns = self.raii_patterns.safe_lock().map(|patterns| Arc::clone(&patterns)).unwrap_or_else(|_| Arc::new(Vec::new()));
-        let borrow_analysis = self.borrow_tracker.safe_lock().map(|tracker| tracker.get_analysis()).unwrap_or_else(|_| BorrowAnalysis { 
-            conflicts: Vec::new(), 
-            active_borrows: 0,
-            borrow_patterns: Vec::new(),
-            long_lived_borrows: Vec::new(),
-            total_borrows: 0
-        });
-        let closure_captures = self.closure_captures.safe_lock().map(|captures| Arc::clone(&captures)).unwrap_or_else(|_| Arc::new(Vec::new()));
+        let drop_events = self
+            .drop_events
+            .safe_lock()
+            .map(|events| Arc::clone(&events))
+            .unwrap_or_else(|_| Arc::new(Vec::new()));
+        let raii_patterns = self
+            .raii_patterns
+            .safe_lock()
+            .map(|patterns| Arc::clone(&patterns))
+            .unwrap_or_else(|_| Arc::new(Vec::new()));
+        let borrow_analysis = self
+            .borrow_tracker
+            .safe_lock()
+            .map(|tracker| tracker.get_analysis())
+            .unwrap_or_else(|_| BorrowAnalysis {
+                conflicts: Vec::new(),
+                active_borrows: 0,
+                borrow_patterns: Vec::new(),
+                long_lived_borrows: Vec::new(),
+                total_borrows: 0,
+            });
+        let closure_captures = self
+            .closure_captures
+            .safe_lock()
+            .map(|captures| Arc::clone(&captures))
+            .unwrap_or_else(|_| Arc::new(Vec::new()));
 
         LifecycleAnalysisReport {
             drop_events: (*drop_events).clone(),

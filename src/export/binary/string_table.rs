@@ -499,18 +499,24 @@ mod tests {
         assert_eq!(table.len(), 0);
 
         // Add first string
-        let index1 = table.add_string("Vec<String>").expect("Test operation failed");
+        let index1 = table
+            .add_string("Vec<String>")
+            .expect("Test operation failed");
         assert_eq!(index1, 0);
         assert_eq!(table.len(), 1);
         assert_eq!(table.get_string(0), Some("Vec<String>"));
 
         // Add second string
-        let index2 = table.add_string("HashMap<K,V>").expect("Test operation failed");
+        let index2 = table
+            .add_string("HashMap<K,V>")
+            .expect("Test operation failed");
         assert_eq!(index2, 1);
         assert_eq!(table.len(), 2);
 
         // Add duplicate string - should return existing index
-        let index3 = table.add_string("Vec<String>").expect("Test operation failed");
+        let index3 = table
+            .add_string("Vec<String>")
+            .expect("Test operation failed");
         assert_eq!(index3, 0);
         assert_eq!(table.len(), 2); // No new string added
     }
@@ -528,8 +534,12 @@ mod tests {
     #[test]
     fn test_compression_stats() {
         let mut table = StringTable::new();
-        table.add_string("Vec<String>").expect("Test operation failed"); // 11 chars + 4 length = 15 bytes
-        table.add_string("HashMap<K,V>").expect("Test operation failed"); // 12 chars + 4 length = 16 bytes
+        table
+            .add_string("Vec<String>")
+            .expect("Test operation failed"); // 11 chars + 4 length = 15 bytes
+        table
+            .add_string("HashMap<K,V>")
+            .expect("Test operation failed"); // 12 chars + 4 length = 16 bytes
 
         let stats = table.compression_stats();
         assert_eq!(stats.original_size, 31); // 15 + 16
@@ -565,7 +575,9 @@ mod tests {
         // Fill up to near the limit (this would be slow in practice, so we'll mock it)
         // In a real scenario, we'd hit the limit with many unique strings
         for i in 0..10 {
-            table.add_string(&format!("string_{}", i)).expect("Test operation failed");
+            table
+                .add_string(&format!("string_{}", i))
+                .expect("Test operation failed");
         }
 
         assert_eq!(table.len(), 10);

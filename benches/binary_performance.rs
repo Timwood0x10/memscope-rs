@@ -1,9 +1,9 @@
 //! Performance benchmarks for binary export functionality
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::hint::black_box;
 use memscope_rs::core::types::AllocationInfo;
 use memscope_rs::export::binary;
+use std::hint::black_box;
 use std::time::Instant;
 use tempfile::TempDir;
 

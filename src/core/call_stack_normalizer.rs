@@ -4,11 +4,10 @@
 //! by creating a registry system with ID-based references.
 
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
-use crate::core::types::{TrackingResult, TrackingError};
+use crate::core::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
 
 /// Unique identifier for normalized call stacks
 pub type CallStackId = u32;
@@ -111,7 +110,9 @@ impl CallStackNormalizer {
     /// Normalize call stack and return unique ID
     pub fn normalize_call_stack(&self, frames: &[StackFrame]) -> TrackingResult<CallStackId> {
         if frames.is_empty() {
-            return Err(TrackingError::InvalidPointer("Empty call stack".to_string()));
+            return Err(TrackingError::InvalidPointer(
+                "Empty call stack".to_string(),
+            ));
         }
 
         let hash = self.calculate_call_stack_hash(frames);
@@ -121,10 +122,10 @@ impl CallStackNormalizer {
             if let Some(existing) = registry.get_mut(&hash) {
                 // Increment reference count
                 existing.ref_count += 1;
-                
+
                 // Update statistics
                 self.update_stats_duplicate_avoided(frames.len());
-                
+
                 tracing::debug!("📚 Reused existing call stack ID: {}", existing.id);
                 return Ok(existing.id);
             }
@@ -148,7 +149,7 @@ impl CallStackNormalizer {
                     self.cleanup_registry_internal(&mut registry)?;
                 } else {
                     return Err(TrackingError::ResourceExhausted(
-                        "Call stack registry full".to_string()
+                        "Call stack registry full".to_string(),
                     ));
                 }
             }
@@ -167,7 +168,9 @@ impl CallStackNormalizer {
             tracing::debug!("📚 Created new call stack ID: {} (hash: {:x})", id, hash);
             Ok(id)
         } else {
-            Err(TrackingError::LockContention("Failed to lock registry".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock registry".to_string(),
+            ))
         }
     }
 
@@ -175,65 +178,97 @@ impl CallStackNormalizer {
     pub fn get_call_stack(&self, id: CallStackId) -> TrackingResult<Vec<StackFrame>> {
         // Get hash from ID
         let hash = if let Ok(id_map) = self.id_to_hash.lock() {
-            id_map.get(&id).copied()
-                .ok_or_else(|| TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id)))?
+            id_map.get(&id).copied().ok_or_else(|| {
+                TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id))
+            })?
         } else {
-            return Err(TrackingError::LockContention("Failed to lock ID mapping".to_string()));
+            return Err(TrackingError::LockContention(
+                "Failed to lock ID mapping".to_string(),
+            ));
         };
 
         // Get call stack from registry
         if let Ok(registry) = self.stack_registry.lock() {
-            registry.get(&hash)
+            registry
+                .get(&hash)
                 .map(|normalized| normalized.frames.clone())
-                .ok_or_else(|| TrackingError::InvalidPointer(format!("Call stack not found for ID: {}", id)))
+                .ok_or_else(|| {
+                    TrackingError::InvalidPointer(format!("Call stack not found for ID: {}", id))
+                })
         } else {
-            Err(TrackingError::LockContention("Failed to lock registry".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock registry".to_string(),
+            ))
         }
     }
 
     /// Increment reference count for call stack
     pub fn increment_ref_count(&self, id: CallStackId) -> TrackingResult<()> {
         let hash = if let Ok(id_map) = self.id_to_hash.lock() {
-            id_map.get(&id).copied()
-                .ok_or_else(|| TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id)))?
+            id_map.get(&id).copied().ok_or_else(|| {
+                TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id))
+            })?
         } else {
-            return Err(TrackingError::LockContention("Failed to lock ID mapping".to_string()));
+            return Err(TrackingError::LockContention(
+                "Failed to lock ID mapping".to_string(),
+            ));
         };
 
         if let Ok(mut registry) = self.stack_registry.lock() {
             if let Some(normalized) = registry.get_mut(&hash) {
                 normalized.ref_count += 1;
-                tracing::debug!("📚 Incremented ref count for ID: {} to {}", id, normalized.ref_count);
+                tracing::debug!(
+                    "📚 Incremented ref count for ID: {} to {}",
+                    id,
+                    normalized.ref_count
+                );
                 Ok(())
             } else {
-                Err(TrackingError::InvalidPointer(format!("Call stack not found for ID: {}", id)))
+                Err(TrackingError::InvalidPointer(format!(
+                    "Call stack not found for ID: {}",
+                    id
+                )))
             }
         } else {
-            Err(TrackingError::LockContention("Failed to lock registry".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock registry".to_string(),
+            ))
         }
     }
 
     /// Decrement reference count for call stack
     pub fn decrement_ref_count(&self, id: CallStackId) -> TrackingResult<()> {
         let hash = if let Ok(id_map) = self.id_to_hash.lock() {
-            id_map.get(&id).copied()
-                .ok_or_else(|| TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id)))?
+            id_map.get(&id).copied().ok_or_else(|| {
+                TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id))
+            })?
         } else {
-            return Err(TrackingError::LockContention("Failed to lock ID mapping".to_string()));
+            return Err(TrackingError::LockContention(
+                "Failed to lock ID mapping".to_string(),
+            ));
         };
 
         if let Ok(mut registry) = self.stack_registry.lock() {
             if let Some(normalized) = registry.get_mut(&hash) {
                 if normalized.ref_count > 0 {
                     normalized.ref_count -= 1;
-                    tracing::debug!("📚 Decremented ref count for ID: {} to {}", id, normalized.ref_count);
+                    tracing::debug!(
+                        "📚 Decremented ref count for ID: {} to {}",
+                        id,
+                        normalized.ref_count
+                    );
                 }
                 Ok(())
             } else {
-                Err(TrackingError::InvalidPointer(format!("Call stack not found for ID: {}", id)))
+                Err(TrackingError::InvalidPointer(format!(
+                    "Call stack not found for ID: {}",
+                    id
+                )))
             }
         } else {
-            Err(TrackingError::LockContention("Failed to lock registry".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock registry".to_string(),
+            ))
         }
     }
 
@@ -242,7 +277,9 @@ impl CallStackNormalizer {
         if let Ok(mut registry) = self.stack_registry.lock() {
             self.cleanup_registry_internal(&mut registry)
         } else {
-            Err(TrackingError::LockContention("Failed to lock registry".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock registry".to_string(),
+            ))
         }
     }
 
@@ -288,7 +325,7 @@ impl CallStackNormalizer {
         use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
-        
+
         // Hash each frame's key components
         for frame in frames {
             frame.function_name.hash(&mut hasher);
@@ -296,7 +333,7 @@ impl CallStackNormalizer {
             frame.line_number.hash(&mut hasher);
             frame.is_unsafe.hash(&mut hasher);
         }
-        
+
         hasher.finish()
     }
 
@@ -306,11 +343,16 @@ impl CallStackNormalizer {
             *next_id = next_id.wrapping_add(1);
             Ok(id)
         } else {
-            Err(TrackingError::LockContention("Failed to lock next ID counter".to_string()))
+            Err(TrackingError::LockContention(
+                "Failed to lock next ID counter".to_string(),
+            ))
         }
     }
 
-    fn cleanup_registry_internal(&self, registry: &mut HashMap<u64, NormalizedCallStack>) -> TrackingResult<usize> {
+    fn cleanup_registry_internal(
+        &self,
+        registry: &mut HashMap<u64, NormalizedCallStack>,
+    ) -> TrackingResult<usize> {
         let initial_size = registry.len();
         let min_ref_count = self.config.min_ref_count_for_cleanup;
 
@@ -330,7 +372,10 @@ impl CallStackNormalizer {
             stats.unique_stacks = registry.len();
         }
 
-        tracing::info!("🧹 Cleaned up {} unused call stacks from registry", removed_count);
+        tracing::info!(
+            "🧹 Cleaned up {} unused call stacks from registry",
+            removed_count
+        );
         Ok(removed_count)
     }
 
@@ -342,11 +387,12 @@ impl CallStackNormalizer {
         if let Ok(mut stats) = self.stats.lock() {
             stats.total_processed += 1;
             stats.unique_stacks += 1;
-            
+
             // Update average stack depth
-            let total_depth = stats.average_stack_depth * (stats.unique_stacks - 1) as f64 + stack_depth as f64;
+            let total_depth =
+                stats.average_stack_depth * (stats.unique_stacks - 1) as f64 + stack_depth as f64;
             stats.average_stack_depth = total_depth / stats.unique_stacks as f64;
-            
+
             // Estimate memory saved (rough calculation)
             stats.memory_saved_bytes += stack_depth * std::mem::size_of::<StackFrame>();
         }
@@ -360,7 +406,7 @@ impl CallStackNormalizer {
         if let Ok(mut stats) = self.stats.lock() {
             stats.total_processed += 1;
             stats.duplicates_avoided += 1;
-            
+
             // Estimate memory saved by avoiding duplication
             stats.memory_saved_bytes += stack_depth * std::mem::size_of::<StackFrame>();
         }
@@ -374,17 +420,20 @@ impl Default for CallStackNormalizer {
 }
 
 /// Global call stack normalizer instance
-static GLOBAL_NORMALIZER: std::sync::OnceLock<Arc<CallStackNormalizer>> = std::sync::OnceLock::new();
+static GLOBAL_NORMALIZER: std::sync::OnceLock<Arc<CallStackNormalizer>> =
+    std::sync::OnceLock::new();
 
 /// Get global call stack normalizer instance
 pub fn get_global_call_stack_normalizer() -> Arc<CallStackNormalizer> {
-    GLOBAL_NORMALIZER.get_or_init(|| {
-        Arc::new(CallStackNormalizer::new(NormalizerConfig::default()))
-    }).clone()
+    GLOBAL_NORMALIZER
+        .get_or_init(|| Arc::new(CallStackNormalizer::new(NormalizerConfig::default())))
+        .clone()
 }
 
 /// Initialize global call stack normalizer with custom config
-pub fn initialize_global_call_stack_normalizer(config: NormalizerConfig) -> Arc<CallStackNormalizer> {
+pub fn initialize_global_call_stack_normalizer(
+    config: NormalizerConfig,
+) -> Arc<CallStackNormalizer> {
     let normalizer = Arc::new(CallStackNormalizer::new(config));
     if GLOBAL_NORMALIZER.set(normalizer.clone()).is_err() {
         tracing::warn!("Global call stack normalizer already initialized");
@@ -450,27 +499,33 @@ mod tests {
     #[test]
     fn test_call_stack_normalization() {
         let normalizer = CallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let frames1 = vec![
             create_test_stack_frame("main", 10),
             create_test_stack_frame("foo", 20),
         ];
-        
+
         let frames2 = vec![
             create_test_stack_frame("main", 10),
             create_test_stack_frame("foo", 20),
         ];
 
         // First normalization should create new entry
-        let id1 = normalizer.normalize_call_stack(&frames1).expect("Failed to normalize call stack");
+        let id1 = normalizer
+            .normalize_call_stack(&frames1)
+            .expect("Failed to normalize call stack");
         assert_eq!(id1, 1);
 
         // Second normalization with same frames should return same ID
-        let _id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
+        let _id2 = normalizer
+            .normalize_call_stack(&frames2)
+            .expect("Failed to normalize call stack");
         assert_eq!(id1, _id2);
 
         // Verify we can retrieve the frames
-        let retrieved_frames = normalizer.get_call_stack(id1).expect("Failed to get call stack");
+        let retrieved_frames = normalizer
+            .get_call_stack(id1)
+            .expect("Failed to get call stack");
         assert_eq!(retrieved_frames.len(), 2);
         assert_eq!(retrieved_frames[0].function_name, "main");
         assert_eq!(retrieved_frames[1].function_name, "foo");
@@ -479,35 +534,45 @@ mod tests {
     #[test]
     fn test_reference_counting() {
         let normalizer = CallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let frames = vec![create_test_stack_frame("test", 1)];
-        let id = normalizer.normalize_call_stack(&frames).expect("Test operation failed");
+        let id = normalizer
+            .normalize_call_stack(&frames)
+            .expect("Test operation failed");
 
         // Increment reference count
-        normalizer.increment_ref_count(id).expect("Failed to increment ref count");
-        
+        normalizer
+            .increment_ref_count(id)
+            .expect("Failed to increment ref count");
+
         // Decrement reference count
-        normalizer.decrement_ref_count(id).expect("Failed to decrement ref count");
-        
+        normalizer
+            .decrement_ref_count(id)
+            .expect("Failed to decrement ref count");
+
         // Should still be able to access
-        let retrieved = normalizer.get_call_stack(id).expect("Failed to get call stack");
+        let retrieved = normalizer
+            .get_call_stack(id)
+            .expect("Failed to get call stack");
         assert_eq!(retrieved.len(), 1);
     }
 
     #[test]
     fn test_call_stack_ref() {
         let normalizer = CallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let frames = vec![
             create_test_stack_frame("main", 10),
             create_test_stack_frame("test", 20),
         ];
-        
-        let id = normalizer.normalize_call_stack(&frames).expect("Failed to normalize call stack");
+
+        let id = normalizer
+            .normalize_call_stack(&frames)
+            .expect("Failed to normalize call stack");
         let stack_ref = CallStackRef::new(id, Some(2));
-        
+
         assert_eq!(stack_ref.get_depth().expect("Failed to get depth"), 2);
-        
+
         let retrieved_frames = stack_ref.get_frames().expect("Failed to get frames");
         assert_eq!(retrieved_frames.len(), 2);
         assert_eq!(retrieved_frames[0].function_name, "main");
@@ -518,26 +583,34 @@ mod tests {
         let mut config = NormalizerConfig::default();
         config.max_registry_size = 2;
         config.min_ref_count_for_cleanup = 2;
-        
+
         let normalizer = CallStackNormalizer::new(config);
-        
+
         // Create multiple call stacks
         let frames1 = vec![create_test_stack_frame("func1", 1)];
         let frames2 = vec![create_test_stack_frame("func2", 2)];
         let frames3 = vec![create_test_stack_frame("func3", 3)];
-        
-        let id1 = normalizer.normalize_call_stack(&frames1).expect("Failed to normalize call stack");
-        let _id2 = normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack");
-        
+
+        let id1 = normalizer
+            .normalize_call_stack(&frames1)
+            .expect("Failed to normalize call stack");
+        let _id2 = normalizer
+            .normalize_call_stack(&frames2)
+            .expect("Failed to normalize call stack");
+
         // Increment ref count for id1 to keep it during cleanup
-        normalizer.increment_ref_count(id1).expect("Failed to increment ref count");
-        
+        normalizer
+            .increment_ref_count(id1)
+            .expect("Failed to increment ref count");
+
         // This should trigger cleanup
-        let _id3 = normalizer.normalize_call_stack(&frames3).expect("Failed to normalize call stack");
-        
+        let _id3 = normalizer
+            .normalize_call_stack(&frames3)
+            .expect("Failed to normalize call stack");
+
         // id1 should still exist (high ref count)
         assert!(normalizer.get_call_stack(id1).is_ok());
-        
+
         // id2 might be cleaned up (low ref count)
         let stats = normalizer.get_stats();
         assert!(stats.cleanup_operations > 0);
@@ -546,15 +619,21 @@ mod tests {
     #[test]
     fn test_statistics_tracking() {
         let normalizer = CallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let frames1 = vec![create_test_stack_frame("func1", 1)];
         let frames2 = vec![create_test_stack_frame("func1", 1)]; // Duplicate
         let frames3 = vec![create_test_stack_frame("func2", 2)]; // New
-        
-        normalizer.normalize_call_stack(&frames1).expect("Failed to normalize call stack");
-        normalizer.normalize_call_stack(&frames2).expect("Failed to normalize call stack"); // Should be duplicate
-        normalizer.normalize_call_stack(&frames3).expect("Failed to normalize call stack");
-        
+
+        normalizer
+            .normalize_call_stack(&frames1)
+            .expect("Failed to normalize call stack");
+        normalizer
+            .normalize_call_stack(&frames2)
+            .expect("Failed to normalize call stack"); // Should be duplicate
+        normalizer
+            .normalize_call_stack(&frames3)
+            .expect("Failed to normalize call stack");
+
         let stats = normalizer.get_stats();
         assert_eq!(stats.total_processed, 3);
         assert_eq!(stats.unique_stacks, 2);
