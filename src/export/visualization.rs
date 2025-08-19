@@ -21,6 +21,20 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     tracker: &MemoryTracker,
     path: P,
 ) -> TrackingResult<()> {
+    // CRITICAL FIX: Set export mode to prevent recursive tracking during SVG generation
+    thread_local! {
+        static SVG_EXPORT_MODE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    
+    // Check if already in SVG export mode to prevent nested exports
+    let already_exporting = SVG_EXPORT_MODE.with(|mode| mode.get());
+    if already_exporting {
+        return Ok(()); // Skip nested export to prevent recursion
+    }
+    
+    // Set SVG export mode
+    SVG_EXPORT_MODE.with(|mode| mode.set(true));
+    
     let path = path.as_ref();
     tracing::info!("Exporting memory analysis to: {}", path.display());
 
@@ -48,6 +62,10 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
         .map_err(|e| TrackingError::SerializationError(format!("Failed to write SVG: {e}")))?;
 
     tracing::info!("Successfully exported memory analysis SVG");
+    
+    // CRITICAL FIX: Clear SVG export mode after generation
+    SVG_EXPORT_MODE.with(|mode| mode.set(false));
+    
     Ok(())
 }
 

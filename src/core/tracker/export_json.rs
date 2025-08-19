@@ -419,6 +419,20 @@ impl MemoryTracker {
     /// - **Use case**: Deep debugging, memory leak investigation, system analysis
     /// - **⚠️ Warning**: Very slow, generates large files, may impact application performance
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        // CRITICAL FIX: Set export mode to prevent recursive tracking during export
+        thread_local! {
+            static EXPORT_MODE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        }
+        
+        // Check if already in export mode to prevent nested exports
+        let already_exporting = EXPORT_MODE.with(|mode| mode.get());
+        if already_exporting {
+            return Ok(()); // Skip nested export to prevent recursion
+        }
+        
+        // Set export mode
+        EXPORT_MODE.with(|mode| mode.set(true));
+        
         // Ensure output goes to MemoryAnalysis directory
         let output_path = self.ensure_memory_analysis_path(path);
 
@@ -430,7 +444,12 @@ impl MemoryTracker {
             .integrity_hashes(false); // Disable for speed
 
         // Use the standard export function with our optimized options
-        self.export_to_json_with_options(output_path, options)
+        let result = self.export_to_json_with_options(output_path, options);
+        
+        // Clear export mode
+        EXPORT_MODE.with(|mode| mode.set(false));
+        
+        result
     }
 
     /// Export memory tracking data with custom options.
