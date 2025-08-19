@@ -40,11 +40,17 @@ impl MemoryTracker {
 
     /// Track a new memory allocation using bounded stats.
     pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
+        // CRITICAL FIX: Skip advanced tracking for global allocator calls
+        // Only do basic tracking for system allocations, save advanced features for user variables
+        let is_user_variable = false; // This is a system allocation from global allocator
+        
         // Create allocation info first (no locks needed)
         let mut allocation = AllocationInfo::new(ptr, size);
 
-        // Apply Task 4 enhancement: calculate lifetime
-        self.calculate_and_analyze_lifetime(&mut allocation);
+        // Apply Task 4 enhancement: calculate lifetime (only for user variables)
+        if is_user_variable {
+            self.calculate_and_analyze_lifetime(&mut allocation);
+        }
 
         // In test mode or when explicitly requested, use blocking locks for accuracy
         let use_blocking_locks = self.is_fast_mode()

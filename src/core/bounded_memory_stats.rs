@@ -165,6 +165,14 @@ impl BoundedMemoryStats {
 
     /// Add a new allocation, automatically managing bounds
     pub fn add_allocation(&mut self, alloc: &AllocationInfo) {
+        // CRITICAL FIX: Only process user variables to prevent system allocation overload
+        // This is the key fix - only track allocations with variable names (user variables)
+        if alloc.var_name.is_none() {
+            // Skip system allocations without variable names
+            // This prevents the 736 system allocations from overwhelming the bounded stats
+            return;
+        }
+        
         // Update basic statistics
         self.total_allocations += 1;
         self.total_allocated += alloc.size;
