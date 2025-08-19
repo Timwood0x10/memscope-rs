@@ -1,4 +1,4 @@
-use crate::core::types::AllocationInfo
+use crate::core::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::{Duration, Instant};
