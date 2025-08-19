@@ -147,9 +147,6 @@ impl UnifiedExporter {
         let start_time = std::time::Instant::now();
         let filtered_allocations = self.get_filtered_allocations();
         
-        // Use the existing optimized JSON export with proper filtering
-        let options = self.create_json_export_options();
-        
         // 🔧 SIMPLE FIX: Use the same simple approach as examples
         // Generate a single clean JSON file like unsafe_ffi_demo.rs does
         let base_path_str = base_path.as_ref().to_string_lossy();
@@ -334,22 +331,9 @@ impl UnifiedExporter {
         
         options
     }
-    
-    // Removed create_binary_export_config as it's not needed for now
-    
-    fn export_json_with_options<P: AsRef<Path>>(
-        &self,
-        _base_path: P,
-        _allocations: &[AllocationInfo],
-        _options: &crate::export::optimized_json_export::OptimizedExportOptions,
-    ) -> TrackingResult<()> {
-        // Implementation would call the existing JSON export
-        // This is a placeholder - would need to integrate with existing code
-        Ok(())
-    }
+
 }
 
-/// Convenience functions for common export operations
 
 /// Export user variables to JSON (most common use case)
 pub fn export_user_variables_json<P: AsRef<Path>>(

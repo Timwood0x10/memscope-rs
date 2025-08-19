@@ -1,4 +1,4 @@
-use crate::core::types::{AllocationInfo, LifecycleEvent};
+use crate::core::types::AllocationInfo
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -143,8 +143,6 @@ impl LifecycleExporter {
         let mut objects_exported = 0;
 
         for chunk in allocations.chunks(self.config.batch_size) {
-            let mut batch: Vec<LifecycleEvent> = Vec::with_capacity(chunk.len());
-            
             for alloc in chunk {
                 if let Some(lifecycle) = self.build_object_lifecycle(alloc)? {
                     if !first {
