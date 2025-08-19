@@ -423,16 +423,16 @@ impl MemoryTracker {
         thread_local! {
             static EXPORT_MODE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
         }
-        
+
         // Check if already in export mode to prevent nested exports
         let already_exporting = EXPORT_MODE.with(|mode| mode.get());
         if already_exporting {
             return Ok(()); // Skip nested export to prevent recursion
         }
-        
+
         // Set export mode
         EXPORT_MODE.with(|mode| mode.set(true));
-        
+
         // Ensure output goes to MemoryAnalysis directory
         let output_path = self.ensure_memory_analysis_path(path);
 
@@ -445,10 +445,10 @@ impl MemoryTracker {
 
         // Use the standard export function with our optimized options
         let result = self.export_to_json_with_options(output_path, options);
-        
+
         // Clear export mode
         EXPORT_MODE.with(|mode| mode.set(false));
-        
+
         result
     }
 
@@ -521,7 +521,7 @@ impl MemoryTracker {
 
         // Write output file
         let output_file_path = output_path.join("memory_analysis.json");
-        
+
         // CRITICAL FIX: Ensure parent directory exists before writing
         if let Some(parent) = output_file_path.parent() {
             if !parent.exists() {
@@ -534,7 +534,7 @@ impl MemoryTracker {
                 })?;
             }
         }
-        
+
         write_json_optimized(output_file_path, &output_data, &options)?;
 
         Ok(())

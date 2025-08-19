@@ -26,21 +26,21 @@ impl TrackingAllocator {
         match size {
             // Common Rust type sizes
             1 => "u8",
-            2 => "u16", 
+            2 => "u16",
             4 => "u32",
             8 => "u64",
             16 => "u128",
-            
+
             // String and Vec common sizes
             24 => "String",
             32 => "Vec<T>",
             48 => "HashMap<K,V>",
-            
+
             // Smart pointer sizes
             size if size == std::mem::size_of::<std::sync::Arc<String>>() => "Arc<T>",
             size if size == std::mem::size_of::<std::rc::Rc<String>>() => "Rc<T>",
             size if size == std::mem::size_of::<Box<String>>() => "Box<T>",
-            
+
             // Default for other sizes - use static strings
             _ => "unknown",
         }
@@ -61,13 +61,13 @@ impl TrackingAllocator {
         match size {
             // Small allocations - likely primitives
             1..=8 => "primitive_data",
-            
-            // Medium allocations - likely structs or small collections  
+
+            // Medium allocations - likely structs or small collections
             9..=64 => "struct_data",
-            
+
             // Large allocations - likely collections or buffers
             65..=1024 => "collection_data",
-            
+
             // Very large allocations - likely buffers or large data structures
             _ => "buffer_data",
         }

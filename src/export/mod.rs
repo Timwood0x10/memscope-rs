@@ -31,9 +31,13 @@ pub use lifecycle_exporter::{
 // Main public API - Unified entry point for all export operations
 pub mod api;
 pub use api::{
-    // Core export types
-    ExportConfig, ExportStats, Exporter,
+    export_comprehensive,
+    export_fast,
+    export_user_variables_binary,
     // High-level convenience functions
-    export_user_variables_json, export_user_variables_binary,
-    export_fast, export_comprehensive,
+    export_user_variables_json,
+    // Core export types
+    ExportConfig,
+    ExportStats,
+    Exporter,
 };

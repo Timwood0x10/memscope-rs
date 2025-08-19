@@ -25,16 +25,16 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     thread_local! {
         static SVG_EXPORT_MODE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
-    
+
     // Check if already in SVG export mode to prevent nested exports
     let already_exporting = SVG_EXPORT_MODE.with(|mode| mode.get());
     if already_exporting {
         return Ok(()); // Skip nested export to prevent recursion
     }
-    
+
     // Set SVG export mode
     SVG_EXPORT_MODE.with(|mode| mode.set(true));
-    
+
     let path = path.as_ref();
     tracing::info!("Exporting memory analysis to: {}", path.display());
 
@@ -47,10 +47,10 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     // CRITICAL FIX: Get stats and allocations at the same time to ensure data consistency
     let stats = tracker.get_stats()?;
     let active_allocations = tracker.get_active_allocations()?;
-    
+
     // CRITICAL FIX: Use actual active memory instead of potentially corrupted peak_memory
     let actual_memory_usage = active_allocations.iter().map(|a| a.size).sum::<usize>();
-    
+
     // Override peak_memory if it's unreasonably high compared to active allocations
     let corrected_peak_memory = if stats.peak_memory > actual_memory_usage * 2 {
         // If peak_memory is more than 2x actual usage, it's likely corrupted from recursive tracking
@@ -59,7 +59,7 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     } else {
         stats.peak_memory
     };
-    
+
     tracing::info!(
         "Memory correction: original peak_memory={}, active_memory={}, actual_usage={}, corrected_peak={}",
         stats.peak_memory, stats.active_memory, actual_memory_usage, corrected_peak_memory
@@ -75,7 +75,7 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     // Create corrected stats for SVG generation
     let mut corrected_stats = stats.clone();
     corrected_stats.peak_memory = corrected_peak_memory;
-    
+
     let document = create_memory_analysis_svg(&active_allocations, &corrected_stats, tracker)?;
 
     let mut file = File::create(path)?;
@@ -83,10 +83,10 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
         .map_err(|e| TrackingError::SerializationError(format!("Failed to write SVG: {e}")))?;
 
     tracing::info!("Successfully exported memory analysis SVG");
-    
+
     // CRITICAL FIX: Clear SVG export mode after generation
     SVG_EXPORT_MODE.with(|mode| mode.set(false));
-    
+
     Ok(())
 }
 

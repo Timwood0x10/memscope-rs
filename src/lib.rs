@@ -1207,7 +1207,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         if is_smart_pointer {
             // For smart pointers, create specialized allocation
             let ref_count = var.get_ref_count();
-            let _data_ptr = var.get_data_ptr();
+            let data_ptr = var.get_data_ptr();
 
             let _ = tracker.create_smart_pointer_allocation(
                 ptr_val,
@@ -1216,7 +1216,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
                 type_name.clone(),
                 creation_time,
                 ref_count,
-                0, // weak_count placeholder
+                data_ptr,
             );
             tracing::debug!(
                 "🎯 Created smart pointer tracking for '{}' at ptr 0x{:x}, ref_count={}",
