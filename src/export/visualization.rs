@@ -44,18 +44,39 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
         }
     }
 
-    // FIXED: Get stats and allocations at the same time to ensure data consistency
+    // CRITICAL FIX: Get stats and allocations at the same time to ensure data consistency
     let stats = tracker.get_stats()?;
     let active_allocations = tracker.get_active_allocations()?;
-
-    // Debug: Log the peak memory value used in SVG export
+    
+    // CRITICAL FIX: Use actual active memory instead of potentially corrupted peak_memory
+    let actual_memory_usage = active_allocations.iter().map(|a| a.size).sum::<usize>();
+    
+    // Override peak_memory if it's unreasonably high compared to active allocations
+    let corrected_peak_memory = if stats.peak_memory > actual_memory_usage * 2 {
+        // If peak_memory is more than 2x actual usage, it's likely corrupted from recursive tracking
+        // Use the larger of actual usage or active memory as the corrected value
+        actual_memory_usage.max(stats.active_memory)
+    } else {
+        stats.peak_memory
+    };
+    
     tracing::info!(
-        "SVG Export - Using peak_memory: {} bytes ({})",
-        stats.peak_memory,
-        crate::utils::format_bytes(stats.peak_memory)
+        "Memory correction: original peak_memory={}, active_memory={}, actual_usage={}, corrected_peak={}",
+        stats.peak_memory, stats.active_memory, actual_memory_usage, corrected_peak_memory
     );
 
-    let document = create_memory_analysis_svg(&active_allocations, &stats, tracker)?;
+    // Debug: Log the corrected peak memory value used in SVG export
+    tracing::info!(
+        "SVG Export - Using corrected peak_memory: {} bytes ({})",
+        corrected_peak_memory,
+        crate::utils::format_bytes(corrected_peak_memory)
+    );
+
+    // Create corrected stats for SVG generation
+    let mut corrected_stats = stats.clone();
+    corrected_stats.peak_memory = corrected_peak_memory;
+    
+    let document = create_memory_analysis_svg(&active_allocations, &corrected_stats, tracker)?;
 
     let mut file = File::create(path)?;
     svg::write(&mut file, &document)

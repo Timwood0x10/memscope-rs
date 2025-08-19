@@ -520,8 +520,22 @@ impl MemoryTracker {
         });
 
         // Write output file
-        let output_path = output_path.join("memory_analysis.json");
-        write_json_optimized(output_path, &output_data, &options)?;
+        let output_file_path = output_path.join("memory_analysis.json");
+        
+        // CRITICAL FIX: Ensure parent directory exists before writing
+        if let Some(parent) = output_file_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    crate::core::types::TrackingError::IoError(format!(
+                        "Failed to create directory {}: {}",
+                        parent.display(),
+                        e
+                    ))
+                })?;
+            }
+        }
+        
+        write_json_optimized(output_file_path, &output_data, &options)?;
 
         Ok(())
     }
