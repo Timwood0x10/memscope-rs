@@ -9,6 +9,51 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::thread;
 
+/// Enhanced borrowing information for allocations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BorrowInfo {
+    /// Total number of immutable borrows during lifetime
+    pub immutable_borrows: usize,
+    /// Total number of mutable borrows during lifetime
+    pub mutable_borrows: usize,
+    /// Peak number of simultaneous borrows observed
+    pub max_concurrent_borrows: usize,
+    /// Timestamp of the last borrow event
+    pub last_borrow_timestamp: Option<u64>,
+}
+
+impl Default for BorrowInfo {
+    fn default() -> Self {
+        Self {
+            immutable_borrows: 0,
+            mutable_borrows: 0,
+            max_concurrent_borrows: 0,
+            last_borrow_timestamp: None,
+        }
+    }
+}
+
+/// Enhanced cloning information for allocations
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CloneInfo {
+    /// Number of times this object was cloned
+    pub clone_count: usize,
+    /// Whether this allocation itself is a result of a clone
+    pub is_clone: bool,
+    /// If is_clone is true, points to the original object's pointer
+    pub original_ptr: Option<usize>,
+}
+
+impl Default for CloneInfo {
+    fn default() -> Self {
+        Self {
+            clone_count: 0,
+            is_clone: false,
+            original_ptr: None,
+        }
+    }
+}
+
 /// Result type for tracking operations
 pub type TrackingResult<T> = Result<T, TrackingError>;
 
@@ -342,6 +387,12 @@ pub struct AllocationInfo {
     pub is_leaked: bool,
     /// Precise lifetime in milliseconds (calculated from creation to destruction)
     pub lifetime_ms: Option<u64>,
+    /// Enhanced borrowing information
+    pub borrow_info: Option<BorrowInfo>,
+    /// Enhanced cloning information
+    pub clone_info: Option<CloneInfo>,
+    /// Flag indicating if detailed ownership history is available in lifetime.json
+    pub ownership_history_available: bool,
     /// Smart pointer specific information
     pub smart_pointer_info: Option<SmartPointerInfo>,
     /// Detailed memory layout information
@@ -392,6 +443,9 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             stack_trace: Option<Vec<String>>,
             is_leaked: bool,
             lifetime_ms: Option<u64>,
+            borrow_info: Option<BorrowInfo>,
+            clone_info: Option<CloneInfo>,
+            ownership_history_available: Option<bool>,
         }
 
         let helper = AllocationInfoHelper::deserialize(deserializer)?;
@@ -408,6 +462,9 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
             stack_trace: helper.stack_trace,
             is_leaked: helper.is_leaked,
             lifetime_ms: helper.lifetime_ms,
+            borrow_info: helper.borrow_info,
+            clone_info: helper.clone_info,
+            ownership_history_available: helper.ownership_history_available.unwrap_or(false),
             smart_pointer_info: None, // Default for deserialization
             memory_layout: None,
             generic_info: None,
@@ -446,6 +503,9 @@ impl AllocationInfo {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
             smart_pointer_info: None,
             memory_layout: None,
             generic_info: None,

@@ -408,6 +408,168 @@ impl BinarySerializable for BinaryCallStackRef {
     }
 }
 
+/// Binary serializable wrapper for BorrowInfo
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BinaryBorrowInfo {
+    pub immutable_borrows: u32,
+    pub mutable_borrows: u32,
+    pub max_concurrent_borrows: u32,
+    pub last_borrow_timestamp: Option<u64>,
+}
+
+impl BinarySerializable for BinaryBorrowInfo {
+    fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+        let mut bytes_written = 0;
+        bytes_written += primitives::write_u32(writer, self.immutable_borrows)?;
+        bytes_written += primitives::write_u32(writer, self.mutable_borrows)?;
+        bytes_written += primitives::write_u32(writer, self.max_concurrent_borrows)?;
+        bytes_written += match self.last_borrow_timestamp {
+            Some(timestamp) => {
+                primitives::write_u8(writer, 1)? + primitives::write_u64(writer, timestamp)?
+            }
+            None => primitives::write_u8(writer, 0)?,
+        };
+        Ok(bytes_written)
+    }
+
+    fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+        let immutable_borrows = primitives::read_u32(reader)?;
+        let mutable_borrows = primitives::read_u32(reader)?;
+        let max_concurrent_borrows = primitives::read_u32(reader)?;
+        let has_timestamp = primitives::read_u8(reader)?;
+        let last_borrow_timestamp = if has_timestamp == 1 {
+            Some(primitives::read_u64(reader)?)
+        } else {
+            None
+        };
+
+        Ok(BinaryBorrowInfo {
+            immutable_borrows,
+            mutable_borrows,
+            max_concurrent_borrows,
+            last_borrow_timestamp,
+        })
+    }
+
+    fn binary_size(&self) -> usize {
+        4 + 4 + 4 + 1 + if self.last_borrow_timestamp.is_some() { 8 } else { 0 }
+    }
+}
+
+/// Binary serializable wrapper for CloneInfo
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BinaryCloneInfo {
+    pub clone_count: u32,
+    pub is_clone: bool,
+    pub original_ptr: Option<u64>,
+}
+
+impl BinarySerializable for BinaryCloneInfo {
+    fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+        let mut bytes_written = 0;
+        bytes_written += primitives::write_u32(writer, self.clone_count)?;
+        bytes_written += primitives::write_u8(writer, if self.is_clone { 1 } else { 0 })?;
+        bytes_written += match self.original_ptr {
+            Some(ptr) => {
+                primitives::write_u8(writer, 1)? + primitives::write_u64(writer, ptr)?
+            }
+            None => primitives::write_u8(writer, 0)?,
+        };
+        Ok(bytes_written)
+    }
+
+    fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+        let clone_count = primitives::read_u32(reader)?;
+        let is_clone = primitives::read_u8(reader)? == 1;
+        let has_original_ptr = primitives::read_u8(reader)?;
+        let original_ptr = if has_original_ptr == 1 {
+            Some(primitives::read_u64(reader)?)
+        } else {
+            None
+        };
+
+        Ok(BinaryCloneInfo {
+            clone_count,
+            is_clone,
+            original_ptr,
+        })
+    }
+
+    fn binary_size(&self) -> usize {
+        4 + 1 + 1 + if self.original_ptr.is_some() { 8 } else { 0 }
+    }
+}
+
+/// Binary serializable wrapper for OwnershipEvent
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BinaryOwnershipEvent {
+    pub timestamp: u64,
+    pub event_type: u8, // 0=Allocated, 1=Cloned, 2=Dropped, 3=OwnershipTransferred, 4=Borrowed, 5=MutablyBorrowed
+    pub source_stack_id: u32,
+    pub clone_source_ptr: Option<u64>,
+    pub transfer_target_var: Option<String>,
+    pub borrower_scope: Option<String>,
+}
+
+impl BinarySerializable for BinaryOwnershipEvent {
+    fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+        let mut bytes_written = 0;
+        bytes_written += primitives::write_u64(writer, self.timestamp)?;
+        bytes_written += primitives::write_u8(writer, self.event_type)?;
+        bytes_written += primitives::write_u32(writer, self.source_stack_id)?;
+        
+        // Write optional clone_source_ptr
+        bytes_written += match self.clone_source_ptr {
+            Some(ptr) => {
+                primitives::write_u8(writer, 1)? + primitives::write_u64(writer, ptr)?
+            }
+            None => primitives::write_u8(writer, 0)?,
+        };
+        
+        // Write optional transfer_target_var
+        bytes_written += primitives::write_string_option(writer, &self.transfer_target_var)?;
+        
+        // Write optional borrower_scope
+        bytes_written += primitives::write_string_option(writer, &self.borrower_scope)?;
+        
+        Ok(bytes_written)
+    }
+
+    fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+        let timestamp = primitives::read_u64(reader)?;
+        let event_type = primitives::read_u8(reader)?;
+        let source_stack_id = primitives::read_u32(reader)?;
+        
+        let has_clone_ptr = primitives::read_u8(reader)?;
+        let clone_source_ptr = if has_clone_ptr == 1 {
+            Some(primitives::read_u64(reader)?)
+        } else {
+            None
+        };
+        
+        let transfer_target_var = primitives::read_string_option(reader)?;
+        let borrower_scope = primitives::read_string_option(reader)?;
+
+        Ok(BinaryOwnershipEvent {
+            timestamp,
+            event_type,
+            source_stack_id,
+            clone_source_ptr,
+            transfer_target_var,
+            borrower_scope,
+        })
+    }
+
+    fn binary_size(&self) -> usize {
+        8 + // timestamp
+        1 + // event_type
+        4 + // source_stack_id
+        1 + if self.clone_source_ptr.is_some() { 8 } else { 0 } + // optional clone_source_ptr
+        1 + self.transfer_target_var.as_ref().map_or(0, |s| 4 + s.len()) + // optional transfer_target_var
+        1 + self.borrower_scope.as_ref().map_or(0, |s| 4 + s.len()) // optional borrower_scope
+    }
+}
+
 /// Binary serializable wrapper for ResolvedFfiFunction
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BinaryResolvedFfiFunction {

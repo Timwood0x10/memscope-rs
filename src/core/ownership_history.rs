@@ -44,40 +44,40 @@ impl Default for HistoryConfig {
     }
 }
 
-/// A single ownership event in the history
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OwnershipEvent {
-    /// Unique event ID
-    pub event_id: u64,
-    /// Timestamp when the event occurred
-    pub timestamp: u64,
-    /// Type of ownership event
-    pub event_type: OwnershipEventType,
-    /// ID of the call stack that triggered this event
-    pub source_stack_id: u32,
-    /// Additional details specific to the event type
-    pub details: OwnershipEventDetails,
-}
-
-/// Types of ownership events that can occur
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Types of ownership events as defined in improve.md
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OwnershipEventType {
-    /// Initial allocation of memory
+    /// Memory was allocated
     Allocated,
-    /// Memory was cloned from another allocation
+    /// Object was cloned from another object
     Cloned { source_ptr: usize },
-    /// Memory was dropped/deallocated
+    /// Object was dropped/deallocated
     Dropped,
     /// Ownership was transferred to another variable
     OwnershipTransferred { target_var: String },
-    /// Memory was immutably borrowed
+    /// Object was borrowed (immutably)
     Borrowed { borrower_scope: String },
-    /// Memory was mutably borrowed
+    /// Object was mutably borrowed
     MutablyBorrowed { borrower_scope: String },
     /// Borrow was released
     BorrowReleased { borrower_scope: String },
     /// Reference count changed (for Rc/Arc)
     RefCountChanged { old_count: usize, new_count: usize },
+}
+
+/// A single ownership event in the history as defined in improve.md
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnershipEvent {
+    /// Unique event ID for tracking
+    pub event_id: u64,
+    /// Timestamp when the event occurred (nanoseconds since epoch)
+    pub timestamp: u64,
+    /// Type of ownership event (Allocated, Cloned, Dropped, etc.)
+    pub event_type: OwnershipEventType,
+    /// ID pointing to the call stack that triggered this event
+    pub source_stack_id: u32,
+    /// Additional details specific to the event type
+    pub details: OwnershipEventDetails,
 }
 
 /// Additional details for ownership events

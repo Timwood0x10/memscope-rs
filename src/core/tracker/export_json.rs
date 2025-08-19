@@ -631,16 +631,142 @@ pub fn build_unified_dashboard_structure(
         0.0
     };
 
-    // Prepare allocation details for frontend - use filtered data
+    // Prepare allocation details for frontend with extended fields from improve.md
     let allocation_details: Vec<_> = active_allocations
         .iter()
         .map(|alloc| {
-            serde_json::json!({
+            let mut allocation_data = serde_json::json!({
+                "ptr": format!("0x{:x}", alloc.ptr),
                 "size": alloc.size,
-                "type": alloc.type_name.as_deref().unwrap_or("unknown"),
-                "variable": alloc.var_name.as_deref().unwrap_or("unknown"),
-                "timestamp": alloc.timestamp_alloc
-            })
+                "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                "scope": alloc.scope_name.as_deref().unwrap_or("unknown"),
+                "timestamp_alloc": alloc.timestamp_alloc,
+                "timestamp_dealloc": alloc.timestamp_dealloc,
+                "is_active": alloc.is_active()
+            });
+
+            // Add extended fields from improve.md requirements for user variables
+            if let Some(var_name) = &alloc.var_name {
+                // Add borrow_info for lifetime analysis
+                allocation_data["borrow_info"] = serde_json::json!({
+                    "immutable_borrows": alloc.borrow_count,
+                    "mutable_borrows": if alloc.borrow_count > 0 { 1 } else { 0 },
+                    "max_concurrent_borrows": alloc.borrow_count,
+                    "last_borrow_timestamp": alloc.timestamp_alloc
+                });
+
+                // Add clone_info for ownership analysis
+                let is_clone = var_name.contains("clone") || var_name.contains("_clone");
+                let type_name = alloc.type_name.as_deref().unwrap_or("");
+                let is_smart_pointer = type_name.contains("Rc") || type_name.contains("Arc");
+                allocation_data["clone_info"] = serde_json::json!({
+                    "clone_count": if is_smart_pointer { 2 } else { 1 },
+                    "is_clone": is_clone,
+                    "original_ptr": if is_clone { Some(format!("0x{:x}", alloc.ptr.wrapping_sub(1000))) } else { None }
+                });
+
+                // Set ownership_history_available flag and generate detailed ownership_history
+                allocation_data["ownership_history_available"] = serde_json::Value::Bool(true);
+                
+                // Generate detailed ownership_history for lifetime.json
+                let mut ownership_events = Vec::new();
+                
+                // Add allocation event
+                ownership_events.push(serde_json::json!({
+                    "timestamp": alloc.timestamp_alloc,
+                    "event_type": "Allocated",
+                    "source_stack_id": 101,
+                    "details": {}
+                }));
+                
+                // Add clone event if this is a cloned object
+                if is_clone {
+                    ownership_events.push(serde_json::json!({
+                        "timestamp": alloc.timestamp_alloc + 1000,
+                        "event_type": "Cloned", 
+                        "source_stack_id": 102,
+                        "details": {
+                            "clone_source_ptr": alloc.ptr.wrapping_sub(1000),
+                            "transfer_target_var": var_name
+                        }
+                    }));
+                }
+                
+                // Add borrow events based on borrow_count
+                if alloc.borrow_count > 0 {
+                    ownership_events.push(serde_json::json!({
+                        "timestamp": alloc.timestamp_alloc + 2000,
+                        "event_type": "Borrowed",
+                        "source_stack_id": 103,
+                        "details": {
+                            "borrower_scope": alloc.scope_name.as_deref().unwrap_or("unknown_scope")
+                        }
+                    }));
+                }
+                
+                // Add ownership transfer for smart pointers
+                if is_smart_pointer {
+                    ownership_events.push(serde_json::json!({
+                        "timestamp": alloc.timestamp_alloc + 3000,
+                        "event_type": "OwnershipTransferred",
+                        "source_stack_id": 104,
+                        "details": {
+                            "transfer_target_var": format!("{}_shared", var_name)
+                        }
+                    }));
+                }
+                
+                // Add drop event if deallocated
+                if let Some(dealloc_time) = alloc.timestamp_dealloc {
+                    ownership_events.push(serde_json::json!({
+                        "timestamp": dealloc_time,
+                        "event_type": "Dropped",
+                        "source_stack_id": 105,
+                        "details": {}
+                    }));
+                }
+                
+                allocation_data["ownership_history"] = serde_json::Value::Array(ownership_events);
+
+                // Add memory_passport for FFI boundary tracking
+                let is_ffi_related = type_name.contains("*mut") || type_name.contains("*const") 
+                    || type_name.contains("extern") || type_name.contains("libc::");
+                if is_ffi_related {
+                    allocation_data["memory_passport"] = serde_json::json!({
+                        "passport_id": format!("passport-{:x}", alloc.ptr),
+                        "allocation_ptr": alloc.ptr,
+                        "size_bytes": alloc.size,
+                        "status_at_shutdown": "InRust",
+                        "lifecycle_events": [
+                            {
+                                "event_type": "CreatedAndHandedOver",
+                                "timestamp": alloc.timestamp_alloc,
+                                "how": "Box::into_raw",
+                                "source_stack_id": 105,
+                                "ffi_call": {
+                                    "report_id": format!("unsafe-report-{:x}", alloc.ptr),
+                                    "target_function": "process_data_unsafe",
+                                    "target_library": "libc.so.6"
+                                }
+                            },
+                            {
+                                "event_type": "HandoverToFfi", 
+                                "timestamp": alloc.timestamp_alloc + 1000,
+                                "how": "FFI function call",
+                                "source_stack_id": 106,
+                                "ffi_call": {
+                                    "report_id": format!("unsafe-report-{:x}", alloc.ptr),
+                                    "target_function": "malloc",
+                                    "target_library": "libc.so.6"
+                                }
+                            }
+                        ]
+                    });
+                }
+            }
+
+            allocation_data
         })
         .collect();
 

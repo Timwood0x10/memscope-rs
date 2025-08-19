@@ -99,3 +99,16 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 overflow-checks = false
+
+[[example]]
+name = "simple_extended_demo"
+path = "examples/simple_extended_demo.rs"
+
+[[example]]
+name = "extended_fields_demo"
+path = "examples/extended_fields_demo_fixed.rs"
+
+[[example]]
+name = "data_export_extended_demo"
+path = "examples/data_export_extended_demo.rs"
+
