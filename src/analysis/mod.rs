@@ -17,6 +17,7 @@ pub mod async_analysis;
 pub mod borrow_analysis;
 pub mod closure_analysis;
 pub mod ffi_function_resolver;
+pub mod enhanced_ffi_function_resolver;
 pub mod generic_analysis;
 pub mod lifecycle_analysis;
 pub mod memory_passport_tracker;
