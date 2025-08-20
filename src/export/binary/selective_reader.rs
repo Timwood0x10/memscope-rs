@@ -176,6 +176,11 @@ pub enum AllocationField {
     IsLeaked,
     LifetimeMs,
 
+    // improve.md extensions
+    BorrowInfo,
+    CloneInfo,
+    OwnershipHistoryAvailable,
+
     // Stack trace information
     StackTrace,
 
@@ -227,6 +232,10 @@ impl AllocationField {
             Self::BorrowCount,
             Self::IsLeaked,
             Self::LifetimeMs,
+            // improve.md extensions
+            Self::BorrowInfo,
+            Self::CloneInfo,
+            Self::OwnershipHistoryAvailable,
             Self::StackTrace,
             Self::SmartPointerInfo,
             Self::MemoryLayout,
@@ -259,6 +268,11 @@ impl AllocationField {
             Self::TimestampAlloc,
             Self::IsLeaked,
             Self::BorrowCount,
+            // improve.md extensions for memory analysis
+            Self::LifetimeMs,
+            Self::BorrowInfo,
+            Self::CloneInfo,
+            Self::OwnershipHistoryAvailable,
         ]
         .into_iter()
         .collect()
@@ -1195,6 +1209,16 @@ impl SelectiveBinaryReader {
         }
         if !options.includes_field(&AllocationField::LifetimeMs) {
             filtered.lifetime_ms = None;
+        }
+        // improve.md extensions
+        if !options.includes_field(&AllocationField::BorrowInfo) {
+            filtered.borrow_info = None;
+        }
+        if !options.includes_field(&AllocationField::CloneInfo) {
+            filtered.clone_info = None;
+        }
+        if !options.includes_field(&AllocationField::OwnershipHistoryAvailable) {
+            filtered.ownership_history_available = false;
         }
         if !options.includes_field(&AllocationField::StackTrace) {
             filtered.stack_trace = None;

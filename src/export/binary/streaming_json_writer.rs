@@ -563,7 +563,59 @@ impl<W: Write> StreamingJsonWriter<W> {
                     None => "null".to_string(),
                 };
                 self.write_field("lifetime_ms", &value)?;
-                let _ = field_count + 1; // Track field count for potential future use
+                field_count += 1;
+            }
+        } else {
+            self.stats.fields_skipped += 1;
+        }
+
+        // Write improve.md extensions: borrow_info
+        if requested_fields.contains(&AllocationField::BorrowInfo) {
+            if let Some(ref borrow_info) = allocation.borrow_info {
+                self.write_field_separator(field_count > 0)?;
+                let borrow_info_json = format!(
+                    "{{\"immutable_borrows\": {}, \"mutable_borrows\": {}, \"max_concurrent_borrows\": {}, \"last_borrow_timestamp\": {}}}",
+                    borrow_info.immutable_borrows,
+                    borrow_info.mutable_borrows,
+                    borrow_info.max_concurrent_borrows,
+                    match borrow_info.last_borrow_timestamp {
+                        Some(ts) => ts.to_string(),
+                        None => "null".to_string(),
+                    }
+                );
+                self.write_field("borrow_info", &borrow_info_json)?;
+                field_count += 1;
+            }
+        } else {
+            self.stats.fields_skipped += 1;
+        }
+
+        // Write improve.md extensions: clone_info
+        if requested_fields.contains(&AllocationField::CloneInfo) {
+            if let Some(ref clone_info) = allocation.clone_info {
+                self.write_field_separator(field_count > 0)?;
+                let clone_info_json = format!(
+                    "{{\"clone_count\": {}, \"is_clone\": {}, \"original_ptr\": {}}}",
+                    clone_info.clone_count,
+                    if clone_info.is_clone { "true" } else { "false" },
+                    match clone_info.original_ptr {
+                        Some(ptr) => format!("\"0x{:x}\"", ptr),
+                        None => "null".to_string(),
+                    }
+                );
+                self.write_field("clone_info", &clone_info_json)?;
+                field_count += 1;
+            }
+        } else {
+            self.stats.fields_skipped += 1;
+        }
+
+        // Write improve.md extensions: ownership_history_available
+        if requested_fields.contains(&AllocationField::OwnershipHistoryAvailable) {
+            if let Some(ownership_history_available) = allocation.ownership_history_available {
+                self.write_field_separator(field_count > 0)?;
+                self.write_field("ownership_history_available", if ownership_history_available { "true" } else { "false" })?;
+                field_count += 1;
             }
         } else {
             self.stats.fields_skipped += 1;
@@ -608,6 +660,10 @@ impl<W: Write> StreamingJsonWriter<W> {
             stack_trace: Some(allocation.stack_trace.clone()),
             is_leaked: Some(allocation.is_leaked),
             lifetime_ms: Some(allocation.lifetime_ms),
+            // improve.md extensions
+            borrow_info: allocation.borrow_info.clone(),
+            clone_info: allocation.clone_info.clone(),
+            ownership_history_available: Some(allocation.ownership_history_available),
         };
 
         self.write_allocation_selective(&partial, &all_fields)
@@ -1337,6 +1393,10 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         let requested_fields = [
@@ -1381,6 +1441,10 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         // Only request a few fields

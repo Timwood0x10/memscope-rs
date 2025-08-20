@@ -629,6 +629,10 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         let record = OptimizedRecord::new(allocation);
@@ -651,6 +655,10 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         let record = OptimizedRecord::new(allocation);
@@ -688,6 +696,10 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         let mut record = OptimizedRecord::new(allocation);
@@ -723,6 +735,10 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         let fields = [AllocationField::Ptr, AllocationField::Size]
@@ -760,6 +776,10 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         // Test cache miss

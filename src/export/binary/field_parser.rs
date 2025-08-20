@@ -373,9 +373,74 @@ impl FieldParser {
             self.stats.fields_skipped += 1; // Approximate count
             self.stats.time_saved_us += (remaining_bytes * 10) as u64; // Estimate time saved
         } else {
-            // Parse advanced fields (simplified implementation)
-            // In a real implementation, we would parse specific advanced fields
-            reader.seek(SeekFrom::Current(remaining_bytes as i64))?;
+            // Parse improve.md extensions: borrow_info
+            if remaining_bytes >= 1 {
+                let has_borrow_info = primitives::read_u8(reader)? != 0;
+                if has_borrow_info && remaining_bytes >= 14 { // 1 + 4 + 4 + 4 + 1 = 14 minimum
+                    let immutable_borrows = primitives::read_u32(reader)? as usize;
+                    let mutable_borrows = primitives::read_u32(reader)? as usize;
+                    let max_concurrent_borrows = primitives::read_u32(reader)? as usize;
+                    let has_timestamp = primitives::read_u8(reader)? != 0;
+                    let last_borrow_timestamp = if has_timestamp {
+                        Some(primitives::read_u64(reader)?)
+                    } else {
+                        None
+                    };
+                    
+                    partial_info.borrow_info = Some(crate::core::types::BorrowInfo {
+                        immutable_borrows,
+                        mutable_borrows,
+                        max_concurrent_borrows,
+                        last_borrow_timestamp,
+                    });
+                    self.stats.total_fields_parsed += 1;
+                }
+            }
+
+            // Parse improve.md extensions: clone_info
+            let current_pos = reader.stream_position()?;
+            let bytes_read_so_far = current_pos - record_start_pos;
+            let remaining = record_length as u64 - bytes_read_so_far;
+            
+            if remaining >= 1 {
+                let has_clone_info = primitives::read_u8(reader)? != 0;
+                if has_clone_info && remaining >= 7 { // 1 + 4 + 1 + 1 = 7 minimum
+                    let clone_count = primitives::read_u32(reader)? as usize;
+                    let is_clone = primitives::read_u8(reader)? != 0;
+                    let has_original_ptr = primitives::read_u8(reader)? != 0;
+                    let original_ptr = if has_original_ptr {
+                        Some(primitives::read_u64(reader)? as usize)
+                    } else {
+                        None
+                    };
+                    
+                    partial_info.clone_info = Some(crate::core::types::CloneInfo {
+                        clone_count,
+                        is_clone,
+                        original_ptr,
+                    });
+                    self.stats.total_fields_parsed += 1;
+                }
+            }
+
+            // Parse improve.md extensions: ownership_history_available
+            let current_pos = reader.stream_position()?;
+            let bytes_read_so_far = current_pos - record_start_pos;
+            let remaining = record_length as u64 - bytes_read_so_far;
+            
+            if remaining >= 1 {
+                let ownership_history_available = primitives::read_u8(reader)? != 0;
+                partial_info.ownership_history_available = Some(ownership_history_available);
+                self.stats.total_fields_parsed += 1;
+            }
+
+            // Skip any remaining advanced fields for now
+            let current_pos = reader.stream_position()?;
+            let bytes_read_final = current_pos - record_start_pos;
+            let remaining_final = record_length as u64 - bytes_read_final;
+            if remaining_final > 0 {
+                reader.seek(SeekFrom::Current(remaining_final as i64))?;
+            }
 
             // Set advanced fields to None for now
             if requested_fields.contains(&AllocationField::LifetimeMs) {
@@ -499,6 +564,10 @@ pub struct PartialAllocationInfo {
     pub stack_trace: Option<Option<Vec<String>>>,
     pub is_leaked: Option<bool>,
     pub lifetime_ms: Option<Option<u64>>,
+    // improve.md extensions
+    pub borrow_info: Option<crate::core::types::BorrowInfo>,
+    pub clone_info: Option<crate::core::types::CloneInfo>,
+    pub ownership_history_available: Option<bool>,
     // Advanced fields would be added here
 }
 
@@ -523,9 +592,9 @@ impl PartialAllocationInfo {
             stack_trace: self.stack_trace.unwrap_or(None),
             is_leaked: self.is_leaked.unwrap_or(false),
             lifetime_ms: self.lifetime_ms.unwrap_or(None),
-            borrow_info: None,
-            clone_info: None,
-            ownership_history_available: false,
+            borrow_info: self.borrow_info,
+            clone_info: self.clone_info,
+            ownership_history_available: self.ownership_history_available.unwrap_or(false),
             smart_pointer_info: None,
             memory_layout: None,
             generic_info: None,

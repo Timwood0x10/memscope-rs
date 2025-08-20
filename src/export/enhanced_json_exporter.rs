@@ -398,7 +398,7 @@ pub fn export_enhanced_json<P: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::{AllocationInfo, BorrowInfo, CloneInfo, MemoryStats};
+    use crate::core::types::{AllocationInfo, BorrowInfo, CloneInfo};
 
     #[test]
     fn test_enhanced_allocation_conversion() {

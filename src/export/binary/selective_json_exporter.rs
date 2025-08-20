@@ -283,6 +283,10 @@ impl SelectiveJsonExporter {
                     stack_trace: Some(full.stack_trace.clone()),
                     is_leaked: Some(full.is_leaked),
                     lifetime_ms: Some(full.lifetime_ms),
+                    // improve.md extensions
+                    borrow_info: full.borrow_info.clone(),
+                    clone_info: full.clone_info.clone(),
+                    ownership_history_available: Some(full.ownership_history_available),
                 })
                 .collect();
 
@@ -360,19 +364,8 @@ impl SelectiveJsonExporter {
         binary_path: P,
         json_path: Q,
     ) -> Result<SelectiveJsonExportStats, BinaryExportError> {
-        let fields = [
-            AllocationField::BorrowCount,
-            AllocationField::IsLeaked,
-            AllocationField::Ptr,
-            AllocationField::ScopeName,
-            AllocationField::Size,
-            AllocationField::ThreadId,
-            AllocationField::TimestampAlloc,
-            AllocationField::TypeName,
-            AllocationField::VarName,
-        ]
-        .into_iter()
-        .collect();
+        // Use the memory_analysis_fields() method which includes improve.md extensions
+        let fields = AllocationField::memory_analysis_fields();
 
         self.export_to_json_selective(binary_path, json_path, &fields, &[])
     }

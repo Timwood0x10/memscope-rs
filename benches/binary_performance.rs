@@ -23,6 +23,10 @@ fn create_test_allocations(count: usize) -> Vec<AllocationInfo> {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            // improve.md extensions
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
             smart_pointer_info: None,
             memory_layout: None,
             generic_info: None,

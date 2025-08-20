@@ -5,16 +5,16 @@
 
 use crate::core::types::TrackingResult;
 use crate::core::enhanced_call_stack_normalizer::{
-    get_global_enhanced_call_stack_normalizer, EnhancedCallStackRef, NormalizerConfig
+    get_global_enhanced_call_stack_normalizer,
 };
 use crate::core::edge_case_handler::{
     get_global_edge_case_handler, EdgeCaseType, EdgeCaseSeverity
 };
 use crate::core::comprehensive_data_deduplicator::{
-    get_global_data_deduplicator, DeduplicationConfig
+    get_global_data_deduplicator,
 };
 use crate::analysis::enhanced_ffi_function_resolver::{
-    get_global_enhanced_ffi_resolver, EnhancedResolverConfig
+    get_global_enhanced_ffi_resolver,
 };
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
 use std::collections::HashMap;

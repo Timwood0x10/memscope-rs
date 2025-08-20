@@ -421,6 +421,11 @@ mod tests {
             var_name: Some("test_var".to_string()),
             type_name: Some("i32".to_string()),
             thread_id: "main".to_string(),
+            // improve.md extensions
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
         };
 
         let expected_size = 1 + 4 + // Type + Length
