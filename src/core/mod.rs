@@ -15,7 +15,7 @@ pub mod call_stack_normalizer;
 pub mod enhanced_call_stack_normalizer;
 pub mod edge_case_handler;
 pub mod comprehensive_data_deduplicator;
-pub mod simple_data_deduplicator;
+pub mod fast_data_deduplicator;
 pub mod integration_validator;
 pub mod clone_monitor;
 pub mod clone_optimizer;

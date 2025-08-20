@@ -5,7 +5,7 @@
 //! FFI function resolution features.
 
 use memscope_rs::core::enhanced_call_stack_normalizer::get_global_enhanced_call_stack_normalizer;
-use memscope_rs::core::simple_data_deduplicator::get_global_simple_data_deduplicator;
+use memscope_rs::core::fast_data_deduplicator::get_global_simple_data_deduplicator;
 use memscope_rs::analysis::enhanced_ffi_function_resolver::get_global_enhanced_ffi_resolver;
 use memscope_rs::core::edge_case_handler::get_global_edge_case_handler;
 use memscope_rs::core::integration_validator::IntegrationValidator;
