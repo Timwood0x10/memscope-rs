@@ -32,7 +32,7 @@ mod integration_test_template_resources;
 mod integration_test_variable_relationships;
 mod memory_layout_serialization;
 mod parser;
-mod reader;
+pub mod reader;
 mod selective_json_exporter;
 mod selective_reader;
 mod serializable;
@@ -42,7 +42,7 @@ mod streaming_json_writer;
 mod string_table;
 mod template_resource_manager;
 mod variable_relationship_analyzer;
-mod writer;
+pub mod writer;
 
 pub use batch_processor::{
     BatchProcessor, BatchProcessorBuilder, BatchProcessorConfig, BatchProcessorStats, RecordBatch,

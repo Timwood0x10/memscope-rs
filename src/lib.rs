@@ -1229,6 +1229,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
             );
         } else if ptr_val >= 0x8000_0000 {
             // For synthetic pointers, create synthetic allocation
+            // Create synthetic allocation with proper var_name and type_name
             let _ = tracker.create_synthetic_allocation(
                 ptr_val,
                 var.get_size_estimate(),

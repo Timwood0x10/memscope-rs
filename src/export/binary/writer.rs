@@ -191,6 +191,52 @@ impl BinaryWriter {
             }
         }
 
+        // Write improve.md extensions: borrow_info
+        match &alloc.borrow_info {
+            Some(borrow_info) => {
+                self.writer.write_all(&1u8.to_le_bytes())?; // has value
+                self.writer.write_all(&(borrow_info.immutable_borrows as u32).to_le_bytes())?;
+                self.writer.write_all(&(borrow_info.mutable_borrows as u32).to_le_bytes())?;
+                self.writer.write_all(&(borrow_info.max_concurrent_borrows as u32).to_le_bytes())?;
+                match borrow_info.last_borrow_timestamp {
+                    Some(ts) => {
+                        self.writer.write_all(&1u8.to_le_bytes())?; // has timestamp
+                        self.writer.write_all(&ts.to_le_bytes())?;
+                    }
+                    None => {
+                        self.writer.write_all(&0u8.to_le_bytes())?; // no timestamp
+                    }
+                }
+            }
+            None => {
+                self.writer.write_all(&0u8.to_le_bytes())?; // no borrow_info
+            }
+        }
+
+        // Write improve.md extensions: clone_info
+        match &alloc.clone_info {
+            Some(clone_info) => {
+                self.writer.write_all(&1u8.to_le_bytes())?; // has value
+                self.writer.write_all(&(clone_info.clone_count as u32).to_le_bytes())?;
+                self.writer.write_all(&(clone_info.is_clone as u8).to_le_bytes())?;
+                match clone_info.original_ptr {
+                    Some(ptr) => {
+                        self.writer.write_all(&1u8.to_le_bytes())?; // has original_ptr
+                        self.writer.write_all(&(ptr as u64).to_le_bytes())?;
+                    }
+                    None => {
+                        self.writer.write_all(&0u8.to_le_bytes())?; // no original_ptr
+                    }
+                }
+            }
+            None => {
+                self.writer.write_all(&0u8.to_le_bytes())?; // no clone_info
+            }
+        }
+
+        // Write improve.md extensions: ownership_history_available
+        self.writer.write_all(&(alloc.ownership_history_available as u8).to_le_bytes())?;
+
         // Write complex fields using binary serialization
         self.write_optional_binary_field(&alloc.smart_pointer_info)?;
         self.write_optional_binary_field(&alloc.memory_layout)?;
@@ -533,6 +579,29 @@ impl BinaryWriter {
         if alloc.lifetime_ms.is_some() {
             size += 8;
         }
+
+        // improve.md extensions: borrow_info
+        size += 1; // presence flag
+        if let Some(ref borrow_info) = alloc.borrow_info {
+            size += 4 + 4 + 4; // immutable_borrows + mutable_borrows + max_concurrent_borrows
+            size += 1; // timestamp presence flag
+            if borrow_info.last_borrow_timestamp.is_some() {
+                size += 8; // timestamp
+            }
+        }
+
+        // improve.md extensions: clone_info
+        size += 1; // presence flag
+        if let Some(ref clone_info) = alloc.clone_info {
+            size += 4 + 1; // clone_count + is_clone
+            size += 1; // original_ptr presence flag
+            if clone_info.original_ptr.is_some() {
+                size += 8; // original_ptr
+            }
+        }
+
+        // improve.md extensions: ownership_history_available
+        size += 1; // boolean flag
 
         // Binary fields
         size += self.calculate_binary_field_size(&alloc.smart_pointer_info);

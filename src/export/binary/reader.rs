@@ -124,10 +124,10 @@ impl BinaryReader {
     pub fn read_allocation(&mut self) -> Result<AllocationInfo, BinaryExportError> {
         let file_version = self.file_version.unwrap_or(1);
 
-        if file_version == 1 {
-            self.read_allocation_v1()
-        } else {
-            self.read_allocation_v2()
+        match file_version {
+            1 => self.read_allocation_v1(),
+            2 | 3 => self.read_allocation_v2(), // Version 3 uses same format as v2 with improve.md extensions
+            _ => Err(BinaryExportError::UnsupportedVersion(file_version)),
         }
     }
 
@@ -270,6 +270,47 @@ impl BinaryReader {
             None
         };
 
+        // Read improve.md extensions: borrow_info
+        let borrow_info = if self.read_u8()? == 1 {
+            let immutable_borrows = self.read_u32()? as usize;
+            let mutable_borrows = self.read_u32()? as usize;
+            let max_concurrent_borrows = self.read_u32()? as usize;
+            let last_borrow_timestamp = if self.read_u8()? == 1 {
+                Some(self.read_u64()?)
+            } else {
+                None
+            };
+            Some(crate::core::types::BorrowInfo {
+                immutable_borrows,
+                mutable_borrows,
+                max_concurrent_borrows,
+                last_borrow_timestamp,
+            })
+        } else {
+            None
+        };
+
+        // Read improve.md extensions: clone_info
+        let clone_info = if self.read_u8()? == 1 {
+            let clone_count = self.read_u32()? as usize;
+            let is_clone = self.read_u8()? != 0;
+            let original_ptr = if self.read_u8()? == 1 {
+                Some(self.read_u64()? as usize)
+            } else {
+                None
+            };
+            Some(crate::core::types::CloneInfo {
+                clone_count,
+                is_clone,
+                original_ptr,
+            })
+        } else {
+            None
+        };
+
+        // Read improve.md extensions: ownership_history_available
+        let ownership_history_available = self.read_u8()? != 0;
+
         // Read advanced fields (v2 only)
         let smart_pointer_info = self.read_optional_binary_field()?;
         let memory_layout = self.read_optional_binary_field()?;
@@ -300,9 +341,9 @@ impl BinaryReader {
             stack_trace,
             is_leaked,
             lifetime_ms,
-            borrow_info: None,
-            clone_info: None,
-            ownership_history_available: false,
+            borrow_info,
+            clone_info,
+            ownership_history_available,
             smart_pointer_info,
             memory_layout,
             generic_info,

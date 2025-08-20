@@ -201,7 +201,7 @@ impl FileHeader {
     }
 }
 
-/// Allocation record structure for binary serialization
+/// Allocation record structure for binary serialization with improve.md extensions
 #[derive(Debug, Clone, PartialEq)]
 pub struct AllocationRecord {
     pub ptr: u64,
@@ -210,10 +210,15 @@ pub struct AllocationRecord {
     pub var_name: Option<String>,
     pub type_name: Option<String>,
     pub thread_id: String,
+    // improve.md extensions
+    pub lifetime_ms: Option<u64>,
+    pub borrow_info: Option<crate::core::types::BorrowInfo>,
+    pub clone_info: Option<crate::core::types::CloneInfo>,
+    pub ownership_history_available: bool,
 }
 
 impl AllocationRecord {
-    /// Calculate serialized size in bytes
+    /// Calculate serialized size in bytes with improve.md extensions
     #[allow(dead_code)]
     pub fn serialized_size(&self) -> usize {
         let mut size = 1 + 4; // Type + Length
@@ -231,6 +236,18 @@ impl AllocationRecord {
 
         size += 4; // thread_id_len
         size += self.thread_id.len();
+
+        // improve.md extensions
+        size += 8; // lifetime_ms (Option<u64> as u64, 0 for None)
+        size += 1; // borrow_info presence flag
+        if self.borrow_info.is_some() {
+            size += 4 + 4 + 4 + 8; // immutable_borrows + mutable_borrows + max_concurrent + timestamp
+        }
+        size += 1; // clone_info presence flag
+        if self.clone_info.is_some() {
+            size += 4 + 1 + 8; // clone_count + is_clone + original_ptr (Option<usize> as u64)
+        }
+        size += 1; // ownership_history_available
 
         size
     }

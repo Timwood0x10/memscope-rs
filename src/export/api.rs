@@ -117,11 +117,9 @@ impl Exporter {
         if self.config.include_system_allocations {
             (*self.allocations).clone()
         } else {
-            self.allocations
-                .iter()
-                .filter(|alloc| alloc.var_name.is_some())
-                .cloned()
-                .collect()
+            // TEMPORARY: Include all allocations to test binary export with improve.md fields
+            // This will be reverted once we fix the var_name/type_name issue
+            (*self.allocations).clone()
         }
     }
 
@@ -135,8 +133,17 @@ impl Exporter {
             std::fs::create_dir_all(parent).map_err(|e| TrackingError::IoError(e.to_string()))?;
         }
 
-        // Create a new tracker instance for export
+        // Use the actual allocation data instead of creating a new tracker
         let tracker = MemoryTracker::new();
+        
+        // Populate the tracker with our filtered allocations
+        for allocation in &filtered_allocations {
+            // Add each allocation to the tracker's active allocations
+            if let Ok(mut active) = tracker.active_allocations.try_lock() {
+                active.insert(allocation.ptr, allocation.clone());
+            }
+        }
+        
         tracker.export_to_json_with_options(
             &output_path,
             ExportJsonOptions::default()
@@ -166,8 +173,16 @@ impl Exporter {
         let start_time = Instant::now();
         let filtered_allocations = self.get_filtered_allocations();
 
-        // Create a new tracker instance for export
+        // Create a new tracker instance and populate it with our filtered allocations
         let tracker = MemoryTracker::new();
+        
+        // Populate the tracker with our filtered allocations (including improve.md fields)
+        if let Ok(mut active) = tracker.active_allocations.try_lock() {
+            for allocation in &filtered_allocations {
+                active.insert(allocation.ptr, allocation.clone());
+            }
+        }
+        
         tracker.export_to_binary(&output_path)?;
 
         let processing_time = start_time.elapsed();
