@@ -1076,7 +1076,7 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                points="${points.map(p => `${p.x}% ${p.y}%`).join(', ')}"
+                points="${points.map(p => `${p.x},${p.y}`).join(' ')}"
                 class="drop-shadow-sm"
             />
         </svg>
@@ -1258,26 +1258,42 @@ function initAllocationsTable() {
 function initLifetimeVisualization() {
     console.log('🔄 Initializing lifetime visualization...');
 
-    // Get lifetime data from the global data store
-    const lifetimeData = window.analysisData.lifetime;
-    if (!lifetimeData || !lifetimeData.lifecycle_events) {
+    // Get lifetime data from various sources (support extended data structure)
+    let lifetimeData = null;
+    let lifecycleEvents = [];
+    
+    // Try different data sources
+    if (window.analysisData.lifetime?.lifecycle_events) {
+        lifetimeData = window.analysisData.lifetime;
+        lifecycleEvents = lifetimeData.lifecycle_events;
+        console.log('📊 Found lifecycle events in lifetime data:', lifecycleEvents.length);
+    } else if (window.analysisData.complex_types?.allocations) {
+        // Use complex_types data with extended fields
+        lifecycleEvents = window.analysisData.complex_types.allocations;
+        console.log('📊 Found extended allocation data:', lifecycleEvents.length);
+    } else if (window.analysisData.memory_analysis?.allocations) {
+        lifecycleEvents = window.analysisData.memory_analysis.allocations;
+        console.log('📊 Found basic allocation data:', lifecycleEvents.length);
+    }
+    
+    if (!lifecycleEvents || lifecycleEvents.length === 0) {
         console.warn('⚠️ No lifetime data found');
         console.log('Available data keys:', Object.keys(window.analysisData || {}));
         showEmptyLifetimeState();
         return;
     }
 
-    console.log(`📊 Total lifecycle events: ${lifetimeData.lifecycle_events.length}`);
+    console.log(`📊 Total lifecycle events: ${lifecycleEvents.length}`);
 
     // Check if we have Rust-preprocessed data
-    if (lifetimeData.visualization_ready && lifetimeData.variable_groups) {
+    if (lifetimeData?.visualization_ready && lifetimeData?.variable_groups) {
         console.log(`📊 Using Rust-preprocessed data with ${lifetimeData.variable_groups.length} variable groups`);
         renderLifetimeVisualizationFromRustWithCollapse(lifetimeData.variable_groups);
         return;
     }
 
     // Filter for user-defined variables (non-unknown var_name and type_name)
-    const userVariables = lifetimeData.lifecycle_events.filter(event =>
+    const userVariables = lifecycleEvents.filter(event =>
         event.var_name && event.var_name !== 'unknown' &&
         event.type_name && event.type_name !== 'unknown'
     );
@@ -1289,7 +1305,7 @@ function initLifetimeVisualization() {
         console.log('📊 Sample user variables:', userVariables.slice(0, 3));
     } else {
         // Show some examples of unknown variables for debugging
-        const unknownSamples = lifetimeData.lifecycle_events.slice(0, 3);
+        const unknownSamples = lifecycleEvents.slice(0, 3);
         console.log('📊 Sample unknown variables:', unknownSamples);
     }
 
@@ -1544,11 +1560,27 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
             // Calculate position and width based on timestamps
             const firstEvent = group.events[0];
             const startTime = firstEvent.timestamp;
-            const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
+            const startPositionPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
 
-            // For now, assume a fixed width since we don't have deallocation events
-            // In a real implementation, you'd track deallocation events too
-            const widthPercent = 60; // Default width
+            // real time correct time axis calculation: based on actual allocation and survival time
+            const allocTime = firstEvent.timestamp;
+            const deallocTime = firstEvent.timestamp_dealloc;
+            const lifetimeMs = firstEvent.lifetime_ms || 1; // default 1ms lifetime
+            
+            // calculate survival time length (percentage)
+            let durationPercent;
+            if (deallocTime && deallocTime > allocTime) {
+                // if there is a clear release time, use actual time span
+                const actualDuration = deallocTime - allocTime;
+                durationPercent = (actualDuration / timeRange) * 100;
+            } else {
+                // if there is no release time, use lifetime_ms calculation
+                const lifetimeNs = lifetimeMs * 1000000; // convert to nanoseconds
+                durationPercent = (lifetimeNs / timeRange) * 100;
+            }
+            
+            // ensure value is within reasonable range
+            const widthPercent = Math.max(0.5, Math.min(100 - startPositionPercent, durationPercent));
 
             // Format type name for display
             const displayTypeName = formatTypeName(group.type_name);
@@ -1559,7 +1591,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
                 </div>
                 <div class="flex-grow relative">
                     <div class="lifespan-indicator ${colors.bg}" 
-                         style="width: ${widthPercent}%; margin-left: ${startPercent}%;" 
+                         style="width: ${widthPercent}%; margin-left: ${startPositionPercent}%;" 
                          title="Variable: ${group.var_name}, Type: ${displayTypeName}">
                         <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
                             Allocated: ${formatTimestamp(startTime, minTime)}
@@ -2357,7 +2389,7 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
     const pathPoints = timePoints.map((point, index) => {
         const x = (index / (timePoints.length - 1)) * chartWidth;
         const y = chartHeight - ((point.memory / peakMemory) * (chartHeight - 20));
-        return `${x}% ${y}px`;
+        return `${x},${y}`;
     });
 
     return `
@@ -2380,8 +2412,8 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
                 points="${timePoints.map((point, index) => {
         const x = (index / (timePoints.length - 1)) * 100;
         const y = 100 - ((point.memory / peakMemory) * 90);
-        return `${x}% ${y}%`;
-    }).join(', ')}"
+        return `${x},${y}`;
+    }).join(' ')}"
                 class="drop-shadow-sm"
             />
         </svg>
