@@ -1321,23 +1321,45 @@ function initLifetimeVisualization() {
     renderLifetimeVisualizationWithCollapse(variableGroups);
 }
 
-// Group variables by name to track their lifecycle
+// Group variables by name to track their lifecycle (enhanced for multiple instances)
 function groupVariablesByName(events) {
     const groups = {};
 
     events.forEach(event => {
         const varName = event.var_name;
-        if (!groups[varName]) {
-            groups[varName] = {
-                var_name: varName,
+        const instanceKey = `${varName}_${event.ptr || event.timestamp_alloc}`; // 为每个实例创建唯一key
+        
+        if (!groups[instanceKey]) {
+            groups[instanceKey] = {
+                var_name: `${varName}#${Object.keys(groups).filter(k => k.startsWith(varName)).length + 1}`, // 添加实例编号
+                original_var_name: varName,
                 type_name: event.type_name,
-                events: []
+                events: [],
+                instance_info: {
+                    ptr: event.ptr,
+                    timestamp: event.timestamp_alloc,
+                    thread_id: event.thread_id
+                }
             };
         }
-        groups[varName].events.push(event);
+        groups[instanceKey].events.push(event);
     });
 
-    return Object.values(groups);
+    
+    const groupValues = Object.values(groups);
+    const varCounts = {};
+    groupValues.forEach(group => {
+        const originalName = group.original_var_name;
+        varCounts[originalName] = (varCounts[originalName] || 0) + 1;
+    });
+    
+    groupValues.forEach(group => {
+        if (varCounts[group.original_var_name] === 1) {
+            group.var_name = group.original_var_name; 
+        }
+    });
+
+    return groupValues;
 }
 
 // Render lifetime visualization from Rust-preprocessed data with collapsible functionality
@@ -1405,6 +1427,10 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
             const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
             const duration = endTime - startTime;
             const widthPercent = timeRange > 0 ? Math.max(5, (duration / timeRange) * 100) : 40;
+            
+            // 安全的变量定义，防止NaN
+            const finalStartPercent = isNaN(startPercent) ? 0 : Math.max(0, Math.min(95, startPercent));
+            const finalWidthPercent = isNaN(widthPercent) ? 40 : Math.max(2, Math.min(100 - finalStartPercent, widthPercent));
 
             // Format type name for display
             const displayTypeName = formatTypeName(group.type_name);
@@ -1419,13 +1445,13 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
                 </div>
                 <div class="flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden">
                     <div class="absolute inset-0 rounded-full" 
-                         style="${gradientStyle} width: ${widthPercent}%; margin-left: ${startPercent}%; 
+                         style="${gradientStyle} width: ${finalWidthPercent}%; margin-left: ${finalStartPercent}%; 
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
                                 transition: all 0.3s ease;"
                          title="Variable: ${group.var_name}, Type: ${displayTypeName}">
                         <div class="absolute inset-0 flex items-center justify-center">
                             <span class="text-xs font-bold text-white drop-shadow-sm">
-                                ${Math.round(widthPercent)}%
+                                ${Math.round(finalWidthPercent)}%
                             </span>
                         </div>
                     </div>
@@ -1581,6 +1607,10 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
             
             // ensure value is within reasonable range
             const widthPercent = Math.max(0.5, Math.min(100 - startPositionPercent, durationPercent));
+            
+            // 安全的变量定义，防止NaN
+            const finalStartPercent = isNaN(startPositionPercent) ? 0 : Math.max(0, Math.min(95, startPositionPercent));
+            const finalWidthPercent = isNaN(widthPercent) ? 30 : Math.max(2, Math.min(100 - finalStartPercent, widthPercent));
 
             // Format type name for display
             const displayTypeName = formatTypeName(group.type_name);
@@ -1591,7 +1621,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
                 </div>
                 <div class="flex-grow relative">
                     <div class="lifespan-indicator ${colors.bg}" 
-                         style="width: ${widthPercent}%; margin-left: ${startPositionPercent}%;" 
+                         style="width: ${finalWidthPercent}%; margin-left: ${finalStartPercent}%;" 
                          title="Variable: ${group.var_name}, Type: ${displayTypeName}">
                         <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
                             Allocated: ${formatTimestamp(startTime, minTime)}
