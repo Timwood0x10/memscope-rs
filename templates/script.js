@@ -3276,9 +3276,13 @@ function initComplexTypeAnalysis() {
                     ${analysis.memory_efficiency}%
                 </span>
             </td>
-            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${analysis.allocation_count}</td>
-            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${formatBytes(analysis.total_size)}</td>
-            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${analysis.optimization_suggestions?.join(', ') || 'None'}</td>
+            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${analysis.allocation_count || 0}</td>
+            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${formatBytes(analysis.total_size || 0)}</td>
+            <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
+                ${Array.isArray(analysis.optimization_suggestions) && analysis.optimization_suggestions.length > 0 
+                    ? analysis.optimization_suggestions.join(', ') 
+                    : '<span class="text-gray-400 italic">No optimization suggestions available</span>'}
+            </td>
         </tr>
     `).join('');
 }

@@ -916,7 +916,7 @@ class MemScopeVisualizer {
         if (extensions.length > 0) {
             return `<div class="mt-2"><strong>Extensions:</strong><br><div class="flex flex-wrap gap-1 mt-1">${extensions.join('')}</div></div>`;
         }
-        return '';
+        return '<div class="mt-2 text-gray-400 text-xs">No extensions</div>';
     }
 }
 
