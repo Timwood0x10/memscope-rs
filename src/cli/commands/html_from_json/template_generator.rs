@@ -857,6 +857,7 @@ class MemScopeVisualizer {
                     <p><strong>类型:</strong> ${alloc.type_name || alloc.type || '未知'}</p>
                     <p><strong>指针:</strong> ${alloc.ptr || 'N/A'}</p>
                     <p><strong>作用域:</strong> ${alloc.scope_name || alloc.scope || '全局'}</p>
+                    ${this.generateExtensionsDisplay ? this.generateExtensionsDisplay(alloc) : ''}
                 </div>
             </div>
         `).join('');
@@ -870,6 +871,52 @@ class MemScopeVisualizer {
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Generate beautiful extensions display for improve.md fields
+    generateExtensionsDisplay(alloc) {
+        const extensions = [];
+        
+        // Lifetime information with beautiful formatting
+        if (alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null) {
+            extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" title="Variable lifetime">
+                <i class="fa fa-clock-o mr-1"></i>${alloc.lifetime_ms}ms
+            </span>`);
+        }
+        
+        // Borrow information with detailed tooltip
+        if (alloc.borrow_info) {
+            const borrowInfo = alloc.borrow_info;
+            const totalBorrows = borrowInfo.immutable_borrows + borrowInfo.mutable_borrows;
+            const borrowColor = totalBorrows > 5 ? 'orange' : 'green';
+            extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${borrowColor}-100 text-${borrowColor}-800 dark:bg-${borrowColor}-900 dark:text-${borrowColor}-200" 
+                title="Borrows: ${borrowInfo.immutable_borrows} immutable, ${borrowInfo.mutable_borrows} mutable, max concurrent: ${borrowInfo.max_concurrent_borrows}">
+                <i class="fa fa-share-alt mr-1"></i>${totalBorrows}
+            </span>`);
+        }
+        
+        // Clone information with visual indicators
+        if (alloc.clone_info) {
+            const cloneInfo = alloc.clone_info;
+            const cloneColor = cloneInfo.is_clone ? 'purple' : 'gray';
+            const cloneIcon = cloneInfo.is_clone ? 'fa-copy' : 'fa-file-o';
+            extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${cloneColor}-100 text-${cloneColor}-800 dark:bg-${cloneColor}-900 dark:text-${cloneColor}-200"
+                title="Clone count: ${cloneInfo.clone_count}, is clone: ${cloneInfo.is_clone}, original: ${cloneInfo.original_ptr ? '0x' + cloneInfo.original_ptr.toString(16) : 'N/A'}">
+                <i class="fa ${cloneIcon} mr-1"></i>${cloneInfo.clone_count}
+            </span>`);
+        }
+        
+        // Ownership history availability indicator
+        if (alloc.ownership_history_available) {
+            extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" title="Ownership history available">
+                <i class="fa fa-history mr-1"></i>History
+            </span>`);
+        }
+        
+        if (extensions.length > 0) {
+            return `<div class="mt-2"><strong>Extensions:</strong><br><div class="flex flex-wrap gap-1 mt-1">${extensions.join('')}</div></div>`;
+        }
+        return '';
     }
 }
 
@@ -1295,9 +1342,14 @@ if (typeof initializeBasicViewUnified === 'function') {
             const activeAllocsEl = document.getElementById('activeAllocs');
             const peakMemoryEl = document.getElementById('peakMemory');
             
-            if (totalMemoryEl) totalMemoryEl.textContent = formatBytes(stats.active_memory || 0);
-            if (activeAllocsEl) activeAllocsEl.textContent = `${{stats.active_allocations || 0}} Active`;
-            if (peakMemoryEl) peakMemoryEl.textContent = formatBytes(stats.peak_memory || 0);
+            // Calculate actual memory usage from allocations if stats are missing
+            const allocations = window.EMBEDDED_DATA?.memory_analysis?.allocations || [];
+            const actualTotalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+            const actualActiveAllocs = allocations.filter(alloc => !alloc.is_leaked).length;
+            
+            if (totalMemoryEl) totalMemoryEl.textContent = formatBytes(stats.active_memory || actualTotalMemory);
+            if (activeAllocsEl) activeAllocsEl.textContent = `${{stats.active_allocations || actualActiveAllocs}} Active`;
+            if (peakMemoryEl) peakMemoryEl.textContent = formatBytes(stats.peak_memory || actualTotalMemory);
         }}
 
         // renderOverviewTab
@@ -1341,11 +1393,11 @@ if (typeof initializeBasicViewUnified === 'function') {
                 <div class="stats-grid">
                     <div class="stat-item">
                         <span class="stat-label">Active Memory:</span>
-                        <span class="stat-value">${{formatBytes(stats.active_memory || 0)}}</span>
+                        <span class="stat-value">${{formatBytes(stats.active_memory || allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0))}}</span>
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">Peak Memory:</span>
-                        <span class="stat-value">${{formatBytes(stats.peak_memory || 0)}}</span>
+                        <span class="stat-value">${{formatBytes(stats.peak_memory || allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0))}}</span>
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">Total Allocations:</span>

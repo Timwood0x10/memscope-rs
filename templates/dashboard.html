@@ -379,6 +379,9 @@
                                     class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Size</th>
                                 <th
+                                    class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Extensions</th>
+                                <th
                                     class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Status</th>
                             </tr>
@@ -386,7 +389,7 @@
                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
                             id="allocations-table">
                             <tr>
-                                <td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="6" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                     Loading...</td>
                             </tr>
                         </tbody>
@@ -635,6 +638,51 @@
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Generate beautiful extensions display for improve.md fields
+        function generateExtensionsDisplay(alloc) {
+            const extensions = [];
+            
+            // Lifetime information with beautiful formatting
+            if (alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null) {
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" title="Variable lifetime">
+                    <i class="fa fa-clock-o mr-1"></i>${alloc.lifetime_ms}ms
+                </span>`);
+            }
+            
+            // Borrow information with detailed tooltip
+            if (alloc.borrow_info) {
+                const borrowInfo = alloc.borrow_info;
+                const totalBorrows = borrowInfo.immutable_borrows + borrowInfo.mutable_borrows;
+                const borrowColor = totalBorrows > 5 ? 'orange' : 'green';
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${borrowColor}-100 text-${borrowColor}-800 dark:bg-${borrowColor}-900 dark:text-${borrowColor}-200" 
+                    title="Borrows: ${borrowInfo.immutable_borrows} immutable, ${borrowInfo.mutable_borrows} mutable, max concurrent: ${borrowInfo.max_concurrent_borrows}">
+                    <i class="fa fa-share-alt mr-1"></i>${totalBorrows}
+                </span>`);
+            }
+            
+            // Clone information with visual indicators
+            if (alloc.clone_info) {
+                const cloneInfo = alloc.clone_info;
+                const cloneColor = cloneInfo.is_clone ? 'purple' : 'gray';
+                const cloneIcon = cloneInfo.is_clone ? 'fa-copy' : 'fa-file-o';
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${cloneColor}-100 text-${cloneColor}-800 dark:bg-${cloneColor}-900 dark:text-${cloneColor}-200"
+                    title="Clone count: ${cloneInfo.clone_count}, is clone: ${cloneInfo.is_clone}, original: ${cloneInfo.original_ptr ? '0x' + cloneInfo.original_ptr.toString(16) : 'N/A'}">
+                    <i class="fa ${cloneIcon} mr-1"></i>${cloneInfo.clone_count}
+                </span>`);
+            }
+            
+            // Ownership history availability indicator
+            if (alloc.ownership_history_available) {
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" title="Ownership history available">
+                    <i class="fa fa-history mr-1"></i>History
+                </span>`);
+            }
+            
+            return extensions.length > 0 ? 
+                `<div class="flex flex-wrap gap-1 justify-center">${extensions.join('')}</div>` : 
+                '<span class="text-gray-400 text-xs">None</span>';
         }
 
         // Generate timeline data from allocations if timeline data is not available
@@ -1040,35 +1088,11 @@
             }
         }
 
-        // Load external JSON data and merge with embedded data
+        // Load external JSON data and merge with embedded data (CORS-safe version)
         async function loadExternalJsonData() {
-            try {
-                // Try to load lifecycle data
-                try {
-                    const lifetimeResponse = await fetch('./comprehensive_demo_lifetime.json');
-                    if (lifetimeResponse.ok) {
-                        const lifetimeData = await lifetimeResponse.json();
-                        window.analysisData.lifetime = lifetimeData;
-                        console.log('✅ Loaded lifetime data:', lifetimeData.lifecycle_events?.length || 0, 'events');
-                    }
-                } catch (e) {
-                    console.log('⚠️ Could not load lifetime data:', e.message);
-                }
-
-                // Try to load unsafe/FFI data
-                try {
-                    const unsafeFfiResponse = await fetch('./comprehensive_demo_unsafe_ffi.json');
-                    if (unsafeFfiResponse.ok) {
-                        const unsafeFfiData = await unsafeFfiResponse.json();
-                        window.analysisData.unsafe_ffi = unsafeFfiData;
-                        console.log('✅ Loaded unsafe/FFI data:', unsafeFfiData.enhanced_ffi_data?.length || 0, 'items');
-                    }
-                } catch (e) {
-                    console.log('⚠️ Could not load unsafe/FFI data:', e.message);
-                }
-            } catch (error) {
-                console.log('⚠️ Error loading external JSON data:', error);
-            }
+            // Skip external loading to avoid CORS issues in local files
+            // All data is now embedded in the HTML file
+            console.log('✅ Using embedded data only (CORS-safe)');
         }
 
         // Fix SVG coordinate formatting

@@ -689,6 +689,7 @@
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variable</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
                                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
+                                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Extensions</th>
                                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                                     </tr>
                                 </thead>
@@ -802,6 +803,38 @@
         </section>
         </h3>
 
+        <!-- improve.md Extensions Summary -->
+        <section class="mb-8">
+            <div class="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900 dark:to-indigo-900 rounded-xl p-6 border border-purple-200 dark:border-purple-700">
+                <h3 class="text-lg font-semibold text-purple-800 dark:text-purple-200 mb-4 flex items-center">
+                    <i class="fa fa-puzzle-piece mr-2"></i>
+                    improve.md Extensions Summary
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
+                        <div class="text-2xl font-bold text-blue-600 dark:text-blue-400" id="lifetime-tracked-count">0</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">Lifetime Tracked</div>
+                        <div class="text-xs text-blue-500 mt-1"><i class="fa fa-clock-o"></i> Variables</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
+                        <div class="text-2xl font-bold text-green-600 dark:text-green-400" id="borrow-tracked-count">0</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">Borrow Tracked</div>
+                        <div class="text-xs text-green-500 mt-1"><i class="fa fa-share-alt"></i> References</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
+                        <div class="text-2xl font-bold text-purple-600 dark:text-purple-400" id="clone-tracked-count">0</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">Clone Tracked</div>
+                        <div class="text-xs text-purple-500 mt-1"><i class="fa fa-copy"></i> Objects</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
+                        <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400" id="ownership-tracked-count">0</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">Ownership History</div>
+                        <div class="text-xs text-indigo-500 mt-1"><i class="fa fa-history"></i> Available</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Binary Processing Info -->
         <section class="mb-12">
             <div
@@ -839,6 +872,41 @@
     <!-- Binary-specific JavaScript -->
     <script>
         {{JS_CONTENT}}
+
+        // Update improve.md extensions statistics with beautiful display
+        function updateImproveExtensionsStats() {
+            if (!window.analysisData) return;
+
+            const allocations = window.analysisData.memory_analysis?.allocations || [];
+            
+            // Count allocations with improve.md extensions
+            const lifetimeTracked = allocations.filter(alloc => 
+                alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null
+            ).length;
+            
+            const borrowTracked = allocations.filter(alloc => 
+                alloc.borrow_info && (alloc.borrow_info.immutable_borrows > 0 || alloc.borrow_info.mutable_borrows > 0)
+            ).length;
+            
+            const cloneTracked = allocations.filter(alloc => 
+                alloc.clone_info && alloc.clone_info.clone_count > 0
+            ).length;
+            
+            const ownershipTracked = allocations.filter(alloc => 
+                alloc.ownership_history_available === true
+            ).length;
+
+            // Update UI elements with safe access
+            const lifetimeEl = document.getElementById('lifetime-tracked-count');
+            const borrowEl = document.getElementById('borrow-tracked-count');
+            const cloneEl = document.getElementById('clone-tracked-count');
+            const ownershipEl = document.getElementById('ownership-tracked-count');
+
+            if (lifetimeEl) lifetimeEl.textContent = lifetimeTracked.toLocaleString();
+            if (borrowEl) borrowEl.textContent = borrowTracked.toLocaleString();
+            if (cloneEl) cloneEl.textContent = cloneTracked.toLocaleString();
+            if (ownershipEl) ownershipEl.textContent = ownershipTracked.toLocaleString();
+        }
 
         // Initialize user-defined data metrics
         function initializeUserDataMetrics() {
@@ -1407,6 +1475,7 @@
             destroyExistingCharts();
             
             try {
+                updateImproveExtensionsStats();
                 initializeUserDataMetrics();
             } catch (e) {
                 console.warn('Error initializing user data metrics:', e);
@@ -2023,7 +2092,7 @@
             const allocations = window.analysisData.memory_analysis?.allocations || [];
 
             if (allocations.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No allocation data available</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No allocation data available</td></tr>';
                 return;
             }
 
@@ -2034,13 +2103,16 @@
             const displayAllocations = allocations.slice(0, 100);
             tableBody.innerHTML = displayAllocations.map(alloc => `
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-4 py-3 text-sm font-mono">0x${alloc.id ? alloc.id.toString(16) : 'N/A'}</td>
-                    <td class="px-4 py-3 text-sm">${alloc.location || 'unnamed'}</td>
+                    <td class="px-4 py-3 text-sm font-mono">0x${alloc.ptr ? alloc.ptr.toString(16) : 'N/A'}</td>
+                    <td class="px-4 py-3 text-sm">${alloc.var_name || 'unnamed'}</td>
                     <td class="px-4 py-3 text-sm">${alloc.type_name || 'Unknown'}</td>
                     <td class="px-4 py-3 text-sm text-right">${formatBytes(alloc.size || 0)}</td>
+                    <td class="px-4 py-3 text-sm text-center">
+                        ${generateExtensionsDisplay(alloc)}
+                    </td>
                     <td class="px-4 py-3 text-sm text-right">
-                        <span class="px-2 py-1 text-xs rounded-full ${alloc.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                            ${alloc.status || 'Unknown'}
+                        <span class="px-2 py-1 text-xs rounded-full ${alloc.is_leaked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                            ${alloc.is_leaked ? 'Leaked' : 'Active'}
                         </span>
                     </td>
                 </tr>
@@ -2049,7 +2121,7 @@
             if (allocations.length > 100) {
                 tableBody.innerHTML += `
                     <tr>
-                        <td colspan="5" class="px-4 py-3 text-center text-gray-500 text-sm">
+                        <td colspan="6" class="px-4 py-3 text-center text-gray-500 text-sm">
                             Showing first 100 of ${allocations.length.toLocaleString()} allocations
                         </td>
                     </tr>
@@ -2057,10 +2129,55 @@
             }
         }
 
+        // Generate beautiful extensions display for improve.md fields
+        function generateExtensionsDisplay(alloc) {
+            const extensions = [];
+            
+            // Lifetime information with beautiful formatting
+            if (alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null) {
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" title="Variable lifetime">
+                    <i class="fa fa-clock-o mr-1"></i>${alloc.lifetime_ms}ms
+                </span>`);
+            }
+            
+            // Borrow information with detailed tooltip
+            if (alloc.borrow_info) {
+                const borrowInfo = alloc.borrow_info;
+                const totalBorrows = borrowInfo.immutable_borrows + borrowInfo.mutable_borrows;
+                const borrowColor = totalBorrows > 5 ? 'orange' : 'green';
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${borrowColor}-100 text-${borrowColor}-800 dark:bg-${borrowColor}-900 dark:text-${borrowColor}-200" 
+                    title="Borrows: ${borrowInfo.immutable_borrows} immutable, ${borrowInfo.mutable_borrows} mutable, max concurrent: ${borrowInfo.max_concurrent_borrows}">
+                    <i class="fa fa-share-alt mr-1"></i>${totalBorrows}
+                </span>`);
+            }
+            
+            // Clone information with visual indicators
+            if (alloc.clone_info) {
+                const cloneInfo = alloc.clone_info;
+                const cloneColor = cloneInfo.is_clone ? 'purple' : 'gray';
+                const cloneIcon = cloneInfo.is_clone ? 'fa-copy' : 'fa-file-o';
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${cloneColor}-100 text-${cloneColor}-800 dark:bg-${cloneColor}-900 dark:text-${cloneColor}-200"
+                    title="Clone count: ${cloneInfo.clone_count}, is clone: ${cloneInfo.is_clone}, original: ${cloneInfo.original_ptr ? '0x' + cloneInfo.original_ptr.toString(16) : 'N/A'}">
+                    <i class="fa ${cloneIcon} mr-1"></i>${cloneInfo.clone_count}
+                </span>`);
+            }
+            
+            // Ownership history availability indicator
+            if (alloc.ownership_history_available) {
+                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" title="Ownership history available">
+                    <i class="fa fa-history mr-1"></i>History
+                </span>`);
+            }
+            
+            return extensions.length > 0 ? 
+                `<div class="flex flex-wrap gap-1 justify-center">${extensions.join('')}</div>` : 
+                '<span class="text-gray-400 text-xs">None</span>';
+        }
+
         function updateSummaryStats(allocations) {
             const totalAllocations = allocations.length;
             const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
-            const activeAllocations = allocations.filter(alloc => alloc.status === 'Active').length;
+            const activeAllocations = allocations.filter(alloc => !alloc.is_leaked).length;
 
             document.getElementById('total-allocations').textContent = totalAllocations.toLocaleString();
             document.getElementById('total-memory').textContent = formatBytes(totalMemory);
