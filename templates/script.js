@@ -522,22 +522,6 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
                     ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : 'MEDIUM')}
                 </div>
 
-                <!-- Memory Allocation Timeline -->
-                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 border border-gray-200 dark:border-gray-600">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Allocation Timeline</h3>
-                    <div class="relative h-40 bg-white dark:bg-gray-600 rounded border overflow-hidden">
-                        ${createAdvancedTimelineVisualization(allocations, totalMemory)}
-                    </div>
-                    <div class="mt-4 grid grid-cols-4 gap-4 text-center text-sm">
-                        <div><span class="text-gray-600 dark:text-gray-400">0ms</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">0.25ms</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">0.5ms</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">1ms</span></div>
-                    </div>
-                    <div class="text-center mt-2">
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Execution Time (milliseconds)</span>
-                    </div>
-                </div>
 
                 <!-- Memory Usage by Type - Enhanced Treemap -->
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 border border-gray-200 dark:border-gray-600">
@@ -583,13 +567,10 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
                     </div>
                 </div>
 
-                <!-- Memory Growth Trends -->
+                <!-- Memory Statistics Summary -->
                 <div class="mt-8 bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Growth Trends</h3>
-                    <div class="h-48 relative bg-white dark:bg-gray-600 rounded border overflow-hidden">
-                        ${createAdvancedGrowthTrendVisualization(allocations, totalMemory)}
-                    </div>
-                    <div class="mt-4 grid grid-cols-3 gap-4 text-sm text-center">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Statistics</h3>
+                    <div class="grid grid-cols-3 gap-4 text-sm text-center">
                         <div>
                             <span class="text-gray-600 dark:text-gray-400">Peak Memory:</span>
                             <span class="font-semibold text-red-600 dark:text-red-400 ml-2">${formatBytes(totalMemory)}</span>
@@ -1190,7 +1171,7 @@ function initAllocationsTable() {
 
         tbody.innerHTML = displayAllocations.map(alloc => `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono">0x${(alloc.ptr || 0).toString(16).padStart(8, '0')}</td>
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono">0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace('0x', ''), 16) : 0).toString(16).padStart(8, '0')}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
@@ -1262,7 +1243,7 @@ function initLifetimeVisualization() {
     let lifetimeData = null;
     let lifecycleEvents = [];
     
-    // 智能数据源选择：合并memory_analysis和complex_types的数据
+    // Smart data source selection: merge memory_analysis and complex_types data
     let memoryAllocations = window.analysisData.memory_analysis?.allocations || [];
     let complexAllocations = window.analysisData.complex_types?.allocations || [];
     
@@ -1271,7 +1252,7 @@ function initLifetimeVisualization() {
     
     // 合并数据：使用memory_analysis的lifetime_ms + complex_types的扩展字段
     if (memoryAllocations.length > 0 && complexAllocations.length > 0) {
-        // 创建指针到内存分析数据的映射
+        // Create mapping from pointer to memory analysis data
         const memoryMap = new Map();
         memoryAllocations.forEach(alloc => {
             if (alloc.ptr) {
@@ -1279,7 +1260,7 @@ function initLifetimeVisualization() {
             }
         });
         
-        // 合并数据：complex_types + lifetime_ms from memory_analysis
+        // Merge data: complex_types + lifetime_ms from memory_analysis
         lifecycleEvents = complexAllocations.map(complexAlloc => {
             const memoryAlloc = memoryMap.get(complexAlloc.ptr);
             return {
@@ -2043,35 +2024,29 @@ function initMemoryFragmentation() {
         return;
     }
 
-    // Analyze memory fragmentation
+    // Fixed memory fragmentation analysis: based on allocation size distribution rather than address gaps
     const sortedAllocs = allocations
-        .filter(alloc => alloc.ptr && alloc.size)
+        .filter(alloc => alloc.size && alloc.size > 0)
         .map(alloc => ({
-            address: parseInt(alloc.ptr.replace('0x', ''), 16),
             size: alloc.size,
-            type: alloc.type_name || 'System Allocation'
+            type: alloc.type_name || 'System Allocation',
+            var_name: alloc.var_name || 'unknown'
         }))
-        .sort((a, b) => a.address - b.address);
-
-    // Calculate fragmentation metrics
-    let gaps = 0;
-    let totalGapSize = 0;
-    let maxGap = 0;
-
-    for (let i = 1; i < sortedAllocs.length; i++) {
-        const prevEnd = sortedAllocs[i - 1].address + sortedAllocs[i - 1].size;
-        const currentStart = sortedAllocs[i].address;
-
-        if (currentStart > prevEnd) {
-            const gapSize = currentStart - prevEnd;
-            gaps++;
-            totalGapSize += gapSize;
-            maxGap = Math.max(maxGap, gapSize);
-        }
-    }
+        .sort((a, b) => a.size - b.size);
 
     const totalMemory = sortedAllocs.reduce((sum, alloc) => sum + alloc.size, 0);
-    const fragmentationRatio = totalMemory > 0 ? (totalGapSize / (totalMemory + totalGapSize) * 100) : 0;
+    
+    // Calculate fragmentation based on allocation size distribution
+    const sizeVariance = calculateSizeVariance(sortedAllocs);
+    const smallAllocRatio = sortedAllocs.filter(a => a.size < 1024).length / sortedAllocs.length;
+    
+    // Fragmentation score: based on size distribution unevenness
+    const fragmentationRatio = Math.min(100, (sizeVariance / 1000 + smallAllocRatio * 50));
+    
+    // Simplified gap analysis: only count quantity, not fake address gaps
+    const gaps = Math.max(0, sortedAllocs.length - 1);
+    const maxGap = 0; // No longer calculate address gaps
+    let totalGapSize = 0; // Reset to 0 to avoid huge fake values
 
     // Size distribution analysis (inspired by SVG)
     const sizeDistribution = {
@@ -2250,10 +2225,21 @@ function createMemoryLayoutVisualization(sortedAllocs, totalMemory) {
         return `
             <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer" 
                  style="left: ${left}%; width: ${width}%; background-color: ${color}; opacity: 0.8;"
-                 title="${alloc.type}: ${formatBytes(alloc.size)} at ${alloc.address.toString(16)}">
+                 title="${alloc.type}: ${formatBytes(alloc.size)} at ${(alloc.address || 0).toString(16)}">
             </div>
         `;
     }).join('');
+}
+
+// Calculate variance of allocation sizes to assess fragmentation level
+function calculateSizeVariance(allocations) {
+    if (allocations.length === 0) return 0;
+    
+    const sizes = allocations.map(a => a.size);
+    const mean = sizes.reduce((sum, size) => sum + size, 0) / sizes.length;
+    const variance = sizes.reduce((sum, size) => sum + Math.pow(size - mean, 2), 0) / sizes.length;
+    
+    return Math.sqrt(variance); // 返回标准差
 }
 
 // Helper functions for fragmentation analysis
@@ -2405,7 +2391,7 @@ function createMemoryGrowthTrendsSVG(peakMemory, averageMemory, growthRate, time
 
                 <!-- Memory Allocation Timeline -->
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Allocation Timeline</h4>
+                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Recent Allocations</h4>
                     <div class="space-y-2 max-h-32 overflow-y-auto">
                         ${timePoints.slice(-6).map((point, index) => `
                             <div class="flex justify-between items-center text-sm">
