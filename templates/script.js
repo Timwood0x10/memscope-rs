@@ -12,6 +12,9 @@ function initializeDashboard() {
     // Initialize theme system first
     initThemeToggle();
 
+    // Initialize enhanced dashboard with comprehensive data
+    initEnhancedSummaryStats();
+    
     // Initialize all components
     initSummaryStats();
     initCharts();
@@ -3567,6 +3570,126 @@ function formatTypeName(typeName) {
 function formatTimestamp(timestamp, minTime) {
     const relativeMs = Math.round((timestamp - minTime) / 1000000); // Convert nanoseconds to milliseconds
     return `${relativeMs}ms`;
+}
+
+// Enhanced summary statistics with comprehensive data analysis
+function initEnhancedSummaryStats() {
+    console.log('📊 Initializing enhanced summary statistics...');
+    
+    try {
+        // Get merged data from all sources
+        const memoryAllocations = window.analysisData.memory_analysis?.allocations || [];
+        const complexAllocations = window.analysisData.complex_types?.allocations || [];
+        const unsafeAllocations = window.analysisData.unsafe_ffi?.allocations || [];
+        
+        // Merge all data sources for comprehensive analysis
+        const allData = mergeAllDataSources(memoryAllocations, complexAllocations, unsafeAllocations);
+        
+        // Calculate comprehensive statistics
+        const stats = calculateComprehensiveStats(allData);
+        
+        // Update enhanced dashboard
+        updateElement('total-allocations', stats.totalAllocations);
+        updateElement('allocation-rate', `${stats.allocationRate.toFixed(1)}/ms`);
+        updateElement('active-variables', stats.activeVariables);
+        updateElement('variable-types', `${stats.uniqueTypes} types`);
+        updateElement('borrow-operations', stats.totalBorrows);
+        updateElement('max-concurrent', `Max: ${stats.maxConcurrent}`);
+        updateElement('safety-score', `${stats.safetyScore}%`);
+        updateElement('ffi-tracked', `${stats.ffiTracked} FFI`);
+        
+        console.log('✅ Enhanced dashboard updated successfully');
+    } catch (error) {
+        console.error('❌ Error initializing enhanced stats:', error);
+    }
+}
+
+// Merge data from all sources with comprehensive field mapping
+function mergeAllDataSources(memory, complex, unsafe) {
+    const dataMap = new Map();
+    
+    // Add memory analysis data (has lifetime_ms)
+    memory.forEach(alloc => {
+        if (alloc.ptr) {
+            dataMap.set(alloc.ptr, { ...alloc, source: 'memory' });
+        }
+    });
+    
+    // Merge complex types data (has extended fields)
+    complex.forEach(alloc => {
+        if (alloc.ptr) {
+            const existing = dataMap.get(alloc.ptr) || {};
+            dataMap.set(alloc.ptr, { 
+                ...existing, 
+                ...alloc, 
+                source: existing.source ? `${existing.source}+complex` : 'complex'
+            });
+        }
+    });
+    
+    // Merge unsafe FFI data (has safety info)
+    unsafe.forEach(alloc => {
+        if (alloc.ptr) {
+            const existing = dataMap.get(alloc.ptr) || {};
+            dataMap.set(alloc.ptr, { 
+                ...existing, 
+                ...alloc, 
+                source: existing.source ? `${existing.source}+unsafe` : 'unsafe'
+            });
+        }
+    });
+    
+    return Array.from(dataMap.values());
+}
+
+// Calculate comprehensive statistics from merged data
+function calculateComprehensiveStats(allData) {
+    const validData = allData.filter(d => d.var_name && d.var_name !== 'unknown');
+    
+    // Basic counts
+    const totalAllocations = validData.length;
+    const uniqueVars = new Set(validData.map(d => d.var_name)).size;
+    const uniqueTypes = new Set(validData.map(d => d.type_name)).size;
+    
+    // Time-based calculations
+    const timestamps = validData.map(d => d.timestamp_alloc).filter(t => t);
+    const timeRange = timestamps.length > 0 ? (Math.max(...timestamps) - Math.min(...timestamps)) / 1000000 : 1;
+    const allocationRate = totalAllocations / Math.max(timeRange, 1);
+    
+    // Borrow analysis
+    let totalBorrows = 0;
+    let maxConcurrent = 0;
+    validData.forEach(d => {
+        if (d.borrow_info) {
+            totalBorrows += (d.borrow_info.immutable_borrows || 0) + (d.borrow_info.mutable_borrows || 0);
+            maxConcurrent = Math.max(maxConcurrent, d.borrow_info.max_concurrent_borrows || 0);
+        }
+    });
+    
+    // Safety analysis
+    const ffiTracked = validData.filter(d => d.ffi_tracked).length;
+    const leaked = validData.filter(d => d.is_leaked).length;
+    const withSafetyViolations = validData.filter(d => d.safety_violations && d.safety_violations.length > 0).length;
+    const safetyScore = Math.max(0, 100 - (leaked * 20) - (withSafetyViolations * 10));
+    
+    return {
+        totalAllocations,
+        activeVariables: uniqueVars,
+        uniqueTypes,
+        allocationRate,
+        totalBorrows,
+        maxConcurrent,
+        ffiTracked,
+        safetyScore: Math.round(safetyScore)
+    };
+}
+
+// Helper function to safely update DOM elements
+function updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = value;
+    }
 }
 
 // Utility function to format bytes

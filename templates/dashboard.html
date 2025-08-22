@@ -230,8 +230,30 @@
         <section class="mb-12">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
                 <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-bar-chart text-primary mr-2"></i>Analysis Summary
+                    <i class="fa fa-dashboard text-primary mr-2"></i>Comprehensive Memory Analysis Dashboard
                 </h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
+                        <div class="text-2xl font-bold" id="total-allocations">-</div>
+                        <div class="text-sm opacity-90">Total Allocations</div>
+                        <div class="text-xs opacity-75 mt-1" id="allocation-rate">-</div>
+                    </div>
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
+                        <div class="text-2xl font-bold" id="active-variables">-</div>
+                        <div class="text-sm opacity-90">Active Variables</div>
+                        <div class="text-xs opacity-75 mt-1" id="variable-types">-</div>
+                    </div>
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-4 text-white">
+                        <div class="text-2xl font-bold" id="borrow-operations">-</div>
+                        <div class="text-sm opacity-90">Borrow Operations</div>
+                        <div class="text-xs opacity-75 mt-1" id="max-concurrent">-</div>
+                    </div>
+                    <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg p-4 text-white">
+                        <div class="text-2xl font-bold" id="safety-score">-</div>
+                        <div class="text-sm opacity-90">Safety Score</div>
+                        <div class="text-xs opacity-75 mt-1" id="ffi-tracked">-</div>
+                    </div>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
                         <p class="text-secondary text-sm">Total Complex Types</p>
