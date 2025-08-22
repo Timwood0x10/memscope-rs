@@ -1262,18 +1262,42 @@ function initLifetimeVisualization() {
     let lifetimeData = null;
     let lifecycleEvents = [];
     
-    // Try different data sources
-    if (window.analysisData.lifetime?.lifecycle_events) {
-        lifetimeData = window.analysisData.lifetime;
-        lifecycleEvents = lifetimeData.lifecycle_events;
-        console.log('📊 Found lifecycle events in lifetime data:', lifecycleEvents.length);
-    } else if (window.analysisData.complex_types?.allocations) {
-        // Use complex_types data with extended fields
-        lifecycleEvents = window.analysisData.complex_types.allocations;
-        console.log('📊 Found extended allocation data:', lifecycleEvents.length);
-    } else if (window.analysisData.memory_analysis?.allocations) {
-        lifecycleEvents = window.analysisData.memory_analysis.allocations;
-        console.log('📊 Found basic allocation data:', lifecycleEvents.length);
+    // 智能数据源选择：合并memory_analysis和complex_types的数据
+    let memoryAllocations = window.analysisData.memory_analysis?.allocations || [];
+    let complexAllocations = window.analysisData.complex_types?.allocations || [];
+    
+    console.log('📊 Memory analysis allocations:', memoryAllocations.length);
+    console.log('📊 Complex types allocations:', complexAllocations.length);
+    
+    // 合并数据：使用memory_analysis的lifetime_ms + complex_types的扩展字段
+    if (memoryAllocations.length > 0 && complexAllocations.length > 0) {
+        // 创建指针到内存分析数据的映射
+        const memoryMap = new Map();
+        memoryAllocations.forEach(alloc => {
+            if (alloc.ptr) {
+                memoryMap.set(alloc.ptr, alloc);
+            }
+        });
+        
+        // 合并数据：complex_types + lifetime_ms from memory_analysis
+        lifecycleEvents = complexAllocations.map(complexAlloc => {
+            const memoryAlloc = memoryMap.get(complexAlloc.ptr);
+            return {
+                ...complexAlloc,
+                lifetime_ms: memoryAlloc?.lifetime_ms || null,
+                timestamp_dealloc: memoryAlloc?.timestamp_dealloc || null
+            };
+        });
+        console.log('📊 Merged allocation data:', lifecycleEvents.length);
+    } else if (memoryAllocations.length > 0) {
+        lifecycleEvents = memoryAllocations;
+        console.log('📊 Using memory analysis data:', lifecycleEvents.length);
+    } else if (complexAllocations.length > 0) {
+        lifecycleEvents = complexAllocations;
+        console.log('📊 Using complex types data:', lifecycleEvents.length);
+    } else if (window.analysisData.lifetime?.lifecycle_events) {
+        lifecycleEvents = window.analysisData.lifetime.lifecycle_events;
+        console.log('📊 Using lifetime events data:', lifecycleEvents.length);
     }
     
     if (!lifecycleEvents || lifecycleEvents.length === 0) {
@@ -1422,11 +1446,20 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
             // Use preprocessed timing data or fallback to events
             const startTime = group.start_time || (group.events && group.events[0] ? group.events[0].timestamp : minTime);
-            const endTime = group.end_time || (group.events && group.events[group.events.length - 1] ? group.events[group.events.length - 1].timestamp : maxTime);
-
+            const firstEvent = group.events && group.events[0];
+            
             const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
-            const duration = endTime - startTime;
-            const widthPercent = timeRange > 0 ? Math.max(5, (duration / timeRange) * 100) : 40;
+            
+            
+            let widthPercent;
+            if (firstEvent && firstEvent.lifetime_ms && firstEvent.lifetime_ms > 0) {
+                
+                const lifetimeNs = firstEvent.lifetime_ms * 1000000; 
+                widthPercent = timeRange > 0 ? Math.max(1, (lifetimeNs / timeRange) * 100) : 6.8;
+            } else {
+                //
+                widthPercent = 6.8;
+            }
             
             // 安全的变量定义，防止NaN
             const finalStartPercent = isNaN(startPercent) ? 0 : Math.max(0, Math.min(95, startPercent));
@@ -1456,7 +1489,7 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
                         </div>
                     </div>
                     <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                        Duration: ${formatTimestamp(duration, 0)}
+                        Duration: ${firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + 'ms' : 'Active'}
                     </div>
                 </div>
                 <div class="w-20 flex-shrink-0 pl-4 text-right">
