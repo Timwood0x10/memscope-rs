@@ -349,29 +349,47 @@ fn enhance_ffi_data(data: &Value) -> Result<Value, Box<dyn Error>> {
     let mut enhanced = data.clone();
 
     let empty_vec = vec![];
-    let enhanced_data = data
-        .get("enhanced_ffi_data")
+    // Use the actual allocations field from the JSON data
+    let allocations = data
+        .get("allocations")
         .and_then(|d| d.as_array())
         .unwrap_or(&empty_vec);
+    
+    // Fallback to enhanced_ffi_data if allocations is not found
+    let enhanced_data = if allocations.is_empty() {
+        data.get("enhanced_ffi_data")
+            .and_then(|d| d.as_array())
+            .unwrap_or(&empty_vec)
+    } else {
+        allocations
+    };
+    
     let boundary_events = data
         .get("boundary_events")
         .and_then(|d| d.as_array())
         .unwrap_or(&empty_vec);
 
-    // Calculate comprehensive statistics
-    let stats = calculate_ffi_statistics(enhanced_data, boundary_events);
+    tracing::info!("🔍 FFI data enhancement - allocations: {}, enhanced_data: {}, boundary_events: {}", 
+                   allocations.len(), enhanced_data.len(), boundary_events.len());
+
+    // Calculate comprehensive statistics using the actual allocations
+    let stats = calculate_ffi_statistics_from_allocations(enhanced_data, boundary_events);
 
     // Analyze language interactions
     let language_interactions = analyze_language_interactions(boundary_events);
 
-    // Safety analysis
-    let safety_analysis = analyze_safety_metrics(enhanced_data);
+    // Safety analysis using actual allocations
+    let safety_analysis = analyze_safety_metrics_from_allocations(enhanced_data);
 
     if let Some(obj) = enhanced.as_object_mut() {
         obj.insert("comprehensive_stats".to_string(), stats);
         obj.insert("language_interactions".to_string(), language_interactions);
         obj.insert("safety_analysis".to_string(), safety_analysis);
         obj.insert("visualization_ready".to_string(), serde_json::json!(true));
+        // Ensure allocations are preserved in the enhanced data
+        if !allocations.is_empty() {
+            obj.insert("allocations".to_string(), serde_json::json!(allocations));
+        }
     }
 
     Ok(enhanced)
@@ -512,19 +530,9 @@ fn analyze_memory_growth_trends(allocations: &[Value]) -> Value {
     })
 }
 
-/// Calculate comprehensive FFI statistics
-fn calculate_ffi_statistics(enhanced_data: &[Value], boundary_events: &[Value]) -> Value {
-    let unsafe_allocations = enhanced_data
-        .iter()
-        .filter(|item| {
-            !item
-                .get("ffi_tracked")
-                .and_then(|f| f.as_bool())
-                .unwrap_or(false)
-        })
-        .count();
-
-    let ffi_allocations = enhanced_data
+/// Calculate comprehensive FFI statistics from allocations
+fn calculate_ffi_statistics_from_allocations(allocations: &[Value], boundary_events: &[Value]) -> Value {
+    let ffi_tracked_allocations = allocations
         .iter()
         .filter(|item| {
             item.get("ffi_tracked")
@@ -533,29 +541,66 @@ fn calculate_ffi_statistics(enhanced_data: &[Value], boundary_events: &[Value]) 
         })
         .count();
 
+    let non_ffi_allocations = allocations.len() - ffi_tracked_allocations;
+
     let boundary_crossings = boundary_events.len();
 
-    let safety_violations = enhanced_data
+    // Count safety violations from arrays
+    let safety_violations = allocations
         .iter()
         .map(|item| {
             item.get("safety_violations")
-                .and_then(|s| s.as_u64())
+                .and_then(|s| s.as_array())
+                .map(|arr| arr.len() as u64)
                 .unwrap_or(0)
         })
         .sum::<u64>();
 
-    let unsafe_memory = enhanced_data
+    // Count borrow conflicts
+    let borrow_conflicts = allocations
+        .iter()
+        .filter(|item| {
+            if let Some(borrow_info) = item.get("borrow_info") {
+                let immutable = borrow_info.get("immutable_borrows").and_then(|v| v.as_u64()).unwrap_or(0);
+                let mutable = borrow_info.get("mutable_borrows").and_then(|v| v.as_u64()).unwrap_or(0);
+                immutable > 0 && mutable > 0
+            } else {
+                false
+            }
+        })
+        .count();
+
+    // Count clones
+    let total_clones = allocations
+        .iter()
+        .map(|item| {
+            item.get("clone_info")
+                .and_then(|c| c.get("clone_count"))
+                .and_then(|cc| cc.as_u64())
+                .unwrap_or(0)
+        })
+        .sum::<u64>();
+
+    let total_memory = allocations
         .iter()
         .map(|item| item.get("size").and_then(|s| s.as_u64()).unwrap_or(0))
         .sum::<u64>();
 
     serde_json::json!({
-        "unsafe_allocations": unsafe_allocations,
-        "ffi_allocations": ffi_allocations,
+        "total_allocations": allocations.len(),
+        "ffi_tracked_allocations": ffi_tracked_allocations,
+        "non_ffi_allocations": non_ffi_allocations,
         "boundary_crossings": boundary_crossings,
         "safety_violations": safety_violations,
-        "unsafe_memory": unsafe_memory
+        "borrow_conflicts": borrow_conflicts,
+        "total_clones": total_clones,
+        "total_memory": total_memory
     })
+}
+
+/// Calculate comprehensive FFI statistics (legacy function for backward compatibility)
+fn calculate_ffi_statistics(enhanced_data: &[Value], boundary_events: &[Value]) -> Value {
+    calculate_ffi_statistics_from_allocations(enhanced_data, boundary_events)
 }
 
 /// Analyze language interactions from boundary events
@@ -585,20 +630,21 @@ fn analyze_language_interactions(boundary_events: &[Value]) -> Value {
     serde_json::json!(interactions_vec)
 }
 
-/// Analyze safety metrics
-fn analyze_safety_metrics(enhanced_data: &[Value]) -> Value {
-    let safe_operations = enhanced_data
+/// Analyze safety metrics from allocations
+fn analyze_safety_metrics_from_allocations(allocations: &[Value]) -> Value {
+    let safe_operations = allocations
         .iter()
         .filter(|item| {
+            // Check if safety_violations array is empty
             item.get("safety_violations")
-                .and_then(|s| s.as_u64())
-                .unwrap_or(0)
-                == 0
+                .and_then(|s| s.as_array())
+                .map(|arr| arr.is_empty())
+                .unwrap_or(true)
         })
         .count();
 
-    let unsafe_operations = enhanced_data.len() - safe_operations;
-    let total_operations = enhanced_data.len();
+    let unsafe_operations = allocations.len() - safe_operations;
+    let total_operations = allocations.len();
 
     let safety_percentage = if total_operations > 0 {
         (safe_operations as f64 / total_operations as f64 * 100.0) as u32
@@ -606,12 +652,39 @@ fn analyze_safety_metrics(enhanced_data: &[Value]) -> Value {
         100
     };
 
+    // Count allocations with ownership history
+    let with_ownership_history = allocations
+        .iter()
+        .filter(|item| {
+            item.get("ownership_history_available")
+                .and_then(|o| o.as_bool())
+                .unwrap_or(false)
+        })
+        .count();
+
+    // Count leaked allocations
+    let leaked_allocations = allocations
+        .iter()
+        .filter(|item| {
+            item.get("is_leaked")
+                .and_then(|l| l.as_bool())
+                .unwrap_or(false)
+        })
+        .count();
+
     serde_json::json!({
         "safe_operations": safe_operations,
         "unsafe_operations": unsafe_operations,
         "total_operations": total_operations,
-        "safety_percentage": safety_percentage
+        "safety_percentage": safety_percentage,
+        "with_ownership_history": with_ownership_history,
+        "leaked_allocations": leaked_allocations
     })
+}
+
+/// Analyze safety metrics (legacy function for backward compatibility)
+fn analyze_safety_metrics(enhanced_data: &[Value]) -> Value {
+    analyze_safety_metrics_from_allocations(enhanced_data)
 }
 
 /// Get progress bar color by index

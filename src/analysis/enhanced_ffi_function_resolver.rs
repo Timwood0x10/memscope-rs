@@ -382,14 +382,14 @@ impl EnhancedFfiFunctionResolver {
             // High risk functions
             (name, _) if name.contains("malloc") || name.contains("free") => FfiRiskLevel::High,
             (name, _) if name.contains("memcpy") || name.contains("strcpy") => FfiRiskLevel::High,
-            (name, "libssl") | (name, "libcrypto") => FfiRiskLevel::High,
+            (_name, "libssl") | (_name, "libcrypto") => FfiRiskLevel::High,
             
             // Medium risk functions
             (name, _) if name.contains("thread") || name.contains("mutex") => FfiRiskLevel::Medium,
             (name, _) if name.contains("file") || name.contains("open") => FfiRiskLevel::Medium,
             
             // Low risk functions
-            (name, "libm") => FfiRiskLevel::Low,
+            (_name, "libm") => FfiRiskLevel::Low,
             (name, _) if name.contains("strlen") || name.contains("strcmp") => FfiRiskLevel::Low,
             
             // Default to medium

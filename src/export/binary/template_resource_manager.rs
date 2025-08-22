@@ -231,6 +231,23 @@ impl TemplateResourceManager {
         content = content.replace("{{ BINARY_DATA }}", &data.binary_data);
         content = content.replace("{{json_data}}", &data.binary_data);
         content = content.replace("{{ json_data }}", &data.binary_data);
+        
+        // Fix the specific template issue - inject data as window.analysisData assignment
+        // Handle all possible variations of the template placeholder
+        content = content.replace("window.analysisData = {{ json_data }};", 
+            &format!("window.analysisData = {};", &data.binary_data));
+        content = content.replace("window.analysisData = {{json_data}};", 
+            &format!("window.analysisData = {};", &data.binary_data));
+        content = content.replace("window.analysisData = {{ json_data}};", 
+            &format!("window.analysisData = {};", &data.binary_data));
+        content = content.replace("window.analysisData = {{json_data }};", 
+            &format!("window.analysisData = {};", &data.binary_data));
+        
+        // Also handle cases where there might be line breaks or spaces
+        content = content.replace("window.analysisData = {{ json_data", 
+            &format!("window.analysisData = {}", &data.binary_data));
+        content = content.replace("window.analysisData = {{json_data", 
+            &format!("window.analysisData = {}", &data.binary_data));
         content = content.replace("{{GENERATION_TIME}}", &data.generation_time);
         content = content.replace("{{ GENERATION_TIME }}", &data.generation_time);
 

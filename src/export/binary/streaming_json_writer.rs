@@ -1517,6 +1517,9 @@ mod tests {
                 stack_trace: Some(None),
                 is_leaked: Some(false),
                 lifetime_ms: Some(None),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: Some(false),
             },
             PartialAllocationInfo {
                 ptr: Some(0x2000),
@@ -1531,6 +1534,9 @@ mod tests {
                 stack_trace: Some(None),
                 is_leaked: Some(false),
                 lifetime_ms: Some(None),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: Some(false),
             },
         ];
 
@@ -1580,6 +1586,9 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         let requested_fields = [AllocationField::VarName].into_iter().collect();
@@ -1622,6 +1631,9 @@ mod tests {
             stack_trace: Some(Some(long_stack_trace)),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
         };
 
         let requested_fields = [AllocationField::StackTrace].into_iter().collect();
@@ -1661,6 +1673,9 @@ mod tests {
                 stack_trace: Some(None),
                 is_leaked: Some(false),
                 lifetime_ms: Some(None),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: Some(false),
             },
             PartialAllocationInfo {
                 ptr: Some(0x2000),
@@ -1675,6 +1690,9 @@ mod tests {
                 stack_trace: Some(None),
                 is_leaked: Some(false),
                 lifetime_ms: Some(None),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: Some(false),
             },
             PartialAllocationInfo {
                 ptr: Some(0x3000),
@@ -1689,6 +1707,9 @@ mod tests {
                 stack_trace: Some(None),
                 is_leaked: Some(false),
                 lifetime_ms: Some(None),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: Some(false),
             },
         ];
 
@@ -1735,6 +1756,9 @@ mod tests {
                 stack_trace: Some(None),
                 is_leaked: Some(false),
                 lifetime_ms: Some(None),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: Some(false),
             })
             .collect();
 

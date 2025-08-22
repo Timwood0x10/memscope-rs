@@ -1705,119 +1705,614 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
     console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization with collapse functionality`);
 }
 
-// Initialize FFI visualization with enhanced SVG-style dashboard
+// Initialize FFI visualization with enhanced support for improve.md fields
 function initFFIVisualization() {
     console.log('🔄 Initializing FFI visualization...');
 
     const container = document.getElementById('ffiVisualization');
     if (!container) return;
 
-    // Generate FFI analysis from allocations
-    const allocations = window.analysisData.memory_analysis?.allocations || [];
-    const ffiAnalysis = generateFFIAnalysisFromAllocations(allocations);
+    // Get FFI data from multiple sources with comprehensive field support
+    let allocations = [];
+    let unsafeReports = [];
+    let memoryPassports = [];
+    let ffiStatistics = {};
+    
+    console.log('🔍 Checking analysisData structure:', Object.keys(window.analysisData || {}));
+    
+    // Enhanced data extraction supporting improve.md structure
+    if (window.analysisData) {
+        // Debug: Show what data structure we actually have FIRST
+        console.log('🔍 Available data keys:', Object.keys(window.analysisData));
+        if (window.analysisData.unsafe_ffi) {
+            console.log('🔍 unsafe_ffi keys:', Object.keys(window.analysisData.unsafe_ffi));
+            console.log('🔍 unsafe_ffi.allocations exists:', !!window.analysisData.unsafe_ffi.allocations);
+            console.log('🔍 unsafe_ffi.allocations length:', window.analysisData.unsafe_ffi.allocations ? window.analysisData.unsafe_ffi.allocations.length : 'undefined');
+        }
+        
+        // Try unsafe_ffi data first (improve.md structure)
+        if (window.analysisData.unsafe_ffi) {
+            allocations = window.analysisData.unsafe_ffi.allocations || [];
+            unsafeReports = window.analysisData.unsafe_ffi.unsafe_reports || [];
+            memoryPassports = window.analysisData.unsafe_ffi.memory_passports || [];
+            ffiStatistics = window.analysisData.unsafe_ffi.ffi_statistics || {};
+            console.log('📊 Found unsafe_ffi data - allocations:', allocations.length, 'reports:', unsafeReports.length, 'passports:', memoryPassports.length);
+        }
+        // Try complex_types structure (for large_scale_user files)
+        else if (window.analysisData.complex_types && window.analysisData.complex_types.allocations) {
+            allocations = window.analysisData.complex_types.allocations;
+            console.log('📊 Found complex_types allocations:', allocations.length);
+        }
+        // Try direct allocations array (for files like large_scale_user_unsafe_ffi.json)
+        else if (window.analysisData.allocations) {
+            allocations = window.analysisData.allocations;
+            console.log('📊 Found direct allocations:', allocations.length);
+        }
+        // Fallback to memory_analysis
+        else if (window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
+            allocations = window.analysisData.memory_analysis.allocations;
+            console.log('📊 Using memory_analysis allocations:', allocations.length);
+        }
+        
+        // Debug: Show what data structure we actually have
+        console.log('🔍 Available data keys:', Object.keys(window.analysisData));
+        if (window.analysisData.unsafe_ffi) {
+            console.log('🔍 unsafe_ffi keys:', Object.keys(window.analysisData.unsafe_ffi));
+        }
+        
+        // Extract metadata if available
+        const metadata = window.analysisData.metadata || {};
+        console.log('📊 Metadata:', metadata);
+    }
 
-    if (ffiAnalysis.totalRisks === 0) {
+    // Filter for FFI-tracked allocations with enhanced field support
+    const ffiAllocations = allocations.filter(alloc => 
+        alloc.ffi_tracked === true || 
+        (alloc.safety_violations && alloc.safety_violations.length > 0) ||
+        alloc.ownership_history_available === true ||
+        (alloc.borrow_info && (alloc.borrow_info.immutable_borrows > 0 || alloc.borrow_info.mutable_borrows > 0)) ||
+        (alloc.clone_info && alloc.clone_info.clone_count > 0)
+    );
+    console.log('📊 Found FFI-tracked allocations:', ffiAllocations.length);
+    
+    // Debug: show first few allocations with improve.md fields
+    if (allocations.length > 0) {
+        console.log('🔍 Sample allocation with improve.md fields:', allocations[0]);
+        console.log('🔍 FFI tracked allocations sample:', ffiAllocations.slice(0, 3));
+        
+        // Check for improve.md specific fields
+        const sampleAlloc = allocations[0];
+        console.log('🔍 Improve.md fields check:');
+        console.log('  - borrow_info:', sampleAlloc.borrow_info);
+        console.log('  - clone_info:', sampleAlloc.clone_info);
+        console.log('  - ownership_history_available:', sampleAlloc.ownership_history_available);
+        console.log('  - ffi_tracked:', sampleAlloc.ffi_tracked);
+        console.log('  - safety_violations:', sampleAlloc.safety_violations);
+    }
+
+    // Debug: Show what we found before filtering
+    console.log('🔍 Before filtering - Total allocations:', allocations.length);
+    console.log('🔍 Sample allocation fields:', allocations[0] ? Object.keys(allocations[0]) : 'No allocations');
+    console.log('🔍 FFI tracked count:', allocations.filter(a => a.ffi_tracked === true).length);
+    console.log('🔍 Borrow info count:', allocations.filter(a => a.borrow_info).length);
+    console.log('🔍 Clone info count:', allocations.filter(a => a.clone_info).length);
+    
+    // Enhanced rendering with improve.md support - ALWAYS show if we have any allocations
+    if (allocations.length === 0) {
         container.innerHTML = createFFIEmptyState();
         return;
     }
+    
+    // If we have allocations but no FFI-specific ones, still show the dashboard with all data
+    const displayAllocations = ffiAllocations.length > 0 ? ffiAllocations : allocations.slice(0, 20);
+    console.log('🎯 Rendering FFI dashboard with:', displayAllocations.length, 'allocations,', unsafeReports.length, 'reports,', memoryPassports.length, 'passports');
 
-    container.innerHTML = createFFIDashboardSVG(
-        ffiAnalysis.unsafeAllocations, 
-        ffiAnalysis.ffiAllocations, 
-        ffiAnalysis.boundaryCrossings,
-        ffiAnalysis.safetyViolations, 
-        ffiAnalysis.unsafeMemory, 
-        ffiAnalysis.enhancedData,
-        ffiAnalysis.boundaryEvents, 
-        ffiAnalysis.violations
-    );
+    // Generate enhanced FFI analysis with improve.md fields
+    try {
+        console.log('🔄 Generating FFI analysis...');
+        const ffiAnalysis = generateEnhancedFFIAnalysisWithImproveFields(displayAllocations, unsafeReports, memoryPassports, ffiStatistics);
+        console.log('✅ FFI analysis generated:', ffiAnalysis);
+        
+        console.log('🔄 Creating FFI dashboard...');
+        const dashboardHTML = createEnhancedFFIDashboardWithImproveFields(ffiAnalysis, displayAllocations, unsafeReports, memoryPassports);
+        console.log('✅ Dashboard HTML created, length:', dashboardHTML.length);
+        
+        container.innerHTML = dashboardHTML;
+        console.log('✅ Dashboard rendered successfully!');
+    } catch (error) {
+        console.error('❌ Error in FFI rendering:', error);
+        container.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-800">Error rendering FFI data: ${error.message}</div>`;
+    }
 }
 
-// Generate FFI analysis from allocations
-function generateFFIAnalysisFromAllocations(allocations) {
-    let unsafeAllocations = 0;
-    let ffiAllocations = 0;
-    let safetyViolations = 0;
-    let unsafeMemory = 0;
-    const enhancedData = [];
-    const boundaryEvents = [];
-    const violations = [];
+// Generate enhanced FFI analysis with improve.md fields support
+function generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, unsafeReports, memoryPassports, ffiStatistics) {
+    let totalFFI = ffiAllocations.length;
+    let totalViolations = 0;
+    let totalMemory = 0;
+    let highRiskCount = 0;
+    let mediumRiskCount = 0;
+    let lowRiskCount = 0;
+    let totalBorrows = 0;
+    let totalClones = 0;
+    let leakedAllocations = 0;
 
-    allocations.forEach((alloc, index) => {
-        const typeName = alloc.type_name || '';
-        const varName = alloc.var_name || '';
+    const analysisData = ffiAllocations.map(alloc => {
+        const violations = alloc.safety_violations?.length || 0;
+        const size = alloc.size || 0;
         
-        // Check for unsafe patterns
-        const isUnsafe = typeName.includes('*') || typeName.includes('raw') || 
-                        varName.includes('unsafe') || typeName.includes('libc');
+        // Enhanced borrow analysis from improve.md fields
+        const borrowConflicts = alloc.borrow_info ? 
+            (alloc.borrow_info.mutable_borrows > 0 && alloc.borrow_info.immutable_borrows > 0) : false;
+        const totalBorrowsForAlloc = alloc.borrow_info ? 
+            (alloc.borrow_info.immutable_borrows || 0) + (alloc.borrow_info.mutable_borrows || 0) : 0;
+        totalBorrows += totalBorrowsForAlloc;
         
-        // Check for FFI patterns
-        const isFFI = typeName.includes('c_') || typeName.includes('CString') || 
-                     typeName.includes('CStr') || varName.includes('ffi');
-
-        if (isUnsafe) {
-            unsafeAllocations++;
-            unsafeMemory += alloc.size || 0;
-            safetyViolations++;
-            
-            violations.push({
-                type: 'Unsafe Memory Access',
-                location: `${varName}:${typeName}`,
-                risk_level: 'High',
-                description: `Potentially unsafe memory operation detected`
-            });
+        // Enhanced clone analysis from improve.md fields
+        const cloneCount = alloc.clone_info?.clone_count || 0;
+        const isClone = alloc.clone_info?.is_clone || false;
+        totalClones += cloneCount;
+        
+        // Enhanced ownership and lifecycle analysis
+        const ownershipHistoryAvailable = alloc.ownership_history_available || false;
+        const isLeaked = alloc.is_leaked || false;
+        if (isLeaked) leakedAllocations++;
+        
+        // Enhanced risk calculation with improve.md fields
+        let riskScore = 0;
+        if (violations > 0) riskScore += 50;
+        if (borrowConflicts) riskScore += 30;
+        if (size > 1024) riskScore += 20;
+        if (isLeaked) riskScore += 40;
+        if (cloneCount > 3) riskScore += 15;
+        if (totalBorrowsForAlloc > 5) riskScore += 10;
+        
+        let riskLevel = 'Low';
+        if (riskScore >= 70) {
+            riskLevel = 'High';
+            highRiskCount++;
+        } else if (riskScore >= 35) {
+            riskLevel = 'Medium';
+            mediumRiskCount++;
+        } else {
+            lowRiskCount++;
         }
 
-        if (isFFI) {
-            ffiAllocations++;
-            boundaryEvents.push({
-                timestamp: alloc.timestamp_alloc,
-                type: 'FFI Call',
-                location: varName,
-                size: alloc.size
-            });
-        }
+        totalViolations += violations;
+        totalMemory += size;
 
-        if (isUnsafe || isFFI) {
-            enhancedData.push({
-                ...alloc,
-                ffi_tracked: isFFI,
-                safety_violations: isUnsafe ? 1 : 0,
-                risk_level: isUnsafe ? 'High' : 'Medium'
-            });
-        }
+        return {
+            ...alloc,
+            riskScore,
+            riskLevel,
+            violations,
+            borrowConflicts,
+            totalBorrowsForAlloc,
+            cloneCount,
+            isClone,
+            ownershipHistoryAvailable,
+            isLeaked
+        };
     });
 
-    return {
-        unsafeAllocations,
-        ffiAllocations,
-        boundaryCrossings: boundaryEvents.length,
-        safetyViolations,
-        unsafeMemory,
-        enhancedData,
-        boundaryEvents,
-        violations,
-        totalRisks: unsafeAllocations + ffiAllocations + safetyViolations
+    // Enhanced statistics from improve.md structure
+    const enhancedStats = {
+        boundary_crossings: ffiStatistics.boundary_crossings || 0,
+        memory_violations: ffiStatistics.memory_violations || 0,
+        total_ffi_calls: ffiStatistics.total_ffi_calls || 0,
+        unsafe_operations: ffiStatistics.unsafe_operations || 0
     };
+
+    return {
+        totalFFI,
+        totalViolations,
+        totalMemory,
+        highRiskCount,
+        mediumRiskCount,
+        lowRiskCount,
+        totalBorrows,
+        totalClones,
+        leakedAllocations,
+        analysisData,
+        unsafeReports,
+        memoryPassports,
+        ffiStatistics: enhancedStats
+    };
+}
+
+// Legacy function for backward compatibility
+function generateEnhancedFFIAnalysis(ffiAllocations) {
+    return generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, [], [], {});
+}
+
+// Create enhanced FFI dashboard with improve.md fields support
+function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, unsafeReports, memoryPassports) {
+    return `
+        <div class="space-y-6">
+            <!-- Enhanced FFI Overview Cards with improve.md metrics -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div class="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-300">${analysis.totalFFI}</div>
+                    <div class="text-sm text-blue-700 dark:text-blue-400">FFI Allocations</div>
+                </div>
+                <div class="bg-red-100 dark:bg-red-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-red-600 dark:text-red-300">${analysis.highRiskCount}</div>
+                    <div class="text-sm text-red-700 dark:text-red-400">High Risk</div>
+                </div>
+                <div class="bg-orange-100 dark:bg-orange-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-300">${analysis.mediumRiskCount}</div>
+                    <div class="text-sm text-orange-700 dark:text-orange-400">Medium Risk</div>
+                </div>
+                <div class="bg-green-100 dark:bg-green-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600 dark:text-green-300">${analysis.lowRiskCount}</div>
+                    <div class="text-sm text-green-700 dark:text-green-400">Low Risk</div>
+                </div>
+                <div class="bg-purple-100 dark:bg-purple-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-300">${analysis.totalBorrows}</div>
+                    <div class="text-sm text-purple-700 dark:text-purple-400">Total Borrows</div>
+                </div>
+                <div class="bg-indigo-100 dark:bg-indigo-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-300">${analysis.totalClones}</div>
+                    <div class="text-sm text-indigo-700 dark:text-indigo-400">Total Clones</div>
+                </div>
+            </div>
+
+            <!-- FFI Statistics from improve.md -->
+            ${analysis.ffiStatistics && Object.keys(analysis.ffiStatistics).length > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">FFI Statistics</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.boundary_crossings}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Boundary Crossings</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.memory_violations}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Memory Violations</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.total_ffi_calls}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Total FFI Calls</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.unsafe_operations}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Unsafe Operations</div>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Unsafe Reports from improve.md structure -->
+            ${analysis.unsafeReports && analysis.unsafeReports.length > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Unsafe Reports</h3>
+                    <div class="space-y-4">
+                        ${analysis.unsafeReports.map(report => createUnsafeReportCard(report)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Memory Passports from improve.md structure -->
+            ${analysis.memoryPassports && analysis.memoryPassports.length > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Passports</h3>
+                    <div class="space-y-3">
+                        ${analysis.memoryPassports.map(passport => createMemoryPassportCard(passport)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Enhanced FFI Risk Analysis with improve.md fields -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Enhanced FFI Risk Analysis</h3>
+                <div class="space-y-4">
+                    ${analysis.analysisData.map(alloc => createEnhancedFFIAllocationCard(alloc)).join('')}
+                </div>
+            </div>
+
+            <!-- Enhanced Borrow Checker Analysis with improve.md fields -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Enhanced Borrow Checker Analysis</h3>
+                <div class="space-y-3">
+                    ${ffiAllocations.filter(alloc => alloc.borrow_info).map(alloc => createEnhancedBorrowAnalysisCard(alloc)).join('')}
+                </div>
+            </div>
+
+            <!-- Clone Analysis from improve.md fields -->
+            ${analysis.totalClones > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Clone Analysis</h3>
+                    <div class="space-y-3">
+                        ${ffiAllocations.filter(alloc => alloc.clone_info && alloc.clone_info.clone_count > 0).map(alloc => createCloneAnalysisCard(alloc)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Ownership History Analysis -->
+            ${ffiAllocations.some(alloc => alloc.ownership_history_available) ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Ownership History Analysis</h3>
+                    <div class="space-y-3">
+                        ${ffiAllocations.filter(alloc => alloc.ownership_history_available).map(alloc => createOwnershipHistoryCard(alloc)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Legacy function for backward compatibility
+function createEnhancedFFIDashboard(analysis, ffiAllocations) {
+    return createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, [], []);
+}
+
+// Create enhanced FFI allocation card with improve.md fields
+function createEnhancedFFIAllocationCard(alloc) {
+    const riskColor = alloc.riskLevel === 'High' ? 'red' : alloc.riskLevel === 'Medium' ? 'orange' : 'green';
+    const hasViolations = alloc.violations > 0;
+    const hasBorrowConflicts = alloc.borrowConflicts;
+    const hasClones = alloc.cloneCount > 0;
+    const isLeaked = alloc.isLeaked;
+    const hasOwnershipHistory = alloc.ownershipHistoryAvailable;
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-4 border-l-4 border-${riskColor}-500">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h4 class="font-semibold text-gray-900 dark:text-white">${alloc.var_name || 'Unknown Variable'}</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">${formatTypeName(alloc.type_name || 'Unknown Type')}</p>
+                    ${alloc.isClone ? '<span class="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full mt-1">Clone</span>' : ''}
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-${riskColor}-100 text-${riskColor}-800 dark:bg-${riskColor}-900 dark:text-${riskColor}-200">
+                        ${alloc.riskLevel} Risk
+                    </span>
+                    ${isLeaked ? '<div class="mt-1"><span class="px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full">LEAKED</span></div>' : ''}
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 text-sm mb-3">
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Size:</span>
+                    <span class="ml-2 font-mono">${formatBytes(alloc.size || 0)}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Risk Score:</span>
+                    <span class="ml-2 font-bold text-${riskColor}-600">${alloc.riskScore}/100</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Pointer:</span>
+                    <span class="ml-2 font-mono text-xs">${alloc.ptr}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Thread:</span>
+                    <span class="ml-2">${alloc.thread_id || 'Unknown'}</span>
+                </div>
+            </div>
+
+            <!-- Enhanced improve.md fields -->
+            <div class="grid grid-cols-3 gap-4 text-sm mb-3">
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Total Borrows:</span>
+                    <span class="ml-2 font-bold">${alloc.totalBorrowsForAlloc || 0}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Clone Count:</span>
+                    <span class="ml-2 font-bold">${alloc.cloneCount || 0}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">FFI Tracked:</span>
+                    <span class="ml-2">${alloc.ffi_tracked ? '✅' : '❌'}</span>
+                </div>
+            </div>
+            
+            ${hasViolations || hasBorrowConflicts || hasClones || hasOwnershipHistory ? `
+                <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-500">
+                    <div class="text-sm space-y-1">
+                        ${hasViolations ? `<div class="text-red-600 dark:text-red-400">⚠️ ${alloc.violations} safety violations</div>` : ''}
+                        ${hasBorrowConflicts ? `<div class="text-orange-600 dark:text-orange-400">⚠️ Borrow conflicts detected</div>` : ''}
+                        ${hasClones ? `<div class="text-blue-600 dark:text-blue-400">🔄 ${alloc.cloneCount} clones created</div>` : ''}
+                        ${hasOwnershipHistory ? `<div class="text-green-600 dark:text-green-400">📋 Ownership history available</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Legacy function for backward compatibility
+function createFFIAllocationCard(alloc) {
+    return createEnhancedFFIAllocationCard(alloc);
+}
+
+// Create enhanced borrow analysis card with improve.md fields
+function createEnhancedBorrowAnalysisCard(alloc) {
+    const borrowInfo = alloc.borrow_info;
+    const hasConflict = borrowInfo.mutable_borrows > 0 && borrowInfo.immutable_borrows > 0;
+    const lastBorrowTime = borrowInfo.last_borrow_timestamp ? new Date(borrowInfo.last_borrow_timestamp / 1000000).toLocaleTimeString() : 'Unknown';
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 ${hasConflict ? 'border-l-4 border-red-500' : 'border border-gray-200 dark:border-gray-500'}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">${alloc.var_name}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatTypeName(alloc.type_name)}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Last borrow: ${lastBorrowTime}</p>
+                </div>
+                <div class="text-right text-sm">
+                    <div class="text-blue-600 dark:text-blue-400">Immutable: ${borrowInfo.immutable_borrows}</div>
+                    <div class="text-red-600 dark:text-red-400">Mutable: ${borrowInfo.mutable_borrows}</div>
+                    <div class="text-purple-600 dark:text-purple-400">Max Concurrent: ${borrowInfo.max_concurrent_borrows}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Total: ${(borrowInfo.immutable_borrows || 0) + (borrowInfo.mutable_borrows || 0)}</div>
+                </div>
+            </div>
+            ${hasConflict ? `
+                <div class="mt-2 text-xs text-red-600 dark:text-red-400 font-bold">
+                    ⚠️ BORROW CONFLICT: Simultaneous mutable and immutable borrows detected
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Legacy function for backward compatibility
+function createBorrowAnalysisCard(alloc) {
+    return createEnhancedBorrowAnalysisCard(alloc);
+}
+
+// Create clone analysis card for improve.md clone_info fields
+function createCloneAnalysisCard(alloc) {
+    const cloneInfo = alloc.clone_info;
+    const isClone = cloneInfo.is_clone;
+    const cloneCount = cloneInfo.clone_count;
+    const originalPtr = cloneInfo.original_ptr;
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 border-l-4 border-blue-500">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">${alloc.var_name}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatTypeName(alloc.type_name)}</p>
+                    ${isClone ? `<p class="text-xs text-blue-600 dark:text-blue-400">Clone of: ${originalPtr}</p>` : ''}
+                </div>
+                <div class="text-right">
+                    <div class="text-blue-600 dark:text-blue-400 font-bold text-lg">${cloneCount}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Clones Created</div>
+                    ${isClone ? '<div class="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded mt-1">IS CLONE</div>' : ''}
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                ${cloneCount > 0 ? `🔄 This allocation has been cloned ${cloneCount} times` : ''}
+                ${isClone ? `<br>📋 This is a clone of allocation at ${originalPtr}` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Create ownership history card for improve.md ownership_history_available field
+function createOwnershipHistoryCard(alloc) {
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 border-l-4 border-green-500">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">${alloc.var_name}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatTypeName(alloc.type_name)}</p>
+                </div>
+                <div class="text-right">
+                    <div class="text-green-600 dark:text-green-400">📋 History Available</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Detailed tracking enabled</div>
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                ✅ Ownership history is available for this allocation in lifetime.json
+            </div>
+        </div>
+    `;
+}
+
+// Create unsafe report card for improve.md UnsafeReport structure
+function createUnsafeReportCard(report) {
+    const riskLevel = report.risk_assessment?.risk_level || 'Unknown';
+    const riskColor = riskLevel === 'High' ? 'red' : riskLevel === 'Medium' ? 'orange' : 'green';
+    const confidenceScore = report.risk_assessment?.confidence_score || 0;
+    const riskFactors = report.risk_assessment?.risk_factors || [];
+    const dynamicViolations = report.dynamic_violations || [];
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-4 border-l-4 border-${riskColor}-500">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h4 class="font-semibold text-gray-900 dark:text-white">Unsafe Report: ${report.report_id || 'Unknown'}</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">${report.source?.type || 'Unknown'} at ${report.source?.location || 'Unknown location'}</p>
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-${riskColor}-100 text-${riskColor}-800 dark:bg-${riskColor}-900 dark:text-${riskColor}-200">
+                        ${riskLevel} Risk
+                    </span>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Confidence: ${(confidenceScore * 100).toFixed(1)}%</div>
+                </div>
+            </div>
+            
+            ${riskFactors.length > 0 ? `
+                <div class="mb-3">
+                    <h5 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Risk Factors:</h5>
+                    <div class="space-y-1">
+                        ${riskFactors.map(factor => `
+                            <div class="text-sm">
+                                <span class="font-medium text-${riskColor}-600 dark:text-${riskColor}-400">${factor.factor_type}</span>
+                                <span class="text-gray-600 dark:text-gray-400"> (Severity: ${factor.severity}/10)</span>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">${factor.description}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            ${dynamicViolations.length > 0 ? `
+                <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-500">
+                    <h5 class="text-sm font-medium text-red-700 dark:text-red-300 mb-2">Dynamic Violations:</h5>
+                    <div class="space-y-1">
+                        ${dynamicViolations.map(violation => `
+                            <div class="text-sm text-red-600 dark:text-red-400">
+                                ⚠️ ${violation.violation_type}: ${violation.description}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Create memory passport card for improve.md MemoryPassport structure
+function createMemoryPassportCard(passport) {
+    const status = passport.status_at_shutdown || 'Unknown';
+    const statusColor = status === 'Reclaimed' ? 'green' : status === 'InForeignCustody' ? 'red' : 'orange';
+    const lifecycleEvents = passport.lifecycle_events || [];
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 border-l-4 border-${statusColor}-500">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">Passport: ${passport.passport_id || 'Unknown'}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Allocation: ${passport.allocation_ptr} (${formatBytes(passport.size_bytes || 0)})</p>
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-${statusColor}-100 text-${statusColor}-800 dark:bg-${statusColor}-900 dark:text-${statusColor}-200">
+                        ${status}
+                    </span>
+                </div>
+            </div>
+            
+            ${lifecycleEvents.length > 0 ? `
+                <div class="mt-2">
+                    <h6 class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Lifecycle Events:</h6>
+                    <div class="space-y-1">
+                        ${lifecycleEvents.slice(0, 3).map(event => `
+                            <div class="text-xs text-gray-600 dark:text-gray-400">
+                                📅 ${event.event_type} ${event.how ? `(${event.how})` : ''}
+                            </div>
+                        `).join('')}
+                        ${lifecycleEvents.length > 3 ? `<div class="text-xs text-gray-500 dark:text-gray-400">... and ${lifecycleEvents.length - 3} more events</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
 }
 
 // Create FFI empty state
 function createFFIEmptyState() {
     return `
-        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-            <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                <i class="fa fa-shield text-primary mr-2"></i>Unsafe FFI Analysis
-            </h2>
-            <div class="text-center py-8">
-                <div class="mb-4">
-                    <svg class="w-16 h-16 mx-auto text-green-400 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                    </svg>
-                </div>
-                <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Memory Safety Verified</h4>
-                <p class="text-sm text-gray-600 dark:text-gray-400">No unsafe FFI operations detected in this analysis</p>
-                <p class="text-xs mt-2 text-gray-500 dark:text-gray-500">Your code appears to be using safe Rust patterns</p>
+        <div class="text-center py-8">
+            <div class="mb-4">
+                <svg class="w-16 h-16 mx-auto text-green-400 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
             </div>
+            <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Memory Safety Verified</h4>
+            <p class="text-sm text-gray-600 dark:text-gray-400">No unsafe FFI operations detected in this analysis</p>
+            <p class="text-xs mt-2 text-gray-500 dark:text-gray-500">Your code appears to be using safe Rust patterns</p>
         </div>
     `;
 }
@@ -3741,4 +4236,5 @@ function getEfficiencyColor(efficiency) {
 document.addEventListener("DOMContentLoaded", () => {
     console.log('MemScope dashboard loaded');
     initializeDashboard();
+    initFFIVisualization();
 });
