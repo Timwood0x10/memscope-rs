@@ -58,6 +58,30 @@ pub struct MemoryStatistics {
     pub memory_efficiency: f64,
 }
 
+/// Borrow information for unsafe/FFI tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BorrowInfo {
+    /// Number of immutable borrows
+    pub immutable_borrows: u32,
+    /// Number of mutable borrows
+    pub mutable_borrows: u32,
+    /// Maximum concurrent borrows
+    pub max_concurrent_borrows: u32,
+    /// Last borrow timestamp
+    pub last_borrow_timestamp: u64,
+}
+
+/// Clone information for memory tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloneInfo {
+    /// Number of clones created
+    pub clone_count: u32,
+    /// Whether this allocation is a clone
+    pub is_clone: bool,
+    /// Original pointer if this is a clone
+    pub original_ptr: Option<String>,
+}
+
 /// Allocation information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationInfo {
@@ -75,12 +99,26 @@ pub struct AllocationInfo {
     pub timestamp_alloc: u64,
     /// Deallocation timestamp
     pub timestamp_dealloc: Option<u64>,
+    /// Thread ID
+    pub thread_id: Option<String>,
+    /// Borrow count
+    pub borrow_count: Option<u32>,
     /// Stack trace
     pub stack_trace: Option<Vec<String>>,
     /// Whether allocation is leaked
     pub is_leaked: bool,
     /// Lifetime in milliseconds
     pub lifetime_ms: Option<u64>,
+    /// Borrow information for unsafe/FFI tracking
+    pub borrow_info: Option<BorrowInfo>,
+    /// Clone information
+    pub clone_info: Option<CloneInfo>,
+    /// Whether ownership history is available
+    pub ownership_history_available: Option<bool>,
+    /// Whether FFI tracking is enabled
+    pub ffi_tracked: Option<bool>,
+    /// Safety violations
+    pub safety_violations: Option<Vec<String>>,
 }
 
 /// Performance metrics
@@ -416,17 +454,49 @@ impl DataNormalizer {
         &self,
         multi_source: &HashMap<String, Value>,
     ) -> Result<Vec<AllocationInfo>, NormalizationError> {
+        // Try to get allocations from memory_analysis or unsafe_ffi
         let memory_data = multi_source.get("memory_analysis");
+        let unsafe_ffi_data = multi_source.get("unsafe_ffi");
+        
         let empty_vec = vec![];
         let allocations_array = memory_data
             .and_then(|data| data.get("allocations"))
             .and_then(|allocs| allocs.as_array())
+            .or_else(|| unsafe_ffi_data
+                .and_then(|data| data.get("allocations"))
+                .and_then(|allocs| allocs.as_array()))
             .unwrap_or(&empty_vec);
 
         let mut normalized_allocations = Vec::new();
 
         for (index, alloc) in allocations_array.iter().enumerate() {
             if let Some(_alloc_obj) = alloc.as_object() {
+                // Extract borrow_info if present
+                let borrow_info = alloc.get("borrow_info").and_then(|bi| {
+                    Some(BorrowInfo {
+                        immutable_borrows: self.extract_u32(Some(bi), "immutable_borrows").unwrap_or(0),
+                        mutable_borrows: self.extract_u32(Some(bi), "mutable_borrows").unwrap_or(0),
+                        max_concurrent_borrows: self.extract_u32(Some(bi), "max_concurrent_borrows").unwrap_or(0),
+                        last_borrow_timestamp: self.extract_u64(Some(bi), "last_borrow_timestamp").unwrap_or(0),
+                    })
+                });
+
+                // Extract clone_info if present
+                let clone_info = alloc.get("clone_info").and_then(|ci| {
+                    Some(CloneInfo {
+                        clone_count: self.extract_u32(Some(ci), "clone_count").unwrap_or(0),
+                        is_clone: self.extract_bool(Some(ci), "is_clone").unwrap_or(false),
+                        original_ptr: self.extract_string(Some(ci), "original_ptr"),
+                    })
+                });
+
+                // Extract safety_violations if present
+                let safety_violations = alloc.get("safety_violations")
+                    .and_then(|sv| sv.as_array())
+                    .map(|arr| arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect());
+
                 let allocation_info = AllocationInfo {
                     ptr: self
                         .extract_string(Some(alloc), "ptr")
@@ -442,9 +512,16 @@ impl DataNormalizer {
                         .or_else(|| self.extract_u64(Some(alloc), "timestamp"))
                         .unwrap_or(0),
                     timestamp_dealloc: self.extract_u64(Some(alloc), "timestamp_dealloc"),
+                    thread_id: self.extract_string(Some(alloc), "thread_id"),
+                    borrow_count: self.extract_u32(Some(alloc), "borrow_count"),
                     stack_trace: self.extract_string_array(Some(alloc), "stack_trace"),
                     is_leaked: self.extract_bool(Some(alloc), "is_leaked").unwrap_or(false),
                     lifetime_ms: self.extract_u64(Some(alloc), "lifetime_ms"),
+                    borrow_info,
+                    clone_info,
+                    ownership_history_available: self.extract_bool(Some(alloc), "ownership_history_available"),
+                    ffi_tracked: self.extract_bool(Some(alloc), "ffi_tracked"),
+                    safety_violations,
                 };
                 normalized_allocations.push(allocation_info);
             }
@@ -755,6 +832,10 @@ impl DataNormalizer {
             .iter()
             .map(|v| v.as_str().map(|s| s.to_string()))
             .collect()
+    }
+
+    fn extract_u32(&self, data: Option<&Value>, field: &str) -> Option<u32> {
+        data?.get(field)?.as_u64().map(|v| v as u32)
     }
 }
 

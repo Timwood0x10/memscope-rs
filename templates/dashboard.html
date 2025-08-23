@@ -911,8 +911,12 @@
             // Try to get unsafe/ffi data from various sources
             let unsafeFfiData = [];
             
-            // Check embedded data first
-            if (window.analysisData.unsafe_ffi?.enhanced_ffi_data) {
+            // Check for actual unsafe_ffi allocations first
+            if (window.analysisData.unsafe_ffi?.allocations) {
+                unsafeFfiData = window.analysisData.unsafe_ffi.allocations;
+                console.log('📊 Found FFI data in unsafe_ffi.allocations:', unsafeFfiData.length);
+                console.log('📊 Sample data:', unsafeFfiData.slice(0, 2));
+            } else if (window.analysisData.unsafe_ffi?.enhanced_ffi_data) {
                 unsafeFfiData = window.analysisData.unsafe_ffi.enhanced_ffi_data;
                 console.log('📊 Found FFI data in unsafe_ffi.enhanced_ffi_data:', unsafeFfiData.length);
             } else if (window.analysisData.enhanced_ffi_data) {
@@ -927,6 +931,12 @@
             } else if (window.analysisData.unsafe_ffi_analysis) {
                 unsafeFfiData = window.analysisData.unsafe_ffi_analysis;
                 console.log('📊 Found FFI data in unsafe_ffi_analysis:', unsafeFfiData.length);
+            } else {
+                console.log('❌ No FFI data found');
+                if (fallback) {
+                    fallback.classList.remove('hidden');
+                }
+                return;
             }
             
             console.log('🛡️ Creating unsafe/FFI analysis with', unsafeFfiData.length, 'items');
@@ -948,14 +958,22 @@
                 container.style.display = 'block';
             }
             
+            console.log('🔍 About to call generateUnsafeFfiAnalysisHtml with data length:', unsafeFfiData.length);
+            console.log('🔍 Data sample before calling function:', unsafeFfiData[0]);
+            
             // Generate unsafe/FFI analysis HTML
             const unsafeFfiHtml = generateUnsafeFfiAnalysisHtml(unsafeFfiData);
+            console.log('🔍 Generated HTML preview:', unsafeFfiHtml.substring(0, 200));
             container.innerHTML = unsafeFfiHtml;
         }
 
         // Generate Unsafe/FFI Analysis HTML
         function generateUnsafeFfiAnalysisHtml(unsafeFfiData) {
+            console.log('🔍 generateUnsafeFfiAnalysisHtml called with:', unsafeFfiData);
+            console.log('🔍 Data type:', typeof unsafeFfiData, 'Length:', unsafeFfiData ? unsafeFfiData.length : 'undefined');
+            
             if (!unsafeFfiData || unsafeFfiData.length === 0) {
+                console.log('❌ No data available for unsafe/FFI analysis');
                 return '<div class="text-center py-8 text-gray-500 dark:text-gray-400"><p>No unsafe/FFI data available</p></div>';
             }
             
@@ -967,8 +985,36 @@
             visibleItems.forEach((item, index) => {
                 const ptr = item.ptr || 'Unknown';
                 const size = item.size || 0;
-                const varName = item.var_name || `unsafe_item_${index}`;
-                const typeName = item.type_name || 'Unknown Type';
+                const varName = item.var_name || 'Unknown';
+                const typeName = item.type_name || 'Unknown';
+                const ffiTracked = item.ffi_tracked ? '✅' : '❌';
+                const borrowInfo = item.borrow_info || {};
+                const cloneInfo = item.clone_info || {};
+                const safetyViolations = item.safety_violations || [];
+                
+                html += '<div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border-l-4 border-yellow-500">' +
+                    '<div class="flex justify-between items-start mb-2">' +
+                        '<h4 class="font-semibold text-sm">' + varName + ' (' + typeName + ')</h4>' +
+                        '<span class="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded">' +
+                            'FFI Tracked: ' + ffiTracked +
+                        '</span>' +
+                    '</div>' +
+                    '<div class="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">' +
+                        '<div>Pointer: <code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">' + ptr + '</code></div>' +
+                        '<div>Size: ' + size + ' bytes</div>' +
+                        '<div>Immutable Borrows: ' + (borrowInfo.immutable_borrows || 0) + '</div>' +
+                        '<div>Mutable Borrows: ' + (borrowInfo.mutable_borrows || 0) + '</div>' +
+                        '<div>Clone Count: ' + (cloneInfo.clone_count || 0) + '</div>' +
+                        '<div>Safety Violations: ' + safetyViolations.length + '</div>' +
+                    '</div>' +
+                    (safetyViolations.length > 0 ? 
+                        '<div class="mt-2 p-2 bg-red-50 dark:bg-red-900 rounded text-xs">' +
+                            '<strong>Safety Violations:</strong>' +
+                            '<ul class="list-disc list-inside mt-1">' +
+                                safetyViolations.map(function(v) { return '<li>' + v + '</li>'; }).join('') +
+                            '</ul>' +
+                        '</div>' : '') +
+                '</div>';
                 const threadId = item.thread_id || 'Unknown Thread';
                 const runtimeState = item.runtime_state?.status || 'not_analyzed';
                 

@@ -1727,6 +1727,8 @@ function initFFIVisualization() {
         if (window.analysisData.unsafe_ffi) {
             console.log('🔍 unsafe_ffi keys:', Object.keys(window.analysisData.unsafe_ffi));
             console.log('🔍 unsafe_ffi.allocations exists:', !!window.analysisData.unsafe_ffi.allocations);
+            
+            // Data will be handled by initializeAnalysis function
             console.log('🔍 unsafe_ffi.allocations length:', window.analysisData.unsafe_ffi.allocations ? window.analysisData.unsafe_ffi.allocations.length : 'undefined');
         }
         
