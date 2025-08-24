@@ -28,7 +28,7 @@
     <script>
         // Global data store - populated by Rust template
         window.analysisData = {{ json_data }};
-        window.embeddedJsonData = {{ json_data }};
+        window.embeddedJsonData = window.analysisData;
     </script>
 
     <style type="text/tailwindcss">
@@ -910,20 +910,28 @@
             
             // Try to get unsafe/ffi data from various sources
             let unsafeFfiData = [];
+            let enhancedFfiData = null;
             
             // Check for actual unsafe_ffi allocations first
             if (window.analysisData.unsafe_ffi?.allocations) {
                 unsafeFfiData = window.analysisData.unsafe_ffi.allocations;
+                enhancedFfiData = window.analysisData.unsafe_ffi;
                 console.log('📊 Found FFI data in unsafe_ffi.allocations:', unsafeFfiData.length);
                 console.log('📊 Sample data:', unsafeFfiData.slice(0, 2));
+            } else if (window.analysisData.large_scale_user_unsafe_ffi?.allocations) {
+                unsafeFfiData = window.analysisData.large_scale_user_unsafe_ffi.allocations;
+                enhancedFfiData = window.analysisData.large_scale_user_unsafe_ffi;
+                console.log('📊 Found FFI data in large_scale_user_unsafe_ffi.allocations:', unsafeFfiData.length);
             } else if (window.analysisData.unsafe_ffi?.enhanced_ffi_data) {
                 unsafeFfiData = window.analysisData.unsafe_ffi.enhanced_ffi_data;
+                enhancedFfiData = window.analysisData.unsafe_ffi;
                 console.log('📊 Found FFI data in unsafe_ffi.enhanced_ffi_data:', unsafeFfiData.length);
             } else if (window.analysisData.enhanced_ffi_data) {
                 unsafeFfiData = window.analysisData.enhanced_ffi_data;
                 console.log('📊 Found FFI data in enhanced_ffi_data:', unsafeFfiData.length);
             } else if (window.analysisData.unsafe_ffi?.boundary_events) {
                 unsafeFfiData = window.analysisData.unsafe_ffi.boundary_events;
+                enhancedFfiData = window.analysisData.unsafe_ffi;
                 console.log('📊 Found FFI data in unsafe_ffi.boundary_events:', unsafeFfiData.length);
             } else if (window.analysisData.boundary_events) {
                 unsafeFfiData = window.analysisData.boundary_events;
@@ -958,137 +966,85 @@
                 container.style.display = 'block';
             }
             
-            console.log('🔍 About to call generateUnsafeFfiAnalysisHtml with data length:', unsafeFfiData.length);
+            console.log('🔍 About to call generateEnhancedUnsafeFfiAnalysisHtml with data length:', unsafeFfiData.length);
             console.log('🔍 Data sample before calling function:', unsafeFfiData[0]);
             
-            // Generate unsafe/FFI analysis HTML
-            const unsafeFfiHtml = generateUnsafeFfiAnalysisHtml(unsafeFfiData);
+            // Generate enhanced unsafe/FFI analysis HTML with SVG-inspired design
+            const unsafeFfiHtml = generateEnhancedUnsafeFfiAnalysisHtml(unsafeFfiData, enhancedFfiData);
             console.log('🔍 Generated HTML preview:', unsafeFfiHtml.substring(0, 200));
             container.innerHTML = unsafeFfiHtml;
         }
 
         // Generate Unsafe/FFI Analysis HTML
         function generateUnsafeFfiAnalysisHtml(unsafeFfiData) {
-            console.log('🔍 generateUnsafeFfiAnalysisHtml called with:', unsafeFfiData);
-            console.log('🔍 Data type:', typeof unsafeFfiData, 'Length:', unsafeFfiData ? unsafeFfiData.length : 'undefined');
+            console.log('🔍 Enhanced FFI Analysis with', unsafeFfiData.length, 'allocations');
             
             if (!unsafeFfiData || unsafeFfiData.length === 0) {
-                console.log('❌ No data available for unsafe/FFI analysis');
-                return '<div class="text-center py-8 text-gray-500 dark:text-gray-400"><p>No unsafe/FFI data available</p></div>';
+                return createEmptyFFIState();
             }
+
+            // Calculate comprehensive statistics
+            const stats = calculateFFIStatistics(unsafeFfiData);
             
-            let html = '<div class="grid gap-4">';
-            
-            // Take first 10 items for display
-            const visibleItems = unsafeFfiData.slice(0, 10);
-            
-            visibleItems.forEach((item, index) => {
-                const ptr = item.ptr || 'Unknown';
-                const size = item.size || 0;
-                const varName = item.var_name || 'Unknown';
-                const typeName = item.type_name || 'Unknown';
-                const ffiTracked = item.ffi_tracked ? '✅' : '❌';
-                const borrowInfo = item.borrow_info || {};
-                const cloneInfo = item.clone_info || {};
-                const safetyViolations = item.safety_violations || [];
-                
-                html += '<div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border-l-4 border-yellow-500">' +
-                    '<div class="flex justify-between items-start mb-2">' +
-                        '<h4 class="font-semibold text-sm">' + varName + ' (' + typeName + ')</h4>' +
-                        '<span class="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded">' +
-                            'FFI Tracked: ' + ffiTracked +
-                        '</span>' +
-                    '</div>' +
-                    '<div class="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">' +
-                        '<div>Pointer: <code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">' + ptr + '</code></div>' +
-                        '<div>Size: ' + size + ' bytes</div>' +
-                        '<div>Immutable Borrows: ' + (borrowInfo.immutable_borrows || 0) + '</div>' +
-                        '<div>Mutable Borrows: ' + (borrowInfo.mutable_borrows || 0) + '</div>' +
-                        '<div>Clone Count: ' + (cloneInfo.clone_count || 0) + '</div>' +
-                        '<div>Safety Violations: ' + safetyViolations.length + '</div>' +
-                    '</div>' +
-                    (safetyViolations.length > 0 ? 
-                        '<div class="mt-2 p-2 bg-red-50 dark:bg-red-900 rounded text-xs">' +
-                            '<strong>Safety Violations:</strong>' +
-                            '<ul class="list-disc list-inside mt-1">' +
-                                safetyViolations.map(function(v) { return '<li>' + v + '</li>'; }).join('') +
-                            '</ul>' +
-                        '</div>' : '') +
-                '</div>';
-                const threadId = item.thread_id || 'Unknown Thread';
-                const runtimeState = item.runtime_state?.status || 'not_analyzed';
-                
-                // Determine risk level based on available data
-                let riskLevel = 'Low';
-                let riskColor = 'green';
-                if (size > 1024) {
-                    riskLevel = 'Medium';
-                    riskColor = 'yellow';
-                }
-                if (size > 10240 || typeName.includes('unsafe') || ptr.includes('0x0')) {
-                    riskLevel = 'High';
-                    riskColor = 'red';
-                }
-                
-                html += `
-                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                        <div class="flex items-start justify-between mb-3">
-                            <div class="flex items-center">
-                                <i class="fa fa-exclamation-triangle text-${riskColor}-500 mr-2"></i>
-                                <h4 class="font-medium text-gray-900 dark:text-gray-100">${varName}</h4>
-                            </div>
-                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-${riskColor}-100 text-${riskColor}-800 dark:bg-${riskColor}-900 dark:text-${riskColor}-200">
-                                ${riskLevel} Risk
-                            </span>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <span class="text-gray-500 dark:text-gray-400">Pointer:</span>
-                                <span class="ml-2 font-mono text-gray-900 dark:text-gray-100">${ptr}</span>
-                            </div>
-                            <div>
-                                <span class="text-gray-500 dark:text-gray-400">Size:</span>
-                                <span class="ml-2 text-gray-900 dark:text-gray-100">${formatBytes(size)}</span>
-                            </div>
-                            <div>
-                                <span class="text-gray-500 dark:text-gray-400">Type:</span>
-                                <span class="ml-2 text-gray-900 dark:text-gray-100">${typeName}</span>
-                            </div>
-                            <div>
-                                <span class="text-gray-500 dark:text-gray-400">Thread:</span>
-                                <span class="ml-2 text-gray-900 dark:text-gray-100">${threadId}</span>
-                            </div>
-                            <div class="col-span-2">
-                                <span class="text-gray-500 dark:text-gray-400">Status:</span>
-                                <span class="ml-2 text-gray-900 dark:text-gray-100">${runtimeState}</span>
+            return `
+                <div class="unsafe-ffi-dashboard" style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); border-radius: 12px; padding: 24px; color: #ecf0f1; margin-bottom: 24px;">
+                    <h3 class="text-xl font-bold text-center mb-6" style="color: #ecf0f1;">
+                        Unsafe Rust & FFI Memory Analysis Dashboard
+                    </h3>
+                    
+                    <!-- Key Metrics Row - SVG Style -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                        ${createMetricCard(stats.unsafeAllocations, 'Unsafe Allocations', '#e74c3c')}
+                        ${createMetricCard(stats.ffiAllocations, 'FFI Allocations', '#3498db')}
+                        ${createMetricCard(stats.boundaryCrossings, 'Boundary Crossings', '#f39c12')}
+                        ${createMetricCard(stats.safetyViolations, 'Safety Violations', '#e67e22')}
+                        ${createMetricCard(formatBytes(stats.unsafeMemory), 'Unsafe Memory', '#9b59b6')}
+                    </div>
+                    
+                    <!-- Memory Flow Visualization -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="memory-sources-section">
+                            <h4 class="text-lg font-semibold mb-4 text-center" style="color: #ecf0f1;">Memory Allocation Sources</h4>
+                            <div class="bg-black bg-opacity-20 rounded-lg p-6 border-2" style="border-color: #34495e;">
+                                ${createAllocationSourcesChart(stats)}
                             </div>
                         </div>
                         
-                        ${item.stack_trace && item.stack_trace.length > 0 && item.stack_trace[0] !== 'no_stack_trace_available' ? `
-                            <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                <span class="text-xs text-gray-500 dark:text-gray-400">Stack Trace:</span>
-                                <div class="mt-1 text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                                    ${item.stack_trace.slice(0, 3).join('<br>')}
-                                    ${item.stack_trace.length > 3 ? '<br>...' : ''}
-                                </div>
+                        <div class="memory-flow-section">
+                            <h4 class="text-lg font-semibold mb-4 text-center" style="color: #ecf0f1;">Cross-Language Memory Flow</h4>
+                            <div class="bg-black bg-opacity-20 rounded-lg p-6 border-2" style="border-color: #34495e;">
+                                ${createMemoryFlowVisualization(stats)}
                             </div>
-                        ` : ''}
+                        </div>
                     </div>
-                `;
-            });
-            
-            html += '</div>';
-            
-            if (unsafeFfiData.length > 10) {
-                html += `
-                    <div class="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
-                        ... and ${unsafeFfiData.length - 10} more unsafe/FFI operations
+                </div>
+                
+                <!-- Detailed Analysis Table -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                    <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                        <h4 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Detailed Unsafe/FFI Analysis</h4>
                     </div>
-                `;
-            }
-            
-            return html;
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variable</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">FFI Status</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Safety</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Risk Level</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                ${unsafeFfiData.slice(0, 50).map(item => createTableRow(item)).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                ${stats.safetyViolations > 0 ? createSafetyViolationsAlert(unsafeFfiData) : ''}
+            `;
         }
 
         // Enhanced memory timeline chart creation (for canvas charts)
@@ -1296,6 +1252,596 @@
             if (window.analysisData.memory_analysis?.allocations) {
                 updateSummaryStats(window.analysisData.memory_analysis.allocations);
             }
+        }
+
+        // Enhanced FFI Analysis with SVG-inspired design
+        function generateEnhancedUnsafeFfiAnalysisHtml(unsafeFfiData, enhancedFfiData) {
+            console.log('🎨 Creating enhanced FFI visualization with', unsafeFfiData.length, 'allocations');
+            
+            if (!unsafeFfiData || unsafeFfiData.length === 0) {
+                return createEmptyFFIState();
+            }
+
+            // Calculate comprehensive statistics
+            const stats = calculateEnhancedFFIStatistics(unsafeFfiData, enhancedFfiData);
+            
+            return `
+                <div class="unsafe-ffi-dashboard" style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); border-radius: 12px; padding: 24px; color: #ecf0f1; margin-bottom: 24px; font-family: 'Segoe UI', Arial, sans-serif;">
+                    <h3 class="text-2xl font-bold text-center mb-6" style="color: #ecf0f1;">
+                        <i class="fa fa-shield mr-2"></i>Unsafe Rust & FFI Memory Analysis Dashboard
+                    </h3>
+                    
+                    <!-- Key Metrics Row - SVG Style -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                        ${createEnhancedMetricCard(stats.unsafeAllocations, 'Unsafe Allocations', '#e74c3c', 'fa-exclamation-triangle')}
+                        ${createEnhancedMetricCard(stats.ffiAllocations, 'FFI Allocations', '#3498db', 'fa-exchange')}
+                        ${createEnhancedMetricCard(stats.boundaryCrossings, 'Boundary Crossings', '#f39c12', 'fa-arrows-h')}
+                        ${createEnhancedMetricCard(stats.safetyViolations, 'Safety Violations', '#e67e22', 'fa-warning')}
+                        ${createEnhancedMetricCard(formatBytes(stats.unsafeMemory), 'Unsafe Memory', '#9b59b6', 'fa-memory')}
+                    </div>
+                    
+                    <!-- Memory Flow and Hotspots Visualization -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                        <div class="memory-sources-section">
+                            <h4 class="text-lg font-semibold mb-4 text-center" style="color: #ecf0f1;">
+                                <i class="fa fa-bar-chart mr-2"></i>Memory Allocation Sources
+                            </h4>
+                            <div class="bg-black bg-opacity-30 rounded-lg p-6 border-2" style="border-color: #34495e;">
+                                ${createEnhancedAllocationSourcesChart(stats)}
+                            </div>
+                        </div>
+                        
+                        <div class="memory-safety-section">
+                            <h4 class="text-lg font-semibold mb-4 text-center" style="color: #ecf0f1;">
+                                <i class="fa fa-shield mr-2"></i>Memory Safety Status
+                            </h4>
+                            <div class="bg-black bg-opacity-30 rounded-lg p-6 border-2" style="border-color: ${stats.safetyViolations > 0 ? '#e74c3c' : '#2ecc71'};">
+                                ${createMemorySafetyStatus(stats)}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Cross-Language Memory Flow -->
+                    <div class="memory-flow-section mb-8">
+                        <h4 class="text-lg font-semibold mb-4 text-center" style="color: #ecf0f1;">
+                            <i class="fa fa-exchange mr-2"></i>Cross-Language Memory Flow
+                        </h4>
+                        <div class="bg-black bg-opacity-30 rounded-lg p-6 border-2" style="border-color: #34495e;">
+                            ${createCrossLanguageMemoryFlow(stats)}
+                        </div>
+                    </div>
+                    
+                    <!-- Memory Hotspots -->
+                    <div class="memory-hotspots-section">
+                        <h4 class="text-lg font-semibold mb-4 text-center" style="color: #ecf0f1;">
+                            <i class="fa fa-fire mr-2"></i>Unsafe Memory Hotspots
+                        </h4>
+                        <div class="bg-black bg-opacity-30 rounded-lg p-6 border-2" style="border-color: #34495e;">
+                            ${createMemoryHotspotsVisualization(unsafeFfiData)}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detailed Analysis Table -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden mb-6">
+                    <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                        <h4 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            <i class="fa fa-table mr-2"></i>Detailed Unsafe/FFI Analysis
+                        </h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variable</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">FFI Status</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Safety</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Risk Level</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                ${unsafeFfiData.slice(0, 50).map(item => createEnhancedTableRow(item)).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                ${stats.safetyViolations > 0 ? createEnhancedSafetyViolationsAlert(unsafeFfiData) : ''}
+            `;
+        }
+
+        // Enhanced FFI Analysis Helper Functions
+        
+        // Create enhanced metric card inspired by SVG dashboard
+        function createEnhancedMetricCard(value, label, color, icon) {
+            return `
+                <div class="metric-card" style="background: ${color}20; border: 2px solid ${color}; border-radius: 8px; padding: 16px; text-align: center; position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: -10px; right: -10px; width: 40px; height: 40px; background: ${color}30; border-radius: 50%; opacity: 0.3;"></div>
+                    <i class="fa ${icon}" style="color: ${color}; font-size: 24px; margin-bottom: 8px;"></i>
+                    <div style="color: ${color}; font-size: 20px; font-weight: bold; margin-bottom: 4px;">${value}</div>
+                    <div style="color: #bdc3c7; font-size: 12px; text-transform: uppercase;">${label}</div>
+                </div>
+            `;
+        }
+
+        // Calculate enhanced FFI statistics
+        function calculateEnhancedFFIStatistics(unsafeFfiData, enhancedFfiData) {
+            const stats = {
+                totalAllocations: unsafeFfiData.length,
+                unsafeAllocations: 0,
+                ffiAllocations: 0,
+                boundaryCrossings: 0,
+                safetyViolations: 0,
+                unsafeMemory: 0,
+                totalMemory: 0,
+                borrowConflicts: 0,
+                leakedAllocations: 0
+            };
+
+            unsafeFfiData.forEach(item => {
+                const size = item.size || 0;
+                stats.totalMemory += size;
+
+                // Count FFI tracked allocations
+                if (item.ffi_tracked) {
+                    stats.ffiAllocations++;
+                }
+
+                // Count safety violations
+                if (item.safety_violations && item.safety_violations.length > 0) {
+                    stats.safetyViolations += item.safety_violations.length;
+                    stats.unsafeAllocations++;
+                    stats.unsafeMemory += size;
+                }
+
+                // Count borrow conflicts
+                if (item.borrow_info) {
+                    const immutable = item.borrow_info.immutable_borrows || 0;
+                    const mutable = item.borrow_info.mutable_borrows || 0;
+                    if (immutable > 0 && mutable > 0) {
+                        stats.borrowConflicts++;
+                    }
+                }
+
+                // Count leaked allocations
+                if (item.is_leaked) {
+                    stats.leakedAllocations++;
+                }
+            });
+
+            // Use enhanced data if available
+            if (enhancedFfiData) {
+                if (enhancedFfiData.dashboard_metrics) {
+                    const metrics = enhancedFfiData.dashboard_metrics;
+                    stats.boundaryCrossings = metrics.boundary_crossings || stats.boundaryCrossings;
+                    stats.unsafeMemory = metrics.unsafe_memory || stats.unsafeMemory;
+                }
+            }
+
+            return stats;
+        }
+
+        // Create enhanced allocation sources chart
+        function createEnhancedAllocationSourcesChart(stats) {
+            const unsafeHeight = Math.max(16, (stats.unsafeAllocations / stats.totalAllocations) * 200);
+            const ffiHeight = Math.max(16, (stats.ffiAllocations / stats.totalAllocations) * 200);
+            
+            return `
+                <div style="display: flex; align-items: end; justify-content: center; height: 200px; gap: 40px;">
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <div style="background: #e74c3c; width: 40px; height: ${unsafeHeight}px; border-radius: 4px 4px 0 0; position: relative;">
+                            <div style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%); color: #e74c3c; font-weight: bold; font-size: 12px;">${stats.unsafeAllocations}</div>
+                        </div>
+                        <div style="color: #ecf0f1; font-size: 10px; margin-top: 8px; text-align: center;">Unsafe<br>Rust</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <div style="background: #3498db; width: 40px; height: ${ffiHeight}px; border-radius: 4px 4px 0 0; position: relative;">
+                            <div style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%); color: #3498db; font-weight: bold; font-size: 12px;">${stats.ffiAllocations}</div>
+                        </div>
+                        <div style="color: #ecf0f1; font-size: 10px; margin-top: 8px; text-align: center;">FFI</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Create memory safety status
+        function createMemorySafetyStatus(stats) {
+            const safetyPercentage = stats.totalAllocations > 0 ? 
+                Math.round(((stats.totalAllocations - stats.unsafeAllocations) / stats.totalAllocations) * 100) : 100;
+            
+            const statusColor = safetyPercentage >= 90 ? '#2ecc71' : safetyPercentage >= 70 ? '#f39c12' : '#e74c3c';
+            const statusText = safetyPercentage >= 90 ? 'Excellent' : safetyPercentage >= 70 ? 'Good' : 'Needs Attention';
+            
+            return `
+                <div style="text-align: center;">
+                    <div style="color: ${statusColor}; font-size: 32px; font-weight: bold; margin-bottom: 8px;">${safetyPercentage}%</div>
+                    <div style="color: #ecf0f1; font-size: 14px; margin-bottom: 16px;">Memory Safety Score</div>
+                    <div style="background: ${statusColor}20; border: 1px solid ${statusColor}; border-radius: 16px; padding: 8px 16px; display: inline-block;">
+                        <span style="color: ${statusColor}; font-size: 12px; font-weight: bold;">${statusText}</span>
+                    </div>
+                    ${stats.safetyViolations > 0 ? `
+                        <div style="margin-top: 16px; color: #e74c3c; font-size: 12px;">
+                            <i class="fa fa-warning mr-1"></i>${stats.safetyViolations} Safety Violations Detected
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Create cross-language memory flow
+        function createCrossLanguageMemoryFlow(stats) {
+            return `
+                <div style="display: flex; align-items: center; justify-content: center; gap: 40px;">
+                    <div style="background: #2ecc7120; border: 2px solid #2ecc71; border-radius: 8px; padding: 20px; text-align: center; min-width: 120px;">
+                        <i class="fa fa-code" style="color: #2ecc71; font-size: 24px; margin-bottom: 8px;"></i>
+                        <div style="color: #2ecc71; font-size: 16px; font-weight: bold;">RUST</div>
+                        <div style="color: #ecf0f1; font-size: 12px; margin-top: 4px;">${stats.totalAllocations - stats.ffiAllocations} allocations</div>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 60px; height: 3px; background: #e74c3c;"></div>
+                            <div style="width: 0; height: 0; border-left: 8px solid #e74c3c; border-top: 6px solid transparent; border-bottom: 6px solid transparent;"></div>
+                        </div>
+                        <div style="color: #e74c3c; font-size: 12px; font-weight: bold;">${stats.boundaryCrossings || 'N/A'}</div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 0; height: 0; border-right: 8px solid #f39c12; border-top: 6px solid transparent; border-bottom: 6px solid transparent;"></div>
+                            <div style="width: 60px; height: 3px; background: #f39c12;"></div>
+                        </div>
+                        <div style="color: #f39c12; font-size: 12px; font-weight: bold;">Return Flow</div>
+                    </div>
+                    
+                    <div style="background: #3498db20; border: 2px solid #3498db; border-radius: 8px; padding: 20px; text-align: center; min-width: 120px;">
+                        <i class="fa fa-exchange" style="color: #3498db; font-size: 24px; margin-bottom: 8px;"></i>
+                        <div style="color: #3498db; font-size: 16px; font-weight: bold;">FFI / C</div>
+                        <div style="color: #ecf0f1; font-size: 12px; margin-top: 4px;">${stats.ffiAllocations} allocations</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Create memory hotspots visualization
+        function createMemoryHotspotsVisualization(unsafeFfiData) {
+            // Sort by size and take top hotspots
+            const hotspots = unsafeFfiData
+                .filter(item => item.size > 0)
+                .sort((a, b) => (b.size || 0) - (a.size || 0))
+                .slice(0, 6);
+
+            if (hotspots.length === 0) {
+                return '<div style="text-align: center; color: #ecf0f1; padding: 20px;">No memory hotspots detected</div>';
+            }
+
+            const maxSize = hotspots[0].size || 1;
+            
+            return `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 16px; align-items: end; height: 120px;">
+                    ${hotspots.map(item => {
+                        const size = item.size || 0;
+                        const radius = Math.max(8, Math.min(40, (size / maxSize) * 40));
+                        const isUnsafe = item.safety_violations && item.safety_violations.length > 0;
+                        const color = isUnsafe ? '#e74c3c' : '#3498db';
+                        const category = isUnsafe ? 'UNSAFE' : 'FFI';
+                        
+                        return `
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <div style="
+                                    width: ${radius * 2}px; 
+                                    height: ${radius * 2}px; 
+                                    background: ${color}70; 
+                                    border: 2px solid ${color}; 
+                                    border-radius: 50%; 
+                                    display: flex; 
+                                    align-items: center; 
+                                    justify-content: center;
+                                    margin-bottom: 8px;
+                                ">
+                                    <span style="color: white; font-size: 8px; font-weight: bold; text-align: center;">
+                                        ${formatBytes(size)}
+                                    </span>
+                                </div>
+                                <div style="color: ${color}; font-size: 10px; text-align: center; font-weight: bold;">
+                                    ${category}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // Create enhanced table row
+        function createEnhancedTableRow(item) {
+            const varName = item.var_name || 'unknown';
+            const typeName = item.type_name || 'unknown';
+            const size = item.size || 0;
+            const ptr = item.ptr || 'unknown';
+            const ffiTracked = item.ffi_tracked || false;
+            const safetyViolations = item.safety_violations || [];
+            const isLeaked = item.is_leaked || false;
+            
+            const riskLevel = calculateRiskLevel(size, safetyViolations.length > 0, ffiTracked);
+            const riskColor = getRiskColor(riskLevel);
+            
+            return `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <i class="fa fa-cube text-gray-400 mr-2"></i>
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">${varName}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm text-gray-500 dark:text-gray-400 font-mono">${typeName}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">${formatBytes(size)}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full ${ffiTracked ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}">
+                            ${ffiTracked ? 'FFI Tracked' : 'Native'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full ${safetyViolations.length > 0 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}">
+                            ${safetyViolations.length > 0 ? `${safetyViolations.length} Violations` : 'Safe'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-${riskColor}-100 text-${riskColor}-800 dark:bg-${riskColor}-900 dark:text-${riskColor}-200">
+                            ${riskLevel}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Create enhanced safety violations alert
+        function createEnhancedSafetyViolationsAlert(unsafeFfiData) {
+            const violationsData = unsafeFfiData
+                .filter(item => item.safety_violations && item.safety_violations.length > 0)
+                .slice(0, 5);
+
+            return `
+                <div class="bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg p-6 mb-6">
+                    <div class="flex items-center mb-4">
+                        <i class="fa fa-exclamation-triangle text-red-500 text-xl mr-3"></i>
+                        <h4 class="text-lg font-semibold text-red-800 dark:text-red-200">Critical Safety Violations Detected</h4>
+                    </div>
+                    <div class="space-y-3">
+                        ${violationsData.map(item => `
+                            <div class="bg-white dark:bg-red-800 rounded-lg p-4 border border-red-200 dark:border-red-600">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <h5 class="font-medium text-red-900 dark:text-red-100">${item.var_name || 'Unknown Variable'}</h5>
+                                        <p class="text-sm text-red-700 dark:text-red-300 mt-1">
+                                            Violations: ${item.safety_violations.join(', ')}
+                                        </p>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-700 dark:text-red-200 rounded-full">
+                                        Critical
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Helper functions
+        function calculateRiskLevel(size, hasViolations, isFfi) {
+            if (hasViolations) return size > 1024 ? 'Critical' : 'High';
+            if (isFfi) return size > 1024 ? 'High' : 'Medium';
+            return 'Low';
+        }
+
+        function getRiskColor(riskLevel) {
+            switch (riskLevel) {
+                case 'Critical': return 'red';
+                case 'High': return 'orange';
+                case 'Medium': return 'yellow';
+                default: return 'green';
+            }
+        }
+        function createMetricCard(value, label, color) {
+            return `
+                <div class="metric-card text-center p-4 rounded-lg border-2 bg-black bg-opacity-10" style="border-color: ${color};">
+                    <div class="text-2xl font-bold mb-1" style="color: ${color};">${value}</div>
+                    <div class="text-xs opacity-75" style="color: #bdc3c7;">${label}</div>
+                </div>
+            `;
+        }
+
+        // Calculate comprehensive FFI statistics
+        function calculateFFIStatistics(data) {
+            const unsafeAllocations = data.filter(item => 
+                item.safety_violations && item.safety_violations.length > 0
+            ).length;
+            
+            const ffiAllocations = data.filter(item => item.ffi_tracked).length;
+            
+            const safetyViolations = data.reduce((sum, item) => 
+                sum + (item.safety_violations ? item.safety_violations.length : 0), 0
+            );
+            
+            const unsafeMemory = data
+                .filter(item => item.ffi_tracked || (item.safety_violations && item.safety_violations.length > 0))
+                .reduce((sum, item) => sum + (item.size || 0), 0);
+            
+            // Simulate boundary crossings based on FFI allocations
+            const boundaryCrossings = Math.floor(ffiAllocations * 0.8);
+            
+            return {
+                unsafeAllocations,
+                ffiAllocations,
+                boundaryCrossings,
+                safetyViolations,
+                unsafeMemory,
+                totalAllocations: data.length
+            };
+        }
+
+        // Create allocation sources chart
+        function createAllocationSourcesChart(stats) {
+            const unsafeHeight = stats.totalAllocations > 0 ? (stats.unsafeAllocations / stats.totalAllocations) * 200 : 0;
+            const ffiHeight = stats.totalAllocations > 0 ? (stats.ffiAllocations / stats.totalAllocations) * 200 : 0;
+            
+            return `
+                <div class="flex items-end justify-center space-x-8 h-48">
+                    <div class="flex flex-col items-center">
+                        <div class="w-12 rounded-t" style="height: ${Math.max(unsafeHeight, 16)}px; background-color: #e74c3c;"></div>
+                        <div class="text-xs mt-2 font-bold" style="color: #e74c3c;">${stats.unsafeAllocations}</div>
+                        <div class="text-xs opacity-75" style="color: #ecf0f1;">Unsafe Rust</div>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <div class="w-12 rounded-t" style="height: ${Math.max(ffiHeight, 16)}px; background-color: #3498db;"></div>
+                        <div class="text-xs mt-2 font-bold" style="color: #3498db;">${stats.ffiAllocations}</div>
+                        <div class="text-xs opacity-75" style="color: #ecf0f1;">FFI</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Create memory flow visualization
+        function createMemoryFlowVisualization(stats) {
+            return `
+                <div class="flex items-center justify-between">
+                    <div class="text-center p-4 rounded-lg border-2" style="border-color: #2ecc71; background-color: rgba(46, 204, 113, 0.1);">
+                        <div class="text-lg font-bold" style="color: #2ecc71;">RUST</div>
+                        <div class="text-sm opacity-75" style="color: #ecf0f1;">${stats.totalAllocations - stats.ffiAllocations} allocs</div>
+                    </div>
+                    
+                    <div class="flex-1 flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="text-2xl" style="color: #e74c3c;">→</div>
+                            <div class="text-sm font-bold" style="color: #e74c3c;">${stats.boundaryCrossings}</div>
+                            <div class="text-xs opacity-75" style="color: #ecf0f1;">crossings</div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center p-4 rounded-lg border-2" style="border-color: #3498db; background-color: rgba(52, 152, 219, 0.1);">
+                        <div class="text-lg font-bold" style="color: #3498db;">FFI / C</div>
+                        <div class="text-sm opacity-75" style="color: #ecf0f1;">${stats.ffiAllocations} allocs</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Create table row for detailed analysis
+        function createTableRow(item) {
+            const safetyViolations = item.safety_violations || [];
+            const riskLevel = calculateRiskLevel(item);
+            
+            return `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                        ${item.var_name || 'unknown'}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        <span class="truncate block max-w-xs" title="${item.type_name || 'Unknown'}">
+                            ${(item.type_name || 'Unknown').split('::').pop()}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 text-right">
+                        ${formatBytes(item.size || 0)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        ${item.ffi_tracked ? 
+                            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">FFI Tracked</span>' : 
+                            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">Native</span>'
+                        }
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        ${safetyViolations.length > 0 ? 
+                            `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">${safetyViolations.length} violations</span>` : 
+                            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Safe</span>'
+                        }
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        ${createRiskBadge(riskLevel)}
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Calculate risk level based on multiple factors
+        function calculateRiskLevel(item) {
+            let riskScore = 0;
+            
+            // Safety violations contribute most to risk
+            if (item.safety_violations && item.safety_violations.length > 0) {
+                riskScore += item.safety_violations.length * 3;
+            }
+            
+            // FFI tracking adds moderate risk
+            if (item.ffi_tracked) {
+                riskScore += 2;
+            }
+            
+            // Large allocations add minor risk
+            if (item.size && item.size > 10000) {
+                riskScore += 1;
+            }
+            
+            if (riskScore >= 5) return 'HIGH';
+            if (riskScore >= 3) return 'MEDIUM';
+            if (riskScore >= 1) return 'LOW';
+            return 'SAFE';
+        }
+
+        // Create risk badge
+        function createRiskBadge(riskLevel) {
+            const colors = {
+                'HIGH': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+                'MEDIUM': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+                'LOW': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+                'SAFE': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+            };
+            
+            return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[riskLevel]}">${riskLevel}</span>`;
+        }
+
+        // Create empty FFI state
+        function createEmptyFFIState() {
+            return `
+                <div class="text-center py-12">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No Unsafe/FFI Operations Detected</h3>
+                    <p class="text-gray-500 dark:text-gray-400">All memory operations appear to be safe and within Rust's safety guarantees.</p>
+                </div>
+            `;
+        }
+
+        // Create safety violations alert
+        function createSafetyViolationsAlert(data) {
+            const violationsData = data.filter(item => item.safety_violations && item.safety_violations.length > 0);
+            
+            return `
+                <div class="mt-6 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg p-6">
+                    <div class="flex items-center mb-4">
+                        <svg class="w-6 h-6 text-red-600 dark:text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                        <h4 class="text-lg font-semibold text-red-800 dark:text-red-200">Safety Violations Detected</h4>
+                    </div>
+                    <div class="text-sm text-red-700 dark:text-red-300">
+                        <p class="mb-2">Found ${violationsData.length} allocations with safety violations. Review these carefully:</p>
+                        <ul class="list-disc list-inside space-y-1">
+                            ${violationsData.slice(0, 5).map(item => 
+                                `<li><strong>${item.var_name || 'unknown'}</strong>: ${item.safety_violations.length} violation(s)</li>`
+                            ).join('')}
+                            ${violationsData.length > 5 ? `<li class="text-xs opacity-75">... and ${violationsData.length - 5} more</li>` : ''}
+                        </ul>
+                    </div>
+                </div>
+            `;
         }
 
         {{JS_CONTENT}}
