@@ -5202,7 +5202,7 @@ function renderLifetimes() {
 }
 
 function renderFFI() {
-    // First try the chart container
+    // First try the chart container for simple chart
     const chartContainer = document.getElementById('ffi-risk-chart');
     if (chartContainer && window.Chart) {
         const data = window.analysisData || {};
@@ -5252,7 +5252,7 @@ function renderFFI() {
         }
     }
     
-    // Fallback to ffiVisualization container with project's actual SVG implementation
+    // Main comprehensive FFI visualization based on project's actual SVG code
     const container = document.getElementById('ffiVisualization');
     if (!container) return;
     
@@ -5266,81 +5266,370 @@ function renderFFI() {
         return;
     }
     
-    // Create comprehensive unsafe/FFI dashboard based on project's actual implementation
-    createUnsafeFFIDashboard(container, allocations, violations);
+    // Create the ACTUAL project-based unsafe/FFI dashboard SVG
+    createProjectBasedUnsafeFFIDashboard(container, allocations, violations);
 }
 
-// Comprehensive unsafe/FFI dashboard based on project's actual SVG implementation
-function createUnsafeFFIDashboard(container, allocations, violations) {
-    const width = 600;
-    const height = 400;
+// PROJECT-BASED Unsafe/FFI Dashboard - Direct implementation from visualization.rs
+function createProjectBasedUnsafeFFIDashboard(container, allocations, violations) {
+    const width = 1400;
+    const height = 1000;
     
-    // Calculate key metrics
-    const unsafeCount = allocations.filter(a => a.source && a.source.includes && a.source.includes('Unsafe')).length;
-    const ffiCount = allocations.filter(a => a.source && a.source.includes && a.source.includes('Ffi')).length;
-    const crossBoundaryCount = allocations.filter(a => a.cross_boundary_events && a.cross_boundary_events.length > 0).length;
-    const totalUnsafeMemory = allocations.filter(a => a.source && !a.source.includes('Safe')).reduce((sum, a) => sum + (a.size || 0), 0);
+    // Calculate key metrics exactly like the Rust code
+    const unsafeCount = allocations.filter(a => 
+        (a.source && (a.source.UnsafeRust || a.source === 'UnsafeRust')) ||
+        (a.allocation_source === 'UnsafeRust')
+    ).length;
     
+    const ffiCount = allocations.filter(a => 
+        (a.source && (a.source.FfiC || a.source === 'FfiC')) ||
+        (a.allocation_source === 'FfiC')
+    ).length;
+    
+    const crossBoundaryEvents = allocations.reduce((sum, a) => 
+        sum + ((a.cross_boundary_events && a.cross_boundary_events.length) || 0), 0
+    );
+    
+    const totalUnsafeMemory = allocations
+        .filter(a => a.source !== 'RustSafe' && a.allocation_source !== 'RustSafe')
+        .reduce((sum, a) => sum + ((a.base && a.base.size) || a.size || 0), 0);
+    
+    // Create the full SVG dashboard exactly like the Rust implementation
     let html = `
-        <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); border-radius: 12px; padding: 20px; color: white;">
-            <!-- Header with title and key metrics -->
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h3 style="margin: 0 0 10px 0; font-size: 18px; color: #ecf0f1;">Unsafe Rust & FFI Memory Analysis Dashboard</h3>
-            </div>
-            
-            <!-- Metrics cards -->
-            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;">
-                <div style="text-align: center; padding: 10px; background: rgba(231, 76, 60, 0.2); border: 2px solid #e74c3c; border-radius: 8px;">
-                    <div style="font-size: 16px; font-weight: bold; color: #e74c3c;">${unsafeCount}</div>
-                    <div style="font-size: 10px; color: #bdc3c7;">Unsafe Allocations</div>
-                </div>
-                <div style="text-align: center; padding: 10px; background: rgba(52, 152, 219, 0.2); border: 2px solid #3498db; border-radius: 8px;">
-                    <div style="font-size: 16px; font-weight: bold; color: #3498db;">${ffiCount}</div>
-                    <div style="font-size: 10px; color: #bdc3c7;">FFI Allocations</div>
-                </div>
-                <div style="text-align: center; padding: 10px; background: rgba(243, 156, 18, 0.2); border: 2px solid #f39c12; border-radius: 8px;">
-                    <div style="font-size: 16px; font-weight: bold; color: #f39c12;">${crossBoundaryCount}</div>
-                    <div style="font-size: 10px; color: #bdc3c7;">Boundary Crossings</div>
-                </div>
-                <div style="text-align: center; padding: 10px; background: rgba(230, 126, 34, 0.2); border: 2px solid #e67e22; border-radius: 8px;">
-                    <div style="font-size: 16px; font-weight: bold; color: #e67e22;">${violations.length}</div>
-                    <div style="font-size: 10px; color: #bdc3c7;">Safety Violations</div>
-                </div>
-                <div style="text-align: center; padding: 10px; background: rgba(155, 89, 182, 0.2); border: 2px solid #9b59b6; border-radius: 8px;">
-                    <div style="font-size: 16px; font-weight: bold; color: #9b59b6;">${formatBytes(totalUnsafeMemory)}</div>
-                    <div style="font-size: 10px; color: #bdc3c7;">Unsafe Memory</div>
-                </div>
-            </div>
-            
-            <!-- Main content areas -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <!-- Allocation source breakdown -->
-                <div style="background: rgba(52, 73, 94, 0.3); border: 2px solid #34495e; border-radius: 10px; padding: 15px;">
-                    <h4 style="margin: 0 0 15px 0; text-align: center; color: #ecf0f1;">Memory Allocation Sources</h4>
-                    <div id="allocation-source-chart"></div>
-                </div>
+        <div style="width: 100%; height: ${height}px; background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); border-radius: 12px; overflow: hidden; position: relative;">
+            <svg width="100%" height="100%" viewBox="0 0 ${width} ${height}" style="font-family: 'Segoe UI', Arial, sans-serif;">
+                <!-- SVG Definitions -->
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c"/>
+                    </marker>
+                    <filter id="glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
                 
-                <!-- Memory safety status -->
-                <div style="background: rgba(52, 73, 94, 0.3); border: 2px solid #34495e; border-radius: 10px; padding: 15px;">
-                    <h4 style="margin: 0 0 15px 0; text-align: center; color: #ecf0f1;">Memory Safety Status</h4>
-                    <div id="safety-status-panel"></div>
-                </div>
-            </div>
-            
-            <!-- Cross-language memory flow -->
-            <div style="margin-top: 20px; background: rgba(52, 73, 94, 0.3); border: 2px solid #34495e; border-radius: 10px; padding: 15px;">
-                <h4 style="margin: 0 0 15px 0; text-align: center; color: #ecf0f1;">Cross-Language Memory Flow</h4>
-                <div id="boundary-flow-diagram"></div>
-            </div>
+                <!-- Main Title -->
+                <text x="${width/2}" y="40" text-anchor="middle" font-size="24" font-weight="bold" fill="#ecf0f1">
+                    Unsafe Rust &amp; FFI Memory Analysis Dashboard
+                </text>
+                
+                <!-- Key Metrics Cards -->
+                <g id="metrics-cards">
+                    ${createMetricsCards(unsafeCount, ffiCount, crossBoundaryEvents, violations.length, totalUnsafeMemory)}
+                </g>
+                
+                <!-- Allocation Source Breakdown -->
+                <g id="allocation-breakdown" transform="translate(50, 150)">
+                    ${createAllocationSourceBreakdown(allocations)}
+                </g>
+                
+                <!-- Memory Safety Status -->
+                <g id="safety-status" transform="translate(750, 150)">
+                    ${createMemorySafetyStatus(violations)}
+                </g>
+                
+                <!-- Cross-Language Memory Flow -->
+                <g id="boundary-flow" transform="translate(50, 500)">
+                    ${createBoundaryFlow(allocations)}
+                </g>
+                
+                <!-- Unsafe Memory Hotspots -->
+                <g id="unsafe-hotspots" transform="translate(750, 500)">
+                    ${createUnsafeHotspots(allocations)}
+                </g>
+            </svg>
         </div>
     `;
     
     container.innerHTML = html;
     
-    // Render individual components
-    renderAllocationSourceChart(allocations);
-    renderSafetyStatusPanel(violations);
-    renderBoundaryFlowDiagram(allocations);
+    // Add interactivity
+    setTimeout(() => {
+        addFFIInteractivity();
+    }, 100);
+}
+
+// Create metrics cards exactly like Rust implementation
+function createMetricsCards(unsafeCount, ffiCount, crossBoundaryEvents, violationCount, totalUnsafeMemory) {
+    const metrics = [
+        { label: 'Unsafe Allocations', value: unsafeCount, color: '#e74c3c', x: 100 },
+        { label: 'FFI Allocations', value: ffiCount, color: '#3498db', x: 350 },
+        { label: 'Boundary Crossings', value: crossBoundaryEvents, color: '#f39c12', x: 600 },
+        { label: 'Safety Violations', value: violationCount, color: '#e67e22', x: 850 },
+        { label: 'Unsafe Memory', value: formatBytes(totalUnsafeMemory), color: '#9b59b6', x: 1100 }
+    ];
+    
+    return metrics.map(metric => `
+        <!-- Card background -->
+        <rect x="${metric.x - 60}" y="55" width="120" height="50" 
+              fill="${metric.color}" fill-opacity="0.2" 
+              stroke="${metric.color}" stroke-width="2" rx="8"/>
+        
+        <!-- Value -->
+        <text x="${metric.x}" y="70" text-anchor="middle" font-size="16" font-weight="bold" fill="${metric.color}">
+            ${metric.value}
+        </text>
+        
+        <!-- Label -->
+        <text x="${metric.x}" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">
+            ${metric.label}
+        </text>
+    `).join('');
+}
+
+// Create allocation source breakdown
+function createAllocationSourceBreakdown(allocations) {
+    let safeCount = 0, unsafeCount = 0, ffiCount = 0, crossBoundaryCount = 0;
+    
+    allocations.forEach(allocation => {
+        const source = allocation.source || allocation.allocation_source || 'Unknown';
+        if (source === 'RustSafe' || source.RustSafe) safeCount++;
+        else if (source === 'UnsafeRust' || source.UnsafeRust) unsafeCount++;
+        else if (source === 'FfiC' || source.FfiC) ffiCount++;
+        else if (source === 'CrossBoundary' || source.CrossBoundary) crossBoundaryCount++;
+    });
+    
+    const total = safeCount + unsafeCount + ffiCount + crossBoundaryCount;
+    if (total === 0) {
+        return `<text x="300" y="150" text-anchor="middle" font-size="14" fill="#95a5a6">No allocation data available</text>`;
+    }
+    
+    const sources = [
+        { label: 'Safe Rust', count: safeCount, color: '#2ecc71', x: 50 },
+        { label: 'Unsafe Rust', count: unsafeCount, color: '#e74c3c', x: 170 },
+        { label: 'FFI', count: ffiCount, color: '#3498db', x: 290 },
+        { label: 'Cross-boundary', count: crossBoundaryCount, color: '#9b59b6', x: 410 }
+    ];
+    
+    let svg = `
+        <!-- Section background -->
+        <rect x="0" y="0" width="600" height="300" fill="rgba(52, 73, 94, 0.3)" 
+              stroke="#34495e" stroke-width="2" rx="10"/>
+        
+        <!-- Section title -->
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Memory Allocation Sources
+        </text>
+    `;
+    
+    sources.forEach(source => {
+        if (source.count > 0) {
+            const barHeight = (source.count / total * 100);
+            svg += `
+                <!-- Bar -->
+                <rect x="${source.x}" y="${200 - barHeight}" width="40" height="${barHeight}" fill="${source.color}"/>
+                
+                <!-- Count label -->
+                <text x="${source.x + 20}" y="${200 - barHeight - 5}" text-anchor="middle" 
+                      font-size="12" font-weight="bold" fill="${source.color}">
+                    ${source.count}
+                </text>
+                
+                <!-- Label -->
+                <text x="${source.x + 20}" y="220" text-anchor="middle" font-size="10" fill="#ecf0f1">
+                    ${source.label}
+                </text>
+            `;
+        }
+    });
+    
+    return svg;
+}
+
+// Create memory safety status
+function createMemorySafetyStatus(violations) {
+    const bgColor = violations.length === 0 ? '#27ae60' : '#e74c3c';
+    
+    let svg = `
+        <!-- Section background -->
+        <rect x="0" y="0" width="600" height="300" fill="${bgColor}20" 
+              stroke="${bgColor}" stroke-width="2" rx="10"/>
+        
+        <!-- Section title -->
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Memory Safety Status
+        </text>
+    `;
+    
+    if (violations.length === 0) {
+        svg += `
+            <text x="300" y="150" text-anchor="middle" font-size="16" font-weight="bold" fill="#27ae60">
+                No Safety Violations Detected
+            </text>
+            <text x="300" y="180" text-anchor="middle" font-size="12" fill="#2ecc71">
+                All unsafe operations and FFI calls appear to be memory-safe
+            </text>
+        `;
+    } else {
+        svg += `
+            <text x="300" y="120" text-anchor="middle" font-size="16" font-weight="bold" fill="#e74c3c">
+                ${violations.length} Safety Violations Detected
+            </text>
+        `;
+        
+        violations.slice(0, 5).forEach((violation, i) => {
+            const y = 160 + i * 20;
+            const description = getViolationDescription(violation);
+            svg += `
+                <text x="30" y="${y}" font-size="12" fill="#e74c3c">• ${description}</text>
+            `;
+        });
+    }
+    
+    return svg;
+}
+
+// Create boundary flow diagram
+function createBoundaryFlow(allocations) {
+    let rustToFfi = 0, ffiToRust = 0;
+    
+    allocations.forEach(allocation => {
+        if (allocation.cross_boundary_events) {
+            allocation.cross_boundary_events.forEach(event => {
+                const eventType = event.event_type || event.type;
+                if (eventType === 'RustToFfi' || eventType === 'OwnershipTransfer') rustToFfi++;
+                else if (eventType === 'FfiToRust') ffiToRust++;
+                else if (eventType === 'SharedAccess') {
+                    rustToFfi++;
+                    ffiToRust++;
+                }
+            });
+        }
+    });
+    
+    return `
+        <!-- Section background -->
+        <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
+              stroke="#34495e" stroke-width="2" rx="10"/>
+        
+        <!-- Section title -->
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Cross-Language Memory Flow
+        </text>
+        
+        <!-- Rust territory -->
+        <rect x="50" y="50" width="200" height="100" fill="#2ecc71" fill-opacity="0.2" 
+              stroke="#2ecc71" stroke-width="2" rx="8"/>
+        <text x="150" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill="#2ecc71">
+            RUST
+        </text>
+        
+        <!-- FFI territory -->
+        <rect x="350" y="50" width="200" height="100" fill="#3498db" fill-opacity="0.2" 
+              stroke="#3498db" stroke-width="2" rx="8"/>
+        <text x="450" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill="#3498db">
+            FFI / C
+        </text>
+        
+        ${rustToFfi > 0 ? `
+            <!-- Rust to FFI arrow -->
+            <line x1="250" y1="80" x2="350" y2="80" stroke="#e74c3c" stroke-width="3" marker-end="url(#arrowhead)"/>
+            <text x="300" y="75" text-anchor="middle" font-size="12" font-weight="bold" fill="#e74c3c">
+                ${rustToFfi}
+            </text>
+        ` : ''}
+        
+        ${ffiToRust > 0 ? `
+            <!-- FFI to Rust indicator -->
+            <text x="300" y="135" text-anchor="middle" font-size="12" font-weight="bold" fill="#f39c12">
+                ← ${ffiToRust}
+            </text>
+        ` : ''}
+    `;
+}
+
+// Create unsafe hotspots
+function createUnsafeHotspots(allocations) {
+    const unsafeAllocations = allocations.filter(a => 
+        a.source !== 'RustSafe' && a.allocation_source !== 'RustSafe'
+    );
+    
+    if (unsafeAllocations.length === 0) {
+        return `
+            <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
+                  stroke="#34495e" stroke-width="2" rx="10"/>
+            <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+                Unsafe Memory Hotspots
+            </text>
+            <text x="300" y="100" text-anchor="middle" font-size="14" fill="#2ecc71">
+                No unsafe memory allocations detected
+            </text>
+        `;
+    }
+    
+    let svg = `
+        <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
+              stroke="#34495e" stroke-width="2" rx="10"/>
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Unsafe Memory Hotspots
+        </text>
+    `;
+    
+    unsafeAllocations.slice(0, 6).forEach((allocation, i) => {
+        const x = 80 + (i % 3) * 180;
+        const y = 80 + Math.floor(i / 3) * 70;
+        const size = (allocation.base && allocation.base.size) || allocation.size || 0;
+        const sizeFactor = Math.max(5, Math.min(20, Math.log(size + 1) * 2));
+        
+        const source = allocation.source || allocation.allocation_source || 'Unknown';
+        let color = '#95a5a6';
+        let label = 'OTHER';
+        
+        if (source === 'UnsafeRust' || source.UnsafeRust) {
+            color = '#e74c3c';
+            label = 'UNSAFE';
+        } else if (source === 'FfiC' || source.FfiC) {
+            color = '#3498db';
+            label = 'FFI';
+        } else if (source === 'CrossBoundary' || source.CrossBoundary) {
+            color = '#9b59b6';
+            label = 'CROSS';
+        }
+        
+        svg += `
+            <!-- Hotspot circle -->
+            <circle cx="${x}" cy="${y}" r="${sizeFactor}" fill="${color}" fill-opacity="0.7" 
+                    stroke="${color}" stroke-width="2" filter="url(#glow)"/>
+            
+            <!-- Size label -->
+            <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="8" font-weight="bold" fill="#ffffff">
+                ${formatBytes(size)}
+            </text>
+            
+            <!-- Type label -->
+            <text x="${x}" y="${y + 35}" text-anchor="middle" font-size="10" fill="${color}">
+                ${label}
+            </text>
+        `;
+    });
+    
+    return svg;
+}
+
+// Helper functions
+function getViolationDescription(violation) {
+    if (violation.DoubleFree || violation.type === 'DoubleFree') return 'Double Free';
+    if (violation.InvalidFree || violation.type === 'InvalidFree') return 'Invalid Free';
+    if (violation.PotentialLeak || violation.type === 'PotentialLeak') return 'Memory Leak';
+    if (violation.CrossBoundaryRisk || violation.type === 'CrossBoundaryRisk') return 'Cross-Boundary Risk';
+    return 'Unknown Violation';
+}
+
+function addFFIInteractivity() {
+    // Add hover effects to hotspots
+    const hotspots = document.querySelectorAll('#unsafe-hotspots circle');
+    hotspots.forEach(hotspot => {
+        hotspot.addEventListener('mouseover', function() {
+            this.setAttribute('r', parseInt(this.getAttribute('r')) * 1.2);
+        });
+        hotspot.addEventListener('mouseout', function() {
+            this.setAttribute('r', parseInt(this.getAttribute('r')) / 1.2);
+        });
+    });
 }
 
 function renderAllocationSourceChart(allocations) {
@@ -6592,7 +6881,8 @@ document.addEventListener("DOMContentLoaded", () => {
         initFFIVisualization();
         setupLifecycleVisualization();
         setupLifecycleToggle();
-        initCompleteJSONExplorer();
+        updateEmbeddedFFISVG();
+        updatePerformanceMetrics();
         
         console.log('✅ All dashboard components initialized');
     } catch(e) { 

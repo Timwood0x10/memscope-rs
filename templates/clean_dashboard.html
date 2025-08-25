@@ -396,22 +396,180 @@
       </div>
     </section>
 
-    <!-- Complete JSON Data Explorer -->
+    <!-- Unsafe/FFI Analysis with Embedded SVG -->
     <section class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 style="margin: 0;">Complete JSON Data Explorer</h2>
-        <div>
-          <button id="expand-all-json" class="theme-toggle" style="background: var(--primary-blue); font-size: 12px; padding: 6px 12px; margin-right: 8px;">
-            <i class="fa fa-expand"></i>
-            <span>Expand All</span>
-          </button>
-          <button id="collapse-all-json" class="theme-toggle" style="background: var(--primary-orange); font-size: 12px; padding: 6px 12px;">
-            <i class="fa fa-compress"></i>
-            <span>Collapse All</span>
-          </button>
+      <h2>Unsafe Rust & FFI Memory Analysis</h2>
+      <div id="ffiVisualization">
+        <!-- Embedded SVG Dashboard directly in HTML -->
+        <div style="width: 100%; height: 600px; background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); border-radius: 12px; overflow: hidden; position: relative;">
+          <svg width="100%" height="100%" viewBox="0 0 1400 600" style="font-family: 'Segoe UI', Arial, sans-serif;">
+            <!-- SVG Definitions -->
+            <defs>
+              <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c"/>
+              </marker>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+              <radialGradient id="centerGradient" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" style="stop-color:#ecf0f1;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#34495e;stop-opacity:1" />
+              </radialGradient>
+            </defs>
+            
+            <!-- Main Title -->
+            <text x="700" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#ecf0f1">
+              Unsafe Rust &amp; FFI Memory Analysis Dashboard
+            </text>
+            
+            <!-- Key Metrics Cards -->
+            <g id="metrics-cards">
+              <!-- Unsafe Allocations -->
+              <rect x="40" y="50" width="120" height="60" fill="#e74c3c" fill-opacity="0.2" stroke="#e74c3c" stroke-width="2" rx="8"/>
+              <text x="100" y="70" text-anchor="middle" font-size="16" font-weight="bold" fill="#e74c3c" id="unsafe-count">0</text>
+              <text x="100" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">Unsafe Allocations</text>
+              
+              <!-- FFI Allocations -->
+              <rect x="200" y="50" width="120" height="60" fill="#3498db" fill-opacity="0.2" stroke="#3498db" stroke-width="2" rx="8"/>
+              <text x="260" y="70" text-anchor="middle" font-size="16" font-weight="bold" fill="#3498db" id="ffi-count">0</text>
+              <text x="260" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">FFI Allocations</text>
+              
+              <!-- Boundary Crossings -->
+              <rect x="360" y="50" width="120" height="60" fill="#f39c12" fill-opacity="0.2" stroke="#f39c12" stroke-width="2" rx="8"/>
+              <text x="420" y="70" text-anchor="middle" font-size="16" font-weight="bold" fill="#f39c12" id="boundary-count">0</text>
+              <text x="420" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">Boundary Crossings</text>
+              
+              <!-- Safety Violations -->
+              <rect x="520" y="50" width="120" height="60" fill="#e67e22" fill-opacity="0.2" stroke="#e67e22" stroke-width="2" rx="8"/>
+              <text x="580" y="70" text-anchor="middle" font-size="16" font-weight="bold" fill="#e67e22" id="violation-count">0</text>
+              <text x="580" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">Safety Violations</text>
+              
+              <!-- Unsafe Memory -->
+              <rect x="680" y="50" width="120" height="60" fill="#9b59b6" fill-opacity="0.2" stroke="#9b59b6" stroke-width="2" rx="8"/>
+              <text x="740" y="70" text-anchor="middle" font-size="16" font-weight="bold" fill="#9b59b6" id="unsafe-memory">0B</text>
+              <text x="740" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">Unsafe Memory</text>
+            </g>
+            
+            <!-- Allocation Source Breakdown -->
+            <g id="allocation-breakdown" transform="translate(50, 150)">
+              <rect x="0" y="0" width="400" height="200" fill="rgba(52, 73, 94, 0.3)" stroke="#34495e" stroke-width="2" rx="10"/>
+              <text x="200" y="-10" text-anchor="middle" font-size="16" font-weight="bold" fill="#ecf0f1">Memory Allocation Sources</text>
+              
+              <!-- Safe Rust Bar -->
+              <rect x="50" y="120" width="40" height="60" fill="#2ecc71" id="safe-bar"/>
+              <text x="70" y="110" text-anchor="middle" font-size="12" font-weight="bold" fill="#2ecc71" id="safe-count">0</text>
+              <text x="70" y="195" text-anchor="middle" font-size="10" fill="#ecf0f1">Safe Rust</text>
+              
+              <!-- Unsafe Rust Bar -->
+              <rect x="120" y="120" width="40" height="60" fill="#e74c3c" id="unsafe-bar"/>
+              <text x="140" y="110" text-anchor="middle" font-size="12" font-weight="bold" fill="#e74c3c" id="unsafe-bar-count">0</text>
+              <text x="140" y="195" text-anchor="middle" font-size="10" fill="#ecf0f1">Unsafe Rust</text>
+              
+              <!-- FFI Bar -->
+              <rect x="190" y="120" width="40" height="60" fill="#3498db" id="ffi-bar"/>
+              <text x="210" y="110" text-anchor="middle" font-size="12" font-weight="bold" fill="#3498db" id="ffi-bar-count">0</text>
+              <text x="210" y="195" text-anchor="middle" font-size="10" fill="#ecf0f1">FFI</text>
+              
+              <!-- Cross-boundary Bar -->
+              <rect x="260" y="120" width="40" height="60" fill="#9b59b6" id="cross-bar"/>
+              <text x="280" y="110" text-anchor="middle" font-size="12" font-weight="bold" fill="#9b59b6" id="cross-count">0</text>
+              <text x="280" y="195" text-anchor="middle" font-size="10" fill="#ecf0f1">Cross-boundary</text>
+            </g>
+            
+            <!-- Memory Safety Status -->
+            <g id="safety-status" transform="translate(500, 150)">
+              <rect x="0" y="0" width="400" height="200" fill="rgba(52, 73, 94, 0.3)" stroke="#34495e" stroke-width="2" rx="10"/>
+              <text x="200" y="-10" text-anchor="middle" font-size="16" font-weight="bold" fill="#ecf0f1">Memory Safety Status</text>
+              
+              <text x="200" y="100" text-anchor="middle" font-size="14" font-weight="bold" fill="#27ae60" id="safety-status-text">
+                No Safety Violations Detected
+              </text>
+              <text x="200" y="130" text-anchor="middle" font-size="12" fill="#2ecc71" id="safety-detail">
+                All unsafe operations and FFI calls appear to be memory-safe
+              </text>
+            </g>
+            
+            <!-- Cross-Language Memory Flow -->
+            <g id="boundary-flow" transform="translate(50, 400)">
+              <rect x="0" y="0" width="800" height="150" fill="rgba(52, 73, 94, 0.3)" stroke="#34495e" stroke-width="2" rx="10"/>
+              <text x="400" y="-10" text-anchor="middle" font-size="16" font-weight="bold" fill="#ecf0f1">Cross-Language Memory Flow</text>
+              
+              <!-- Rust territory -->
+              <rect x="50" y="40" width="200" height="80" fill="#2ecc71" fill-opacity="0.2" stroke="#2ecc71" stroke-width="2" rx="8"/>
+              <text x="150" y="85" text-anchor="middle" font-size="14" font-weight="bold" fill="#2ecc71">RUST</text>
+              
+              <!-- FFI territory -->
+              <rect x="550" y="40" width="200" height="80" fill="#3498db" fill-opacity="0.2" stroke="#3498db" stroke-width="2" rx="8"/>
+              <text x="650" y="85" text-anchor="middle" font-size="14" font-weight="bold" fill="#3498db">FFI / C</text>
+              
+              <!-- Flow arrows -->
+              <line x1="250" y1="70" x2="550" y2="70" stroke="#e74c3c" stroke-width="3" marker-end="url(#arrowhead)" id="rust-to-ffi-arrow" style="display: none;"/>
+              <text x="400" y="65" text-anchor="middle" font-size="12" font-weight="bold" fill="#e74c3c" id="flow-count">0</text>
+              
+              <text x="400" y="110" text-anchor="middle" font-size="12" font-weight="bold" fill="#f39c12" id="reverse-flow">← 0</text>
+            </g>
+            
+            <!-- Unsafe Memory Hotspots -->
+            <g id="unsafe-hotspots" transform="translate(950, 150)">
+              <rect x="0" y="0" width="400" height="400" fill="rgba(52, 73, 94, 0.3)" stroke="#34495e" stroke-width="2" rx="10"/>
+              <text x="200" y="-10" text-anchor="middle" font-size="16" font-weight="bold" fill="#ecf0f1">Unsafe Memory Hotspots</text>
+              
+              <!-- Hotspot circles will be dynamically added -->
+              <g id="hotspot-circles">
+                <text x="200" y="200" text-anchor="middle" font-size="14" fill="#2ecc71" id="no-hotspots">
+                  No unsafe memory allocations detected
+                </text>
+              </g>
+            </g>
+          </svg>
         </div>
       </div>
-      <div id="jsonDataExplorer" style="max-height: 600px; overflow-y: auto; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; padding: 16px;"></div>
+    </section>
+
+    <!-- Performance Metrics (missing from clean template) -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2>Performance Metrics</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue);" id="peak-memory">0B</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Peak Memory</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);" id="allocation-rate">0/sec</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Allocation Rate</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-orange);" id="avg-lifetime">0ms</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Lifetime</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-red);" id="fragmentation">0%</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Fragmentation</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Thread Safety Analysis</h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-blue);" id="arc-count">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Arc</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-green);" id="rc-count">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Rc</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-orange);" id="collections-count">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Collections</div>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 
