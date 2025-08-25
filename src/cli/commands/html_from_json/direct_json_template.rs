@@ -732,6 +732,37 @@ fn get_trend_analysis(growth_rate: i32) -> &'static str {
     }
 }
 
+/// Format memory size for display
+fn format_memory_size(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let mut size = bytes as f64;
+    let mut unit_index = 0;
+    
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+    
+    if unit_index == 0 {
+        format!("{} {}", bytes, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
+    }
+}
+
+/// Calculate risk level for memory allocation
+fn calculate_risk_level(size: u64, is_unsafe: bool, is_ffi: bool) -> String {
+    if is_unsafe {
+        "HIGH".to_string()
+    } else if is_ffi && size > 1024 * 1024 {
+        "MEDIUM".to_string()
+    } else if is_ffi {
+        "LOW".to_string()
+    } else {
+        "SAFE".to_string()
+    }
+}
+
 /// Create FFI dashboard metrics inspired by SVG design
 fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]) -> Value {
     let total_allocations = allocations.len();
@@ -783,6 +814,19 @@ fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]
         .map(|item| item.get("size").and_then(|s| s.as_u64()).unwrap_or(0))
         .sum();
 
+    // Calculate safety score
+    let safety_score = if total_allocations > 0 {
+        ((total_allocations - unsafe_allocations) as f64 / total_allocations as f64 * 100.0) as u32
+    } else {
+        100
+    };
+
+    // Analyze smart pointer types
+    let smart_pointer_types = analyze_smart_pointer_types(allocations);
+
+    // Analyze borrow checker metrics
+    let borrow_metrics = analyze_borrow_checker_metrics(allocations);
+
     serde_json::json!({
         "unsafe_allocations": unsafe_allocations,
         "ffi_allocations": ffi_allocations,
@@ -790,7 +834,70 @@ fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]
         "safety_violations": safety_violations,
         "unsafe_memory": unsafe_memory,
         "total_allocations": total_allocations,
-        "unsafe_memory_formatted": format_memory_size(unsafe_memory)
+        "safety_score": safety_score,
+        "unsafe_memory_formatted": format_memory_size(unsafe_memory),
+        "smart_pointer_types": smart_pointer_types,
+        "borrow_metrics": borrow_metrics
+    })
+}
+
+/// Analyze smart pointer types distribution
+fn analyze_smart_pointer_types(allocations: &[Value]) -> Value {
+    let mut type_counts = std::collections::HashMap::new();
+    
+    for allocation in allocations {
+        if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
+            if type_name.contains("Arc") || type_name.contains("Rc") || 
+               type_name.contains("Box") || type_name.contains("RefCell") {
+                // Extract the main type name
+                let short_type = if type_name.contains("Arc") {
+                    "Arc"
+                } else if type_name.contains("Rc") {
+                    "Rc"
+                } else if type_name.contains("Box") {
+                    "Box"
+                } else if type_name.contains("RefCell") {
+                    "RefCell"
+                } else {
+                    "Other"
+                };
+                
+                *type_counts.entry(short_type.to_string()).or_insert(0) += 1;
+            }
+        }
+    }
+    
+    serde_json::json!(type_counts)
+}
+
+/// Analyze borrow checker metrics
+fn analyze_borrow_checker_metrics(allocations: &[Value]) -> Value {
+    let mut max_concurrent = 0;
+    let mut total_borrows = 0;
+    let mut conflicts = 0;
+    
+    for allocation in allocations {
+        if let Some(borrow_info) = allocation.get("borrow_info") {
+            if let Some(max_concurrent_borrows) = borrow_info.get("max_concurrent_borrows").and_then(|m| m.as_u64()) {
+                max_concurrent = max_concurrent.max(max_concurrent_borrows);
+            }
+            
+            let immutable = borrow_info.get("immutable_borrows").and_then(|i| i.as_u64()).unwrap_or(0);
+            let mutable = borrow_info.get("mutable_borrows").and_then(|m| m.as_u64()).unwrap_or(0);
+            
+            total_borrows += immutable + mutable;
+            
+            // Check for conflicts (both immutable and mutable borrows)
+            if immutable > 0 && mutable > 0 {
+                conflicts += 1;
+            }
+        }
+    }
+    
+    serde_json::json!({
+        "max_concurrent_borrows": max_concurrent,
+        "total_borrow_operations": total_borrows,
+        "borrow_conflicts": conflicts
     })
 }
 
@@ -938,29 +1045,7 @@ fn create_ffi_risk_assessment(allocations: &[Value]) -> Value {
     })
 }
 
-/// Format memory size for display
-fn format_memory_size(bytes: u64) -> String {
-    if bytes >= 1024 * 1024 * 1024 {
-        format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
-    } else if bytes >= 1024 * 1024 {
-        format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
-    } else if bytes >= 1024 {
-        format!("{:.1}KB", bytes as f64 / 1024.0)
-    } else {
-        format!("{}B", bytes)
-    }
-}
 
-/// Calculate risk level based on size and type
-fn calculate_risk_level(size: u64, is_unsafe: bool, is_ffi: bool) -> &'static str {
-    if is_unsafe {
-        if size > 1024 * 1024 { "critical" } else { "high" }
-    } else if is_ffi {
-        if size > 1024 * 1024 { "high" } else { "medium" }
-    } else {
-        "low"
-    }
-}
 
 /// Get violation severity
 fn get_violation_severity(violation: &str) -> &'static str {
