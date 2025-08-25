@@ -5206,8 +5206,8 @@ function renderFFI() {
     const chartContainer = document.getElementById('ffi-risk-chart');
     if (chartContainer && window.Chart) {
         const data = window.analysisData || {};
-        const ffiData = data.unsafe_ffi || {};
-        const operations = ffiData.enhanced_ffi_data || ffiData.unsafe_operations || [];
+        const ffiData = data.unsafe_ffi || data.unsafeFFI || {};
+        const operations = ffiData.enhanced_ffi_data || ffiData.allocations || ffiData.unsafe_operations || [];
         
         if (operations.length > 0) {
             const highRisk = operations.filter(op => (op.safety_violations || []).length > 2).length;
@@ -5252,164 +5252,228 @@ function renderFFI() {
         }
     }
     
-    // Fallback to ffiVisualization container with SVG
+    // Fallback to ffiVisualization container with project's actual SVG implementation
     const container = document.getElementById('ffiVisualization');
     if (!container) return;
     
     const data = window.analysisData || {};
-    const ffiData = data.unsafe_ffi || {};
-    const operations = ffiData.enhanced_ffi_data || ffiData.unsafe_operations || [];
+    const ffiData = data.unsafe_ffi || data.unsafeFFI || {};
+    const allocations = ffiData.allocations || ffiData.enhanced_ffi_data || [];
+    const violations = ffiData.violations || [];
     
-    if (operations.length === 0) {
+    if (allocations.length === 0) {
         container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No FFI data available</div>';
         return;
     }
     
-    // Create enhanced FFI dashboard with SVG (from original dashboard.html)
-    const width = 320;
-    const height = 240;
+    // Create comprehensive unsafe/FFI dashboard based on project's actual implementation
+    createUnsafeFFIDashboard(container, allocations, violations);
+}
+
+// Comprehensive unsafe/FFI dashboard based on project's actual SVG implementation
+function createUnsafeFFIDashboard(container, allocations, violations) {
+    const width = 600;
+    const height = 400;
     
-    const highRisk = operations.filter(op => (op.safety_violations || []).length > 2).length;
-    const mediumRisk = operations.filter(op => (op.safety_violations || []).length > 0 && (op.safety_violations || []).length <= 2).length;
-    const lowRisk = operations.filter(op => (op.safety_violations || []).length === 0).length;
-    
-    const total = highRisk + mediumRisk + lowRisk;
-    if (total === 0) return;
+    // Calculate key metrics
+    const unsafeCount = allocations.filter(a => a.source && a.source.includes && a.source.includes('Unsafe')).length;
+    const ffiCount = allocations.filter(a => a.source && a.source.includes && a.source.includes('Ffi')).length;
+    const crossBoundaryCount = allocations.filter(a => a.cross_boundary_events && a.cross_boundary_events.length > 0).length;
+    const totalUnsafeMemory = allocations.filter(a => a.source && !a.source.includes('Safe')).reduce((sum, a) => sum + (a.size || 0), 0);
     
     let html = `
-        <div style="display: flex; flex-direction: column; align-items: center; padding: 16px;">
-            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="background: var(--bg-secondary); border-radius: 8px;">
-                <defs>
-                    <filter id="ffi-glow">
-                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                        <feMerge>
-                            <feMergeNode in="coloredBlur"/>
-                            <feMergeNode in="SourceGraphic"/>
-                        </feMerge>
-                    </filter>
-                    <radialGradient id="centerGradient" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" style="stop-color:var(--bg-primary);stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:var(--bg-secondary);stop-opacity:1" />
-                    </radialGradient>
-                </defs>
-    `;
-    
-    // Enhanced risk level visualization with better graphics
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const outerRadius = 80;
-    const innerRadius = 40;
-    
-    let startAngle = -Math.PI / 2; // Start from top
-    
-    // Draw risk segments
-    if (lowRisk > 0) {
-        const angle = (lowRisk / total) * 2 * Math.PI;
-        const endAngle = startAngle + angle;
-        
-        const x1 = centerX + innerRadius * Math.cos(startAngle);
-        const y1 = centerY + innerRadius * Math.sin(startAngle);
-        const x2 = centerX + outerRadius * Math.cos(startAngle);
-        const y2 = centerY + outerRadius * Math.sin(startAngle);
-        const x3 = centerX + outerRadius * Math.cos(endAngle);
-        const y3 = centerY + outerRadius * Math.sin(endAngle);
-        const x4 = centerX + innerRadius * Math.cos(endAngle);
-        const y4 = centerY + innerRadius * Math.sin(endAngle);
-        
-        const largeArc = angle > Math.PI ? 1 : 0;
-        
-        html += `
-            <path d="M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z"
-                  fill="#059669" opacity="0.9" filter="url(#ffi-glow)" stroke="white" stroke-width="1">
-                <title>Low Risk: ${lowRisk} operations (${(lowRisk/total*100).toFixed(1)}%)</title>
-            </path>
-        `;
-        startAngle = endAngle;
-    }
-    
-    if (mediumRisk > 0) {
-        const angle = (mediumRisk / total) * 2 * Math.PI;
-        const endAngle = startAngle + angle;
-        
-        const x1 = centerX + innerRadius * Math.cos(startAngle);
-        const y1 = centerY + innerRadius * Math.sin(startAngle);
-        const x2 = centerX + outerRadius * Math.cos(startAngle);
-        const y2 = centerY + outerRadius * Math.sin(startAngle);
-        const x3 = centerX + outerRadius * Math.cos(endAngle);
-        const y3 = centerY + outerRadius * Math.sin(endAngle);
-        const x4 = centerX + innerRadius * Math.cos(endAngle);
-        const y4 = centerY + innerRadius * Math.sin(endAngle);
-        
-        const largeArc = angle > Math.PI ? 1 : 0;
-        
-        html += `
-            <path d="M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z"
-                  fill="#ea580c" opacity="0.9" filter="url(#ffi-glow)" stroke="white" stroke-width="1">
-                <title>Medium Risk: ${mediumRisk} operations (${(mediumRisk/total*100).toFixed(1)}%)</title>
-            </path>
-        `;
-        startAngle = endAngle;
-    }
-    
-    if (highRisk > 0) {
-        const angle = (highRisk / total) * 2 * Math.PI;
-        const endAngle = startAngle + angle;
-        
-        const x1 = centerX + innerRadius * Math.cos(startAngle);
-        const y1 = centerY + innerRadius * Math.sin(startAngle);
-        const x2 = centerX + outerRadius * Math.cos(startAngle);
-        const y2 = centerY + outerRadius * Math.sin(startAngle);
-        const x3 = centerX + outerRadius * Math.cos(endAngle);
-        const y3 = centerY + outerRadius * Math.sin(endAngle);
-        const x4 = centerX + innerRadius * Math.cos(endAngle);
-        const y4 = centerY + innerRadius * Math.sin(endAngle);
-        
-        const largeArc = angle > Math.PI ? 1 : 0;
-        
-        html += `
-            <path d="M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z"
-                  fill="#dc2626" opacity="0.9" filter="url(#ffi-glow)" stroke="white" stroke-width="1">
-                <title>High Risk: ${highRisk} operations (${(highRisk/total*100).toFixed(1)}%)</title>
-            </path>
-        `;
-    }
-    
-    // Center circle with gradient
-    html += `
-        <circle cx="${centerX}" cy="${centerY}" r="${innerRadius}" fill="url(#centerGradient)" stroke="var(--border-light)" stroke-width="2"/>
-        <text x="${centerX}" y="${centerY - 8}" text-anchor="middle" font-size="18" font-weight="bold" fill="var(--text-primary)">
-            ${total}
-        </text>
-        <text x="${centerX}" y="${centerY + 8}" text-anchor="middle" font-size="12" fill="var(--text-secondary)">
-            FFI Operations
-        </text>
-    `;
-    
-    html += '</svg>';
-    
-    // Enhanced legend with statistics
-    html += `
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; width: 100%;">
-            <div style="text-align: center; padding: 8px; background: var(--bg-primary); border-radius: 6px; border: 1px solid var(--border-light);">
-                <div style="width: 16px; height: 16px; background: #059669; border-radius: 50%; margin: 0 auto 4px;"></div>
-                <div style="font-size: 0.8rem; font-weight: 600;">${lowRisk}</div>
-                <div style="font-size: 0.7rem; color: var(--text-secondary);">Low Risk</div>
+        <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); border-radius: 12px; padding: 20px; color: white;">
+            <!-- Header with title and key metrics -->
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 18px; color: #ecf0f1;">Unsafe Rust & FFI Memory Analysis Dashboard</h3>
             </div>
-            <div style="text-align: center; padding: 8px; background: var(--bg-primary); border-radius: 6px; border: 1px solid var(--border-light);">
-                <div style="width: 16px; height: 16px; background: #ea580c; border-radius: 50%; margin: 0 auto 4px;"></div>
-                <div style="font-size: 0.8rem; font-weight: 600;">${mediumRisk}</div>
-                <div style="font-size: 0.7rem; color: var(--text-secondary);">Medium Risk</div>
+            
+            <!-- Metrics cards -->
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;">
+                <div style="text-align: center; padding: 10px; background: rgba(231, 76, 60, 0.2); border: 2px solid #e74c3c; border-radius: 8px;">
+                    <div style="font-size: 16px; font-weight: bold; color: #e74c3c;">${unsafeCount}</div>
+                    <div style="font-size: 10px; color: #bdc3c7;">Unsafe Allocations</div>
+                </div>
+                <div style="text-align: center; padding: 10px; background: rgba(52, 152, 219, 0.2); border: 2px solid #3498db; border-radius: 8px;">
+                    <div style="font-size: 16px; font-weight: bold; color: #3498db;">${ffiCount}</div>
+                    <div style="font-size: 10px; color: #bdc3c7;">FFI Allocations</div>
+                </div>
+                <div style="text-align: center; padding: 10px; background: rgba(243, 156, 18, 0.2); border: 2px solid #f39c12; border-radius: 8px;">
+                    <div style="font-size: 16px; font-weight: bold; color: #f39c12;">${crossBoundaryCount}</div>
+                    <div style="font-size: 10px; color: #bdc3c7;">Boundary Crossings</div>
+                </div>
+                <div style="text-align: center; padding: 10px; background: rgba(230, 126, 34, 0.2); border: 2px solid #e67e22; border-radius: 8px;">
+                    <div style="font-size: 16px; font-weight: bold; color: #e67e22;">${violations.length}</div>
+                    <div style="font-size: 10px; color: #bdc3c7;">Safety Violations</div>
+                </div>
+                <div style="text-align: center; padding: 10px; background: rgba(155, 89, 182, 0.2); border: 2px solid #9b59b6; border-radius: 8px;">
+                    <div style="font-size: 16px; font-weight: bold; color: #9b59b6;">${formatBytes(totalUnsafeMemory)}</div>
+                    <div style="font-size: 10px; color: #bdc3c7;">Unsafe Memory</div>
+                </div>
             </div>
-            <div style="text-align: center; padding: 8px; background: var(--bg-primary); border-radius: 6px; border: 1px solid var(--border-light);">
-                <div style="width: 16px; height: 16px; background: #dc2626; border-radius: 50%; margin: 0 auto 4px;"></div>
-                <div style="font-size: 0.8rem; font-weight: 600;">${highRisk}</div>
-                <div style="font-size: 0.7rem; color: var(--text-secondary);">High Risk</div>
+            
+            <!-- Main content areas -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Allocation source breakdown -->
+                <div style="background: rgba(52, 73, 94, 0.3); border: 2px solid #34495e; border-radius: 10px; padding: 15px;">
+                    <h4 style="margin: 0 0 15px 0; text-align: center; color: #ecf0f1;">Memory Allocation Sources</h4>
+                    <div id="allocation-source-chart"></div>
+                </div>
+                
+                <!-- Memory safety status -->
+                <div style="background: rgba(52, 73, 94, 0.3); border: 2px solid #34495e; border-radius: 10px; padding: 15px;">
+                    <h4 style="margin: 0 0 15px 0; text-align: center; color: #ecf0f1;">Memory Safety Status</h4>
+                    <div id="safety-status-panel"></div>
+                </div>
+            </div>
+            
+            <!-- Cross-language memory flow -->
+            <div style="margin-top: 20px; background: rgba(52, 73, 94, 0.3); border: 2px solid #34495e; border-radius: 10px; padding: 15px;">
+                <h4 style="margin: 0 0 15px 0; text-align: center; color: #ecf0f1;">Cross-Language Memory Flow</h4>
+                <div id="boundary-flow-diagram"></div>
             </div>
         </div>
     `;
     
+    container.innerHTML = html;
+    
+    // Render individual components
+    renderAllocationSourceChart(allocations);
+    renderSafetyStatusPanel(violations);
+    renderBoundaryFlowDiagram(allocations);
+}
+
+function renderAllocationSourceChart(allocations) {
+    const container = document.getElementById('allocation-source-chart');
+    if (!container) return;
+    
+    // Count allocations by source
+    let safeCount = 0, unsafeCount = 0, ffiCount = 0, crossBoundaryCount = 0;
+    
+    allocations.forEach(allocation => {
+        if (allocation.source) {
+            if (allocation.source.includes && allocation.source.includes('Safe')) safeCount++;
+            else if (allocation.source.includes && allocation.source.includes('Unsafe')) unsafeCount++;
+            else if (allocation.source.includes && allocation.source.includes('Ffi')) ffiCount++;
+            else if (allocation.source.includes && allocation.source.includes('Cross')) crossBoundaryCount++;
+        }
+    });
+    
+    const total = safeCount + unsafeCount + ffiCount + crossBoundaryCount;
+    if (total === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #95a5a6;">No allocation data available</div>';
+        return;
+    }
+    
+    const sources = [
+        { label: 'Safe Rust', count: safeCount, color: '#2ecc71' },
+        { label: 'Unsafe Rust', count: unsafeCount, color: '#e74c3c' },
+        { label: 'FFI', count: ffiCount, color: '#3498db' },
+        { label: 'Cross-boundary', count: crossBoundaryCount, color: '#9b59b6' }
+    ];
+    
+    let html = '<div style="display: flex; justify-content: space-around; align-items: end; height: 100px;">';
+    
+    sources.forEach(source => {
+        if (source.count > 0) {
+            const barHeight = (source.count / total * 80);
+            html += `
+                <div style="text-align: center;">
+                    <div style="font-size: 12px; font-weight: bold; color: ${source.color}; margin-bottom: 5px;">${source.count}</div>
+                    <div style="width: 30px; height: ${barHeight}px; background: ${source.color}; margin: 0 auto 5px;"></div>
+                    <div style="font-size: 10px; color: #ecf0f1; writing-mode: vertical-rl; text-orientation: mixed;">${source.label}</div>
+                </div>
+            `;
+        }
+    });
+    
     html += '</div>';
     container.innerHTML = html;
+}
+
+function renderSafetyStatusPanel(violations) {
+    const container = document.getElementById('safety-status-panel');
+    if (!container) return;
+    
+    if (violations.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: #27ae60;">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">No Safety Violations Detected</div>
+                <div style="font-size: 12px; color: #2ecc71;">All unsafe operations and FFI calls appear to be memory-safe</div>
+            </div>
+        `;
+    } else {
+        let html = `
+            <div style="text-align: center; color: #e74c3c; margin-bottom: 15px;">
+                <div style="font-size: 16px; font-weight: bold;">${violations.length} Safety Violations Detected</div>
+            </div>
+            <div style="max-height: 80px; overflow-y: auto;">
+        `;
+        
+        violations.slice(0, 5).forEach(violation => {
+            const description = violation.type || 'Unknown Violation';
+            html += `<div style="font-size: 12px; color: #e74c3c; margin-bottom: 5px;">• ${description}</div>`;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+}
+
+function renderBoundaryFlowDiagram(allocations) {
+    const container = document.getElementById('boundary-flow-diagram');
+    if (!container) return;
+    
+    // Count boundary events
+    let rustToFfi = 0, ffiToRust = 0;
+    
+    allocations.forEach(allocation => {
+        if (allocation.cross_boundary_events) {
+            allocation.cross_boundary_events.forEach(event => {
+                if (event.event_type === 'RustToFfi') rustToFfi++;
+                else if (event.event_type === 'FfiToRust') ffiToRust++;
+                else if (event.event_type === 'OwnershipTransfer') rustToFfi++;
+                else if (event.event_type === 'SharedAccess') {
+                    rustToFfi++;
+                    ffiToRust++;
+                }
+            });
+        }
+    });
+    
+    container.innerHTML = `
+        <div style="display: flex; justify-content: space-around; align-items: center; height: 80px;">
+            <!-- Rust territory -->
+            <div style="width: 150px; height: 60px; background: rgba(46, 204, 113, 0.2); border: 2px solid #2ecc71; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; font-weight: bold; color: #2ecc71;">RUST</div>
+                </div>
+            </div>
+            
+            <!-- Flow arrows -->
+            <div style="text-align: center;">
+                ${rustToFfi > 0 ? `
+                    <div style="margin-bottom: 5px;">
+                        <span style="color: #e74c3c; font-weight: bold;">${rustToFfi}</span>
+                        <span style="color: #e74c3c;"> →</span>
+                    </div>
+                ` : ''}
+                ${ffiToRust > 0 ? `
+                    <div>
+                        <span style="color: #f39c12;"> ←</span>
+                        <span style="color: #f39c12; font-weight: bold;">${ffiToRust}</span>
+                    </div>
+                ` : ''}
+            </div>
+            
+            <!-- FFI territory -->
+            <div style="width: 150px; height: 60px; background: rgba(52, 152, 219, 0.2); border: 2px solid #3498db; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; font-weight: bold; color: #3498db;">FFI / C</div>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function renderMemoryUsageAnalysis() {
@@ -5603,7 +5667,7 @@ function renderVariableGraph() {
         return;
     }
     
-    // Enhanced variable relationship graph with drag and click functionality
+    // Enhanced variable relationship graph with pan/zoom and drag functionality
     const nodes = allocs.slice(0, 30).map((a, i) => ({
         id: i,
         name: a.var_name || `var_${i}`,
@@ -5613,8 +5677,8 @@ function renderVariableGraph() {
         ptr: a.ptr || 'unknown',
         timestamp_alloc: a.timestamp_alloc || 0,
         timestamp_dealloc: a.timestamp_dealloc || null,
-        x: 100 + (i % 6) * 80 + Math.random() * 20,
-        y: 100 + Math.floor(i / 6) * 80 + Math.random() * 20,
+        x: 200 + (i % 6) * 120 + Math.random() * 40,
+        y: 200 + Math.floor(i / 6) * 120 + Math.random() * 40,
         isDragging: false
     }));
     
@@ -5629,13 +5693,15 @@ function renderVariableGraph() {
         }
     }
     
-    const width = container.offsetWidth || 500;
-    const height = 400;
+    const width = 1200;  // Larger virtual canvas
+    const height = 800;
+    const viewWidth = container.offsetWidth || 500;
+    const viewHeight = 400;
     
-    // Create SVG with interactive elements
+    // Create SVG with pan/zoom capabilities
     let html = `
-        <div style="position: relative; width: 100%; height: ${height}px;">
-            <svg id="graph-svg" width="100%" height="${height}" viewBox="0 0 ${width} ${height}" style="background: transparent; cursor: grab;">
+        <div style="position: relative; width: 100%; height: ${viewHeight}px; overflow: hidden; border: 1px solid var(--border-light); border-radius: 8px;">
+            <svg id="graph-svg" width="100%" height="100%" viewBox="0 0 ${viewWidth} ${viewHeight}" style="background: var(--bg-secondary); cursor: grab;">
                 <defs>
                     <filter id="node-glow">
                         <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -5649,7 +5715,8 @@ function renderVariableGraph() {
                         <path d="M0,0 L0,6 L9,3 z" fill="var(--border-light)" opacity="0.6"/>
                     </marker>
                 </defs>
-                <g id="links-group">
+                <g id="graph-container" transform="translate(0,0) scale(1)">
+                    <g id="links-group">
     `;
     
     // Draw links
@@ -5658,7 +5725,7 @@ function renderVariableGraph() {
         const target = nodes[link.target];
         html += `
             <line id="link-${linkIndex}" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" 
-                  stroke="var(--border-light)" stroke-width="1" opacity="0.4" 
+                  stroke="var(--border-light)" stroke-width="2" opacity="0.6" 
                   marker-end="url(#arrow)"/>
         `;
     });
@@ -5667,7 +5734,7 @@ function renderVariableGraph() {
     
     // Draw nodes
     nodes.forEach((node, nodeIndex) => {
-        const radius = Math.max(8, Math.min(25, Math.log(node.size + 1) * 3));
+        const radius = Math.max(12, Math.min(30, Math.log(node.size + 1) * 4));
         let color = '#6b7280'; // default
         
         if (node.type.includes('String')) color = '#fbbf24';
@@ -5687,7 +5754,7 @@ function renderVariableGraph() {
                 r="${radius}" 
                 fill="${color}" 
                 stroke="white" 
-                stroke-width="2" 
+                stroke-width="3" 
                 filter="url(#node-glow)"
                 style="cursor: grab;"
                 class="graph-node"
@@ -5703,18 +5770,33 @@ function renderVariableGraph() {
             <text 
                 id="text-${nodeIndex}"
                 x="${node.x}" 
-                y="${node.y + radius + 15}" 
+                y="${node.y + radius + 20}" 
                 text-anchor="middle" 
-                font-size="9" 
+                font-size="12" 
+                font-weight="600"
                 fill="var(--text-primary)"
-                style="font-weight: 500; pointer-events: none;"
-            >${node.name.length > 10 ? node.name.substring(0, 8) + '...' : node.name}</text>
+                style="pointer-events: none;"
+            >${node.name.length > 12 ? node.name.substring(0, 10) + '...' : node.name}</text>
         `;
     });
     
     html += `
+                </g>
             </g>
         </svg>
+        
+        <!-- Controls -->
+        <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 8px;">
+            <button id="zoom-in" style="background: var(--primary-blue); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                <i class="fa fa-plus"></i>
+            </button>
+            <button id="zoom-out" style="background: var(--primary-blue); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                <i class="fa fa-minus"></i>
+            </button>
+            <button id="reset-view" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                <i class="fa fa-home"></i>
+            </button>
+        </div>
         
         <!-- Node detail panel -->
         <div id="node-detail-panel" style="
@@ -5730,7 +5812,7 @@ function renderVariableGraph() {
             display: none;
             backdrop-filter: blur(10px);
         ">
-            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <h4 id="detail-title" style="margin: 0; font-size: 1rem; font-weight: 600;"></h4>
                 <button onclick="hideNodeDetails()" style="background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-secondary);">×</button>
             </div>
@@ -5768,10 +5850,12 @@ function renderVariableGraph() {
     // Store nodes and links data for interaction
     window.graphNodes = nodes;
     window.graphLinks = links;
+    window.graphTransform = { x: 0, y: 0, scale: 1 };
     
-    // Add drag and click functionality
+    // Add pan/zoom and drag functionality
     setTimeout(() => {
         setupGraphInteractions();
+        setupPanZoom();
     }, 100);
 }
 
@@ -5806,13 +5890,15 @@ function setupGraphInteractions() {
         // Hover effects
         node.addEventListener('mouseover', function() {
             if (!draggedNode) {
-                this.r.baseVal.value = this.r.baseVal.value * 1.2;
+                const currentRadius = parseInt(this.getAttribute('r'));
+                this.setAttribute('r', Math.round(currentRadius * 1.2));
             }
         });
         
         node.addEventListener('mouseout', function() {
             if (!draggedNode) {
-                this.r.baseVal.value = this.r.baseVal.value / 1.2;
+                const currentRadius = parseInt(this.getAttribute('r'));
+                this.setAttribute('r', Math.round(currentRadius / 1.2));
             }
         });
     });
@@ -5820,6 +5906,7 @@ function setupGraphInteractions() {
     // Global mouse events for dragging
     document.addEventListener('mousemove', function(e) {
         if (draggedNode) {
+            e.preventDefault();
             const deltaX = e.clientX - startX;
             const deltaY = e.clientY - startY;
             
@@ -5829,19 +5916,19 @@ function setupGraphInteractions() {
             
             if (isDragging) {
                 const rect = svg.getBoundingClientRect();
-                const svgX = e.clientX - rect.left;
-                const svgY = e.clientY - rect.top;
+                const svgX = Math.max(20, Math.min(rect.width - 20, e.clientX - rect.left));
+                const svgY = Math.max(20, Math.min(rect.height - 20, e.clientY - rect.top));
                 
                 // Update node position
-                draggedNode.cx.baseVal.value = svgX;
-                draggedNode.cy.baseVal.value = svgY;
+                draggedNode.setAttribute('cx', svgX);
+                draggedNode.setAttribute('cy', svgY);
                 
                 // Update text position
                 const nodeIndex = draggedNode.getAttribute('data-index');
                 const textElement = document.getElementById(`text-${nodeIndex}`);
                 if (textElement) {
-                    textElement.x.baseVal[0].value = svgX;
-                    textElement.y.baseVal[0].value = svgY + parseInt(draggedNode.r.baseVal.value) + 15;
+                    textElement.setAttribute('x', svgX);
+                    textElement.setAttribute('y', svgY + parseInt(draggedNode.getAttribute('r')) + 15);
                 }
                 
                 // Update connected links
@@ -5856,10 +5943,15 @@ function setupGraphInteractions() {
         }
     });
     
-    document.addEventListener('mouseup', function() {
+    document.addEventListener('mouseup', function(e) {
         if (draggedNode) {
             draggedNode.style.cursor = 'grab';
             svg.style.cursor = 'grab';
+            
+            // Reset hover effect
+            const originalRadius = parseInt(draggedNode.getAttribute('r'));
+            draggedNode.setAttribute('r', originalRadius);
+            
             draggedNode = null;
             setTimeout(() => { isDragging = false; }, 100);
         }
@@ -5874,12 +5966,12 @@ function updateConnectedLinks(nodeIndex, newX, newY) {
         if (!linkElement) return;
         
         if (link.source === nodeIndex) {
-            linkElement.x1.baseVal.value = newX;
-            linkElement.y1.baseVal.value = newY;
+            linkElement.setAttribute('x1', newX);
+            linkElement.setAttribute('y1', newY);
         }
         if (link.target === nodeIndex) {
-            linkElement.x2.baseVal.value = newX;
-            linkElement.y2.baseVal.value = newY;
+            linkElement.setAttribute('x2', newX);
+            linkElement.setAttribute('y2', newY);
         }
     });
 }
@@ -5938,6 +6030,101 @@ function hideNodeDetails() {
     if (panel) {
         panel.style.display = 'none';
     }
+}
+
+// Pan and zoom functionality for the graph
+function setupPanZoom() {
+    const svg = document.getElementById('graph-svg');
+    const container = document.getElementById('graph-container');
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const resetBtn = document.getElementById('reset-view');
+    
+    if (!svg || !container) return;
+    
+    let isPanning = false;
+    let startX, startY;
+    let transform = window.graphTransform;
+    
+    // Zoom functions
+    function updateTransform() {
+        container.setAttribute('transform', `translate(${transform.x},${transform.y}) scale(${transform.scale})`);
+    }
+    
+    function zoom(factor, centerX = 0, centerY = 0) {
+        const newScale = Math.max(0.1, Math.min(3, transform.scale * factor));
+        
+        // Zoom towards center point
+        const dx = centerX - transform.x;
+        const dy = centerY - transform.y;
+        
+        transform.x = centerX - dx * (newScale / transform.scale);
+        transform.y = centerY - dy * (newScale / transform.scale);
+        transform.scale = newScale;
+        
+        updateTransform();
+    }
+    
+    // Button controls
+    if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', () => {
+            const rect = svg.getBoundingClientRect();
+            zoom(1.2, rect.width / 2, rect.height / 2);
+        });
+    }
+    
+    if (zoomOutBtn) {
+        zoomOutBtn.addEventListener('click', () => {
+            const rect = svg.getBoundingClientRect();
+            zoom(0.8, rect.width / 2, rect.height / 2);
+        });
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            transform.x = 0;
+            transform.y = 0;
+            transform.scale = 1;
+            updateTransform();
+        });
+    }
+    
+    // Mouse wheel zoom
+    svg.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        zoom(zoomFactor, mouseX, mouseY);
+    });
+    
+    // Pan functionality
+    svg.addEventListener('mousedown', function(e) {
+        if (e.target === svg || e.target === container) {
+            isPanning = true;
+            startX = e.clientX - transform.x;
+            startY = e.clientY - transform.y;
+            svg.style.cursor = 'grabbing';
+        }
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+        if (isPanning) {
+            e.preventDefault();
+            transform.x = e.clientX - startX;
+            transform.y = e.clientY - startY;
+            updateTransform();
+        }
+    });
+    
+    document.addEventListener('mouseup', function() {
+        if (isPanning) {
+            isPanning = false;
+            svg.style.cursor = 'grab';
+        }
+    });
 }
 
 // Lifecycle toggle functionality
@@ -6186,6 +6373,196 @@ function initFFIVisualization() {
     renderFFI();
 }
 
+// Complete JSON Data Explorer
+function initCompleteJSONExplorer() {
+    const container = document.getElementById('jsonDataExplorer');
+    const expandBtn = document.getElementById('expand-all-json');
+    const collapseBtn = document.getElementById('collapse-all-json');
+    
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    
+    if (Object.keys(data).length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">No JSON data available</div>';
+        return;
+    }
+    
+    // Generate comprehensive JSON explorer
+    let html = '<div class="json-explorer">';
+    
+    // Add data summary
+    html += `
+        <div style="background: var(--bg-primary); border: 1px solid var(--border-light); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+            <h3 style="margin: 0 0 12px 0; color: var(--text-primary);">Data Summary</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                ${Object.keys(data).map(key => {
+                    const value = data[key];
+                    let itemCount = 'N/A';
+                    let dataType = typeof value;
+                    
+                    if (Array.isArray(value)) {
+                        itemCount = value.length + ' items';
+                        dataType = 'Array';
+                    } else if (value && typeof value === 'object') {
+                        itemCount = Object.keys(value).length + ' properties';
+                        dataType = 'Object';
+                    }
+                    
+                    return `
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px;">
+                            <div style="font-weight: 600; color: var(--text-primary);">${key}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">${dataType}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">${itemCount}</div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+    
+    // Generate expandable JSON tree for each top-level key
+    Object.keys(data).forEach((key, index) => {
+        const value = data[key];
+        html += createJSONSection(key, value, index);
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    // Setup expand/collapse functionality
+    if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+            const details = container.querySelectorAll('details');
+            details.forEach(detail => detail.open = true);
+        });
+    }
+    
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+            const details = container.querySelectorAll('details');
+            details.forEach(detail => detail.open = false);
+        });
+    }
+}
+
+function createJSONSection(key, value, index) {
+    const isOpen = index < 3; // Open first 3 sections by default
+    
+    let html = `
+        <details class="json-section" ${isOpen ? 'open' : ''} style="
+            border: 1px solid var(--border-light); 
+            border-radius: 8px; 
+            margin-bottom: 12px; 
+            background: var(--bg-primary);
+        ">
+            <summary style="
+                cursor: pointer; 
+                padding: 12px 16px; 
+                font-weight: 600; 
+                color: var(--text-primary); 
+                background: var(--bg-secondary);
+                border-radius: 8px 8px 0 0;
+                user-select: none;
+            ">
+                <i class="fa fa-chevron-right" style="margin-right: 8px; transition: transform 0.2s;"></i>
+                ${key}
+                <span style="font-weight: normal; color: var(--text-secondary); margin-left: 8px;">
+                    ${getDataTypeInfo(value)}
+                </span>
+            </summary>
+            <div style="padding: 16px;">
+    `;
+    
+    if (Array.isArray(value)) {
+        html += createArrayView(value, key);
+    } else if (value && typeof value === 'object') {
+        html += createObjectView(value, key);
+    } else {
+        html += `<pre style="margin: 0; color: var(--text-primary); font-size: 0.9rem;">${JSON.stringify(value, null, 2)}</pre>`;
+    }
+    
+    html += '</div></details>';
+    return html;
+}
+
+function createArrayView(array, parentKey) {
+    if (array.length === 0) {
+        return '<div style="color: var(--text-secondary); font-style: italic;">Empty array</div>';
+    }
+    
+    let html = `
+        <div style="margin-bottom: 12px;">
+            <strong>Array with ${array.length} items</strong>
+            ${array.length > 10 ? `<span style="color: var(--text-secondary);"> (showing first 10)</span>` : ''}
+        </div>
+    `;
+    
+    // Show first 10 items
+    const itemsToShow = array.slice(0, 10);
+    
+    itemsToShow.forEach((item, index) => {
+        html += `
+            <details style="margin-bottom: 8px; border: 1px solid var(--border-light); border-radius: 6px;">
+                <summary style="cursor: pointer; padding: 8px 12px; background: var(--bg-secondary); font-size: 0.9rem;">
+                    [${index}] ${getDataTypeInfo(item)}
+                </summary>
+                <div style="padding: 12px;">
+                    <pre style="margin: 0; font-size: 0.8rem; color: var(--text-primary); max-height: 300px; overflow: auto;">${JSON.stringify(item, null, 2)}</pre>
+                </div>
+            </details>
+        `;
+    });
+    
+    if (array.length > 10) {
+        html += `<div style="color: var(--text-secondary); font-style: italic; margin-top: 12px;">... and ${array.length - 10} more items</div>`;
+    }
+    
+    return html;
+}
+
+function createObjectView(obj, parentKey) {
+    const keys = Object.keys(obj);
+    
+    if (keys.length === 0) {
+        return '<div style="color: var(--text-secondary); font-style: italic;">Empty object</div>';
+    }
+    
+    let html = `
+        <div style="margin-bottom: 12px;">
+            <strong>Object with ${keys.length} properties</strong>
+        </div>
+    `;
+    
+    keys.forEach(key => {
+        const value = obj[key];
+        html += `
+            <details style="margin-bottom: 8px; border: 1px solid var(--border-light); border-radius: 6px;">
+                <summary style="cursor: pointer; padding: 8px 12px; background: var(--bg-secondary); font-size: 0.9rem;">
+                    <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;">${key}</code>
+                    <span style="margin-left: 8px; color: var(--text-secondary);">${getDataTypeInfo(value)}</span>
+                </summary>
+                <div style="padding: 12px;">
+                    <pre style="margin: 0; font-size: 0.8rem; color: var(--text-primary); max-height: 300px; overflow: auto;">${JSON.stringify(value, null, 2)}</pre>
+                </div>
+            </details>
+        `;
+    });
+    
+    return html;
+}
+
+function getDataTypeInfo(value) {
+    if (value === null) return 'null';
+    if (value === undefined) return 'undefined';
+    if (Array.isArray(value)) return `Array[${value.length}]`;
+    if (typeof value === 'object') return `Object{${Object.keys(value).length}}`;
+    if (typeof value === 'string') return `String(${value.length})`;
+    if (typeof value === 'number') return `Number(${value})`;
+    if (typeof value === 'boolean') return `Boolean(${value})`;
+    return typeof value;
+}
+
 // Initialize dashboard when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
     console.log('🚀 MemScope Dashboard Loaded');
@@ -6215,6 +6592,7 @@ document.addEventListener("DOMContentLoaded", () => {
         initFFIVisualization();
         setupLifecycleVisualization();
         setupLifecycleToggle();
+        initCompleteJSONExplorer();
         
         console.log('✅ All dashboard components initialized');
     } catch(e) { 

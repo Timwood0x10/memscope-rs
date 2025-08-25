@@ -395,6 +395,24 @@
         </div>
       </div>
     </section>
+
+    <!-- Complete JSON Data Explorer -->
+    <section class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0;">Complete JSON Data Explorer</h2>
+        <div>
+          <button id="expand-all-json" class="theme-toggle" style="background: var(--primary-blue); font-size: 12px; padding: 6px 12px; margin-right: 8px;">
+            <i class="fa fa-expand"></i>
+            <span>Expand All</span>
+          </button>
+          <button id="collapse-all-json" class="theme-toggle" style="background: var(--primary-orange); font-size: 12px; padding: 6px 12px;">
+            <i class="fa fa-compress"></i>
+            <span>Collapse All</span>
+          </button>
+        </div>
+      </div>
+      <div id="jsonDataExplorer" style="max-height: 600px; overflow-y: auto; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; padding: 16px;"></div>
+    </section>
   </div>
 
   <script>
