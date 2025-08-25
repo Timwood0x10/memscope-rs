@@ -1,10 +1,150 @@
-// MemScope Dashboard JavaScript - Complete version with theme support and collapsible tables
+// MemScope Dashboard JavaScript - Clean rendering for clean_dashboard.html
 // This file contains comprehensive functions for memory analysis dashboard
 
 // Global data store - will be populated by HTML template
 window.analysisData = window.analysisData || {};
 
-// Initialize all dashboard components
+// FFI dashboard render style: 'svg' to mimic Rust SVG dashboard, 'cards' for card-based UI
+const FFI_STYLE = 'svg';
+
+// Initialize all dashboard components - Clean layout
+function initCleanTemplate() {
+    console.log('🚀 Initializing MemScope Dashboard...');
+    console.log('📊 Available data:', Object.keys(window.analysisData||{}));
+    const data = window.analysisData || {};
+
+    // KPI 关键指标
+    updateKPICards(data);
+
+    // Memory by type (Chart.js)
+    const typeChartEl = document.getElementById('typeChart');
+    if (typeChartEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const byType = {};
+        for (const a of allocs) { const t=a.type_name||'Unknown'; byType[t]=(byType[t]||0)+(a.size||0); }
+        const top = Object.entries(byType).sort((a,b)=>b[1]-a[1]).slice(0,10);
+        if (top.length>0) {
+            const ctx = typeChartEl.getContext('2d');
+            if (window.chartInstances['clean-type']) window.chartInstances['clean-type'].destroy();
+            window.chartInstances['clean-type'] = new Chart(ctx, {
+                type:'bar',
+                data:{ labels: top.map(x=>x[0]), datasets:[{ label:'Bytes', data: top.map(x=>x[1]), backgroundColor:'#3b82f6' }] },
+                options:{ responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+            });
+            const legend = document.getElementById('typeLegend');
+            if (legend) legend.innerHTML = top.map(([n,v])=>`<span class="pill">${n}: ${formatBytes(v)}</span>`).join(' ');
+        }
+    }
+
+    // Timeline (Chart.js)
+    const timelineEl = document.getElementById('timelineChart');
+    if (timelineEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const rawTimeline = (data.memory_analysis && data.memory_analysis.memory_timeline) || [];
+        let points = [];
+        if (rawTimeline.length) {
+            points = rawTimeline.map((p,i)=>({ x:i, y:(p.memory_usage||0) }));
+        } else {
+            const sorted = allocs.slice().sort((a,b)=>(a.timestamp_alloc||0)-(b.timestamp_alloc||0));
+            let cum=0; const step=Math.max(1, Math.floor(sorted.length/50));
+            for(let i=0;i<sorted.length;i+=step){ cum += sorted[i].size||0; points.push({x:i, y:cum}); }
+        }
+        if (points.length>1) {
+            const ctx = timelineEl.getContext('2d');
+            if (window.chartInstances['clean-timeline']) window.chartInstances['clean-timeline'].destroy();
+            window.chartInstances['clean-timeline'] = new Chart(ctx, {
+                type:'line',
+                data:{ labels: points.map(p=>p.x), datasets:[{ label:'Cumulative', data: points.map(p=>p.y), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,0.1)', fill:true, tension:0.25 }] },
+                options:{ responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+            });
+        }
+    }
+
+    // Treemap
+    const treemapEl = document.getElementById('treemap');
+    if (treemapEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        treemapEl.innerHTML = createTreemapVisualization(allocs);
+    }
+
+    // Growth
+    const growthEl = document.getElementById('growth');
+    if (growthEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const total = allocs.reduce((s,a)=>s+(a.size||0),0);
+        growthEl.innerHTML = createAdvancedGrowthTrendVisualization(allocs, Math.max(1,total));
+    }
+
+    // Lifetimes (top 10)
+    const lifetimesEl = document.getElementById('lifetimes');
+    if (lifetimesEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const top = allocs.filter(a=>a.var_name && a.var_name!=='unknown').sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,10);
+        lifetimesEl.innerHTML = top.map(a=>`<div class="flex items-center justify-between py-1 border-b">
+            <div class="text-xs font-medium">${a.var_name}</div>
+            <div class="text-xs text-gray-500">${formatBytes(a.size||0)}</div>
+        </div>`).join('');
+    }
+
+    // Update memory allocation table
+    updateAllocationsTable(data);
+    
+    // Update unsafe risk table
+    updateUnsafeTable(data);
+
+    // Initialize all charts and visualizations
+    initCharts(data);
+    
+    // Initialize lifecycle visualization
+    initLifetimeVisualization(data);
+
+    // Complex types
+    const complexSummary = document.getElementById('complexSummary');
+    if (complexSummary) {
+        const ct = data.complex_types || {};
+        const s = ct.summary || {};
+        const items = [
+            {label:'Complex Types', val: s.total_complex_types||0},
+            {label:'Smart Pointers', val: s.smart_pointers_count||0},
+            {label:'Collections', val: s.collections_count||0},
+            {label:'Generic Types', val: s.generic_types_count||s.generic_type_count||0},
+        ];
+        complexSummary.innerHTML = items.map(x=>`<div class="pill">${x.label}: ${x.val}</div>`).join('');
+        document.getElementById('complexSmart')?.replaceChildren();
+        document.getElementById('complexCollections')?.replaceChildren();
+        document.getElementById('complexGenerics')?.replaceChildren();
+    }
+
+    // Variable relationships
+    const graphEl = document.getElementById('graph');
+    if (graphEl) {
+        // reuse our D3 relationship graph init but mount into #graph
+        const container = document.createElement('div');
+        container.id = 'variable-graph-container';
+        container.style.width = '100%';
+        container.style.height = '260px';
+        graphEl.appendChild(container);
+        try { initVariableGraph(); } catch(e) { console.warn('variable graph init failed', e); }
+    }
+
+    // Security violations
+    const secEl = document.getElementById('security');
+    if (secEl) {
+        const root = data.unsafe_ffi || {};
+        const list = root.security_hotspots || root.unsafe_reports || [];
+        secEl.innerHTML = (list||[]).slice(0,12).map(h=>{
+            const score = h.risk_score || h.risk_assessment?.confidence_score || 0;
+            const level = h.risk_level || h.risk_assessment?.risk_level || 'Unknown';
+            const width = Math.min(100, Math.round((score||0)*10));
+            return `<div class="card">
+              <div class="text-sm font-semibold">${h.location||h.report_id||'Unknown'}</div>
+              <div class="text-xs text-gray-500">${h.description||h.source?.type||''}</div>
+              <div class="mt-2 bg-red-100 h-2 rounded"><div style="width:${width}%; background:#ef4444; height:100%" class="rounded"></div></div>
+              <div class="text-xs text-gray-500 mt-1">Risk: ${level} (${score})</div>
+            </div>`;
+        }).join('') || '<div class="muted">No security violations</div>';
+    }
+}
 function initializeDashboard() {
     console.log('🚀 Initializing MemScope dashboard...');
     console.log('📊 Available data:', Object.keys(window.analysisData || {}));
@@ -1811,6 +1951,28 @@ function initFFIVisualization() {
 
     // Generate enhanced FFI analysis with improve.md fields
     try {
+        if (FFI_STYLE === 'svg') {
+            const boundaryEvents = window.analysisData.unsafe_ffi?.boundary_events || [];
+            const unsafeAllocs = displayAllocations.filter(a => (a.safety_violations || []).length > 0).length;
+            const ffiAllocs = displayAllocations.filter(a => a.ffi_tracked).length;
+            const safetyViolations = displayAllocations.reduce((sum, a) => sum + ((a.safety_violations || []).length || 0), 0);
+            const unsafeMemory = displayAllocations
+                .filter(a => (a.safety_violations || []).length > 0)
+                .reduce((sum, a) => sum + (a.size || 0), 0);
+
+            container.innerHTML = createFFIDashboardSVG(
+                unsafeAllocs,
+                ffiAllocs,
+                boundaryEvents.length,
+                safetyViolations,
+                unsafeMemory,
+                displayAllocations,
+                boundaryEvents,
+                unsafeReports
+            );
+            console.log('✅ FFI SVG-style dashboard rendered');
+            return;
+        }
         console.log('🔄 Generating FFI analysis...');
         const ffiAnalysis = generateEnhancedFFIAnalysisWithImproveFields(displayAllocations, unsafeReports, memoryPassports, ffiStatistics);
         console.log('✅ FFI analysis generated:', ffiAnalysis);
@@ -4234,9 +4396,1828 @@ function getEfficiencyColor(efficiency) {
     return 'bg-red-500';
 }
 
+// Update KPI Cards
+function updateKPICards(data) {
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const total = allocs.reduce((s,a)=>s+(a.size||0),0);
+    const active = allocs.filter(a=>!a.timestamp_dealloc).length;
+    const safetyScore = calculateSafetyScore(allocs);
+    
+    updateElement('total-allocations', allocs.length.toLocaleString());
+    updateElement('active-variables', active.toLocaleString());
+    updateElement('total-memory', formatBytes(total));
+    updateElement('safety-score', safetyScore + '%');
+}
+
+// Calculate Safety Score
+function calculateSafetyScore(allocs) {
+    if (!allocs.length) return 100;
+    const leaked = allocs.filter(a => a.is_leaked).length;
+    const violations = allocs.filter(a => a.safety_violations && a.safety_violations.length > 0).length;
+    return Math.max(0, 100 - (leaked * 20) - (violations * 10));
+}
+
+// Theme Toggle Functionality
+function initThemeToggle() {
+    const toggleBtn = document.getElementById('theme-toggle');
+    if (!toggleBtn) return;
+    
+    // Check local storage for theme
+    const savedTheme = localStorage.getItem('memscope-theme') || 'light';
+    applyTheme(savedTheme === 'dark');
+    
+    toggleBtn.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        const newTheme = isDark ? 'light' : 'dark';
+        
+        applyTheme(newTheme === 'dark');
+        localStorage.setItem('memscope-theme', newTheme);
+        
+        // Update button text
+        const icon = toggleBtn.querySelector('i');
+        const text = toggleBtn.querySelector('span');
+        if (newTheme === 'dark') {
+            icon.className = 'fa fa-sun';
+            text.textContent = 'Light Mode';
+        } else {
+            icon.className = 'fa fa-moon';
+            text.textContent = 'Dark Mode';
+        }
+        
+        console.log('🎨 Theme switched to:', newTheme);
+    });
+}
+
+// 应用主题
+function applyTheme(isDark) {
+    const html = document.documentElement;
+    if (isDark) {
+        html.classList.add('dark');
+    } else {
+        html.classList.remove('dark');
+    }
+}
+
+// Update Memory Allocation Table
+function updateAllocationsTable(data) {
+    const allocTable = document.getElementById('allocTable');
+    if (!allocTable) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const top = allocs.slice().sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,50);
+    
+    allocTable.innerHTML = top.map(a => {
+        const status = a.is_leaked ? 'Leaked' : (a.timestamp_dealloc ? 'Freed' : 'Active');
+        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active');
+        
+        return `<tr>
+            <td>${a.var_name || 'Unknown'}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
+            <td>${formatBytes(a.size || 0)}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+// Update Unsafe Risk Table
+function updateUnsafeTable(data) {
+    const unsafeTable = document.getElementById('unsafeTable');
+    if (!unsafeTable) return;
+    
+    const root = data.unsafe_ffi || {};
+    const ops = root.enhanced_ffi_data || root.unsafe_operations || root.allocations || [];
+    
+    unsafeTable.innerHTML = (ops || []).slice(0, 50).map(op => {
+        const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
+                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low'));
+        
+        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk');
+        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low');
+        
+        return `<tr>
+            <td>${op.location || op.var_name || 'Unknown'}</td>
+            <td>${op.operation_type || op.type_name || 'Unknown'}</td>
+            <td><span class="status-badge ${riskClass}">${riskText}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+// Initialize Charts
+function initCharts(data) {
+    console.log('📊 Initializing charts...');
+    
+    // Memory type distribution chart
+    initTypeChart(data);
+    
+    // Memory timeline chart
+    initTimelineChart(data);
+    
+    // Type treemap chart
+    initTreemapChart(data);
+    
+    // FFI risk chart
+    initFFIRiskChart(data);
+    
+    // Memory growth trends
+    initGrowthTrends(data);
+    
+    // Memory fragmentation
+    initMemoryFragmentation(data);
+    
+    // Variable relationship graph
+    initVariableGraph(data);
+}
+
+// Memory Type Distribution Chart
+function initTypeChart(data) {
+    const ctx = document.getElementById('typeChart');
+    if (!ctx) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 8);
+    
+    if (top.length > 0 && window.Chart) {
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: top.map(x => {
+                    const formatted = formatTypeName(x[0]);
+                    return formatted.length > 15 ? formatted.substring(0, 12) + '...' : formatted;
+                }),
+                datasets: [{
+                    label: 'Memory Usage',
+                    data: top.map(x => x[1]),
+                    backgroundColor: '#2563eb',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatBytes(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// Memory Timeline Chart
+function initTimelineChart(data) {
+    const ctx = document.getElementById('timelineChart');
+    if (!ctx) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    
+    let cumulative = 0;
+    const points = [];
+    const step = Math.max(1, Math.floor(sorted.length / 30));
+    
+    for (let i = 0; i < sorted.length; i += step) {
+        cumulative += sorted[i].size || 0;
+        points.push({ x: i, y: cumulative });
+    }
+    
+    if (points.length > 1 && window.Chart) {
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: points.map(p => p.x),
+                datasets: [{
+                    label: 'Cumulative Memory',
+                    data: points.map(p => p.y),
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatBytes(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// Type Treemap Chart
+function initTreemapChart(data) {
+    const container = document.getElementById('treemap');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 12);
+    const totalSize = top.reduce((sum, [, size]) => sum + size, 0);
+    
+    if (totalSize > 0) {
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; height: 100%; padding: 16px;">';
+        
+        top.forEach(([type, size], index) => {
+            const percentage = (size / totalSize) * 100;
+            const color = `hsl(${index * 30}, 70%, 55%)`;
+            
+            html += `
+                <div style="
+                    background: ${color};
+                    color: white;
+                    padding: 12px;
+                    border-radius: 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    text-align: center;
+                    min-height: 80px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transition: transform 0.2s ease;
+                " title="${type}: ${formatBytes(size)}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <div style="margin-bottom: 4px;">${formatTypeName(type)}</div>
+                    <div style="font-size: 10px; opacity: 0.9;">${formatBytes(size)}</div>
+                    <div style="font-size: 9px; opacity: 0.7;">${percentage.toFixed(1)}%</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    } else {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No data available</div>';
+    }
+}
+
+// FFI Risk Chart
+function initFFIRiskChart(data) {
+    const ctx = document.getElementById('ffi-risk-chart');
+    if (!ctx) return;
+    
+    const ffiData = data.unsafe_ffi?.enhanced_ffi_data || [];
+    
+    const riskLevels = {
+        'Low Risk': ffiData.filter(item => (item.safety_violations || []).length === 0).length,
+        'Medium Risk': ffiData.filter(item => (item.safety_violations || []).length > 0 && (item.safety_violations || []).length <= 2).length,
+        'High Risk': ffiData.filter(item => (item.safety_violations || []).length > 2).length
+    };
+    
+    if (window.Chart) {
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(riskLevels),
+                datasets: [{
+                    data: Object.values(riskLevels),
+                    backgroundColor: ['#059669', '#ea580c', '#dc2626'],
+                    borderWidth: 2,
+                    borderColor: 'var(--bg-primary)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// Add missing chart and graph functions
+function initGrowthTrends(data) {
+    const container = document.getElementById('growth');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No growth data available</div>';
+        return;
+    }
+    
+    // Simple growth visualization
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    let cumulative = 0;
+    const points = [];
+    
+    for (let i = 0; i < Math.min(sorted.length, 20); i++) {
+        cumulative += sorted[i].size || 0;
+        points.push(cumulative);
+    }
+    
+    const maxValue = Math.max(...points);
+    let html = '<div style="display: flex; align-items: end; height: 200px; gap: 4px; padding: 20px;">';
+    
+    points.forEach((value, i) => {
+        const height = (value / maxValue) * 160;
+        html += `
+            <div style="
+                width: 12px;
+                height: ${height}px;
+                background: linear-gradient(to top, #2563eb, #3b82f6);
+                border-radius: 2px;
+                margin: 0 1px;
+            " title="Step ${i + 1}: ${formatBytes(value)}"></div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function initMemoryFragmentation(data) {
+    const container = document.getElementById('memoryFragmentation');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const activeMemory = allocs.filter(a => !a.timestamp_dealloc).reduce((sum, a) => sum + (a.size || 0), 0);
+    const fragmentationRate = totalMemory > 0 ? ((totalMemory - activeMemory) / totalMemory * 100) : 0;
+    
+    container.innerHTML = `
+        <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Fragmentation Rate</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: ${fragmentationRate > 30 ? '#dc2626' : fragmentationRate > 15 ? '#ea580c' : '#059669'};">
+                        ${fragmentationRate.toFixed(1)}%
+                    </div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Active Memory</div>
+                    <div style="font-size: 1.2rem; font-weight: 600;">${formatBytes(activeMemory)}</div>
+                </div>
+            </div>
+            <div style="background: var(--bg-secondary); height: 8px; border-radius: 4px; overflow: hidden;">
+                <div style="
+                    background: linear-gradient(to right, #059669, #ea580c);
+                    width: ${Math.min(100, fragmentationRate)}%;
+                    height: 100%;
+                    border-radius: 4px;
+                    transition: width 0.8s ease;
+                "></div>
+            </div>
+            <div style="margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary);">
+                ${fragmentationRate > 30 ? 'High fragmentation detected' : fragmentationRate > 15 ? 'Moderate fragmentation' : 'Low fragmentation'}
+            </div>
+        </div>
+    `;
+}
+
+function initVariableGraph(data) {
+    const container = document.getElementById('graph');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No relationship data available</div>';
+        return;
+    }
+    
+    // Create a simple node-link visualization
+    const nodes = allocs.slice(0, 20).map((a, i) => ({
+        id: i,
+        name: a.var_name || `var_${i}`,
+        type: a.type_name || 'unknown',
+        size: a.size || 0,
+        x: 50 + (i % 4) * 80,
+        y: 50 + Math.floor(i / 4) * 60
+    }));
+    
+    let svg = `
+        <svg width="100%" height="100%" style="background: transparent;">
+            <defs>
+                <filter id="glow">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+            </defs>
+    `;
+    
+    // Add links between nearby nodes
+    for (let i = 0; i < nodes.length - 1; i++) {
+        if (i % 4 !== 3) { // Connect horizontally
+            svg += `<line x1="${nodes[i].x}" y1="${nodes[i].y}" x2="${nodes[i+1].x}" y2="${nodes[i+1].y}" stroke="var(--border-light)" stroke-width="1" opacity="0.3"/>`;
+        }
+        if (i < nodes.length - 4) { // Connect vertically
+            svg += `<line x1="${nodes[i].x}" y1="${nodes[i].y}" x2="${nodes[i+4].x}" y2="${nodes[i+4].y}" stroke="var(--border-light)" stroke-width="1" opacity="0.3"/>`;
+        }
+    }
+    
+    // Add nodes
+    nodes.forEach(node => {
+        const radius = Math.max(8, Math.min(20, Math.log(node.size + 1) * 2));
+        const color = node.type.includes('String') ? '#fbbf24' : 
+                     node.type.includes('Vec') ? '#3b82f6' : 
+                     node.type.includes('Box') || node.type.includes('Rc') ? '#8b5cf6' : '#6b7280';
+        
+        svg += `
+            <circle 
+                cx="${node.x}" 
+                cy="${node.y}" 
+                r="${radius}" 
+                fill="${color}" 
+                stroke="white" 
+                stroke-width="2" 
+                filter="url(#glow)"
+                style="cursor: pointer;"
+                onmouseover="this.r.baseVal.value = ${radius + 3}"
+                onmouseout="this.r.baseVal.value = ${radius}"
+            >
+                <title>${node.name} (${node.type})</title>
+            </circle>
+            <text 
+                x="${node.x}" 
+                y="${node.y + radius + 12}" 
+                text-anchor="middle" 
+                font-size="10" 
+                fill="var(--text-primary)"
+                style="font-weight: 500;"
+            >${node.name.length > 8 ? node.name.substring(0, 8) + '...' : node.name}</text>
+        `;
+    });
+    
+    svg += '</svg>';
+    container.innerHTML = svg;
+}
+
+// Initialize lifetime visualization
+function initLifetimeVisualization(data) {
+    const container = document.getElementById('lifetimes');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifetime data available</div>';
+        return;
+    }
+    
+    // Show top allocations by lifetime
+    const withLifetime = allocs.filter(a => a.lifetime_ms || (a.timestamp_alloc && a.timestamp_dealloc));
+    const sorted = withLifetime.sort((a, b) => {
+        const aLifetime = a.lifetime_ms || (a.timestamp_dealloc - a.timestamp_alloc);
+        const bLifetime = b.lifetime_ms || (b.timestamp_dealloc - b.timestamp_alloc);
+        return bLifetime - aLifetime;
+    }).slice(0, 10);
+    
+    if (sorted.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifetime data available</div>';
+        return;
+    }
+    
+    let html = '<div style="padding: 16px;">';
+    
+    sorted.forEach((alloc, index) => {
+        const lifetime = alloc.lifetime_ms || (alloc.timestamp_dealloc - alloc.timestamp_alloc);
+        const isActive = !alloc.timestamp_dealloc;
+        const varName = alloc.var_name || `allocation_${index}`;
+        const size = formatBytes(alloc.size || 0);
+        
+        html += `
+            <div style="
+                margin-bottom: 12px; 
+                padding: 12px; 
+                background: var(--bg-secondary); 
+                border-radius: 8px;
+                border-left: 4px solid ${isActive ? '#059669' : '#2563eb'};
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-primary);">${varName}</span>
+                    <span style="font-size: 0.9rem; color: var(--text-secondary);">${size}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                        ${formatTypeName(alloc.type_name || 'Unknown')}
+                    </span>
+                    <span style="
+                        font-size: 0.8rem; 
+                        font-weight: 600; 
+                        color: ${isActive ? '#059669' : '#2563eb'};
+                    ">
+                        ${isActive ? 'Active' : `${lifetime}ms`}
+                    </span>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Helper function to update elements
+function updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+// Original dashboard functions from dashboard.html
+function renderKpis() {
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const total = allocs.reduce((s,a)=>s+(a.size||0),0);
+    const active = allocs.filter(a=>!a.timestamp_dealloc).length;
+    const leaks = allocs.filter(a=>a.is_leaked).length;
+    const safety = Math.max(0, 100 - (leaks * 20));
+    
+    updateElement('total-allocations', allocs.length.toLocaleString());
+    updateElement('active-variables', active.toLocaleString());
+    updateElement('total-memory', formatBytes(total));
+    updateElement('safety-score', safety + '%');
+}
+
+function populateAllocationsTable() {
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const allocTable = document.getElementById('allocTable');
+    if (!allocTable) return;
+    
+    const top = allocs.slice().sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,50);
+    allocTable.innerHTML = top.map(a => {
+        const status = a.is_leaked ? 'Leaked' : (a.timestamp_dealloc ? 'Freed' : 'Active');
+        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active');
+        
+        return `<tr>
+            <td>${a.var_name || 'Unknown'}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
+            <td>${formatBytes(a.size || 0)}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderTypeChart() {
+    const ctx = document.getElementById('typeChart');
+    if (!ctx || !window.Chart) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 8);
+    
+    if (top.length > 0) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: top.map(x => formatTypeName(x[0])),
+                datasets: [{
+                    label: 'Memory Usage',
+                    data: top.map(x => x[1]),
+                    backgroundColor: '#2563eb',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: { callback: function(value) { return formatBytes(value); } }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderTimelineChart() {
+    const ctx = document.getElementById('timelineChart');
+    if (!ctx || !window.Chart) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    
+    let cumulative = 0;
+    const points = [];
+    const step = Math.max(1, Math.floor(sorted.length / 30));
+    
+    for (let i = 0; i < sorted.length; i += step) {
+        cumulative += sorted[i].size || 0;
+        points.push({ x: i, y: cumulative });
+    }
+    
+    if (points.length > 1) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: points.map(p => p.x),
+                datasets: [{
+                    label: 'Cumulative Memory',
+                    data: points.map(p => p.y),
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: { callback: function(value) { return formatBytes(value); } }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderTreemap() {
+    const container = document.getElementById('treemap');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 12);
+    const totalSize = top.reduce((sum, [, size]) => sum + size, 0);
+    
+    if (totalSize > 0) {
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; height: 100%; padding: 16px;">';
+        
+        top.forEach(([type, size], index) => {
+            const percentage = (size / totalSize) * 100;
+            const color = `hsl(${index * 30}, 70%, 55%)`;
+            
+            html += `
+                <div style="
+                    background: ${color};
+                    color: white;
+                    padding: 12px;
+                    border-radius: 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    text-align: center;
+                    min-height: 80px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transition: transform 0.2s ease;
+                " title="${type}: ${formatBytes(size)}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <div style="margin-bottom: 4px;">${formatTypeName(type)}</div>
+                    <div style="font-size: 10px; opacity: 0.9;">${formatBytes(size)}</div>
+                    <div style="font-size: 9px; opacity: 0.7;">${percentage.toFixed(1)}%</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    } else {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No data available</div>';
+    }
+}
+
+function renderLifetimes() {
+    const container = document.getElementById('lifetimes');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const withLifetime = allocs.filter(a => a.lifetime_ms || (a.timestamp_alloc && a.timestamp_dealloc));
+    const sorted = withLifetime.sort((a, b) => {
+        const aLifetime = a.lifetime_ms || (a.timestamp_dealloc - a.timestamp_alloc);
+        const bLifetime = b.lifetime_ms || (b.timestamp_dealloc - b.timestamp_alloc);
+        return bLifetime - aLifetime;
+    }).slice(0, 10);
+    
+    if (sorted.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifetime data available</div>';
+        return;
+    }
+    
+    let html = '<div style="padding: 16px;">';
+    
+    sorted.forEach((alloc, index) => {
+        const lifetime = alloc.lifetime_ms || (alloc.timestamp_dealloc - alloc.timestamp_alloc);
+        const isActive = !alloc.timestamp_dealloc;
+        const varName = alloc.var_name || `allocation_${index}`;
+        const size = formatBytes(alloc.size || 0);
+        
+        html += `
+            <div style="
+                margin-bottom: 12px; 
+                padding: 12px; 
+                background: var(--bg-secondary); 
+                border-radius: 8px;
+                border-left: 4px solid ${isActive ? '#059669' : '#2563eb'};
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-primary);">${varName}</span>
+                    <span style="font-size: 0.9rem; color: var(--text-secondary);">${size}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                        ${formatTypeName(alloc.type_name || 'Unknown')}
+                    </span>
+                    <span style="
+                        font-size: 0.8rem; 
+                        font-weight: 600; 
+                        color: ${isActive ? '#059669' : '#2563eb'};
+                    ">
+                        ${isActive ? 'Active' : `${lifetime}ms`}
+                    </span>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderFFI() {
+    // First try the chart container
+    const chartContainer = document.getElementById('ffi-risk-chart');
+    if (chartContainer && window.Chart) {
+        const data = window.analysisData || {};
+        const ffiData = data.unsafe_ffi || {};
+        const operations = ffiData.enhanced_ffi_data || ffiData.unsafe_operations || [];
+        
+        if (operations.length > 0) {
+            const highRisk = operations.filter(op => (op.safety_violations || []).length > 2).length;
+            const mediumRisk = operations.filter(op => (op.safety_violations || []).length > 0 && (op.safety_violations || []).length <= 2).length;
+            const lowRisk = operations.filter(op => (op.safety_violations || []).length === 0).length;
+            
+            new Chart(chartContainer, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Low Risk', 'Medium Risk', 'High Risk'],
+                    datasets: [{
+                        data: [lowRisk, mediumRisk, highRisk],
+                        backgroundColor: ['#059669', '#ea580c', '#dc2626'],
+                        borderWidth: 2,
+                        borderColor: 'var(--bg-primary)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    return data.labels.map((label, i) => ({
+                                        text: `${label}: ${data.datasets[0].data[i]}`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        strokeStyle: data.datasets[0].backgroundColor[i],
+                                        pointStyle: 'circle'
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            return;
+        }
+    }
+    
+    // Fallback to ffiVisualization container with SVG
+    const container = document.getElementById('ffiVisualization');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const ffiData = data.unsafe_ffi || {};
+    const operations = ffiData.enhanced_ffi_data || ffiData.unsafe_operations || [];
+    
+    if (operations.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No FFI data available</div>';
+        return;
+    }
+    
+    // Create enhanced FFI dashboard with SVG (from original dashboard.html)
+    const width = 320;
+    const height = 240;
+    
+    const highRisk = operations.filter(op => (op.safety_violations || []).length > 2).length;
+    const mediumRisk = operations.filter(op => (op.safety_violations || []).length > 0 && (op.safety_violations || []).length <= 2).length;
+    const lowRisk = operations.filter(op => (op.safety_violations || []).length === 0).length;
+    
+    const total = highRisk + mediumRisk + lowRisk;
+    if (total === 0) return;
+    
+    let html = `
+        <div style="display: flex; flex-direction: column; align-items: center; padding: 16px;">
+            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="background: var(--bg-secondary); border-radius: 8px;">
+                <defs>
+                    <filter id="ffi-glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                    <radialGradient id="centerGradient" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" style="stop-color:var(--bg-primary);stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:var(--bg-secondary);stop-opacity:1" />
+                    </radialGradient>
+                </defs>
+    `;
+    
+    // Enhanced risk level visualization with better graphics
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const outerRadius = 80;
+    const innerRadius = 40;
+    
+    let startAngle = -Math.PI / 2; // Start from top
+    
+    // Draw risk segments
+    if (lowRisk > 0) {
+        const angle = (lowRisk / total) * 2 * Math.PI;
+        const endAngle = startAngle + angle;
+        
+        const x1 = centerX + innerRadius * Math.cos(startAngle);
+        const y1 = centerY + innerRadius * Math.sin(startAngle);
+        const x2 = centerX + outerRadius * Math.cos(startAngle);
+        const y2 = centerY + outerRadius * Math.sin(startAngle);
+        const x3 = centerX + outerRadius * Math.cos(endAngle);
+        const y3 = centerY + outerRadius * Math.sin(endAngle);
+        const x4 = centerX + innerRadius * Math.cos(endAngle);
+        const y4 = centerY + innerRadius * Math.sin(endAngle);
+        
+        const largeArc = angle > Math.PI ? 1 : 0;
+        
+        html += `
+            <path d="M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z"
+                  fill="#059669" opacity="0.9" filter="url(#ffi-glow)" stroke="white" stroke-width="1">
+                <title>Low Risk: ${lowRisk} operations (${(lowRisk/total*100).toFixed(1)}%)</title>
+            </path>
+        `;
+        startAngle = endAngle;
+    }
+    
+    if (mediumRisk > 0) {
+        const angle = (mediumRisk / total) * 2 * Math.PI;
+        const endAngle = startAngle + angle;
+        
+        const x1 = centerX + innerRadius * Math.cos(startAngle);
+        const y1 = centerY + innerRadius * Math.sin(startAngle);
+        const x2 = centerX + outerRadius * Math.cos(startAngle);
+        const y2 = centerY + outerRadius * Math.sin(startAngle);
+        const x3 = centerX + outerRadius * Math.cos(endAngle);
+        const y3 = centerY + outerRadius * Math.sin(endAngle);
+        const x4 = centerX + innerRadius * Math.cos(endAngle);
+        const y4 = centerY + innerRadius * Math.sin(endAngle);
+        
+        const largeArc = angle > Math.PI ? 1 : 0;
+        
+        html += `
+            <path d="M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z"
+                  fill="#ea580c" opacity="0.9" filter="url(#ffi-glow)" stroke="white" stroke-width="1">
+                <title>Medium Risk: ${mediumRisk} operations (${(mediumRisk/total*100).toFixed(1)}%)</title>
+            </path>
+        `;
+        startAngle = endAngle;
+    }
+    
+    if (highRisk > 0) {
+        const angle = (highRisk / total) * 2 * Math.PI;
+        const endAngle = startAngle + angle;
+        
+        const x1 = centerX + innerRadius * Math.cos(startAngle);
+        const y1 = centerY + innerRadius * Math.sin(startAngle);
+        const x2 = centerX + outerRadius * Math.cos(startAngle);
+        const y2 = centerY + outerRadius * Math.sin(startAngle);
+        const x3 = centerX + outerRadius * Math.cos(endAngle);
+        const y3 = centerY + outerRadius * Math.sin(endAngle);
+        const x4 = centerX + innerRadius * Math.cos(endAngle);
+        const y4 = centerY + innerRadius * Math.sin(endAngle);
+        
+        const largeArc = angle > Math.PI ? 1 : 0;
+        
+        html += `
+            <path d="M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z"
+                  fill="#dc2626" opacity="0.9" filter="url(#ffi-glow)" stroke="white" stroke-width="1">
+                <title>High Risk: ${highRisk} operations (${(highRisk/total*100).toFixed(1)}%)</title>
+            </path>
+        `;
+    }
+    
+    // Center circle with gradient
+    html += `
+        <circle cx="${centerX}" cy="${centerY}" r="${innerRadius}" fill="url(#centerGradient)" stroke="var(--border-light)" stroke-width="2"/>
+        <text x="${centerX}" y="${centerY - 8}" text-anchor="middle" font-size="18" font-weight="bold" fill="var(--text-primary)">
+            ${total}
+        </text>
+        <text x="${centerX}" y="${centerY + 8}" text-anchor="middle" font-size="12" fill="var(--text-secondary)">
+            FFI Operations
+        </text>
+    `;
+    
+    html += '</svg>';
+    
+    // Enhanced legend with statistics
+    html += `
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; width: 100%;">
+            <div style="text-align: center; padding: 8px; background: var(--bg-primary); border-radius: 6px; border: 1px solid var(--border-light);">
+                <div style="width: 16px; height: 16px; background: #059669; border-radius: 50%; margin: 0 auto 4px;"></div>
+                <div style="font-size: 0.8rem; font-weight: 600;">${lowRisk}</div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">Low Risk</div>
+            </div>
+            <div style="text-align: center; padding: 8px; background: var(--bg-primary); border-radius: 6px; border: 1px solid var(--border-light);">
+                <div style="width: 16px; height: 16px; background: #ea580c; border-radius: 50%; margin: 0 auto 4px;"></div>
+                <div style="font-size: 0.8rem; font-weight: 600;">${mediumRisk}</div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">Medium Risk</div>
+            </div>
+            <div style="text-align: center; padding: 8px; background: var(--bg-primary); border-radius: 6px; border: 1px solid var(--border-light);">
+                <div style="width: 16px; height: 16px; background: #dc2626; border-radius: 50%; margin: 0 auto 4px;"></div>
+                <div style="font-size: 0.8rem; font-weight: 600;">${highRisk}</div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">High Risk</div>
+            </div>
+        </div>
+    `;
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderMemoryUsageAnalysis() {
+    // Will be implemented if container exists
+}
+
+function renderMemoryFragmentation() {
+    const container = document.getElementById('memoryFragmentation');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const activeMemory = allocs.filter(a => !a.timestamp_dealloc).reduce((sum, a) => sum + (a.size || 0), 0);
+    const fragmentationRate = totalMemory > 0 ? ((totalMemory - activeMemory) / totalMemory * 100) : 0;
+    
+    // Create chart container
+    const chartDiv = document.createElement('div');
+    chartDiv.style.height = '200px';
+    chartDiv.style.position = 'relative';
+    
+    const canvas = document.createElement('canvas');
+    chartDiv.appendChild(canvas);
+    
+    container.innerHTML = `
+        <div style="padding: 16px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Fragmentation Rate</div>
+                    <div style="font-size: 1.8rem; font-weight: 700; color: ${fragmentationRate > 30 ? '#dc2626' : fragmentationRate > 15 ? '#ea580c' : '#059669'};">
+                        ${fragmentationRate.toFixed(1)}%
+                    </div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Active Memory</div>
+                    <div style="font-size: 1.2rem; font-weight: 600;">${formatBytes(activeMemory)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(chartDiv);
+    
+    // Create fragmentation visualization chart
+    if (window.Chart && allocs.length > 0) {
+        new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: ['Active Memory', 'Fragmented/Freed'],
+                datasets: [{
+                    data: [activeMemory, totalMemory - activeMemory],
+                    backgroundColor: ['#059669', '#dc2626'],
+                    borderWidth: 2,
+                    borderColor: 'var(--bg-primary)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            usePointStyle: true,
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                return data.labels.map((label, i) => ({
+                                    text: `${label}: ${formatBytes(data.datasets[0].data[i])}`,
+                                    fillStyle: data.datasets[0].backgroundColor[i],
+                                    strokeStyle: data.datasets[0].backgroundColor[i],
+                                    pointStyle: 'circle'
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderMemoryGrowthTrends() {
+    const container = document.getElementById('growth');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No growth data available</div>';
+        return;
+    }
+    
+    // Create a proper growth chart using Chart.js
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    container.innerHTML = '';
+    container.appendChild(canvas);
+    
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    let cumulative = 0;
+    const points = [];
+    
+    for (let i = 0; i < Math.min(sorted.length, 30); i++) {
+        cumulative += sorted[i].size || 0;
+        points.push({ x: i, y: cumulative });
+    }
+    
+    if (points.length > 1 && window.Chart) {
+        new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: points.map((_, i) => `T${i}`),
+                datasets: [{
+                    label: 'Memory Growth',
+                    data: points.map(p => p.y),
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time Steps'
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Cumulative Memory'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return formatBytes(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function setupLifecycle() {
+    // Lifecycle setup functionality
+}
+
+function populateUnsafeTable() {
+    const data = window.analysisData || {};
+    const root = data.unsafe_ffi || {};
+    const ops = root.enhanced_ffi_data || root.unsafe_operations || root.allocations || [];
+    const unsafeTable = document.getElementById('unsafeTable');
+    if (!unsafeTable) return;
+    
+    unsafeTable.innerHTML = (ops || []).slice(0, 50).map(op => {
+        const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
+                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low'));
+        
+        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk');
+        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low');
+        
+        return `<tr>
+            <td>${op.location || op.var_name || 'Unknown'}</td>
+            <td>${op.operation_type || op.type_name || 'Unknown'}</td>
+            <td><span class="status-badge ${riskClass}">${riskText}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderVariableGraph() {
+    const container = document.getElementById('graph');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No relationship data available</div>';
+        return;
+    }
+    
+    // Enhanced variable relationship graph with drag and click functionality
+    const nodes = allocs.slice(0, 30).map((a, i) => ({
+        id: i,
+        name: a.var_name || `var_${i}`,
+        type: a.type_name || 'unknown',
+        size: a.size || 0,
+        status: a.is_leaked ? 'leaked' : (a.timestamp_dealloc ? 'freed' : 'active'),
+        ptr: a.ptr || 'unknown',
+        timestamp_alloc: a.timestamp_alloc || 0,
+        timestamp_dealloc: a.timestamp_dealloc || null,
+        x: 100 + (i % 6) * 80 + Math.random() * 20,
+        y: 100 + Math.floor(i / 6) * 80 + Math.random() * 20,
+        isDragging: false
+    }));
+    
+    // Create links between related variables
+    const links = [];
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            if (nodes[i].type === nodes[j].type || 
+                nodes[i].name.startsWith(nodes[j].name.substring(0, 3))) {
+                links.push({ source: i, target: j });
+            }
+        }
+    }
+    
+    const width = container.offsetWidth || 500;
+    const height = 400;
+    
+    // Create SVG with interactive elements
+    let html = `
+        <div style="position: relative; width: 100%; height: ${height}px;">
+            <svg id="graph-svg" width="100%" height="${height}" viewBox="0 0 ${width} ${height}" style="background: transparent; cursor: grab;">
+                <defs>
+                    <filter id="node-glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="3"
+                            markerWidth="6" markerHeight="6" orient="auto">
+                        <path d="M0,0 L0,6 L9,3 z" fill="var(--border-light)" opacity="0.6"/>
+                    </marker>
+                </defs>
+                <g id="links-group">
+    `;
+    
+    // Draw links
+    links.forEach((link, linkIndex) => {
+        const source = nodes[link.source];
+        const target = nodes[link.target];
+        html += `
+            <line id="link-${linkIndex}" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" 
+                  stroke="var(--border-light)" stroke-width="1" opacity="0.4" 
+                  marker-end="url(#arrow)"/>
+        `;
+    });
+    
+    html += '</g><g id="nodes-group">';
+    
+    // Draw nodes
+    nodes.forEach((node, nodeIndex) => {
+        const radius = Math.max(8, Math.min(25, Math.log(node.size + 1) * 3));
+        let color = '#6b7280'; // default
+        
+        if (node.type.includes('String')) color = '#fbbf24';
+        else if (node.type.includes('Vec')) color = '#3b82f6';
+        else if (node.type.includes('Box') || node.type.includes('Rc')) color = '#8b5cf6';
+        else if (node.type.includes('HashMap')) color = '#10b981';
+        else if (node.type.includes('Arc')) color = '#f59e0b';
+        
+        if (node.status === 'leaked') color = '#dc2626';
+        else if (node.status === 'freed') color = '#9ca3af';
+        
+        html += `
+            <circle 
+                id="node-${nodeIndex}"
+                cx="${node.x}" 
+                cy="${node.y}" 
+                r="${radius}" 
+                fill="${color}" 
+                stroke="white" 
+                stroke-width="2" 
+                filter="url(#node-glow)"
+                style="cursor: grab;"
+                class="graph-node"
+                data-index="${nodeIndex}"
+                data-name="${node.name}"
+                data-type="${node.type}"
+                data-size="${node.size}"
+                data-status="${node.status}"
+                data-ptr="${node.ptr}"
+                data-alloc="${node.timestamp_alloc}"
+                data-dealloc="${node.timestamp_dealloc || 'null'}"
+            />
+            <text 
+                id="text-${nodeIndex}"
+                x="${node.x}" 
+                y="${node.y + radius + 15}" 
+                text-anchor="middle" 
+                font-size="9" 
+                fill="var(--text-primary)"
+                style="font-weight: 500; pointer-events: none;"
+            >${node.name.length > 10 ? node.name.substring(0, 8) + '...' : node.name}</text>
+        `;
+    });
+    
+    html += `
+            </g>
+        </svg>
+        
+        <!-- Node detail panel -->
+        <div id="node-detail-panel" style="
+            position: absolute;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 12px;
+            width: 280px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 1000;
+            font-size: 0.875rem;
+            display: none;
+            backdrop-filter: blur(10px);
+        ">
+            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+                <h4 id="detail-title" style="margin: 0; font-size: 1rem; font-weight: 600;"></h4>
+                <button onclick="hideNodeDetails()" style="background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-secondary);">×</button>
+            </div>
+            <div id="detail-content"></div>
+        </div>
+        
+        <!-- Legend -->
+        <div style="display: flex; gap: 12px; margin-top: 12px; font-size: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #fbbf24; border-radius: 50%;"></div>
+                <span>String</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #3b82f6; border-radius: 50%;"></div>
+                <span>Vec</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #8b5cf6; border-radius: 50%;"></div>
+                <span>Smart Ptr</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #dc2626; border-radius: 50%;"></div>
+                <span>Leaked</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #9ca3af; border-radius: 50%;"></div>
+                <span>Freed</span>
+            </div>
+        </div>
+    </div>
+    `;
+    
+    container.innerHTML = html;
+    
+    // Store nodes and links data for interaction
+    window.graphNodes = nodes;
+    window.graphLinks = links;
+    
+    // Add drag and click functionality
+    setTimeout(() => {
+        setupGraphInteractions();
+    }, 100);
+}
+
+// Graph interaction functions
+function setupGraphInteractions() {
+    const svg = document.getElementById('graph-svg');
+    const nodeElements = document.querySelectorAll('.graph-node');
+    
+    let draggedNode = null;
+    let isDragging = false;
+    let startX, startY;
+    
+    nodeElements.forEach(node => {
+        // Mouse events for drag
+        node.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            draggedNode = this;
+            isDragging = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            this.style.cursor = 'grabbing';
+            svg.style.cursor = 'grabbing';
+        });
+        
+        // Click event for details
+        node.addEventListener('click', function(e) {
+            if (!isDragging) {
+                showNodeDetails(this);
+            }
+        });
+        
+        // Hover effects
+        node.addEventListener('mouseover', function() {
+            if (!draggedNode) {
+                this.r.baseVal.value = this.r.baseVal.value * 1.2;
+            }
+        });
+        
+        node.addEventListener('mouseout', function() {
+            if (!draggedNode) {
+                this.r.baseVal.value = this.r.baseVal.value / 1.2;
+            }
+        });
+    });
+    
+    // Global mouse events for dragging
+    document.addEventListener('mousemove', function(e) {
+        if (draggedNode) {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+                isDragging = true;
+            }
+            
+            if (isDragging) {
+                const rect = svg.getBoundingClientRect();
+                const svgX = e.clientX - rect.left;
+                const svgY = e.clientY - rect.top;
+                
+                // Update node position
+                draggedNode.cx.baseVal.value = svgX;
+                draggedNode.cy.baseVal.value = svgY;
+                
+                // Update text position
+                const nodeIndex = draggedNode.getAttribute('data-index');
+                const textElement = document.getElementById(`text-${nodeIndex}`);
+                if (textElement) {
+                    textElement.x.baseVal[0].value = svgX;
+                    textElement.y.baseVal[0].value = svgY + parseInt(draggedNode.r.baseVal.value) + 15;
+                }
+                
+                // Update connected links
+                updateConnectedLinks(parseInt(nodeIndex), svgX, svgY);
+                
+                // Update stored node position
+                if (window.graphNodes && window.graphNodes[nodeIndex]) {
+                    window.graphNodes[nodeIndex].x = svgX;
+                    window.graphNodes[nodeIndex].y = svgY;
+                }
+            }
+        }
+    });
+    
+    document.addEventListener('mouseup', function() {
+        if (draggedNode) {
+            draggedNode.style.cursor = 'grab';
+            svg.style.cursor = 'grab';
+            draggedNode = null;
+            setTimeout(() => { isDragging = false; }, 100);
+        }
+    });
+}
+
+function updateConnectedLinks(nodeIndex, newX, newY) {
+    if (!window.graphLinks) return;
+    
+    window.graphLinks.forEach((link, linkIndex) => {
+        const linkElement = document.getElementById(`link-${linkIndex}`);
+        if (!linkElement) return;
+        
+        if (link.source === nodeIndex) {
+            linkElement.x1.baseVal.value = newX;
+            linkElement.y1.baseVal.value = newY;
+        }
+        if (link.target === nodeIndex) {
+            linkElement.x2.baseVal.value = newX;
+            linkElement.y2.baseVal.value = newY;
+        }
+    });
+}
+
+function showNodeDetails(nodeElement) {
+    const panel = document.getElementById('node-detail-panel');
+    const title = document.getElementById('detail-title');
+    const content = document.getElementById('detail-content');
+    
+    if (!panel || !title || !content) return;
+    
+    const name = nodeElement.getAttribute('data-name');
+    const type = nodeElement.getAttribute('data-type');
+    const size = parseInt(nodeElement.getAttribute('data-size'));
+    const status = nodeElement.getAttribute('data-status');
+    const ptr = nodeElement.getAttribute('data-ptr');
+    const alloc = nodeElement.getAttribute('data-alloc');
+    const dealloc = nodeElement.getAttribute('data-dealloc');
+    
+    title.textContent = name;
+    
+    const lifetime = dealloc !== 'null' ? parseInt(dealloc) - parseInt(alloc) : 'Active';
+    
+    content.innerHTML = `
+        <div style="margin-bottom: 8px;">
+            <strong>Type:</strong> ${formatTypeName(type)}
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Size:</strong> ${formatBytes(size)}
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Status:</strong> <span style="color: ${status === 'leaked' ? '#dc2626' : status === 'freed' ? '#6b7280' : '#059669'};">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Pointer:</strong> <code style="font-size: 0.8rem; background: var(--bg-secondary); padding: 2px 4px; border-radius: 3px;">${ptr}</code>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Allocated:</strong> ${alloc}ms
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Lifetime:</strong> ${typeof lifetime === 'number' ? lifetime + 'ms' : lifetime}
+        </div>
+    `;
+    
+    // Position panel near the node
+    const rect = nodeElement.getBoundingClientRect();
+    const containerRect = nodeElement.closest('#graph').getBoundingClientRect();
+    
+    panel.style.left = Math.min(rect.left - containerRect.left + 30, containerRect.width - 300) + 'px';
+    panel.style.top = Math.max(rect.top - containerRect.top - 50, 10) + 'px';
+    panel.style.display = 'block';
+}
+
+function hideNodeDetails() {
+    const panel = document.getElementById('node-detail-panel');
+    if (panel) {
+        panel.style.display = 'none';
+    }
+}
+
+// Lifecycle toggle functionality
+function setupLifecycleToggle() {
+    const toggleBtn = document.getElementById('toggle-lifecycle');
+    if (!toggleBtn) return;
+    
+    let isExpanded = false;
+    
+    toggleBtn.addEventListener('click', function() {
+        const container = document.getElementById('lifetimeVisualization');
+        if (!container) return;
+        
+        const data = window.analysisData || {};
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        
+        if (allocs.length === 0) {
+            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifecycle data available</div>';
+            return;
+        }
+        
+        const icon = toggleBtn.querySelector('i');
+        const text = toggleBtn.querySelector('span');
+        
+        if (!isExpanded) {
+            // Show all allocations
+            renderFullLifecycleTimeline(allocs);
+            icon.className = 'fa fa-chevron-up';
+            text.textContent = 'Show Less';
+            isExpanded = true;
+        } else {
+            // Show only top 20
+            renderLimitedLifecycleTimeline(allocs);
+            icon.className = 'fa fa-chevron-down';
+            text.textContent = 'Show All';
+            isExpanded = false;
+        }
+    });
+}
+
+function renderLimitedLifecycleTimeline(allocs) {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    // Create timeline visualization (limited to 20)
+    const maxTime = Math.max(...allocs.map(a => a.timestamp_dealloc || a.timestamp_alloc || 0));
+    const minTime = Math.min(...allocs.map(a => a.timestamp_alloc || 0));
+    const timeRange = maxTime - minTime || 1;
+    
+    let html = '<div style="padding: 16px; max-height: 300px; overflow-y: auto;">';
+    
+    allocs.slice(0, 20).forEach((alloc, index) => {
+        const startTime = alloc.timestamp_alloc || 0;
+        const endTime = alloc.timestamp_dealloc || maxTime;
+        const startPercent = ((startTime - minTime) / timeRange) * 100;
+        const widthPercent = ((endTime - startTime) / timeRange) * 100;
+        const isActive = !alloc.timestamp_dealloc;
+        
+        html += `
+            <div style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                    <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
+                    <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
+                </div>
+                <div style="position: relative; background: var(--bg-secondary); height: 8px; border-radius: 4px;">
+                    <div style="
+                        position: absolute;
+                        left: ${startPercent}%;
+                        width: ${widthPercent}%;
+                        height: 100%;
+                        background: ${isActive ? 'linear-gradient(to right, #059669, #34d399)' : 'linear-gradient(to right, #2563eb, #60a5fa)'};
+                        border-radius: 4px;
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
+                    " title="Lifetime: ${endTime - startTime}ms"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Add CSS for pulse animation
+    html += `
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        </style>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function renderFullLifecycleTimeline(allocs) {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    // Create full timeline visualization
+    const maxTime = Math.max(...allocs.map(a => a.timestamp_dealloc || a.timestamp_alloc || 0));
+    const minTime = Math.min(...allocs.map(a => a.timestamp_alloc || 0));
+    const timeRange = maxTime - minTime || 1;
+    
+    let html = '<div style="padding: 16px; max-height: 600px; overflow-y: auto;">';
+    
+    // Add timeline header
+    html += `
+        <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-weight: 600; margin-bottom: 8px;">Full Lifecycle Timeline</div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 0.8rem;">
+                <div>
+                    <div style="color: var(--text-secondary);">Total Variables</div>
+                    <div style="font-weight: 600;">${allocs.length}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary);">Active</div>
+                    <div style="font-weight: 600; color: #059669;">${allocs.filter(a => !a.timestamp_dealloc).length}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary);">Freed</div>
+                    <div style="font-weight: 600; color: #2563eb;">${allocs.filter(a => a.timestamp_dealloc && !a.is_leaked).length}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary);">Leaked</div>
+                    <div style="font-weight: 600; color: #dc2626;">${allocs.filter(a => a.is_leaked).length}</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    allocs.forEach((alloc, index) => {
+        const startTime = alloc.timestamp_alloc || 0;
+        const endTime = alloc.timestamp_dealloc || maxTime;
+        const startPercent = ((startTime - minTime) / timeRange) * 100;
+        const widthPercent = ((endTime - startTime) / timeRange) * 100;
+        const isActive = !alloc.timestamp_dealloc;
+        const isLeaked = alloc.is_leaked;
+        
+        let barColor = 'linear-gradient(to right, #2563eb, #60a5fa)'; // freed
+        if (isActive) barColor = 'linear-gradient(to right, #059669, #34d399)'; // active
+        if (isLeaked) barColor = 'linear-gradient(to right, #dc2626, #f87171)'; // leaked
+        
+        html += `
+            <div style="margin-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.75rem;">
+                    <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
+                    <div style="display: flex; gap: 8px;">
+                        <span style="color: var(--text-secondary);">${formatTypeName(alloc.type_name || 'Unknown')}</span>
+                        <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
+                    </div>
+                </div>
+                <div style="position: relative; background: var(--bg-secondary); height: 6px; border-radius: 3px;">
+                    <div style="
+                        position: absolute;
+                        left: ${startPercent}%;
+                        width: ${widthPercent}%;
+                        height: 100%;
+                        background: ${barColor};
+                        border-radius: 3px;
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
+                    " title="Lifetime: ${endTime - startTime}ms | Status: ${isLeaked ? 'Leaked' : isActive ? 'Active' : 'Freed'}"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Add CSS for pulse animation
+    html += `
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        </style>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function setupLifecycleVisualization() {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifecycle data available</div>';
+        return;
+    }
+    
+    // Create timeline visualization
+    const maxTime = Math.max(...allocs.map(a => a.timestamp_dealloc || a.timestamp_alloc || 0));
+    const minTime = Math.min(...allocs.map(a => a.timestamp_alloc || 0));
+    const timeRange = maxTime - minTime || 1;
+    
+    let html = '<div style="padding: 16px; max-height: 300px; overflow-y: auto;">';
+    
+    allocs.slice(0, 20).forEach((alloc, index) => {
+        const startTime = alloc.timestamp_alloc || 0;
+        const endTime = alloc.timestamp_dealloc || maxTime;
+        const startPercent = ((startTime - minTime) / timeRange) * 100;
+        const widthPercent = ((endTime - startTime) / timeRange) * 100;
+        const isActive = !alloc.timestamp_dealloc;
+        
+        html += `
+            <div style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                    <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
+                    <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
+                </div>
+                <div style="position: relative; background: var(--bg-secondary); height: 8px; border-radius: 4px;">
+                    <div style="
+                        position: absolute;
+                        left: ${startPercent}%;
+                        width: ${widthPercent}%;
+                        height: 100%;
+                        background: ${isActive ? 'linear-gradient(to right, #059669, #34d399)' : 'linear-gradient(to right, #2563eb, #60a5fa)'};
+                        border-radius: 4px;
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
+                    " title="Lifetime: ${endTime - startTime}ms"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Add CSS for pulse animation
+    html += `
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        </style>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function initFFIVisualization() {
+    // Additional FFI initialization if needed
+    renderFFI();
+}
+
 // Initialize dashboard when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
-    console.log('MemScope dashboard loaded');
-    initializeDashboard();
-    initFFIVisualization();
+    console.log('🚀 MemScope Dashboard Loaded');
+    
+    // Initialize theme toggle
+    try { 
+        initThemeToggle(); 
+        console.log('✅ Theme toggle initialized');
+    } catch(e) { 
+        console.warn('⚠️ Theme toggle initialization failed:', e?.message); 
+    }
+    
+    // Initialize main dashboard with all original functions
+    try { 
+        // Use original dashboard functions
+        renderKpis();
+        renderTypeChart();
+        renderTimelineChart();
+        renderTreemap();
+        renderLifetimes();
+        renderFFI();
+        renderMemoryFragmentation();
+        renderMemoryGrowthTrends();
+        populateAllocationsTable();
+        populateUnsafeTable();
+        renderVariableGraph();
+        initFFIVisualization();
+        setupLifecycleVisualization();
+        setupLifecycleToggle();
+        
+        console.log('✅ All dashboard components initialized');
+    } catch(e) { 
+        console.error('❌ Dashboard initialization failed:', e); 
+    }
 });

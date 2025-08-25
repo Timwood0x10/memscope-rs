@@ -541,16 +541,6 @@
             </div>
         </section>
 
-        <!-- Memory Fragmentation Analysis -->
-        <section class="mb-12">
-            <div id="memoryFragmentation">
-                <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                    <i class="fa fa-spinner fa-spin text-2xl mb-2"></i>
-                    <p>Analyzing memory fragmentation...</p>
-                </div>
-            </div>
-        </section>
-
         <!-- Memory Allocations Table with Collapsible Feature -->
         <section class="mb-12">
             <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
@@ -2955,7 +2945,7 @@
                 </div>
             `;
         }
-        // Create modern hotspots with REAL pulsing animations
+        // Removed noisy animated hotspots for clean UI
         function createModernHotspots(unsafeFfiData) {
             const hotspots = unsafeFfiData
                 .filter(item => item.size > 0)

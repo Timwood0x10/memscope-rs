@@ -38,17 +38,20 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
 
     // Try multiple possible paths for the template files - prioritize the original dashboard.html
     let template_paths = [
-        // Primary: Use the original dashboard.html template
+        // Primary: Use the new clean dashboard template
+        "templates/clean_dashboard.html",
+        "./templates/clean_dashboard.html",
+        "../templates/clean_dashboard.html",
+        "../../templates/clean_dashboard.html",
+        // Fallbacks (kept for safety)
         "templates/dashboard.html",
         "./templates/dashboard.html",
         "../templates/dashboard.html",
         "../../templates/dashboard.html",
-        // Fallback: Self-contained version if available
         "templates/dashboard_self_contained.html",
         "./templates/dashboard_self_contained.html",
         "../templates/dashboard_self_contained.html",
         "../../templates/dashboard_self_contained.html",
-        // Last resort: Simple report (should be avoided)
         "simple_report.html",
         "./simple_report.html",
     ];
