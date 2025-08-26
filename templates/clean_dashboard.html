@@ -286,6 +286,31 @@
       color: #d1d5db; 
     }
 
+    /* Enhanced progress bar animations */
+    @keyframes shine {
+      0% { left: -100%; }
+      50% { left: 100%; }
+      100% { left: 100%; }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* Enhanced lifecycle item styles */
+    .lifecycle-item.heap {
+      border-left-color: #ff6b35 !important;
+    }
+
+    .lifecycle-item.stack {
+      border-left-color: #4dabf7 !important;
+    }
+
+    .lifecycle-item:hover {
+      animation: pulse 1s ease-in-out;
+    }
+
     .lifecycle-bar {
       height: 16px;
       background: var(--bg-secondary);
@@ -382,10 +407,22 @@
             console.log('✅ All data loaded, initializing enhanced features...');
             
             // Trigger enhanced features initialization
+            console.log('🚀 Triggering enhanced features initialization...');
             if (typeof initEnhancedLifecycleVisualization === 'function') {
               setTimeout(() => {
+                console.log('🔄 Calling initEnhancedLifecycleVisualization...');
                 initEnhancedLifecycleVisualization();
               }, 100);
+            } else {
+              console.error('❌ initEnhancedLifecycleVisualization function not found');
+            }
+            
+            // Also trigger the main dashboard initialization if needed
+            if (typeof initDashboard === 'function') {
+              setTimeout(() => {
+                console.log('🔄 Calling initDashboard...');
+                initDashboard();
+              }, 200);
             }
           });
         })
@@ -531,7 +568,7 @@
         <div id="treemap" class="chart-container" style="height: 360px; padding: 0; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden;"></div>
       </div>
       <div class="card">
-        <h2><i class="fa fa-table"></i> Enhanced Memory Allocation Details</h2>
+        <h2><i class="fa fa-timeline"></i> Variable Lifecycle Visualization</h2>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div style="display: flex; gap: 6px;">
             <button id="filter-heap" class="theme-toggle" style="background: var(--primary-orange); font-size: 10px; padding: 3px 6px;">
@@ -549,22 +586,14 @@
             <span>Stack: <span id="stack-count-mini" style="color: var(--primary-blue); font-weight: 600;">-</span></span>
           </div>
         </div>
-        <div class="scroll" style="max-height: 320px;">
-          <table style="font-size: 0.8rem;">
-            <thead>
-              <tr>
-                <th>Variable</th>
-                <th>Type</th>
-                <th>Alloc Type</th>
-                <th>Size</th>
-                <th>Alloc Time</th>
-                <th>Drop Time</th>
-                <th>Lifetime</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="enhancedAllocTable"></tbody>
-          </table>
+        <div style="margin-bottom: 8px;">
+          <button id="manual-init-btn" style="background: var(--primary-red); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+            🔄 Manual Initialize
+          </button>
+          <span id="init-status" style="margin-left: 8px; font-size: 0.8rem; color: var(--text-secondary);">Waiting for data...</span>
+        </div>
+        <div id="lifecycleVisualizationContainer" class="scroll" style="max-height: 320px; padding: 8px;">
+          <!-- Variable lifecycle items will be inserted here -->
         </div>
       </div>
     </section>
@@ -799,14 +828,15 @@
     }
 
     function formatTimestamp(timestamp) {
-      if (!timestamp) return 'N/A';
-      const date = new Date(timestamp / 1000000);
+      if (!timestamp || isNaN(timestamp)) return 'N/A';
+      const date = new Date(timestamp / 1000000); // Convert nanoseconds to milliseconds
+      if (isNaN(date.getTime())) return 'N/A';
       return date.toLocaleTimeString() + '.' + String(date.getMilliseconds()).padStart(3, '0');
     }
 
     function calculateDropTime(allocTime, lifetimeMs) {
-      if (!allocTime || lifetimeMs === undefined) return null;
-      return allocTime + (lifetimeMs * 1000000);
+      if (!allocTime || lifetimeMs === undefined || isNaN(allocTime) || isNaN(lifetimeMs)) return null;
+      return allocTime + (lifetimeMs * 1000000); // Convert ms to nanoseconds and add
     }
 
     function formatLifetime(lifetimeMs) {
@@ -958,9 +988,9 @@
         console.warn('stack-count-mini element not found');
       }
       
-      // Create enhanced table
-      console.log('Calling populateEnhancedTable...');
-      populateEnhancedTable(allocations);
+      // Create lifecycle visualization
+      console.log('Calling createLifecycleVisualization...');
+      createLifecycleVisualization(allocations);
       
       // Update enhanced statistics
       console.log('Calling updateEnhancedStatistics...');
@@ -973,37 +1003,145 @@
       console.log('✅ All enhanced features processing completed');
     }
 
-    function populateEnhancedTable(allocations) {
-      console.log('populateEnhancedTable called with', allocations.length, 'allocations');
-      const tbody = document.getElementById('enhancedAllocTable');
-      if (!tbody) {
-        console.error('❌ Enhanced allocation table (enhancedAllocTable) not found in DOM');
+    function createLifecycleVisualization(allocations) {
+      console.log('createLifecycleVisualization called with', allocations.length, 'allocations');
+      const container = document.getElementById('lifecycleVisualizationContainer');
+      if (!container) {
+        console.error('❌ Lifecycle visualization container not found in DOM');
         return;
       }
-      console.log('✅ Found enhancedAllocTable element, clearing and populating...');
-      tbody.innerHTML = '';
+      console.log('✅ Found lifecycleVisualizationContainer, creating visualization...');
+      container.innerHTML = '';
+
+      // Calculate timeline bounds
+      const timestamps = allocations.map(a => a.timestamp_alloc).filter(t => t);
+      const minTime = Math.min(...timestamps);
+      const maxTime = Math.max(...timestamps);
+      const timeRange = maxTime - minTime || 1;
 
       allocations.forEach((alloc, index) => {
-        const row = document.createElement('tr');
         const allocType = inferAllocationType(alloc.type_name);
-        const dropTime = calculateDropTime(alloc.timestamp_alloc, alloc.lifetime_ms);
+        const startTime = alloc.timestamp_alloc || alloc.timestamp || Date.now() * 1000000;
+        const lifetime = alloc.lifetime_ms || alloc.lifetime || 0;
+        const endTime = startTime + (lifetime * 1000000); // Convert ms to nanoseconds
         
-        row.className = `alloc-row ${allocType}`;
-        row.setAttribute('data-type', allocType);
+        // Debug and validate time data
+        console.log('Debug allocation:', {
+          var_name: alloc.var_name,
+          timestamp_alloc: alloc.timestamp_alloc,
+          timestamp: alloc.timestamp,
+          lifetime_ms: alloc.lifetime_ms,
+          startTime: startTime,
+          endTime: endTime,
+          isValidStart: !isNaN(startTime) && startTime > 0,
+          isValidEnd: !isNaN(endTime) && endTime > 0
+        });
         
-        row.innerHTML = `
-          <td style="font-weight: 600;">${alloc.var_name || 'unnamed'}</td>
-          <td title="${alloc.type_name || ''}" style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-            ${(alloc.type_name || '').substring(0, 20)}${(alloc.type_name || '').length > 20 ? '...' : ''}
-          </td>
-          <td><span class="allocation-type type-${allocType}">${allocType}</span></td>
-          <td>${formatBytes(alloc.size || 0)}</td>
-          <td style="font-family: monospace; font-size: 0.75rem;">${formatTimestamp(alloc.timestamp_alloc)}</td>
-          <td style="font-family: monospace; font-size: 0.75rem;">${dropTime ? formatTimestamp(dropTime) : 'N/A'}</td>
-          <td style="font-weight: 600; color: var(--primary-blue);">${formatLifetime(alloc.lifetime_ms)}</td>
-          <td><span class="status-badge status-${alloc.is_leaked ? 'leaked' : 'freed'}">${alloc.is_leaked ? 'Leaked' : 'Freed'}</span></td>
+        // If timestamps are invalid, use relative positioning
+        if (isNaN(startTime) || startTime <= 0) {
+          startTime = minTime + (index * (timeRange / allocations.length));
+        }
+        if (isNaN(endTime) || endTime <= 0) {
+          endTime = startTime + (lifetime * 1000000) || startTime + (timeRange * 0.1);
+        }
+        
+        // Calculate positions and widths with bounds checking
+        let startPercent = ((startTime - minTime) / timeRange) * 100;
+        let endPercent = ((endTime - minTime) / timeRange) * 100;
+        
+        // Ensure values are within bounds
+        startPercent = Math.max(0, Math.min(startPercent, 100));
+        endPercent = Math.max(startPercent, Math.min(endPercent, 100));
+        
+        let width = endPercent - startPercent;
+        width = Math.max(width, 2); // Minimum 2% width
+        width = Math.min(width, 100 - startPercent); // Don't exceed container
+        
+        // Create lifecycle item
+        const item = document.createElement('div');
+        item.className = `lifecycle-item ${allocType}`;
+        item.setAttribute('data-type', allocType);
+        
+        // Enhanced solid colors for better visibility
+        const barColor = allocType === 'heap' ? '#ff6b35' : 
+                        allocType === 'stack' ? '#4dabf7' : '#868e96';
+        const barGradient = allocType === 'heap' ? '#ff6b35' : 
+                           allocType === 'stack' ? '#4dabf7' : 
+                           '#868e96';
+        
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 600; font-size: 0.9rem; min-width: 120px;">${alloc.var_name || 'unnamed'}</span>
+              <span class="allocation-type type-${allocType}">${allocType}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-secondary);">
+              <span>${formatBytes(alloc.size || 0)}</span>
+              <span>${formatLifetime(lifetime)}</span>
+            </div>
+          </div>
+          
+          <!-- Enhanced Timeline Progress Bar -->
+          <div style="position: relative; height: 24px; background: linear-gradient(90deg, #e8eaed, #ddd); border-radius: 12px; margin: 10px 0; border: 1px solid #bbb; box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);">
+            
+            <!-- Variable active period with enhanced gradient -->
+            <div style="position: absolute; top: 1px; left: ${startPercent}%; width: ${width}%; height: calc(100% - 2px); 
+                        background: ${barGradient}; 
+                        border-radius: 11px; 
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+                        transition: all 0.3s ease;
+                        position: relative;
+                        overflow: hidden;">
+              
+              <!-- Animated shine effect -->
+              <div style="position: absolute; top: 0; left: -100%; width: 100%; height: 100%; 
+                          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+                          animation: shine 2s infinite;"></div>
+            </div>
+            
+            ${alloc.is_leaked ? `
+              <!-- Leaked indicator -->
+              <div style="position: absolute; top: -3px; right: 2px; width: 20px; height: 30px; 
+                          background: linear-gradient(45deg, #ff4757, #ff3742); 
+                          border-radius: 2px; 
+                          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                          display: flex; align-items: center; justify-content: center;
+                          font-size: 10px; color: white; font-weight: bold;">⚠</div>
+            ` : ''}
+          </div>
+          
+          <!-- Time info -->
+          <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); font-family: monospace;">
+            <span>Start: ${formatTimestamp(startTime)}</span>
+            <span>${alloc.is_leaked ? 'LEAKED' : (formatTimestamp(endTime) !== 'N/A' ? 'End: ' + formatTimestamp(endTime) : 'Active')}</span>
+          </div>
         `;
-        tbody.appendChild(row);
+        
+        // Enhanced hover effect and styling
+        item.style.cssText += `
+          margin-bottom: 18px;
+          padding: 16px;
+          background: linear-gradient(135deg, var(--bg-primary), #fafbfc);
+          border-radius: 12px;
+          border-left: 5px solid ${barColor};
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        `;
+        
+        item.addEventListener('mouseenter', () => {
+          item.style.transform = 'translateX(8px) translateY(-2px)';
+          item.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
+          item.style.background = `linear-gradient(135deg, var(--bg-primary), ${barColor}08)`;
+        });
+        
+        item.addEventListener('mouseleave', () => {
+          item.style.transform = 'translateX(0) translateY(0)';
+          item.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+          item.style.background = 'linear-gradient(135deg, var(--bg-primary), #fafbfc)';
+        });
+        
+        container.appendChild(item);
       });
     }
 
@@ -1056,25 +1194,25 @@
       
       function applyFilter(filter) {
         currentFilter = filter;
-        const rows = document.querySelectorAll('.alloc-row');
+        const items = document.querySelectorAll('.lifecycle-item');
         
         // Update button states
         [heapBtn, stackBtn, allBtn].forEach(btn => btn.style.opacity = '0.6');
         
         if (filter === 'heap') {
           heapBtn.style.opacity = '1';
-          rows.forEach(row => {
-            row.style.display = row.getAttribute('data-type') === 'heap' ? 'table-row' : 'none';
+          items.forEach(item => {
+            item.style.display = item.getAttribute('data-type') === 'heap' ? 'block' : 'none';
           });
         } else if (filter === 'stack') {
           stackBtn.style.opacity = '1';
-          rows.forEach(row => {
-            row.style.display = row.getAttribute('data-type') === 'stack' ? 'table-row' : 'none';
+          items.forEach(item => {
+            item.style.display = item.getAttribute('data-type') === 'stack' ? 'block' : 'none';
           });
         } else {
           allBtn.style.opacity = '1';
-          rows.forEach(row => {
-            row.style.display = 'table-row';
+          items.forEach(item => {
+            item.style.display = 'block';
           });
         }
       }
@@ -1134,9 +1272,43 @@
     window.populateLifetimeTable = function() { return; };
     window.updateMemoryStats = function() { return; };
 
+    // Manual initialization function for testing
+    function manualInitialize() {
+      const statusEl = document.getElementById('init-status');
+      if (statusEl) statusEl.textContent = 'Initializing...';
+      
+      console.log('🔄 Manual initialization triggered');
+      console.log('window.analysisData:', window.analysisData);
+      
+      if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
+        console.log('✅ Data found, calling initEnhancedLifecycleVisualization...');
+        initEnhancedLifecycleVisualization();
+        if (statusEl) statusEl.textContent = 'Initialized successfully!';
+      } else {
+        console.warn('❌ No data found, trying to load...');
+        if (statusEl) statusEl.textContent = 'Loading data...';
+        
+        // Try to load data manually
+        fetch('./large_scale_user_memory_analysis.json')
+          .then(response => response.json())
+          .then(memoryData => {
+            console.log('✅ Manually loaded data:', memoryData);
+            window.analysisData = {
+              memory_analysis: memoryData
+            };
+            initEnhancedLifecycleVisualization();
+            if (statusEl) statusEl.textContent = 'Data loaded and initialized!';
+          })
+          .catch(error => {
+            console.error('❌ Failed to load data:', error);
+            if (statusEl) statusEl.textContent = 'Failed to load data';
+          });
+      }
+    }
+
     // Wait for all scripts to load, then initialize
     function waitForDataAndInit() {
-      if (window.analysisData && window.analysisData.allocations) {
+      if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
         safeInitEnhanced();
       } else {
         setTimeout(waitForDataAndInit, 200);
@@ -1145,6 +1317,12 @@
     
     // Initialize enhanced features after everything loads
     document.addEventListener('DOMContentLoaded', function() {
+      // Setup manual initialize button
+      const manualBtn = document.getElementById('manual-init-btn');
+      if (manualBtn) {
+        manualBtn.addEventListener('click', manualInitialize);
+      }
+      
       // Start checking for data immediately
       waitForDataAndInit();
     });
