@@ -4832,26 +4832,38 @@ function initEnhancedTypeChart(data) {
     const typeData = {};
     const allocs = data.memory_analysis?.allocations || data.allocations || [];
     
+    console.log('Type chart data extraction:', { totalAllocs: allocs.length });
+    
     allocs.forEach(alloc => {
         let type = alloc.type_name || 'Unknown';
+        const originalType = type;
+        
         // Simplify complex Rust type names for better readability
-        type = type.replace(/alloc::(sync::Arc|rc::Rc|collections::\w+::\w+::|string::String|vec::Vec)/g, (match, p1) => {
-            switch(p1) {
-                case 'sync::Arc': return 'Arc';
-                case 'rc::Rc': return 'Rc';
-                case 'string::String': return 'String';
-                case 'vec::Vec': return 'Vec';
-                default: return p1.split('::').pop();
-            }
-        });
+        type = type.replace(/alloc::sync::Arc/g, 'Arc');
+        type = type.replace(/alloc::rc::Rc/g, 'Rc');
+        type = type.replace(/alloc::string::String/g, 'String');
+        type = type.replace(/alloc::vec::Vec/g, 'Vec');
         type = type.replace(/std::collections::hash::map::HashMap/g, 'HashMap');
         type = type.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap');
-        // Truncate very long generic parameters
-        if (type.length > 30) {
-            type = type.substring(0, 27) + '...';
+        type = type.replace(/alloc::collections::\w+::\w+::/g, '');
+        
+        // Remove generic parameters for cleaner display
+        type = type.replace(/<[^>]+>/g, '<T>');
+        
+        // Truncate very long type names
+        if (type.length > 25) {
+            type = type.substring(0, 22) + '...';
         }
-        typeData[type] = (typeData[type] || 0) + (alloc.size || 0);
+        
+        const size = alloc.size || 0;
+        typeData[type] = (typeData[type] || 0) + size;
+        
+        if (size > 0) {
+            console.log(`Adding ${originalType} -> ${type}: ${size} bytes`);
+        }
     });
+    
+    console.log('Type data aggregated:', typeData);
 
     const sortedEntries = Object.entries(typeData).sort((a, b) => b[1] - a[1]);
     const labels = sortedEntries.map(([k, v]) => k);
@@ -4908,20 +4920,41 @@ function initEnhancedTypeChart(data) {
                 scales: {
                     x: { 
                         ticks: {
-                            maxRotation: 35,
+                            maxRotation: 45,
                             minRotation: 0,
-                            font: { size: 10 },
-                            color: 'var(--text-secondary)'
+                            font: { 
+                                size: 11, 
+                                weight: '500',
+                                family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                            },
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#e2e8f0' : '#475569';
+                            },
+                            padding: 8,
+                            callback: function(value, index) {
+                                const label = this.getLabelForValue(value);
+                                // Ensure readability by adding spacing
+                                return label.length > 15 ? label.substring(0, 13) + '...' : label;
+                            }
+                        },
+                        grid: {
+                            display: false
                         }
                     },
                     y: { 
                         beginAtZero: true,
                         ticks: {
                             callback: (value) => formatBytes(value),
-                            color: 'var(--text-secondary)'
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#cbd5e1' : '#64748b';
+                            },
+                            font: { size: 10, weight: '400' }
                         },
                         grid: {
-                            color: 'var(--border-light)'
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#374151' : '#e2e8f0';
+                            },
+                            lineWidth: 1
                         }
                     }
                 }
@@ -7258,30 +7291,41 @@ function initEnhancedFFIVisualization() {
             </div>
         </div>
 
-        <!-- Interactive Allocation Timeline -->
-        <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-            <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
-                <i class="fa fa-timeline" style="margin-right: 8px;"></i>Allocation Timeline
-                <button id="ffi-timeline-toggle" style="margin-left: auto; background: var(--primary-blue); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;">Show Details</button>
-            </h3>
-            <div id="ffi-timeline-container" style="height: 120px; position: relative; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
-                ${createAllocationTimeline(allocs, minTime, timeRange)}
+        <!-- Interactive Allocation Analysis (Two Column Layout) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+            <!-- Timeline Column -->
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
+                    <i class="fa fa-clock-o" style="margin-right: 8px;"></i>Allocation Timeline
+                    <button id="ffi-timeline-toggle" style="margin-left: auto; background: var(--primary-blue); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                        <i class="fa fa-expand"></i> Details
+                    </button>
+                </h3>
+                <div id="ffi-timeline-container" style="height: 160px; position: relative; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden; background: linear-gradient(45deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);">
+                    ${createAllocationTimeline(allocs, minTime, timeRange)}
+                </div>
+                <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
+                    Timeline spans ${(timeRange / 1e6).toFixed(1)}ms • Click dots for details
+                </div>
             </div>
-        </div>
-
-        <!-- Interactive Allocation Table -->
-        <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
-            <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
-                <i class="fa fa-table" style="margin-right: 8px;"></i>Allocation Details
-                <select id="ffi-filter" style="margin-left: auto; background: var(--bg-primary); border: 1px solid var(--border-light); border-radius: 4px; padding: 4px 8px; font-size: 12px;">
-                    <option value="all">All Allocations</option>
-                    <option value="leaked">Leaked Only</option>
-                    <option value="cloned">With Clones</option>
-                    <option value="borrowed">With Borrows</option>
-                </select>
-            </h3>
-            <div id="ffi-allocation-table" style="max-height: 300px; overflow-y: auto;">
-                ${createAllocationTable(allocs)}
+            
+            <!-- Details Column -->
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
+                    <i class="fa fa-list" style="margin-right: 8px;"></i>Allocation Details
+                    <select id="ffi-filter" style="margin-left: auto; background: var(--bg-primary); border: 1px solid var(--border-light); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--text-primary);">
+                        <option value="all">All (${allocs.length})</option>
+                        <option value="leaked">Leaked (${allocs.filter(a => a.is_leaked).length})</option>
+                        <option value="cloned">With Clones (${withClones})</option>
+                        <option value="borrowed">With Borrows (${allocs.filter(a => ((a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0)) > 0).length})</option>
+                    </select>
+                </h3>
+                <div id="ffi-allocation-table" style="max-height: 160px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 6px;">
+                    ${createAllocationTable(allocs)}
+                </div>
+                <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
+                    Click rows for detailed view • Use filter to narrow results
+                </div>
             </div>
         </div>
     `;
@@ -7293,21 +7337,64 @@ function initEnhancedFFIVisualization() {
 // Create allocation timeline visualization
 function createAllocationTimeline(allocs, minTime, timeRange) {
     const sorted = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
-    let html = '<div style="position: relative; height: 100%; background: linear-gradient(90deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);">';
+    let html = '<div style="position: relative; height: 100%; background: linear-gradient(90deg, rgba(59,130,246,0.1) 0%, rgba(16,185,129,0.1) 50%, rgba(239,68,68,0.1) 100%);">';
     
-    sorted.forEach((alloc, i) => {
-        const relativeTime = ((alloc.timestamp_alloc || minTime) - minTime) / timeRange;
-        const left = Math.max(0, Math.min(95, relativeTime * 95));
-        const size = Math.max(8, Math.min(24, Math.sqrt((alloc.size || 0) / 10)));
-        const isLeaked = alloc.is_leaked;
-        const hasClones = alloc.clone_info?.clone_count > 0;
-        const color = isLeaked ? 'var(--primary-red)' : hasClones ? 'var(--primary-orange)' : 'var(--primary-blue)';
+    // Add time axis
+    html += '<div style="position: absolute; bottom: 20px; left: 0; right: 0; height: 1px; background: var(--border-light);"></div>';
+    html += '<div style="position: absolute; bottom: 15px; left: 8px; font-size: 9px; color: var(--text-secondary);">0ms</div>';
+    html += '<div style="position: absolute; bottom: 15px; right: 8px; font-size: 9px; color: var(--text-secondary);">' + (timeRange / 1e6).toFixed(1) + 'ms</div>';
+    
+    // Group nearby allocations to prevent overlap
+    const groups = [];
+    const threshold = timeRange * 0.05; // 5% of time range
+    
+    sorted.forEach(alloc => {
+        const found = groups.find(g => Math.abs(g.avgTime - alloc.timestamp_alloc) < threshold);
+        if (found) {
+            found.allocs.push(alloc);
+            found.avgTime = found.allocs.reduce((sum, a) => sum + a.timestamp_alloc, 0) / found.allocs.length;
+        } else {
+            groups.push({ allocs: [alloc], avgTime: alloc.timestamp_alloc });
+        }
+    });
+    
+    groups.forEach((group, groupIndex) => {
+        const relativeTime = (group.avgTime - minTime) / timeRange;
+        const left = Math.max(2, Math.min(93, relativeTime * 90 + 5));
         
-        html += `<div style="position: absolute; left: ${left}%; top: 50%; transform: translateY(-50%); 
-                 width: ${size}px; height: ${size}px; background: ${color}; border-radius: 50%; 
-                 border: 2px solid white; cursor: pointer; z-index: ${i + 1};" 
-                 title="Var: ${alloc.var_name} | Size: ${formatBytes(alloc.size || 0)} | Time: ${new Date(alloc.timestamp_alloc / 1e6).toLocaleTimeString()}"
-                 onclick="showAllocationDetail('${alloc.ptr}')"></div>`;
+        if (group.allocs.length === 1) {
+            const alloc = group.allocs[0];
+            const size = Math.max(10, Math.min(20, Math.sqrt((alloc.size || 0) / 50)));
+            const isLeaked = alloc.is_leaked;
+            const hasClones = alloc.clone_info?.clone_count > 0;
+            const color = isLeaked ? '#dc2626' : hasClones ? '#ea580c' : '#2563eb';
+            
+            html += `<div style="position: absolute; left: ${left}%; top: 60%; transform: translateY(-50%); 
+                     width: ${size}px; height: ${size}px; background: ${color}; border-radius: 50%; 
+                     border: 2px solid white; cursor: pointer; z-index: 100; 
+                     box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.2s;"
+                     onmouseover="this.style.transform='translateY(-50%) scale(1.2)'" 
+                     onmouseout="this.style.transform='translateY(-50%) scale(1)'"
+                     title="${alloc.var_name || 'unnamed'} | ${formatBytes(alloc.size || 0)} | ${new Date(alloc.timestamp_alloc / 1e6).toLocaleTimeString()}"
+                     onclick="showAllocationDetail('${alloc.ptr}')"></div>`;
+        } else {
+            // Multiple allocations - create a cluster
+            const totalSize = group.allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+            const hasLeaks = group.allocs.some(a => a.is_leaked);
+            const hasClones = group.allocs.some(a => a.clone_info?.clone_count > 0);
+            const clusterSize = Math.max(16, Math.min(28, Math.sqrt(totalSize / 100)));
+            const color = hasLeaks ? '#dc2626' : hasClones ? '#ea580c' : '#2563eb';
+            
+            html += `<div style="position: absolute; left: ${left}%; top: 60%; transform: translateY(-50%); 
+                     width: ${clusterSize}px; height: ${clusterSize}px; background: ${color}; border-radius: 50%; 
+                     border: 3px solid white; cursor: pointer; z-index: 100;
+                     box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;
+                     color: white; font-size: 9px; font-weight: bold; transition: transform 0.2s;"
+                     onmouseover="this.style.transform='translateY(-50%) scale(1.2)'" 
+                     onmouseout="this.style.transform='translateY(-50%) scale(1)'"
+                     title="${group.allocs.length} allocations | Total: ${formatBytes(totalSize)} | Avg time: ${new Date(group.avgTime / 1e6).toLocaleTimeString()}"
+                     onclick="showClusterDetail(${JSON.stringify(group.allocs.map(a => a.ptr)).replace(/"/g, '&quot;')})">${group.allocs.length}</div>`;
+        }
     });
     
     html += '</div>';
@@ -7474,6 +7561,149 @@ window.showAllocationDetail = function(ptr) {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 };
 
+// Show cluster detail for grouped allocations
+window.showClusterDetail = function(ptrs) {
+    const data = window.analysisData || {};
+    const allocs = data.unsafe_ffi?.allocations || data.memory_analysis?.allocations || data.allocations || [];
+    const clusterAllocs = allocs.filter(a => ptrs.includes(a.ptr));
+    
+    if (clusterAllocs.length === 0) return;
+    
+    const totalSize = clusterAllocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const totalBorrows = clusterAllocs.reduce((sum, a) => sum + (a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0), 0);
+    const totalClones = clusterAllocs.reduce((sum, a) => sum + (a.clone_info?.clone_count || 0), 0);
+    const leakCount = clusterAllocs.filter(a => a.is_leaked).length;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.5); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 12px; padding: 24px; min-width: 500px; max-width: 700px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-primary);">Allocation Cluster (${clusterAllocs.length} items)</h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-blue);">${formatBytes(totalSize)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Size</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-green);">${totalBorrows}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Borrows</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-orange);">${totalClones}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Clones</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: ${leakCount > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">${leakCount}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Leaks</div>
+                </div>
+            </div>
+            <div style="color: var(--text-primary);">
+                <h4 style="margin: 0 0 12px 0; color: var(--text-primary);">Individual Allocations:</h4>
+                <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 6px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                        <thead style="background: var(--bg-secondary); position: sticky; top: 0;">
+                            <tr>
+                                <th style="padding: 8px; text-align: left;">Variable</th>
+                                <th style="padding: 8px; text-align: right;">Size</th>
+                                <th style="padding: 8px; text-align: center;">Borrows</th>
+                                <th style="padding: 8px; text-align: center;">Clones</th>
+                                <th style="padding: 8px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${clusterAllocs.map(alloc => {
+                                const totalBorrows = (alloc.borrow_info?.immutable_borrows || 0) + (alloc.borrow_info?.mutable_borrows || 0);
+                                const cloneCount = alloc.clone_info?.clone_count || 0;
+                                const isLeaked = alloc.is_leaked;
+                                const statusColor = isLeaked ? 'var(--primary-red)' : 'var(--primary-green)';
+                                const statusText = isLeaked ? 'LEAKED' : 'OK';
+                                
+                                return `
+                                    <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}')">
+                                        <td style="padding: 8px; font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
+                                        <td style="padding: 8px; text-align: right; font-weight: 600;">${formatBytes(alloc.size || 0)}</td>
+                                        <td style="padding: 8px; text-align: center; color: var(--primary-blue);">${totalBorrows}</td>
+                                        <td style="padding: 8px; text-align: center; color: var(--primary-orange);">${cloneCount}</td>
+                                        <td style="padding: 8px; text-align: center;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${statusText}</span></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
+
+// Update Performance Metrics and Thread Safety Analysis
+function updateEnhancedMetrics() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) return;
+    
+    // Calculate Performance Metrics
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const peakMemory = Math.max(...allocs.map(a => a.size || 0));
+    const timestamps = allocs.map(a => a.timestamp_alloc).filter(t => t).sort((a, b) => a - b);
+    const timeRangeNs = timestamps.length > 1 ? timestamps[timestamps.length - 1] - timestamps[0] : 1e9;
+    const allocationRate = allocs.length / (timeRangeNs / 1e9); // allocations per second
+    const avgLifetime = allocs.filter(a => a.lifetime_ms).reduce((sum, a) => sum + a.lifetime_ms, 0) / Math.max(1, allocs.filter(a => a.lifetime_ms).length);
+    
+    // Simple fragmentation calculation: variance in allocation sizes
+    const avgSize = totalMemory / allocs.length;
+    const variance = allocs.reduce((sum, a) => sum + Math.pow((a.size || 0) - avgSize, 2), 0) / allocs.length;
+    const fragmentation = Math.min(100, (Math.sqrt(variance) / avgSize) * 100);
+
+    // Update Performance Metrics
+    const peakEl = document.getElementById('peak-memory');
+    const rateEl = document.getElementById('allocation-rate');
+    const lifetimeEl = document.getElementById('avg-lifetime');
+    const fragEl = document.getElementById('fragmentation');
+    
+    if (peakEl) peakEl.textContent = formatBytes(peakMemory);
+    if (rateEl) rateEl.textContent = allocationRate.toFixed(1) + '/sec';
+    if (lifetimeEl) lifetimeEl.textContent = avgLifetime.toFixed(2) + 'ms';
+    if (fragEl) fragEl.textContent = fragmentation.toFixed(1) + '%';
+
+    // Calculate Thread Safety Analysis
+    const arcCount = allocs.filter(a => (a.type_name || '').includes('Arc')).length;
+    const rcCount = allocs.filter(a => (a.type_name || '').includes('Rc')).length;
+    const collectionsCount = allocs.filter(a => {
+        const type = a.type_name || '';
+        return type.includes('HashMap') || type.includes('BTreeMap') || type.includes('Vec') || type.includes('HashSet');
+    }).length;
+
+    // Update Thread Safety Analysis
+    const arcEl = document.getElementById('arc-count');
+    const rcEl = document.getElementById('rc-count');
+    const collEl = document.getElementById('collections-count');
+    
+    if (arcEl) arcEl.textContent = arcCount;
+    if (rcEl) rcEl.textContent = rcCount;
+    if (collEl) collEl.textContent = collectionsCount;
+    
+    console.log('✅ Enhanced metrics updated:', {
+        peakMemory: formatBytes(peakMemory),
+        allocationRate: allocationRate.toFixed(1) + '/sec',
+        avgLifetime: avgLifetime.toFixed(2) + 'ms',
+        fragmentation: fragmentation.toFixed(1) + '%',
+        arcCount, rcCount, collectionsCount
+    });
+}
+
 // Enhanced chart rendering with comprehensive cleanup
 function renderEnhancedCharts() {
     const data = window.analysisData || {};
@@ -7547,6 +7777,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTimelineChart();
         renderTreemap();
         renderLifetimes();
+        updateEnhancedMetrics();
         renderEnhancedCharts();
         renderMemoryFragmentation();
         populateAllocationsTable();
