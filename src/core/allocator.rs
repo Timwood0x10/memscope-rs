@@ -11,7 +11,7 @@ use std::sync::Mutex;
 pub struct TrackingAllocator;
 
 // Global type inference engine for the allocator
-static TYPE_INFERENCE_ENGINE: std::sync::LazyLock<Mutex<TypeInferenceEngine>> =
+static _TYPE_INFERENCE_ENGINE: std::sync::LazyLock<Mutex<TypeInferenceEngine>> =
     std::sync::LazyLock::new(|| Mutex::new(TypeInferenceEngine::new()));
 
 impl TrackingAllocator {
@@ -21,7 +21,7 @@ impl TrackingAllocator {
     }
 
     /// Simple type inference using static strings to avoid recursive allocations
-    fn infer_type_from_allocation_context(size: usize) -> &'static str {
+    fn _infer_type_from_allocation_context(size: usize) -> &'static str {
         // CRITICAL FIX: Use static strings to prevent recursive allocations
         match size {
             // Common Rust type sizes
@@ -49,14 +49,14 @@ impl TrackingAllocator {
     // REMOVED: fallback_type_inference - no longer needed with static strings
 
     /// Get a simplified call stack for context
-    fn get_simplified_call_stack() -> Vec<String> {
+    fn _get_simplified_call_stack() -> Vec<String> {
         // For now, return a simple placeholder
         // In a real implementation, this could use backtrace crate
         vec!["global_allocator".to_string(), "system_alloc".to_string()]
     }
 
     /// Simple variable name inference using static strings to avoid recursive allocations
-    fn infer_variable_from_allocation_context(size: usize) -> &'static str {
+    fn _infer_variable_from_allocation_context(size: usize) -> &'static str {
         // CRITICAL FIX: Use static strings to prevent recursive allocations
         match size {
             // Small allocations - likely primitives

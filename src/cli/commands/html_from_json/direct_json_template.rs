@@ -627,11 +627,6 @@ fn calculate_ffi_statistics_from_allocations(allocations: &[Value], boundary_eve
     })
 }
 
-/// Calculate comprehensive FFI statistics (legacy function for backward compatibility)
-fn calculate_ffi_statistics(enhanced_data: &[Value], boundary_events: &[Value]) -> Value {
-    calculate_ffi_statistics_from_allocations(enhanced_data, boundary_events)
-}
-
 /// Analyze language interactions from boundary events
 fn analyze_language_interactions(boundary_events: &[Value]) -> Value {
     let mut interactions = std::collections::HashMap::new();
@@ -712,7 +707,7 @@ fn analyze_safety_metrics_from_allocations(allocations: &[Value]) -> Value {
 }
 
 /// Analyze safety metrics (legacy function for backward compatibility)
-fn analyze_safety_metrics(enhanced_data: &[Value]) -> Value {
+fn _analyze_safety_metrics(enhanced_data: &[Value]) -> Value {
     analyze_safety_metrics_from_allocations(enhanced_data)
 }
 

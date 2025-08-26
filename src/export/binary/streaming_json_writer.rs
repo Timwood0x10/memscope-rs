@@ -349,6 +349,7 @@ impl<W: Write> StreamingJsonWriter<W> {
     }
 
     /// Write a single allocation with selective fields
+    #[allow(unused_assignments)]
     pub fn write_allocation_selective(
         &mut self,
         allocation: &PartialAllocationInfo,

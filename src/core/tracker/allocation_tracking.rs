@@ -478,7 +478,7 @@ impl MemoryTracker {
     }
 
     /// Enhance allocation with improve.md required fields
-    fn enhance_allocation_with_improve_md_fields(mut allocation: AllocationInfo) -> AllocationInfo {
+    fn _enhance_allocation_with_improve_md_fields(mut allocation: AllocationInfo) -> AllocationInfo {
         // Simulate borrowing information based on type patterns
         if let Some(ref type_name) = allocation.type_name {
             // Detect reference counting types (Rc, Arc)

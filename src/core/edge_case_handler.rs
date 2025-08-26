@@ -474,7 +474,7 @@ impl EdgeCaseHandler {
     }
 
     /// Update statistics
-    fn update_stats(&self, case_type: &EdgeCaseType, severity: &EdgeCaseSeverity, handled_successfully: bool) {
+    fn update_stats(&self, _case_type: &EdgeCaseType, severity: &EdgeCaseSeverity, handled_successfully: bool) {
         if !self.config.enable_stats {
             return;
         }
