@@ -7647,6 +7647,615 @@ window.showClusterDetail = function(ptrs) {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 };
 
+// Render enhanced data insights with beautiful visualizations
+function renderEnhancedDataInsights() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) return;
+    
+    // Calculate timeline insights
+    const timestamps = allocs.map(a => a.timestamp_alloc).filter(t => t).sort((a, b) => a - b);
+    const timeSpanMs = timestamps.length > 1 ? (timestamps[timestamps.length - 1] - timestamps[0]) / 1e6 : 0;
+    const allocationBurst = (allocs.length / Math.max(1, timeSpanMs / 1000)).toFixed(1);
+    
+    // Calculate borrow patterns
+    const borrowPatterns = {};
+    let totalBorrows = 0;
+    let totalMutable = 0;
+    let totalImmutable = 0;
+    
+    allocs.forEach(alloc => {
+        const bi = alloc.borrow_info || {};
+        const immut = bi.immutable_borrows || 0;
+        const mut = bi.mutable_borrows || 0;
+        const pattern = `${immut}i+${mut}m`;
+        borrowPatterns[pattern] = (borrowPatterns[pattern] || 0) + 1;
+        totalBorrows += immut + mut;
+        totalImmutable += immut;
+        totalMutable += mut;
+    });
+    
+    // Calculate clone operations
+    const totalClones = allocs.reduce((sum, a) => sum + (a.clone_info?.clone_count || 0), 0);
+    
+    // Update Timeline Insights
+    document.getElementById('time-span').textContent = timeSpanMs.toFixed(2) + 'ms';
+    document.getElementById('allocation-burst').textContent = allocationBurst + '/sec';
+    document.getElementById('peak-concurrency').textContent = Math.max(...allocs.map(a => (a.borrow_info?.max_concurrent_borrows || 0)));
+    document.getElementById('thread-activity').textContent = 'Single Thread';
+    
+    // Update Memory Operations
+    document.getElementById('borrow-ops').textContent = totalBorrows;
+    document.getElementById('clone-ops').textContent = totalClones;
+    document.getElementById('mut-ratio').textContent = totalImmutable > 0 ? (totalMutable / totalImmutable).toFixed(1) : '0';
+    document.getElementById('avg-borrows').textContent = (totalBorrows / allocs.length).toFixed(1);
+    
+    // Render charts
+    renderBorrowPatternChart(borrowPatterns);
+    renderMemoryDistributionChart(allocs);
+}
+
+// Render borrow activity heatmap (新奇直观的可视化)
+function renderBorrowPatternChart(patterns) {
+    const container = document.getElementById('borrowPatternChart');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    // Create interactive borrow activity heatmap
+    container.innerHTML = '';
+    container.style.cssText = 'height: 200px; overflow-y: auto; padding: 8px; background: var(--bg-primary); border-radius: 8px; border: 1px solid var(--border-light);';
+    
+    // Group variables by borrow intensity
+    const borrowGroups = {
+        'High Activity (4i+2m)': [],
+        'Normal Activity (2i+1m)': [],
+        'Low Activity (0-1 borrows)': []
+    };
+    
+    allocs.forEach(alloc => {
+        const bi = alloc.borrow_info || {};
+        const immut = bi.immutable_borrows || 0;
+        const mut = bi.mutable_borrows || 0;
+        const total = immut + mut;
+        
+        if (total >= 5) {
+            borrowGroups['High Activity (4i+2m)'].push(alloc);
+        } else if (total >= 2) {
+            borrowGroups['Normal Activity (2i+1m)'].push(alloc);
+        } else {
+            borrowGroups['Low Activity (0-1 borrows)'].push(alloc);
+        }
+    });
+    
+    // Create visual representation
+    Object.entries(borrowGroups).forEach(([groupName, groupAllocs], groupIndex) => {
+        if (groupAllocs.length === 0) return;
+        
+        const groupDiv = document.createElement('div');
+        groupDiv.style.cssText = 'margin-bottom: 12px;';
+        
+        const groupHeader = document.createElement('div');
+        groupHeader.style.cssText = `
+            font-size: 11px; font-weight: 600; margin-bottom: 6px; 
+            color: var(--text-primary); display: flex; align-items: center; gap: 8px;
+        `;
+        
+        const colors = ['#ef4444', '#f59e0b', '#10b981'];
+        const icons = ['🔥', '⚡', '💧'];
+        
+        groupHeader.innerHTML = `
+            <span style="font-size: 14px;">${icons[groupIndex]}</span>
+            <span>${groupName}</span>
+            <span style="background: ${colors[groupIndex]}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 9px;">
+                ${groupAllocs.length}
+            </span>
+        `;
+        
+        const bubbleContainer = document.createElement('div');
+        bubbleContainer.style.cssText = `
+            display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; 
+            background: var(--bg-secondary); border-radius: 6px; min-height: 40px;
+        `;
+        
+        // Create borrow activity bubbles
+        groupAllocs.forEach((alloc, index) => {
+            const bi = alloc.borrow_info || {};
+            const immut = bi.immutable_borrows || 0;
+            const mut = bi.mutable_borrows || 0;
+            const maxConcurrent = bi.max_concurrent_borrows || 0;
+            
+            const bubble = document.createElement('div');
+            const size = Math.max(16, Math.min(32, 12 + (immut + mut) * 2));
+            
+            bubble.style.cssText = `
+                width: ${size}px; height: ${size}px; border-radius: 50%; 
+                background: linear-gradient(45deg, ${colors[groupIndex]}80, ${colors[groupIndex]});
+                border: 2px solid ${colors[groupIndex]}; cursor: pointer;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 8px; font-weight: bold; color: white;
+                transition: transform 0.2s, box-shadow 0.2s;
+                position: relative;
+            `;
+            
+            bubble.textContent = immut + mut;
+            bubble.title = `${alloc.var_name}: ${immut}i + ${mut}m (max: ${maxConcurrent})`;
+            
+            // Add interactive effects
+            bubble.onmouseover = () => {
+                bubble.style.transform = 'scale(1.2)';
+                bubble.style.boxShadow = `0 4px 12px ${colors[groupIndex]}40`;
+            };
+            bubble.onmouseout = () => {
+                bubble.style.transform = 'scale(1)';
+                bubble.style.boxShadow = 'none';
+            };
+            
+            // Add click to show details
+            bubble.onclick = () => {
+                showBorrowDetail(alloc);
+            };
+            
+            bubbleContainer.appendChild(bubble);
+        });
+        
+        groupDiv.appendChild(groupHeader);
+        groupDiv.appendChild(bubbleContainer);
+        container.appendChild(groupDiv);
+    });
+    
+    // Add summary stats at bottom
+    const summaryDiv = document.createElement('div');
+    summaryDiv.style.cssText = `
+        margin-top: 8px; padding: 8px; background: var(--bg-secondary); 
+        border-radius: 6px; font-size: 10px; color: var(--text-secondary);
+        display: flex; justify-content: space-between;
+    `;
+    
+    const totalBorrows = allocs.reduce((sum, a) => sum + (a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0), 0);
+    const avgBorrows = (totalBorrows / allocs.length).toFixed(1);
+    const maxConcurrent = Math.max(...allocs.map(a => a.borrow_info?.max_concurrent_borrows || 0));
+    
+    summaryDiv.innerHTML = `
+        <span>Total Borrows: <strong>${totalBorrows}</strong></span>
+        <span>Avg/Variable: <strong>${avgBorrows}</strong></span>
+        <span>Peak Concurrent: <strong>${maxConcurrent}</strong></span>
+    `;
+    
+    container.appendChild(summaryDiv);
+}
+
+// Show borrow detail modal
+function showBorrowDetail(alloc) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.5); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const bi = alloc.borrow_info || {};
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 12px; padding: 20px; min-width: 350px; border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-primary);">🔍 Borrow Analysis</h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 18px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            <div style="color: var(--text-primary); line-height: 1.6;">
+                <div style="margin-bottom: 12px;"><strong>Variable:</strong> ${alloc.var_name}</div>
+                <div style="margin-bottom: 12px;"><strong>Type:</strong> ${alloc.type_name}</div>
+                <div style="margin-bottom: 12px;"><strong>Size:</strong> ${formatBytes(alloc.size || 0)}</div>
+                <hr style="border: none; border-top: 1px solid var(--border-light); margin: 16px 0;">
+                <div style="margin-bottom: 8px;"><strong>📖 Immutable Borrows:</strong> <span style="color: var(--primary-blue); font-weight: 600;">${bi.immutable_borrows || 0}</span></div>
+                <div style="margin-bottom: 8px;"><strong>✏️ Mutable Borrows:</strong> <span style="color: var(--primary-orange); font-weight: 600;">${bi.mutable_borrows || 0}</span></div>
+                <div style="margin-bottom: 8px;"><strong>🔥 Max Concurrent:</strong> <span style="color: var(--primary-red); font-weight: 600;">${bi.max_concurrent_borrows || 0}</span></div>
+                <div style="margin-bottom: 8px;"><strong>⚡ Total Activity:</strong> <span style="color: var(--primary-green); font-weight: 600;">${(bi.immutable_borrows || 0) + (bi.mutable_borrows || 0)}</span></div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
+
+// Render type memory distribution pie chart
+function renderMemoryDistributionChart(allocs) {
+    const ctx = document.getElementById('memoryDistributionChart');
+    if (!ctx || !window.Chart) return;
+    
+    // Cleanup existing chart
+    if (window.chartInstances && window.chartInstances['memoryDistributionChart']) {
+        try { window.chartInstances['memoryDistributionChart'].destroy(); } catch(_) {}
+        delete window.chartInstances['memoryDistributionChart'];
+    }
+    
+    // Group by type and sum memory
+    const typeMemory = {};
+    allocs.forEach(alloc => {
+        let typeName = alloc.type_name || 'Unknown';
+        // Simplify type names for display
+        typeName = typeName.replace(/std::collections::hash::map::HashMap.*/, 'HashMap');
+        typeName = typeName.replace(/alloc::collections::btree::map::BTreeMap.*/, 'BTreeMap');
+        typeName = typeName.replace(/alloc::sync::Arc.*/, 'Arc');
+        typeName = typeName.replace(/alloc::rc::Rc.*/, 'Rc');
+        typeName = typeName.replace(/alloc::string::String/, 'String');
+        typeName = typeName.replace(/alloc::vec::Vec.*/, 'Vec');
+        
+        const size = alloc.size || 0;
+        typeMemory[typeName] = (typeMemory[typeName] || 0) + size;
+    });
+    
+    // Sort by memory size and take top types
+    const sortedTypes = Object.entries(typeMemory)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8); // Top 8 types
+    
+    const labels = sortedTypes.map(([type, size]) => `${type} (${formatBytes(size)})`);
+    const values = sortedTypes.map(([type, size]) => size);
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
+    
+    if (values.length > 0) {
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors.slice(0, values.length),
+                    borderWidth: 3,
+                    borderColor: '#ffffff',
+                    hoverBorderWidth: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '50%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { size: 9 },
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#e2e8f0' : '#475569';
+                            },
+                            padding: 4,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const size = context.parsed;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((size / total) * 100).toFixed(1);
+                                return `${formatBytes(size)} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        window.chartInstances = window.chartInstances || {};
+        window.chartInstances['memoryDistributionChart'] = chart;
+    }
+}
+
+// Update lifecycle statistics and render distribution chart
+function updateLifecycleStatistics() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) return;
+    
+    // Calculate lifecycle statistics
+    const activeVars = allocs.filter(a => !a.is_leaked && a.lifetime_ms === undefined).length;
+    const freedVars = allocs.filter(a => !a.is_leaked && a.lifetime_ms !== undefined).length;
+    const leakedVars = allocs.filter(a => a.is_leaked).length;
+    const avgLifetime = allocs.filter(a => a.lifetime_ms).reduce((sum, a) => sum + a.lifetime_ms, 0) / Math.max(1, allocs.filter(a => a.lifetime_ms).length);
+    
+    // Update statistics display
+    document.getElementById('active-vars').textContent = activeVars;
+    document.getElementById('freed-vars').textContent = freedVars;
+    document.getElementById('leaked-vars').textContent = leakedVars;
+    document.getElementById('avg-lifetime-stat').textContent = avgLifetime.toFixed(2) + 'ms';
+    
+    // Render lifecycle distribution chart
+    renderLifecycleDistributionChart(allocs);
+}
+
+// Render lifecycle distribution chart
+function renderLifecycleDistributionChart(allocs) {
+    const ctx = document.getElementById('lifecycleDistributionChart');
+    if (!ctx || !window.Chart) return;
+    
+    // Cleanup existing chart
+    if (window.chartInstances && window.chartInstances['lifecycleDistributionChart']) {
+        try { window.chartInstances['lifecycleDistributionChart'].destroy(); } catch(_) {}
+        delete window.chartInstances['lifecycleDistributionChart'];
+    }
+    
+    // Group allocations by lifetime ranges
+    const lifetimeRanges = {
+        'Instant (0ms)': 0,
+        'Quick (0-1ms)': 0,
+        'Short (1-10ms)': 0,
+        'Long (10ms+)': 0,
+        'Active': 0
+    };
+    
+    allocs.forEach(alloc => {
+        const lifetime = alloc.lifetime_ms;
+        if (lifetime === undefined) {
+            lifetimeRanges['Active']++;
+        } else if (lifetime === 0) {
+            lifetimeRanges['Instant (0ms)']++;
+        } else if (lifetime <= 1) {
+            lifetimeRanges['Quick (0-1ms)']++;
+        } else if (lifetime <= 10) {
+            lifetimeRanges['Short (1-10ms)']++;
+        } else {
+            lifetimeRanges['Long (10ms+)']++;
+        }
+    });
+    
+    const labels = Object.keys(lifetimeRanges);
+    const values = Object.values(lifetimeRanges);
+    const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+    
+    if (values.some(v => v > 0)) {
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    borderWidth: 1,
+                    borderColor: colors.map(c => c + '80')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const range = context.label;
+                                const count = context.parsed.y;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((count / total) * 100).toFixed(1);
+                                return `${range}: ${count} vars (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            font: { size: 9 },
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#cbd5e1' : '#64748b';
+                            },
+                            maxRotation: 45
+                        },
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            font: { size: 9 },
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#cbd5e1' : '#64748b';
+                            }
+                        },
+                        grid: {
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#374151' : '#e2e8f0';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        window.chartInstances = window.chartInstances || {};
+        window.chartInstances['lifecycleDistributionChart'] = chart;
+    }
+}
+
+// Render memory hotspots visualization
+function renderMemoryHotspots() {
+    const container = document.getElementById('memoryHotspots');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">No allocation data available</div>';
+        return;
+    }
+    
+    // Sort allocations by size to identify hotspots
+    const sortedAllocs = allocs.slice().sort((a, b) => (b.size || 0) - (a.size || 0));
+    const topHotspots = sortedAllocs.slice(0, 10); // Top 10 largest allocations
+    
+    container.innerHTML = '';
+    
+    // Create hotspot visualization
+    topHotspots.forEach((alloc, index) => {
+        const size = alloc.size || 0;
+        const maxSize = sortedAllocs[0].size || 1;
+        const intensity = (size / maxSize) * 100;
+        
+        const hotspotDiv = document.createElement('div');
+        hotspotDiv.style.cssText = `
+            display: flex; align-items: center; padding: 8px; margin-bottom: 6px;
+            background: linear-gradient(90deg, var(--bg-primary) 0%, var(--primary-red)${Math.floor(intensity/4)} ${intensity}%, var(--bg-primary) 100%);
+            border-radius: 6px; border: 1px solid var(--border-light);
+            cursor: pointer; transition: transform 0.2s;
+        `;
+        
+        const heatColor = intensity > 80 ? '#ef4444' : intensity > 60 ? '#f59e0b' : intensity > 40 ? '#10b981' : '#3b82f6';
+        
+        hotspotDiv.innerHTML = `
+            <div style="width: 24px; height: 24px; border-radius: 50%; background: ${heatColor}; 
+                        display: flex; align-items: center; justify-content: center; margin-right: 12px;
+                        font-size: 10px; font-weight: bold; color: white;">
+                ${index + 1}
+            </div>
+            <div style="flex: 1;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">
+                    ${alloc.var_name || 'unnamed'}
+                </div>
+                <div style="font-size: 10px; color: var(--text-secondary);">
+                    ${(alloc.type_name || 'Unknown').replace(/std::|alloc::/g, '').substring(0, 30)}...
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 12px; font-weight: 700; color: ${heatColor};">
+                    ${formatBytes(size)}
+                </div>
+                <div style="font-size: 9px; color: var(--text-secondary);">
+                    ${intensity.toFixed(1)}% of max
+                </div>
+            </div>
+        `;
+        
+        hotspotDiv.onmouseover = () => {
+            hotspotDiv.style.transform = 'scale(1.02)';
+            hotspotDiv.style.boxShadow = `0 4px 12px ${heatColor}40`;
+        };
+        hotspotDiv.onmouseout = () => {
+            hotspotDiv.style.transform = 'scale(1)';
+            hotspotDiv.style.boxShadow = 'none';
+        };
+        
+        hotspotDiv.onclick = () => {
+            showAllocationDetail(alloc.ptr);
+        };
+        
+        container.appendChild(hotspotDiv);
+    });
+    
+    // Add summary at bottom
+    const summaryDiv = document.createElement('div');
+    summaryDiv.style.cssText = `
+        margin-top: 12px; padding: 8px; background: var(--bg-primary); 
+        border-radius: 6px; font-size: 10px; color: var(--text-secondary);
+        text-align: center; border: 1px solid var(--border-light);
+    `;
+    
+    const totalHotspotMemory = topHotspots.reduce((sum, a) => sum + (a.size || 0), 0);
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const hotspotPercentage = ((totalHotspotMemory / totalMemory) * 100).toFixed(1);
+    
+    summaryDiv.innerHTML = `
+        Top ${topHotspots.length} hotspots: <strong>${formatBytes(totalHotspotMemory)}</strong> 
+        (${hotspotPercentage}% of total memory)
+    `;
+    
+    container.appendChild(summaryDiv);
+}
+
+// Render thread analysis
+function renderThreadAnalysis() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    // Update thread timeline
+    renderThreadTimeline(allocs);
+    
+    // Update contention analysis
+    updateContentionAnalysis(allocs);
+}
+
+// Render thread timeline
+function renderThreadTimeline(allocs) {
+    const container = document.getElementById('threadTimeline');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Get unique threads
+    const threads = [...new Set(allocs.map(a => a.thread_id).filter(t => t))];
+    
+    if (threads.length <= 1) {
+        // Single thread visualization
+        container.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; margin-bottom: 4px;">🧵</div>
+                    <div style="font-size: 10px;">Single Thread</div>
+                    <div style="font-size: 9px;">ThreadId(${threads[0] || 1})</div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Multi-thread visualization (if applicable)
+    threads.forEach((threadId, index) => {
+        const threadAllocs = allocs.filter(a => a.thread_id === threadId);
+        const threadDiv = document.createElement('div');
+        threadDiv.style.cssText = `
+            height: ${100/threads.length}%; display: flex; align-items: center; 
+            padding: 0 8px; border-bottom: 1px solid var(--border-light);
+        `;
+        
+        threadDiv.innerHTML = `
+            <div style="width: 60px; font-size: 9px; color: var(--text-secondary);">
+                Thread ${threadId}
+            </div>
+            <div style="flex: 1; height: 4px; background: var(--bg-secondary); border-radius: 2px; position: relative;">
+                <div style="height: 100%; background: var(--primary-blue); border-radius: 2px; width: ${(threadAllocs.length / allocs.length) * 100}%;"></div>
+            </div>
+            <div style="width: 40px; text-align: right; font-size: 9px; color: var(--text-primary);">
+                ${threadAllocs.length}
+            </div>
+        `;
+        
+        container.appendChild(threadDiv);
+    });
+}
+
+// Update contention analysis
+function updateContentionAnalysis(allocs) {
+    const levelEl = document.getElementById('contention-level');
+    const detailsEl = document.getElementById('contention-details');
+    
+    if (!levelEl || !detailsEl) return;
+    
+    // Calculate contention metrics
+    const maxConcurrentBorrows = Math.max(...allocs.map(a => a.borrow_info?.max_concurrent_borrows || 0));
+    const avgConcurrentBorrows = allocs.reduce((sum, a) => sum + (a.borrow_info?.max_concurrent_borrows || 0), 0) / allocs.length;
+    
+    let level = 'LOW';
+    let color = 'var(--primary-green)';
+    let details = 'Single-threaded';
+    
+    if (maxConcurrentBorrows > 5) {
+        level = 'HIGH';
+        color = 'var(--primary-red)';
+        details = `Max ${maxConcurrentBorrows} concurrent`;
+    } else if (maxConcurrentBorrows > 2) {
+        level = 'MEDIUM';
+        color = 'var(--primary-orange)';
+        details = `Avg ${avgConcurrentBorrows.toFixed(1)} concurrent`;
+    }
+    
+    levelEl.textContent = level;
+    levelEl.style.color = color;
+    detailsEl.textContent = details;
+}
+
 // Update Performance Metrics and Thread Safety Analysis
 function updateEnhancedMetrics() {
     const data = window.analysisData || {};
@@ -7780,6 +8389,10 @@ document.addEventListener("DOMContentLoaded", () => {
         updateEnhancedMetrics();
         renderEnhancedCharts();
         renderMemoryFragmentation();
+        renderEnhancedDataInsights();
+        updateLifecycleStatistics();
+        renderMemoryHotspots();
+        renderThreadAnalysis();
         populateAllocationsTable();
         populateUnsafeTable();
         renderVariableGraph();

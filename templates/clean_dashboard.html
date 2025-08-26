@@ -363,9 +363,69 @@
     </section>
 
     <!-- Advanced Analysis -->
-    <section class="card">
-      <h2>Memory Fragmentation</h2>
-      <div id="memoryFragmentation"></div>
+    <section class="grid grid-2">
+      <div class="card">
+        <h2>Memory Fragmentation</h2>
+        <div id="memoryFragmentation"></div>
+      </div>
+      <div class="card">
+        <h2><i class="fa fa-fire"></i> Borrow Activity Heatmap</h2>
+        <div id="borrowPatternChart" style="height: 200px;"></div>
+      </div>
+    </section>
+
+    <!-- Enhanced Data Insights -->
+    <section class="grid grid-3">
+      <div class="card">
+        <h2><i class="fa fa-clock-o"></i> Timeline Insights</h2>
+        <div id="timelineInsights" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+          <div style="margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Time Span:</span>
+            <span id="time-span" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Allocation Burst:</span>
+            <span id="allocation-burst" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Peak Concurrency:</span>
+            <span id="peak-concurrency" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+          <div>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Thread Activity:</span>
+            <span id="thread-activity" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2><i class="fa fa-exchange"></i> Memory Operations</h2>
+        <div id="memoryOperations" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="borrow-ops" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-blue);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Borrow Ops</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="clone-ops" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-orange);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Clone Ops</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="mut-ratio" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-red);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Mut/Immut</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="avg-borrows" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-green);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Avg/Alloc</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2><i class="fa fa-pie-chart"></i> Type Memory Distribution</h2>
+        <div id="memoryDistributionChart" style="height: 200px;"></div>
+      </div>
     </section>
 
     <!-- Variable Relationships Graph -->
@@ -386,16 +446,87 @@
       <div id="graph" style="height: 400px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; position: relative; overflow: hidden;"></div>
     </section>
 
-    <!-- Lifecycle Timeline -->
-    <section class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 style="margin: 0;">Variable Lifecycle Timeline</h2>
-        <button id="toggle-lifecycle" class="theme-toggle" style="background: var(--primary-green); font-size: 12px; padding: 6px 12px;">
-          <i class="fa fa-chevron-down"></i>
-          <span>Show All</span>
-        </button>
+    <!-- Memory Hotspots & Thread Analysis -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2><i class="fa fa-bolt"></i> Memory Hotspots</h2>
+        <div id="memoryHotspots" style="height: 300px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
+          <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
+            Loading memory hotspots...
+          </div>
+        </div>
       </div>
-      <div id="lifetimeVisualization"></div>
+      
+      <div class="card">
+        <h2><i class="fa fa-users"></i> Thread & Concurrency</h2>
+        <div id="threadAnalysis" style="padding: 12px; background: var(--bg-secondary); border-radius: 8px; height: 300px;">
+          <div style="display: grid; grid-template-rows: 1fr 1fr; gap: 12px; height: 100%;">
+            <!-- Thread Activity -->
+            <div style="background: var(--bg-primary); padding: 12px; border-radius: 6px;">
+              <h4 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 12px;">
+                <i class="fa fa-clock-o"></i> Thread Activity
+              </h4>
+              <div id="threadTimeline" style="height: 60px; position: relative; border: 1px solid var(--border-light); border-radius: 4px; background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);"></div>
+            </div>
+            
+            <!-- Memory Contention -->
+            <div style="background: var(--bg-primary); padding: 12px; border-radius: 6px;">
+              <h4 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 12px;">
+                <i class="fa fa-warning"></i> Memory Contention
+              </h4>
+              <div style="display: flex; align-items: center; justify-content: center; height: 60px;">
+                <div style="text-align: center;">
+                  <div id="contention-level" style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);">LOW</div>
+                  <div style="font-size: 0.7rem; color: var(--text-secondary);" id="contention-details">Single-threaded</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Enhanced Variable Lifecycle Analysis -->
+    <section class="grid grid-2">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h2 style="margin: 0;"><i class="fa fa-timeline"></i> Variable Lifecycle Timeline</h2>
+          <button id="toggle-lifecycle" class="theme-toggle" style="background: var(--primary-green); font-size: 12px; padding: 6px 12px;">
+            <i class="fa fa-chevron-down"></i>
+            <span>Show All</span>
+          </button>
+        </div>
+        <div id="lifetimeVisualization" style="max-height: 300px; overflow-y: auto;"></div>
+      </div>
+      
+      <div class="card">
+        <h2><i class="fa fa-heartbeat"></i> Lifecycle Statistics</h2>
+        <div id="lifecycleStats" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="active-vars" style="font-size: 1.6rem; font-weight: 700; color: var(--primary-green);">-</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">Active Variables</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="freed-vars" style="font-size: 1.6rem; font-weight: 700; color: var(--primary-blue);">-</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">Freed Variables</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="leaked-vars" style="font-size: 1.6rem; font-weight: 700; color: var(--primary-red);">-</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">Leaked Variables</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="avg-lifetime-stat" style="font-size: 1.6rem; font-weight: 700; color: var(--primary-orange);">-</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Lifetime</div>
+            </div>
+          </div>
+          
+          <!-- Lifecycle Distribution Chart -->
+          <div style="height: 120px; margin-top: 12px;">
+            <canvas id="lifecycleDistributionChart"></canvas>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Data Tables -->
