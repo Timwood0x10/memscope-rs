@@ -28,6 +28,16 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     // Serialize the transformed JSON data for embedding with proper escaping
     let json_data_str = serde_json::to_string(&transformed_data)
         .map_err(|e| format!("Failed to serialize JSON data: {e}"))?;
+    
+    // Debug: Log data serialization info
+    tracing::info!("📊 JSON data serialized: {} characters", json_data_str.len());
+    if let Some(memory_analysis) = transformed_data.get("memory_analysis") {
+        if let Some(allocations) = memory_analysis.get("allocations") {
+            if let Some(allocs_array) = allocations.as_array() {
+                tracing::info!("📊 Memory analysis allocations: {} items", allocs_array.len());
+            }
+        }
+    }
 
     // Log data structure for debugging
     if let Some(unsafe_ffi_data) = json_data.get("basic_usage_snapshot_unsafe_ffi") {

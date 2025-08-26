@@ -8331,6 +8331,165 @@ window.showTypeDetail = function(typeName, data) {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 };
 
+// Render detailed allocation timeline with heap/stack and timing info
+function renderAllocationTimelineDetail() {
+    const container = document.getElementById('allocationTimelineDetail');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); margin-top: 80px;">No allocation data available</div>';
+        return;
+    }
+    
+    // Sort by allocation time
+    const sortedAllocs = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+    const minTime = sortedAllocs[0].timestamp_alloc || 0;
+    
+    // Classify allocations as heap/stack
+    const classifyAllocation = (typeName) => {
+        const heapIndicators = ['Arc', 'Rc', 'Box', 'Vec', 'HashMap', 'BTreeMap', 'String'];
+        const stackIndicators = ['&', 'i32', 'u32', 'i64', 'u64', 'f32', 'f64', 'bool', 'char'];
+        
+        if (heapIndicators.some(indicator => typeName.includes(indicator))) {
+            return { type: 'heap', color: '#ef4444', icon: '🏗️' };
+        } else if (stackIndicators.some(indicator => typeName.includes(indicator))) {
+            return { type: 'stack', color: '#10b981', icon: '📚' };
+        } else {
+            return { type: 'unknown', color: '#64748b', icon: '❓' };
+        }
+    };
+    
+    container.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 4px; height: 100%;">
+            ${sortedAllocs.slice(0, 15).map((alloc, index) => {
+                const allocTime = alloc.timestamp_alloc || 0;
+                const lifetime = alloc.lifetime_ms || 0;
+                const dropTime = allocTime + (lifetime * 1_000_000); // Convert ms to ns
+                const relativeTime = ((allocTime - minTime) / 1_000_000).toFixed(2); // Convert to ms
+                
+                const classification = classifyAllocation(alloc.type_name || '');
+                const typeName = (alloc.type_name || 'Unknown').split('::').pop().split('<')[0];
+                
+                return `
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 4px; cursor: pointer; transition: all 0.2s;"
+                         onmouseover="this.style.background='var(--bg-primary)'"
+                         onmouseout="this.style.background='transparent'"
+                         onclick="showAllocationTimeDetail('${alloc.ptr}', ${allocTime}, ${dropTime}, '${classification.type}')">
+                        
+                        <!-- Allocation Type Icon -->
+                        <div style="width: 24px; height: 24px; background: ${classification.color}20; border: 1px solid ${classification.color}; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
+                            ${classification.icon}
+                        </div>
+                        
+                        <!-- Variable Info -->
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-primary); margin-bottom: 1px;">
+                                ${alloc.var_name || 'unnamed'} (${typeName})
+                            </div>
+                            <div style="font-size: 9px; color: var(--text-secondary);">
+                                ${formatBytes(alloc.size || 0)} • ${classification.type.toUpperCase()}
+                            </div>
+                        </div>
+                        
+                        <!-- Timing Info -->
+                        <div style="text-align: right; font-size: 9px;">
+                            <div style="color: var(--primary-blue); font-weight: 600;">+${relativeTime}ms</div>
+                            <div style="color: var(--text-secondary);">→ ${lifetime}ms</div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+            
+            ${sortedAllocs.length > 15 ? `
+                <div style="text-align: center; padding: 8px; color: var(--text-secondary); font-size: 10px; border-top: 1px solid var(--border-light);">
+                    ... and ${sortedAllocs.length - 15} more allocations
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Show detailed allocation timing modal
+window.showAllocationTimeDetail = function(ptr, allocTime, dropTime, allocationType) {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    const alloc = allocs.find(a => a.ptr === ptr);
+    
+    if (!alloc) return;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.6); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const allocDate = new Date(allocTime / 1_000_000);
+    const dropDate = new Date(dropTime / 1_000_000);
+    const typeColor = allocationType === 'heap' ? '#ef4444' : allocationType === 'stack' ? '#10b981' : '#64748b';
+    const typeIcon = allocationType === 'heap' ? '🏗️' : allocationType === 'stack' ? '📚' : '❓';
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 16px; padding: 24px; min-width: 500px; color: var(--text-primary); border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 24px;">${typeIcon}</span>
+                    ${allocationType.toUpperCase()} Allocation Timeline
+                </h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Variable</div>
+                    <div style="font-size: 16px; font-weight: 600;">${alloc.var_name || 'unnamed'}</div>
+                </div>
+                <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Type</div>
+                    <div style="font-size: 14px; font-weight: 600; word-break: break-all;">${alloc.type_name || 'Unknown'}</div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 18px; font-weight: 700; color: ${typeColor};">${formatBytes(alloc.size || 0)}</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Size</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 18px; font-weight: 700; color: var(--primary-blue);">${alloc.lifetime_ms || 0}ms</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Lifetime</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 18px; font-weight: 700; color: ${typeColor};">${allocationType.toUpperCase()}</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Location</div>
+                </div>
+            </div>
+            
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h4 style="margin: 0 0 12px 0; color: var(--text-primary);">Timeline Details</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">🟢 Allocated At</div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--primary-green);">${allocDate.toLocaleString()}</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Timestamp: ${allocTime}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">🔴 Dropped At</div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--primary-red);">${dropDate.toLocaleString()}</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Timestamp: ${dropTime}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
+
 // Update lifecycle statistics and render distribution chart
 function updateLifecycleStatistics() {
     const data = window.analysisData || {};
@@ -8776,6 +8935,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderEnhancedCharts();
         renderMemoryFragmentation();
         renderEnhancedDataInsights();
+        renderAllocationTimelineDetail();
         updateLifecycleStatistics();
         renderMemoryHotspots();
         renderThreadAnalysis();
