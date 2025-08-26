@@ -423,8 +423,8 @@
       </div>
       
       <div class="card">
-        <h2><i class="fa fa-pie-chart"></i> Type Memory Distribution</h2>
-        <div id="memoryDistributionChart" style="height: 200px;"></div>
+        <h2><i class="fa fa-cubes"></i> Type Memory Blocks</h2>
+        <div id="memoryDistributionChart" style="height: 200px; overflow-y: auto;"></div>
       </div>
     </section>
 
@@ -564,13 +564,13 @@
       </div>
     </section>
 
-    <!-- Unsafe/FFI Analysis -->
-    <section class="card">
-      <h2>Unsafe Rust & FFI Memory Analysis</h2>
-      <div id="ffiVisualization" class="chart-container">
-        <div style="background: var(--bg-secondary); border-radius:8px; padding:16px; text-align:center; color: var(--text-secondary);">
+    <!-- Unsafe/FFI Analysis (Unified Background Container) -->
+    <section style="background: var(--bg-secondary); padding: 24px; border-radius: 12px; border: 1px solid var(--border-light); min-height: 800px;">
+      <h2 style="margin: 0 0 20px 0; color: var(--text-primary);">Unsafe Rust & FFI Memory Analysis</h2>
+      <div id="ffiVisualization" class="chart-container" style="width: 100%;">
+        <div style="background: var(--bg-primary); border-radius:8px; padding:16px; text-align:center; color: var(--text-secondary);">
           <i class="fa fa-info-circle" style="font-size:24px; margin-bottom:8px; opacity:0.5;"></i>
-          <div>No FFI data available</div>
+          <div>Loading FFI analysis...</div>
         </div>
       </div>
     </section>

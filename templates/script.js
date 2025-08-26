@@ -6118,74 +6118,109 @@ function renderMemoryFragmentation() {
     
     const data = window.analysisData || {};
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
-    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
-    const activeMemory = allocs.filter(a => !a.timestamp_dealloc).reduce((sum, a) => sum + (a.size || 0), 0);
-    const fragmentationRate = totalMemory > 0 ? ((totalMemory - activeMemory) / totalMemory * 100) : 0;
     
-    // Create chart container
-    const chartDiv = document.createElement('div');
-    chartDiv.style.height = '200px';
-    chartDiv.style.position = 'relative';
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">No allocation data available</div>';
+        return;
+    }
     
-    const canvas = document.createElement('canvas');
-    chartDiv.appendChild(canvas);
+    // Calculate fragmentation metrics
+    const sizes = allocs.map(a => a.size || 0).filter(s => s > 0);
+    const totalMemory = sizes.reduce((sum, size) => sum + size, 0);
+    const avgSize = totalMemory / sizes.length;
+    const variance = sizes.reduce((sum, size) => sum + Math.pow(size - avgSize, 2), 0) / sizes.length;
+    const stdDev = Math.sqrt(variance);
+    const fragmentation = Math.min(100, (stdDev / avgSize) * 100);
     
+    // Sort allocations by size for visualization
+    const sortedAllocs = allocs.slice().sort((a, b) => (a.size || 0) - (b.size || 0));
+    
+    // Create memory fragmentation visualization
     container.innerHTML = `
-        <div style="padding: 16px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+        <div style="height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 12px;">
+            <!-- Fragmentation Score -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
                 <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Fragmentation Rate</div>
-                    <div style="font-size: 1.8rem; font-weight: 700; color: ${fragmentationRate > 30 ? '#dc2626' : fragmentationRate > 15 ? '#ea580c' : '#059669'};">
-                        ${fragmentationRate.toFixed(1)}%
+                    <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);">Fragmentation Level</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">Memory size variance indicator</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 24px; font-weight: 700; color: ${fragmentation > 50 ? 'var(--primary-red)' : fragmentation > 25 ? 'var(--primary-orange)' : 'var(--primary-green)'};">
+                        ${fragmentation.toFixed(1)}%
+                    </div>
+                    <div style="font-size: 10px; color: var(--text-secondary);">
+                        ${fragmentation > 50 ? 'High' : fragmentation > 25 ? 'Medium' : 'Low'}
                     </div>
                 </div>
-                <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Active Memory</div>
-                    <div style="font-size: 1.2rem; font-weight: 600;">${formatBytes(activeMemory)}</div>
+            </div>
+            
+            <!-- Memory Layout Visualization -->
+            <div style="flex: 1; background: var(--bg-secondary); border-radius: 8px; padding: 12px;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Memory Layout (${allocs.length} allocations)</div>
+                <div style="height: 80px; background: var(--bg-primary); border-radius: 6px; padding: 4px; position: relative; overflow: hidden;">
+                    <!-- Memory blocks representing allocations -->
+                    <div style="display: flex; height: 100%; align-items: end; gap: 1px;">
+                        ${sortedAllocs.slice(0, 40).map((alloc, i) => {
+                            const size = alloc.size || 0;
+                            const maxSize = Math.max(...sizes);
+                            const height = Math.max(8, (size / maxSize) * 70);
+                            const width = Math.max(2, Math.min(8, 100 / Math.min(40, allocs.length)));
+                            
+                            let color = '#10b981'; // Green for small
+                            if (size > 10240) color = '#ef4444'; // Red for large
+                            else if (size > 1024) color = '#f59e0b'; // Orange for medium
+                            else if (size > 100) color = '#3b82f6'; // Blue for small-medium
+                            
+                            return `
+                                <div style="width: ${width}px; height: ${height}px; background: ${color}; 
+                                           border-radius: 1px; cursor: pointer; transition: all 0.2s; opacity: 0.8;"
+                                     title="${alloc.var_name}: ${formatBytes(size)}"
+                                     onmouseover="this.style.transform='scaleY(1.2)'; this.style.opacity='1'"
+                                     onmouseout="this.style.transform='scaleY(1)'; this.style.opacity='0.8'"
+                                     onclick="showAllocationDetail('${alloc.ptr}')"></div>
+                            `;
+                        }).join('')}
+                    </div>
+                    
+                    <!-- Size legend -->
+                    <div style="position: absolute; bottom: 4px; right: 4px; display: flex; gap: 4px; font-size: 8px;">
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #10b981;"></div>
+                            <span style="color: var(--text-secondary);">Tiny</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #3b82f6;"></div>
+                            <span style="color: var(--text-secondary);">Small</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #f59e0b;"></div>
+                            <span style="color: var(--text-secondary);">Medium</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #ef4444;"></div>
+                            <span style="color: var(--text-secondary);">Large</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Fragmentation Analysis -->
+                <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 11px;">
+                    <div style="text-align: center; padding: 6px; background: var(--bg-primary); border-radius: 4px;">
+                        <div style="font-weight: 600; color: var(--text-primary);">${formatBytes(avgSize)}</div>
+                        <div style="color: var(--text-secondary);">Avg Size</div>
+                    </div>
+                    <div style="text-align: center; padding: 6px; background: var(--bg-primary); border-radius: 4px;">
+                        <div style="font-weight: 600; color: var(--text-primary);">${formatBytes(Math.max(...sizes))}</div>
+                        <div style="color: var(--text-secondary);">Max Size</div>
+                    </div>
+                    <div style="text-align: center; padding: 6px; background: var(--bg-primary); border-radius: 4px;">
+                        <div style="font-weight: 600; color: var(--text-primary);">${formatBytes(Math.min(...sizes))}</div>
+                        <div style="color: var(--text-secondary);">Min Size</div>
+                    </div>
                 </div>
             </div>
         </div>
     `;
-    
-    container.appendChild(chartDiv);
-    
-    // Create fragmentation visualization chart
-    if (window.Chart && allocs.length > 0) {
-        new Chart(canvas, {
-            type: 'doughnut',
-            data: {
-                labels: ['Active Memory', 'Fragmented/Freed'],
-                datasets: [{
-                    data: [activeMemory, totalMemory - activeMemory],
-                    backgroundColor: ['#059669', '#dc2626'],
-                    borderWidth: 2,
-                    borderColor: 'var(--bg-primary)'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            usePointStyle: true,
-                            generateLabels: function(chart) {
-                                const data = chart.data;
-                                return data.labels.map((label, i) => ({
-                                    text: `${label}: ${formatBytes(data.datasets[0].data[i])}`,
-                                    fillStyle: data.datasets[0].backgroundColor[i],
-                                    strokeStyle: data.datasets[0].backgroundColor[i],
-                                    pointStyle: 'circle'
-                                }));
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
 }
 
 function renderMemoryGrowthTrends() {
@@ -6314,13 +6349,45 @@ function renderVariableGraph() {
         isDragging: false
     }));
     
-    // Create links between related variables
+    // Create enhanced links with copy/clone/move relationships
     const links = [];
     for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
-            if (nodes[i].type === nodes[j].type || 
-                nodes[i].name.startsWith(nodes[j].name.substring(0, 3))) {
-                links.push({ source: i, target: j });
+            const nodeA = nodes[i];
+            const nodeB = nodes[j];
+            const allocA = allocs[i];
+            const allocB = allocs[j];
+            
+            // Clone relationship (based on clone_info)
+            if (allocA.clone_info?.clone_count > 0 && allocB.clone_info?.is_clone) {
+                links.push({ 
+                    source: i, target: j, type: 'clone', 
+                    color: '#f59e0b', strokeWidth: 3, dashArray: '5,5'
+                });
+            }
+            // Copy relationship (same type, similar size)
+            else if (nodeA.type === nodeB.type && 
+                     Math.abs(nodeA.size - nodeB.size) < Math.max(nodeA.size, nodeB.size) * 0.1) {
+                links.push({ 
+                    source: i, target: j, type: 'copy', 
+                    color: '#06b6d4', strokeWidth: 2, dashArray: 'none'
+                });
+            }
+            // Move relationship (same type, different timestamps)
+            else if (nodeA.type === nodeB.type && 
+                     Math.abs(nodeA.timestamp_alloc - nodeB.timestamp_alloc) > 1000000) {
+                links.push({ 
+                    source: i, target: j, type: 'move', 
+                    color: '#8b5cf6', strokeWidth: 2, dashArray: '10,5'
+                });
+            }
+            // General relationship (same type prefix)
+            else if (nodeA.type === nodeB.type || 
+                     nodeA.name.startsWith(nodeB.name.substring(0, 3))) {
+                links.push({ 
+                    source: i, target: j, type: 'related', 
+                    color: 'var(--border-light)', strokeWidth: 1, dashArray: 'none'
+                });
             }
         }
     }
@@ -6330,9 +6397,38 @@ function renderVariableGraph() {
     const viewWidth = container.offsetWidth || 500;
     const viewHeight = 400;
     
-    // Create SVG with pan/zoom capabilities
+    // Create SVG with pan/zoom capabilities and legend
     let html = `
         <div style="position: relative; width: 100%; height: ${viewHeight}px; overflow: hidden; border: 1px solid var(--border-light); border-radius: 8px;">
+            <!-- Relationship Legend -->
+            <div style="position: absolute; top: 10px; right: 10px; background: var(--bg-primary); padding: 12px; border-radius: 8px; font-size: 11px; z-index: 10; border: 1px solid var(--border-light); box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="font-weight: bold; margin-bottom: 8px; color: var(--text-primary); font-size: 12px;">Variable Relationships</div>
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#06b6d4" stroke-width="2"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Copy</span>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#f59e0b" stroke-width="3" stroke-dasharray="5,5"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Clone</span>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="10,5"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Move</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#64748b" stroke-width="1"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Related</span>
+                </div>
+            </div>
+            
             <svg id="graph-svg" width="100%" height="100%" viewBox="0 0 ${viewWidth} ${viewHeight}" style="background: var(--bg-secondary); cursor: grab;">
                 <defs>
                     <filter id="node-glow">
@@ -6348,18 +6444,31 @@ function renderVariableGraph() {
                     </marker>
                 </defs>
                 <g id="graph-container" transform="translate(0,0) scale(1)">
-                    <g id="links-group">
-    `;
+                    <g id="links-group">`;
     
-    // Draw links
+    // Draw enhanced links with relationship types
     links.forEach((link, linkIndex) => {
         const source = nodes[link.source];
         const target = nodes[link.target];
+        const strokeDashArray = link.dashArray !== 'none' ? link.dashArray : '';
+        
         html += `
             <line id="link-${linkIndex}" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" 
-                  stroke="var(--border-light)" stroke-width="2" opacity="0.6" 
-                  marker-end="url(#arrow)"/>
-        `;
+                  stroke="${link.color}" stroke-width="${link.strokeWidth}" opacity="0.8"
+                  stroke-dasharray="${strokeDashArray}">
+                <animate attributeName="opacity" values="0.8;1;0.8" dur="3s" repeatCount="indefinite"/>
+            </line>`;
+        
+        // Add relationship label for special types
+        const midX = (source.x + target.x) / 2;
+        const midY = (source.y + target.y) / 2;
+        if (link.type !== 'related') {
+            html += `
+            <text x="${midX}" y="${midY - 5}" text-anchor="middle" font-size="8" 
+                  fill="${link.color}" font-weight="bold" opacity="0.9">
+                ${link.type.toUpperCase()}
+            </text>`;
+        }
     });
     
     html += '</g><g id="nodes-group">';
@@ -7232,26 +7341,27 @@ function initEnhancedFFIVisualization() {
     const maxTime = timestamps[timestamps.length - 1] || minTime;
     const timeRange = maxTime - minTime || 1;
 
-    // Create comprehensive dashboard
+    // Content that will be contained within the section's background
     container.innerHTML = `
+        <!-- KPI Cards -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
-            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-blue);">
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-blue);">
                 <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary-blue);">${allocs.length}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary);">FFI Allocations</div>
             </div>
-            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-green);">
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-green);">
                 <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary-green);">${totalBorrows}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Total Borrows</div>
             </div>
-            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-orange);">
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-orange);">
                 <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary-orange);">${withClones}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary);">With Clones</div>
             </div>
-            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid ${leaked > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid ${leaked > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">
                 <div style="font-size: 1.6rem; font-weight: 700; color: ${leaked > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">${leaked}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Memory Leaks</div>
             </div>
-            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-red);">
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-red);">
                 <div style="font-size: 1.6rem; font-weight: 700; color: ${withViolations > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">${withViolations}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Safety Violations</div>
             </div>
@@ -7288,6 +7398,22 @@ function initEnhancedFFIVisualization() {
                     <span style="color: var(--text-secondary); font-size: 0.9rem;">Clone Operations:</span>
                     <span style="color: var(--primary-green); font-weight: 600; margin-left: 8px;">${allocs.reduce((s, a) => s + (a.clone_info?.clone_count || 0), 0)}</span>
                 </div>
+            </div>
+        </div>
+
+        <!-- FFI Data Flow Visualization (data stream) -->
+        <div style="margin-top: 20px; background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+            <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
+                <i class="fa fa-exchange" style="margin-right: 8px;"></i>FFI Data Flow
+                <button id="ffi-flow-toggle" style="margin-left: auto; background: var(--primary-green); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                    <i class="fa fa-play"></i> Animate
+                </button>
+            </h3>
+            <div id="ffi-flow-container" style="height: 200px; position: relative; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden; background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%);">
+                ${createFFIDataFlow(allocs)}
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
+                🦀 Rust ↔ C Data Flow • ${ffiTracked} FFI-tracked allocations • Click nodes for details
             </div>
         </div>
 
@@ -7332,6 +7458,141 @@ function initEnhancedFFIVisualization() {
 
     // Add interactivity
     setupFFIInteractivity(allocs, minTime, timeRange);
+    setupFFIFlowInteractivity(allocs);
+}
+
+// Create super cool FFI data flow visualization
+function createFFIDataFlow(allocs) {
+    const ffiAllocs = allocs.filter(a => a.ffi_tracked);
+    const rustAllocs = allocs.filter(a => !a.ffi_tracked);
+    
+    // Create dynamic SVG-based flow visualization
+    let html = `
+        <svg width="100%" height="100%" viewBox="0 0 800 200" style="position: absolute; top: 0; left: 0;">
+            <!-- Background grid pattern -->
+            <defs>
+                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.3"/>
+                </pattern>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+                <linearGradient id="rustGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#f97316;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#ea580c;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="cGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            
+            <rect width="100%" height="100%" fill="url(#grid)"/>
+            
+            <!-- Rust Side (Left) -->
+            <g id="rust-side">
+                <rect x="50" y="40" width="200" height="120" rx="15" fill="url(#rustGradient)" opacity="0.2" stroke="#f97316" stroke-width="2"/>
+                <text x="150" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#f97316" filter="url(#glow)">
+                    🦀 RUST
+                </text>
+                <text x="150" y="190" text-anchor="middle" font-size="12" fill="#f97316">
+                    ${rustAllocs.length} allocations
+                </text>
+                
+                <!-- Rust memory nodes -->
+                ${rustAllocs.slice(0, 8).map((alloc, i) => {
+                    const x = 80 + (i % 4) * 35;
+                    const y = 60 + Math.floor(i / 4) * 35;
+                    const size = Math.max(8, Math.min(16, Math.sqrt((alloc.size || 0) / 1000)));
+                    return `
+                        <circle cx="${x}" cy="${y}" r="${size}" fill="#f97316" opacity="0.8" 
+                                stroke="#fff" stroke-width="2" class="rust-node" 
+                                data-ptr="${alloc.ptr}" data-size="${alloc.size || 0}"
+                                style="cursor: pointer; transition: all 0.3s;">
+                            <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+                        </circle>
+                    `;
+                }).join('')}
+            </g>
+            
+            <!-- C/FFI Side (Right) -->
+            <g id="c-side">
+                <rect x="550" y="40" width="200" height="120" rx="15" fill="url(#cGradient)" opacity="0.2" stroke="#3b82f6" stroke-width="2"/>
+                <text x="650" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b82f6" filter="url(#glow)">
+                    ⚙️ C/FFI
+                </text>
+                <text x="650" y="190" text-anchor="middle" font-size="12" fill="#3b82f6">
+                    ${ffiAllocs.length} FFI allocations
+                </text>
+                
+                <!-- FFI memory nodes -->
+                ${ffiAllocs.slice(0, 8).map((alloc, i) => {
+                    const x = 580 + (i % 4) * 35;
+                    const y = 60 + Math.floor(i / 4) * 35;
+                    const size = Math.max(8, Math.min(16, Math.sqrt((alloc.size || 0) / 1000)));
+                    return `
+                        <circle cx="${x}" cy="${y}" r="${size}" fill="#3b82f6" opacity="0.9" 
+                                stroke="#fff" stroke-width="2" class="ffi-node"
+                                data-ptr="${alloc.ptr}" data-size="${alloc.size || 0}"
+                                style="cursor: pointer;">
+                        </circle>
+                    `;
+                }).join('')}
+            </g>
+            
+            <!-- Data Flow Arrows -->
+            <g id="data-flows">
+                <!-- Rust to C flow -->
+                <path d="M 250 80 Q 400 60 550 80" stroke="#10b981" stroke-width="3" fill="none" opacity="0.7">
+                    <animate attributeName="stroke-dasharray" values="0,1000;1000,0" dur="3s" repeatCount="indefinite"/>
+                </path>
+                <text x="400" y="55" text-anchor="middle" font-size="10" fill="#10b981" font-weight="bold">
+                    Rust → C
+                </text>
+                
+                <!-- C to Rust flow -->
+                <path d="M 550 120 Q 400 140 250 120" stroke="#ec4899" stroke-width="3" fill="none" opacity="0.7">
+                    <animate attributeName="stroke-dasharray" values="0,1000;1000,0" dur="3.5s" repeatCount="indefinite"/>
+                </path>
+                <text x="400" y="155" text-anchor="middle" font-size="10" fill="#ec4899" font-weight="bold">
+                    C → Rust
+                </text>
+                
+                <!-- Central processing hub -->
+                <circle cx="400" cy="100" r="20" fill="#8b5cf6" opacity="0.3" stroke="#8b5cf6" stroke-width="2">
+                    <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite"/>
+                </circle>
+                <text x="400" y="105" text-anchor="middle" font-size="10" fill="#8b5cf6" font-weight="bold">FFI</text>
+            </g>
+            
+            <!-- Memory flow particles -->
+            <g id="flow-particles">
+                ${Array.from({length: 6}, (_, i) => `
+                    <circle r="3" fill="#fbbf24" opacity="0.8">
+                        <animateMotion dur="${3 + i * 0.5}s" repeatCount="indefinite">
+                            <path d="M 250 80 Q 400 60 550 80"/>
+                        </animateMotion>
+                        <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/>
+                    </circle>
+                `).join('')}
+                
+                ${Array.from({length: 4}, (_, i) => `
+                    <circle r="3" fill="#06d6a0" opacity="0.8">
+                        <animateMotion dur="${3.5 + i * 0.7}s" repeatCount="indefinite">
+                            <path d="M 550 120 Q 400 140 250 120"/>
+                        </animateMotion>
+                        <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/>
+                    </circle>
+                `).join('')}
+            </g>
+        </svg>
+    `;
+    
+    return html;
 }
 
 // Create allocation timeline visualization
@@ -7339,10 +7600,14 @@ function createAllocationTimeline(allocs, minTime, timeRange) {
     const sorted = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
     let html = '<div style="position: relative; height: 100%; background: linear-gradient(90deg, rgba(59,130,246,0.1) 0%, rgba(16,185,129,0.1) 50%, rgba(239,68,68,0.1) 100%);">';
     
-    // Add time axis
-    html += '<div style="position: absolute; bottom: 20px; left: 0; right: 0; height: 1px; background: var(--border-light);"></div>';
-    html += '<div style="position: absolute; bottom: 15px; left: 8px; font-size: 9px; color: var(--text-secondary);">0ms</div>';
-    html += '<div style="position: absolute; bottom: 15px; right: 8px; font-size: 9px; color: var(--text-secondary);">' + (timeRange / 1e6).toFixed(1) + 'ms</div>';
+    // Add time axis with better spacing
+    html += '<div style="position: absolute; bottom: 25px; left: 0; right: 0; height: 1px; background: var(--border-light);"></div>';
+    html += '<div style="position: absolute; bottom: 18px; left: 12px; font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 4px; border-radius: 3px;">0ms</div>';
+    html += '<div style="position: absolute; bottom: 18px; right: 12px; font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 4px; border-radius: 3px;">' + (timeRange / 1e6).toFixed(1) + 'ms</div>';
+    
+    // Add middle time markers for better readability
+    const midTime = (timeRange / 1e6) / 2;
+    html += '<div style="position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 4px; border-radius: 3px;">' + midTime.toFixed(1) + 'ms</div>';
     
     // Group nearby allocations to prevent overlap
     const groups = [];
@@ -7691,9 +7956,22 @@ function renderEnhancedDataInsights() {
     document.getElementById('mut-ratio').textContent = totalImmutable > 0 ? (totalMutable / totalImmutable).toFixed(1) : '0';
     document.getElementById('avg-borrows').textContent = (totalBorrows / allocs.length).toFixed(1);
     
-    // Render charts
+    // Render charts with forced data refresh
     renderBorrowPatternChart(borrowPatterns);
-    renderMemoryDistributionChart(allocs);
+    
+    // Force Type Memory Distribution to render with debug info
+    console.log('🔍 Forcing Type Memory Distribution render with data:', allocs.length, 'allocations');
+    setTimeout(() => {
+        renderMemoryDistributionChart(allocs);
+    }, 100);
+    
+    console.log('✅ Enhanced data insights rendered:', {
+        timeSpan: timeSpanMs.toFixed(2) + 'ms',
+        totalBorrows,
+        totalClones,
+        borrowPatterns,
+        allocCount: allocs.length
+    });
 }
 
 // Render borrow activity heatmap (新奇直观的可视化)
@@ -7756,8 +8034,9 @@ function renderBorrowPatternChart(patterns) {
         
         const bubbleContainer = document.createElement('div');
         bubbleContainer.style.cssText = `
-            display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; 
-            background: var(--bg-secondary); border-radius: 6px; min-height: 40px;
+            display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; 
+            background: var(--bg-secondary); border-radius: 6px; min-height: 60px;
+            align-items: center; justify-content: flex-start;
         `;
         
         // Create borrow activity bubbles
@@ -7861,89 +8140,196 @@ function showBorrowDetail(alloc) {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
 
-// Render type memory distribution pie chart
+// Render type memory distribution as interactive memory blocks
 function renderMemoryDistributionChart(allocs) {
-    const ctx = document.getElementById('memoryDistributionChart');
-    if (!ctx || !window.Chart) return;
+    const container = document.getElementById('memoryDistributionChart');
+    if (!container) return;
     
-    // Cleanup existing chart
-    if (window.chartInstances && window.chartInstances['memoryDistributionChart']) {
-        try { window.chartInstances['memoryDistributionChart'].destroy(); } catch(_) {}
-        delete window.chartInstances['memoryDistributionChart'];
-    }
+    // Create unique memory blocks visualization (not pie chart)
+    container.innerHTML = '';
     
     // Group by type and sum memory
     const typeMemory = {};
-    allocs.forEach(alloc => {
+    console.log('🔍 Processing allocations for memory blocks:', allocs.length);
+    
+    allocs.forEach((alloc, index) => {
         let typeName = alloc.type_name || 'Unknown';
-        // Simplify type names for display
-        typeName = typeName.replace(/std::collections::hash::map::HashMap.*/, 'HashMap');
-        typeName = typeName.replace(/alloc::collections::btree::map::BTreeMap.*/, 'BTreeMap');
-        typeName = typeName.replace(/alloc::sync::Arc.*/, 'Arc');
-        typeName = typeName.replace(/alloc::rc::Rc.*/, 'Rc');
-        typeName = typeName.replace(/alloc::string::String/, 'String');
-        typeName = typeName.replace(/alloc::vec::Vec.*/, 'Vec');
-        
+        const originalType = typeName;
         const size = alloc.size || 0;
-        typeMemory[typeName] = (typeMemory[typeName] || 0) + size;
+        
+        // Simplify type names
+        if (typeName.includes('HashMap')) {
+            typeName = 'HashMap';
+        } else if (typeName.includes('BTreeMap')) {
+            typeName = 'BTreeMap';
+        } else if (typeName.includes('Arc')) {
+            typeName = 'Arc';
+        } else if (typeName.includes('Rc')) {
+            typeName = 'Rc';
+        } else if (typeName.includes('String')) {
+            typeName = 'String';
+        } else if (typeName.includes('Vec')) {
+            typeName = 'Vec';
+        } else {
+            typeName = originalType.split('::').pop() || 'Unknown';
+        }
+        
+        if (!typeMemory[typeName]) {
+            typeMemory[typeName] = { size: 0, count: 0, allocations: [] };
+        }
+        typeMemory[typeName].size += size;
+        typeMemory[typeName].count += 1;
+        typeMemory[typeName].allocations.push(alloc);
+        
+        console.log(`[${index}] ${originalType} -> ${typeName}: ${size} bytes`);
     });
     
-    // Sort by memory size and take top types
+    // Sort by memory size
     const sortedTypes = Object.entries(typeMemory)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8); // Top 8 types
+        .filter(([type, data]) => data.size > 0)
+        .sort((a, b) => b[1].size - a[1].size);
     
-    const labels = sortedTypes.map(([type, size]) => `${type} (${formatBytes(size)})`);
-    const values = sortedTypes.map(([type, size]) => size);
+    console.log('Memory blocks data:', sortedTypes);
+    
+    if (sortedTypes.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No type data available</div>';
+        return;
+    }
+    
+    const totalMemory = sortedTypes.reduce((sum, [_, data]) => sum + data.size, 0);
     const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
     
-    if (values.length > 0) {
-        const chart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: values,
-                    backgroundColor: colors.slice(0, values.length),
-                    borderWidth: 3,
-                    borderColor: '#ffffff',
-                    hoverBorderWidth: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '50%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            font: { size: 9 },
-                            color: function(context) {
-                                return document.documentElement.classList.contains('dark-theme') ? '#e2e8f0' : '#475569';
-                            },
-                            padding: 4,
-                            usePointStyle: true
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => {
-                                const size = context.parsed;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = ((size / total) * 100).toFixed(1);
-                                return `${formatBytes(size)} (${percentage}%)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        
-        window.chartInstances = window.chartInstances || {};
-        window.chartInstances['memoryDistributionChart'] = chart;
-    }
+    // Create memory blocks visualization
+    container.innerHTML = `
+        <div style="height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 8px;">
+            ${sortedTypes.map(([typeName, data], index) => {
+                const percentage = ((data.size / totalMemory) * 100);
+                const color = colors[index % colors.length];
+                const blockHeight = Math.max(20, Math.min(60, percentage * 2));
+                
+                return `
+                    <div style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 6px; border-radius: 6px; transition: all 0.2s;"
+                         onmouseover="this.style.background='var(--bg-primary)'; this.style.transform='scale(1.02)'"
+                         onmouseout="this.style.background='transparent'; this.style.transform='scale(1)'"
+                         onclick="showTypeDetail('${typeName}', ${JSON.stringify(data).replace(/"/g, '&quot;')})">
+                        
+                        <!-- Memory Block -->
+                        <div style="width: 40px; height: ${blockHeight}px; background: linear-gradient(135deg, ${color}, ${color}80); 
+                                    border-radius: 4px; position: relative; border: 2px solid ${color};">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                        color: white; font-size: 8px; font-weight: bold;">
+                                ${data.count}
+                            </div>
+                        </div>
+                        
+                        <!-- Type Info -->
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px;">
+                                ${typeName}
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">
+                                ${formatBytes(data.size)} • ${data.count} allocation${data.count > 1 ? 's' : ''}
+                            </div>
+                        </div>
+                        
+                        <!-- Percentage Bar -->
+                        <div style="width: 60px; text-align: right;">
+                            <div style="font-size: 12px; font-weight: 600; color: ${color}; margin-bottom: 2px;">
+                                ${percentage.toFixed(1)}%
+                            </div>
+                            <div style="width: 100%; height: 4px; background: var(--border-light); border-radius: 2px; overflow: hidden;">
+                                <div style="width: ${percentage}%; height: 100%; background: ${color}; border-radius: 2px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
 }
+
+// Show type detail modal
+window.showTypeDetail = function(typeName, data) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.6); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const typeColors = {
+        'HashMap': '#3b82f6', 'BTreeMap': '#10b981', 'Arc': '#f59e0b', 
+        'Rc': '#ef4444', 'String': '#8b5cf6', 'Vec': '#06b6d4'
+    };
+    const color = typeColors[typeName] || '#64748b';
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 16px; padding: 24px; min-width: 500px; max-width: 700px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: var(--text-primary); display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 24px; height: 24px; background: ${color}; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
+                        ${data.count}
+                    </div>
+                    ${typeName} Memory Analysis
+                </h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: ${color};">${formatBytes(data.size)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Memory</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary);">${data.count}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Allocations</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary);">${formatBytes(data.size / data.count)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Size</div>
+                </div>
+            </div>
+            
+            <h4 style="margin: 0 0 12px 0; color: var(--text-primary);">Individual Allocations:</h4>
+            <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead style="background: var(--bg-secondary); position: sticky; top: 0;">
+                        <tr>
+                            <th style="padding: 8px; text-align: left; color: var(--text-primary);">Variable</th>
+                            <th style="padding: 8px; text-align: right; color: var(--text-primary);">Size</th>
+                            <th style="padding: 8px; text-align: center; color: var(--text-primary);">Status</th>
+                            <th style="padding: 8px; text-align: right; color: var(--text-primary);">Lifetime</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.allocations.map(alloc => {
+                            const isLeaked = alloc.is_leaked;
+                            const statusColor = isLeaked ? 'var(--primary-red)' : 'var(--primary-green)';
+                            const statusText = isLeaked ? 'LEAKED' : 'OK';
+                            const lifetime = alloc.lifetime_ms || 'Active';
+                            
+                            return `
+                                <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}')">
+                                    <td style="padding: 8px; color: var(--text-primary); font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
+                                    <td style="padding: 8px; text-align: right; color: var(--text-primary); font-weight: 600;">${formatBytes(alloc.size || 0)}</td>
+                                    <td style="padding: 8px; text-align: center;">
+                                        <span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${statusText}</span>
+                                    </td>
+                                    <td style="padding: 8px; text-align: right; color: var(--text-secondary); font-size: 11px;">
+                                        ${typeof lifetime === 'number' ? lifetime.toFixed(2) + 'ms' : lifetime}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
 
 // Update lifecycle statistics and render distribution chart
 function updateLifecycleStatistics() {
@@ -8409,3 +8795,119 @@ document.addEventListener("DOMContentLoaded", () => {
         console.error('❌ Dashboard initialization failed:', e); 
     }
 });
+
+// Setup FFI flow visualization interactivity
+function setupFFIFlowInteractivity(allocs) {
+    // Add click handlers to FFI flow nodes
+    setTimeout(() => {
+        const rustNodes = document.querySelectorAll('.rust-node');
+        const ffiNodes = document.querySelectorAll('.ffi-node');
+        
+        [...rustNodes, ...ffiNodes].forEach(node => {
+            node.addEventListener('click', (e) => {
+                const ptr = e.target.getAttribute('data-ptr');
+                const size = e.target.getAttribute('data-size');
+                showFFIFlowNodeDetail(ptr, size, allocs);
+            });
+            
+            node.addEventListener('mouseover', (e) => {
+                e.target.style.transform = 'scale(1.3)';
+                e.target.style.filter = 'drop-shadow(0 0 8px currentColor)';
+            });
+            
+            node.addEventListener('mouseout', (e) => {
+                e.target.style.transform = 'scale(1)';
+                e.target.style.filter = 'none';
+            });
+        });
+        
+        // Setup flow animation toggle
+        const flowToggle = document.getElementById('ffi-flow-toggle');
+        if (flowToggle) {
+            let isAnimating = true;
+            flowToggle.onclick = () => {
+                const particles = document.querySelectorAll('#flow-particles circle');
+                const flows = document.querySelectorAll('#data-flows path');
+                
+                if (isAnimating) {
+                    // Pause animations
+                    [...particles, ...flows].forEach(el => {
+                        el.style.animationPlayState = 'paused';
+                    });
+                    flowToggle.innerHTML = '<i class="fa fa-pause"></i> Paused';
+                    flowToggle.style.background = 'var(--primary-red)';
+                    isAnimating = false;
+                } else {
+                    // Resume animations
+                    [...particles, ...flows].forEach(el => {
+                        el.style.animationPlayState = 'running';
+                    });
+                    flowToggle.innerHTML = '<i class="fa fa-play"></i> Animate';
+                    flowToggle.style.background = 'var(--primary-green)';
+                    isAnimating = true;
+                }
+            };
+        }
+    }, 100);
+}
+
+// Show FFI flow node detail
+function showFFIFlowNodeDetail(ptr, size, allocs) {
+    const alloc = allocs.find(a => a.ptr === ptr);
+    if (!alloc) return;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.6); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const isFFI = alloc.ffi_tracked;
+    const bgGradient = isFFI ? 'linear-gradient(135deg, #1e40af, #3b82f6)' : 'linear-gradient(135deg, #ea580c, #f97316)';
+    const icon = isFFI ? '⚙️' : '🦀';
+    const title = isFFI ? 'FFI Allocation' : 'Rust Allocation';
+    
+    modal.innerHTML = `
+        <div style="background: ${bgGradient}; border-radius: 16px; padding: 24px; min-width: 400px; color: white; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: -50px; right: -50px; font-size: 120px; opacity: 0.1;">${icon}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative; z-index: 1;">
+                <h3 style="margin: 0; font-size: 18px;">${icon} ${title}</h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; color: white; cursor: pointer; font-size: 16px;">×</button>
+            </div>
+            <div style="position: relative; z-index: 1; line-height: 1.8;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 12px; opacity: 0.8;">Variable</div>
+                        <div style="font-weight: 600;">${alloc.var_name || 'unnamed'}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 12px; opacity: 0.8;">Size</div>
+                        <div style="font-weight: 600; font-size: 16px;">${formatBytes(alloc.size || 0)}</div>
+                    </div>
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">Type</div>
+                    <div style="font-weight: 600; font-size: 14px; word-break: break-all;">${alloc.type_name || 'Unknown'}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                    <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 6px;">
+                        <div style="font-size: 16px; font-weight: 700;">${(alloc.borrow_info?.immutable_borrows || 0) + (alloc.borrow_info?.mutable_borrows || 0)}</div>
+                        <div style="font-size: 10px; opacity: 0.8;">Borrows</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 6px;">
+                        <div style="font-size: 16px; font-weight: 700;">${alloc.clone_info?.clone_count || 0}</div>
+                        <div style="font-size: 10px; opacity: 0.8;">Clones</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 6px;">
+                        <div style="font-size: 16px; font-weight: 700;">${alloc.thread_id || 1}</div>
+                        <div style="font-size: 10px; opacity: 0.8;">Thread</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
