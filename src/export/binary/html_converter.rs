@@ -77,9 +77,9 @@ fn generate_statistics(allocations: &[AllocationInfo]) -> MemoryStats {
 fn load_binary_dashboard_template() -> Result<String, BinaryExportError> {
     // Try to load from templates directory
     let template_paths = [
-        "templates/binary_dashboard.html",
-        "../templates/binary_dashboard.html", 
-        "../../templates/binary_dashboard.html",
+        "templates/working_dashboard.html",
+        "../templates/working_dashboard.html", 
+        "../../templates/working_dashboard.html",
     ];
     
     for path in &template_paths {
@@ -116,12 +116,26 @@ fn generate_html_content(
     html = html.replace("{{TIMESTAMP}}", &chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string());
     html = html.replace("{{GENERATION_TIME}}", &chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string());
     
-    // Replace data placeholders - binary_dashboard.html uses different placeholders
-    html = html.replace("{{BINARY_DATA}}", &allocation_data);
-    html = html.replace("{{ALLOCATION_DATA}}", &allocation_data);
-    html = html.replace("{{STATS_DATA}}", &stats_data);
-    html = html.replace("{{ json_data }}", &allocation_data);  // Template uses this format
-    html = html.replace("{{json_data}}", &allocation_data);    // Alternative format
+    // CRITICAL FIX: Replace the hardcoded window.analysisData in working_dashboard.html
+    // Find and replace the entire window.analysisData assignment
+    if let Some(start) = html.find("window.analysisData = {") {
+        if let Some(end) = html[start..].find("};") {
+            let end_pos = start + end + 2; // Include the "};"
+            let before = &html[..start];
+            let after = &html[end_pos..];
+            html = format!("{}window.analysisData = {};{}", before, &allocation_data, after);
+            println!("✅ Successfully replaced hardcoded window.analysisData with real binary data");
+        } else {
+            println!("❌ Could not find end of window.analysisData assignment");
+        }
+    } else {
+        println!("❌ Could not find window.analysisData assignment in template");
+        // Fallback to placeholder replacement
+        html = html.replace("{{BINARY_DATA}}", &allocation_data);
+        html = html.replace("{{ALLOCATION_DATA}}", &allocation_data);
+        html = html.replace("{{ json_data }}", &allocation_data);
+        html = html.replace("{{json_data}}", &allocation_data);
+    }
     
     // Replace statistics placeholders
     html = html.replace("{{TOTAL_ALLOCATIONS}}", &stats.total_allocations.to_string());
@@ -241,16 +255,16 @@ fn format_memory_size(bytes: usize) -> String {
     }
 }
 
-/// Get embedded binary dashboard template - use actual binary_dashboard.html content
+/// Get embedded binary dashboard template - use actual working_dashboard.html content
 fn get_embedded_binary_template() -> String {
-    // Force read the actual binary_dashboard.html template
-    match std::fs::read_to_string("templates/binary_dashboard.html") {
+    // Force read the actual working_dashboard.html template
+    match std::fs::read_to_string("templates/working_dashboard.html") {
         Ok(content) => {
-            println!("✅ Successfully loaded binary_dashboard.html template ({} chars)", content.len());
+            println!("✅ Successfully loaded working_dashboard.html template ({} chars)", content.len());
             return content;
         },
         Err(e) => {
-            println!("❌ Failed to load binary_dashboard.html: {}", e);
+            println!("❌ Failed to load working_dashboard.html: {}", e);
         }
     }
     
