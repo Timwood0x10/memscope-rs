@@ -26,6 +26,7 @@ Thumbs.db
 # memscope-rs specific output files
 *.json
 
+*.memscope
 # Ignore all SVG files
 *.svg
 
