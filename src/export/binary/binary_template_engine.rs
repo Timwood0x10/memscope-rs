@@ -170,7 +170,7 @@ impl BinaryTemplateEngine {
 
         // Process template with resource manager - use the same template as JSON→HTML
         let html_content = self.resource_manager.process_template(
-            "dashboard.html",
+            "clean_dashboard.html",
             &resource_template_data,
             &self.resource_config,
         )?;

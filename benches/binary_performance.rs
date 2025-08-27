@@ -49,8 +49,11 @@ fn create_test_allocations(count: usize) -> Vec<AllocationInfo> {
 /// Benchmark binary export performance
 fn bench_binary_export(c: &mut Criterion) {
     let mut group = c.benchmark_group("binary_export");
+    group.sample_size(20); // Reduce sample size for faster benchmarks
+    group.measurement_time(std::time::Duration::from_secs(8)); // Limit measurement time
 
-    for size in [100, 1000, 5000, 10000].iter() {
+    // Use smaller sizes for faster benchmarks
+    for size in [50, 200, 500, 1000].iter() {
         let allocations = create_test_allocations(*size);
 
         group.bench_with_input(BenchmarkId::new("export", size), size, |b, _| {
@@ -73,8 +76,11 @@ fn bench_binary_export(c: &mut Criterion) {
 /// Benchmark binary read performance
 fn bench_binary_read(c: &mut Criterion) {
     let mut group = c.benchmark_group("binary_read");
+    group.sample_size(20); // Reduce sample size for faster benchmarks
+    group.measurement_time(std::time::Duration::from_secs(8)); // Limit measurement time
 
-    for size in [100, 1000, 5000, 10000].iter() {
+    // Use smaller sizes for faster benchmarks
+    for size in [50, 200, 500, 1000].iter() {
         let allocations = create_test_allocations(*size);
         let temp_dir = TempDir::new().unwrap();
         let binary_path = temp_dir.path().join("benchmark.memscope");

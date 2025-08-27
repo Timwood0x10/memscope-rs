@@ -89,6 +89,7 @@ static mut GLOBAL_SIMPLE_DEDUPLICATOR: Option<SimpleDataDeduplicator> = None;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 pub fn get_global_simple_data_deduplicator() -> &'static mut SimpleDataDeduplicator {
+    #[allow(static_mut_refs)]
     unsafe {
         INIT.call_once(|| {
             GLOBAL_SIMPLE_DEDUPLICATOR = Some(SimpleDataDeduplicator::new());

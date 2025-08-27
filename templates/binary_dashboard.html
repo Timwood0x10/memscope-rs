@@ -1,2508 +1,1331 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
-
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{PROJECT_NAME}} - Binary Memory Analysis</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-        }
-    </script>
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemScope Memory Analysis Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 
-    <!-- Binary Data injection script -->
-    <script>
-        // Global data store - populated directly from binary data
-        console.log('Data injection script loaded');
-        try {
-            window.analysisData = {{BINARY_DATA}};
-            window.embeddedJsonData = {{BINARY_DATA}};
-            window.dataSource = "binary_direct";
-            window.generationTime = "{{GENERATION_TIME}}";
-            console.log('Analysis data loaded successfully:', window.analysisData ? 'YES' : 'NO');
-        } catch (e) {
-            console.error('Error loading analysis data:', e);
-            window.analysisData = null;
-        }
-    </script>
+  <style>
+    {{CSS_CONTENT}}
+    
+    /* Clean, high-contrast layout variables */
+    :root {
+      --primary-blue: #2563eb;
+      --primary-green: #059669;
+      --primary-red: #dc2626;
+      --primary-orange: #ea580c;
+      --text-primary: #1f2937;
+      --text-secondary: #6b7280;
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8fafc;
+      --border-light: #e5e7eb;
+      --shadow-light: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    }
+    
+    .dark {
+      --text-primary: #f9fafb;
+      --text-secondary: #d1d5db;
+      --bg-primary: #111827;
+      --bg-secondary: #1f2937;
+      --border-light: #374151;
+      --shadow-light: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+    }
+    
+    body {
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      transition: all 0.3s ease;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .dashboard-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+      min-height: 100vh;
+    }
+    
+    /* 顶部标题栏 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+    
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .header .subtitle {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+    
+    /* 主题切换按钮 */
+    .theme-toggle {
+      background: var(--primary-blue);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .theme-toggle:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+    
+    /* 卡片样式 */
+    .card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: var(--shadow-light);
+      transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px -5px rgb(0 0 0 / 0.1);
+    }
+    
+    .card h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 16px 0;
+      border-bottom: 2px solid var(--primary-blue);
+      padding-bottom: 8px;
+    }
+    
+    /* 网格布局 */
+    .grid {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    
+    /* KPI 指标卡片 */
+    .kpi-card {
+      text-align: center;
+      padding: 20px;
+      background: linear-gradient(135deg, var(--primary-blue) 0%, #3b82f6 100%);
+      color: white;
+      border-radius: 12px;
+      border: none;
+      box-shadow: var(--shadow-light);
+    }
+    
+    .kpi-value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    
+    .kpi-label {
+      font-size: 0.875rem;
+      opacity: 0.9;
+      font-weight: 500;
+    }
+    
+    /* 图表容器 */
+    .chart-container {
+      height: 300px;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      position: relative;
+      padding: 16px;
+    }
+    
+    /* 表格样式 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-light);
+    }
+    
+    th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    tr:hover {
+      background: var(--bg-secondary);
+    }
+    
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+      }
+      
+      .dashboard-container {
+        padding: 16px;
+      }
+      
+      .header {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+    }
+    
+    .scroll {
+      max-height: 400px;
+      overflow: auto;
+    }
+    
+    .scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .scroll::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+    
+    .scroll::-webkit-scrollbar-thumb {
+      background: var(--border-light);
+      border-radius: 3px;
+    }
+    
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .status-active { background: #dcfce7; color: #166534; }
+    .status-leaked { background: #fee2e2; color: #dc2626; }
+    .status-freed { background: #e5e7eb; color: #374151; }
+    
+    .dark .status-active { background: #064e3b; color: #34d399; }
+    .dark .status-leaked { background: #7f1d1d; color: #fca5a5; }
+    .dark .status-freed { background: #374151; color: #d1d5db; }
+    
+    .risk-low { background: #dcfce7; color: #166534; }
+    .risk-medium { background: #fef3c7; color: #92400e; }
+    .risk-high { background: #fee2e2; color: #dc2626; }
+    
+    .dark .risk-low { background: #064e3b; color: #34d399; }
+    .dark .risk-medium { background: #78350f; color: #fbbf24; }
+    .dark .risk-high { background: #7f1d1d; color: #fca5a5; }
+    
+    /* Enhanced Lifecycle Visualization Styles */
+    .allocation-type {
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      display: inline-block;
+    }
 
-    <!-- Embedded SVG Images -->
-    {{SVG_IMAGES}}
+    .type-heap { 
+      background: #fef3c7; 
+      color: #92400e; 
+      border: 1px solid #f59e0b;
+    }
+    
+    .type-stack { 
+      background: #dbeafe; 
+      color: #1e40af; 
+      border: 1px solid #3b82f6;
+    }
+    
+    .type-unknown { 
+      background: #f3f4f6; 
+      color: #6b7280; 
+      border: 1px solid #9ca3af;
+    }
 
-    <!-- Inline CSS -->
-    <style>
-        {{CSS_CONTENT}}
-    </style>
+    .dark .type-heap { 
+      background: #78350f; 
+      color: #fbbf24; 
+    }
+    
+    .dark .type-stack { 
+      background: #1e3a8a; 
+      color: #60a5fa; 
+    }
+    
+    .dark .type-unknown { 
+      background: #374151; 
+      color: #d1d5db; 
+    }
 
-    <!-- Binary Data injection script -->
-    <script>
-        // Global data store - populated directly from binary data
-        window.analysisData = {{BINARY_DATA}};
-        window.embeddedJsonData = {{BINARY_DATA}};
-        window.dataSource = "binary_direct";
-        window.generationTime = "{{GENERATION_TIME}}";
-    </script>
+    /* Enhanced progress bar animations */
+    @keyframes shine {
+      0% { left: -100%; }
+      50% { left: 100%; }
+      100% { left: 100%; }
+    }
 
-    <!-- Embedded SVG Images -->
-    {{SVG_IMAGES}}
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
 
-    <style type="text/tailwindcss">
-        @layer utilities {
-            .card-shadow {
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            }
-            .hover-lift {
-                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-            }
-            .hover-lift:hover {
-                transform: translateY(-3px);
-                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            }
-            .graph-container {
-                overflow: auto;
-                border-radius: 0.5rem;
+    /* Enhanced lifecycle item styles */
+    .lifecycle-item.heap {
+      border-left-color: #ff6b35 !important;
+    }
+
+    .lifecycle-item.stack {
+      border-left-color: #4dabf7 !important;
+    }
+
+    .lifecycle-item:hover {
+      animation: pulse 1s ease-in-out;
+    }
+
+    .lifecycle-bar {
+      height: 16px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      margin: 6px 0;
+      border: 1px solid var(--border-light);
+    }
+
+    .lifecycle-progress {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-green), var(--primary-blue));
+      border-radius: 7px;
+      position: relative;
+      transition: width 0.3s ease;
+    }
+
+    .lifecycle-item {
+      margin: 8px 0;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border-left: 4px solid var(--primary-blue);
+      transition: all 0.2s ease;
+    }
+
+    .lifecycle-item:hover {
+      background: var(--bg-primary);
+      box-shadow: var(--shadow-light);
+    }
+
+    .lifecycle-item.heap {
+      border-left-color: var(--primary-orange);
+    }
+
+    .lifecycle-item.stack {
+      border-left-color: var(--primary-blue);
+    }
+
+    .time-info {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .time-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      background: var(--bg-primary);
+      border-radius: 3px;
+      margin-right: 8px;
+      border: 1px solid var(--border-light);
+    }
+  </style>
+  <script>
+    // Data injection placeholder - will be replaced by build tool
+    window.analysisData = {{ json_data }};
+    
+    // Emergency fallback: Load data directly from JSON files if injection failed
+    if (!window.analysisData || Object.keys(window.analysisData).length === 0 || 
+        !window.analysisData.memory_analysis || !window.analysisData.memory_analysis.allocations) {
+      
+      console.warn('Data injection failed, attempting to load from JSON files...');
+      
+      // Try to fetch the JSON data directly
+      fetch('./large_scale_user_memory_analysis.json')
+        .then(response => response.json())
+        .then(memoryData => {
+          console.log('✅ Loaded memory analysis data:', memoryData);
+          
+          // Construct the expected data structure
+          window.analysisData = {
+            memory_analysis: memoryData,
+            lifetime: {},
+            complex_types: {},
+            unsafe_ffi: {},
+            performance: {}
+          };
+          
+          // Try to load other JSON files
+          Promise.all([
+            fetch('./large_scale_user_lifetime.json').then(r => r.json()).catch(() => ({})),
+            fetch('./large_scale_user_complex_types.json').then(r => r.json()).catch(() => ({})),
+            fetch('./large_scale_user_unsafe_ffi.json').then(r => r.json()).catch(() => ({})),
+            fetch('./large_scale_user_performance.json').then(r => r.json()).catch(() => ({}))
+          ]).then(([lifetime, complexTypes, unsafeFfi, performance]) => {
+            window.analysisData.lifetime = lifetime;
+            window.analysisData.complex_types = complexTypes;
+            window.analysisData.unsafe_ffi = unsafeFfi;
+            window.analysisData.performance = performance;
+            
+            console.log('✅ All data loaded, initializing enhanced features...');
+            
+            // Trigger enhanced features initialization
+            console.log('🚀 Triggering enhanced features initialization...');
+            if (typeof initEnhancedLifecycleVisualization === 'function') {
+              setTimeout(() => {
+                console.log('🔄 Calling initEnhancedLifecycleVisualization...');
+                initEnhancedLifecycleVisualization();
+              }, 100);
+            } else {
+              console.error('❌ initEnhancedLifecycleVisualization function not found');
             }
             
-            /* Status Card Styles */
-            .status-card-blue {
-                background: var(--status-blue-bg, #eff6ff);
-                border: 1px solid var(--status-blue-accent, #3b82f6);
+            // Also trigger the main dashboard initialization if needed
+            if (typeof initDashboard === 'function') {
+              setTimeout(() => {
+                console.log('🔄 Calling initDashboard...');
+                initDashboard();
+              }, 200);
             }
-            
-            .status-card-blue .status-title {
-                color: var(--status-blue-text, #1e40af);
+          });
+        })
+        .catch(error => {
+          console.error('❌ Failed to load JSON data:', error);
+          
+          // Last resort: Create dummy data for testing
+          window.analysisData = {
+            memory_analysis: {
+              allocations: [
+                {
+                  var_name: 'test_var_1',
+                  type_name: 'Arc<String>',
+                  size: 1024,
+                  timestamp_alloc: Date.now() * 1000000,
+                  lifetime_ms: 100.5,
+                  is_leaked: false
+                },
+                {
+                  var_name: 'test_var_2', 
+                  type_name: 'Vec<i32>',
+                  size: 2048,
+                  timestamp_alloc: Date.now() * 1000000 + 1000000,
+                  lifetime_ms: 250.0,
+                  is_leaked: true
+                }
+              ]
             }
-            
-            .status-card-blue .status-value {
-                color: var(--status-blue-accent, #3b82f6);
-            }
-            
-            .status-card-red {
-                background: var(--status-red-bg, #fef2f2);
-                border: 1px solid var(--status-red-accent, #ef4444);
-            }
-            
-            .status-card-red .status-title {
-                color: var(--status-red-text, #dc2626);
-            }
-            
-            .status-card-red .status-value {
-                color: var(--status-red-accent, #ef4444);
-            }
-            
-            .dark .status-card-blue {
-                background: rgba(59, 130, 246, 0.1);
-                border-color: #60a5fa;
-            }
-            
-            .dark .status-card-blue .status-title {
-                color: #93c5fd;
-            }
-            
-            .dark .status-card-blue .status-value {
-                color: #60a5fa;
-            }
-            
-            .dark .status-card-red {
-                background: rgba(239, 68, 68, 0.1);
-                border-color: #f87171;
-            }
-            
-            .dark .status-card-red .status-title {
-                color: #fca5a5;
-            }
-            
-            .dark .status-card-red .status-value {
-                color: #f87171;
-            }
-            
-            /* Node Detail Panel Styles */
-            .node-detail-panel {
-                position: absolute;
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(10px);
-                border: 1px solid #e5e7eb;
-                border-radius: 0.5rem;
-                padding: 1rem;
-                width: 280px;
-                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-                z-index: 1000;
-                font-size: 0.875rem;
-            }
-            
-            .dark .node-detail-panel {
-                background: rgba(31, 41, 55, 0.95);
-                border-color: #374151;
-                color: #f9fafb;
-            }
-            
-            .node-detail-panel h3 {
-                font-weight: 600;
-                margin-bottom: 0.75rem;
-                color: #111827;
-            }
-            
-            .dark .node-detail-panel h3 {
-                color: #f9fafb;
-            }
-            
-            .node-detail-panel label {
-                display: block;
-                font-weight: 500;
-                color: #6b7280;
-                font-size: 0.75rem;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                margin-bottom: 0.25rem;
-            }
-            
-            .dark .node-detail-panel label {
-                color: #9ca3af;
-            }
-            
-            .node-detail-panel .close-button {
-                background: none;
-                border: none;
-                cursor: pointer;
-                color: #6b7280;
-                font-size: 1.25rem;
-                line-height: 1;
-                padding: 0;
-            }
-            
-            .node-detail-panel .close-button:hover {
-                color: #374151;
-            }
-            
-            .dark .node-detail-panel .close-button {
-                color: #9ca3af;
-            }
-            
-            .dark .node-detail-panel .close-button:hover {
-                color: #d1d5db;
-            }
-            
-            /* Graph Node Styles */
-            .graph-node {
-                cursor: pointer;
-                transition: all 0.2s ease;
-            }
-            
-            .graph-node:hover {
-                opacity: 1 !important;
-            }
-            
-            .graph-node circle {
-                stroke: var(--graph-node-border, #e5e7eb);
-                stroke-width: 2;
-                transition: all 0.3s ease;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-            }
-            
-            .graph-node:hover circle {
-                stroke-width: 4;
-                filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(1.1);
-                transform: scale(1.1);
-            }
-            
-            .graph-node text {
-                fill: var(--text-primary, #374151);
-                pointer-events: none;
-                font-weight: 500;
-                text-shadow: 0 1px 2px rgba(255,255,255,0.8);
-            }
-            
-            .dark .graph-node text {
-                fill: var(--text-primary, #f9fafb);
-                text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-            }
-            
-            /* Enhanced Chart Styles */
-            .chart-container {
-                position: relative;
-                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-                border-radius: 0.75rem;
-                padding: 1rem;
-                box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
-            }
-            
-            .dark .chart-container {
-                background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-            }
-            
-            /* Animated Loading States */
-            .loading-shimmer {
-                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-                background-size: 200% 100%;
-                animation: shimmer 2s infinite;
-            }
-            
-            @keyframes shimmer {
-                0% { background-position: -200% 0; }
-                100% { background-position: 200% 0; }
-            }
-            
-            /* Enhanced Summary Cards */
-            .summary-card {
-                background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-                border: 1px solid #e2e8f0;
-                transition: all 0.3s ease;
-                position: relative;
-                overflow: hidden;
-            }
-            
-            .summary-card::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 3px;
-                background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
-                transform: scaleX(0);
-                transition: transform 0.3s ease;
-            }
-            
-            .summary-card:hover::before {
-                transform: scaleX(1);
-            }
-            
-            .summary-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            }
-            
-            .dark .summary-card {
-                background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
-                border-color: #4b5563;
-            }
-            .binary-indicator {
-                background: linear-gradient(45deg, #3b82f6, #1d4ed8);
-                color: white;
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 0.75rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            .performance-badge {
-                background: linear-gradient(45deg, #10b981, #059669);
-                color: white;
-                padding: 4px 12px;
-                border-radius: 16px;
-                font-size: 0.8rem;
-                font-weight: 600;
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-            }
-            .timeline-item {
-                position: relative;
-            }
-            .timeline-item::before {
-                content: '';
-                position: absolute;
-                left: -29px;
-                top: 5px;
-                height: 15px;
-                width: 15px;
-                border-radius: 50%;
-            }
-            .timeline-line {
-                position: absolute;
-                left: -22px;
-                top: 20px;
-                bottom: -10px;
-                width: 2px;
-            }
-            .lifespan-indicator {
-                height: 4px;
-                border-radius: 2px;
-                margin: 2px 0;
-                position: relative;
-                overflow: hidden;
-            }
-            .lifespan-indicator::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                height: 100%;
-                background-color: rgba(255,255,255,0.3);
-                animation: flow 2s linear infinite;
-            }
-            @keyframes flow {
-                0% { transform: translateX(-100%); }
-                100% { transform: translateX(100%); }
-            }
-            .collapsible-content {
-                max-height: 0;
-                overflow: hidden;
-                transition: max-height 0.3s ease-out;
-            }
-            .collapsible-content.active {
-                max-height: 2000px;
-                transition: max-height 0.6s ease-in;
-            }
-            .rotate-icon {
-                transition: transform 0.3s ease;
-            }
-            .rotate-icon.active {
-                transform: rotate(180deg);
-            }
-        }
-    </style>
+          };
+          console.log('⚠️ Using dummy data for testing');
+        });
+    } else {
+      console.log('✅ Data injection successful');
+    }
+    
+    console.log('Final analysisData:', window.analysisData);
+    console.log('Allocations available:', window.analysisData?.memory_analysis?.allocations?.length || 0);
+  </script>
 </head>
-
-<body class="bg-gray-50 dark:bg-gray-900 font-sans text-neutral dark:text-gray-100 transition-colors">
-    <header class="bg-white shadow-sm sticky top-0 z-10 dark:bg-gray-800 transition-colors">
-        <div class="container mx-auto px-4 py-6">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h1
-                        class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral dark:text-gray-900 flex items-center gap-3">
-                        <i class="fa fa-microchip text-primary"></i>
-                        {{PROJECT_NAME}} - Binary Memory Analysis
-                        <span class="binary-indicator">Binary Direct</span>
-                    </h1>
-                    <p class="text-gray-500 mt-1 dark:text-gray-700">
-                        Complex Types, Lifetimes, Relationships & Unsafe Operations Analysis
-                    </p>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">
-                        <div>Generated: {{GENERATION_TIME}}</div>
-                        <div>Source: Binary Direct</div>
-                    </div>
-                    <button id="theme-toggle"
-                        class="p-3 rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-yellow-100 dark:hover:bg-yellow-200 border-2 border-blue-300 dark:border-yellow-300 transition-all duration-200 shadow-md hover:shadow-lg">
-                        <i class="fa fa-moon-o dark:hidden text-blue-600 text-lg"></i>
-                        <i class="fa fa-sun-o hidden dark:inline text-yellow-600 text-lg"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
+<body>
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="header">
+      <div>
+        <h1>MemScope Memory Analysis Dashboard</h1>
+        <div class="subtitle">Real-time Rust Memory Usage Monitoring</div>
+      </div>
+      <button id="theme-toggle" class="theme-toggle">
+        <i class="fa fa-moon"></i>
+        <span>Toggle Theme</span>
+      </button>
     </header>
 
-    <main class="container mx-auto px-4 py-8">
-        <!-- User-Defined Data Overview -->
-        <section class="mb-8">
-            <div class="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-6 text-white">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
-                    <i class="fa fa-user text-white mr-2"></i>
-                    User-Defined Data Analysis
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
-                        <p class="text-sm opacity-90">Complex Types</p>
-                        <p class="text-2xl font-bold" id="user-complex-types">0</p>
-                    </div>
-                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
-                        <p class="text-sm opacity-90">User Variables</p>
-                        <p class="text-2xl font-bold" id="user-variables">0</p>
-                    </div>
-                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
-                        <p class="text-sm opacity-90">Generic Types</p>
-                        <p class="text-2xl font-bold" id="user-generic-types">0</p>
-                    </div>
-                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
-                        <p class="text-sm opacity-90">Unsafe FFI</p>
-                        <p class="text-2xl font-bold" id="user-unsafe-ffi">0</p>
-                    </div>
-                </div>
-            </div>
-        </section>
+    <!-- KPI Metrics -->
+    <section class="grid grid-4">
+      <div class="kpi-card">
+        <div class="kpi-value" id="total-allocations">-</div>
+        <div class="kpi-label">Total Allocations</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value" id="active-variables">-</div>
+        <div class="kpi-label">Active Variables</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value" id="total-memory">-</div>
+        <div class="kpi-label">Total Memory</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value" id="safety-score">-</div>
+        <div class="kpi-label">Safety Score</div>
+      </div>
+    </section>
 
-        <!-- Variable Lifecycle Timeline -->
-        <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold flex items-center text-heading">
-                        <i class="fa fa-clock-o text-primary mr-2"></i>Variable Lifecycle Timeline
-                    </h2>
-                    <button id="toggle-lifecycle"
-                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
-                        <i class="fa fa-chevron-down mr-1"></i>
-                        <span>Show All</span>
-                    </button>
-                </div>
-                <div class="overflow-x-auto">
-                    <div class="min-w-[800px]">
-                        <div class="flex items-end">
-                            <!-- Timeline header with time markers -->
-                            <div class="w-40 flex-shrink-0 font-medium dark:text-gray-200">Variable</div>
-                            <div class="flex-grow flex border-t border-gray-300 dark:border-gray-600 relative">
-                                <div class="absolute top-0 left-0 w-full flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                                    <span>0ms</span>
-                                    <span>250ms</span>
-                                    <span>500ms</span>
-                                    <span>750ms</span>
-                                    <span>1000ms</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Dynamic Lifetime Visualization - populated by JavaScript -->
-                        <div id="lifetimeVisualization">
-                            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                                <i class="fa fa-spinner fa-spin text-2xl mb-2"></i>
-                                <p>Loading lifetime data...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4 text-sm text-gray-500 dark:text-gray-400 italic">
-                    <i class="fa fa-info-circle mr-1"></i>
-                    Visual representation of variable lifetimes showing allocation/deallocation points and durations
-                </div>
-            </div>
-        </section>
-
-        <!-- User-Defined Types Analysis -->
-        <section class="mb-12">
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-cogs text-primary mr-2"></i>User-Defined Types Analysis
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="status-card-blue rounded-lg p-4 hover-lift transition-colors">
-                        <p class="status-title text-sm">Complex Types</p>
-                        <p class="text-3xl font-bold status-value" id="total-complex-types">0</p>
-                    </div>
-                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-secondary text-sm">Smart Pointers</p>
-                        <p class="text-3xl font-bold text-heading" id="smart-pointers-count">0</p>
-                    </div>
-                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-secondary text-sm">Collections</p>
-                        <p class="text-3xl font-bold text-heading" id="collections-count">0</p>
-                    </div>
-                    <div class="status-card-red rounded-lg p-4 hover-lift transition-colors">
-                        <p class="status-title text-sm">Unsafe FFI Entries</p>
-                        <p class="text-3xl font-bold status-value" id="unsafe-ffi-count">0</p>
-                    </div>
-                </div>
-
-                <!-- Key Charts Grid -->
-                <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <h3 class="text-lg font-medium mb-3 text-heading">Memory Distribution by Type</h3>
-                        <div class="h-64">
-                            <canvas id="memory-distribution-chart"></canvas>
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-medium mb-3 dark:text-white">User Type Distribution</h3>
-                        <div class="h-64">
-                            <canvas id="allocation-size-chart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Memory Timeline Chart -->
-                <div class="mt-8">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Memory Usage Timeline</h3>
-                    <div class="h-64 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                        <canvas id="memory-timeline-chart"></canvas>
-                        <div id="memory-timeline-fallback" class="hidden flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                            <div class="text-center">
-                                <i class="fa fa-line-chart text-4xl mb-4"></i>
-                                <p class="text-lg font-semibold mb-2">Memory Timeline</p>
-                                <p class="text-sm">Timeline data will appear here when available</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Variable Relationship Graph -->
-        <section class="mb-12">
-            <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold flex items-center text-heading">
-                        <i class="fa fa-sitemap text-primary mr-2"></i>Variable Relationship Graph
-                    </h2>
-                    <div class="flex gap-2">
-                        <button id="reset-zoom"
-                            class="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm transition-colors">
-                            <i class="fa fa-search-minus mr-1"></i>Reset Zoom
-                        </button>
-                        <button id="auto-layout"
-                            class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm transition-colors">
-                            <i class="fa fa-refresh mr-1"></i>Auto Layout
-                        </button>
-                    </div>
-                </div>
-                <div class="h-96 bg-gray-50 dark:bg-gray-700 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 relative">
-                    <div id="variable-graph-container" class="w-full h-full">
-                        <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                            <div class="text-center">
-                                <i class="fa fa-spinner fa-spin text-2xl mb-2"></i>
-                                <p>Loading variable relationships...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4 text-sm text-gray-500 dark:text-gray-400 italic">
-                    <i class="fa fa-info-circle mr-1"></i>
-                    Interactive graph showing relationships between user-defined variables and types
-                </div>
-            </div>
-        </section>
-
-        <!-- Complex Types Analysis -->
-        <section class="mb-12">
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-cogs text-primary mr-2"></i>Complex Types Analysis
-                    <span class="ml-2 text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded-full">Binary Source</span>
-                </h2>
-
-                <!-- Complex Types Summary -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-secondary text-sm">Total Complex Types</p>
-                        <p class="text-3xl font-bold text-heading" id="system-complex-types">0</p>
-                    </div>
-                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-secondary text-sm">Smart Pointers</p>
-                        <p class="text-3xl font-bold text-heading" id="system-smart-pointers">0</p>
-                    </div>
-                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-secondary text-sm">Collections</p>
-                        <p class="text-3xl font-bold text-heading" id="system-collections">0</p>
-                    </div>
-                    <div class="bg-secondary rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-secondary text-sm">Generic Types</p>
-                        <p class="text-3xl font-bold text-heading" id="system-generic-types">0</p>
-                    </div>
-                </div>
-
-                <!-- Complex Types Chart -->
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Type Complexity Distribution</h3>
-                    <div class="h-64">
-                        <canvas id="complex-types-chart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Lifecycle Timeline Chart -->
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Variable Lifecycle Timeline</h3>
-                    <div class="h-64">
-                        <canvas id="lifecycle-timeline-chart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Ownership History and Memory Passport Section -->
-                <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- Ownership History Chart -->
-                    <div>
-                        <h3 class="text-lg font-medium mb-3 text-heading">Ownership Transfer History</h3>
-                        <div class="h-64">
-                            <canvas id="ownership-history-chart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Memory Passport Status -->
-                    <div>
-                        <h3 class="text-lg font-medium mb-3 text-heading">Memory Passport Status</h3>
-                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 h-64">
-                            <div id="passport-status-container">
-                                <div class="space-y-4">
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-sm text-gray-600 dark:text-gray-300">Active Passports</span>
-                                        <span id="active-passports-count" class="text-lg font-semibold text-blue-600">0</span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-sm text-gray-600 dark:text-gray-300">FFI Handovers</span>
-                                        <span id="ffi-handovers-count" class="text-lg font-semibold text-orange-600">0</span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-sm text-gray-600 dark:text-gray-300">Foreign Custody</span>
-                                        <span id="foreign-custody-count" class="text-lg font-semibold text-red-600">0</span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-sm text-gray-600 dark:text-gray-300">Reclaimed by Rust</span>
-                                        <span id="reclaimed-count" class="text-lg font-semibold text-green-600">0</span>
-                                    </div>
-                                </div>
-                                <div class="mt-4">
-                                    <div class="text-xs text-gray-500 mb-2">Passport Health Score</div>
-                                    <div class="w-full bg-gray-200 rounded-full h-3">
-                                        <div id="passport-health-bar" class="bg-green-600 h-3 rounded-full transition-all duration-300" style="width: 100%"></div>
-                                    </div>
-                                    <div class="text-xs text-gray-500 mt-1">
-                                        <span id="passport-health-score">100</span>% Safe
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Complex Types Details -->
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Type Details</h3>
-                    <div id="complex-types-details" class="space-y-4">
-                        <!-- Details will be populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- System Data (Collapsible) -->
-        <section class="mb-12">
-            <div class="bg-gray-100 dark:bg-gray-700 rounded-xl p-6 transition-colors">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-medium flex items-center text-gray-600 dark:text-gray-300">
-                        <i class="fa fa-database text-gray-500 mr-2"></i>System Data & Performance
-                        <span class="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">Low Priority</span>
-                    </h2>
-                    <button id="toggle-system-data"
-                        class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors">
-                        <i class="fa fa-chevron-down mr-1"></i>
-                        <span>Show System Data</span>
-                    </button>
-                </div>
-                <div id="system-data-content" class="hidden">
-                    <!-- Memory Allocations Table -->
-                    <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors mb-6">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-medium flex items-center text-heading">
-                                <i class="fa fa-table text-gray-500 mr-2"></i>Memory Allocations
-                                <span class="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Binary Source</span>
-                            </h3>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead>
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pointer</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Variable</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
-                                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Extensions</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="allocations-table">
-                                    <tr>
-                                        <td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Loading binary data...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Performance Metrics -->
-                    <div class="bg-white rounded-xl p-6 card-shadow dark:bg-gray-800 transition-colors">
-                        <h3 class="text-lg font-medium mb-4 flex items-center text-heading">
-                            <i class="fa fa-tachometer text-gray-500 mr-2"></i>Performance Metrics
-                        </h3>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
-                                <p class="text-sm text-gray-600 dark:text-gray-400">Processing Time</p>
-                                <p class="text-xl font-bold text-gray-800 dark:text-gray-200" id="processing-time">{{PROCESSING_TIME}}ms</p>
-                            </div>
-                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
-                                <p class="text-sm text-gray-600 dark:text-gray-400">Total Allocations</p>
-                                <p class="text-xl font-bold text-gray-800 dark:text-gray-200" id="total-allocations">0</p>
-                            </div>
-                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
-                                <p class="text-sm text-gray-600 dark:text-gray-400">Total Memory</p>
-                                <p class="text-xl font-bold text-gray-800 dark:text-gray-200" id="total-memory">0 MB</p>
-                            </div>
-                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
-                                <p class="text-sm text-gray-600 dark:text-gray-400">Peak Memory</p>
-                                <p class="text-xl font-bold text-gray-800 dark:text-gray-200" id="peak-memory">0 MB</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Unsafe FFI Analysis -->
-        <section class="mb-12">
-            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow transition-colors">
-                <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                    <i class="fa fa-exclamation-triangle text-red-500 mr-2"></i>Unsafe FFI Analysis
-                    <span class="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">Binary Source</span>
-                </h2>
-
-                <!-- FFI Summary -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-red-50 dark:bg-red-900 rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-red-600 dark:text-red-300 text-sm">Total Violations</p>
-                        <p class="text-3xl font-bold text-red-700 dark:text-red-200" id="unsafe-ffi-count">0</p>
-                    </div>
-                    <div class="bg-yellow-50 dark:bg-yellow-900 rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-yellow-600 dark:text-yellow-300 text-sm">Risk Level</p>
-                        <p class="text-2xl font-bold text-yellow-700 dark:text-yellow-200" id="ffi-risk-level">Low</p>
-                    </div>
-                    <div class="bg-orange-50 dark:bg-orange-900 rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-orange-600 dark:text-orange-300 text-sm">Security Hotspots</p>
-                        <p class="text-3xl font-bold text-orange-700 dark:text-orange-200" id="security-hotspots-count">
-                            0</p>
-                    </div>
-                    <div class="bg-purple-50 dark:bg-purple-900 rounded-lg p-4 hover-lift transition-colors">
-                        <p class="text-purple-600 dark:text-purple-300 text-sm">Unsafe Operations</p>
-                        <p class="text-3xl font-bold text-purple-700 dark:text-purple-200" id="unsafe-operations-count">
-                            0</p>
-                    </div>
-                </div>
-
-                <!-- FFI Operations Table -->
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Unsafe Operations</h3>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead>
-                                <tr>
-                                    <th
-                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Pointer</th>
-                                    <th
-                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Operation</th>
-                                    <th
-                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Risk Level</th>
-                                    <th
-                                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Location</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                                id="unsafe-operations-table">
-                                <tr>
-                                    <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No
-                                        unsafe operations detected</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Security Hotspots -->
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium mb-3 text-heading">Security Hotspots</h3>
-                    <div id="security-hotspots" class="space-y-3">
-                        <!-- Hotspots will be populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
-        </section>
-        </h3>
-
-        <!-- improve.md Extensions Summary -->
-        <section class="mb-8">
-            <div class="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900 dark:to-indigo-900 rounded-xl p-6 border border-purple-200 dark:border-purple-700">
-                <h3 class="text-lg font-semibold text-purple-800 dark:text-purple-200 mb-4 flex items-center">
-                    <i class="fa fa-puzzle-piece mr-2"></i>
-                    improve.md Extensions Summary
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
-                        <div class="text-2xl font-bold text-blue-600 dark:text-blue-400" id="lifetime-tracked-count">0</div>
-                        <div class="text-sm text-gray-600 dark:text-gray-400">Lifetime Tracked</div>
-                        <div class="text-xs text-blue-500 mt-1"><i class="fa fa-clock-o"></i> Variables</div>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
-                        <div class="text-2xl font-bold text-green-600 dark:text-green-400" id="borrow-tracked-count">0</div>
-                        <div class="text-sm text-gray-600 dark:text-gray-400">Borrow Tracked</div>
-                        <div class="text-xs text-green-500 mt-1"><i class="fa fa-share-alt"></i> References</div>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
-                        <div class="text-2xl font-bold text-purple-600 dark:text-purple-400" id="clone-tracked-count">0</div>
-                        <div class="text-sm text-gray-600 dark:text-gray-400">Clone Tracked</div>
-                        <div class="text-xs text-purple-500 mt-1"><i class="fa fa-copy"></i> Objects</div>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center border border-purple-100 dark:border-purple-800">
-                        <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400" id="ownership-tracked-count">0</div>
-                        <div class="text-sm text-gray-600 dark:text-gray-400">Ownership History</div>
-                        <div class="text-xs text-indigo-500 mt-1"><i class="fa fa-history"></i> Available</div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Binary Processing Info -->
-        <section class="mb-12">
-            <div
-                class="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900 dark:to-blue-900 rounded-xl p-6 border border-green-200 dark:border-green-700">
-                <h3 class="text-lg font-semibold text-green-800 dark:text-green-200 mb-3 flex items-center">
-                    <i class="fa fa-info-circle mr-2"></i>
-                    Binary Processing Information
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <p class="font-medium text-green-700 dark:text-green-300">Processing Method</p>
-                        <p class="text-green-600 dark:text-green-400">Direct binary → HTML conversion</p>
-                    </div>
-                    <div>
-                        <p class="font-medium text-green-700 dark:text-green-300">Performance Benefit</p>
-                        <p class="text-green-600 dark:text-green-400">~2x faster than JSON → HTML</p>
-                    </div>
-                    <div>
-                        <p class="font-medium text-green-700 dark:text-green-300">Memory Usage</p>
-                        <p class="text-green-600 dark:text-green-400">Streaming processing, low memory footprint</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <footer class="bg-white border-t mt-12 dark:bg-gray-800 transition-colors">
-        <div class="container mx-auto px-4 py-6">
-            <p class="text-center text-gray-500 dark:text-gray-400">
-                Generated by MemScope-rs - Binary Direct Mode | Processing Time: {{PROCESSING_TIME}}ms
-            </p>
+    <!-- Key Performance Metrics (high priority position) -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2><i class="fa fa-tachometer-alt"></i> Performance Metrics</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue);" id="peak-memory">0B</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Peak Memory</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);" id="allocation-rate">0/sec</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Allocation Rate</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-orange);" id="avg-lifetime">0ms</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Lifetime</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-red);" id="fragmentation">0%</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Fragmentation</div>
+          </div>
         </div>
-    </footer>
+      </div>
+      <div class="card">
+        <h2><i class="fa fa-shield-alt"></i> Thread Safety Analysis</h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-blue);" id="arc-count">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Arc</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-green);" id="rc-count">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Rc</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-orange);" id="collections-count">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Collections</div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <!-- Binary-specific JavaScript -->
-    <script>
-        {{JS_CONTENT}}
+    <!-- Main Charts -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2>Memory by Type</h2>
+        <div class="chart-container">
+          <canvas id="typeChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Memory Over Time</h2>
+        <div class="chart-container">
+          <canvas id="timelineChart"></canvas>
+        </div>
+        <div style="margin-top:8px; font-size:12px; color: var(--text-secondary); display:flex; gap:8px; align-items:center;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input id="toggleGrowthRate" type="checkbox" style="accent-color: var(--primary-green)">
+            <span>Show Growth Rate</span>
+          </label>
+          <span style="opacity:0.8">Left Y: Cumulative memory, Right Y: Growth rate</span>
+        </div>
+      </div>
+    </section>
 
-        // Update improve.md extensions statistics with beautiful display
-        function updateImproveExtensionsStats() {
-            if (!window.analysisData) return;
+    <!-- Memory Analysis (wider layout) -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2>Type Treemap</h2>
+        <div id="treemap" class="chart-container" style="height: 360px; padding: 0; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden;"></div>
+      </div>
+      <div class="card">
+        <h2><i class="fa fa-timeline"></i> Variable Lifecycle Visualization</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; gap: 6px;">
+            <button id="filter-heap" class="theme-toggle" style="background: var(--primary-orange); font-size: 10px; padding: 3px 6px;">
+              <span>Heap</span>
+            </button>
+            <button id="filter-stack" class="theme-toggle" style="background: var(--primary-blue); font-size: 10px; padding: 3px 6px;">
+              <span>Stack</span>
+            </button>
+            <button id="toggle-lifecycle" class="theme-toggle" style="background: var(--primary-green); font-size: 10px; padding: 3px 6px;">
+              <span>All</span>
+            </button>
+          </div>
+          <div style="display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-secondary);">
+            <span>Heap: <span id="heap-count-mini" style="color: var(--primary-orange); font-weight: 600;">-</span></span>
+            <span>Stack: <span id="stack-count-mini" style="color: var(--primary-blue); font-weight: 600;">-</span></span>
+          </div>
+        </div>
+        <div style="margin-bottom: 8px;">
+          <button id="manual-init-btn" style="background: var(--primary-red); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+            🔄 Manual Initialize
+          </button>
+          <span id="init-status" style="margin-left: 8px; font-size: 0.8rem; color: var(--text-secondary);">Waiting for data...</span>
+        </div>
+        <div id="lifecycleVisualizationContainer" class="scroll" style="max-height: 320px; padding: 8px;">
+          <!-- Variable lifecycle items will be inserted here -->
+        </div>
+      </div>
+    </section>
 
-            const allocations = window.analysisData.memory_analysis?.allocations || [];
+    <!-- Advanced Analysis -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2>Memory Fragmentation</h2>
+        <div id="memoryFragmentation"></div>
+      </div>
+      <div class="card">
+        <h2><i class="fa fa-fire"></i> Borrow Activity Heatmap</h2>
+        <div id="borrowPatternChart" style="height: 200px;"></div>
+      </div>
+    </section>
+
+    <!-- Allocation Timeline (Full Width) -->
+    <section class="card">
+      <h2><i class="fa fa-history"></i> Allocation Timeline</h2>
+      <div id="allocationTimelineDetail" style="height: 200px; padding: 8px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
+        <div style="text-align: center; color: var(--text-secondary); margin-top: 80px;">Loading timeline...</div>
+      </div>
+    </section>
+
+    <!-- Timeline Insights & Memory Operations (2x2 Grid) -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2><i class="fa fa-clock-o"></i> Timeline Insights</h2>
+        <div id="timelineInsights" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+          <div style="margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Time Span:</span>
+            <span id="time-span" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Allocation Burst:</span>
+            <span id="allocation-burst" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Peak Concurrency:</span>
+            <span id="peak-concurrency" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+          <div>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Thread Activity:</span>
+            <span id="thread-activity" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2><i class="fa fa-exchange"></i> Memory Operations</h2>
+        <div id="memoryOperations" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="borrow-ops" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-blue);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Borrow Ops</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="clone-ops" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-orange);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Clone Ops</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="mut-ratio" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-red);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Mut/Immut</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="avg-borrows" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-green);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Avg/Alloc</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Type Memory Blocks & Enhanced Statistics -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2><i class="fa fa-cubes"></i> Type Memory Blocks</h2>
+        <div id="memoryDistributionChart" style="height: 200px; overflow-y: auto;"></div>
+      </div>
+      
+      <div class="card">
+        <h2><i class="fa fa-info-circle"></i> Enhanced Memory Statistics</h2>
+        <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="total-allocs-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-blue);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Total Allocs</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="heap-stack-ratio" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-orange);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Heap/Stack</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="avg-lifetime-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-green);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Avg Lifetime</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+              <div id="memory-efficiency" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-purple);">-</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">Efficiency</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Variable Relationships Graph -->
+    <section class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0;">Variable Relationships</h2>
+        <div>
+          <button id="reset-zoom" class="theme-toggle" style="background: var(--primary-orange); font-size: 12px; padding: 6px 12px; margin-right: 8px;">
+            <i class="fa fa-expand"></i>
+            <span>Reset View</span>
+          </button>
+          <button id="auto-layout" class="theme-toggle" style="background: var(--primary-green); font-size: 12px; padding: 6px 12px;">
+            <i class="fa fa-magic"></i>
+            <span>Auto Layout</span>
+          </button>
+        </div>
+      </div>
+      <div id="graph" style="height: 400px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; position: relative; overflow: hidden;"></div>
+    </section>
+
+    <!-- Memory Hotspots & Thread Analysis -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2><i class="fa fa-bolt"></i> Memory Hotspots</h2>
+        <div id="memoryHotspots" style="height: 300px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
+          <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
+            Loading memory hotspots...
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2><i class="fa fa-users"></i> Thread & Concurrency</h2>
+        <div id="threadAnalysis" style="padding: 12px; background: var(--bg-secondary); border-radius: 8px; height: 300px;">
+          <div style="display: grid; grid-template-rows: 1fr 1fr; gap: 12px; height: 100%;">
+            <!-- Thread Activity -->
+            <div style="background: var(--bg-primary); padding: 12px; border-radius: 6px;">
+              <h4 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 12px;">
+                <i class="fa fa-clock-o"></i> Thread Activity
+              </h4>
+              <div id="threadTimeline" style="height: 60px; position: relative; border: 1px solid var(--border-light); border-radius: 4px; background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);"></div>
+            </div>
             
-            // Count allocations with improve.md extensions
-            const lifetimeTracked = allocations.filter(alloc => 
-                alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null
-            ).length;
-            
-            const borrowTracked = allocations.filter(alloc => 
-                alloc.borrow_info && (alloc.borrow_info.immutable_borrows > 0 || alloc.borrow_info.mutable_borrows > 0)
-            ).length;
-            
-            const cloneTracked = allocations.filter(alloc => 
-                alloc.clone_info && alloc.clone_info.clone_count > 0
-            ).length;
-            
-            const ownershipTracked = allocations.filter(alloc => 
-                alloc.ownership_history_available === true
-            ).length;
+            <!-- Memory Contention -->
+            <div style="background: var(--bg-primary); padding: 12px; border-radius: 6px;">
+              <h4 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 12px;">
+                <i class="fa fa-warning"></i> Memory Contention
+              </h4>
+              <div style="display: flex; align-items: center; justify-content: center; height: 60px;">
+                <div style="text-align: center;">
+                  <div id="contention-level" style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);">LOW</div>
+                  <div style="font-size: 0.7rem; color: var(--text-secondary);" id="contention-details">Single-threaded</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-            // Update UI elements with safe access
-            const lifetimeEl = document.getElementById('lifetime-tracked-count');
-            const borrowEl = document.getElementById('borrow-tracked-count');
-            const cloneEl = document.getElementById('clone-tracked-count');
-            const ownershipEl = document.getElementById('ownership-tracked-count');
 
-            if (lifetimeEl) lifetimeEl.textContent = lifetimeTracked.toLocaleString();
-            if (borrowEl) borrowEl.textContent = borrowTracked.toLocaleString();
-            if (cloneEl) cloneEl.textContent = cloneTracked.toLocaleString();
-            if (ownershipEl) ownershipEl.textContent = ownershipTracked.toLocaleString();
+    <!-- Data Tables -->
+    <section class="grid grid-2">
+      <div class="card">
+        <h2>Memory Allocation Details</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Variable</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="allocTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Safety Risk Items</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Location</th>
+                <th>Operation</th>
+                <th>Risk Level</th>
+              </tr>
+            </thead>
+            <tbody id="unsafeTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Unsafe/FFI Analysis (Unified Background Container) -->
+    <section style="background: var(--bg-secondary); padding: 24px; border-radius: 12px; border: 1px solid var(--border-light); min-height: 800px;">
+      <h2 style="margin: 0 0 20px 0; color: var(--text-primary);">Unsafe Rust & FFI Memory Analysis</h2>
+      <div id="ffiVisualization" class="chart-container" style="width: 100%;">
+        <div style="background: var(--bg-primary); border-radius:8px; padding:16px; text-align:center; color: var(--text-secondary);">
+          <i class="fa fa-info-circle" style="font-size:24px; margin-bottom:8px; opacity:0.5;"></i>
+          <div>Loading FFI analysis...</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // Enhanced Lifecycle Visualization Functions
+    function inferAllocationType(typeName) {
+      if (!typeName) return 'unknown';
+      
+      const heapTypes = ['Box', 'Vec', 'String', 'HashMap', 'BTreeMap', 'Arc', 'Rc', 'alloc::', 'std::collections'];
+      const stackTypes = ['i32', 'i64', 'f32', 'f64', 'bool', 'char', 'usize', 'isize', 'u8', 'u16', 'u32', 'u64'];
+      
+      for (const heapType of heapTypes) {
+        if (typeName.includes(heapType)) return 'heap';
+      }
+      
+      for (const stackType of stackTypes) {
+        if (typeName.includes(stackType)) return 'stack';
+      }
+      
+      if (typeName.includes('*') || typeName.includes('&')) return 'heap';
+      
+      return 'unknown';
+    }
+
+    function formatTimestamp(timestamp) {
+      if (!timestamp || isNaN(timestamp)) return 'N/A';
+      const date = new Date(timestamp / 1000000); // Convert nanoseconds to milliseconds
+      if (isNaN(date.getTime())) return 'N/A';
+      return date.toLocaleTimeString() + '.' + String(date.getMilliseconds()).padStart(3, '0');
+    }
+
+    function calculateDropTime(allocTime, lifetimeMs) {
+      if (!allocTime || lifetimeMs === undefined || isNaN(allocTime) || isNaN(lifetimeMs)) return null;
+      return allocTime + (lifetimeMs * 1000000); // Convert ms to nanoseconds and add
+    }
+
+    function formatLifetime(lifetimeMs) {
+      if (lifetimeMs === undefined || lifetimeMs === null) return 'N/A';
+      if (lifetimeMs < 1) return `${(lifetimeMs * 1000).toFixed(1)}μs`;
+      if (lifetimeMs < 1000) return `${lifetimeMs.toFixed(1)}ms`;
+      return `${(lifetimeMs / 1000).toFixed(2)}s`;
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function initEnhancedLifecycleVisualization() {
+      // Debug what's available
+      console.log('Checking data availability...');
+      console.log('window.analysisData exists:', !!window.analysisData);
+      console.log('window.analysisData type:', typeof window.analysisData);
+      
+      if (window.analysisData) {
+        console.log('window.analysisData keys:', Object.keys(window.analysisData));
+      }
+      
+      // Try multiple data structure paths
+      let allocations = null;
+      
+      if (window.analysisData) {
+        // Method 1: Direct allocations (old structure)
+        if (window.analysisData.allocations && Array.isArray(window.analysisData.allocations)) {
+          allocations = window.analysisData.allocations;
+          console.log('✅ Found allocations directly:', allocations.length);
+        }
+        // Method 2: Memory analysis structure (new structure)
+        else if (window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
+          allocations = window.analysisData.memory_analysis.allocations;
+          console.log('✅ Found allocations in memory_analysis:', allocations.length);
+        }
+        // Method 3: Check all keys for allocations
+        else {
+          for (const [key, value] of Object.entries(window.analysisData)) {
+            if (value && typeof value === 'object' && value.allocations && Array.isArray(value.allocations)) {
+              allocations = value.allocations;
+              console.log('✅ Found allocations in', key + ':', allocations.length);
+              break;
+            }
+          }
+        }
+      }
+      
+      if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
+        console.warn('No allocation data found in window.analysisData');
+        
+        // Fallback: Try to get data from other global variables that might be set by the dashboard
+        if (typeof getAllocations === 'function') {
+          try {
+            allocations = getAllocations();
+            console.log('✅ Got allocations from getAllocations():', allocations.length);
+          } catch (e) {
+            console.warn('getAllocations() failed:', e);
+          }
+        }
+        
+        // Another fallback: Check if data is in a different global variable
+        if (!allocations && window.memoryAnalysisData) {
+          if (window.memoryAnalysisData.allocations) {
+            allocations = window.memoryAnalysisData.allocations;
+            console.log('✅ Got allocations from memoryAnalysisData:', allocations.length);
+          }
+        }
+        
+        // Final fallback: Try to extract from existing DOM elements
+        if (!allocations) {
+          const existingTable = document.getElementById('allocTable');
+          if (existingTable && existingTable.children.length > 1) {
+            console.log('Trying to extract data from existing table...');
+            // This is a last resort - we'll create dummy data based on table rows
+            const rows = existingTable.querySelectorAll('tbody tr');
+            if (rows.length > 0) {
+              allocations = Array.from(rows).map((row, index) => {
+                const cells = row.querySelectorAll('td');
+                return {
+                  var_name: cells[0]?.textContent || `var_${index}`,
+                  type_name: cells[1]?.textContent || 'unknown',
+                  size: parseInt(cells[2]?.textContent) || 0,
+                  timestamp_alloc: Date.now() * 1000000 + index * 1000000,
+                  lifetime_ms: parseFloat(cells[3]?.textContent) || 1.0,
+                  is_leaked: cells[4]?.textContent?.includes('Yes') || false
+                };
+              });
+              console.log('✅ Extracted', allocations.length, 'allocations from existing table');
+            }
+          }
+        }
+        
+        if (!allocations || allocations.length === 0) {
+          console.error('❌ No allocation data available from any source');
+          return;
+        }
+      }
+      
+      if (allocations.length === 0) {
+        console.warn('No allocation data found');
+        return;
+      }
+
+      console.log('✅ Found', allocations.length, 'allocations for enhanced visualization');
+      console.log('Sample allocation:', allocations[0]);
+      
+      // Statistics
+      let heapCount = 0, stackCount = 0, unknownCount = 0;
+      let totalLifetime = 0, validLifetimes = 0;
+      let totalMemory = 0;
+
+      allocations.forEach(alloc => {
+        const type = inferAllocationType(alloc.type_name);
+        if (type === 'heap') heapCount++;
+        else if (type === 'stack') stackCount++;
+        else unknownCount++;
+
+        if (alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null) {
+          totalLifetime += alloc.lifetime_ms;
+          validLifetimes++;
         }
 
-        // Initialize user-defined data metrics
-        function initializeUserDataMetrics() {
-            if (!window.analysisData) return;
+        totalMemory += alloc.size || 0;
+      });
 
-            const allocations = window.analysisData.memory_analysis?.allocations || [];
-            
-            // Filter user-defined allocations (those with meaningful variable names and types)
-            const userAllocations = allocations.filter(alloc => 
-                alloc.var_name && 
-                alloc.var_name !== 'unknown' && 
-                alloc.type_name && 
-                alloc.type_name !== 'unknown' &&
-                !alloc.type_name.includes('std::') &&
-                !alloc.type_name.includes('alloc::')
-            );
+      console.log('Statistics calculated:', { heapCount, stackCount, totalLifetime, validLifetimes });
 
-            // Count complex types (non-primitive types)
-            const complexTypes = userAllocations.filter(alloc => 
-                !['i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'bool', 'char'].includes(alloc.type_name)
-            );
+      // Update mini counters
+      const heapCountMini = document.getElementById('heap-count-mini');
+      const stackCountMini = document.getElementById('stack-count-mini');
+      
+      if (heapCountMini) {
+        heapCountMini.textContent = heapCount;
+        console.log('Updated heap-count-mini:', heapCount);
+      } else {
+        console.warn('heap-count-mini element not found');
+      }
+      
+      if (stackCountMini) {
+        stackCountMini.textContent = stackCount;
+        console.log('Updated stack-count-mini:', stackCount);
+      } else {
+        console.warn('stack-count-mini element not found');
+      }
+      
+      // Create lifecycle visualization
+      console.log('Calling createLifecycleVisualization...');
+      createLifecycleVisualization(allocations);
+      
+      // Update enhanced statistics
+      console.log('Calling updateEnhancedStatistics...');
+      updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime);
+      
+      // Setup filters
+      console.log('Calling setupLifecycleFilters...');
+      setupLifecycleFilters(allocations);
+      
+      console.log('✅ All enhanced features processing completed');
+    }
 
-            // Count generic types
-            const genericTypes = userAllocations.filter(alloc => 
-                alloc.type_name.includes('<') && alloc.type_name.includes('>')
-            );
+    function createLifecycleVisualization(allocations) {
+      console.log('createLifecycleVisualization called with', allocations.length, 'allocations');
+      const container = document.getElementById('lifecycleVisualizationContainer');
+      if (!container) {
+        console.error('❌ Lifecycle visualization container not found in DOM');
+        return;
+      }
+      console.log('✅ Found lifecycleVisualizationContainer, creating visualization...');
+      container.innerHTML = '';
 
-            // Count unsafe FFI operations
-            const unsafeFFI = window.analysisData.unsafe_ffi?.enhanced_ffi_data?.length || 
-                             window.analysisData.unsafe_ffi?.unsafe_operations?.length || 0;
+      // Calculate timeline bounds
+      const timestamps = allocations.map(a => a.timestamp_alloc).filter(t => t);
+      const minTime = Math.min(...timestamps);
+      const maxTime = Math.max(...timestamps);
+      const timeRange = maxTime - minTime || 1;
 
-            // Update the UI with safe checks
-            const userComplexTypesEl = document.getElementById('user-complex-types');
-            const userVariablesEl = document.getElementById('user-variables');
-            const userGenericTypesEl = document.getElementById('user-generic-types');
-            const userUnsafeFFIEl = document.getElementById('user-unsafe-ffi');
-            const totalComplexTypesEl = document.getElementById('total-complex-types');
-            const smartPointersCountEl = document.getElementById('smart-pointers-count');
-            const collectionsCountEl = document.getElementById('collections-count');
-            const unsafeFFICountEl = document.getElementById('unsafe-ffi-count');
-            
-            if (userComplexTypesEl) userComplexTypesEl.textContent = complexTypes.length;
-            if (userVariablesEl) userVariablesEl.textContent = userAllocations.length;
-            if (userGenericTypesEl) userGenericTypesEl.textContent = genericTypes.length;
-            if (userUnsafeFFIEl) userUnsafeFFIEl.textContent = unsafeFFI;
-            
-            // Also update the user-defined types analysis section
-            if (totalComplexTypesEl) totalComplexTypesEl.textContent = complexTypes.length;
-            if (unsafeFFICountEl) unsafeFFICountEl.textContent = unsafeFFI;
-            
-            // Count smart pointers and collections from user allocations
-            const userSmartPointers = userAllocations.filter(alloc => 
-                alloc.type_name.includes('Box<') || 
-                alloc.type_name.includes('Rc<') || 
-                alloc.type_name.includes('Arc<') ||
-                alloc.type_name.includes('RefCell<')
-            );
-            const userCollections = userAllocations.filter(alloc => 
-                alloc.type_name.includes('Vec<') || 
-                alloc.type_name.includes('HashMap<') || 
-                alloc.type_name.includes('BTreeMap<') ||
-                alloc.type_name.includes('HashSet<')
-            );
-            
-            if (smartPointersCountEl) smartPointersCountEl.textContent = userSmartPointers.length;
-            if (collectionsCountEl) collectionsCountEl.textContent = userCollections.length;
-        }
-
-        // Initialize lifecycle visualization
-        function initializeLifecycleVisualization() {
-            const container = document.getElementById('lifetimeVisualization');
-            if (!container || !window.analysisData) return;
-
-            const allocations = window.analysisData.memory_analysis?.allocations || [];
-            const userAllocations = allocations.filter(alloc => 
-                alloc.var_name && alloc.var_name !== 'unknown'
-            ).slice(0, 10); // Show top 10 for clarity
-
-            if (userAllocations.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                        <i class="fa fa-info-circle text-2xl mb-2"></i>
-                        <p>No user variable lifetime data available</p>
-                        <p class="text-sm mt-1">Use track_var! macro to track variable lifetimes</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // Create timeline visualization
-            let timelineHtml = '';
-            userAllocations.forEach((alloc, index) => {
-                const duration = alloc.timestamp_dealloc ? 
-                    alloc.timestamp_dealloc - alloc.timestamp_alloc : 
-                    1000; // Default duration if not deallocated
-                
-                const startPercent = ((alloc.timestamp_alloc || 0) / 1000) * 100;
-                const widthPercent = (duration / 1000) * 100;
-                
-                timelineHtml += `
-                    <div class="flex items-center mb-3">
-                        <div class="w-40 flex-shrink-0 text-sm font-medium truncate" title="${alloc.var_name}">
-                            ${alloc.var_name}
-                        </div>
-                        <div class="flex-grow relative h-6 bg-gray-100 dark:bg-gray-600 rounded">
-                            <div class="absolute h-full bg-blue-500 rounded" 
-                                 style="left: ${startPercent}%; width: ${Math.min(widthPercent, 100 - startPercent)}%"
-                                 title="Type: ${alloc.type_name}, Size: ${formatBytes(alloc.size || 0)}">
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            container.innerHTML = timelineHtml;
-        }
-
-        // Safe element update function
-        function safeUpdateElement(id, value) {
-            const element = document.getElementById(id);
-            if (element) {
-                element.textContent = value;
-            }
-        }
-
-        // Initialize system data metrics
-        function initializeSystemDataMetrics() {
-            if (!window.analysisData) return;
-
-            const memoryAnalysis = window.analysisData.memory_analysis || {};
-            const stats = memoryAnalysis.stats || {};
-            const allocations = memoryAnalysis.allocations || [];
-
-            // Update system performance metrics
-            safeUpdateElement('total-allocations', stats.total_allocations || allocations.length || 0);
-            safeUpdateElement('total-memory', formatBytes(stats.total_memory || 0));
-            safeUpdateElement('peak-memory', formatBytes(stats.peak_memory || 0));
-            
-            // Calculate active allocations if not provided
-            const activeAllocations = stats.active_allocations || allocations.filter(alloc => !alloc.timestamp_dealloc).length;
-            safeUpdateElement('active-allocations', activeAllocations);
-        }
-
-        // Safe element update function
-        function safeUpdateElement(id, value) {
-            const element = document.getElementById(id);
-            if (element) {
-                element.textContent = value;
-            } else {
-                console.warn('Element not found:', id);
-            }
-        }
-
-        // Destroy existing charts to prevent canvas reuse errors
-        function destroyExistingCharts() {
-            if (window.Chart && window.Chart.getChart) {
-                const canvasIds = ['memory-distribution-chart', 'allocation-size-chart', 'memory-timeline-chart', 'lifecycle-timeline-chart', 'ownership-history-chart'];
-                canvasIds.forEach(canvasId => {
-                    const existingChart = window.Chart.getChart(canvasId);
-                    if (existingChart) {
-                        existingChart.destroy();
-                        console.log('Destroyed existing chart:', canvasId);
-                    }
-                });
-            }
-        }
-
-        // Override problematic functions with safe versions
-        function createSafeOverrides() {
-            // Override updateSummaryStats with safe version
-            window.updateSummaryStats = function(allocations) {
-                if (!allocations) return;
-                
-                const totalAllocations = allocations.length;
-                const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
-                const activeAllocations = allocations.filter(alloc => alloc.status === 'Active').length;
-
-                // Use safe updates for elements that exist
-                safeUpdateElement('total-allocations', totalAllocations.toLocaleString());
-                safeUpdateElement('total-memory', formatBytes(totalMemory));
-                safeUpdateElement('active-allocations', activeAllocations.toLocaleString());
-                safeUpdateElement('peak-memory', formatBytes(totalMemory));
-
-                // Update complex types stats safely
-                if (window.analysisData && window.analysisData.complex_types) {
-                    const complexTypes = window.analysisData.complex_types;
-                    const summary = complexTypes.summary || {};
-                    safeUpdateElement('system-complex-types', summary.total_complex_types || 0);
-                    safeUpdateElement('system-smart-pointers', summary.smart_pointers_count || 0);
-                    safeUpdateElement('system-collections', summary.collections_count || 0);
-                    safeUpdateElement('system-generic-types', summary.generic_types_count || 0);
-                }
-            };
-
-            // Override populateAllocationsTable with safe version
-            window.populateAllocationsTable = function(allocations) {
-                const tableBody = document.getElementById('allocations-table');
-                if (!tableBody) {
-                    console.warn('Allocations table not found');
-                    return;
-                }
-
-                if (!allocations || allocations.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No allocation data available</td></tr>';
-                    return;
-                }
-
-                // Update summary statistics safely
-                window.updateSummaryStats(allocations);
-
-                // Populate table with first 100 allocations
-                const displayAllocations = allocations.slice(0, 100);
-                tableBody.innerHTML = displayAllocations.map(alloc => `
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td class="px-4 py-3 text-sm font-mono">0x${alloc.id ? alloc.id.toString(16) : 'N/A'}</td>
-                        <td class="px-4 py-3 text-sm">${alloc.location || alloc.var_name || 'unnamed'}</td>
-                        <td class="px-4 py-3 text-sm">${alloc.type_name || 'Unknown'}</td>
-                        <td class="px-4 py-3 text-sm text-right">${formatBytes(alloc.size || 0)}</td>
-                        <td class="px-4 py-3 text-sm text-right">
-                            <span class="px-2 py-1 text-xs rounded-full ${alloc.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                                ${alloc.status || 'Unknown'}
-                            </span>
-                        </td>
-                    </tr>
-                `).join('');
-            };
-        }
-
-        // Apply safe overrides immediately
-        createSafeOverrides();
-
-        // Destroy charts before any initialization
-        destroyExistingCharts();
-
-        // Force refresh all dashboard components
-        function forceRefreshDashboard() {
-            console.log('🔄 Force refreshing dashboard components...');
-            
-            // Force update FFI data
-            if (window.analysisData && window.analysisData.unsafe_ffi) {
-                const ffiData = window.analysisData.unsafe_ffi;
-                console.log('🔍 FFI Data available:', ffiData);
-                
-                // Update FFI counts immediately
-                safeUpdateElement('unsafe-ffi-count', ffiData.total_violations || ffiData.enhanced_ffi_data?.length || 0);
-                safeUpdateElement('ffi-risk-level', ffiData.risk_level || 'Low');
-                safeUpdateElement('unsafe-operations-count', ffiData.unsafe_operations?.length || 0);
-                safeUpdateElement('security-hotspots-count', ffiData.security_hotspots?.length || 0);
-                
-                // Force populate unsafe operations table
-                const unsafeTableBody = document.getElementById('unsafe-operations-table');
-                if (unsafeTableBody && ffiData.enhanced_ffi_data && ffiData.enhanced_ffi_data.length > 0) {
-                    console.log('📊 Populating unsafe operations table with', ffiData.enhanced_ffi_data.length, 'entries');
-                    const operations = ffiData.enhanced_ffi_data.slice(0, 20);
-                    unsafeTableBody.innerHTML = operations.map(op => `
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <td class="px-4 py-3 text-sm font-mono">${op.ptr || 'N/A'}</td>
-                            <td class="px-4 py-3 text-sm">${op.type_name?.includes('*') ? 'Raw Pointer' : 
-                                                                op.type_name?.includes('libc') ? 'FFI Call' : 'Memory Operation'}</td>
-                            <td class="px-4 py-3 text-sm">
-                                <span class="px-2 py-1 text-xs rounded-full ${op.safety_violations > 2 ? 'bg-red-100 text-red-800' :
-                                    op.safety_violations > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
-                                    ${op.safety_violations > 2 ? 'High' : op.safety_violations > 0 ? 'Medium' : 'Low'}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-sm">${op.var_name || 'Unknown'}</td>
-                        </tr>
-                    `).join('');
-                }
-            }
-            
-            // Force update complex types
-            if (window.analysisData && window.analysisData.complex_types) {
-                const complexData = window.analysisData.complex_types;
-                console.log('🧩 Complex types data available:', complexData);
-                
-                const summary = complexData.summary || {};
-                safeUpdateElement('system-complex-types', summary.total_complex_types || 0);
-                safeUpdateElement('system-smart-pointers', summary.smart_pointers_count || 0);
-                safeUpdateElement('system-collections', summary.collections_count || 0);
-                safeUpdateElement('system-generic-types', summary.generic_types_count || 0);
-            }
-            
-            // Force create charts
-            setTimeout(() => {
-                try {
-                    createMemoryTimelineChart();
-                    createComplexTypesChart();
-                    createLifecycleChart();
-                } catch (e) {
-                    console.warn('Error creating charts:', e);
-                }
-            }, 500);
-        }
-
-        // Create memory timeline chart
-        function createMemoryTimelineChart() {
-            const ctx = document.getElementById('memory-timeline-chart');
-            const fallback = document.getElementById('memory-timeline-fallback');
-            if (!ctx || !window.analysisData) return;
-            
-            const timelineData = window.analysisData.memory_analysis?.memory_timeline || [];
-            console.log('📈 Creating memory timeline chart with', timelineData.length, 'data points');
-            
-            if (timelineData.length === 0) {
-                // Show fallback message and hide canvas
-                if (fallback) {
-                    fallback.classList.remove('hidden');
-                    ctx.style.display = 'none';
-                }
-                return;
-            }
-            
-            // Hide fallback and show canvas
-            if (fallback) {
-                fallback.classList.add('hidden');
-                ctx.style.display = 'block';
-            }
-            
-            const existingChart = Chart.getChart(ctx);
-            if (existingChart) existingChart.destroy();
-            
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: timelineData.map((_, i) => `${i * 250}ms`),
-                    datasets: [{
-                        label: 'Memory Usage (bytes)',
-                        data: timelineData.map(point => point.memory_usage),
-                        borderColor: '#3B82F6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Memory (bytes)' }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Create complex types chart
-        function createComplexTypesChart() {
-            const ctx = document.getElementById('complex-types-chart');
-            if (!ctx || !window.analysisData) return;
-            
-            const complexData = window.analysisData.complex_types;
-            if (!complexData || !complexData.summary) return;
-            
-            console.log('🧩 Creating complex types chart');
-            
-            const existingChart = Chart.getChart(ctx);
-            if (existingChart) existingChart.destroy();
-            
-            const summary = complexData.summary;
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Smart Pointers', 'Collections', 'Generic Types'],
-                    datasets: [{
-                        label: 'Count',
-                        data: [
-                            summary.smart_pointers_count || 0,
-                            summary.collections_count || 0,
-                            summary.generic_types_count || 0
-                        ],
-                        backgroundColor: ['#FF6B6B', '#4ECDC4', '#45B7D1']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
-        }
-
-        // Create ownership history chart
-        function createOwnershipHistoryChart() {
-            const ctx = document.getElementById('ownership-history-chart');
-            if (!ctx || !window.analysisData) return;
-
-            const ownershipData = window.analysisData.lifecycle_analysis?.ownership_history || [];
-            console.log('🔄 Creating ownership history chart with', ownershipData.length, 'events');
-
-            if (ownershipData.length === 0) {
-                ctx.parentElement.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500"><p>No ownership history data available</p></div>';
-                return;
-            }
-
-            const existingChart = Chart.getChart(ctx);
-            if (existingChart) existingChart.destroy();
-
-            const chartData = {
-                labels: ownershipData.map((event, index) => `Event ${index + 1}`),
-                datasets: [{
-                    label: 'Ownership Transfers',
-                    data: ownershipData.map(event => event.transfer_count || 1),
-                    backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                    borderColor: 'rgba(59, 130, 246, 1)',
-                    borderWidth: 2,
-                    pointRadius: 6,
-                    pointHoverRadius: 8
-                }]
-            };
-
-            new Chart(ctx, {
-                type: 'line',
-                data: chartData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Memory Ownership Transfer Timeline'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const event = ownershipData[context.dataIndex];
-                                    return `${event.event_type || 'Transfer'}: ${event.details || 'No details'}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Transfer Count'
-                            }
-                        },
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Timeline'
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Update passport status display
-        function updatePassportStatus() {
-            const passportData = window.analysisData.unsafe_ffi_analysis?.memory_passports || [];
-            
-            let activeCount = 0;
-            let handoverCount = 0;
-            let foreignCustodyCount = 0;
-            let reclaimedCount = 0;
-
-            passportData.forEach(passport => {
-                switch (passport.status) {
-                    case 'Active':
-                        activeCount++;
-                        break;
-                    case 'HandoverToFfi':
-                        handoverCount++;
-                        break;
-                    case 'InForeignCustody':
-                        foreignCustodyCount++;
-                        break;
-                    case 'ReclaimedByRust':
-                        reclaimedCount++;
-                        break;
-                }
-            });
-
-            // Update counts
-            const activeElement = document.getElementById('active-passports-count');
-            const handoverElement = document.getElementById('ffi-handovers-count');
-            const foreignElement = document.getElementById('foreign-custody-count');
-            const reclaimedElement = document.getElementById('reclaimed-count');
-
-            if (activeElement) activeElement.textContent = activeCount;
-            if (handoverElement) handoverElement.textContent = handoverCount;
-            if (foreignElement) foreignElement.textContent = foreignCustodyCount;
-            if (reclaimedElement) reclaimedElement.textContent = reclaimedCount;
-
-            // Calculate health score (lower foreign custody = better health)
-            const totalPassports = passportData.length;
-            const healthScore = totalPassports > 0 ? 
-                Math.round(((totalPassports - foreignCustodyCount) / totalPassports) * 100) : 100;
-            
-            const healthScoreElement = document.getElementById('passport-health-score');
-            const healthBarElement = document.getElementById('passport-health-bar');
-            
-            if (healthScoreElement) healthScoreElement.textContent = healthScore;
-            if (healthBarElement) {
-                healthBarElement.style.width = `${healthScore}%`;
-                // Change color based on health score
-                if (healthScore >= 80) {
-                    healthBarElement.className = 'bg-green-600 h-3 rounded-full transition-all duration-300';
-                } else if (healthScore >= 60) {
-                    healthBarElement.className = 'bg-yellow-600 h-3 rounded-full transition-all duration-300';
-                } else {
-                    healthBarElement.className = 'bg-red-600 h-3 rounded-full transition-all duration-300';
-                }
-            }
-
-            console.log('📋 Updated passport status:', { activeCount, handoverCount, foreignCustodyCount, reclaimedCount, healthScore });
-        }
-
-        // Create lifecycle chart
-        function createLifecycleChart() {
-            const ctx = document.getElementById('lifecycle-timeline-chart');
-            if (!ctx || !window.analysisData) return;
-            
-            const events = window.analysisData.lifecycle_analysis?.events || [];
-            console.log('⏱️ Creating lifecycle chart with', events.length, 'events');
-            
-            if (events.length === 0) return;
-            
-            const existingChart = Chart.getChart(ctx);
-            if (existingChart) existingChart.destroy();
-            
-            const timelineData = events.slice(0, 50).map((event, index) => ({
-                x: index,
-                y: event.size || 0
-            }));
-            
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [{
-                        label: 'Allocation Size Over Time',
-                        data: timelineData,
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { title: { display: true, text: 'Event Sequence' } },
-                        y: { beginAtZero: true, title: { display: true, text: 'Size (bytes)' } }
-                    }
-                }
-            });
-        }
-
-        // Binary-specific initialization
-        document.addEventListener('DOMContentLoaded', function () {
-            console.log('Binary Dashboard initialized with safe overrides');
-            
-            // Prevent multiple initializations
-            if (window.dashboardInitialized) {
-                console.log('Dashboard already initialized, skipping...');
-                return;
-            }
-
-            // Apply overrides again to ensure they take precedence
-            createSafeOverrides();
-            destroyExistingCharts();
-            
-            try {
-                updateImproveExtensionsStats();
-                initializeUserDataMetrics();
-            } catch (e) {
-                console.warn('Error initializing user data metrics:', e);
-            }
-            
-            try {
-                initializeLifecycleVisualization();
-            } catch (e) {
-                console.warn('Error initializing lifecycle visualization:', e);
-            }
-            
-            try {
-                initializeSystemDataMetrics();
-            } catch (e) {
-                console.warn('Error initializing system data metrics:', e);
-            }
-
-            window.dashboardInitialized = true;
-            console.log('Data source:', window.dataSource);
-            console.log('Generation time:', window.generationTime);
-
-            // Add a small delay to ensure DOM is fully ready
-            setTimeout(() => {
-                // Initialize binary-specific features
-                initializeBinaryDashboard();
-                
-                // Force refresh all components to ensure they display correctly
-                setTimeout(() => {
-                    forceRefreshDashboard();
-                }, 1000);
-            }, 100);
+      allocations.forEach((alloc, index) => {
+        const allocType = inferAllocationType(alloc.type_name);
+        const startTime = alloc.timestamp_alloc || alloc.timestamp || Date.now() * 1000000;
+        const lifetime = alloc.lifetime_ms || alloc.lifetime || 0;
+        const endTime = startTime + (lifetime * 1000000); // Convert ms to nanoseconds
+        
+        // Debug and validate time data
+        console.log('Debug allocation:', {
+          var_name: alloc.var_name,
+          timestamp_alloc: alloc.timestamp_alloc,
+          timestamp: alloc.timestamp,
+          lifetime_ms: alloc.lifetime_ms,
+          startTime: startTime,
+          endTime: endTime,
+          isValidStart: !isNaN(startTime) && startTime > 0,
+          isValidEnd: !isNaN(endTime) && endTime > 0
         });
+        
+        // If timestamps are invalid, use relative positioning
+        if (isNaN(startTime) || startTime <= 0) {
+          startTime = minTime + (index * (timeRange / allocations.length));
+        }
+        if (isNaN(endTime) || endTime <= 0) {
+          endTime = startTime + (lifetime * 1000000) || startTime + (timeRange * 0.1);
+        }
+        
+        // Calculate positions and widths with bounds checking
+        let startPercent = ((startTime - minTime) / timeRange) * 100;
+        let endPercent = ((endTime - minTime) / timeRange) * 100;
+        
+        // Ensure values are within bounds
+        startPercent = Math.max(0, Math.min(startPercent, 100));
+        endPercent = Math.max(startPercent, Math.min(endPercent, 100));
+        
+        let width = endPercent - startPercent;
+        width = Math.max(width, 2); // Minimum 2% width
+        width = Math.min(width, 100 - startPercent); // Don't exceed container
+        
+        // Create lifecycle item
+        const item = document.createElement('div');
+        item.className = `lifecycle-item ${allocType}`;
+        item.setAttribute('data-type', allocType);
+        
+        // Enhanced solid colors for better visibility
+        const barColor = allocType === 'heap' ? '#ff6b35' : 
+                        allocType === 'stack' ? '#4dabf7' : '#868e96';
+        const barGradient = allocType === 'heap' ? '#ff6b35' : 
+                           allocType === 'stack' ? '#4dabf7' : 
+                           '#868e96';
+        
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 600; font-size: 0.9rem; min-width: 120px;">${alloc.var_name || 'unnamed'}</span>
+              <span class="allocation-type type-${allocType}">${allocType}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-secondary);">
+              <span>${formatBytes(alloc.size || 0)}</span>
+              <span>${formatLifetime(lifetime)}</span>
+            </div>
+          </div>
+          
+          <!-- Enhanced Timeline Progress Bar -->
+          <div style="position: relative; height: 24px; background: linear-gradient(90deg, #e8eaed, #ddd); border-radius: 12px; margin: 10px 0; border: 1px solid #bbb; box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);">
+            
+            <!-- Variable active period with enhanced gradient -->
+            <div style="position: absolute; top: 1px; left: ${startPercent}%; width: ${width}%; height: calc(100% - 2px); 
+                        background: ${barGradient}; 
+                        border-radius: 11px; 
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+                        transition: all 0.3s ease;
+                        position: relative;
+                        overflow: hidden;">
+              
+              <!-- Animated shine effect -->
+              <div style="position: absolute; top: 0; left: -100%; width: 100%; height: 100%; 
+                          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+                          animation: shine 2s infinite;"></div>
+            </div>
+            
+            ${alloc.is_leaked ? `
+              <!-- Leaked indicator -->
+              <div style="position: absolute; top: -3px; right: 2px; width: 20px; height: 30px; 
+                          background: linear-gradient(45deg, #ff4757, #ff3742); 
+                          border-radius: 2px; 
+                          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                          display: flex; align-items: center; justify-content: center;
+                          font-size: 10px; color: white; font-weight: bold;">⚠</div>
+            ` : ''}
+          </div>
+          
+          <!-- Time info -->
+          <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); font-family: monospace;">
+            <span>Start: ${formatTimestamp(startTime)}</span>
+            <span>${alloc.is_leaked ? 'LEAKED' : (formatTimestamp(endTime) !== 'N/A' ? 'End: ' + formatTimestamp(endTime) : 'Active')}</span>
+          </div>
+        `;
+        
+        // Enhanced hover effect and styling
+        item.style.cssText += `
+          margin-bottom: 18px;
+          padding: 16px;
+          background: linear-gradient(135deg, var(--bg-primary), #fafbfc);
+          border-radius: 12px;
+          border-left: 5px solid ${barColor};
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        `;
+        
+        item.addEventListener('mouseenter', () => {
+          item.style.transform = 'translateX(8px) translateY(-2px)';
+          item.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
+          item.style.background = `linear-gradient(135deg, var(--bg-primary), ${barColor}08)`;
+        });
+        
+        item.addEventListener('mouseleave', () => {
+          item.style.transform = 'translateX(0) translateY(0)';
+          item.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+          item.style.background = 'linear-gradient(135deg, var(--bg-primary), #fafbfc)';
+        });
+        
+        container.appendChild(item);
+      });
+    }
 
-        // Generate complex types data from allocations
-        function generateComplexTypesFromAllocations(allocations) {
-            const counts = {
-                smart_pointers: 0,
-                collections: 0,
-                generic_types: 0,
-                primitive_types: 0
+    function updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime) {
+      console.log('Updating enhanced statistics...');
+      
+      // Update Enhanced Memory Statistics
+      const totalAllocsEnhanced = document.getElementById('total-allocs-enhanced');
+      const heapStackRatio = document.getElementById('heap-stack-ratio');
+      const avgLifetimeEnhanced = document.getElementById('avg-lifetime-enhanced');
+      const memoryEfficiency = document.getElementById('memory-efficiency');
+      
+      if (totalAllocsEnhanced) {
+        totalAllocsEnhanced.textContent = allocations.length;
+        console.log('Updated total-allocs-enhanced:', allocations.length);
+      }
+      
+      if (heapStackRatio) {
+        const ratio = stackCount > 0 ? (heapCount / stackCount).toFixed(1) : heapCount;
+        heapStackRatio.textContent = ratio + ':1';
+        console.log('Updated heap-stack-ratio:', ratio + ':1');
+      }
+      
+      if (avgLifetimeEnhanced) {
+        const avgLifetime = validLifetimes > 0 ? formatLifetime(totalLifetime / validLifetimes) : 'N/A';
+        avgLifetimeEnhanced.textContent = avgLifetime;
+        console.log('Updated avg-lifetime-enhanced:', avgLifetime);
+      }
+      
+      if (memoryEfficiency) {
+        const efficiency = allocations.length > 0 ? ((allocations.length - allocations.filter(a => a.is_leaked).length) / allocations.length * 100).toFixed(0) : 0;
+        memoryEfficiency.textContent = efficiency + '%';
+        console.log('Updated memory-efficiency:', efficiency + '%');
+      }
+    }
+
+
+    function setupLifecycleFilters(allocations) {
+      const heapBtn = document.getElementById('filter-heap');
+      const stackBtn = document.getElementById('filter-stack');
+      const allBtn = document.getElementById('toggle-lifecycle');
+      
+      // Check if all buttons exist
+      if (!heapBtn || !stackBtn || !allBtn) {
+        console.warn('Some filter buttons not found');
+        return;
+      }
+      
+      let currentFilter = 'all';
+      
+      function applyFilter(filter) {
+        currentFilter = filter;
+        const items = document.querySelectorAll('.lifecycle-item');
+        
+        // Update button states
+        [heapBtn, stackBtn, allBtn].forEach(btn => btn.style.opacity = '0.6');
+        
+        if (filter === 'heap') {
+          heapBtn.style.opacity = '1';
+          items.forEach(item => {
+            item.style.display = item.getAttribute('data-type') === 'heap' ? 'block' : 'none';
+          });
+        } else if (filter === 'stack') {
+          stackBtn.style.opacity = '1';
+          items.forEach(item => {
+            item.style.display = item.getAttribute('data-type') === 'stack' ? 'block' : 'none';
+          });
+        } else {
+          allBtn.style.opacity = '1';
+          items.forEach(item => {
+            item.style.display = 'block';
+          });
+        }
+      }
+      
+      heapBtn.addEventListener('click', () => applyFilter('heap'));
+      stackBtn.addEventListener('click', () => applyFilter('stack'));
+      allBtn.addEventListener('click', () => applyFilter('all'));
+      
+      // Initialize
+      applyFilter('all');
+    }
+
+    // Initialize enhanced features when DOM is loaded
+    function initEnhancedFeatures() {
+      try {
+        initEnhancedLifecycleVisualization();
+      } catch (error) {
+        console.error('Error initializing enhanced lifecycle visualization:', error);
+      }
+    }
+
+    // Safe initialization wrapper with duplicate prevention
+    let enhancedInitialized = false;
+    function safeInitEnhanced() {
+      if (enhancedInitialized) {
+        return; // Already initialized
+      }
+      
+      try {
+        initEnhancedFeatures();
+        enhancedInitialized = true;
+        console.log('✅ Enhanced features initialized successfully');
+      } catch (error) {
+        console.warn('Enhanced features initialization failed:', error);
+      }
+    }
+
+    {{JS_CONTENT}}
+
+    // Override problematic functions AFTER JS_CONTENT loads
+    window.updateLifecycleStatistics = function() {
+      // Safe override - prevent errors from missing DOM elements
+      try {
+        // Try to find and update elements safely
+        const elements = ['active-vars', 'freed-vars', 'leaked-vars', 'avg-lifetime-stat'];
+        elements.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = '-';
+        });
+      } catch (e) {
+        // Silently ignore errors
+      }
+    };
+
+    // Override other potential problem functions
+    window.updateKPIMetrics = function() { return; };
+    window.populateLifetimeTable = function() { return; };
+    window.updateMemoryStats = function() { return; };
+
+    // Manual initialization function for testing
+    function manualInitialize() {
+      const statusEl = document.getElementById('init-status');
+      if (statusEl) statusEl.textContent = 'Initializing...';
+      
+      console.log('🔄 Manual initialization triggered');
+      console.log('window.analysisData:', window.analysisData);
+      
+      if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
+        console.log('✅ Data found, calling initEnhancedLifecycleVisualization...');
+        initEnhancedLifecycleVisualization();
+        if (statusEl) statusEl.textContent = 'Initialized successfully!';
+      } else {
+        console.warn('❌ No data found, trying to load...');
+        if (statusEl) statusEl.textContent = 'Loading data...';
+        
+        // Try to load data manually
+        fetch('./large_scale_user_memory_analysis.json')
+          .then(response => response.json())
+          .then(memoryData => {
+            console.log('✅ Manually loaded data:', memoryData);
+            window.analysisData = {
+              memory_analysis: memoryData
             };
-
-            allocations.forEach(alloc => {
-                const typeName = alloc.type_name || '';
-                
-                if (typeName.includes('Box') || typeName.includes('Rc') || typeName.includes('Arc') || 
-                    typeName.includes('RefCell') || typeName.includes('Cell') || typeName.includes('Weak')) {
-                    counts.smart_pointers++;
-                } else if (typeName.includes('Vec') || typeName.includes('HashMap') || typeName.includes('BTreeMap') ||
-                          typeName.includes('HashSet') || typeName.includes('BTreeSet') || typeName.includes('VecDeque')) {
-                    counts.collections++;
-                } else if (typeName.includes('<') && typeName.includes('>')) {
-                    counts.generic_types++;
-                } else if (typeName.match(/^(i8|i16|i32|i64|i128|u8|u16|u32|u64|u128|f32|f64|bool|char|str|String|usize|isize)$/)) {
-                    counts.primitive_types++;
-                }
-            });
-
-            return counts;
-        }
-
-        function initializeBinaryDashboard() {
-            // Prevent multiple initializations
-            if (window.dashboardInitialized) {
-                console.log('Dashboard already initialized, skipping...');
-                return;
-            }
-
-            console.log('Initializing binary dashboard...');
-
-            // Update performance metrics
-            updatePerformanceMetrics();
-
-            // Initialize charts with binary data
-            initializeBinaryCharts();
-
-            // Initialize complex types analysis
-            try {
-                initializeComplexTypesAnalysis();
-            } catch (e) {
-                console.warn('Error initializing complex types analysis:', e);
-            }
-
-            // Initialize variable relationship graph
-            if (window.analysisData && window.analysisData.variable_relationships) {
-                initializeVariableGraph(window.analysisData.variable_relationships);
-            }
-
-            // Initialize FFI analysis
-            try {
-                initializeFFIAnalysis();
-            } catch (e) {
-                console.warn('Error initializing FFI analysis:', e);
-            }
-
-            // Initialize charts
-            try {
-                initializeBinaryCharts();
-                createOwnershipHistoryChart();
-                updatePassportStatus();
-            } catch (e) {
-                console.warn('Error initializing charts:', e);
-            }
-
-            // Populate allocations table
-            try {
-                populateAllocationsTable();
-            } catch (e) {
-                console.warn('Error populating allocations table:', e);
-            }
-
-            // Setup theme toggle
-            setupThemeToggle();
-
-            // Mark as initialized
-            window.dashboardInitialized = true;
-        }
-
-        function updatePerformanceMetrics() {
-            if (window.analysisData && window.analysisData.performance_metrics) {
-                const metrics = window.analysisData.performance_metrics;
-
-                // Update throughput
-                const throughputEl = document.getElementById('throughput');
-                if (throughputEl && metrics.throughput_allocations_per_sec) {
-                    throughputEl.textContent = Math.round(metrics.throughput_allocations_per_sec).toLocaleString();
-                }
-            }
-        }
-
-        function initializeBinaryCharts() {
-            // Destroy existing charts first to prevent "Canvas is already in use" error
-            if (window.memoryChart) {
-                window.memoryChart.destroy();
-                window.memoryChart = null;
-            }
-            if (window.sizeChart) {
-                window.sizeChart.destroy();
-                window.sizeChart = null;
-            }
-            if (window.complexTypesChart) {
-                window.complexTypesChart.destroy();
-                window.complexTypesChart = null;
-            }
-            if (window.lifecycleChart) {
-                window.lifecycleChart.destroy();
-                window.lifecycleChart = null;
-            }
-
-            // Destroy all existing Chart.js instances
-            Object.values(Chart.instances).forEach(chart => {
-                if (chart) {
-                    chart.destroy();
-                }
-            });
-
-            // Clear canvas elements to ensure they're not tracked by Chart.js
-            const canvasElements = [
-                'memory-distribution-chart',
-                'allocation-size-chart',
-                'complex-types-chart',
-                'lifecycle-timeline-chart'
-            ];
-
-            canvasElements.forEach(id => {
-                const canvas = document.getElementById(id);
-                if (canvas) {
-                    // Remove from Chart.js registry
-                    const existingChart = Chart.getChart(canvas);
-                    if (existingChart) {
-                        existingChart.destroy();
-                    }
-                    // Clear canvas context and reset size
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        // Reset canvas size to force re-initialization
-                        canvas.width = canvas.offsetWidth;
-                        canvas.height = canvas.offsetHeight;
-                    }
-                }
-            });
-
-            // Initialize memory distribution chart
-            const memoryCtx = document.getElementById('memory-distribution-chart');
-            if (memoryCtx && window.analysisData) {
-                // Ensure canvas is clean before creating new chart
-                const existingChart = Chart.getChart(memoryCtx);
-                if (existingChart) {
-                    existingChart.destroy();
-                }
-
-                window.memoryChart = new Chart(memoryCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Active', 'Freed', 'Leaked'],
-                        datasets: [{
-                            data: [70, 25, 5],
-                            backgroundColor: ['#3b82f6', '#10b981', '#ef4444']
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false
-                    }
-                });
-            }
-
-            // Initialize allocation size chart
-            const sizeCtx = document.getElementById('allocation-size-chart');
-            if (sizeCtx && window.analysisData) {
-                // Ensure canvas is clean before creating new chart
-                const existingChart = Chart.getChart(sizeCtx);
-                if (existingChart) {
-                    existingChart.destroy();
-                }
-
-                window.sizeChart = new Chart(sizeCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['< 1KB', '1-10KB', '10-100KB', '> 100KB'],
-                        datasets: [{
-                            label: 'Allocations',
-                            data: [45, 30, 20, 5],
-                            backgroundColor: '#3b82f6'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false
-                    }
-                });
-            }
-
-            // Initialize complex types chart
-            const complexTypesCtx = document.getElementById('complex-types-chart');
-            if (complexTypesCtx) {
-                // Ensure canvas is clean before creating new chart
-                const existingChart = Chart.getChart(complexTypesCtx);
-                if (existingChart) {
-                    existingChart.destroy();
-                }
-
-                // Generate complex types data from allocations
-                const allocations = window.analysisData.memory_analysis?.allocations || [];
-                const complexTypesData = generateComplexTypesFromAllocations(allocations);
-
-                window.complexTypesChart = new Chart(complexTypesCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Smart Pointers', 'Collections', 'Generic Types', 'Primitive Types'],
-                        datasets: [{
-                            label: 'Count',
-                            data: [
-                                complexTypesData.smart_pointers,
-                                complexTypesData.collections,
-                                complexTypesData.generic_types,
-                                complexTypesData.primitive_types
-                            ],
-                            backgroundColor: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                beginAtZero: true
-                            }
-                        }
-                    }
-                });
-            }
-
-            // Initialize memory timeline chart
-            const memoryTimelineCtx = document.getElementById('memory-timeline-chart');
-            if (memoryTimelineCtx) {
-                const existingChart = Chart.getChart(memoryTimelineCtx);
-                if (existingChart) {
-                    existingChart.destroy();
-                }
-
-                const timelineData = window.analysisData.memory_analysis?.memory_timeline || [];
-                
-                // If no timeline data, generate sample data from allocations
-                if (timelineData.length === 0 && window.analysisData.memory_analysis?.allocations) {
-                    const allocations = window.analysisData.memory_analysis.allocations;
-                    const sampleTimeline = generateTimelineFromAllocations(allocations);
-                    if (sampleTimeline.length > 0) {
-                        timelineData.push(...sampleTimeline);
-                    }
-                }
-                
-                if (timelineData.length === 0) {
-                    // Show fallback message
-                    const fallback = document.getElementById('memory-timeline-fallback');
-                    if (fallback) {
-                        fallback.classList.remove('hidden');
-                        memoryTimelineCtx.style.display = 'none';
-                    }
-                    return;
-                }
-                
-                window.memoryTimelineChart = new Chart(memoryTimelineCtx, {
-                    type: 'line',
-                    data: {
-                        labels: timelineData.map(point => new Date(point.timestamp / 1000000).toLocaleTimeString()),
-                        datasets: [{
-                            label: 'Memory Usage (bytes)',
-                            data: timelineData.map(point => point.memory_usage),
-                            borderColor: '#3B82F6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            fill: true,
-                            tension: 0.4
-                        }, {
-                            label: 'Allocation Count',
-                            data: timelineData.map(point => point.allocation_count),
-                            borderColor: '#10B981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            fill: false,
-                            yAxisID: 'y1'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                title: {
-                                    display: true,
-                                    text: 'Memory Usage (bytes)'
-                                }
-                            },
-                            y1: {
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                title: {
-                                    display: true,
-                                    text: 'Allocation Count'
-                                },
-                                grid: {
-                                    drawOnChartArea: false,
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-
-            // Initialize lifecycle timeline chart
-            const lifecycleCtx = document.getElementById('lifecycle-timeline-chart');
-            if (lifecycleCtx && window.analysisData && window.analysisData.lifecycle_analysis) {
-                // Ensure canvas is clean before creating new chart
-                const existingChart = Chart.getChart(lifecycleCtx);
-                if (existingChart) {
-                    existingChart.destroy();
-                }
-
-                const events = window.analysisData.lifecycle_analysis.events || [];
-                console.log('📊 Lifecycle events found:', events.length);
-
-                if (events.length === 0) {
-                    console.log('⚠️ No lifecycle events found');
-                    lifecycleCtx.parentElement.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500"><p>No lifecycle data available</p></div>';
-                    return;
-                }
-
-                // Process events into timeline data
-                let cumulativeMemory = 0;
-                const timelineData = events.slice(0, 100).map((event, index) => {
-                    if (event.event_type === 'Allocation') {
-                        cumulativeMemory += event.size || 0;
-                    } else if (event.event_type === 'Deallocation') {
-                        cumulativeMemory -= event.size || 0;
-                    }
-                    return {
-                        x: index,
-                        y: Math.max(0, cumulativeMemory)
-                    };
-                });
-
-                window.lifecycleChart = new Chart(lifecycleCtx, {
-                    type: 'line',
-                    data: {
-                        datasets: [{
-                            label: 'Memory Usage Over Time',
-                            data: timelineData,
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            fill: true
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'linear',
-                                title: {
-                                    display: true,
-                                    text: 'Timeline'
-                                }
-                            },
-                            y: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Memory (bytes)'
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        }
-
-        function initializeComplexTypesAnalysis() {
-            console.log('Initializing Complex Types Analysis...');
-
-            if (!window.analysisData || !window.analysisData.complex_types) {
-                console.log('No complex types analysis data available');
-                return;
-            }
-
-            console.log('Complex types data found:', window.analysisData.complex_types);
-
-            const complexTypes = window.analysisData.complex_types;
-
-            // Update complex types summary statistics with safe access
-            const summary = complexTypes.summary || {};
-            const systemComplexTypesEl = document.getElementById('system-complex-types');
-            const systemSmartPointersEl = document.getElementById('system-smart-pointers');
-            const systemCollectionsEl = document.getElementById('system-collections');
-            const systemGenericTypesEl = document.getElementById('system-generic-types');
-            
-            if (systemComplexTypesEl) systemComplexTypesEl.textContent = summary.total_complex_types || 0;
-            if (systemSmartPointersEl) systemSmartPointersEl.textContent = summary.smart_pointers_count || 0;
-            if (systemCollectionsEl) systemCollectionsEl.textContent = summary.collections_count || 0;
-            if (systemGenericTypesEl) systemGenericTypesEl.textContent = summary.generic_types_count || 0;
-
-            // Populate complex types details
-            const complexTypesContainer = document.getElementById('complex-types-details');
-            if (complexTypesContainer && complexTypes.categorized_types) {
-                let detailsHtml = '';
-
-                // Smart Pointers
-                if (complexTypes.categorized_types.smart_pointers && complexTypes.categorized_types.smart_pointers.length > 0) {
-                    detailsHtml += `
-                        <div class="mb-6">
-                            <h4 class="text-lg font-medium mb-3 text-red-600">Smart Pointers</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                ${complexTypes.categorized_types.smart_pointers.slice(0, 6).map(type => `
-                                    <div class="bg-red-50 dark:bg-red-900 rounded-lg p-3">
-                                        <div class="font-medium text-red-800 dark:text-red-200">${type.type_name}</div>
-                                        <div class="text-sm text-red-600 dark:text-red-300">
-                                            Count: ${type.count} | Size: ${formatBytes(type.total_size)} | Complexity: ${type.complexity_score}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }
-
-                // Collections
-                if (complexTypes.categorized_types.collections && complexTypes.categorized_types.collections.length > 0) {
-                    detailsHtml += `
-                        <div class="mb-6">
-                            <h4 class="text-lg font-medium mb-3 text-blue-600">Collections</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                ${complexTypes.categorized_types.collections.slice(0, 6).map(type => `
-                                    <div class="bg-blue-50 dark:bg-blue-900 rounded-lg p-3">
-                                        <div class="font-medium text-blue-800 dark:text-blue-200">${type.type_name}</div>
-                                        <div class="text-sm text-blue-600 dark:text-blue-300">
-                                            Count: ${type.count} | Size: ${formatBytes(type.total_size)} | Complexity: ${type.complexity_score}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }
-
-                // Generic Types
-                if (complexTypes.categorized_types.generic_types && complexTypes.categorized_types.generic_types.length > 0) {
-                    detailsHtml += `
-                        <div class="mb-6">
-                            <h4 class="text-lg font-medium mb-3 text-green-600">Generic Types</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                ${complexTypes.categorized_types.generic_types.slice(0, 6).map(type => `
-                                    <div class="bg-green-50 dark:bg-green-900 rounded-lg p-3">
-                                        <div class="font-medium text-green-800 dark:text-green-200">${type.type_name}</div>
-                                        <div class="text-sm text-green-600 dark:text-green-300">
-                                            Count: ${type.count} | Size: ${formatBytes(type.total_size)} | Complexity: ${type.complexity_score}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }
-
-                complexTypesContainer.innerHTML = detailsHtml || '<p class="text-gray-500 text-center py-4">No complex types detected</p>';
-            }
-        }
-
-        function initializeFFIAnalysis() {
-            console.log('Initializing FFI Analysis...');
-
-            if (!window.analysisData || !window.analysisData.unsafe_ffi) {
-                console.log('No FFI analysis data available');
-                return;
-            }
-
-            const ffiData = window.analysisData.unsafe_ffi;
-            console.log('FFI Data:', ffiData);
-
-            // Update FFI summary statistics
-            const totalViolationsEl = document.getElementById('unsafe-ffi-count');
-            const riskLevelEl = document.getElementById('ffi-risk-level');
-            const unsafeOpsCountEl = document.getElementById('unsafe-operations-count');
-            const hotspotsCountEl = document.getElementById('security-hotspots-count');
-
-            if (totalViolationsEl) {
-                totalViolationsEl.textContent = ffiData.total_violations || ffiData.enhanced_ffi_data?.length || 0;
-            }
-            if (riskLevelEl) {
-                riskLevelEl.textContent = ffiData.risk_level || 'Low';
-            }
-            if (unsafeOpsCountEl) {
-                unsafeOpsCountEl.textContent = ffiData.unsafe_operations?.length || 0;
-            }
-            if (hotspotsCountEl) {
-                hotspotsCountEl.textContent = ffiData.security_hotspots?.length || 0;
-            }
-
-            // Populate unsafe operations table - support both unsafe_operations and enhanced_ffi_data
-            const unsafeTableBody = document.getElementById('unsafe-operations-table');
-            if (unsafeTableBody) {
-                // Use enhanced_ffi_data if available, otherwise fall back to unsafe_operations
-                const operations = ffiData.enhanced_ffi_data || ffiData.unsafe_operations || [];
-                
-                if (operations.length === 0) {
-                    unsafeTableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No unsafe operations detected</td></tr>';
-                } else {
-                    unsafeTableBody.innerHTML = operations.slice(0, 50).map(op => {
-                        // Handle both enhanced_ffi_data format and unsafe_operations format
-                        const ptr = op.ptr || `0x${op.id ? op.id.toString(16) : 'N/A'}`;
-                        const operationType = op.operation_type || 
-                                            (op.type_name?.includes('*') ? 'Raw Pointer' : 
-                                             op.type_name?.includes('libc') ? 'FFI Call' : 'Memory Operation');
-                        const riskLevel = op.risk_level || 
-                                         (op.safety_violations > 2 ? 'High' : 
-                                          op.safety_violations > 0 ? 'Medium' : 'Low');
-                        const location = op.location || op.var_name || 'Unknown';
-                        
-                        return `
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <td class="px-4 py-3 text-sm font-mono">${ptr}</td>
-                                <td class="px-4 py-3 text-sm">${operationType}</td>
-                                <td class="px-4 py-3 text-sm">
-                                    <span class="px-2 py-1 text-xs rounded-full ${riskLevel === 'High' ? 'bg-red-100 text-red-800' :
-                                riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-green-100 text-green-800'
-                            }">
-                                        ${riskLevel}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-sm">${location}</td>
-                            </tr>
-                        `;
-                    }).join('');
-                }
-            }
-
-            // Populate security hotspots
-            const hotspotsContainer = document.getElementById('security-hotspots');
-            if (hotspotsContainer && ffiData.security_hotspots) {
-                if (ffiData.security_hotspots.length === 0) {
-                    hotspotsContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No security hotspots detected</p>';
-                } else {
-                    hotspotsContainer.innerHTML = ffiData.security_hotspots.slice(0, 10).map(hotspot => `
-                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-3">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h4 class="font-medium text-gray-900 dark:text-white">${hotspot.location}</h4>
-                                    <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">${hotspot.description}</p>
-                                </div>
-                                <div class="text-right">
-                                    <div class="text-lg font-bold text-red-600">${hotspot.violation_count}</div>
-                                    <div class="text-xs text-gray-500">violations</div>
-                                </div>
-                            </div>
-                            <div class="mt-2">
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-red-600 h-2 rounded-full" style="width: ${Math.min(100, hotspot.risk_score * 10)}%"></div>
-                                </div>
-                                <div class="text-xs text-gray-500 mt-1">Risk Score: ${hotspot.risk_score}/10</div>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            }
-        }
-
-        function populateAllocationsTable() {
-            const tableBody = document.getElementById('allocations-table');
-            if (!tableBody || !window.analysisData) return;
-
-            const allocations = window.analysisData.memory_analysis?.allocations || [];
-
-            if (allocations.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No allocation data available</td></tr>';
-                return;
-            }
-
-            // Update summary statistics
-            updateSummaryStats(allocations);
-
-            // Populate table with first 100 allocations
-            const displayAllocations = allocations.slice(0, 100);
-            tableBody.innerHTML = displayAllocations.map(alloc => `
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-4 py-3 text-sm font-mono">0x${alloc.ptr ? alloc.ptr.toString(16) : 'N/A'}</td>
-                    <td class="px-4 py-3 text-sm">${alloc.var_name || 'unnamed'}</td>
-                    <td class="px-4 py-3 text-sm">${alloc.type_name || 'Unknown'}</td>
-                    <td class="px-4 py-3 text-sm text-right">${formatBytes(alloc.size || 0)}</td>
-                    <td class="px-4 py-3 text-sm text-center">
-                        ${generateExtensionsDisplay(alloc)}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-right">
-                        <span class="px-2 py-1 text-xs rounded-full ${alloc.is_leaked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
-                            ${alloc.is_leaked ? 'Leaked' : 'Active'}
-                        </span>
-                    </td>
-                </tr>
-            `).join('');
-
-            if (allocations.length > 100) {
-                tableBody.innerHTML += `
-                    <tr>
-                        <td colspan="6" class="px-4 py-3 text-center text-gray-500 text-sm">
-                            Showing first 100 of ${allocations.length.toLocaleString()} allocations
-                        </td>
-                    </tr>
-                `;
-            }
-        }
-
-        // Generate beautiful extensions display for improve.md fields
-        function generateExtensionsDisplay(alloc) {
-            const extensions = [];
-            
-            // Lifetime information with beautiful formatting
-            if (alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null) {
-                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" title="Variable lifetime">
-                    <i class="fa fa-clock-o mr-1"></i>${alloc.lifetime_ms}ms
-                </span>`);
-            }
-            
-            // Borrow information with detailed tooltip
-            if (alloc.borrow_info) {
-                const borrowInfo = alloc.borrow_info;
-                const totalBorrows = borrowInfo.immutable_borrows + borrowInfo.mutable_borrows;
-                const borrowColor = totalBorrows > 5 ? 'orange' : 'green';
-                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${borrowColor}-100 text-${borrowColor}-800 dark:bg-${borrowColor}-900 dark:text-${borrowColor}-200" 
-                    title="Borrows: ${borrowInfo.immutable_borrows} immutable, ${borrowInfo.mutable_borrows} mutable, max concurrent: ${borrowInfo.max_concurrent_borrows}">
-                    <i class="fa fa-share-alt mr-1"></i>${totalBorrows}
-                </span>`);
-            }
-            
-            // Clone information with visual indicators
-            if (alloc.clone_info) {
-                const cloneInfo = alloc.clone_info;
-                const cloneColor = cloneInfo.is_clone ? 'purple' : 'gray';
-                const cloneIcon = cloneInfo.is_clone ? 'fa-copy' : 'fa-file-o';
-                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-${cloneColor}-100 text-${cloneColor}-800 dark:bg-${cloneColor}-900 dark:text-${cloneColor}-200"
-                    title="Clone count: ${cloneInfo.clone_count}, is clone: ${cloneInfo.is_clone}, original: ${cloneInfo.original_ptr ? '0x' + cloneInfo.original_ptr.toString(16) : 'N/A'}">
-                    <i class="fa ${cloneIcon} mr-1"></i>${cloneInfo.clone_count}
-                </span>`);
-            }
-            
-            // Ownership history availability indicator
-            if (alloc.ownership_history_available) {
-                extensions.push(`<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" title="Ownership history available">
-                    <i class="fa fa-history mr-1"></i>History
-                </span>`);
-            }
-            
-            return extensions.length > 0 ? 
-                `<div class="flex flex-wrap gap-1 justify-center">${extensions.join('')}</div>` : 
-                '<span class="text-gray-400 text-xs">None</span>';
-        }
-
-        function updateSummaryStats(allocations) {
-            const totalAllocations = allocations.length;
-            const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
-            const activeAllocations = allocations.filter(alloc => !alloc.is_leaked).length;
-
-            document.getElementById('total-allocations').textContent = totalAllocations.toLocaleString();
-            document.getElementById('total-memory').textContent = formatBytes(totalMemory);
-            document.getElementById('active-allocations').textContent = activeAllocations.toLocaleString();
-            document.getElementById('peak-memory').textContent = formatBytes(totalMemory); // Simplified
-
-            // Update complex types stats
-            if (window.analysisData && window.analysisData.complex_types) {
-                const complexTypes = window.analysisData.complex_types;
-                const summary = complexTypes.summary || {};
-                document.getElementById('total-complex-types').textContent = summary.total_complex_types || 0;
-                document.getElementById('smart-pointers-count').textContent = summary.smart_pointers_count || 0;
-                document.getElementById('collections-count').textContent = summary.collections_count || 0;
-                document.getElementById('generic-types-count').textContent = summary.generic_types_count || 0;
-            }
-
-            // Update FFI stats
-            if (window.analysisData && window.analysisData.unsafe_ffi) {
-                const ffiData = window.analysisData.unsafe_ffi;
-                document.getElementById('unsafe-ffi-count').textContent = ffiData.total_violations || 0;
-                document.getElementById('ffi-risk-level').textContent = ffiData.risk_level || 'Low';
-                document.getElementById('security-hotspots-count').textContent = ffiData.security_hotspots?.length || 0;
-                document.getElementById('unsafe-operations-count').textContent = ffiData.unsafe_operations?.length || 0;
-
-                // Populate unsafe operations table
-                populateUnsafeOperationsTable(ffiData.unsafe_operations || []);
-            }
-
-            // Initialize variable relationship graph
-            if (window.analysisData && window.analysisData.variable_relationships) {
-                initializeVariableGraph(window.analysisData.variable_relationships);
-            }
-        }
-
-        function populateUnsafeOperationsTable(operations) {
-            const tableBody = document.getElementById('unsafe-operations-table');
-            if (!tableBody) return;
-
-            if (operations.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No unsafe operations detected</td></tr>';
-                return;
-            }
-
-            tableBody.innerHTML = operations.slice(0, 20).map(op => `
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-4 py-3 text-sm font-mono">${op.ptr || 'N/A'}</td>
-                    <td class="px-4 py-3 text-sm">${op.operation_type || 'Unknown'}</td>
-                    <td class="px-4 py-3 text-sm">
-                        <span class="px-2 py-1 text-xs rounded-full ${getRiskLevelClass(op.risk_level)}">
-                            ${op.risk_level || 'Unknown'}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-sm">${op.location || 'Unknown'}</td>
-                </tr>
-            `).join('');
-        }
-
-        function getRiskLevelClass(riskLevel) {
-            switch (riskLevel) {
-                case 'High': return 'bg-red-100 text-red-800';
-                case 'Medium': return 'bg-yellow-100 text-yellow-800';
-                case 'Low': return 'bg-green-100 text-green-800';
-                default: return 'bg-gray-100 text-gray-800';
-            }
-        }
-
-        function initializeVariableGraph(relationshipData) {
-            const container = document.getElementById('variable-graph-container');
-            if (!container || !relationshipData.nodes) return;
-
-            // Simple visualization using D3.js (if available) or fallback
-            if (typeof d3 !== 'undefined') {
-                // Clear previous content
-                d3.select(container).selectAll("*").remove();
-
-                const width = container.clientWidth;
-                const height = container.clientHeight;
-
-                const svg = d3.select(container)
-                    .append('svg')
-                    .attr('width', width)
-                    .attr('height', height);
-
-                // Create zoom behavior
-                const zoom = d3.zoom()
-                    .scaleExtent([0.1, 10])
-                    .on('zoom', function (event) {
-                        g.attr('transform', event.transform);
-                    });
-
-                svg.call(zoom);
-
-                // Create main group for zooming/panning
-                const g = svg.append('g');
-
-                // Create a simple force simulation
-                const simulation = d3.forceSimulation(relationshipData.nodes)
-                    .force('link', d3.forceLink(relationshipData.edges).id(d => d.id))
-                    .force('charge', d3.forceManyBody().strength(-300))
-                    .force('center', d3.forceCenter(width / 2, height / 2));
-
-                // Store references for external access
-                window.graphZoom = zoom;
-                window.graphSvg = svg;
-                window.graphSimulation = simulation;
-
-                // Add edges
-                const link = g.append('g')
-                    .selectAll('line')
-                    .data(relationshipData.edges)
-                    .enter().append('line')
-                    .attr('stroke', '#999')
-                    .attr('stroke-opacity', 0.6)
-                    .attr('stroke-width', 2);
-
-                // Create detail panel
-                const detailPanel = new NodeDetailPanel('variable-graph-container');
-
-                // Add nodes with click functionality
-                const nodeGroup = g.append('g')
-                    .selectAll('g')
-                    .data(relationshipData.nodes)
-                    .enter().append('g')
-                    .attr('class', 'graph-node')
-                    .call(d3.drag()
-                        .on('start', dragstarted)
-                        .on('drag', dragged)
-                        .on('end', dragended));
-
-                const node = nodeGroup.append('circle')
-                    .attr('r', d => Math.max(8, Math.min(25, Math.sqrt(d.size) / 10 + 5)))
-                    .attr('fill', d => d.color || '#3b82f6')
-                    .attr('stroke', '#fff')
-                    .attr('stroke-width', 2);
-
-                // Add click event to nodes
-                nodeGroup.on('click', function (event, d) {
-                    event.stopPropagation();
-                    console.log('Node clicked:', d.id, d);
-
-                    const position = {
-                        x: event.pageX,
-                        y: event.pageY
-                    };
-
-                    detailPanel.show(d, position);
-                });
-
-                // Click on empty space to hide panel
-                svg.on('click', function (event) {
-                    if (event.target === this) {
-                        detailPanel.hide();
-                    }
-                });
-
-                // Add labels to node groups
-                const label = nodeGroup.append('text')
-                    .text(d => d.name || d.id.substring(0, 8))
-                    .attr('font-size', '10px')
-                    .attr('font-family', 'Arial, sans-serif')
-                    .attr('fill', '#333')
-                    .attr('dx', 15)
-                    .attr('dy', 4)
-                    .style('pointer-events', 'none');
-
-                simulation.on('tick', () => {
-                    link
-                        .attr('x1', d => d.source.x)
-                        .attr('y1', d => d.source.y)
-                        .attr('x2', d => d.target.x)
-                        .attr('y2', d => d.target.y);
-
-                    nodeGroup
-                        .attr('transform', d => `translate(${d.x},${d.y})`);
-                });
-
-                function dragstarted(event, d) {
-                    if (!event.active) simulation.alphaTarget(0.3).restart();
-                    d.fx = d.x;
-                    d.fy = d.y;
-                }
-
-                function dragged(event, d) {
-                    d.fx = event.x;
-                    d.fy = event.y;
-                }
-
-                function dragended(event, d) {
-                    if (!event.active) simulation.alphaTarget(0);
-                    d.fx = null;
-                    d.fy = null;
-                }
-            } else {
-                // Fallback: show a simple text representation
-                container.innerHTML = `
-                    <div class="flex items-center justify-center h-full text-gray-500">
-                        <div class="text-center">
-                            <p class="mb-2">Variable Relationship Graph</p>
-                            <p class="text-sm">${relationshipData.nodes.length} nodes, ${relationshipData.edges.length} relationships</p>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-        }
-
-        // Generate timeline data from allocations if timeline data is not available
-        function generateTimelineFromAllocations(allocations) {
-            if (!allocations || allocations.length === 0) return [];
-            
-            // Sort allocations by timestamp
-            const sortedAllocs = allocations
-                .filter(alloc => alloc.timestamp_alloc)
-                .sort((a, b) => a.timestamp_alloc - b.timestamp_alloc);
-            
-            if (sortedAllocs.length === 0) return [];
-            
-            // Generate timeline points
-            let cumulativeMemory = 0;
-            const timeline = [];
-            const step = Math.max(1, Math.floor(sortedAllocs.length / 20)); // Max 20 points
-            
-            for (let i = 0; i < sortedAllocs.length; i += step) {
-                const alloc = sortedAllocs[i];
-                cumulativeMemory += alloc.size || 0;
-                
-                timeline.push({
-                    timestamp: alloc.timestamp_alloc,
-                    memory_usage: cumulativeMemory,
-                    allocation_count: i + 1
-                });
-            }
-            
-            return timeline;
-        }
-
-        function setupThemeToggle() {
-            const themeToggle = document.getElementById('theme-toggle');
-            if (themeToggle) {
-                themeToggle.addEventListener('click', function () {
-                    document.documentElement.classList.toggle('dark');
-                });
-            }
-
-            // Setup system data toggle
-            const systemDataToggle = document.getElementById('toggle-system-data');
-            const systemDataContent = document.getElementById('system-data-content');
-            if (systemDataToggle && systemDataContent) {
-                systemDataToggle.addEventListener('click', function () {
-                    systemDataContent.classList.toggle('hidden');
-                    const icon = systemDataToggle.querySelector('i');
-                    const text = systemDataToggle.querySelector('span');
-                    if (systemDataContent.classList.contains('hidden')) {
-                        icon.className = 'fa fa-chevron-down mr-1';
-                        text.textContent = 'Show System Data';
-                    } else {
-                        icon.className = 'fa fa-chevron-up mr-1';
-                        text.textContent = 'Hide System Data';
-                    }
-                });
-            }
-
-            // Setup lifecycle toggle
-            const lifecycleToggle = document.getElementById('toggle-lifecycle');
-            if (lifecycleToggle) {
-                lifecycleToggle.addEventListener('click', function () {
-                    const icon = lifecycleToggle.querySelector('i');
-                    const text = lifecycleToggle.querySelector('span');
-                    // Toggle functionality for lifecycle timeline
-                    if (text.textContent === 'Show All') {
-                        icon.className = 'fa fa-chevron-up mr-1';
-                        text.textContent = 'Hide Details';
-                    } else {
-                        icon.className = 'fa fa-chevron-down mr-1';
-                        text.textContent = 'Show All';
-                    }
-                });
-            }
-
-            // Setup allocations table toggle - Fixed implementation
-            const allocationsToggle = document.getElementById('toggle-allocations');
-            if (allocationsToggle) {
-                console.log('Setting up allocations toggle button');
-                // Ensure we call the function that sets up the toggle
-                setTimeout(() => {
-                    if (typeof initAllocationsTable === 'function') {
-                        initAllocationsTable();
-                    }
-                }, 100);
-            }
-
-            // Setup allocations table toggle
-            // Allocations toggle is handled by initAllocationsTable() function
-
-            // Setup graph controls
-            const resetZoom = document.getElementById('reset-zoom');
-            const autoLayout = document.getElementById('auto-layout');
-            if (resetZoom) {
-                resetZoom.addEventListener('click', function () {
-                    console.log('Reset zoom clicked');
-                    if (window.graphSvg && window.graphZoom) {
-                        window.graphSvg.transition().duration(750).call(
-                            window.graphZoom.transform,
-                            d3.zoomIdentity
-                        );
-                    }
-                });
-            }
-            if (autoLayout) {
-                autoLayout.addEventListener('click', function () {
-                    console.log('Auto layout clicked');
-                    if (window.graphSimulation) {
-                        window.graphSimulation.alpha(1).restart();
-                    }
-                });
-            }
-        }
-    </script>
+            initEnhancedLifecycleVisualization();
+            if (statusEl) statusEl.textContent = 'Data loaded and initialized!';
+          })
+          .catch(error => {
+            console.error('❌ Failed to load data:', error);
+            if (statusEl) statusEl.textContent = 'Failed to load data';
+          });
+      }
+    }
+
+    // Wait for all scripts to load, then initialize
+    function waitForDataAndInit() {
+      if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
+        safeInitEnhanced();
+      } else {
+        setTimeout(waitForDataAndInit, 200);
+      }
+    }
+    
+    // Initialize enhanced features after everything loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Setup manual initialize button
+      const manualBtn = document.getElementById('manual-init-btn');
+      if (manualBtn) {
+        manualBtn.addEventListener('click', manualInitialize);
+      }
+      
+      // Start checking for data immediately
+      waitForDataAndInit();
+    });
+  </script>
 </body>
-
 </html>

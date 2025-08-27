@@ -616,7 +616,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             if let Some(ownership_history_available) = allocation.ownership_history_available {
                 self.write_field_separator(field_count > 0)?;
                 self.write_field("ownership_history_available", if ownership_history_available { "true" } else { "false" })?;
-                field_count += 1;
+                // field_count is used for field separation logic
             }
         } else {
             self.stats.fields_skipped += 1;

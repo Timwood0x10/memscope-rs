@@ -30,6 +30,7 @@ mod integration_test_ffi_safety;
 mod integration_test_template_resources;
 #[cfg(test)]
 mod integration_test_variable_relationships;
+pub mod html_converter;
 mod memory_layout_serialization;
 mod parser;
 pub mod reader;
@@ -68,6 +69,7 @@ pub use ffi_safety_analyzer::{
     FfiCallGraph, FfiHotspot, FfiSafetyAnalysis, FfiSafetyAnalyzer, FfiSafetySummary,
     RiskAssessment, RiskLevel, UnsafeOperation, UnsafeOperationType,
 };
+pub use html_converter::*;
 pub use variable_relationship_analyzer::{
     GraphEdge, GraphNode, NodeCategory, OwnershipStatus, RelationshipGraph, RelationshipType,
     VariableRelationshipAnalysis, VariableRelationshipAnalyzer,

@@ -83,6 +83,7 @@ static ADAPTIVE_OPTIMIZER: LazyLock<std::sync::Mutex<AdaptivePerformanceOptimize
     LazyLock::new(|| std::sync::Mutex::new(AdaptivePerformanceOptimizer::default()));
 
 /// Global security violation analyzer instance
+#[allow(dead_code)]
 static SECURITY_ANALYZER: LazyLock<std::sync::Mutex<SecurityViolationAnalyzer>> =
     LazyLock::new(|| std::sync::Mutex::new(SecurityViolationAnalyzer::default()));
 
@@ -1037,6 +1038,7 @@ fn create_optimized_performance_analysis(
 }
 
 /// Create integrated memory analysis with all new pipeline components
+#[allow(dead_code)]
 fn create_integrated_memory_analysis(
     allocations: &[AllocationInfo],
     stats: &crate::core::types::MemoryStats,
@@ -1105,6 +1107,7 @@ fn create_integrated_memory_analysis(
 }
 
 /// Create integrated lifetime analysis with enhanced pipeline
+#[allow(dead_code)]
 fn create_integrated_lifetime_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
@@ -1235,6 +1238,7 @@ fn create_integrated_lifetime_analysis(
 }
 
 /// Create integrated unsafe FFI analysis with all enhanced features
+#[allow(dead_code)]
 fn create_integrated_unsafe_ffi_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
@@ -1376,6 +1380,7 @@ fn create_integrated_unsafe_ffi_analysis(
 }
 
 /// Create integrated performance analysis with all pipeline metrics
+#[allow(dead_code)]
 fn create_integrated_performance_analysis(
     allocations: &[AllocationInfo],
     stats: &crate::core::types::MemoryStats,
@@ -2140,6 +2145,7 @@ fn process_allocations_optimized(
 }
 
 /// Create security violation analysis with comprehensive context
+#[allow(dead_code)]
 fn create_security_violation_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,

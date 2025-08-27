@@ -59,19 +59,21 @@ fn benchmark_std_mutex_vs_optimized(c: &mut Criterion) {
 
 fn benchmark_hashmap_vs_sharded(c: &mut Criterion) {
     let mut group = c.benchmark_group("hashmap_comparison");
+    group.sample_size(15); // Reduce sample size for faster benchmarks
+    group.measurement_time(std::time::Duration::from_secs(6)); // Shorter measurement time
 
     // Standard HashMap with Mutex
     group.bench_function("std_hashmap_mutex", |b| {
         let map = Arc::new(Mutex::new(HashMap::<i32, String>::new()));
         b.iter(|| {
             let map_clone = map.clone();
-            let handles: Vec<_> = (0..10)
+            let handles: Vec<_> = (0..4) // Reduce thread count
                 .map(|i| {
                     let map = map_clone.clone();
                     thread::spawn(move || {
-                        for j in 0..100 {
-                            let key = i * 100 + j;
-                            let value = format!("value_{}", key);
+                        for j in 0..50 { // Reduce operations per thread
+                            let key = i * 50 + j;
+                            let value = format!("val_{}", key);
                             {
                                 let mut guard = map.lock().unwrap();
                                 guard.insert(key, value);

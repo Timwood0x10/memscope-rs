@@ -147,12 +147,26 @@ pub fn parse_binary_to_html_direct<P: AsRef<Path>>(
     html_path: P,
     project_name: &str,
 ) -> Result<BinaryHtmlExportStats, BinaryExportError> {
-    parse_binary_to_html_with_config(
-        binary_path,
-        html_path,
-        project_name,
-        &BinaryHtmlExportConfig::default(),
-    )
+    println!("🔄 parse_binary_to_html_direct called - using binary_dashboard.html template");
+    
+    // Use our new html_converter for binary dashboard template
+    crate::export::binary::html_converter::convert_binary_to_html(
+        binary_path.as_ref(),
+        html_path.as_ref(), 
+        project_name
+    )?;
+    
+    // Return dummy stats for compatibility
+    Ok(BinaryHtmlExportStats {
+        throughput_allocations_per_sec: 0.0,
+        memory_efficiency: 0.0,
+        writer_stats: BinaryHtmlStats::default(),
+        total_export_time_ms: 0,
+        binary_read_time_ms: 0,
+        html_generation_time_ms: 0,
+        file_size_bytes: 0,
+        strategy_used: ProcessingStrategy::Standard,
+    })
 }
 
 /// Binary to HTML conversion with custom configuration

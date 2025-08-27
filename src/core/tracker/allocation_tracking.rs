@@ -412,10 +412,17 @@ impl MemoryTracker {
         // Apply improve.md field enhancements based on type
         allocation.enhance_with_type_info(&type_name);
 
-        // Store the allocation directly instead of calling track_allocation
+        // Store the allocation and update stats
         match self.active_allocations.try_lock() {
             Ok(mut active) => {
-                active.insert(ptr, allocation);
+                active.insert(ptr, allocation.clone());
+                drop(active); // Release active lock before acquiring bounded_stats lock
+                
+                // CRITICAL FIX: Update bounded stats for synthetic allocations
+                if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
+                    bounded_stats.add_allocation(&allocation);
+                }
+                
                 tracing::debug!("Created synthetic allocation for '{}' ({}): ptr=0x{:x}, size={}", 
                                var_name, type_name, ptr, size);
                 Ok(())
@@ -463,7 +470,14 @@ impl MemoryTracker {
                     synthetic_allocation.enhance_with_type_info(&type_name);
                     
                     // Add to active allocations for tracking
-                    active.insert(ptr, synthetic_allocation);
+                    active.insert(ptr, synthetic_allocation.clone());
+                    
+                    // CRITICAL FIX: Update bounded stats for synthetic allocations
+                    drop(active); // Release active lock before acquiring bounded_stats lock
+                    if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
+                        bounded_stats.add_allocation(&synthetic_allocation);
+                    }
+                    
                     tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
                                    var_name, ptr, estimated_size);
                 }

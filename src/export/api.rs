@@ -98,6 +98,7 @@ pub struct ExportStats {
 /// Unified export interface - main API for all export operations
 pub struct Exporter {
     allocations: Arc<Vec<AllocationInfo>>,
+    #[allow(dead_code)]
     stats: Arc<MemoryStats>,
     config: ExportConfig,
 }

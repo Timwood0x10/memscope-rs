@@ -65,6 +65,10 @@ name = "binary_performance"
 harness = false
 
 [[bench]]
+name = "binary_export_performance"
+harness = false
+
+[[bench]]
 name = "lock_optimization_benchmark"
 harness = false
 
