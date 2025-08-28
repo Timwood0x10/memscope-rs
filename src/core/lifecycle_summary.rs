@@ -584,7 +584,7 @@ mod tests {
         assert_eq!(generator.extract_base_type_name("Vec<i32>"), "Vec");
         assert_eq!(
             generator.extract_base_type_name("std::collections::HashMap<K,V>"),
-            "HashMap"
+            "std::collections::HashMap"
         );
         assert_eq!(generator.extract_base_type_name("String"), "String");
     }

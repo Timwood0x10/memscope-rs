@@ -25,6 +25,9 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     // Transform the data structure to match JavaScript expectations
     let transformed_data = transform_json_data_structure(json_data)?;
 
+    // Generate safety risk data from the transformed allocations
+    let safety_risk_data = generate_safety_risk_data_from_json(&transformed_data)?;
+
     // Serialize the transformed JSON data for embedding with proper escaping
     let json_data_str = serde_json::to_string(&transformed_data)
         .map_err(|e| format!("Failed to serialize JSON data: {e}"))?;
@@ -102,7 +105,7 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         .ok_or("Failed to find JavaScript template file in any expected location")?;
 
     // Replace placeholders in the template with proper escaping
-    let html = template_content
+    let mut html = template_content
         .replace("{{ json_data }}", &json_data_str) // with spaces
         .replace("{{json_data}}", &json_data_str) // without spaces
         .replace("{{CSS_CONTENT}}", &css_content)
@@ -116,6 +119,9 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
             "{\n                {\n                CSS_CONTENT\n            }\n        }",
             &css_content,
         ); // alternative format
+
+    // Inject safety risk data into the HTML
+    html = inject_safety_risk_data_into_html(html, &safety_risk_data)?;
 
     tracing::info!(
         "✅ Generated HTML with {} bytes of embedded JSON data",
@@ -1063,4 +1069,217 @@ fn get_violation_severity(violation: &str) -> &'static str {
         v if v.contains("memory leak") || v.contains("uninitialized") => "medium",
         _ => "low",
     }
+}
+
+/// Generate safety risk data from JSON data structure
+fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String, Value>) -> Result<String, Box<dyn Error>> {
+    let mut safety_risks = Vec::new();
+    
+    // Extract allocations from memory_analysis
+    if let Some(memory_analysis) = transformed_data.get("memory_analysis") {
+        if let Some(allocations) = memory_analysis.get("allocations").and_then(|a| a.as_array()) {
+            for allocation in allocations {
+                // Check for potential unsafe operations based on allocation patterns
+                
+                // 1. Large allocations that might indicate unsafe buffer operations
+                if let Some(size) = allocation.get("size").and_then(|s| s.as_u64()) {
+                    if size > 1024 * 1024 { // > 1MB
+                        safety_risks.push(serde_json::json!({
+                            "location": format!("{}::{}", 
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                                allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
+                            "operation": "Large Memory Allocation",
+                            "risk_level": "Medium",
+                            "description": format!("Large allocation of {} bytes may indicate unsafe buffer operations", size)
+                        }));
+                    }
+                }
+                
+                // 2. Leaked memory indicates potential unsafe operations
+                if let Some(is_leaked) = allocation.get("is_leaked").and_then(|l| l.as_bool()) {
+                    if is_leaked {
+                        safety_risks.push(serde_json::json!({
+                            "location": format!("{}::{}", 
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                                allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
+                            "operation": "Memory Leak",
+                            "risk_level": "High",
+                            "description": "Memory leak detected - potential unsafe memory management"
+                        }));
+                    }
+                }
+                
+                // 3. High borrow count might indicate unsafe sharing
+                if let Some(borrow_count) = allocation.get("borrow_count").and_then(|b| b.as_u64()) {
+                    if borrow_count > 10 {
+                        safety_risks.push(serde_json::json!({
+                            "location": format!("{}::{}", 
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                                allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
+                            "operation": "High Borrow Count",
+                            "risk_level": "Medium",
+                            "description": format!("High borrow count ({}) may indicate unsafe sharing patterns", borrow_count)
+                        }));
+                    }
+                }
+                
+                // 4. Raw pointer types indicate direct unsafe operations
+                if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
+                    if type_name.contains("*mut") || type_name.contains("*const") {
+                        safety_risks.push(serde_json::json!({
+                            "location": format!("{}::{}", 
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                                allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
+                            "operation": "Raw Pointer Usage",
+                            "risk_level": "High",
+                            "description": format!("Raw pointer type '{}' requires unsafe operations", type_name)
+                        }));
+                    }
+                    
+                    // 5. FFI-related types
+                    if type_name.contains("CString") || type_name.contains("CStr") || 
+                       type_name.contains("c_void") || type_name.contains("extern") {
+                        safety_risks.push(serde_json::json!({
+                            "location": format!("{}::{}", 
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                                allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
+                            "operation": "FFI Boundary Crossing",
+                            "risk_level": "Medium",
+                            "description": format!("FFI type '{}' crosses safety boundaries", type_name)
+                        }));
+                    }
+                }
+                
+                // 6. Very short-lived allocations might indicate unsafe temporary operations
+                if let Some(lifetime_ms) = allocation.get("lifetime_ms").and_then(|l| l.as_u64()) {
+                    if lifetime_ms < 1 { // Less than 1ms
+                        safety_risks.push(serde_json::json!({
+                            "location": format!("{}::{}", 
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                                allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
+                            "operation": "Short-lived Allocation",
+                            "risk_level": "Low",
+                            "description": format!("Very short lifetime ({}ms) may indicate unsafe temporary operations", lifetime_ms)
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    
+    // Check unsafe_ffi data for additional risks
+    if let Some(unsafe_ffi) = transformed_data.get("unsafe_ffi") {
+        if let Some(safety_violations) = unsafe_ffi.get("safety_violations").and_then(|sv| sv.as_array()) {
+            for violation in safety_violations {
+                if let Some(violation_type) = violation.get("violation_type").and_then(|vt| vt.as_str()) {
+                    let severity = get_violation_severity(violation_type);
+                    let risk_level = match severity {
+                        "critical" => "High",
+                        "high" => "High", 
+                        "medium" => "Medium",
+                        _ => "Low"
+                    };
+                    
+                    safety_risks.push(serde_json::json!({
+                        "location": violation.get("location").and_then(|l| l.as_str()).unwrap_or("Unknown"),
+                        "operation": format!("Safety Violation: {}", violation_type),
+                        "risk_level": risk_level,
+                        "description": violation.get("description").and_then(|d| d.as_str()).unwrap_or("Safety violation detected")
+                    }));
+                }
+            }
+        }
+    }
+    
+    // If no risks found, add a placeholder to show the system is working
+    if safety_risks.is_empty() {
+        safety_risks.push(serde_json::json!({
+            "location": "Global Analysis",
+            "operation": "Safety Scan Complete",
+            "risk_level": "Low",
+            "description": "No significant safety risks detected in current allocations"
+        }));
+    }
+    
+    serde_json::to_string(&safety_risks)
+        .map_err(|e| format!("Failed to serialize safety risk data: {}", e).into())
+}
+
+/// Inject safety risk data into HTML template
+fn inject_safety_risk_data_into_html(mut html: String, safety_risk_data: &str) -> Result<String, Box<dyn Error>> {
+    // Find the DOMContentLoaded event listener and inject safety risk data before it
+    if let Some(dom_ready_start) = html.find("document.addEventListener('DOMContentLoaded', function() {") {
+        let injection_point = dom_ready_start;
+        let before = &html[..injection_point];
+        let after = &html[injection_point..];
+        
+        let safety_injection = format!(r#"
+    // Safety Risk Data Injection
+    window.safetyRisks = {};
+    
+    function loadSafetyRisks() {{
+        console.log('🛡️ Loading safety risk data...');
+        const unsafeTable = document.getElementById('unsafeTable');
+        if (!unsafeTable) {{
+            console.warn('⚠️ unsafeTable not found');
+            return;
+        }}
+        
+        const risks = window.safetyRisks || [];
+        if (risks.length === 0) {{
+            unsafeTable.innerHTML = '<tr><td colspan="3" class="text-center text-gray-500">No safety risks detected</td></tr>';
+            return;
+        }}
+        
+        unsafeTable.innerHTML = '';
+        risks.forEach((risk, index) => {{
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
+            
+            const riskLevelClass = risk.risk_level === 'High' ? 'text-red-600 font-bold' : 
+                                 risk.risk_level === 'Medium' ? 'text-yellow-600 font-semibold' : 
+                                 'text-green-600';
+            
+            row.innerHTML = `
+                <td class="px-3 py-2 text-sm">${{risk.location || 'Unknown'}}</td>
+                <td class="px-3 py-2 text-sm">${{risk.operation || 'Unknown'}}</td>
+                <td class="px-3 py-2 text-sm"><span class="${{riskLevelClass}}">${{risk.risk_level || 'Low'}}</span></td>
+            `;
+            unsafeTable.appendChild(row);
+        }});
+        
+        console.log('✅ Safety risks loaded:', risks.length, 'items');
+    }}
+    
+    "#, safety_risk_data);
+        
+        html = format!("{}{}{}", before, safety_injection, after);
+    } else {
+        tracing::warn!("⚠️ Could not find DOMContentLoaded event listener for safety risk injection");
+    }
+    
+    // Find and modify the existing initialization to include safety risk loading
+    if let Some(manual_init_start) = html.find("manualBtn.addEventListener('click', manualInitialize);") {
+        let after_manual_init = manual_init_start + "manualBtn.addEventListener('click', manualInitialize);".len();
+        let before = &html[..after_manual_init];
+        let after = &html[after_manual_init..];
+        
+        let safety_call_injection = r#"
+      
+      // Load safety risks after manual initialization
+      setTimeout(function() {
+        loadSafetyRisks();
+      }, 100);
+"#;
+        
+        html = format!("{}{}{}", before, safety_call_injection, after);
+    }
+    
+    // Also try to inject into any existing initialization functions
+    html = html.replace("console.log('✅ Enhanced dashboard initialized');", 
+                       "console.log('✅ Enhanced dashboard initialized'); loadSafetyRisks();");
+    
+    tracing::info!("📊 Safety risk data injected into HTML template");
+    
+    Ok(html)
 }

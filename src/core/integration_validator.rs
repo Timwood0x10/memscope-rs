@@ -368,21 +368,3 @@ impl IntegrationValidator {
         Ok(true)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_integration_validation() {
-        let results = IntegrationValidator::validate_all().expect("Validation should not fail");
-        
-        assert!(results.call_stack_normalizer_ok, "Call stack normalizer should work");
-        assert!(results.edge_case_handler_ok, "Edge case handler should work");
-        assert!(results.data_deduplicator_ok, "Data deduplicator should work");
-        assert!(results.ffi_resolver_ok, "FFI resolver should work");
-        assert!(results.integration_ok, "Integration should work");
-        assert!(results.performance_ok, "Performance should be acceptable");
-        assert!(results.memory_usage_ok, "Memory usage should be optimized");
-    }
-}

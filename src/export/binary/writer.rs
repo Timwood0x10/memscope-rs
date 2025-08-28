@@ -872,9 +872,12 @@ mod tests {
         // borrow_count: 4
         // is_leaked: 1
         // lifetime_ms: 1 byte flag (None) = 1
+        // borrow_info: 1 byte flag (None) = 1
+        // clone_info: 1 byte flag (None) = 1
+        // ownership_history_available: 1 byte = 1
         // JSON fields (14 fields * 1 byte flag each): 14
-        // Total: 24 + 1 + 12 + 7 + 4 + 8 + 4 + 4 + 1 + 1 + 14 = 80
-        assert_eq!(size, 80);
+        // Total: 24 + 1 + 12 + 7 + 4 + 8 + 4 + 4 + 1 + 1 + 1 + 1 + 1 + 14 = 83
+        assert_eq!(size, 83);
     }
 
     #[test]

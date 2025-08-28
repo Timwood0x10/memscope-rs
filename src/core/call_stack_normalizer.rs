@@ -559,14 +559,18 @@ mod tests {
 
     #[test]
     fn test_call_stack_ref() {
-        let normalizer = CallStackNormalizer::new(NormalizerConfig::default());
+        // Initialize global normalizer for this test
+        let config = NormalizerConfig::default();
+        let _global_normalizer = initialize_global_call_stack_normalizer(config);
 
         let frames = vec![
             create_test_stack_frame("main", 10),
             create_test_stack_frame("test", 20),
         ];
 
-        let id = normalizer
+        // Use global normalizer to normalize call stack
+        let global_normalizer = get_global_call_stack_normalizer();
+        let id = global_normalizer
             .normalize_call_stack(&frames)
             .expect("Failed to normalize call stack");
         let stack_ref = CallStackRef::new(id, Some(2));

@@ -1320,8 +1320,11 @@ mod tests {
         assert!(json_result.is_ok());
 
         let json_str = json_result.expect("Test operation failed");
-        assert!(json_str.contains("test_project"));
-        assert!(json_str.contains("binary_direct"));
+        // The project name is not directly in the JSON, it's used in template processing
+        // Check for actual content that should be in the serialized data
+        assert!(json_str.contains("memory_analysis"));
+        assert!(json_str.contains("Vec<u8>"));
+        assert!(json_str.contains("allocations"));
     }
 
     #[test]

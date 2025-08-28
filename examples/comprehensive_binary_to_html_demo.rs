@@ -550,7 +550,7 @@ fn create_deallocated_allocation(
 }
 
 /// Extract type parameters from generic type names
-fn extract_type_parameters(type_name: &str) -> Vec<String> {
+fn _extract_type_parameters(type_name: &str) -> Vec<String> {
     if let Some(start) = type_name.find('<') {
         if let Some(end) = type_name.rfind('>') {
             let params = &type_name[start + 1..end];
@@ -561,7 +561,7 @@ fn extract_type_parameters(type_name: &str) -> Vec<String> {
 }
 
 /// Extract parent types from type names
-fn extract_parent_types(type_name: &str) -> Vec<String> {
+fn _extract_parent_types(type_name: &str) -> Vec<String> {
     if type_name.contains("Arc") { vec!["Arc".to_string()] }
     else if type_name.contains("Rc") { vec!["Rc".to_string()] }
     else if type_name.contains("Box") { vec!["Box".to_string()] }
@@ -571,7 +571,7 @@ fn extract_parent_types(type_name: &str) -> Vec<String> {
 }
 
 /// Extract associated types from type names
-fn extract_associated_types(type_name: &str) -> Vec<String> {
+fn _extract_associated_types(type_name: &str) -> Vec<String> {
     let mut types = vec![];
     if type_name.contains("Iterator") { types.push("Item".to_string()); }
     if type_name.contains("Future") { types.push("Output".to_string()); }

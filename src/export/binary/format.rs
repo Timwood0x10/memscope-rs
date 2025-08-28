@@ -167,8 +167,10 @@ impl FileHeader {
         bytes[16] = self.export_mode; // 1 byte: export_mode
         bytes[17..19].copy_from_slice(&self.user_count.to_le_bytes()); // 2 bytes: user_count
         bytes[19..21].copy_from_slice(&self.system_count.to_le_bytes()); // 2 bytes: system_count
-        bytes[21] = self.reserved as u8; // 1 byte: reserved
-                                         // bytes[22..24] remain as padding (0x00)                          // 2 bytes: padding
+        bytes[21] = self.features_enabled; // 1 byte: features_enabled
+        bytes[22..24].copy_from_slice(&self.unsafe_report_count.to_le_bytes()[0..2]); // 2 bytes: unsafe_report_count (lower 16 bits)
+        bytes[24..28].copy_from_slice(&self.passport_count.to_le_bytes()); // 4 bytes: passport_count
+        bytes[28..30].copy_from_slice(&self.reserved.to_le_bytes()); // 2 bytes: reserved
 
         bytes
     }
@@ -183,8 +185,10 @@ impl FileHeader {
         let export_mode = bytes[16];
         let user_count = u16::from_le_bytes([bytes[17], bytes[18]]);
         let system_count = u16::from_le_bytes([bytes[19], bytes[20]]);
-        let reserved = bytes[21];
-        // bytes[22..24] are padding and ignored
+        let features_enabled = bytes[21];
+        let unsafe_report_count = u16::from_le_bytes([bytes[22], bytes[23]]) as u32;
+        let passport_count = u32::from_le_bytes([bytes[24], bytes[25], bytes[26], bytes[27]]);
+        let reserved = u16::from_le_bytes([bytes[28], bytes[29]]);
 
         Self {
             magic,
@@ -193,10 +197,10 @@ impl FileHeader {
             export_mode,
             user_count,
             system_count,
-            features_enabled: 0,
-            unsafe_report_count: 0,
-            passport_count: 0,
-            reserved: reserved.into(),
+            features_enabled,
+            unsafe_report_count,
+            passport_count,
+            reserved,
         }
     }
 }
@@ -430,9 +434,10 @@ mod tests {
 
         let expected_size = 1 + 4 + // Type + Length
                            8 + 8 + 8 + // ptr + size + timestamp
-                           4 + 8 + // var_name_len + var_name
-                           4 + 3 + // type_name_len + type_name
-                           4 + 4; // thread_id_len + thread_id
+                           4 + 8 + // var_name_len + var_name ("test_var" = 8 chars)
+                           4 + 3 + // type_name_len + type_name ("i32" = 3 chars)
+                           4 + 4 + // thread_id_len + thread_id ("main" = 4 chars)
+                           11; // Additional fields for improve.md extensions (8 + 1 + 1 + 1)
 
         assert_eq!(record.serialized_size(), expected_size);
     }

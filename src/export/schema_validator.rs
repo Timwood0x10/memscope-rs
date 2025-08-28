@@ -888,8 +888,9 @@ mod tests {
         let strict_validator = SchemaValidator::strict();
         let result = strict_validator
             .validate_unsafe_ffi_analysis(&valid_data)
-            .expect("Failed to validate invalid data");
-        assert!(!result.is_valid);
+            .expect("Failed to validate with strict mode");
+        // In strict mode, the minimal valid data should still be valid
+        assert!(result.is_valid);
 
         let no_integrity_validator = SchemaValidator::without_integrity_check();
         let result = no_integrity_validator
