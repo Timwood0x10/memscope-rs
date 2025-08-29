@@ -6,6 +6,7 @@ pub mod binary;
 pub mod complex_type_export;
 pub mod config_optimizer;
 pub mod data_localizer;
+pub mod enhanced_json_exporter;
 pub mod error_handling;
 pub mod error_recovery;
 pub mod export_enhanced;
@@ -21,7 +22,6 @@ pub mod schema_validator;
 pub mod streaming_json_writer;
 pub mod system_optimizer;
 pub mod visualization;
-pub mod enhanced_json_exporter;
 
 // Lifecycle exporter for detailed ownership tracking
 pub mod lifecycle_exporter;

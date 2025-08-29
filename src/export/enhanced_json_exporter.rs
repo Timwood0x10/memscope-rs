@@ -5,8 +5,8 @@
 //! 2. lifetime.json - Ownership history and lifecycle events  
 //! 3. unsafe_ffi.json - FFI safety analysis and memory passports
 
+use crate::analysis::unsafe_ffi_tracker::MemoryPassport;
 use crate::core::types::{AllocationInfo, BorrowInfo, CloneInfo, MemoryStats, TrackingResult};
-use crate::analysis::unsafe_ffi_tracker::{MemoryPassport};
 use crate::UnsafeReport;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -115,14 +115,19 @@ impl EnhancedJsonExporter {
         memory_passports: &[MemoryPassport],
     ) -> TrackingResult<()> {
         let output_dir = output_dir.as_ref();
-        
-        tracing::info!("🚀 Starting enhanced JSON export to: {}", output_dir.display());
-        
+
+        tracing::info!(
+            "🚀 Starting enhanced JSON export to: {}",
+            output_dir.display()
+        );
+
         // Create output directory if it doesn't exist
-        std::fs::create_dir_all(output_dir)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(
-                format!("Failed to create output directory: {}", e)
-            ))?;
+        std::fs::create_dir_all(output_dir).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to create output directory: {}",
+                e
+            ))
+        })?;
 
         // 1. Export main memory analysis with extended fields
         self.export_memory_analysis(output_dir, memory_stats)?;
@@ -148,7 +153,7 @@ impl EnhancedJsonExporter {
         memory_stats: &MemoryStats,
     ) -> TrackingResult<()> {
         let output_path = output_dir.as_ref().join("memory_analysis.json");
-        
+
         tracing::info!("📊 Exporting memory analysis to: {}", output_path.display());
 
         // Convert AllocationInfo to EnhancedAllocationInfo with improve.md fields
@@ -185,8 +190,11 @@ impl EnhancedJsonExporter {
 
         // Write to file
         self.write_json_file(&output_path, &analysis_data)?;
-        
-        tracing::info!("✅ Memory analysis exported: {} allocations", enhanced_allocations.len());
+
+        tracing::info!(
+            "✅ Memory analysis exported: {} allocations",
+            enhanced_allocations.len()
+        );
         Ok(())
     }
 
@@ -197,7 +205,7 @@ impl EnhancedJsonExporter {
         memory_stats: &MemoryStats,
     ) -> TrackingResult<()> {
         let output_path = output_dir.as_ref().join("lifetime.json");
-        
+
         tracing::info!("🔄 Exporting lifetime data to: {}", output_path.display());
 
         // Generate lifetime data for allocations that have ownership history
@@ -222,8 +230,11 @@ impl EnhancedJsonExporter {
         });
 
         self.write_json_file(&output_path, &lifetime_export)?;
-        
-        tracing::info!("✅ Lifetime data exported: {} tracked allocations", lifetime_data.len());
+
+        tracing::info!(
+            "✅ Lifetime data exported: {} tracked allocations",
+            lifetime_data.len()
+        );
         Ok(())
     }
 
@@ -235,8 +246,11 @@ impl EnhancedJsonExporter {
         memory_passports: &[MemoryPassport],
     ) -> TrackingResult<()> {
         let output_path = output_dir.as_ref().join("unsafe_ffi.json");
-        
-        tracing::info!("🛡️ Exporting unsafe FFI analysis to: {}", output_path.display());
+
+        tracing::info!(
+            "🛡️ Exporting unsafe FFI analysis to: {}",
+            output_path.display()
+        );
 
         let unsafe_ffi_export = serde_json::json!({
             "metadata": {
@@ -254,9 +268,12 @@ impl EnhancedJsonExporter {
         });
 
         self.write_json_file(&output_path, &unsafe_ffi_export)?;
-        
-        tracing::info!("✅ Unsafe FFI analysis exported: {} reports, {} passports", 
-                      unsafe_reports.len(), memory_passports.len());
+
+        tracing::info!(
+            "✅ Unsafe FFI analysis exported: {} reports, {} passports",
+            unsafe_reports.len(),
+            memory_passports.len()
+        );
         Ok(())
     }
 
@@ -307,7 +324,7 @@ impl EnhancedJsonExporter {
                         serde_json::Value::Number(serde_json::Number::from(original_ptr)),
                     );
                 }
-                
+
                 ownership_history.push(OwnershipEvent {
                     timestamp: alloc.timestamp_alloc + 1000, // Simulate clone timestamp
                     event_type: "Cloned".to_string(),
@@ -319,13 +336,14 @@ impl EnhancedJsonExporter {
 
         // Generate Borrow events if applicable
         if let Some(borrow_info) = &alloc.borrow_info {
-            for i in 0..borrow_info.immutable_borrows.min(5) { // Limit to 5 for demo
+            for i in 0..borrow_info.immutable_borrows.min(5) {
+                // Limit to 5 for demo
                 let mut borrow_details = HashMap::new();
                 borrow_details.insert(
                     "borrower_scope".to_string(),
                     serde_json::Value::String(format!("scope_{}", i)),
                 );
-                
+
                 ownership_history.push(OwnershipEvent {
                     timestamp: alloc.timestamp_alloc + 2000 + (i as u64 * 1000),
                     event_type: "Borrowed".to_string(),
@@ -365,14 +383,20 @@ impl EnhancedJsonExporter {
         } else {
             serde_json::to_string(data)
         }
-        .map_err(|e| crate::core::types::TrackingError::SerializationError(
-            format!("Failed to serialize JSON: {}", e)
-        ))?;
+        .map_err(|e| {
+            crate::core::types::TrackingError::SerializationError(format!(
+                "Failed to serialize JSON: {}",
+                e
+            ))
+        })?;
 
-        std::fs::write(&path, json_string)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(
-                format!("Failed to write file {}: {}", path.as_ref().display(), e)
-            ))?;
+        std::fs::write(&path, json_string).map_err(|e| {
+            crate::core::types::TrackingError::ExportError(format!(
+                "Failed to write file {}: {}",
+                path.as_ref().display(),
+                e
+            ))
+        })?;
 
         Ok(())
     }
@@ -403,7 +427,7 @@ mod tests {
     #[test]
     fn test_enhanced_allocation_conversion() {
         let exporter = EnhancedJsonExporter::default();
-        
+
         let mut alloc = AllocationInfo::new(0x1000, 64);
         alloc.borrow_info = Some(BorrowInfo {
             immutable_borrows: 5,
@@ -419,7 +443,7 @@ mod tests {
         alloc.ownership_history_available = true;
 
         let enhanced = exporter.convert_to_enhanced_allocation(&alloc);
-        
+
         assert_eq!(enhanced.ptr, 0x1000);
         assert_eq!(enhanced.size, 64);
         assert!(enhanced.borrow_info.is_some());
@@ -430,7 +454,7 @@ mod tests {
     #[test]
     fn test_lifetime_data_generation() {
         let exporter = EnhancedJsonExporter::default();
-        
+
         let mut alloc = AllocationInfo::new(0x1000, 64);
         alloc.borrow_info = Some(BorrowInfo {
             immutable_borrows: 2,
@@ -441,12 +465,13 @@ mod tests {
         alloc.ownership_history_available = true;
 
         let lifetime_data = exporter.generate_lifetime_data(&alloc);
-        
+
         assert_eq!(lifetime_data.allocation_ptr, 0x1000);
         assert!(!lifetime_data.ownership_history.is_empty());
-        
+
         // Should have at least Allocated event
-        let allocated_event = lifetime_data.ownership_history
+        let allocated_event = lifetime_data
+            .ownership_history
             .iter()
             .find(|e| e.event_type == "Allocated");
         assert!(allocated_event.is_some());

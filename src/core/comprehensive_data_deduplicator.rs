@@ -7,14 +7,14 @@
 //! - Uses safe_operations for lock handling
 //! - Uses unwrap_safe for error handling
 
-use crate::core::types::TrackingResult;
-use crate::core::safe_operations::SafeLock;
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
+use crate::core::safe_operations::SafeLock;
+use crate::core::types::TrackingResult;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
 
 /// Configuration for data deduplication
 #[derive(Debug, Clone)]
@@ -164,7 +164,7 @@ impl ComprehensiveDataDeduplicator {
             let mut updated_ref = existing_ref.clone();
             updated_ref.ref_count += 1;
             self.string_refs.insert(hash, updated_ref.clone());
-            
+
             self.update_stats_string_dedup();
             tracing::debug!("🔄 String deduplicated: hash={}", hash);
             return Ok(updated_ref);
@@ -192,7 +192,11 @@ impl ComprehensiveDataDeduplicator {
         // Skip cleanup for better performance in demo
         // self.maybe_cleanup();
 
-        tracing::debug!("🔄 New string stored: hash={}, length={}", hash, input.len());
+        tracing::debug!(
+            "🔄 New string stored: hash={}, length={}",
+            hash,
+            input.len()
+        );
         Ok(dedup_ref)
     }
 
@@ -209,20 +213,26 @@ impl ComprehensiveDataDeduplicator {
         // Try compressed storage
         if let Some(compressed) = self.compressed_storage.get(&hash) {
             let decompressed = self.decompress_data(&compressed)?;
-            let string = String::from_utf8(decompressed)
-                .map_err(|e| crate::core::types::TrackingError::DataError(
-                    format!("Failed to decode decompressed string: {}", e)
-                ))?;
+            let string = String::from_utf8(decompressed).map_err(|e| {
+                crate::core::types::TrackingError::DataError(format!(
+                    "Failed to decode decompressed string: {}",
+                    e
+                ))
+            })?;
             return Ok(Arc::new(string));
         }
 
-        Err(crate::core::types::TrackingError::DataError(
-            format!("String with hash {} not found", hash)
-        ))
+        Err(crate::core::types::TrackingError::DataError(format!(
+            "String with hash {} not found",
+            hash
+        )))
     }
 
     /// Deduplicate a stack trace
-    pub fn deduplicate_stack_trace(&self, frames: &[StackFrame]) -> TrackingResult<DeduplicatedStackTrace> {
+    pub fn deduplicate_stack_trace(
+        &self,
+        frames: &[StackFrame],
+    ) -> TrackingResult<DeduplicatedStackTrace> {
         if !self.config.enable_stack_dedup {
             return Ok(DeduplicatedStackTrace {
                 hash: self.calculate_stack_hash(frames),
@@ -239,7 +249,7 @@ impl ComprehensiveDataDeduplicator {
             let mut updated_ref = existing_ref.clone();
             updated_ref.ref_count += 1;
             self.stack_refs.insert(hash, updated_ref.clone());
-            
+
             self.update_stats_stack_dedup();
             tracing::debug!("🔄 Stack trace deduplicated: hash={}", hash);
             return Ok(updated_ref);
@@ -268,12 +278,19 @@ impl ComprehensiveDataDeduplicator {
 
         self.maybe_cleanup();
 
-        tracing::debug!("🔄 New stack trace stored: hash={}, frames={}", hash, frames.len());
+        tracing::debug!(
+            "🔄 New stack trace stored: hash={}, frames={}",
+            hash,
+            frames.len()
+        );
         Ok(dedup_ref)
     }
 
     /// Retrieve deduplicated stack trace
-    pub fn get_stack_trace(&self, dedup_ref: &DeduplicatedStackTrace) -> TrackingResult<Arc<Vec<StackFrame>>> {
+    pub fn get_stack_trace(
+        &self,
+        dedup_ref: &DeduplicatedStackTrace,
+    ) -> TrackingResult<Arc<Vec<StackFrame>>> {
         let hash = dedup_ref.hash;
         self.update_access_frequency(hash);
 
@@ -289,13 +306,17 @@ impl ComprehensiveDataDeduplicator {
             return Ok(Arc::new(frames));
         }
 
-        Err(crate::core::types::TrackingError::DataError(
-            format!("Stack trace with hash {} not found", hash)
-        ))
+        Err(crate::core::types::TrackingError::DataError(format!(
+            "Stack trace with hash {} not found",
+            hash
+        )))
     }
 
     /// Deduplicate metadata
-    pub fn deduplicate_metadata(&self, metadata: &HashMap<String, String>) -> TrackingResult<DeduplicatedMetadata> {
+    pub fn deduplicate_metadata(
+        &self,
+        metadata: &HashMap<String, String>,
+    ) -> TrackingResult<DeduplicatedMetadata> {
         if !self.config.enable_metadata_dedup {
             return Ok(DeduplicatedMetadata {
                 hash: self.calculate_metadata_hash(metadata),
@@ -312,7 +333,7 @@ impl ComprehensiveDataDeduplicator {
             let mut updated_ref = existing_ref.clone();
             updated_ref.ref_count += 1;
             self.metadata_refs.insert(hash, updated_ref.clone());
-            
+
             self.update_stats_metadata_dedup();
             tracing::debug!("🔄 Metadata deduplicated: hash={}", hash);
             return Ok(updated_ref);
@@ -327,10 +348,11 @@ impl ComprehensiveDataDeduplicator {
         };
 
         // Check if compression is needed
-        let serialized_size = metadata.iter()
+        let serialized_size = metadata
+            .iter()
             .map(|(k, v)| k.len() + v.len())
             .sum::<usize>();
-        
+
         if self.config.enable_compression && serialized_size > self.config.compression_threshold {
             let serialized = self.serialize_metadata(metadata)?;
             let compressed = self.compress_data(&serialized)?;
@@ -344,12 +366,19 @@ impl ComprehensiveDataDeduplicator {
 
         self.maybe_cleanup();
 
-        tracing::debug!("🔄 New metadata stored: hash={}, entries={}", hash, metadata.len());
+        tracing::debug!(
+            "🔄 New metadata stored: hash={}, entries={}",
+            hash,
+            metadata.len()
+        );
         Ok(dedup_ref)
     }
 
     /// Retrieve deduplicated metadata
-    pub fn get_metadata(&self, dedup_ref: &DeduplicatedMetadata) -> TrackingResult<Arc<HashMap<String, String>>> {
+    pub fn get_metadata(
+        &self,
+        dedup_ref: &DeduplicatedMetadata,
+    ) -> TrackingResult<Arc<HashMap<String, String>>> {
         let hash = dedup_ref.hash;
         self.update_access_frequency(hash);
 
@@ -365,9 +394,10 @@ impl ComprehensiveDataDeduplicator {
             return Ok(Arc::new(metadata));
         }
 
-        Err(crate::core::types::TrackingError::DataError(
-            format!("Metadata with hash {} not found", hash)
-        ))
+        Err(crate::core::types::TrackingError::DataError(format!(
+            "Metadata with hash {} not found",
+            hash
+        )))
     }
 
     /// Get deduplication statistics
@@ -375,13 +405,15 @@ impl ComprehensiveDataDeduplicator {
         match self.stats.safe_lock() {
             Ok(stats) => {
                 let mut result = stats.clone();
-                
+
                 // Calculate cache hit rate
                 if result.total_operations > 0 {
-                    let total_dedups = result.strings_deduplicated + result.stack_traces_deduplicated + result.metadata_deduplicated;
+                    let total_dedups = result.strings_deduplicated
+                        + result.stack_traces_deduplicated
+                        + result.metadata_deduplicated;
                     result.cache_hit_rate = total_dedups as f64 / result.total_operations as f64;
                 }
-                
+
                 Ok(result)
             }
             Err(e) => {
@@ -438,11 +470,11 @@ impl ComprehensiveDataDeduplicator {
     fn calculate_metadata_hash(&self, metadata: &HashMap<String, String>) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         let mut hasher = DefaultHasher::new();
-        
+
         // Sort keys for consistent hashing
         let mut sorted_pairs: Vec<_> = metadata.iter().collect();
         sorted_pairs.sort_by_key(|(k, _)| *k);
-        
+
         for (key, value) in sorted_pairs {
             key.hash(&mut hasher);
             value.hash(&mut hasher);
@@ -466,7 +498,7 @@ impl ComprehensiveDataDeduplicator {
             Ok(compressed[11..].to_vec())
         } else {
             Err(crate::core::types::TrackingError::DataError(
-                "Invalid compressed data format".to_string()
+                "Invalid compressed data format".to_string(),
             ))
         }
     }
@@ -481,11 +513,13 @@ impl ComprehensiveDataDeduplicator {
     /// Deserialize stack frames
     fn deserialize_stack_frames(&self, data: &[u8]) -> TrackingResult<Vec<StackFrame>> {
         // Simulate deserialization
-        let _serialized = String::from_utf8(data.to_vec())
-            .map_err(|e| crate::core::types::TrackingError::DataError(
-                format!("Failed to decode serialized stack frames: {}", e)
-            ))?;
-        
+        let _serialized = String::from_utf8(data.to_vec()).map_err(|e| {
+            crate::core::types::TrackingError::DataError(format!(
+                "Failed to decode serialized stack frames: {}",
+                e
+            ))
+        })?;
+
         // Return empty frames for simulation
         Ok(Vec::new())
     }
@@ -500,11 +534,13 @@ impl ComprehensiveDataDeduplicator {
     /// Deserialize metadata
     fn deserialize_metadata(&self, data: &[u8]) -> TrackingResult<HashMap<String, String>> {
         // Simulate deserialization
-        let _serialized = String::from_utf8(data.to_vec())
-            .map_err(|e| crate::core::types::TrackingError::DataError(
-                format!("Failed to decode serialized metadata: {}", e)
-            ))?;
-        
+        let _serialized = String::from_utf8(data.to_vec()).map_err(|e| {
+            crate::core::types::TrackingError::DataError(format!(
+                "Failed to decode serialized metadata: {}",
+                e
+            ))
+        })?;
+
         // Return empty metadata for simulation
         Ok(HashMap::new())
     }
@@ -519,9 +555,11 @@ impl ComprehensiveDataDeduplicator {
 
     /// Maybe trigger cleanup based on thresholds
     fn maybe_cleanup(&self) {
-        let total_items = self.string_storage.len() + self.stack_storage.len() + self.metadata_storage.len();
-        let threshold = (self.config.max_cache_size as f64 * self.config.cleanup_threshold) as usize;
-        
+        let total_items =
+            self.string_storage.len() + self.stack_storage.len() + self.metadata_storage.len();
+        let threshold =
+            (self.config.max_cache_size as f64 * self.config.cleanup_threshold) as usize;
+
         if total_items > threshold {
             self.cleanup_least_used();
         }
@@ -530,22 +568,23 @@ impl ComprehensiveDataDeduplicator {
     /// Cleanup least used items
     fn cleanup_least_used(&self) {
         let target_size = self.config.max_cache_size / 2; // Clean to 50% capacity
-        
+
         // Collect access frequencies
-        let mut frequencies: Vec<(u64, u64)> = self.access_frequency
+        let mut frequencies: Vec<(u64, u64)> = self
+            .access_frequency
             .iter()
             .map(|entry| (*entry.key(), *entry.value()))
             .collect();
-        
+
         // Sort by frequency (ascending - least used first)
         frequencies.sort_by_key(|(_, freq)| *freq);
-        
+
         let mut removed_count = 0;
         for (hash, _) in frequencies.iter() {
             if removed_count >= target_size {
                 break;
             }
-            
+
             // Remove from all storages
             self.string_storage.remove(hash);
             self.string_refs.remove(hash);
@@ -555,10 +594,10 @@ impl ComprehensiveDataDeduplicator {
             self.metadata_refs.remove(hash);
             self.compressed_storage.remove(hash);
             self.access_frequency.remove(hash);
-            
+
             removed_count += 1;
         }
-        
+
         self.update_stats_cleanup(removed_count);
         tracing::info!("🔄 Cleaned up {} least used items", removed_count);
     }
@@ -569,7 +608,7 @@ impl ComprehensiveDataDeduplicator {
         // if !self.config.enable_stats {
         //     return;
         // }
-        // 
+        //
         // match self.stats.safe_lock() {
         //     Ok(mut stats) => {
         //         stats.strings_deduplicated += 1;
@@ -585,7 +624,7 @@ impl ComprehensiveDataDeduplicator {
         if !self.config.enable_stats {
             return;
         }
-        
+
         match self.stats.safe_lock() {
             Ok(mut stats) => {
                 stats.stack_traces_deduplicated += 1;
@@ -601,7 +640,7 @@ impl ComprehensiveDataDeduplicator {
         if !self.config.enable_stats {
             return;
         }
-        
+
         match self.stats.safe_lock() {
             Ok(mut stats) => {
                 stats.metadata_deduplicated += 1;
@@ -621,7 +660,7 @@ impl ComprehensiveDataDeduplicator {
         if !self.config.enable_stats {
             return;
         }
-        
+
         match self.stats.safe_lock() {
             Ok(mut stats) => {
                 stats.cleanup_operations += removed_count as u64;
@@ -640,12 +679,18 @@ static GLOBAL_DATA_DEDUPLICATOR: std::sync::OnceLock<Arc<ComprehensiveDataDedupl
 /// Get global comprehensive data deduplicator instance
 pub fn get_global_data_deduplicator() -> Arc<ComprehensiveDataDeduplicator> {
     GLOBAL_DATA_DEDUPLICATOR
-        .get_or_init(|| Arc::new(ComprehensiveDataDeduplicator::new(DeduplicationConfig::default())))
+        .get_or_init(|| {
+            Arc::new(ComprehensiveDataDeduplicator::new(
+                DeduplicationConfig::default(),
+            ))
+        })
         .clone()
 }
 
 /// Initialize global comprehensive data deduplicator with custom config
-pub fn initialize_global_data_deduplicator(config: DeduplicationConfig) -> Arc<ComprehensiveDataDeduplicator> {
+pub fn initialize_global_data_deduplicator(
+    config: DeduplicationConfig,
+) -> Arc<ComprehensiveDataDeduplicator> {
     let deduplicator = Arc::new(ComprehensiveDataDeduplicator::new(config));
     match GLOBAL_DATA_DEDUPLICATOR.set(deduplicator.clone()) {
         Ok(_) => tracing::info!("🔄 Global comprehensive data deduplicator initialized"),

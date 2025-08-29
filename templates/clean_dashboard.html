@@ -2629,9 +2629,39 @@
 
         container.innerHTML = '';
 
-        const width = container.clientWidth;
-        const height = container.clientHeight;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
         const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+
+        // 获取当前缩放比例
+        const scaleSlider = document.getElementById('memoryDistScale');
+        const scale = scaleSlider ? parseFloat(scaleSlider.value) / 100 : 1;
+        
+        // 计算实际可用宽度（考虑缩放和边距）
+        const padding = 20;
+        const availableWidth = (containerWidth - padding * 2) * scale;
+        const availableHeight = containerHeight - padding * 2;
+
+        // 创建一个可滚动的内容容器
+        const contentContainer = document.createElement('div');
+        contentContainer.style.cssText = `
+          position: absolute;
+          top: ${padding}px;
+          left: ${padding}px;
+          width: ${Math.max(availableWidth, containerWidth - padding * 2)}px;
+          height: ${availableHeight}px;
+          overflow-x: auto;
+          overflow-y: hidden;
+        `;
+
+        // 创建内存块容器
+        const blocksContainer = document.createElement('div');
+        blocksContainer.style.cssText = `
+          position: relative;
+          width: ${availableWidth}px;
+          height: 100%;
+          min-width: ${containerWidth - padding * 2}px;
+        `;
 
         let currentX = 0;
         let fragmentation = 0;
@@ -2644,41 +2674,83 @@
           return addrA - addrB;
         });
 
+        // 计算每个块的最小宽度和总宽度需求
+        const minBlockWidth = 3; // 最小块宽度
+        const blockGap = 1;
+        let totalRequiredWidth = 0;
+
+        sortedAllocs.forEach((alloc) => {
+          const proportionalWidth = (alloc.size || 0) / totalMemory * availableWidth;
+          const blockWidth = Math.max(proportionalWidth, minBlockWidth);
+          totalRequiredWidth += blockWidth + blockGap;
+        });
+
+        // 如果总宽度超过可用宽度，调整容器宽度
+        const finalContainerWidth = Math.max(totalRequiredWidth, availableWidth);
+        blocksContainer.style.width = `${finalContainerWidth}px`;
+
         sortedAllocs.forEach((alloc, index) => {
-          const blockWidth = Math.max((alloc.size || 0) / totalMemory * width, 2);
-          const blockHeight = height * 0.8;
+          const proportionalWidth = (alloc.size || 0) / totalMemory * availableWidth;
+          const blockWidth = Math.max(proportionalWidth, minBlockWidth);
+          const blockHeight = availableHeight * 0.7;
 
           const block = document.createElement('div');
           block.className = 'memory-block';
-          block.style.left = `${currentX}px`;
-          block.style.top = `${(height - blockHeight) / 2}px`;
-          block.style.width = `${blockWidth}px`;
-          block.style.height = `${blockHeight}px`;
+          block.style.cssText = `
+            position: absolute;
+            left: ${currentX}px;
+            top: ${(availableHeight - blockHeight) / 2}px;
+            width: ${blockWidth}px;
+            height: ${blockHeight}px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+          `;
 
           // Determine allocation type and style
           if (alloc.is_leaked) {
             block.classList.add('leaked');
+            block.style.background = 'linear-gradient(45deg, #dc2626, #ef4444)';
+            block.style.animation = 'pulse 2s infinite';
           } else if (alloc.type_name && alloc.type_name.includes('Box')) {
             block.classList.add('heap');
+            block.style.background = 'linear-gradient(45deg, #ff6b35, #f7931e)';
           } else {
             block.classList.add('stack');
+            block.style.background = 'linear-gradient(45deg, #4dabf7, #339af0)';
           }
 
-          // Add tooltip on hover
+          // Enhanced hover effects
           block.addEventListener('mouseenter', (e) => {
+            block.style.transform = 'scaleY(1.2) translateY(-2px)';
+            block.style.zIndex = '10';
+            block.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
             this.showTooltip(e, alloc);
           });
 
           block.addEventListener('mouseleave', () => {
+            block.style.transform = 'scaleY(1) translateY(0)';
+            block.style.zIndex = '1';
+            block.style.boxShadow = 'none';
             this.hideTooltip();
           });
 
-          container.appendChild(block);
-          currentX += blockWidth + 1; // Small gap between blocks
+          // 添加点击事件显示详细信息
+          block.addEventListener('click', () => {
+            this.showBlockDetails(alloc);
+          });
+
+          blocksContainer.appendChild(block);
+          currentX += blockWidth + blockGap;
         });
 
+        contentContainer.appendChild(blocksContainer);
+        container.appendChild(contentContainer);
+
         // Calculate fragmentation and efficiency
-        fragmentation = Math.min((currentX / width) * 100, 100);
+        fragmentation = totalRequiredWidth > availableWidth ? 
+          ((totalRequiredWidth - availableWidth) / totalRequiredWidth * 100) : 0;
         efficiency = Math.max(100 - fragmentation, 0);
 
         // Update metrics
@@ -2688,8 +2760,120 @@
         if (fragEl) fragEl.textContent = `${fragmentation.toFixed(1)}%`;
         if (effEl) effEl.textContent = `${efficiency.toFixed(1)}%`;
 
+        // Setup dynamic controls
+        this.setupMemoryDistributionControls(allocations);
+
         // Update other metrics with real data
         this.updateEnhancedMetrics(allocations);
+      }
+
+      setupMemoryDistributionControls(allocations) {
+        const scaleSlider = document.getElementById('memoryDistScale');
+        const scaleValue = document.getElementById('memoryDistScaleValue');
+        const fitBtn = document.getElementById('memoryDistFit');
+        const resetBtn = document.getElementById('memoryDistReset');
+
+        if (scaleSlider && scaleValue) {
+          scaleSlider.addEventListener('input', (e) => {
+            const value = e.target.value;
+            scaleValue.textContent = `${value}%`;
+            this.updateMemoryDistribution(allocations);
+          });
+        }
+
+        if (fitBtn) {
+          fitBtn.addEventListener('click', () => {
+            // 自动计算最佳缩放比例
+            const container = document.getElementById('memoryDistributionViz');
+            if (container && allocations) {
+              const containerWidth = container.clientWidth - 40; // 减去padding
+              const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+              const minBlockWidth = 3;
+              const blockGap = 1;
+              
+              let requiredWidth = 0;
+              allocations.forEach(() => {
+                requiredWidth += minBlockWidth + blockGap;
+              });
+
+              const optimalScale = Math.min(200, Math.max(50, (containerWidth / requiredWidth) * 100));
+              
+              if (scaleSlider) {
+                scaleSlider.value = optimalScale;
+                scaleValue.textContent = `${Math.round(optimalScale)}%`;
+                this.updateMemoryDistribution(allocations);
+              }
+            }
+          });
+        }
+
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            if (scaleSlider) {
+              scaleSlider.value = 100;
+              scaleValue.textContent = '100%';
+              this.updateMemoryDistribution(allocations);
+            }
+          });
+        }
+      }
+
+      showBlockDetails(alloc) {
+        // 创建详细信息弹窗
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        `;
+
+        const content = document.createElement('div');
+        content.style.cssText = `
+          background: var(--bg-primary);
+          border-radius: 12px;
+          padding: 24px;
+          max-width: 400px;
+          width: 90%;
+          box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+          color: var(--text-primary);
+        `;
+
+        content.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0; color: var(--primary-blue);">Memory Block Details</h3>
+            <button id="closeModal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary);">&times;</button>
+          </div>
+          <div style="line-height: 1.6;">
+            <div><strong>Variable:</strong> ${alloc.var_name || 'Unknown'}</div>
+            <div><strong>Type:</strong> ${alloc.type_name || 'Unknown'}</div>
+            <div><strong>Size:</strong> ${this.formatBytes(alloc.size || 0)}</div>
+            <div><strong>Address:</strong> ${alloc.ptr || 'N/A'}</div>
+            <div><strong>Status:</strong> ${alloc.is_leaked ? '🚨 Leaked' : '✅ Active'}</div>
+            <div><strong>Lifetime:</strong> ${alloc.lifetime_ms ? alloc.lifetime_ms.toFixed(2) + 'ms' : 'N/A'}</div>
+            <div><strong>Scope:</strong> ${alloc.scope_name || 'Unknown'}</div>
+          </div>
+        `;
+
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+
+        // 关闭事件
+        const closeModal = () => {
+          document.body.removeChild(modal);
+        };
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+
+        content.querySelector('#closeModal').addEventListener('click', closeModal);
       }
 
       updateEnhancedMetrics(allocations) {
@@ -3056,8 +3240,31 @@
             <div style="font-size: 0.7rem; color: var(--text-secondary);">Efficiency</div>
           </div>
         </div>
+        
+        <!-- 动态尺寸控制 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <label style="font-size: 0.8rem; color: var(--text-secondary);">Scale:</label>
+            <input type="range" id="memoryDistScale" min="50" max="200" value="100" 
+                   style="width: 80px; accent-color: var(--primary-blue);">
+            <span id="memoryDistScaleValue" style="font-size: 0.8rem; color: var(--text-secondary); min-width: 30px;">100%</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="memoryDistFit" class="theme-toggle" 
+                    style="background: var(--primary-green); font-size: 10px; padding: 4px 8px;">
+              <i class="fa fa-expand-arrows-alt"></i>
+              <span>Fit</span>
+            </button>
+            <button id="memoryDistReset" class="theme-toggle" 
+                    style="background: var(--primary-orange); font-size: 10px; padding: 4px 8px;">
+              <i class="fa fa-refresh"></i>
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+        
         <div id="memoryDistributionViz"
-          style="height: 200px; background: var(--bg-secondary); border-radius: 8px; position: relative;">
+          style="height: 200px; background: var(--bg-secondary); border-radius: 8px; position: relative; overflow: hidden; border: 1px solid var(--border-light);">
           <!-- Memory blocks visualization will be inserted here -->
         </div>
       </div>

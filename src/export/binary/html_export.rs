@@ -3,10 +3,8 @@
 //! This module provides direct conversion from binary files to HTML dashboards
 //! using the templates in ./templates/
 
-use crate::export::binary::config::{
-    DashboardExportStats, DashboardFormat, DashboardOptions, DataScope,
-};
-use crate::export::binary::error::BinaryExportError;
+use crate::export::binary::config::{DashboardExportStats, DashboardFormat, DashboardOptions};
+use crate::export::binary::{error::BinaryExportError, DataScope};
 use std::path::Path;
 
 /// Output format for binary export
@@ -691,29 +689,27 @@ pub fn export_binary_to_json<P: AsRef<Path>>(
 ///
 /// # Examples
 /// ```no_run
-/// use memscope_rs::export::binary::{export_binary_to_dashboard, DashboardOptions, DashboardFormat};
+/// use memscope_rs::export::binary::{export_binary_to_dashboard, DashboardOptions, DashboardFormat, DataScope};
 ///
 /// // Default lightweight export (recommended)
-/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::default())?;
+/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::default()).unwrap();
 ///
 /// // Fast export for quick analysis
-/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::fast_preset())?;
+/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::fast_preset()).unwrap();
 ///
 /// // Complete analysis with progressive loading
-/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::complete_preset())?;
+/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::complete_preset()).unwrap();
 ///
 /// // Backward compatible embedded format
-/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::embedded_preset())?;
+/// let stats = export_binary_to_dashboard("data.bin", "my_project", DashboardOptions::embedded_preset()).unwrap();
 ///
 /// // Custom configuration
 /// let options = DashboardOptions::new()
 ///     .format(DashboardFormat::Lightweight)
 ///     .scope(DataScope::UserOnly)
-///     .performance(PerformanceMode::Fast)
 ///     .parallel_processing(true)
 ///     .batch_size(5000);
-/// let stats = export_binary_to_dashboard("data.bin", "my_project", options)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// let stats = export_binary_to_dashboard("data.bin", "my_project", options).unwrap();
 /// ```
 pub fn export_binary_to_dashboard<P: AsRef<Path>>(
     binary_path: P,

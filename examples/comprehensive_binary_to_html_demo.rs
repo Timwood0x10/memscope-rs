@@ -1,5 +1,5 @@
 //! Comprehensive Binary to HTML Demo
-//! 
+//!
 //! This example demonstrates the full binary to HTML conversion functionality,
 //! showcasing all trackable types and improve.md extensions including:
 //! - Basic types (primitives, collections)
@@ -21,55 +21,64 @@ use tempfile::TempDir;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Comprehensive Binary to HTML Demo");
     println!("=====================================");
-    
+
     // Create temporary directory for output files
     let temp_dir = TempDir::new()?;
     let binary_path = temp_dir.path().join("comprehensive_demo.memscope");
     let html_path = temp_dir.path().join("comprehensive_report.html");
-    
+
     // Generate comprehensive allocation data
     let allocations = create_comprehensive_allocations();
-    
-    println!("📊 Generated {} allocations covering all trackable types", allocations.len());
-    
+
+    println!(
+        "📊 Generated {} allocations covering all trackable types",
+        allocations.len()
+    );
+
     // Export to binary format
     println!("💾 Exporting to binary format...");
     binary::export_to_binary(&allocations, &binary_path)?;
-    
+
     let binary_size = std::fs::metadata(&binary_path)?.len();
     println!("   Binary file size: {} bytes", binary_size);
-    
+
     // Convert binary to HTML using binary_dashboard.html template
     println!("🎨 Converting binary to HTML report...");
     println!("🔄 Calling parse_binary_to_html_direct...");
-    binary::parse_binary_to_html_direct(&binary_path, &html_path, "Comprehensive Memory Analysis Demo")?;
+    binary::parse_binary_to_html_direct(
+        &binary_path,
+        &html_path,
+        "Comprehensive Memory Analysis Demo",
+    )?;
     println!("✅ parse_binary_to_html_direct completed");
-    
+
     let html_size = std::fs::metadata(&html_path)?.len();
     println!("   HTML file size: {} bytes", html_size);
-    
+
     // Display results
     println!("\n✅ Conversion completed successfully!");
     println!("📁 Files generated:");
     println!("   Binary: {}", binary_path.display());
     println!("   HTML:   {}", html_path.display());
-    
+
     // Copy files to current directory for easy access
     let current_binary = Path::new("comprehensive_demo.memscope");
     let current_html = Path::new("comprehensive_report.html");
-    
+
     std::fs::copy(&binary_path, current_binary)?;
     std::fs::copy(&html_path, current_html)?;
-    
+
     println!("\n📋 Files copied to current directory:");
     println!("   📄 comprehensive_demo.memscope");
     println!("   🌐 comprehensive_report.html");
-    
+
     // Analyze the generated HTML
     analyze_html_content(&current_html)?;
-    
-    println!("\n🎯 Demo completed! Open 'comprehensive_report.html' in your browser to see the results.");
-    
+
+    println!(
+        "\n🎯 Demo completed! Open 'comprehensive_report.html' in your browser to see the results."
+    );
+
     Ok(())
 }
 
@@ -77,13 +86,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
     let mut allocations = Vec::new();
     let mut ptr_counter = 0x1000;
-    
+
     // Helper to get next pointer
     let mut next_ptr = || {
         ptr_counter += 0x100;
         ptr_counter
     };
-    
+
     // 1. Basic Collections
     allocations.push(create_allocation(
         next_ptr(),
@@ -108,7 +117,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(150),
     ));
-    
+
     // 2. Hash Map with Complex Key-Value Types
     allocations.push(create_allocation(
         next_ptr(),
@@ -133,7 +142,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(300),
     ));
-    
+
     // 3. Smart Pointer - Arc with Reference Counting
     allocations.push(create_allocation(
         next_ptr(),
@@ -158,7 +167,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(500),
     ));
-    
+
     // 4. Box with Heap Allocation
     allocations.push(create_allocation(
         next_ptr(),
@@ -183,7 +192,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(75),
     ));
-    
+
     // 5. RefCell with Interior Mutability
     allocations.push(create_allocation(
         next_ptr(),
@@ -208,7 +217,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(200),
     ));
-    
+
     // 6. Generic Type with Multiple Parameters
     allocations.push(create_allocation(
         next_ptr(),
@@ -233,7 +242,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(450),
     ));
-    
+
     // 7. Trait Object with Dynamic Dispatch
     allocations.push(create_allocation(
         next_ptr(),
@@ -258,7 +267,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(100),
     ));
-    
+
     // 8. Async Context Allocation
     allocations.push(create_allocation(
         next_ptr(),
@@ -283,7 +292,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(1200),
     ));
-    
+
     // 9. FFI and Unsafe Allocation
     allocations.push(create_allocation(
         next_ptr(),
@@ -305,10 +314,10 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
             original_ptr: None,
         }),
         false, // No ownership history for raw pointers
-        None, // Simplified
+        None,  // Simplified
         Some(800),
     ));
-    
+
     // 10. Memory Leak Example
     allocations.push(create_allocation(
         next_ptr(),
@@ -333,7 +342,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         None, // No lifetime for leaked memory
     ));
-    
+
     // 11. Circular Reference Detection
     allocations.push(create_allocation(
         next_ptr(),
@@ -358,7 +367,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         None, // Simplified
         Some(600),
     ));
-    
+
     // 12. High-Performance Buffer
     allocations.push(create_allocation(
         next_ptr(),
@@ -380,10 +389,10 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
             original_ptr: None,
         }),
         true,
-        None, // Simplified
+        None,     // Simplified
         Some(50), // Very short-lived
     ));
-    
+
     // 13. Clone-Heavy Data Structure
     allocations.push(create_allocation(
         next_ptr(),
@@ -405,10 +414,10 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
             original_ptr: Some(0x1300), // Reference to original Arc<AppConfig>
         }),
         true,
-        None, // Simplified
+        None,     // Simplified
         Some(25), // Short-lived clone
     ));
-    
+
     // 14. Thread-Local Storage
     allocations.push(create_allocation(
         next_ptr(),
@@ -430,10 +439,10 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
             original_ptr: None,
         }),
         true,
-        None, // Simplified
+        None,       // Simplified
         Some(2000), // Long-lived thread-local data
     ));
-    
+
     // 15. Deallocated Memory (for comparison)
     allocations.push(create_deallocated_allocation(
         next_ptr(),
@@ -457,7 +466,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
         }),
         100,
     ));
-    
+
     println!("📋 Created allocations covering:");
     println!("   • Basic collections (Vec, HashMap, BTreeMap)");
     println!("   • Smart pointers (Arc, Rc, Box, RefCell)");
@@ -469,7 +478,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
     println!("   • High-performance and clone-heavy scenarios");
     println!("   • Thread-local storage");
     println!("   • Deallocated memory examples");
-    
+
     allocations
 }
 
@@ -497,7 +506,10 @@ fn create_allocation(
         timestamp_alloc: 1234567890,
         timestamp_dealloc: None,
         thread_id: thread_id.to_string(),
-        borrow_count: borrow_info.as_ref().map(|b| b.immutable_borrows + b.mutable_borrows).unwrap_or(0),
+        borrow_count: borrow_info
+            .as_ref()
+            .map(|b| b.immutable_borrows + b.mutable_borrows)
+            .unwrap_or(0),
         stack_trace: Some(vec![
             format!("{}::{}", scope_name, var_name),
             "main::run".to_string(),
@@ -508,21 +520,21 @@ fn create_allocation(
         borrow_info,
         clone_info,
         ownership_history_available,
-        smart_pointer_info: None, // Simplified for demo
-        memory_layout: None, // Simplified for demo
-        generic_info: None, // Simplified for demo
-        dynamic_type_info: None, // Simplified for demo
-        runtime_state: None, // Simplified for demo
-        stack_allocation: None, // Simplified for demo
-        temporary_object: None, // Simplified for demo
+        smart_pointer_info: None,     // Simplified for demo
+        memory_layout: None,          // Simplified for demo
+        generic_info: None,           // Simplified for demo
+        dynamic_type_info: None,      // Simplified for demo
+        runtime_state: None,          // Simplified for demo
+        stack_allocation: None,       // Simplified for demo
+        temporary_object: None,       // Simplified for demo
         fragmentation_analysis: None, // Simplified for demo
-        generic_instantiation: None, // Simplified for demo
-        type_relationships: None, // Simplified for demo
-        type_usage: None, // Simplified for demo
+        generic_instantiation: None,  // Simplified for demo
+        type_relationships: None,     // Simplified for demo
+        type_usage: None,             // Simplified for demo
         function_call_tracking: None, // Simplified for demo
-        lifecycle_tracking: None, // Simplified for demo
-        access_tracking: None, // Simplified for demo
-        drop_chain_analysis: None, // Simplified for demo
+        lifecycle_tracking: None,     // Simplified for demo
+        access_tracking: None,        // Simplified for demo
+        drop_chain_analysis: None,    // Simplified for demo
     }
 }
 
@@ -541,8 +553,18 @@ fn create_deallocated_allocation(
     lifetime_ms: u64,
 ) -> AllocationInfo {
     let mut allocation = create_allocation(
-        ptr, size, var_name, type_name, scope_name, thread_id,
-        false, borrow_info, clone_info, true, None, Some(lifetime_ms)
+        ptr,
+        size,
+        var_name,
+        type_name,
+        scope_name,
+        thread_id,
+        false,
+        borrow_info,
+        clone_info,
+        true,
+        None,
+        Some(lifetime_ms),
     );
     allocation.timestamp_alloc = timestamp_alloc;
     allocation.timestamp_dealloc = Some(timestamp_dealloc);
@@ -562,56 +584,72 @@ fn _extract_type_parameters(type_name: &str) -> Vec<String> {
 
 /// Extract parent types from type names
 fn _extract_parent_types(type_name: &str) -> Vec<String> {
-    if type_name.contains("Arc") { vec!["Arc".to_string()] }
-    else if type_name.contains("Rc") { vec!["Rc".to_string()] }
-    else if type_name.contains("Box") { vec!["Box".to_string()] }
-    else if type_name.contains("Vec") { vec!["Vec".to_string()] }
-    else if type_name.contains("HashMap") { vec!["HashMap".to_string()] }
-    else { vec![] }
+    if type_name.contains("Arc") {
+        vec!["Arc".to_string()]
+    } else if type_name.contains("Rc") {
+        vec!["Rc".to_string()]
+    } else if type_name.contains("Box") {
+        vec!["Box".to_string()]
+    } else if type_name.contains("Vec") {
+        vec!["Vec".to_string()]
+    } else if type_name.contains("HashMap") {
+        vec!["HashMap".to_string()]
+    } else {
+        vec![]
+    }
 }
 
 /// Extract associated types from type names
 fn _extract_associated_types(type_name: &str) -> Vec<String> {
     let mut types = vec![];
-    if type_name.contains("Iterator") { types.push("Item".to_string()); }
-    if type_name.contains("Future") { types.push("Output".to_string()); }
-    if type_name.contains("Result") { types.push("Error".to_string()); }
+    if type_name.contains("Iterator") {
+        types.push("Item".to_string());
+    }
+    if type_name.contains("Future") {
+        types.push("Output".to_string());
+    }
+    if type_name.contains("Result") {
+        types.push("Error".to_string());
+    }
     types
 }
 
 /// Analyze the generated HTML content
 fn analyze_html_content(html_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let content = std::fs::read_to_string(html_path)?;
-    
+
     println!("\n📊 HTML Analysis:");
     println!("   File size: {} bytes", content.len());
-    
+
     // Count different sections
     let allocation_count = content.matches("ptr").count();
     let borrow_info_count = content.matches("borrow_info").count();
     let clone_info_count = content.matches("clone_info").count();
     let smart_pointer_count = content.matches("smart_pointer").count();
-    
+
     println!("   Allocations displayed: {}", allocation_count);
     println!("   Borrow info entries: {}", borrow_info_count);
     println!("   Clone info entries: {}", clone_info_count);
     println!("   Smart pointer entries: {}", smart_pointer_count);
-    
+
     // Check for key features
     let features = [
         ("Modern CSS Grid", content.contains("stats-grid")),
         ("Interactive Table", content.contains("allocations-table")),
         ("JavaScript Data", content.contains("const allocations")),
         ("Memory Formatting", content.contains("formatSize")),
-        ("Project Branding", content.contains("Comprehensive Memory Analysis Demo")),
+        (
+            "Project Branding",
+            content.contains("Comprehensive Memory Analysis Demo"),
+        ),
         ("Responsive Design", content.contains("viewport")),
         ("Clean Template", content.contains("Memory Analysis Report")),
     ];
-    
+
     println!("   Features detected:");
     for (feature, present) in features {
         println!("     {} {}", if present { "✅" } else { "❌" }, feature);
     }
-    
+
     Ok(())
 }

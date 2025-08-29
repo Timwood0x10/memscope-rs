@@ -253,8 +253,8 @@ impl LifecycleExporter {
 ///
 /// # Example
 /// ```no_run
-/// use memscope::export::{export_lifecycle_data, LifecycleExportConfig};
-/// use memscope::core::types::AllocationInfo;
+/// use memscope_rs::export::{export_lifecycle_data, LifecycleExportConfig};
+/// use memscope_rs::core::types::AllocationInfo;
 ///
 /// let allocations = vec![]; // Your allocations here
 /// let config = LifecycleExportConfig {

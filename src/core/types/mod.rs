@@ -515,8 +515,8 @@ impl AllocationInfo {
             }),
             // improve.md field: Add default clone_info with meaningful defaults
             clone_info: Some(CloneInfo {
-                clone_count: 0, // Default: no clones yet
-                is_clone: false, // Default: this is an original allocation
+                clone_count: 0,     // Default: no clones yet
+                is_clone: false,    // Default: this is an original allocation
                 original_ptr: None, // Default: no original pointer
             }),
             // improve.md field: Enable ownership history by default
@@ -564,17 +564,18 @@ impl AllocationInfo {
                 .as_nanos() as u64;
             let elapsed_ns = current_time.saturating_sub(self.timestamp_alloc);
             let elapsed_ms = elapsed_ns / 1_000_000; // Convert to milliseconds
-            self.lifetime_ms = Some(if elapsed_ms == 0 { 1 } else { elapsed_ms }); // Minimum 1ms
+            self.lifetime_ms = Some(if elapsed_ms == 0 { 1 } else { elapsed_ms });
+            // Minimum 1ms
         }
 
         // Detect reference counting types (Rc, Arc)
         if type_name.contains("Rc<") || type_name.contains("Arc<") {
             self.clone_info = Some(CloneInfo {
-                clone_count: 2, // Simulate that Rc/Arc types are typically cloned
+                clone_count: 2,  // Simulate that Rc/Arc types are typically cloned
                 is_clone: false, // This is the original
                 original_ptr: None,
             });
-            
+
             // Update borrow_info for reference counted types
             self.borrow_info = Some(BorrowInfo {
                 immutable_borrows: 5, // Rc/Arc are often borrowed more
@@ -583,9 +584,11 @@ impl AllocationInfo {
                 last_borrow_timestamp: Some(self.timestamp_alloc + 1000000),
             });
         }
-        
         // Detect collections that are commonly borrowed
-        else if type_name.contains("Vec<") || type_name.contains("String") || type_name.contains("HashMap") {
+        else if type_name.contains("Vec<")
+            || type_name.contains("String")
+            || type_name.contains("HashMap")
+        {
             self.borrow_info = Some(BorrowInfo {
                 immutable_borrows: 4, // Collections are frequently borrowed
                 mutable_borrows: 2,
@@ -593,7 +596,6 @@ impl AllocationInfo {
                 last_borrow_timestamp: Some(self.timestamp_alloc + 800000),
             });
         }
-        
         // Detect Box types
         else if type_name.contains("Box<") {
             self.clone_info = Some(CloneInfo {
@@ -601,7 +603,7 @@ impl AllocationInfo {
                 is_clone: false,
                 original_ptr: None,
             });
-            
+
             self.borrow_info = Some(BorrowInfo {
                 immutable_borrows: 2,
                 mutable_borrows: 1,

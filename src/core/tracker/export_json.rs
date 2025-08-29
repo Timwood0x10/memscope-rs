@@ -399,26 +399,33 @@ impl MemoryTracker {
     ///
     /// This method exports data to 4 specialized files:
     /// - {name}_memory_analysis.json: Memory allocation patterns and statistics
-    /// - {name}_lifetime.json: Variable lifetime and scope analysis  
+    /// - {name}_lifetime.json: Variable lifetime and scope analysis
     /// - {name}_unsafe_ffi.json: Unsafe operations and FFI tracking
     /// - {name}_variable_relationships.json: Variable dependency graph and relationships
     ///
     /// # Export Modes
     ///
     /// ## Default Mode (Fast - Recommended)
-    /// ```rust
-    /// tracker.export_to_json("output")?;
+    /// ```no_run
+    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
+    /// let tracker = get_global_tracker();
+    /// tracker.export_to_json("output").unwrap();
     /// // OR explicitly
-    /// tracker.export_to_json_with_options("output", ExportOptions::default())?;
+    /// tracker.export_to_json_with_options("output", ExportJsonOptions::default()).unwrap();
     /// ```
     /// - **Performance**: ~2-5 seconds for typical datasets
     /// - **Data**: Only user-tracked variables get full enrichment
     /// - **Use case**: Normal development, HTML rendering, production monitoring
     ///
     /// ## Complete Mode (Slow - Debug Only)
-    /// ```rust
-    /// let options = ExportOptions::new().include_system_allocations(true);
-    /// tracker.export_to_json_with_options("output", options)?;
+    /// ```no_run
+    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
+    /// let tracker = get_global_tracker();
+    /// let mut options = ExportJsonOptions::default();
+    /// options.security_analysis = true;
+    /// tracker.export_to_json_with_options("output", options).unwrap();
     /// ```
     /// - **Performance**: ~10-40 seconds (5-10x slower!)
     /// - **Data**: ALL allocations including system internals get full enrichment
@@ -463,16 +470,22 @@ impl MemoryTracker {
     /// # Examples
     ///
     /// ## Fast mode (default - recommended for most users)
-    /// ```rust
-    /// tracker.export_to_json_with_options("output", ExportOptions::default())?;
+    /// ```no_run
+    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
+    /// let tracker = get_global_tracker();
+    /// tracker.export_to_json_with_options("output", ExportJsonOptions::default()).unwrap();
     /// ```
     ///
     /// ## Complete mode (slow - for debugging)
-    /// ```rust
-    /// let options = ExportOptions::new()
-    ///     .include_system_allocations(true)
-    ///     .verbose_logging(true);
-    /// tracker.export_to_json_with_options("debug_output", options)?;
+    /// ```no_run
+    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
+    /// let tracker = get_global_tracker();
+    /// let mut options = ExportJsonOptions::default();
+    /// options.security_analysis = true;
+    /// options.schema_validation = true;
+    /// tracker.export_to_json_with_options("debug_output", options).unwrap();
     /// ```
     pub fn export_to_json_with_options<P: AsRef<std::path::Path>>(
         &self,
@@ -614,7 +627,9 @@ impl MemoryTracker {
                         let mut ownership_events = Vec::new();
 
                         // Generate Allocated event
-                        if let Some(timestamp) = allocation.get("timestamp_alloc").and_then(|t| t.as_u64()) {
+                        if let Some(timestamp) =
+                            allocation.get("timestamp_alloc").and_then(|t| t.as_u64())
+                        {
                             ownership_events.push(json!({
                                 "timestamp": timestamp,
                                 "event_type": "Allocated",
@@ -626,7 +641,9 @@ impl MemoryTracker {
                         // Generate Clone events if clone_info is present
                         if let Some(clone_info) = allocation.get("clone_info") {
                             if !clone_info.is_null() {
-                                if let Some(clone_count) = clone_info.get("clone_count").and_then(|c| c.as_u64()) {
+                                if let Some(clone_count) =
+                                    clone_info.get("clone_count").and_then(|c| c.as_u64())
+                                {
                                     for i in 0..clone_count.min(5) {
                                         ownership_events.push(json!({
                                             "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 1000 * (i + 1),
@@ -644,7 +661,10 @@ impl MemoryTracker {
                         // Generate Borrow events if borrow_info is present
                         if let Some(borrow_info) = allocation.get("borrow_info") {
                             if !borrow_info.is_null() {
-                                if let Some(immutable_borrows) = borrow_info.get("immutable_borrows").and_then(|b| b.as_u64()) {
+                                if let Some(immutable_borrows) = borrow_info
+                                    .get("immutable_borrows")
+                                    .and_then(|b| b.as_u64())
+                                {
                                     for i in 0..immutable_borrows.min(3) {
                                         ownership_events.push(json!({
                                             "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 2000 * (i + 1),
@@ -657,7 +677,9 @@ impl MemoryTracker {
                                         }));
                                     }
                                 }
-                                if let Some(mutable_borrows) = borrow_info.get("mutable_borrows").and_then(|b| b.as_u64()) {
+                                if let Some(mutable_borrows) =
+                                    borrow_info.get("mutable_borrows").and_then(|b| b.as_u64())
+                                {
                                     for i in 0..mutable_borrows.min(2) {
                                         ownership_events.push(json!({
                                             "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 3000 * (i + 1),
@@ -674,7 +696,9 @@ impl MemoryTracker {
                         }
 
                         // Generate Dropped event if deallocated
-                        if let Some(dealloc_timestamp) = allocation.get("timestamp_dealloc").and_then(|t| t.as_u64()) {
+                        if let Some(dealloc_timestamp) =
+                            allocation.get("timestamp_dealloc").and_then(|t| t.as_u64())
+                        {
                             ownership_events.push(json!({
                                 "timestamp": dealloc_timestamp,
                                 "event_type": "Dropped",
@@ -756,7 +780,7 @@ impl MemoryTracker {
                         if is_clone {
                             if let (Some(ptr), Some(original_ptr)) = (
                                 allocation.get("ptr").and_then(|p| p.as_u64()),
-                                clone_info.get("original_ptr").and_then(|p| p.as_u64())
+                                clone_info.get("original_ptr").and_then(|p| p.as_u64()),
                             ) {
                                 relationships.push(json!({
                                     "relationship_type": "clone",
@@ -899,10 +923,10 @@ pub fn build_unified_dashboard_structure(
 
                 // Set ownership_history_available flag and generate detailed ownership_history
                 allocation_data["ownership_history_available"] = serde_json::Value::Bool(true);
-                
+
                 // Generate detailed ownership_history for lifetime.json
                 let mut ownership_events = Vec::new();
-                
+
                 // Add allocation event
                 ownership_events.push(serde_json::json!({
                     "timestamp": alloc.timestamp_alloc,
@@ -910,12 +934,12 @@ pub fn build_unified_dashboard_structure(
                     "source_stack_id": 101,
                     "details": {}
                 }));
-                
+
                 // Add clone event if this is a cloned object
                 if is_clone {
                     ownership_events.push(serde_json::json!({
                         "timestamp": alloc.timestamp_alloc + 1000,
-                        "event_type": "Cloned", 
+                        "event_type": "Cloned",
                         "source_stack_id": 102,
                         "details": {
                             "clone_source_ptr": alloc.ptr.wrapping_sub(1000),
@@ -923,7 +947,7 @@ pub fn build_unified_dashboard_structure(
                         }
                     }));
                 }
-                
+
                 // Add borrow events based on borrow_count
                 if alloc.borrow_count > 0 {
                     ownership_events.push(serde_json::json!({
@@ -935,7 +959,7 @@ pub fn build_unified_dashboard_structure(
                         }
                     }));
                 }
-                
+
                 // Add ownership transfer for smart pointers
                 if is_smart_pointer {
                     ownership_events.push(serde_json::json!({
@@ -947,7 +971,7 @@ pub fn build_unified_dashboard_structure(
                         }
                     }));
                 }
-                
+
                 // Add drop event if deallocated
                 if let Some(dealloc_time) = alloc.timestamp_dealloc {
                     ownership_events.push(serde_json::json!({
@@ -957,11 +981,11 @@ pub fn build_unified_dashboard_structure(
                         "details": {}
                     }));
                 }
-                
+
                 allocation_data["ownership_history"] = serde_json::Value::Array(ownership_events);
 
                 // Add memory_passport for FFI boundary tracking
-                let is_ffi_related = type_name.contains("*mut") || type_name.contains("*const") 
+                let is_ffi_related = type_name.contains("*mut") || type_name.contains("*const")
                     || type_name.contains("extern") || type_name.contains("libc::");
                 if is_ffi_related {
                     allocation_data["memory_passport"] = serde_json::json!({
@@ -982,7 +1006,7 @@ pub fn build_unified_dashboard_structure(
                                 }
                             },
                             {
-                                "event_type": "HandoverToFfi", 
+                                "event_type": "HandoverToFfi",
                                 "timestamp": alloc.timestamp_alloc + 1000,
                                 "how": "FFI function call",
                                 "source_stack_id": 106,

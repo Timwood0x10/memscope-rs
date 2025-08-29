@@ -19,18 +19,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get tracker and export
     let tracker = get_global_tracker();
-    
+
     match (tracker.get_active_allocations(), tracker.get_stats()) {
         (Ok(allocations), Ok(stats)) => {
             println!("📊 Found {} allocations to export", allocations.len());
-            
+
             // Print allocation details
             for (i, alloc) in allocations.iter().enumerate() {
-                println!("   Allocation {}: ptr=0x{:x}, size={}, type={:?}, var={:?}", 
-                        i, alloc.ptr, alloc.size, alloc.type_name, alloc.var_name);
+                println!(
+                    "   Allocation {}: ptr=0x{:x}, size={}, type={:?}, var={:?}",
+                    i, alloc.ptr, alloc.size, alloc.type_name, alloc.var_name
+                );
                 println!("      borrow_info: {:?}", alloc.borrow_info);
                 println!("      clone_info: {:?}", alloc.clone_info);
-                println!("      ownership_history_available: {}", alloc.ownership_history_available);
+                println!(
+                    "      ownership_history_available: {}",
+                    alloc.ownership_history_available
+                );
                 println!("      lifetime_ms: {:?}", alloc.lifetime_ms);
             }
 
@@ -39,19 +44,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match memscope_rs::export::export_user_variables_binary(
                 allocations.clone(),
                 stats.clone(),
-                "simple_binary_test"
+                "simple_binary_test",
             ) {
                 Ok(export_stats) => {
                     println!("✅ Binary export successful!");
-                    println!("   📊 Processed {} allocations in {}ms",
-                            export_stats.allocations_processed, export_stats.processing_time_ms);
-                    
+                    println!(
+                        "   📊 Processed {} allocations in {}ms",
+                        export_stats.allocations_processed, export_stats.processing_time_ms
+                    );
+
                     // Check if file was created
                     let binary_file = "simple_binary_test.memscope";
                     if std::path::Path::new(binary_file).exists() {
                         let file_size = std::fs::metadata(binary_file)?.len();
-                        println!("   📁 Binary file created: {} ({} bytes)", binary_file, file_size);
-                        
+                        println!(
+                            "   📁 Binary file created: {} ({} bytes)",
+                            binary_file, file_size
+                        );
+
                         if file_size > 40 {
                             println!("   ✅ File has content beyond header");
                         } else {

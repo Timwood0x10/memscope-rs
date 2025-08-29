@@ -371,7 +371,6 @@ impl FieldParser {
             return Ok(());
         }
 
-
         Ok(())
     }
 
@@ -618,11 +617,11 @@ mod tests {
     #[test]
     fn test_selective_field_parsing() {
         let mut parser = FieldParser::new();
-        
+
         // Instead of using complex binary parsing, test the core functionality
         // by creating a PartialAllocationInfo directly and testing field selection logic
         let mut partial_info = PartialAllocationInfo::new();
-        
+
         // Simulate what the parser would do for selective field parsing
         let requested_fields: HashSet<AllocationField> = [
             AllocationField::Ptr,
@@ -678,11 +677,11 @@ mod tests {
     #[test]
     fn test_full_allocation_parsing() {
         let mut parser = FieldParser::new();
-        
+
         // Test the conversion from PartialAllocationInfo to AllocationInfo
         // This tests the core functionality without relying on binary parsing
         let mut partial_info = PartialAllocationInfo::new();
-        
+
         // Simulate a full parse by setting all fields
         partial_info.ptr = Some(0x1000);
         partial_info.size = Some(1024);
@@ -708,7 +707,7 @@ mod tests {
         assert_eq!(allocation.thread_id, "main");
         assert_eq!(allocation.borrow_count, 2);
         assert!(!allocation.is_leaked);
-        
+
         // Update parser stats to reflect the parsing
         parser.stats.total_fields_parsed = 12; // All basic fields parsed
     }
@@ -738,7 +737,7 @@ mod tests {
     #[test]
     fn test_field_parser_stats() {
         let mut parser = FieldParser::new();
-        
+
         // Test parser statistics functionality without binary parsing
         // Simulate parsing some fields and skipping others
         parser.stats.total_fields_parsed = 2; // Parsed Ptr and Size

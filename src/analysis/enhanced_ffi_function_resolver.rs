@@ -7,8 +7,8 @@
 //! - Uses safe_operations for lock handling
 //! - Uses unwrap_safe for error handling
 
-use crate::core::types::TrackingResult;
 use crate::core::safe_operations::SafeLock;
+use crate::core::types::TrackingResult;
 use crate::core::unwrap_safe::UnwrapSafe;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -175,12 +175,18 @@ impl EnhancedFfiFunctionResolver {
 
         // Cache the result if caching is enabled
         if self.config.enable_caching {
-            self.function_database.insert(function_name.to_string(), Arc::clone(&resolved_arc));
-            self.library_mapping.insert(function_name.to_string(), resolved_arc.library_name.clone());
+            self.function_database
+                .insert(function_name.to_string(), Arc::clone(&resolved_arc));
+            self.library_mapping
+                .insert(function_name.to_string(), resolved_arc.library_name.clone());
         }
 
         self.update_stats_success(start_time);
-        tracing::debug!("🔍 Successfully resolved function: {} -> {}", function_name, resolved_arc.library_name);
+        tracing::debug!(
+            "🔍 Successfully resolved function: {} -> {}",
+            function_name,
+            resolved_arc.library_name
+        );
 
         Ok(resolved_arc)
     }
@@ -196,7 +202,7 @@ impl EnhancedFfiFunctionResolver {
         if start_time.elapsed().as_millis() > self.config.resolution_timeout_ms as u128 {
             self.update_stats_timeout();
             return Err(crate::core::types::TrackingError::PerformanceError(
-                format!("Function resolution timeout for: {}", function_name)
+                format!("Function resolution timeout for: {}", function_name),
             ));
         }
 
@@ -257,10 +263,18 @@ impl EnhancedFfiFunctionResolver {
     }
 
     /// Resolve function using pattern matching
-    fn resolve_with_patterns(&self, function_name: &str) -> TrackingResult<EnhancedResolvedFfiFunction> {
+    fn resolve_with_patterns(
+        &self,
+        function_name: &str,
+    ) -> TrackingResult<EnhancedResolvedFfiFunction> {
         // Check common function prefixes and patterns
         let library_name = match function_name {
-            name if name.starts_with("malloc") || name.starts_with("free") || name.starts_with("calloc") => "libc",
+            name if name.starts_with("malloc")
+                || name.starts_with("free")
+                || name.starts_with("calloc") =>
+            {
+                "libc"
+            }
             name if name.starts_with("pthread_") => "libpthread",
             name if name.starts_with("ssl_") || name.starts_with("SSL_") => "libssl",
             name if name.starts_with("crypto_") || name.starts_with("CRYPTO_") => "libcrypto",
@@ -271,12 +285,17 @@ impl EnhancedFfiFunctionResolver {
             name if name.starts_with("xml") => "libxml2",
             name if name.starts_with("json_") => "libjson",
             name if name.starts_with("regex_") => "libregex",
-            name if name.starts_with("math_") || name.contains("sin") || name.contains("cos") => "libm",
+            name if name.starts_with("math_") || name.contains("sin") || name.contains("cos") => {
+                "libm"
+            }
             name if name.starts_with("dl") => "libdl",
             name if name.starts_with("rt_") => "librt",
-            _ => return Err(crate::core::types::TrackingError::DataError(
-                format!("No pattern match for function: {}", function_name)
-            )),
+            _ => {
+                return Err(crate::core::types::TrackingError::DataError(format!(
+                    "No pattern match for function: {}",
+                    function_name
+                )))
+            }
         };
 
         let risk_level = self.assess_function_risk(function_name, library_name);
@@ -297,10 +316,13 @@ impl EnhancedFfiFunctionResolver {
     }
 
     /// Auto-discover function using system information
-    fn auto_discover_function(&self, function_name: &str) -> TrackingResult<EnhancedResolvedFfiFunction> {
+    fn auto_discover_function(
+        &self,
+        function_name: &str,
+    ) -> TrackingResult<EnhancedResolvedFfiFunction> {
         // Simulate auto-discovery process
         // In a real implementation, this would use system tools like nm, objdump, etc.
-        
+
         let discovered_library = match function_name.len() % 4 {
             0 => "libc",
             1 => "libm",
@@ -326,10 +348,13 @@ impl EnhancedFfiFunctionResolver {
     }
 
     /// Perform deep analysis of function
-    fn deep_analyze_function(&self, function_name: &str) -> TrackingResult<EnhancedResolvedFfiFunction> {
+    fn deep_analyze_function(
+        &self,
+        function_name: &str,
+    ) -> TrackingResult<EnhancedResolvedFfiFunction> {
         // Simulate deep analysis
         // In a real implementation, this would analyze binary symbols, debug info, etc.
-        
+
         let analyzed_library = "unknown";
         let risk_level = FfiRiskLevel::Medium; // Conservative assessment
         let category = FfiFunctionCategory::Unknown;
@@ -378,26 +403,27 @@ impl EnhancedFfiFunctionResolver {
             // Critical risk functions
             (name, _) if name.contains("exec") || name.contains("system") => FfiRiskLevel::Critical,
             (name, _) if name.contains("unsafe") || name.contains("raw") => FfiRiskLevel::Critical,
-            
+
             // High risk functions
             (name, _) if name.contains("malloc") || name.contains("free") => FfiRiskLevel::High,
             (name, _) if name.contains("memcpy") || name.contains("strcpy") => FfiRiskLevel::High,
             (_name, "libssl") | (_name, "libcrypto") => FfiRiskLevel::High,
-            
+
             // Medium risk functions
             (name, _) if name.contains("thread") || name.contains("mutex") => FfiRiskLevel::Medium,
             (name, _) if name.contains("file") || name.contains("open") => FfiRiskLevel::Medium,
-            
+
             // Low risk functions
             (_name, "libm") => FfiRiskLevel::Low,
             (name, _) if name.contains("strlen") || name.contains("strcmp") => FfiRiskLevel::Low,
-            
+
             // Default to medium
             _ => FfiRiskLevel::Medium,
         };
 
         // Cache the result
-        self.risk_cache.insert(function_name.to_string(), risk.clone());
+        self.risk_cache
+            .insert(function_name.to_string(), risk.clone());
         self.update_stats_risk_assessment();
 
         risk
@@ -409,13 +435,24 @@ impl EnhancedFfiFunctionResolver {
             name if name.contains("malloc") || name.contains("free") || name.contains("calloc") => {
                 FfiFunctionCategory::MemoryManagement
             }
-            name if name.contains("thread") || name.contains("mutex") || name.contains("pthread") => {
+            name if name.contains("thread")
+                || name.contains("mutex")
+                || name.contains("pthread") =>
+            {
                 FfiFunctionCategory::ThreadOperation
             }
-            name if name.contains("file") || name.contains("open") || name.contains("read") || name.contains("write") => {
+            name if name.contains("file")
+                || name.contains("open")
+                || name.contains("read")
+                || name.contains("write") =>
+            {
                 FfiFunctionCategory::FileOperation
             }
-            name if name.contains("socket") || name.contains("connect") || name.contains("send") || name.contains("recv") => {
+            name if name.contains("socket")
+                || name.contains("connect")
+                || name.contains("send")
+                || name.contains("recv") =>
+            {
                 FfiFunctionCategory::NetworkOperation
             }
             name if name.contains("crypt") || name.contains("hash") || name.contains("ssl") => {
@@ -424,7 +461,11 @@ impl EnhancedFfiFunctionResolver {
             name if name.contains("str") || name.contains("mem") => {
                 FfiFunctionCategory::StringOperation
             }
-            name if name.contains("sin") || name.contains("cos") || name.contains("sqrt") || name.contains("pow") => {
+            name if name.contains("sin")
+                || name.contains("cos")
+                || name.contains("sqrt")
+                || name.contains("pow") =>
+            {
                 FfiFunctionCategory::MathOperation
             }
             name if name.contains("system") || name.contains("exec") || name.contains("fork") => {
@@ -451,7 +492,7 @@ impl EnhancedFfiFunctionResolver {
         self.library_mapping.clear();
         self.signature_cache.clear();
         self.risk_cache.clear();
-        
+
         match self.stats.safe_lock() {
             Ok(mut stats) => {
                 *stats = EnhancedResolutionStats::default();
@@ -460,7 +501,7 @@ impl EnhancedFfiFunctionResolver {
                 tracing::warn!("Failed to reset stats during clear: {}", e);
             }
         }
-        
+
         tracing::info!("🔍 Cleared enhanced FFI function database");
     }
 
@@ -495,7 +536,8 @@ impl EnhancedFfiFunctionResolver {
 
         // Cache the result
         if let Some(ref sig) = signature {
-            self.signature_cache.insert(function_name.to_string(), sig.clone());
+            self.signature_cache
+                .insert(function_name.to_string(), sig.clone());
         }
 
         signature
@@ -519,13 +561,48 @@ impl EnhancedFfiFunctionResolver {
     fn initialize_known_functions(&self) {
         // Initialize with common FFI functions
         let known_functions = vec![
-            ("malloc", "libc", FfiRiskLevel::High, FfiFunctionCategory::MemoryManagement),
-            ("free", "libc", FfiRiskLevel::High, FfiFunctionCategory::MemoryManagement),
-            ("strlen", "libc", FfiRiskLevel::Low, FfiFunctionCategory::StringOperation),
-            ("strcpy", "libc", FfiRiskLevel::High, FfiFunctionCategory::StringOperation),
-            ("pthread_create", "libpthread", FfiRiskLevel::Medium, FfiFunctionCategory::ThreadOperation),
-            ("sin", "libm", FfiRiskLevel::Low, FfiFunctionCategory::MathOperation),
-            ("cos", "libm", FfiRiskLevel::Low, FfiFunctionCategory::MathOperation),
+            (
+                "malloc",
+                "libc",
+                FfiRiskLevel::High,
+                FfiFunctionCategory::MemoryManagement,
+            ),
+            (
+                "free",
+                "libc",
+                FfiRiskLevel::High,
+                FfiFunctionCategory::MemoryManagement,
+            ),
+            (
+                "strlen",
+                "libc",
+                FfiRiskLevel::Low,
+                FfiFunctionCategory::StringOperation,
+            ),
+            (
+                "strcpy",
+                "libc",
+                FfiRiskLevel::High,
+                FfiFunctionCategory::StringOperation,
+            ),
+            (
+                "pthread_create",
+                "libpthread",
+                FfiRiskLevel::Medium,
+                FfiFunctionCategory::ThreadOperation,
+            ),
+            (
+                "sin",
+                "libm",
+                FfiRiskLevel::Low,
+                FfiFunctionCategory::MathOperation,
+            ),
+            (
+                "cos",
+                "libm",
+                FfiRiskLevel::Low,
+                FfiFunctionCategory::MathOperation,
+            ),
         ];
 
         for (func_name, lib_name, risk, category) in known_functions {
@@ -541,21 +618,54 @@ impl EnhancedFfiFunctionResolver {
                 confidence_score: 1.0, // Perfect confidence for known functions
             });
 
-            self.function_database.insert(func_name.to_string(), resolved);
-            self.library_mapping.insert(func_name.to_string(), lib_name.to_string());
+            self.function_database
+                .insert(func_name.to_string(), resolved);
+            self.library_mapping
+                .insert(func_name.to_string(), lib_name.to_string());
         }
 
-        tracing::info!("🔍 Initialized {} known FFI functions", self.function_database.len());
+        tracing::info!(
+            "🔍 Initialized {} known FFI functions",
+            self.function_database.len()
+        );
     }
 
     fn initialize_library_patterns(&self) {
         // Initialize common library patterns
         let patterns = vec![
-            ("libc", vec!["malloc", "free", "calloc", "realloc", "strlen", "strcpy", "strcmp"]),
-            ("libm", vec!["sin", "cos", "tan", "sqrt", "pow", "log", "exp"]),
-            ("libpthread", vec!["pthread_create", "pthread_join", "pthread_mutex_lock", "pthread_mutex_unlock"]),
-            ("libssl", vec!["SSL_new", "SSL_connect", "SSL_read", "SSL_write", "SSL_free"]),
-            ("libcrypto", vec!["CRYPTO_malloc", "CRYPTO_free", "EVP_encrypt", "EVP_decrypt"]),
+            (
+                "libc",
+                vec![
+                    "malloc", "free", "calloc", "realloc", "strlen", "strcpy", "strcmp",
+                ],
+            ),
+            (
+                "libm",
+                vec!["sin", "cos", "tan", "sqrt", "pow", "log", "exp"],
+            ),
+            (
+                "libpthread",
+                vec![
+                    "pthread_create",
+                    "pthread_join",
+                    "pthread_mutex_lock",
+                    "pthread_mutex_unlock",
+                ],
+            ),
+            (
+                "libssl",
+                vec![
+                    "SSL_new",
+                    "SSL_connect",
+                    "SSL_read",
+                    "SSL_write",
+                    "SSL_free",
+                ],
+            ),
+            (
+                "libcrypto",
+                vec!["CRYPTO_malloc", "CRYPTO_free", "EVP_encrypt", "EVP_decrypt"],
+            ),
         ];
 
         for (lib_name, funcs) in patterns {
@@ -565,7 +675,10 @@ impl EnhancedFfiFunctionResolver {
             );
         }
 
-        tracing::info!("🔍 Initialized {} library patterns", self.library_patterns.len());
+        tracing::info!(
+            "🔍 Initialized {} library patterns",
+            self.library_patterns.len()
+        );
     }
 
     // Statistics update methods
@@ -607,8 +720,9 @@ impl EnhancedFfiFunctionResolver {
             Ok(mut stats) => {
                 stats.successful_resolutions += 1;
                 let resolution_time = start_time.elapsed().as_millis() as f64;
-                stats.average_resolution_time_ms = 
-                    (stats.average_resolution_time_ms * (stats.successful_resolutions - 1) as f64 + resolution_time) 
+                stats.average_resolution_time_ms = (stats.average_resolution_time_ms
+                    * (stats.successful_resolutions - 1) as f64
+                    + resolution_time)
                     / stats.successful_resolutions as f64;
             }
             Err(e) => {
@@ -669,7 +783,11 @@ static GLOBAL_ENHANCED_FFI_RESOLVER: std::sync::OnceLock<Arc<EnhancedFfiFunction
 /// Get global enhanced FFI function resolver instance
 pub fn get_global_enhanced_ffi_resolver() -> Arc<EnhancedFfiFunctionResolver> {
     GLOBAL_ENHANCED_FFI_RESOLVER
-        .get_or_init(|| Arc::new(EnhancedFfiFunctionResolver::new(EnhancedResolverConfig::default())))
+        .get_or_init(|| {
+            Arc::new(EnhancedFfiFunctionResolver::new(
+                EnhancedResolverConfig::default(),
+            ))
+        })
         .clone()
 }
 
@@ -692,10 +810,10 @@ mod tests {
     #[test]
     fn test_enhanced_resolver_basic() {
         let resolver = EnhancedFfiFunctionResolver::new(EnhancedResolverConfig::default());
-        
+
         let result = resolver.resolve_function("malloc", Some("libc"));
         assert!(result.is_ok());
-        
+
         let resolved = result.unwrap();
         assert_eq!(resolved.function_name, "malloc");
         assert_eq!(resolved.library_name, "libc");
@@ -705,10 +823,10 @@ mod tests {
     #[test]
     fn test_pattern_matching() {
         let resolver = EnhancedFfiFunctionResolver::new(EnhancedResolverConfig::default());
-        
+
         let result = resolver.resolve_function("pthread_create", None);
         assert!(result.is_ok());
-        
+
         let resolved = result.unwrap();
         assert_eq!(resolved.library_name, "libpthread");
         assert_eq!(resolved.category, FfiFunctionCategory::ThreadOperation);
@@ -717,10 +835,10 @@ mod tests {
     #[test]
     fn test_risk_assessment() {
         let resolver = EnhancedFfiFunctionResolver::new(EnhancedResolverConfig::default());
-        
+
         let malloc_risk = resolver.assess_function_risk("malloc", "libc");
         assert_eq!(malloc_risk, FfiRiskLevel::High);
-        
+
         let strlen_risk = resolver.assess_function_risk("strlen", "libc");
         assert_eq!(strlen_risk, FfiRiskLevel::Low);
     }
@@ -728,15 +846,15 @@ mod tests {
     #[test]
     fn test_caching() {
         let resolver = EnhancedFfiFunctionResolver::new(EnhancedResolverConfig::default());
-        
+
         // First resolution
         let result1 = resolver.resolve_function("test_function", Some("test_lib"));
         assert!(result1.is_ok());
-        
+
         // Second resolution should hit cache
         let result2 = resolver.resolve_function("test_function", Some("test_lib"));
         assert!(result2.is_ok());
-        
+
         let stats = resolver.get_stats().unwrap();
         assert!(stats.cache_hits > 0);
     }

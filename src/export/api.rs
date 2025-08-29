@@ -136,7 +136,7 @@ impl Exporter {
 
         // Use the actual allocation data instead of creating a new tracker
         let tracker = MemoryTracker::new();
-        
+
         // Populate the tracker with our filtered allocations
         for allocation in &filtered_allocations {
             // Add each allocation to the tracker's active allocations
@@ -144,7 +144,7 @@ impl Exporter {
                 active.insert(allocation.ptr, allocation.clone());
             }
         }
-        
+
         tracker.export_to_json_with_options(
             &output_path,
             ExportJsonOptions::default()
@@ -176,14 +176,14 @@ impl Exporter {
 
         // Create a new tracker instance and populate it with our filtered allocations
         let tracker = MemoryTracker::new();
-        
+
         // Populate the tracker with our filtered allocations (including improve.md fields)
         if let Ok(mut active) = tracker.active_allocations.try_lock() {
             for allocation in &filtered_allocations {
                 active.insert(allocation.ptr, allocation.clone());
             }
         }
-        
+
         tracker.export_to_binary(&output_path)?;
 
         let processing_time = start_time.elapsed();

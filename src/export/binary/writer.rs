@@ -195,9 +195,12 @@ impl BinaryWriter {
         match &alloc.borrow_info {
             Some(borrow_info) => {
                 self.writer.write_all(&1u8.to_le_bytes())?; // has value
-                self.writer.write_all(&(borrow_info.immutable_borrows as u32).to_le_bytes())?;
-                self.writer.write_all(&(borrow_info.mutable_borrows as u32).to_le_bytes())?;
-                self.writer.write_all(&(borrow_info.max_concurrent_borrows as u32).to_le_bytes())?;
+                self.writer
+                    .write_all(&(borrow_info.immutable_borrows as u32).to_le_bytes())?;
+                self.writer
+                    .write_all(&(borrow_info.mutable_borrows as u32).to_le_bytes())?;
+                self.writer
+                    .write_all(&(borrow_info.max_concurrent_borrows as u32).to_le_bytes())?;
                 match borrow_info.last_borrow_timestamp {
                     Some(ts) => {
                         self.writer.write_all(&1u8.to_le_bytes())?; // has timestamp
@@ -217,8 +220,10 @@ impl BinaryWriter {
         match &alloc.clone_info {
             Some(clone_info) => {
                 self.writer.write_all(&1u8.to_le_bytes())?; // has value
-                self.writer.write_all(&(clone_info.clone_count as u32).to_le_bytes())?;
-                self.writer.write_all(&(clone_info.is_clone as u8).to_le_bytes())?;
+                self.writer
+                    .write_all(&(clone_info.clone_count as u32).to_le_bytes())?;
+                self.writer
+                    .write_all(&(clone_info.is_clone as u8).to_le_bytes())?;
                 match clone_info.original_ptr {
                     Some(ptr) => {
                         self.writer.write_all(&1u8.to_le_bytes())?; // has original_ptr
@@ -235,7 +240,8 @@ impl BinaryWriter {
         }
 
         // Write improve.md extensions: ownership_history_available
-        self.writer.write_all(&(alloc.ownership_history_available as u8).to_le_bytes())?;
+        self.writer
+            .write_all(&(alloc.ownership_history_available as u8).to_le_bytes())?;
 
         // Write complex fields using binary serialization
         self.write_optional_binary_field(&alloc.smart_pointer_info)?;

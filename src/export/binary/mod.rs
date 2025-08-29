@@ -19,6 +19,7 @@ mod ffi_safety_analyzer;
 mod field_parser;
 mod filter_engine;
 pub mod format;
+pub mod html_converter;
 mod html_export;
 mod index;
 mod index_builder;
@@ -30,7 +31,6 @@ mod integration_test_ffi_safety;
 mod integration_test_template_resources;
 #[cfg(test)]
 mod integration_test_variable_relationships;
-pub mod html_converter;
 mod memory_layout_serialization;
 mod parser;
 pub mod reader;

@@ -32,7 +32,7 @@ fn main() {
 
 fn demonstrate_borrowing_scenario() {
     println!("\n📋 Demonstrating borrowing scenario...");
-    
+
     // Create a vector and track it
     let mut data_vec = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     track_var!(data_vec);
@@ -44,12 +44,15 @@ fn demonstrate_borrowing_scenario() {
         let _borrow2 = &data_vec;
         let _borrow3 = &data_vec;
         println!("   ✓ Created 3 immutable borrows");
-        
+
         // Access the data through borrows
         let sum: i32 = _borrow1.iter().sum();
         let len = _borrow2.len();
         let first = _borrow3.first();
-        println!("   ✓ Used borrows: sum={}, len={}, first={:?}", sum, len, first);
+        println!(
+            "   ✓ Used borrows: sum={}, len={}, first={:?}",
+            sum, len, first
+        );
     }
 
     // Mutable borrow
@@ -65,7 +68,7 @@ fn demonstrate_borrowing_scenario() {
 
 fn demonstrate_cloning_scenario() {
     println!("\n🔄 Demonstrating cloning scenario...");
-    
+
     // Create original data
     let original_string = String::from("Original data for cloning demonstration");
     track_var!(original_string);
@@ -108,10 +111,10 @@ fn demonstrate_cloning_scenario() {
 
 fn demonstrate_complex_lifecycle() {
     println!("\n🔄 Demonstrating complex lifecycle...");
-    
+
     // Create data with complex lifecycle
     let mut complex_data = Vec::new();
-    
+
     // Phase 1: Initial allocation
     for i in 0..5 {
         let boxed_value = Box::new(format!("Item {}", i));
@@ -149,19 +152,22 @@ fn demonstrate_complex_lifecycle() {
     track_var!(shared_clone2);
     println!("   ✓ Created shared_clone2");
 
-    println!("   📊 Arc reference count: {}", Arc::strong_count(&shared_data));
+    println!(
+        "   📊 Arc reference count: {}",
+        Arc::strong_count(&shared_data)
+    );
     println!("   📊 Total items in shared data: {}", shared_data.len());
 }
 
 fn export_enhanced_analysis() {
     println!("\n🚀 Exporting enhanced analysis with real data...");
-    
+
     let tracker = get_global_tracker();
-    
+
     match (tracker.get_active_allocations(), tracker.get_stats()) {
         (Ok(allocations), Ok(stats)) => {
             println!("📊 Found {} allocations to export", allocations.len());
-            
+
             // Configure enhanced exporter
             let enhanced_config = ExportConfig {
                 pretty_print: true,
@@ -170,13 +176,13 @@ fn export_enhanced_analysis() {
                 generate_unsafe_ffi_file: true,
                 max_ownership_events: 100,
             };
-            
+
             let enhanced_exporter = EnhancedJsonExporter::new(enhanced_config);
             let output_dir = "MemoryAnalysis/realistic_usage_enhanced";
-            
+
             // Create some mock extended data to demonstrate the fields
             let mut enhanced_stats = stats.clone();
-            
+
             // Simulate adding extended information to some allocations
             for (i, alloc) in enhanced_stats.allocations.iter_mut().enumerate() {
                 match i % 3 {
@@ -220,7 +226,7 @@ fn export_enhanced_analysis() {
                     _ => {}
                 }
             }
-            
+
             match enhanced_exporter.export_enhanced_analysis(
                 output_dir,
                 &enhanced_stats,
@@ -230,7 +236,7 @@ fn export_enhanced_analysis() {
                 Ok(_) => {
                     println!("✅ Enhanced export successful!");
                     println!("   📁 Files saved to: {}/", output_dir);
-                    
+
                     // Analyze and show the results
                     analyze_enhanced_export(output_dir);
                 }
@@ -244,7 +250,7 @@ fn export_enhanced_analysis() {
 
 fn analyze_enhanced_export(output_dir: &str) {
     println!("\n🔍 Analyzing enhanced export results...");
-    
+
     // Check memory_analysis.json
     let memory_analysis_path = format!("{}/memory_analysis.json", output_dir);
     if let Ok(content) = std::fs::read_to_string(&memory_analysis_path) {
@@ -254,7 +260,7 @@ fn analyze_enhanced_export(output_dir: &str) {
                 let mut has_clone_info = 0;
                 let mut has_ownership_history = 0;
                 let mut has_lifetime_ms = 0;
-                
+
                 for alloc in allocations {
                     if alloc.get("borrow_info").is_some() && !alloc["borrow_info"].is_null() {
                         has_borrow_info += 1;
@@ -262,49 +268,66 @@ fn analyze_enhanced_export(output_dir: &str) {
                     if alloc.get("clone_info").is_some() && !alloc["clone_info"].is_null() {
                         has_clone_info += 1;
                     }
-                    if alloc.get("ownership_history_available").is_some() 
-                        && alloc["ownership_history_available"].as_bool().unwrap_or(false) {
+                    if alloc.get("ownership_history_available").is_some()
+                        && alloc["ownership_history_available"]
+                            .as_bool()
+                            .unwrap_or(false)
+                    {
                         has_ownership_history += 1;
                     }
                     if alloc.get("lifetime_ms").is_some() && !alloc["lifetime_ms"].is_null() {
                         has_lifetime_ms += 1;
                     }
                 }
-                
+
                 println!("   📊 Enhanced fields analysis:");
                 println!("      • Total allocations: {}", allocations.len());
-                println!("      • With borrow_info: {} ({:.1}%)", 
-                        has_borrow_info, 
-                        (has_borrow_info as f64 / allocations.len() as f64) * 100.0);
-                println!("      • With clone_info: {} ({:.1}%)", 
-                        has_clone_info, 
-                        (has_clone_info as f64 / allocations.len() as f64) * 100.0);
-                println!("      • With ownership_history_available: {} ({:.1}%)", 
-                        has_ownership_history, 
-                        (has_ownership_history as f64 / allocations.len() as f64) * 100.0);
-                println!("      • With lifetime_ms: {} ({:.1}%)", 
-                        has_lifetime_ms, 
-                        (has_lifetime_ms as f64 / allocations.len() as f64) * 100.0);
-                
+                println!(
+                    "      • With borrow_info: {} ({:.1}%)",
+                    has_borrow_info,
+                    (has_borrow_info as f64 / allocations.len() as f64) * 100.0
+                );
+                println!(
+                    "      • With clone_info: {} ({:.1}%)",
+                    has_clone_info,
+                    (has_clone_info as f64 / allocations.len() as f64) * 100.0
+                );
+                println!(
+                    "      • With ownership_history_available: {} ({:.1}%)",
+                    has_ownership_history,
+                    (has_ownership_history as f64 / allocations.len() as f64) * 100.0
+                );
+                println!(
+                    "      • With lifetime_ms: {} ({:.1}%)",
+                    has_lifetime_ms,
+                    (has_lifetime_ms as f64 / allocations.len() as f64) * 100.0
+                );
+
                 // Show example data
                 if let Some(first_alloc) = allocations.first() {
                     if let Some(borrow_info) = first_alloc.get("borrow_info") {
                         if !borrow_info.is_null() {
                             println!("\n   📋 Example borrow_info:");
-                            println!("      {}", serde_json::to_string_pretty(borrow_info).unwrap_or_default());
+                            println!(
+                                "      {}",
+                                serde_json::to_string_pretty(borrow_info).unwrap_or_default()
+                            );
                         }
                     }
                     if let Some(clone_info) = first_alloc.get("clone_info") {
                         if !clone_info.is_null() {
                             println!("\n   🔄 Example clone_info:");
-                            println!("      {}", serde_json::to_string_pretty(clone_info).unwrap_or_default());
+                            println!(
+                                "      {}",
+                                serde_json::to_string_pretty(clone_info).unwrap_or_default()
+                            );
                         }
                     }
                 }
             }
         }
     }
-    
+
     // Check lifetime.json
     let lifetime_path = format!("{}/lifetime.json", output_dir);
     if let Ok(content) = std::fs::read_to_string(&lifetime_path) {
@@ -312,20 +335,22 @@ fn analyze_enhanced_export(output_dir: &str) {
             if let Some(histories) = json_value["ownership_histories"].as_array() {
                 println!("\n   📈 Lifetime analysis:");
                 println!("      • Ownership histories: {}", histories.len());
-                
+
                 if let Some(first_history) = histories.first() {
                     if let Some(events) = first_history["ownership_history"].as_array() {
                         println!("      • Events in first history: {}", events.len());
                         if let Some(first_event) = events.first() {
-                            println!("      • Example event: {} at {}", 
-                                    first_event["event_type"].as_str().unwrap_or("unknown"),
-                                    first_event["timestamp"].as_u64().unwrap_or(0));
+                            println!(
+                                "      • Example event: {} at {}",
+                                first_event["event_type"].as_str().unwrap_or("unknown"),
+                                first_event["timestamp"].as_u64().unwrap_or(0)
+                            );
                         }
                     }
                 }
             }
         }
     }
-    
+
     println!("\n✨ This demonstrates how improve.md extensions work with real data!");
 }

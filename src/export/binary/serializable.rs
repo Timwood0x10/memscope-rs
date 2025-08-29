@@ -452,7 +452,14 @@ impl BinarySerializable for BinaryBorrowInfo {
     }
 
     fn binary_size(&self) -> usize {
-        4 + 4 + 4 + 1 + if self.last_borrow_timestamp.is_some() { 8 } else { 0 }
+        4 + 4
+            + 4
+            + 1
+            + if self.last_borrow_timestamp.is_some() {
+                8
+            } else {
+                0
+            }
     }
 }
 
@@ -470,9 +477,7 @@ impl BinarySerializable for BinaryCloneInfo {
         bytes_written += primitives::write_u32(writer, self.clone_count)?;
         bytes_written += primitives::write_u8(writer, if self.is_clone { 1 } else { 0 })?;
         bytes_written += match self.original_ptr {
-            Some(ptr) => {
-                primitives::write_u8(writer, 1)? + primitives::write_u64(writer, ptr)?
-            }
+            Some(ptr) => primitives::write_u8(writer, 1)? + primitives::write_u64(writer, ptr)?,
             None => primitives::write_u8(writer, 0)?,
         };
         Ok(bytes_written)
@@ -517,21 +522,19 @@ impl BinarySerializable for BinaryOwnershipEvent {
         bytes_written += primitives::write_u64(writer, self.timestamp)?;
         bytes_written += primitives::write_u8(writer, self.event_type)?;
         bytes_written += primitives::write_u32(writer, self.source_stack_id)?;
-        
+
         // Write optional clone_source_ptr
         bytes_written += match self.clone_source_ptr {
-            Some(ptr) => {
-                primitives::write_u8(writer, 1)? + primitives::write_u64(writer, ptr)?
-            }
+            Some(ptr) => primitives::write_u8(writer, 1)? + primitives::write_u64(writer, ptr)?,
             None => primitives::write_u8(writer, 0)?,
         };
-        
+
         // Write optional transfer_target_var
         bytes_written += primitives::write_string_option(writer, &self.transfer_target_var)?;
-        
+
         // Write optional borrower_scope
         bytes_written += primitives::write_string_option(writer, &self.borrower_scope)?;
-        
+
         Ok(bytes_written)
     }
 
@@ -539,14 +542,14 @@ impl BinarySerializable for BinaryOwnershipEvent {
         let timestamp = primitives::read_u64(reader)?;
         let event_type = primitives::read_u8(reader)?;
         let source_stack_id = primitives::read_u32(reader)?;
-        
+
         let has_clone_ptr = primitives::read_u8(reader)?;
         let clone_source_ptr = if has_clone_ptr == 1 {
             Some(primitives::read_u64(reader)?)
         } else {
             None
         };
-        
+
         let transfer_target_var = primitives::read_string_option(reader)?;
         let borrower_scope = primitives::read_string_option(reader)?;
 

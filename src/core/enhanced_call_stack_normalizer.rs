@@ -8,12 +8,12 @@
 //! - Uses unwrap_safe for error handling
 
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
-use crate::core::types::TrackingResult;
 use crate::core::safe_operations::SafeLock;
+use crate::core::types::TrackingResult;
 use crate::core::unwrap_safe::UnwrapSafe;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
-use dashmap::DashMap;
 
 /// Unique identifier for normalized call stacks
 pub type CallStackId = u32;
@@ -111,18 +111,20 @@ impl EnhancedCallStackNormalizer {
         // Check if this call stack already exists (lock-free lookup)
         if let Some(existing_id) = self.hash_to_id.get(&hash) {
             let id = *existing_id;
-            
+
             // For lock-free operation, we don't modify the ref_count in place
             // Instead, we track usage through access patterns
             self.update_stats_cache_hit();
             self.update_stats_duplicate_avoided(frames.len());
-            
+
             tracing::debug!("📋 Found existing call stack with ID: {}", id);
             return Ok(id);
         }
 
         // Create new normalized call stack
-        let id = self.next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default_safe(std::time::Duration::ZERO, "get current timestamp")
@@ -165,9 +167,10 @@ impl EnhancedCallStackNormalizer {
             }
         }
 
-        Err(crate::core::types::TrackingError::DataError(
-            format!("Call stack with ID {} not found", id)
-        ))
+        Err(crate::core::types::TrackingError::DataError(format!(
+            "Call stack with ID {} not found",
+            id
+        )))
     }
 
     /// Increment reference count for a call stack
@@ -188,9 +191,10 @@ impl EnhancedCallStackNormalizer {
             }
         }
 
-        Err(crate::core::types::TrackingError::DataError(
-            format!("Call stack with ID {} not found for ref count increment", id)
-        ))
+        Err(crate::core::types::TrackingError::DataError(format!(
+            "Call stack with ID {} not found for ref count increment",
+            id
+        )))
     }
 
     /// Decrement reference count for a call stack
@@ -212,9 +216,10 @@ impl EnhancedCallStackNormalizer {
             }
         }
 
-        Err(crate::core::types::TrackingError::DataError(
-            format!("Call stack with ID {} not found for ref count decrement", id)
-        ))
+        Err(crate::core::types::TrackingError::DataError(format!(
+            "Call stack with ID {} not found for ref count decrement",
+            id
+        )))
     }
 
     /// Get normalization statistics
@@ -251,7 +256,7 @@ impl EnhancedCallStackNormalizer {
         self.stack_registry.clear();
         self.hash_to_id.clear();
         self.next_id.store(1, std::sync::atomic::Ordering::Relaxed);
-        
+
         // Reset stats safely
         match self.stats.safe_lock() {
             Ok(mut stats) => {
@@ -261,7 +266,7 @@ impl EnhancedCallStackNormalizer {
                 tracing::warn!("Failed to reset stats during clear: {}", e);
             }
         }
-        
+
         tracing::info!("📋 Cleared all normalized call stacks");
     }
 
@@ -285,7 +290,8 @@ impl EnhancedCallStackNormalizer {
         let threshold = self.config.cleanup_threshold;
 
         // Collect hashes of stacks to remove
-        let to_remove: Vec<u64> = self.stack_registry
+        let to_remove: Vec<u64> = self
+            .stack_registry
             .iter()
             .filter_map(|entry| {
                 if entry.value().ref_count <= threshold {
@@ -369,7 +375,8 @@ impl EnhancedCallStackNormalizer {
         match self.stats.safe_lock() {
             Ok(mut stats) => {
                 stats.duplicates_avoided += 1;
-                stats.memory_saved_bytes += stack_depth as u64 * std::mem::size_of::<StackFrame>() as u64;
+                stats.memory_saved_bytes +=
+                    stack_depth as u64 * std::mem::size_of::<StackFrame>() as u64;
             }
             Err(e) => {
                 tracing::warn!("Failed to update duplicate avoided stats: {}", e);
@@ -527,14 +534,14 @@ mod tests {
     #[test]
     fn test_enhanced_normalizer_basic() {
         let normalizer = EnhancedCallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let frames = vec![create_test_stack_frame("test_function", 42)];
         let result = normalizer.normalize_call_stack(&frames);
-        
+
         assert!(result.is_ok());
         let id = result.unwrap();
         assert!(id > 0);
-        
+
         let retrieved_frames = normalizer.get_call_stack(id).unwrap();
         assert_eq!(retrieved_frames.len(), 1);
         assert_eq!(retrieved_frames[0].function_name, "test_function");
@@ -543,14 +550,14 @@ mod tests {
     #[test]
     fn test_deduplication() {
         let normalizer = EnhancedCallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let frames = vec![create_test_stack_frame("test_function", 42)];
         let id1 = normalizer.normalize_call_stack(&frames).unwrap();
         let id2 = normalizer.normalize_call_stack(&frames).unwrap();
-        
+
         // Should get the same ID for identical call stacks
         assert_eq!(id1, id2);
-        
+
         let stats = normalizer.get_stats().unwrap();
         assert_eq!(stats.duplicates_avoided, 1);
     }
@@ -558,7 +565,7 @@ mod tests {
     #[test]
     fn test_empty_call_stack() {
         let normalizer = EnhancedCallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let result = normalizer.normalize_call_stack(&[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 0);
@@ -567,10 +574,10 @@ mod tests {
     #[test]
     fn test_reference_counting() {
         let normalizer = EnhancedCallStackNormalizer::new(NormalizerConfig::default());
-        
+
         let frames = vec![create_test_stack_frame("test_function", 42)];
         let id = normalizer.normalize_call_stack(&frames).unwrap();
-        
+
         // Test increment and decrement
         assert!(normalizer.increment_ref_count(id).is_ok());
         assert!(normalizer.decrement_ref_count(id).is_ok());

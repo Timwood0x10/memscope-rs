@@ -1370,9 +1370,13 @@ impl BinaryParser {
             match json_type {
                 "memory" => Self::append_unified_record(&mut buffer, &allocation, "memory"),
                 "lifetime" => Self::append_unified_record(&mut buffer, &allocation, "lifetime"),
-                "performance" => Self::append_unified_record(&mut buffer, &allocation, "performance"),
+                "performance" => {
+                    Self::append_unified_record(&mut buffer, &allocation, "performance")
+                }
                 "unsafe_ffi" => Self::append_unified_record(&mut buffer, &allocation, "unsafe_ffi"),
-                "complex_types" => Self::append_unified_record(&mut buffer, &allocation, "complex_types"),
+                "complex_types" => {
+                    Self::append_unified_record(&mut buffer, &allocation, "complex_types")
+                }
                 _ => unreachable!(),
             }
 
@@ -1382,12 +1386,16 @@ impl BinaryParser {
         // Write JSON footer - simplified and unified
         match json_type {
             "memory" => {
-                writer.write_all(b"],\"metadata\":{\"analysis_type\":\"memory_analysis\",\"total_allocations\":")?;
+                writer.write_all(
+                    b"],\"metadata\":{\"analysis_type\":\"memory_analysis\",\"total_allocations\":",
+                )?;
                 writer.write_all(total_count.to_string().as_bytes())?;
                 writer.write_all(b",\"export_version\":\"2.0\"}}")?;
             }
             "lifetime" => {
-                writer.write_all(b"],\"metadata\":{\"analysis_type\":\"lifecycle_analysis\",\"total_events\":")?;
+                writer.write_all(
+                    b"],\"metadata\":{\"analysis_type\":\"lifecycle_analysis\",\"total_events\":",
+                )?;
                 writer.write_all(total_count.to_string().as_bytes())?;
                 writer.write_all(b",\"export_version\":\"2.0\"}}")?;
             }
@@ -1774,7 +1782,11 @@ impl BinaryParser {
 
     /// Generate unified record with base allocation info + analysis-specific fields
     #[inline]
-    fn append_unified_record(buffer: &mut String, allocation: &AllocationInfo, analysis_type: &str) {
+    fn append_unified_record(
+        buffer: &mut String,
+        allocation: &AllocationInfo,
+        analysis_type: &str,
+    ) {
         // Base allocation info (consistent across all analysis types)
         buffer.push_str(r#"{"ptr":"0x"#);
         Self::append_hex_to_string(buffer, allocation.ptr);
@@ -1811,8 +1823,12 @@ impl BinaryParser {
         buffer.push_str(r#"","borrow_count":"#);
         Self::append_number_to_string(buffer, allocation.borrow_count as u64);
         buffer.push_str(r#","is_leaked":"#);
-        buffer.push_str(if allocation.is_leaked { "true" } else { "false" });
-        
+        buffer.push_str(if allocation.is_leaked {
+            "true"
+        } else {
+            "false"
+        });
+
         // Add improve.md extensions if available
         if let Some(ref borrow_info) = allocation.borrow_info {
             buffer.push_str(r#","borrow_info":{"immutable_borrows":"#);
@@ -1829,7 +1845,7 @@ impl BinaryParser {
             }
             buffer.push('}');
         }
-        
+
         if let Some(ref clone_info) = allocation.clone_info {
             buffer.push_str(r#","clone_info":{"clone_count":"#);
             Self::append_number_to_string(buffer, clone_info.clone_count as u64);
@@ -1845,11 +1861,11 @@ impl BinaryParser {
             }
             buffer.push('}');
         }
-        
+
         if allocation.ownership_history_available {
             buffer.push_str(r#","ownership_history_available":true"#);
         }
-        
+
         // Add analysis-specific fields
         match analysis_type {
             "memory" => {
@@ -1877,7 +1893,7 @@ impl BinaryParser {
             }
             _ => {}
         }
-        
+
         buffer.push('}');
     }
 

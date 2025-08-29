@@ -56,9 +56,9 @@ pub fn should_use_arc_sharing(type_name: &str, size: usize) -> bool {
 }
 
 /// Optimize a clone operation by choosing between regular clone and Arc sharing
-pub fn optimized_clone<T: Clone>(value: &T) -> T
+pub fn optimized_clone<T>(value: &T) -> T
 where
-    T: 'static,
+    T: Clone + 'static,
 {
     let type_name = std::any::type_name::<T>();
     let size = std::mem::size_of::<T>();

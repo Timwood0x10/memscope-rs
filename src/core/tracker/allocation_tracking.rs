@@ -43,7 +43,7 @@ impl MemoryTracker {
         // CRITICAL FIX: Skip advanced tracking for global allocator calls
         // Only do basic tracking for system allocations, save advanced features for user variables
         let is_user_variable = false; // This is a system allocation from global allocator
-        
+
         // Create allocation info first (no locks needed)
         let mut allocation = AllocationInfo::new(ptr, size);
 
@@ -408,7 +408,7 @@ impl MemoryTracker {
         let mut allocation = AllocationInfo::new(ptr, size);
         allocation.var_name = Some(var_name.clone());
         allocation.type_name = Some(type_name.clone());
-        
+
         // Apply improve.md field enhancements based on type
         allocation.enhance_with_type_info(&type_name);
 
@@ -417,18 +417,26 @@ impl MemoryTracker {
             Ok(mut active) => {
                 active.insert(ptr, allocation.clone());
                 drop(active); // Release active lock before acquiring bounded_stats lock
-                
+
                 // CRITICAL FIX: Update bounded stats for synthetic allocations
                 if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
                     bounded_stats.add_allocation(&allocation);
                 }
-                
-                tracing::debug!("Created synthetic allocation for '{}' ({}): ptr=0x{:x}, size={}", 
-                               var_name, type_name, ptr, size);
+
+                tracing::debug!(
+                    "Created synthetic allocation for '{}' ({}): ptr=0x{:x}, size={}",
+                    var_name,
+                    type_name,
+                    ptr,
+                    size
+                );
                 Ok(())
             }
             Err(_) => {
-                tracing::debug!("Could not acquire lock for synthetic allocation: {}", var_name);
+                tracing::debug!(
+                    "Could not acquire lock for synthetic allocation: {}",
+                    var_name
+                );
                 Ok(())
             }
         }
@@ -447,7 +455,7 @@ impl MemoryTracker {
                 if let Some(allocation) = active.get_mut(&ptr) {
                     allocation.var_name = Some(var_name.clone());
                     allocation.type_name = Some(type_name.clone());
-                    
+
                     // Apply improve.md field enhancements based on type
                     allocation.enhance_with_type_info(&type_name);
 
@@ -468,16 +476,16 @@ impl MemoryTracker {
 
                     // Apply improve.md field enhancements based on type
                     synthetic_allocation.enhance_with_type_info(&type_name);
-                    
+
                     // Add to active allocations for tracking
                     active.insert(ptr, synthetic_allocation.clone());
-                    
+
                     // CRITICAL FIX: Update bounded stats for synthetic allocations
                     drop(active); // Release active lock before acquiring bounded_stats lock
                     if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
                         bounded_stats.add_allocation(&synthetic_allocation);
                     }
-                    
+
                     tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
                                    var_name, ptr, estimated_size);
                 }
@@ -485,28 +493,36 @@ impl MemoryTracker {
             }
             Err(_) => {
                 // If we can't get the lock immediately, skip to avoid deadlock
-                tracing::debug!("Could not acquire lock for variable association: {}", var_name);
+                tracing::debug!(
+                    "Could not acquire lock for variable association: {}",
+                    var_name
+                );
                 Ok(())
             }
         }
     }
 
     /// Enhance allocation with improve.md required fields
-    fn _enhance_allocation_with_improve_md_fields(mut allocation: AllocationInfo) -> AllocationInfo {
+    fn _enhance_allocation_with_improve_md_fields(
+        mut allocation: AllocationInfo,
+    ) -> AllocationInfo {
         // Simulate borrowing information based on type patterns
         if let Some(ref type_name) = allocation.type_name {
             // Detect reference counting types (Rc, Arc)
             if type_name.contains("Rc<") || type_name.contains("Arc<") {
                 allocation.clone_info = Some(crate::core::types::CloneInfo {
-                    clone_count: 2, // Simulate that Rc/Arc types are typically cloned
+                    clone_count: 2,  // Simulate that Rc/Arc types are typically cloned
                     is_clone: false, // This is the original
                     original_ptr: None,
                 });
                 allocation.ownership_history_available = true;
             }
-            
+
             // Detect collections that are commonly borrowed
-            if type_name.contains("Vec<") || type_name.contains("String") || type_name.contains("HashMap") {
+            if type_name.contains("Vec<")
+                || type_name.contains("String")
+                || type_name.contains("HashMap")
+            {
                 allocation.borrow_info = Some(crate::core::types::BorrowInfo {
                     immutable_borrows: 3, // Simulate common borrowing patterns
                     mutable_borrows: 1,
@@ -515,7 +531,7 @@ impl MemoryTracker {
                 });
                 allocation.ownership_history_available = true;
             }
-            
+
             // Detect Box types
             if type_name.contains("Box<") {
                 allocation.borrow_info = Some(crate::core::types::BorrowInfo {
@@ -527,7 +543,7 @@ impl MemoryTracker {
                 allocation.ownership_history_available = true;
             }
         }
-        
+
         // Calculate lifetime_ms for active allocations
         if allocation.timestamp_dealloc.is_none() {
             // For active allocations, calculate elapsed time
@@ -538,7 +554,7 @@ impl MemoryTracker {
             let elapsed_ns = current_time.saturating_sub(allocation.timestamp_alloc);
             allocation.lifetime_ms = Some(elapsed_ns / 1_000_000); // Convert to milliseconds
         }
-        
+
         allocation
     }
 

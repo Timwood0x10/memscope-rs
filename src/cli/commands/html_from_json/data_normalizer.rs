@@ -457,14 +457,16 @@ impl DataNormalizer {
         // Try to get allocations from memory_analysis or unsafe_ffi
         let memory_data = multi_source.get("memory_analysis");
         let unsafe_ffi_data = multi_source.get("unsafe_ffi");
-        
+
         let empty_vec = vec![];
         let allocations_array = memory_data
             .and_then(|data| data.get("allocations"))
             .and_then(|allocs| allocs.as_array())
-            .or_else(|| unsafe_ffi_data
-                .and_then(|data| data.get("allocations"))
-                .and_then(|allocs| allocs.as_array()))
+            .or_else(|| {
+                unsafe_ffi_data
+                    .and_then(|data| data.get("allocations"))
+                    .and_then(|allocs| allocs.as_array())
+            })
             .unwrap_or(&empty_vec);
 
         let mut normalized_allocations = Vec::new();
@@ -474,10 +476,16 @@ impl DataNormalizer {
                 // Extract borrow_info if present
                 let borrow_info = alloc.get("borrow_info").and_then(|bi| {
                     Some(BorrowInfo {
-                        immutable_borrows: self.extract_u32(Some(bi), "immutable_borrows").unwrap_or(0),
+                        immutable_borrows: self
+                            .extract_u32(Some(bi), "immutable_borrows")
+                            .unwrap_or(0),
                         mutable_borrows: self.extract_u32(Some(bi), "mutable_borrows").unwrap_or(0),
-                        max_concurrent_borrows: self.extract_u32(Some(bi), "max_concurrent_borrows").unwrap_or(0),
-                        last_borrow_timestamp: self.extract_u64(Some(bi), "last_borrow_timestamp").unwrap_or(0),
+                        max_concurrent_borrows: self
+                            .extract_u32(Some(bi), "max_concurrent_borrows")
+                            .unwrap_or(0),
+                        last_borrow_timestamp: self
+                            .extract_u64(Some(bi), "last_borrow_timestamp")
+                            .unwrap_or(0),
                     })
                 });
 
@@ -491,11 +499,14 @@ impl DataNormalizer {
                 });
 
                 // Extract safety_violations if present
-                let safety_violations = alloc.get("safety_violations")
+                let safety_violations = alloc
+                    .get("safety_violations")
                     .and_then(|sv| sv.as_array())
-                    .map(|arr| arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                        .collect());
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    });
 
                 let allocation_info = AllocationInfo {
                     ptr: self
@@ -519,7 +530,8 @@ impl DataNormalizer {
                     lifetime_ms: self.extract_u64(Some(alloc), "lifetime_ms"),
                     borrow_info,
                     clone_info,
-                    ownership_history_available: self.extract_bool(Some(alloc), "ownership_history_available"),
+                    ownership_history_available: self
+                        .extract_bool(Some(alloc), "ownership_history_available"),
                     ffi_tracked: self.extract_bool(Some(alloc), "ffi_tracked"),
                     safety_violations,
                 };

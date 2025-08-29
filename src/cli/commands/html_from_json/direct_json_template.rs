@@ -31,13 +31,19 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     // Serialize the transformed JSON data for embedding with proper escaping
     let json_data_str = serde_json::to_string(&transformed_data)
         .map_err(|e| format!("Failed to serialize JSON data: {e}"))?;
-    
+
     // Debug: Log data serialization info
-    tracing::info!("📊 JSON data serialized: {} characters", json_data_str.len());
+    tracing::info!(
+        "📊 JSON data serialized: {} characters",
+        json_data_str.len()
+    );
     if let Some(memory_analysis) = transformed_data.get("memory_analysis") {
         if let Some(allocations) = memory_analysis.get("allocations") {
             if let Some(allocs_array) = allocations.as_array() {
-                tracing::info!("📊 Memory analysis allocations: {} items", allocs_array.len());
+                tracing::info!(
+                    "📊 Memory analysis allocations: {} items",
+                    allocs_array.len()
+                );
             }
         }
     }
@@ -373,7 +379,7 @@ fn enhance_ffi_data(data: &Value) -> Result<Value, Box<dyn Error>> {
         .get("allocations")
         .and_then(|d| d.as_array())
         .unwrap_or(&empty_vec);
-    
+
     // Fallback to enhanced_ffi_data if allocations is not found
     let enhanced_data = if allocations.is_empty() {
         data.get("enhanced_ffi_data")
@@ -382,14 +388,18 @@ fn enhance_ffi_data(data: &Value) -> Result<Value, Box<dyn Error>> {
     } else {
         allocations
     };
-    
+
     let boundary_events = data
         .get("boundary_events")
         .and_then(|d| d.as_array())
         .unwrap_or(&empty_vec);
 
-    tracing::info!("🔍 FFI data enhancement - allocations: {}, enhanced_data: {}, boundary_events: {}", 
-                   allocations.len(), enhanced_data.len(), boundary_events.len());
+    tracing::info!(
+        "🔍 FFI data enhancement - allocations: {}, enhanced_data: {}, boundary_events: {}",
+        allocations.len(),
+        enhanced_data.len(),
+        boundary_events.len()
+    );
 
     // Calculate comprehensive statistics using the actual allocations
     let stats = calculate_ffi_statistics_from_allocations(enhanced_data, boundary_events);
@@ -566,7 +576,10 @@ fn analyze_memory_growth_trends(allocations: &[Value]) -> Value {
 }
 
 /// Calculate comprehensive FFI statistics from allocations
-fn calculate_ffi_statistics_from_allocations(allocations: &[Value], boundary_events: &[Value]) -> Value {
+fn calculate_ffi_statistics_from_allocations(
+    allocations: &[Value],
+    boundary_events: &[Value],
+) -> Value {
     let ffi_tracked_allocations = allocations
         .iter()
         .filter(|item| {
@@ -596,8 +609,14 @@ fn calculate_ffi_statistics_from_allocations(allocations: &[Value], boundary_eve
         .iter()
         .filter(|item| {
             if let Some(borrow_info) = item.get("borrow_info") {
-                let immutable = borrow_info.get("immutable_borrows").and_then(|v| v.as_u64()).unwrap_or(0);
-                let mutable = borrow_info.get("mutable_borrows").and_then(|v| v.as_u64()).unwrap_or(0);
+                let immutable = borrow_info
+                    .get("immutable_borrows")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let mutable = borrow_info
+                    .get("mutable_borrows")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
                 immutable > 0 && mutable > 0
             } else {
                 false
@@ -751,12 +770,12 @@ fn format_memory_size(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
     let mut unit_index = 0;
-    
+
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{} {}", bytes, UNITS[unit_index])
     } else {
@@ -780,7 +799,7 @@ fn calculate_risk_level(size: u64, is_unsafe: bool, is_ffi: bool) -> String {
 /// Create FFI dashboard metrics inspired by SVG design
 fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]) -> Value {
     let total_allocations = allocations.len();
-    
+
     // Count unsafe allocations (those with safety violations)
     let unsafe_allocations = allocations
         .iter()
@@ -858,11 +877,14 @@ fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]
 /// Analyze smart pointer types distribution
 fn analyze_smart_pointer_types(allocations: &[Value]) -> Value {
     let mut type_counts = std::collections::HashMap::new();
-    
+
     for allocation in allocations {
         if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
-            if type_name.contains("Arc") || type_name.contains("Rc") || 
-               type_name.contains("Box") || type_name.contains("RefCell") {
+            if type_name.contains("Arc")
+                || type_name.contains("Rc")
+                || type_name.contains("Box")
+                || type_name.contains("RefCell")
+            {
                 // Extract the main type name
                 let short_type = if type_name.contains("Arc") {
                     "Arc"
@@ -875,12 +897,12 @@ fn analyze_smart_pointer_types(allocations: &[Value]) -> Value {
                 } else {
                     "Other"
                 };
-                
+
                 *type_counts.entry(short_type.to_string()).or_insert(0) += 1;
             }
         }
     }
-    
+
     serde_json::json!(type_counts)
 }
 
@@ -889,25 +911,34 @@ fn analyze_borrow_checker_metrics(allocations: &[Value]) -> Value {
     let mut max_concurrent = 0;
     let mut total_borrows = 0;
     let mut conflicts = 0;
-    
+
     for allocation in allocations {
         if let Some(borrow_info) = allocation.get("borrow_info") {
-            if let Some(max_concurrent_borrows) = borrow_info.get("max_concurrent_borrows").and_then(|m| m.as_u64()) {
+            if let Some(max_concurrent_borrows) = borrow_info
+                .get("max_concurrent_borrows")
+                .and_then(|m| m.as_u64())
+            {
                 max_concurrent = max_concurrent.max(max_concurrent_borrows);
             }
-            
-            let immutable = borrow_info.get("immutable_borrows").and_then(|i| i.as_u64()).unwrap_or(0);
-            let mutable = borrow_info.get("mutable_borrows").and_then(|m| m.as_u64()).unwrap_or(0);
-            
+
+            let immutable = borrow_info
+                .get("immutable_borrows")
+                .and_then(|i| i.as_u64())
+                .unwrap_or(0);
+            let mutable = borrow_info
+                .get("mutable_borrows")
+                .and_then(|m| m.as_u64())
+                .unwrap_or(0);
+
             total_borrows += immutable + mutable;
-            
+
             // Check for conflicts (both immutable and mutable borrows)
             if immutable > 0 && mutable > 0 {
                 conflicts += 1;
             }
         }
     }
-    
+
     serde_json::json!({
         "max_concurrent_borrows": max_concurrent,
         "total_borrow_operations": total_borrows,
@@ -964,7 +995,8 @@ fn analyze_cross_language_memory_flow(allocations: &[Value], boundary_events: &[
     let rust_allocations = allocations
         .iter()
         .filter(|item| {
-            !item.get("ffi_tracked")
+            !item
+                .get("ffi_tracked")
                 .and_then(|f| f.as_bool())
                 .unwrap_or(false)
         })
@@ -1025,9 +1057,15 @@ fn create_ffi_risk_assessment(allocations: &[Value]) -> Value {
 
         // Check for potential risks based on borrow patterns
         if let Some(borrow_info) = allocation.get("borrow_info") {
-            let immutable = borrow_info.get("immutable_borrows").and_then(|v| v.as_u64()).unwrap_or(0);
-            let mutable = borrow_info.get("mutable_borrows").and_then(|v| v.as_u64()).unwrap_or(0);
-            
+            let immutable = borrow_info
+                .get("immutable_borrows")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let mutable = borrow_info
+                .get("mutable_borrows")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
             if immutable > 0 && mutable > 0 {
                 risk_items.push(serde_json::json!({
                     "type": "borrow_conflict",
@@ -1042,10 +1080,22 @@ fn create_ffi_risk_assessment(allocations: &[Value]) -> Value {
     }
 
     // Calculate risk summary
-    let critical_risks = risk_items.iter().filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("critical")).count();
-    let high_risks = risk_items.iter().filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("high")).count();
-    let medium_risks = risk_items.iter().filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("medium")).count();
-    let low_risks = risk_items.iter().filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("low")).count();
+    let critical_risks = risk_items
+        .iter()
+        .filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("critical"))
+        .count();
+    let high_risks = risk_items
+        .iter()
+        .filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("high"))
+        .count();
+    let medium_risks = risk_items
+        .iter()
+        .filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("medium"))
+        .count();
+    let low_risks = risk_items
+        .iter()
+        .filter(|r| r.get("severity").and_then(|s| s.as_str()) == Some("low"))
+        .count();
 
     serde_json::json!({
         "risk_items": risk_items,
@@ -1059,8 +1109,6 @@ fn create_ffi_risk_assessment(allocations: &[Value]) -> Value {
     })
 }
 
-
-
 /// Get violation severity
 fn get_violation_severity(violation: &str) -> &'static str {
     match violation.to_lowercase().as_str() {
@@ -1072,18 +1120,24 @@ fn get_violation_severity(violation: &str) -> &'static str {
 }
 
 /// Generate safety risk data from JSON data structure
-fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String, Value>) -> Result<String, Box<dyn Error>> {
+fn generate_safety_risk_data_from_json(
+    transformed_data: &serde_json::Map<String, Value>,
+) -> Result<String, Box<dyn Error>> {
     let mut safety_risks = Vec::new();
-    
+
     // Extract allocations from memory_analysis
     if let Some(memory_analysis) = transformed_data.get("memory_analysis") {
-        if let Some(allocations) = memory_analysis.get("allocations").and_then(|a| a.as_array()) {
+        if let Some(allocations) = memory_analysis
+            .get("allocations")
+            .and_then(|a| a.as_array())
+        {
             for allocation in allocations {
                 // Check for potential unsafe operations based on allocation patterns
-                
+
                 // 1. Large allocations that might indicate unsafe buffer operations
                 if let Some(size) = allocation.get("size").and_then(|s| s.as_u64()) {
-                    if size > 1024 * 1024 { // > 1MB
+                    if size > 1024 * 1024 {
+                        // > 1MB
                         safety_risks.push(serde_json::json!({
                             "location": format!("{}::{}", 
                                 allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
@@ -1094,7 +1148,7 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
                         }));
                     }
                 }
-                
+
                 // 2. Leaked memory indicates potential unsafe operations
                 if let Some(is_leaked) = allocation.get("is_leaked").and_then(|l| l.as_bool()) {
                     if is_leaked {
@@ -1108,9 +1162,10 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
                         }));
                     }
                 }
-                
+
                 // 3. High borrow count might indicate unsafe sharing
-                if let Some(borrow_count) = allocation.get("borrow_count").and_then(|b| b.as_u64()) {
+                if let Some(borrow_count) = allocation.get("borrow_count").and_then(|b| b.as_u64())
+                {
                     if borrow_count > 10 {
                         safety_risks.push(serde_json::json!({
                             "location": format!("{}::{}", 
@@ -1122,7 +1177,7 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
                         }));
                     }
                 }
-                
+
                 // 4. Raw pointer types indicate direct unsafe operations
                 if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
                     if type_name.contains("*mut") || type_name.contains("*const") {
@@ -1135,10 +1190,13 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
                             "description": format!("Raw pointer type '{}' requires unsafe operations", type_name)
                         }));
                     }
-                    
+
                     // 5. FFI-related types
-                    if type_name.contains("CString") || type_name.contains("CStr") || 
-                       type_name.contains("c_void") || type_name.contains("extern") {
+                    if type_name.contains("CString")
+                        || type_name.contains("CStr")
+                        || type_name.contains("c_void")
+                        || type_name.contains("extern")
+                    {
                         safety_risks.push(serde_json::json!({
                             "location": format!("{}::{}", 
                                 allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
@@ -1149,10 +1207,11 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
                         }));
                     }
                 }
-                
+
                 // 6. Very short-lived allocations might indicate unsafe temporary operations
                 if let Some(lifetime_ms) = allocation.get("lifetime_ms").and_then(|l| l.as_u64()) {
-                    if lifetime_ms < 1 { // Less than 1ms
+                    if lifetime_ms < 1 {
+                        // Less than 1ms
                         safety_risks.push(serde_json::json!({
                             "location": format!("{}::{}", 
                                 allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
@@ -1166,20 +1225,25 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
             }
         }
     }
-    
+
     // Check unsafe_ffi data for additional risks
     if let Some(unsafe_ffi) = transformed_data.get("unsafe_ffi") {
-        if let Some(safety_violations) = unsafe_ffi.get("safety_violations").and_then(|sv| sv.as_array()) {
+        if let Some(safety_violations) = unsafe_ffi
+            .get("safety_violations")
+            .and_then(|sv| sv.as_array())
+        {
             for violation in safety_violations {
-                if let Some(violation_type) = violation.get("violation_type").and_then(|vt| vt.as_str()) {
+                if let Some(violation_type) =
+                    violation.get("violation_type").and_then(|vt| vt.as_str())
+                {
                     let severity = get_violation_severity(violation_type);
                     let risk_level = match severity {
                         "critical" => "High",
-                        "high" => "High", 
+                        "high" => "High",
                         "medium" => "Medium",
-                        _ => "Low"
+                        _ => "Low",
                     };
-                    
+
                     safety_risks.push(serde_json::json!({
                         "location": violation.get("location").and_then(|l| l.as_str()).unwrap_or("Unknown"),
                         "operation": format!("Safety Violation: {}", violation_type),
@@ -1190,7 +1254,7 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
             }
         }
     }
-    
+
     // If no risks found, add a placeholder to show the system is working
     if safety_risks.is_empty() {
         safety_risks.push(serde_json::json!({
@@ -1200,24 +1264,31 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
             "description": "No significant safety risks detected in current allocations"
         }));
     }
-    
+
     serde_json::to_string(&safety_risks)
         .map_err(|e| format!("Failed to serialize safety risk data: {}", e).into())
 }
 
 /// Inject safety risk data into HTML template
-fn inject_safety_risk_data_into_html(mut html: String, safety_risk_data: &str) -> Result<String, Box<dyn Error>> {
+fn inject_safety_risk_data_into_html(
+    mut html: String,
+    safety_risk_data: &str,
+) -> Result<String, Box<dyn Error>> {
     // Replace the safety risk data in the existing template
-    html = html.replace("window.safetyRisks = [];", &format!("window.safetyRisks = {};", safety_risk_data));
-    
+    html = html.replace(
+        "window.safetyRisks = [];",
+        &format!("window.safetyRisks = {};", safety_risk_data),
+    );
+
     // Always ensure loadSafetyRisks function is available
     if !html.contains("function loadSafetyRisks") {
         // Find a good injection point - before the closing </script> tag
         if let Some(script_end) = html.rfind("</script>") {
             let before = &html[..script_end];
             let after = &html[script_end..];
-            
-            let safety_function_injection = format!(r#"
+
+            let safety_function_injection = format!(
+                r#"
     // Safety Risk Data Management Function
     function loadSafetyRisks() {{
         console.log('🛡️ Loading safety risk data...');
@@ -1253,26 +1324,30 @@ fn inject_safety_risk_data_into_html(mut html: String, safety_risk_data: &str) -
         console.log('✅ Safety risks loaded:', risks.length, 'items');
     }}
     
-    "#);
-            
+    "#
+            );
+
             html = format!("{}{}{}", before, safety_function_injection, after);
         }
     }
-    
+
     // Ensure safety risks are loaded after initialization - but only call if function exists
     html = html.replace("console.log('✅ Enhanced dashboard initialized');", 
                        "console.log('✅ Enhanced dashboard initialized'); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100);");
-    
+
     // Also add to manual initialization if it exists - with safer replacement
     if html.contains("manualBtn.addEventListener('click', manualInitialize);") {
         html = html.replace("manualBtn.addEventListener('click', manualInitialize);", 
                            "manualBtn.addEventListener('click', function() { manualInitialize(); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100); });");
     }
-    
+
     // Remove any standalone loadSafetyRisks calls that might cause errors
-    html = html.replace("loadSafetyRisks();", "if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); }");
-    
+    html = html.replace(
+        "loadSafetyRisks();",
+        "if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); }",
+    );
+
     tracing::info!("📊 Safety risk data and function injected into HTML template");
-    
+
     Ok(html)
 }

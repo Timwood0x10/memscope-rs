@@ -2,12 +2,12 @@
 //! Converts binary memscope files to HTML reports using clean_dashboard.html template
 
 use crate::core::types::{AllocationInfo, MemoryStats};
-use crate::export::binary::reader::BinaryReader;
 use crate::export::binary::error::BinaryExportError;
+use crate::export::binary::reader::BinaryReader;
 use chrono;
+use serde_json::json;
 use std::fs;
 use std::path::Path;
-use serde_json::json;
 
 /// Convert binary memscope file to HTML report
 pub fn convert_binary_to_html<P: AsRef<Path>>(
@@ -18,50 +18,49 @@ pub fn convert_binary_to_html<P: AsRef<Path>>(
     // Read binary data
     let mut reader = BinaryReader::new(&binary_path)?;
     let allocations = reader.read_all()?;
-    
+
     // Generate statistics
     let stats = generate_statistics(&allocations);
-    
+
     // Load binary dashboard template
     println!("🔄 Loading binary dashboard template...");
     let template = load_binary_dashboard_template()?;
     println!("📄 Template loaded, length: {} chars", template.len());
-    
+
     // Generate HTML content
     let html_content = generate_html_content(&template, &allocations, &stats, project_name)?;
-    
+
     // Write HTML file
-    fs::write(&html_path, html_content)
-        .map_err(|e| BinaryExportError::Io(e))?;
-    
+    fs::write(&html_path, html_content).map_err(|e| BinaryExportError::Io(e))?;
+
     Ok(())
 }
 
 /// Generate statistics from allocations
 fn generate_statistics(allocations: &[AllocationInfo]) -> MemoryStats {
     let mut stats = MemoryStats::new();
-    
+
     let mut total_memory = 0;
     let mut active_memory = 0;
     let mut active_count = 0;
     let mut leaked_count = 0;
     let mut leaked_memory = 0;
-    
+
     for allocation in allocations {
         stats.total_allocations += 1;
         total_memory += allocation.size;
-        
+
         if allocation.timestamp_dealloc.is_none() {
             active_count += 1;
             active_memory += allocation.size;
         }
-        
+
         if allocation.is_leaked {
             leaked_count += 1;
             leaked_memory += allocation.size;
         }
     }
-    
+
     stats.total_allocated = total_memory;
     stats.active_allocations = active_count;
     stats.active_memory = active_memory;
@@ -69,7 +68,7 @@ fn generate_statistics(allocations: &[AllocationInfo]) -> MemoryStats {
     stats.leaked_allocations = leaked_count;
     stats.leaked_memory = leaked_memory;
     stats.allocations = allocations.to_vec();
-    
+
     stats
 }
 
@@ -78,20 +77,24 @@ fn load_binary_dashboard_template() -> Result<String, BinaryExportError> {
     // Try to load from templates directory - use clean_dashboard.html for tests
     let template_paths = [
         "templates/working_dashboard.html",
-        "../templates/working_dashboard.html", 
+        "../templates/working_dashboard.html",
         "../../templates/working_dashboard.html",
     ];
-    
+
     for path in &template_paths {
         println!("🔍 Trying to load template from: {}", path);
         if let Ok(content) = fs::read_to_string(path) {
-            println!("✅ Successfully loaded template from: {} ({} chars)", path, content.len());
+            println!(
+                "✅ Successfully loaded template from: {} ({} chars)",
+                path,
+                content.len()
+            );
             return Ok(content);
         } else {
             println!("❌ Failed to load from: {}", path);
         }
     }
-    
+
     println!("⚠️ Using fallback embedded template");
     // Fallback to embedded template
     Ok(get_embedded_binary_template())
@@ -108,10 +111,10 @@ fn generate_html_content(
     let allocation_data = prepare_allocation_data(allocations)?;
     let _stats_data = prepare_stats_data(stats)?;
     let safety_risk_data = prepare_safety_risk_data(allocations)?;
-    
+
     // Replace template placeholders for binary_dashboard.html
     let mut html = template.to_string();
-    
+
     // Smart project name insertion - handle templates without {{PROJECT_NAME}} placeholder
     if html.contains("{{PROJECT_NAME}}") {
         html = html.replace("{{PROJECT_NAME}}", project_name);
@@ -123,21 +126,37 @@ fn generate_html_content(
                 let title_end = start + end;
                 let before = &html[..start + 7]; // Include "<title>"
                 let after = &html[title_end..];
-                html = format!("{}{} - Memory Analysis Dashboard{}", before, project_name, after);
+                html = format!(
+                    "{}{} - Memory Analysis Dashboard{}",
+                    before, project_name, after
+                );
             }
         }
-        
+
         // Replace main header h1 - look for "MemScope Memory Analysis Dashboard"
-        html = html.replace("MemScope Memory Analysis Dashboard", &format!("{} - Memory Analysis Report", project_name));
-        
+        html = html.replace(
+            "MemScope Memory Analysis Dashboard",
+            &format!("{} - Memory Analysis Report", project_name),
+        );
+
         // Add stats-grid and allocations-table classes for test compatibility
         html = html.replace("class=\"grid grid-4\"", "class=\"grid grid-4 stats-grid\"");
         html = html.replace("<table>", "<table class=\"allocations-table\">");
     }
-    
-    html = html.replace("{{TIMESTAMP}}", &chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string());
-    html = html.replace("{{GENERATION_TIME}}", &chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string());
-    
+
+    html = html.replace(
+        "{{TIMESTAMP}}",
+        &chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string(),
+    );
+    html = html.replace(
+        "{{GENERATION_TIME}}",
+        &chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string(),
+    );
+
     // CRITICAL FIX: Replace the hardcoded window.analysisData in working_dashboard.html
     // Find and replace the entire window.analysisData assignment
     if let Some(start) = html.find("window.analysisData = {") {
@@ -145,8 +164,13 @@ fn generate_html_content(
             let end_pos = start + end + 2; // Include the "};"
             let before = &html[..start];
             let after = &html[end_pos..];
-            html = format!("{}window.analysisData = {};{}", before, &allocation_data, after);
-            println!("✅ Successfully replaced hardcoded window.analysisData with real binary data");
+            html = format!(
+                "{}window.analysisData = {};{}",
+                before, &allocation_data, after
+            );
+            println!(
+                "✅ Successfully replaced hardcoded window.analysisData with real binary data"
+            );
         } else {
             println!("❌ Could not find end of window.analysisData assignment");
         }
@@ -158,37 +182,58 @@ fn generate_html_content(
         html = html.replace("{{ json_data }}", &allocation_data);
         html = html.replace("{{json_data}}", &allocation_data);
     }
-    
+
     // Replace statistics placeholders
-    html = html.replace("{{TOTAL_ALLOCATIONS}}", &stats.total_allocations.to_string());
-    html = html.replace("{{ACTIVE_ALLOCATIONS}}", &stats.active_allocations.to_string());
-    html = html.replace("{{ACTIVE_MEMORY}}", &format_memory_size(stats.active_memory));
+    html = html.replace(
+        "{{TOTAL_ALLOCATIONS}}",
+        &stats.total_allocations.to_string(),
+    );
+    html = html.replace(
+        "{{ACTIVE_ALLOCATIONS}}",
+        &stats.active_allocations.to_string(),
+    );
+    html = html.replace(
+        "{{ACTIVE_MEMORY}}",
+        &format_memory_size(stats.active_memory),
+    );
     html = html.replace("{{PEAK_MEMORY}}", &format_memory_size(stats.peak_memory));
-    html = html.replace("{{LEAKED_ALLOCATIONS}}", &stats.leaked_allocations.to_string());
-    html = html.replace("{{LEAKED_MEMORY}}", &format_memory_size(stats.leaked_memory));
-    
+    html = html.replace(
+        "{{LEAKED_ALLOCATIONS}}",
+        &stats.leaked_allocations.to_string(),
+    );
+    html = html.replace(
+        "{{LEAKED_MEMORY}}",
+        &format_memory_size(stats.leaked_memory),
+    );
+
     // Replace additional binary dashboard placeholders
     html = html.replace("{{SVG_IMAGES}}", "<!-- SVG images placeholder -->");
     html = html.replace("{{CSS_CONTENT}}", "/* Additional CSS placeholder */");
     html = html.replace("{{JS_CONTENT}}", "// Additional JavaScript placeholder");
-    
+
     // Replace any remaining template variables to prevent errors
     html = html.replace("{{ json_data }}", &allocation_data);
     html = html.replace("{{json_data}}", &allocation_data);
-    
+
     // Fix any remaining references to JS_CONTENT in comments and code
-    html = html.replace("AFTER JS_CONTENT loads", "after additional JavaScript loads");
+    html = html.replace(
+        "AFTER JS_CONTENT loads",
+        "after additional JavaScript loads",
+    );
     html = html.replace("JS_CONTENT loads", "additional JavaScript loads");
     html = html.replace("JS_CONTENT", "additionalJavaScript");
-    
+
     // Inject safety risk data into the HTML for the unsafeTable
     // Find the DOMContentLoaded event listener and inject safety risk data before it
-    if let Some(dom_ready_start) = html.find("document.addEventListener('DOMContentLoaded', function() {") {
+    if let Some(dom_ready_start) =
+        html.find("document.addEventListener('DOMContentLoaded', function() {")
+    {
         let injection_point = dom_ready_start;
         let before = &html[..injection_point];
         let after = &html[injection_point..];
-        
-        let safety_injection = format!(r#"
+
+        let safety_injection = format!(
+            r#"
     // Safety Risk Data Injection
     window.safetyRisks = {};
     
@@ -226,19 +271,24 @@ fn generate_html_content(
         console.log('✅ Safety risks loaded:', risks.length, 'items');
     }}
     
-    "#, safety_risk_data);
-        
+    "#,
+            safety_risk_data
+        );
+
         html = format!("{}{}{}", before, safety_injection, after);
     } else {
         println!("⚠️ Could not find DOMContentLoaded event listener for safety risk injection");
     }
-    
+
     // Find and modify the existing initialization to include safety risk loading
-    if let Some(manual_init_start) = html.find("manualBtn.addEventListener('click', manualInitialize);") {
-        let after_manual_init = manual_init_start + "manualBtn.addEventListener('click', manualInitialize);".len();
+    if let Some(manual_init_start) =
+        html.find("manualBtn.addEventListener('click', manualInitialize);")
+    {
+        let after_manual_init =
+            manual_init_start + "manualBtn.addEventListener('click', manualInitialize);".len();
         let before = &html[..after_manual_init];
         let after = &html[after_manual_init..];
-        
+
         let safety_call_injection = r#"
       
       // Load safety risks after manual initialization
@@ -246,23 +296,29 @@ fn generate_html_content(
         loadSafetyRisks();
       }, 100);
 "#;
-        
+
         html = format!("{}{}{}", before, safety_call_injection, after);
     }
-    
+
     // Also try to inject into any existing initialization functions
-    html = html.replace("console.log('✅ Enhanced dashboard initialized');", 
-                       "console.log('✅ Enhanced dashboard initialized'); loadSafetyRisks();");
-    
-    println!("📊 Data injection completed: {} allocations, {} stats, safety risks injected", allocations.len(), stats.total_allocations);
-    
+    html = html.replace(
+        "console.log('✅ Enhanced dashboard initialized');",
+        "console.log('✅ Enhanced dashboard initialized'); loadSafetyRisks();",
+    );
+
+    println!(
+        "📊 Data injection completed: {} allocations, {} stats, safety risks injected",
+        allocations.len(),
+        stats.total_allocations
+    );
+
     Ok(html)
 }
 
 /// Prepare allocation data for JavaScript in binary_dashboard.html format
 fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
     let mut allocation_data = Vec::new();
-    
+
     for allocation in allocations {
         let mut item = json!({
             "ptr": format!("0x{:x}", allocation.ptr),
@@ -277,7 +333,7 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
             "lifetime_ms": allocation.lifetime_ms,
             "borrow_count": allocation.borrow_count,
         });
-        
+
         // Add improve.md extensions if available
         if let Some(ref borrow_info) = allocation.borrow_info {
             item["borrow_info"] = json!({
@@ -287,7 +343,7 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
                 "last_borrow_timestamp": borrow_info.last_borrow_timestamp,
             });
         }
-        
+
         if let Some(ref clone_info) = allocation.clone_info {
             item["clone_info"] = json!({
                 "clone_count": clone_info.clone_count,
@@ -295,12 +351,12 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
                 "original_ptr": clone_info.original_ptr.map(|p| format!("0x{:x}", p)),
             });
         }
-        
+
         item["ownership_history_available"] = json!(allocation.ownership_history_available);
-        
+
         allocation_data.push(item);
     }
-    
+
     // Format data in the structure expected by binary_dashboard.html
     let data_structure = json!({
         "memory_analysis": {
@@ -308,9 +364,10 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
         },
         "allocations": allocation_data  // Also provide direct access
     });
-    
-    serde_json::to_string(&data_structure)
-        .map_err(|e| BinaryExportError::SerializationError(format!("Failed to serialize allocation data: {}", e)))
+
+    serde_json::to_string(&data_structure).map_err(|e| {
+        BinaryExportError::SerializationError(format!("Failed to serialize allocation data: {}", e))
+    })
 }
 
 /// Prepare statistics data for JavaScript
@@ -327,9 +384,10 @@ fn prepare_stats_data(stats: &MemoryStats) -> Result<String, BinaryExportError> 
         "leaked_allocations": stats.leaked_allocations,
         "leaked_memory": stats.leaked_memory,
     });
-    
-    serde_json::to_string(&data)
-        .map_err(|e| BinaryExportError::SerializationError(format!("Failed to serialize stats data: {}", e)))
+
+    serde_json::to_string(&data).map_err(|e| {
+        BinaryExportError::SerializationError(format!("Failed to serialize stats data: {}", e))
+    })
 }
 
 /// Format memory size in human-readable format
@@ -337,12 +395,12 @@ fn format_memory_size(bytes: usize) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
     let mut size = bytes as f64;
     let mut unit_index = 0;
-    
+
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{} {}", bytes, UNITS[unit_index])
     } else {
@@ -355,14 +413,17 @@ fn get_embedded_binary_template() -> String {
     // Force read the actual working_dashboard.html template
     match std::fs::read_to_string("templates/working_dashboard.html") {
         Ok(content) => {
-            println!("✅ Successfully loaded working_dashboard.html template ({} chars)", content.len());
+            println!(
+                "✅ Successfully loaded working_dashboard.html template ({} chars)",
+                content.len()
+            );
             return content;
-        },
+        }
         Err(e) => {
             println!("❌ Failed to load working_dashboard.html: {}", e);
         }
     }
-    
+
     // Fallback to a simplified version if file not found
     r#"<!DOCTYPE html>
 <html lang="en" class="light">
@@ -540,13 +601,14 @@ fn get_embedded_binary_template() -> String {
 /// Prepare safety risk data for JavaScript
 fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
     let mut safety_risks = Vec::new();
-    
+
     // Analyze allocations for potential safety risks
     for allocation in allocations {
         // Check for potential unsafe operations based on allocation patterns
-        
+
         // 1. Large allocations that might indicate unsafe buffer operations
-        if allocation.size > 1024 * 1024 { // > 1MB
+        if allocation.size > 1024 * 1024 {
+            // > 1MB
             safety_risks.push(json!({
                 "location": format!("{}::{}", 
                     allocation.scope_name.as_deref().unwrap_or("unknown"), 
@@ -556,19 +618,19 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
                 "description": format!("Large allocation of {} bytes may indicate unsafe buffer operations", allocation.size)
             }));
         }
-        
+
         // 2. Leaked memory indicates potential unsafe operations
         if allocation.is_leaked {
             safety_risks.push(json!({
-                "location": format!("{}::{}", 
-                    allocation.scope_name.as_deref().unwrap_or("unknown"), 
+                "location": format!("{}::{}",
+                    allocation.scope_name.as_deref().unwrap_or("unknown"),
                     allocation.var_name.as_deref().unwrap_or("unnamed")),
                 "operation": "Memory Leak",
                 "risk_level": "High",
                 "description": "Memory leak detected - potential unsafe memory management"
             }));
         }
-        
+
         // 3. High borrow count might indicate unsafe sharing
         if allocation.borrow_count > 10 {
             safety_risks.push(json!({
@@ -580,7 +642,7 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
                 "description": format!("High borrow count ({}) may indicate unsafe sharing patterns", allocation.borrow_count)
             }));
         }
-        
+
         // 4. Raw pointer types indicate direct unsafe operations
         if let Some(type_name) = &allocation.type_name {
             if type_name.contains("*mut") || type_name.contains("*const") {
@@ -593,13 +655,16 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
                     "description": format!("Raw pointer type '{}' requires unsafe operations", type_name)
                 }));
             }
-            
+
             // 5. FFI-related types
-            if type_name.contains("CString") || type_name.contains("CStr") || 
-               type_name.contains("c_void") || type_name.contains("extern") {
+            if type_name.contains("CString")
+                || type_name.contains("CStr")
+                || type_name.contains("c_void")
+                || type_name.contains("extern")
+            {
                 safety_risks.push(json!({
-                    "location": format!("{}::{}", 
-                        allocation.scope_name.as_deref().unwrap_or("unknown"), 
+                    "location": format!("{}::{}",
+                        allocation.scope_name.as_deref().unwrap_or("unknown"),
                         allocation.var_name.as_deref().unwrap_or("unnamed")),
                     "operation": "FFI Boundary Crossing",
                     "risk_level": "Medium",
@@ -607,10 +672,11 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
                 }));
             }
         }
-        
+
         // 6. Very short-lived allocations might indicate unsafe temporary operations
         if let Some(lifetime_ms) = allocation.lifetime_ms {
-            if lifetime_ms < 1 { // Less than 1ms
+            if lifetime_ms < 1 {
+                // Less than 1ms
                 safety_risks.push(json!({
                     "location": format!("{}::{}", 
                         allocation.scope_name.as_deref().unwrap_or("unknown"), 
@@ -622,7 +688,7 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
             }
         }
     }
-    
+
     // If no risks found, add a placeholder to show the system is working
     if safety_risks.is_empty() {
         safety_risks.push(json!({
@@ -632,9 +698,13 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
             "description": "No significant safety risks detected in current allocations"
         }));
     }
-    
-    serde_json::to_string(&safety_risks)
-        .map_err(|e| BinaryExportError::SerializationError(format!("Failed to serialize safety risk data: {}", e)))
+
+    serde_json::to_string(&safety_risks).map_err(|e| {
+        BinaryExportError::SerializationError(format!(
+            "Failed to serialize safety risk data: {}",
+            e
+        ))
+    })
 }
 
 /// Public API function for binary to HTML conversion

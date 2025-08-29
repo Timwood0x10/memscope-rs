@@ -71,7 +71,8 @@ fn benchmark_hashmap_vs_sharded(c: &mut Criterion) {
                 .map(|i| {
                     let map = map_clone.clone();
                     thread::spawn(move || {
-                        for j in 0..50 { // Reduce operations per thread
+                        for j in 0..50 {
+                            // Reduce operations per thread
                             let key = i * 50 + j;
                             let value = format!("val_{}", key);
                             {

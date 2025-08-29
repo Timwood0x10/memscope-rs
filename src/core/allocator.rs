@@ -138,3 +138,152 @@ impl Default for TrackingAllocator {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::alloc::{GlobalAlloc, Layout};
+
+    #[test]
+    fn test_tracking_allocator_creation() {
+        let _allocator = TrackingAllocator::new();
+        // Just test that it can be created without panicking
+        assert!(true);
+    }
+
+    #[test]
+    fn test_allocation_tracking() {
+        let allocator = TrackingAllocator::new();
+        let layout = Layout::from_size_align(1024, 8).unwrap();
+
+        unsafe {
+            let ptr = allocator.alloc(layout);
+            assert!(!ptr.is_null());
+
+            // Test deallocation
+            allocator.dealloc(ptr, layout);
+        }
+    }
+
+    #[test]
+    fn test_zero_sized_allocation() {
+        let allocator = TrackingAllocator::new();
+        let layout = Layout::from_size_align(0, 1).unwrap();
+
+        unsafe {
+            let ptr = allocator.alloc(layout);
+            // Zero-sized allocations may return null or a valid pointer
+            // Both are acceptable according to the GlobalAlloc trait
+            allocator.dealloc(ptr, layout);
+        }
+    }
+
+    #[test]
+    fn test_large_allocation() {
+        let allocator = TrackingAllocator::new();
+        let layout = Layout::from_size_align(1024 * 1024, 8).unwrap(); // 1MB
+
+        unsafe {
+            let ptr = allocator.alloc(layout);
+            if !ptr.is_null() {
+                // Only test deallocation if allocation succeeded
+                allocator.dealloc(ptr, layout);
+            }
+        }
+    }
+
+    #[test]
+    fn test_multiple_allocations() {
+        let allocator = TrackingAllocator::new();
+        let mut ptrs = Vec::new();
+
+        // Allocate multiple blocks
+        for i in 1..=10 {
+            let layout = Layout::from_size_align(i * 64, 8).unwrap();
+            unsafe {
+                let ptr = allocator.alloc(layout);
+                if !ptr.is_null() {
+                    ptrs.push((ptr, layout));
+                }
+            }
+        }
+
+        // Deallocate all blocks
+        for (ptr, layout) in ptrs {
+            unsafe {
+                allocator.dealloc(ptr, layout);
+            }
+        }
+    }
+
+    #[test]
+    fn test_type_inference_from_size() {
+        // Test the static type inference
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(1),
+            "u8"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(4),
+            "u32"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(8),
+            "u64"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(24),
+            "String"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(32),
+            "Vec<T>"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(999),
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn test_variable_inference_from_size() {
+        // Test the static variable inference
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(4),
+            "primitive_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(32),
+            "struct_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(512),
+            "collection_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(2048),
+            "buffer_data"
+        );
+    }
+
+    #[test]
+    fn test_simplified_call_stack() {
+        let stack = TrackingAllocator::_get_simplified_call_stack();
+        assert!(!stack.is_empty());
+        assert!(stack.contains(&"global_allocator".to_string()));
+    }
+
+    #[test]
+    fn test_default_implementation() {
+        let allocator = TrackingAllocator::default();
+        // Test that default works
+        let layout = Layout::from_size_align(64, 8).unwrap();
+
+        unsafe {
+            let ptr = allocator.alloc(layout);
+            if !ptr.is_null() {
+                allocator.dealloc(ptr, layout);
+            }
+        }
+    }
+}

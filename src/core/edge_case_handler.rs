@@ -7,13 +7,13 @@
 //! - Uses safe_operations for lock handling
 //! - Uses unwrap_safe for error handling
 
-use crate::core::types::TrackingResult;
 use crate::core::safe_operations::SafeLock;
+use crate::core::types::TrackingResult;
 use crate::core::unwrap_safe::UnwrapSafe;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use dashmap::DashMap;
 
 /// Edge case types that can occur in the system
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -141,7 +141,12 @@ pub struct EdgeCaseHandler {
     /// Case type counters
     case_counters: DashMap<EdgeCaseType, u64>,
     /// Recovery strategies
-    recovery_strategies: Arc<DashMap<EdgeCaseType, Box<dyn Fn(&EdgeCaseOccurrence) -> TrackingResult<String> + Send + Sync>>>,
+    recovery_strategies: Arc<
+        DashMap<
+            EdgeCaseType,
+            Box<dyn Fn(&EdgeCaseOccurrence) -> TrackingResult<String> + Send + Sync>,
+        >,
+    >,
     /// Statistics
     stats: Arc<Mutex<EdgeCaseStats>>,
     /// Configuration
@@ -155,7 +160,10 @@ impl EdgeCaseHandler {
     pub fn new(config: EdgeCaseConfig) -> Self {
         tracing::info!("🛡️ Initializing Edge Case Handler");
         tracing::info!("   • Detection enabled: {}", config.enable_detection);
-        tracing::info!("   • Auto recovery enabled: {}", config.enable_auto_recovery);
+        tracing::info!(
+            "   • Auto recovery enabled: {}",
+            config.enable_auto_recovery
+        );
         tracing::info!("   • Max stored cases: {}", config.max_stored_cases);
 
         let handler = Self {
@@ -184,7 +192,9 @@ impl EdgeCaseHandler {
             return Ok(0);
         }
 
-        let case_id = self.next_case_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let case_id = self
+            .next_case_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let timestamp = self.get_current_timestamp();
 
         // Create edge case occurrence
@@ -216,7 +226,8 @@ impl EdgeCaseHandler {
         }
 
         // Update counters
-        self.case_counters.entry(case_type.clone())
+        self.case_counters
+            .entry(case_type.clone())
             .and_modify(|count| *count += 1)
             .or_insert(1);
 
@@ -243,7 +254,10 @@ impl EdgeCaseHandler {
     }
 
     /// Attempt to recover from an edge case
-    fn attempt_recovery(&self, mut occurrence: EdgeCaseOccurrence) -> TrackingResult<EdgeCaseOccurrence> {
+    fn attempt_recovery(
+        &self,
+        mut occurrence: EdgeCaseOccurrence,
+    ) -> TrackingResult<EdgeCaseOccurrence> {
         let start_time = std::time::Instant::now();
 
         // Check for timeout
@@ -259,12 +273,19 @@ impl EdgeCaseHandler {
                 Ok(recovery_description) => {
                     occurrence.recovery_action = Some(recovery_description);
                     occurrence.handled_successfully = true;
-                    tracing::info!("🛡️ Successfully recovered from edge case: {:?}", occurrence.case_type);
+                    tracing::info!(
+                        "🛡️ Successfully recovered from edge case: {:?}",
+                        occurrence.case_type
+                    );
                 }
                 Err(e) => {
                     occurrence.recovery_action = Some(format!("Recovery failed: {}", e));
                     occurrence.handled_successfully = false;
-                    tracing::warn!("🛡️ Failed to recover from edge case: {:?} - {}", occurrence.case_type, e);
+                    tracing::warn!(
+                        "🛡️ Failed to recover from edge case: {:?} - {}",
+                        occurrence.case_type,
+                        e
+                    );
                 }
             }
         } else {
@@ -292,7 +313,9 @@ impl EdgeCaseHandler {
             }
             EdgeCaseSeverity::High => {
                 // For high severity, apply conservative measures
-                tracing::warn!("🛡️ High severity edge case detected, applying conservative measures");
+                tracing::warn!(
+                    "🛡️ High severity edge case detected, applying conservative measures"
+                );
                 Ok("Conservative measures applied".to_string())
             }
             _ => {
@@ -307,9 +330,10 @@ impl EdgeCaseHandler {
     pub fn get_edge_case(&self, case_id: u64) -> TrackingResult<Arc<EdgeCaseOccurrence>> {
         match self.case_storage.get(&case_id) {
             Some(occurrence) => Ok(Arc::clone(occurrence.value())),
-            None => Err(crate::core::types::TrackingError::DataError(
-                format!("Edge case with ID {} not found", case_id)
-            )),
+            None => Err(crate::core::types::TrackingError::DataError(format!(
+                "Edge case with ID {} not found",
+                case_id
+            ))),
         }
     }
 
@@ -351,7 +375,8 @@ impl EdgeCaseHandler {
     where
         F: Fn(&EdgeCaseOccurrence) -> TrackingResult<String> + Send + Sync + 'static,
     {
-        self.recovery_strategies.insert(case_type, Box::new(strategy));
+        self.recovery_strategies
+            .insert(case_type, Box::new(strategy));
         tracing::info!("🛡️ Registered custom recovery strategy");
     }
 
@@ -359,7 +384,7 @@ impl EdgeCaseHandler {
     pub fn clear_cases(&self) {
         self.case_storage.clear();
         self.case_counters.clear();
-        
+
         match self.stats.safe_lock() {
             Ok(mut stats) => {
                 *stats = EdgeCaseStats::default();
@@ -368,8 +393,9 @@ impl EdgeCaseHandler {
                 tracing::warn!("Failed to reset stats during clear: {}", e);
             }
         }
-        
-        self.next_case_id.store(1, std::sync::atomic::Ordering::Relaxed);
+
+        self.next_case_id
+            .store(1, std::sync::atomic::Ordering::Relaxed);
         tracing::info!("🛡️ Cleared all edge cases");
     }
 
@@ -425,7 +451,10 @@ impl EdgeCaseHandler {
             Ok("FFI boundary violation handled, safe wrapper applied".to_string())
         });
 
-        tracing::info!("🛡️ Initialized {} default recovery strategies", self.recovery_strategies.len());
+        tracing::info!(
+            "🛡️ Initialized {} default recovery strategies",
+            self.recovery_strategies.len()
+        );
     }
 
     /// Cleanup old edge cases to maintain storage limits
@@ -438,7 +467,8 @@ impl EdgeCaseHandler {
         }
 
         // Collect cases sorted by timestamp (oldest first)
-        let mut cases_with_timestamps: Vec<(u64, u64)> = self.case_storage
+        let mut cases_with_timestamps: Vec<(u64, u64)> = self
+            .case_storage
             .iter()
             .map(|entry| (*entry.key(), entry.value().timestamp))
             .collect();
@@ -474,7 +504,12 @@ impl EdgeCaseHandler {
     }
 
     /// Update statistics
-    fn update_stats(&self, _case_type: &EdgeCaseType, severity: &EdgeCaseSeverity, handled_successfully: bool) {
+    fn update_stats(
+        &self,
+        _case_type: &EdgeCaseType,
+        severity: &EdgeCaseSeverity,
+        handled_successfully: bool,
+    ) {
         if !self.config.enable_stats {
             return;
         }
@@ -482,7 +517,7 @@ impl EdgeCaseHandler {
         match self.stats.safe_lock() {
             Ok(mut stats) => {
                 stats.total_cases_detected += 1;
-                
+
                 if handled_successfully {
                     stats.cases_handled_successfully += 1;
                     stats.recovery_actions_taken += 1;
@@ -534,19 +569,15 @@ pub fn initialize_global_edge_case_handler(config: EdgeCaseConfig) -> Arc<EdgeCa
 /// Convenience macro for handling edge cases
 #[macro_export]
 macro_rules! handle_edge_case {
-    ($case_type:expr, $severity:expr, $description:expr) => {
-        {
-            let handler = $crate::core::edge_case_handler::get_global_edge_case_handler();
-            let context = std::collections::HashMap::new();
-            handler.handle_edge_case($case_type, $severity, $description.to_string(), context)
-        }
-    };
-    ($case_type:expr, $severity:expr, $description:expr, $context:expr) => {
-        {
-            let handler = $crate::core::edge_case_handler::get_global_edge_case_handler();
-            handler.handle_edge_case($case_type, $severity, $description.to_string(), $context)
-        }
-    };
+    ($case_type:expr, $severity:expr, $description:expr) => {{
+        let handler = $crate::core::edge_case_handler::get_global_edge_case_handler();
+        let context = std::collections::HashMap::new();
+        handler.handle_edge_case($case_type, $severity, $description.to_string(), context)
+    }};
+    ($case_type:expr, $severity:expr, $description:expr, $context:expr) => {{
+        let handler = $crate::core::edge_case_handler::get_global_edge_case_handler();
+        handler.handle_edge_case($case_type, $severity, $description.to_string(), $context)
+    }};
 }
 
 #[cfg(test)]
@@ -556,7 +587,7 @@ mod tests {
     #[test]
     fn test_edge_case_handler_basic() {
         let handler = EdgeCaseHandler::new(EdgeCaseConfig::default());
-        
+
         let context = HashMap::new();
         let result = handler.handle_edge_case(
             EdgeCaseType::NullPointerAccess,
@@ -564,11 +595,11 @@ mod tests {
             "Test null pointer access".to_string(),
             context,
         );
-        
+
         assert!(result.is_ok());
         let case_id = result.unwrap();
         assert!(case_id > 0);
-        
+
         let retrieved_case = handler.get_edge_case(case_id).unwrap();
         assert_eq!(retrieved_case.case_type, EdgeCaseType::NullPointerAccess);
         assert_eq!(retrieved_case.severity, EdgeCaseSeverity::High);
@@ -577,41 +608,48 @@ mod tests {
     #[test]
     fn test_recovery_strategies() {
         let handler = EdgeCaseHandler::new(EdgeCaseConfig::default());
-        
+
         // Test custom recovery strategy
         handler.register_recovery_strategy(EdgeCaseType::Unknown, |_| {
             Ok("Custom recovery applied".to_string())
         });
-        
+
         let context = HashMap::new();
-        let case_id = handler.handle_edge_case(
-            EdgeCaseType::Unknown,
-            EdgeCaseSeverity::Medium,
-            "Test unknown case".to_string(),
-            context,
-        ).unwrap();
-        
+        let case_id = handler
+            .handle_edge_case(
+                EdgeCaseType::Unknown,
+                EdgeCaseSeverity::Medium,
+                "Test unknown case".to_string(),
+                context,
+            )
+            .unwrap();
+
         let case = handler.get_edge_case(case_id).unwrap();
         assert!(case.handled_successfully);
-        assert_eq!(case.recovery_action, Some("Custom recovery applied".to_string()));
+        assert_eq!(
+            case.recovery_action,
+            Some("Custom recovery applied".to_string())
+        );
     }
 
     #[test]
     fn test_statistics() {
         let handler = EdgeCaseHandler::new(EdgeCaseConfig::default());
-        
+
         let context = HashMap::new();
-        
+
         // Handle multiple edge cases
         for i in 0..5 {
-            handler.handle_edge_case(
-                EdgeCaseType::AllocationFailure,
-                EdgeCaseSeverity::Medium,
-                format!("Test case {}", i),
-                context.clone(),
-            ).unwrap();
+            handler
+                .handle_edge_case(
+                    EdgeCaseType::AllocationFailure,
+                    EdgeCaseSeverity::Medium,
+                    format!("Test case {}", i),
+                    context.clone(),
+                )
+                .unwrap();
         }
-        
+
         let stats = handler.get_stats().unwrap();
         assert_eq!(stats.total_cases_detected, 5);
         assert!(stats.cases_handled_successfully > 0);
@@ -621,20 +659,22 @@ mod tests {
     fn test_case_cleanup() {
         let mut config = EdgeCaseConfig::default();
         config.max_stored_cases = 3;
-        
+
         let handler = EdgeCaseHandler::new(config);
         let context = HashMap::new();
-        
+
         // Add more cases than the limit
         for i in 0..5 {
-            handler.handle_edge_case(
-                EdgeCaseType::BufferOverflow,
-                EdgeCaseSeverity::Low,
-                format!("Test case {}", i),
-                context.clone(),
-            ).unwrap();
+            handler
+                .handle_edge_case(
+                    EdgeCaseType::BufferOverflow,
+                    EdgeCaseSeverity::Low,
+                    format!("Test case {}", i),
+                    context.clone(),
+                )
+                .unwrap();
         }
-        
+
         // Should have triggered cleanup
         assert!(handler.case_storage.len() <= 3);
     }

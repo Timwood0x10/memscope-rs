@@ -91,3 +91,159 @@ unsafe impl<T: Send> Send for SimpleMutex<T> {}
 
 // Safety: SimpleMutex is Sync if T is Send
 unsafe impl<T: Send> Sync for SimpleMutex<T> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::thread;
+
+    #[test]
+    fn test_simple_mutex_creation() {
+        let mutex = SimpleMutex::new(42);
+        assert_eq!(mutex.access_count(), 0);
+    }
+
+    #[test]
+    fn test_simple_mutex_lock() {
+        let mutex = SimpleMutex::new(42);
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let guard = mutex.lock();
+            assert_eq!(*guard, 42);
+        }
+
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let guard = mutex.lock().unwrap();
+            assert_eq!(*guard, 42);
+        }
+
+        #[cfg(debug_assertions)]
+        assert_eq!(mutex.access_count(), 1);
+    }
+
+    #[test]
+    fn test_simple_mutex_try_lock() {
+        let mutex = SimpleMutex::new(42);
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let guard = mutex.try_lock();
+            assert!(guard.is_some());
+            assert_eq!(*guard.unwrap(), 42);
+        }
+
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let guard = mutex.try_lock();
+            assert!(guard.is_ok());
+            assert_eq!(*guard.unwrap(), 42);
+        }
+
+        #[cfg(debug_assertions)]
+        assert_eq!(mutex.access_count(), 1);
+    }
+
+    #[test]
+    fn test_simple_mutex_concurrent_access() {
+        let mutex = Arc::new(SimpleMutex::new(0));
+        let mut handles = vec![];
+
+        for _ in 0..10 {
+            let mutex_clone = Arc::clone(&mutex);
+            let handle = thread::spawn(move || {
+                #[cfg(feature = "parking-lot")]
+                {
+                    let mut guard = mutex_clone.lock();
+                    *guard += 1;
+                }
+
+                #[cfg(not(feature = "parking-lot"))]
+                {
+                    let mut guard = mutex_clone.lock().unwrap();
+                    *guard += 1;
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let guard = mutex.lock();
+            assert_eq!(*guard, 10);
+        }
+
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let guard = mutex.lock().unwrap();
+            assert_eq!(*guard, 10);
+        }
+    }
+
+    #[test]
+    fn test_simple_mutex_default() {
+        let mutex: SimpleMutex<i32> = SimpleMutex::default();
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let guard = mutex.lock();
+            assert_eq!(*guard, 0);
+        }
+
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let guard = mutex.lock().unwrap();
+            assert_eq!(*guard, 0);
+        }
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    fn test_access_count_tracking() {
+        let mutex = SimpleMutex::new(42);
+        assert_eq!(mutex.access_count(), 0);
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let _guard1 = mutex.lock();
+            assert_eq!(mutex.access_count(), 1);
+
+            let _guard2 = mutex.try_lock();
+            assert_eq!(mutex.access_count(), 2);
+        }
+
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let _guard1 = mutex.lock().unwrap();
+            assert_eq!(mutex.access_count(), 1);
+
+            let _guard2 = mutex.try_lock().unwrap();
+            assert_eq!(mutex.access_count(), 2);
+        }
+    }
+
+    #[test]
+    #[cfg(not(debug_assertions))]
+    fn test_access_count_release_mode() {
+        let mutex = SimpleMutex::new(42);
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let _guard = mutex.lock();
+        }
+
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let _guard = mutex.lock().unwrap();
+        }
+
+        // In release mode, access count should always be 0
+        assert_eq!(mutex.access_count(), 0);
+    }
+}
