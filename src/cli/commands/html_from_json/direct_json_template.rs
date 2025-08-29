@@ -1207,16 +1207,18 @@ fn generate_safety_risk_data_from_json(transformed_data: &serde_json::Map<String
 
 /// Inject safety risk data into HTML template
 fn inject_safety_risk_data_into_html(mut html: String, safety_risk_data: &str) -> Result<String, Box<dyn Error>> {
-    // Find the DOMContentLoaded event listener and inject safety risk data before it
-    if let Some(dom_ready_start) = html.find("document.addEventListener('DOMContentLoaded', function() {") {
-        let injection_point = dom_ready_start;
-        let before = &html[..injection_point];
-        let after = &html[injection_point..];
-        
-        let safety_injection = format!(r#"
-    // Safety Risk Data Injection
-    window.safetyRisks = {};
+    // Replace the safety risk data in the existing template
+    html = html.replace("window.safetyRisks = [];", &format!("window.safetyRisks = {};", safety_risk_data));
     
+    // Always ensure loadSafetyRisks function is available
+    if !html.contains("function loadSafetyRisks") {
+        // Find a good injection point - before the closing </script> tag
+        if let Some(script_end) = html.rfind("</script>") {
+            let before = &html[..script_end];
+            let after = &html[script_end..];
+            
+            let safety_function_injection = format!(r#"
+    // Safety Risk Data Management Function
     function loadSafetyRisks() {{
         console.log('🛡️ Loading safety risk data...');
         const unsafeTable = document.getElementById('unsafeTable');
@@ -1251,35 +1253,26 @@ fn inject_safety_risk_data_into_html(mut html: String, safety_risk_data: &str) -
         console.log('✅ Safety risks loaded:', risks.length, 'items');
     }}
     
-    "#, safety_risk_data);
-        
-        html = format!("{}{}{}", before, safety_injection, after);
-    } else {
-        tracing::warn!("⚠️ Could not find DOMContentLoaded event listener for safety risk injection");
+    "#);
+            
+            html = format!("{}{}{}", before, safety_function_injection, after);
+        }
     }
     
-    // Find and modify the existing initialization to include safety risk loading
-    if let Some(manual_init_start) = html.find("manualBtn.addEventListener('click', manualInitialize);") {
-        let after_manual_init = manual_init_start + "manualBtn.addEventListener('click', manualInitialize);".len();
-        let before = &html[..after_manual_init];
-        let after = &html[after_manual_init..];
-        
-        let safety_call_injection = r#"
-      
-      // Load safety risks after manual initialization
-      setTimeout(function() {
-        loadSafetyRisks();
-      }, 100);
-"#;
-        
-        html = format!("{}{}{}", before, safety_call_injection, after);
-    }
-    
-    // Also try to inject into any existing initialization functions
+    // Ensure safety risks are loaded after initialization - but only call if function exists
     html = html.replace("console.log('✅ Enhanced dashboard initialized');", 
-                       "console.log('✅ Enhanced dashboard initialized'); loadSafetyRisks();");
+                       "console.log('✅ Enhanced dashboard initialized'); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100);");
     
-    tracing::info!("📊 Safety risk data injected into HTML template");
+    // Also add to manual initialization if it exists - with safer replacement
+    if html.contains("manualBtn.addEventListener('click', manualInitialize);") {
+        html = html.replace("manualBtn.addEventListener('click', manualInitialize);", 
+                           "manualBtn.addEventListener('click', function() { manualInitialize(); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100); });");
+    }
+    
+    // Remove any standalone loadSafetyRisks calls that might cause errors
+    html = html.replace("loadSafetyRisks();", "if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); }");
+    
+    tracing::info!("📊 Safety risk data and function injected into HTML template");
     
     Ok(html)
 }

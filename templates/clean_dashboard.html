@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,10 +9,16 @@
   <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <style>
-    {{CSS_CONTENT}}
-    
+    {
+        {
+        CSS_CONTENT
+      }
+    }
+
     /* Clean, high-contrast layout variables */
     :root {
       --primary-blue: #2563eb;
@@ -25,7 +32,7 @@
       --border-light: #e5e7eb;
       --shadow-light: 0 1px 3px 0 rgb(0 0 0 / 0.1);
     }
-    
+
     .dark {
       --text-primary: #f9fafb;
       --text-secondary: #d1d5db;
@@ -34,7 +41,7 @@
       --border-light: #374151;
       --shadow-light: 0 4px 6px -1px rgb(0 0 0 / 0.3);
     }
-    
+
     body {
       font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg-secondary);
@@ -44,14 +51,14 @@
       margin: 0;
       padding: 0;
     }
-    
+
     .dashboard-container {
       max-width: 1400px;
       margin: 0 auto;
       padding: 24px;
       min-height: 100vh;
     }
-    
+
     /* 顶部标题栏 */
     .header {
       display: flex;
@@ -61,20 +68,20 @@
       padding: 20px 0;
       border-bottom: 1px solid var(--border-light);
     }
-    
+
     .header h1 {
       font-size: 2rem;
       font-weight: 700;
       color: var(--text-primary);
       margin: 0;
     }
-    
+
     .header .subtitle {
       color: var(--text-secondary);
       font-size: 0.9rem;
       margin-top: 4px;
     }
-    
+
     /* 主题切换按钮 */
     .theme-toggle {
       background: var(--primary-blue);
@@ -90,12 +97,12 @@
       align-items: center;
       gap: 8px;
     }
-    
+
     .theme-toggle:hover {
       background: #1d4ed8;
       transform: translateY(-1px);
     }
-    
+
     /* 卡片样式 */
     .card {
       background: var(--bg-primary);
@@ -105,12 +112,12 @@
       box-shadow: var(--shadow-light);
       transition: all 0.3s ease;
     }
-    
+
     .card:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 25px -5px rgb(0 0 0 / 0.1);
     }
-    
+
     .card h2 {
       font-size: 1.25rem;
       font-weight: 600;
@@ -119,18 +126,26 @@
       border-bottom: 2px solid var(--primary-blue);
       padding-bottom: 8px;
     }
-    
+
     /* 网格布局 */
     .grid {
       display: grid;
       gap: 24px;
       margin-bottom: 32px;
     }
-    
-    .grid-2 { grid-template-columns: 1fr 1fr; }
-    .grid-3 { grid-template-columns: repeat(3, 1fr); }
-    .grid-4 { grid-template-columns: repeat(4, 1fr); }
-    
+
+    .grid-2 {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
     /* KPI 指标卡片 */
     .kpi-card {
       text-align: center;
@@ -141,19 +156,19 @@
       border: none;
       box-shadow: var(--shadow-light);
     }
-    
+
     .kpi-value {
       font-size: 2rem;
       font-weight: 700;
       margin-bottom: 4px;
     }
-    
+
     .kpi-label {
       font-size: 0.875rem;
       opacity: 0.9;
       font-weight: 500;
     }
-    
+
     /* 图表容器 */
     .chart-container {
       height: 300px;
@@ -162,87 +177,135 @@
       position: relative;
       padding: 16px;
     }
-    
+
     /* 表格样式 */
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 16px;
     }
-    
-    th, td {
+
+    th,
+    td {
       padding: 12px;
       text-align: left;
       border-bottom: 1px solid var(--border-light);
     }
-    
+
     th {
       background: var(--bg-secondary);
       font-weight: 600;
       color: var(--text-primary);
     }
-    
+
     tr:hover {
       background: var(--bg-secondary);
     }
-    
+
     @media (max-width: 768px) {
-      .grid-2, .grid-3, .grid-4 {
+
+      .grid-2,
+      .grid-3,
+      .grid-4 {
         grid-template-columns: 1fr;
       }
-      
+
       .dashboard-container {
         padding: 16px;
       }
-      
+
       .header {
         flex-direction: column;
         gap: 16px;
         text-align: center;
       }
     }
-    
+
     .scroll {
       max-height: 400px;
       overflow: auto;
     }
-    
+
     .scroll::-webkit-scrollbar {
       width: 6px;
     }
-    
+
     .scroll::-webkit-scrollbar-track {
       background: var(--bg-secondary);
     }
-    
+
     .scroll::-webkit-scrollbar-thumb {
       background: var(--border-light);
       border-radius: 3px;
     }
-    
+
     .status-badge {
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 0.75rem;
       font-weight: 500;
     }
-    
-    .status-active { background: #dcfce7; color: #166534; }
-    .status-leaked { background: #fee2e2; color: #dc2626; }
-    .status-freed { background: #e5e7eb; color: #374151; }
-    
-    .dark .status-active { background: #064e3b; color: #34d399; }
-    .dark .status-leaked { background: #7f1d1d; color: #fca5a5; }
-    .dark .status-freed { background: #374151; color: #d1d5db; }
-    
-    .risk-low { background: #dcfce7; color: #166534; }
-    .risk-medium { background: #fef3c7; color: #92400e; }
-    .risk-high { background: #fee2e2; color: #dc2626; }
-    
-    .dark .risk-low { background: #064e3b; color: #34d399; }
-    .dark .risk-medium { background: #78350f; color: #fbbf24; }
-    .dark .risk-high { background: #7f1d1d; color: #fca5a5; }
-    
+
+    .status-active {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status-leaked {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .status-freed {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .dark .status-active {
+      background: #064e3b;
+      color: #34d399;
+    }
+
+    .dark .status-leaked {
+      background: #7f1d1d;
+      color: #fca5a5;
+    }
+
+    .dark .status-freed {
+      background: #374151;
+      color: #d1d5db;
+    }
+
+    .risk-low {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .risk-medium {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .risk-high {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .dark .risk-low {
+      background: #064e3b;
+      color: #34d399;
+    }
+
+    .dark .risk-medium {
+      background: #78350f;
+      color: #fbbf24;
+    }
+
+    .dark .risk-high {
+      background: #7f1d1d;
+      color: #fca5a5;
+    }
+
     /* Enhanced Lifecycle Visualization Styles */
     .allocation-type {
       padding: 3px 6px;
@@ -253,49 +316,64 @@
       display: inline-block;
     }
 
-    .type-heap { 
-      background: #fef3c7; 
-      color: #92400e; 
+    .type-heap {
+      background: #fef3c7;
+      color: #92400e;
       border: 1px solid #f59e0b;
     }
-    
-    .type-stack { 
-      background: #dbeafe; 
-      color: #1e40af; 
+
+    .type-stack {
+      background: #dbeafe;
+      color: #1e40af;
       border: 1px solid #3b82f6;
     }
-    
-    .type-unknown { 
-      background: #f3f4f6; 
-      color: #6b7280; 
+
+    .type-unknown {
+      background: #f3f4f6;
+      color: #6b7280;
       border: 1px solid #9ca3af;
     }
 
-    .dark .type-heap { 
-      background: #78350f; 
-      color: #fbbf24; 
+    .dark .type-heap {
+      background: #78350f;
+      color: #fbbf24;
     }
-    
-    .dark .type-stack { 
-      background: #1e3a8a; 
-      color: #60a5fa; 
+
+    .dark .type-stack {
+      background: #1e3a8a;
+      color: #60a5fa;
     }
-    
-    .dark .type-unknown { 
-      background: #374151; 
-      color: #d1d5db; 
+
+    .dark .type-unknown {
+      background: #374151;
+      color: #d1d5db;
     }
 
     /* Enhanced progress bar animations */
     @keyframes shine {
-      0% { left: -100%; }
-      50% { left: 100%; }
-      100% { left: 100%; }
+      0% {
+        left: -100%;
+      }
+
+      50% {
+        left: 100%;
+      }
+
+      100% {
+        left: 100%;
+      }
     }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.7;
+      }
     }
 
     /* Enhanced lifecycle item styles */
@@ -366,23 +444,255 @@
       margin-right: 8px;
       border: 1px solid var(--border-light);
     }
+
+    /* Enhanced 3D Memory Layout Styles */
+    .memory-3d-container {
+      position: relative;
+      width: 100%;
+      height: 400px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .memory-3d-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 100;
+      display: flex;
+      gap: 8px;
+    }
+
+    .memory-3d-controls button {
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+
+    .memory-3d-controls button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .memory-3d-controls button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .memory-3d-info {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-family: monospace;
+    }
+
+    /* Timeline Playback Styles */
+    .timeline-container {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+
+    .timeline-slider {
+      width: 100%;
+      height: 6px;
+      background: var(--border-light);
+      border-radius: 3px;
+      position: relative;
+      cursor: pointer;
+      margin: 12px 0;
+    }
+
+    .timeline-progress {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-blue), var(--primary-green));
+      border-radius: 3px;
+      transition: width 0.1s ease;
+    }
+
+    .timeline-thumb {
+      position: absolute;
+      top: -6px;
+      width: 18px;
+      height: 18px;
+      background: var(--primary-blue);
+      border: 2px solid white;
+      border-radius: 50%;
+      cursor: grab;
+      box-shadow: var(--shadow-light);
+    }
+
+    .timeline-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.1);
+    }
+
+    .timeline-controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .timeline-btn {
+      background: var(--primary-blue);
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s ease;
+    }
+
+    .timeline-btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    .timeline-btn:disabled {
+      background: var(--text-secondary);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Memory Heatmap Styles */
+    .heatmap-container {
+      position: relative;
+      width: 100%;
+      height: 300px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .heatmap-legend {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+    }
+
+    .dark .heatmap-legend {
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+    }
+
+    .heatmap-mode-selector {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .heatmap-mode-btn {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-light);
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s ease;
+    }
+
+    .heatmap-mode-btn.active {
+      background: var(--primary-blue);
+      color: white;
+      border-color: var(--primary-blue);
+    }
+
+    .heatmap-mode-btn:hover {
+      background: var(--primary-blue);
+      color: white;
+    }
+
+    /* Memory Block Visualization */
+    .memory-block {
+      position: absolute;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .memory-block:hover {
+      border-color: white;
+      border-width: 2px;
+      z-index: 10;
+    }
+
+    .memory-block.heap {
+      background: linear-gradient(45deg, #ff6b35, #f7931e);
+    }
+
+    .memory-block.stack {
+      background: linear-gradient(45deg, #4dabf7, #339af0);
+    }
+
+    .memory-block.leaked {
+      background: linear-gradient(45deg, #dc2626, #ef4444);
+      animation: pulse 2s infinite;
+    }
+
+    /* Tooltip Styles */
+    .memory-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-family: monospace;
+      pointer-events: none;
+      z-index: 1000;
+      max-width: 300px;
+      line-height: 1.4;
+    }
+
+    .memory-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: rgba(0, 0, 0, 0.9) transparent transparent transparent;
+    }
   </style>
   <script>
     // Data injection placeholder - will be replaced by build tool
     window.analysisData = {{ json_data }};
-    
+
     // Emergency fallback: Load data directly from JSON files if injection failed
-    if (!window.analysisData || Object.keys(window.analysisData).length === 0 || 
-        !window.analysisData.memory_analysis || !window.analysisData.memory_analysis.allocations) {
-      
+    if (!window.analysisData || Object.keys(window.analysisData).length === 0 ||
+      !window.analysisData.memory_analysis || !window.analysisData.memory_analysis.allocations) {
+
       console.warn('Data injection failed, attempting to load from JSON files...');
-      
+
       // Try to fetch the JSON data directly
       fetch('./large_scale_user_memory_analysis.json')
         .then(response => response.json())
         .then(memoryData => {
           console.log('✅ Loaded memory analysis data:', memoryData);
-          
+
           // Construct the expected data structure
           window.analysisData = {
             memory_analysis: memoryData,
@@ -391,7 +701,7 @@
             unsafe_ffi: {},
             performance: {}
           };
-          
+
           // Try to load other JSON files
           Promise.all([
             fetch('./large_scale_user_lifetime.json').then(r => r.json()).catch(() => ({})),
@@ -403,9 +713,9 @@
             window.analysisData.complex_types = complexTypes;
             window.analysisData.unsafe_ffi = unsafeFfi;
             window.analysisData.performance = performance;
-            
+
             console.log('✅ All data loaded, initializing enhanced features...');
-            
+
             // Trigger enhanced features initialization
             console.log('🚀 Triggering enhanced features initialization...');
             if (typeof initEnhancedLifecycleVisualization === 'function') {
@@ -416,7 +726,7 @@
             } else {
               console.error('❌ initEnhancedLifecycleVisualization function not found');
             }
-            
+
             // Also trigger the main dashboard initialization if needed
             if (typeof initDashboard === 'function') {
               setTimeout(() => {
@@ -428,7 +738,7 @@
         })
         .catch(error => {
           console.error('❌ Failed to load JSON data:', error);
-          
+
           // Last resort: Create dummy data for testing
           window.analysisData = {
             memory_analysis: {
@@ -442,7 +752,7 @@
                   is_leaked: false
                 },
                 {
-                  var_name: 'test_var_2', 
+                  var_name: 'test_var_2',
                   type_name: 'Vec<i32>',
                   size: 2048,
                   timestamp_alloc: Date.now() * 1000000 + 1000000,
@@ -457,11 +767,2075 @@
     } else {
       console.log('✅ Data injection successful');
     }
-    
+
     console.log('Final analysisData:', window.analysisData);
     console.log('Allocations available:', window.analysisData?.memory_analysis?.allocations?.length || 0);
+
+    // Enhanced Memory Visualization Functions
+    class EnhancedMemoryVisualizer {
+      constructor() {
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
+        this.memoryBlocks = [];
+        this.timeline = {
+          isPlaying: false,
+          currentTime: 0,
+          totalTime: 0,
+          speed: 1000, // ms per step
+          data: []
+        };
+        this.heatmapMode = 'density';
+        this.tooltip = null;
+        this.initialized = false;
+      }
+
+      init() {
+        if (this.initialized) return;
+        console.log('Initializing EnhancedMemoryVisualizer...');
+
+        this.initTooltip();
+        this.init3DVisualization();
+        this.initTimelineControls();
+        this.initHeatmap();
+        this.bindEvents();
+
+        this.initialized = true;
+        console.log('EnhancedMemoryVisualizer initialized successfully');
+      }
+
+      initTooltip() {
+        this.tooltip = document.createElement('div');
+        this.tooltip.className = 'memory-tooltip';
+        this.tooltip.style.display = 'none';
+        document.body.appendChild(this.tooltip);
+      }
+
+      init3DVisualization() {
+        const container = document.getElementById('memory3DContainer');
+        if (!container) return;
+
+        // Scene setup with dark gradient background
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x1a1a2e);
+
+        // Camera setup - closer view for better data inspection
+        this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+        this.camera.position.set(15, 10, 15);
+
+        // Renderer setup with enhanced settings
+        this.renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: true,
+          powerPreference: "high-performance"
+        });
+        this.renderer.setSize(container.clientWidth, container.clientHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.setClearColor(0x1a1a2e, 1);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(this.renderer.domElement);
+
+        // Controls setup with enhanced interaction
+        try {
+          if (typeof THREE !== 'undefined') {
+            const OrbitControls = THREE.OrbitControls || window.OrbitControls;
+            if (OrbitControls) {
+              this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+              this.controls.enableDamping = true;
+              this.controls.dampingFactor = 0.05;
+              this.controls.enableZoom = true;
+              this.controls.enablePan = true;
+              this.controls.enableRotate = true;
+              this.controls.autoRotate = false;
+              this.controls.autoRotateSpeed = 0.5;
+              this.controls.minDistance = 2;  // Allow closer inspection
+              this.controls.maxDistance = 100;
+              this.controls.maxPolarAngle = Math.PI;
+              this.controls.minPolarAngle = 0;
+            } else {
+              console.warn('OrbitControls not available, setting up manual controls');
+              this.setupManualControls();
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to initialize OrbitControls:', error);
+        }
+
+        // Enhanced lighting setup
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        this.scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(50, 50, 25);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        this.scene.add(directionalLight);
+
+        // Add subtle rim lighting
+        const rimLight = new THREE.DirectionalLight(0x4a90e2, 0.3);
+        rimLight.position.set(-50, 20, -25);
+        this.scene.add(rimLight);
+
+        // Add point light for dynamic effects
+        this.pointLight = new THREE.PointLight(0x4a90e2, 0.5, 100);
+        this.pointLight.position.set(0, 20, 0);
+        this.scene.add(this.pointLight);
+
+        // Create subtle floor plane instead of grid
+        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floorMaterial = new THREE.MeshLambertMaterial({
+          color: 0x2a2a3e,
+          transparent: true,
+          opacity: 0.3
+        });
+        this.floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        this.floor.rotation.x = -Math.PI / 2;
+        this.floor.position.y = -0.1;
+        this.floor.receiveShadow = true;
+        this.scene.add(this.floor);
+
+        // Initialize animation properties
+        this.animationTime = 0;
+        this.isAutoRotating = false;
+
+        this.animate3D();
+      }
+
+      setupManualControls() {
+        if (!this.renderer || !this.camera) return;
+
+        const canvas = this.renderer.domElement;
+        let isMouseDown = false;
+        let mouseX = 0, mouseY = 0;
+        let cameraDistance = 20;
+        let cameraAngleX = 0;
+        let cameraAngleY = 0;
+
+        // Mouse controls for rotation
+        canvas.addEventListener('mousedown', (event) => {
+          isMouseDown = true;
+          mouseX = event.clientX;
+          mouseY = event.clientY;
+          canvas.style.cursor = 'grabbing';
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+          if (!isMouseDown) return;
+
+          const deltaX = event.clientX - mouseX;
+          const deltaY = event.clientY - mouseY;
+
+          cameraAngleY += deltaX * 0.01;
+          cameraAngleX += deltaY * 0.01;
+
+          // Limit vertical rotation
+          cameraAngleX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cameraAngleX));
+
+          // Update camera position
+          this.camera.position.x = Math.cos(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+          this.camera.position.y = Math.sin(cameraAngleX) * cameraDistance;
+          this.camera.position.z = Math.sin(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+
+          this.camera.lookAt(0, 0, 0);
+
+          mouseX = event.clientX;
+          mouseY = event.clientY;
+        });
+
+        canvas.addEventListener('mouseup', () => {
+          isMouseDown = false;
+          canvas.style.cursor = 'grab';
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+          isMouseDown = false;
+          canvas.style.cursor = 'default';
+        });
+
+        // Zoom with mouse wheel
+        canvas.addEventListener('wheel', (event) => {
+          event.preventDefault();
+
+          const zoomSpeed = 0.1;
+          cameraDistance += event.deltaY * zoomSpeed;
+          cameraDistance = Math.max(2, Math.min(100, cameraDistance));
+
+          // Update camera position
+          this.camera.position.x = Math.cos(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+          this.camera.position.y = Math.sin(cameraAngleX) * cameraDistance;
+          this.camera.position.z = Math.sin(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+
+          this.camera.lookAt(0, 0, 0);
+        });
+
+        // Touch controls for mobile
+        let lastTouchDistance = 0;
+
+        canvas.addEventListener('touchstart', (event) => {
+          if (event.touches.length === 1) {
+            isMouseDown = true;
+            mouseX = event.touches[0].clientX;
+            mouseY = event.touches[0].clientY;
+          } else if (event.touches.length === 2) {
+            const touch1 = event.touches[0];
+            const touch2 = event.touches[1];
+            lastTouchDistance = Math.sqrt(
+              Math.pow(touch2.clientX - touch1.clientX, 2) +
+              Math.pow(touch2.clientY - touch1.clientY, 2)
+            );
+          }
+        });
+
+        canvas.addEventListener('touchmove', (event) => {
+          event.preventDefault();
+
+          if (event.touches.length === 1 && isMouseDown) {
+            const deltaX = event.touches[0].clientX - mouseX;
+            const deltaY = event.touches[0].clientY - mouseY;
+
+            cameraAngleY += deltaX * 0.01;
+            cameraAngleX += deltaY * 0.01;
+            cameraAngleX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cameraAngleX));
+
+            this.camera.position.x = Math.cos(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+            this.camera.position.y = Math.sin(cameraAngleX) * cameraDistance;
+            this.camera.position.z = Math.sin(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+
+            this.camera.lookAt(0, 0, 0);
+
+            mouseX = event.touches[0].clientX;
+            mouseY = event.touches[0].clientY;
+          } else if (event.touches.length === 2) {
+            const touch1 = event.touches[0];
+            const touch2 = event.touches[1];
+            const touchDistance = Math.sqrt(
+              Math.pow(touch2.clientX - touch1.clientX, 2) +
+              Math.pow(touch2.clientY - touch1.clientY, 2)
+            );
+
+            if (lastTouchDistance > 0) {
+              const zoomDelta = (lastTouchDistance - touchDistance) * 0.01;
+              cameraDistance += zoomDelta;
+              cameraDistance = Math.max(2, Math.min(100, cameraDistance));
+
+              this.camera.position.x = Math.cos(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+              this.camera.position.y = Math.sin(cameraAngleX) * cameraDistance;
+              this.camera.position.z = Math.sin(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+
+              this.camera.lookAt(0, 0, 0);
+            }
+
+            lastTouchDistance = touchDistance;
+          }
+        });
+
+        canvas.addEventListener('touchend', () => {
+          isMouseDown = false;
+          lastTouchDistance = 0;
+        });
+
+        canvas.style.cursor = 'grab';
+        console.log('✅ Manual 3D controls initialized (mouse drag to rotate, wheel to zoom)');
+      }
+
+      animate3D() {
+        requestAnimationFrame(() => this.animate3D());
+
+        this.animationTime += 0.01;
+
+        // Animate point light for dynamic lighting
+        if (this.pointLight) {
+          this.pointLight.position.x = Math.sin(this.animationTime) * 30;
+          this.pointLight.position.z = Math.cos(this.animationTime) * 30;
+          this.pointLight.intensity = 0.3 + Math.sin(this.animationTime * 2) * 0.2;
+        }
+
+        // Animate memory blocks with subtle floating effect
+        this.memoryBlocks.forEach((block, index) => {
+          if (block && block.position) {
+            const originalY = block.userData.originalY || block.position.y;
+            block.position.y = originalY + Math.sin(this.animationTime + index * 0.1) * 0.2;
+
+            // Add subtle rotation for leaked memory blocks
+            if (block.userData.is_leaked) {
+              block.rotation.y += 0.02;
+            }
+          }
+        });
+
+        // Update controls
+        if (this.controls) {
+          this.controls.update();
+        }
+
+        // Render scene
+        if (this.renderer && this.scene && this.camera) {
+          this.renderer.render(this.scene, this.camera);
+        }
+      }
+
+      create3DMemoryBlocks(allocations) {
+        if (!this.scene || !allocations) return;
+
+        // Clear existing blocks with fade out animation
+        this.memoryBlocks.forEach(block => {
+          if (block && block.material) {
+            // Fade out animation
+            const fadeOut = () => {
+              block.material.opacity -= 0.05;
+              if (block.material.opacity <= 0) {
+                this.scene.remove(block);
+                if (block.geometry) block.geometry.dispose();
+                if (block.material) block.material.dispose();
+              } else {
+                requestAnimationFrame(fadeOut);
+              }
+            };
+            fadeOut();
+          }
+        });
+        this.memoryBlocks = [];
+
+        // Sort allocations by size for better visual hierarchy
+        const sortedAllocs = [...allocations].sort((a, b) => (b.size || 0) - (a.size || 0));
+
+        const maxBlocksPerRow = 15;
+        const spacing = 4;
+
+        sortedAllocs.forEach((alloc, index) => {
+          const size = Math.max(alloc.size || 1, 1);
+          const blockSize = Math.cbrt(size / 50) + 0.8; // Enhanced size calculation
+
+          // Spiral positioning for better visual distribution
+          const angle = index * 0.5;
+          const radius = Math.sqrt(index) * 2;
+          const x = Math.cos(angle) * radius;
+          const z = Math.sin(angle) * radius;
+          const y = blockSize / 2;
+
+          // Enhanced color scheme based on type and size
+          let color = 0x3b82f6;
+          let emissive = 0x000000;
+          const typeName = alloc.type_name || '';
+
+          if (typeName.includes('String')) {
+            color = 0x4a90e2;
+            emissive = 0x001122;
+          } else if (typeName.includes('Box')) {
+            color = 0xe74c3c;
+            emissive = 0x220011;
+          } else if (typeName.includes('Rc')) {
+            color = 0x2ecc71;
+            emissive = 0x001100;
+          } else if (typeName.includes('Arc')) {
+            color = 0x9b59b6;
+            emissive = 0x110022;
+          } else if (typeName.includes('Vec')) {
+            color = 0xf39c12;
+            emissive = 0x221100;
+          }
+
+          // Create enhanced geometry with rounded edges
+          const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+
+          // Enhanced material with better visual effects
+          const material = new THREE.MeshPhongMaterial({
+            color: color,
+            emissive: emissive,
+            transparent: true,
+            opacity: alloc.is_leaked ? 0.7 : 0.9,
+            shininess: 100,
+            specular: 0x222222
+          });
+
+          const cube = new THREE.Mesh(geometry, material);
+          cube.position.set(x, y, z);
+          cube.castShadow = true;
+          cube.receiveShadow = true;
+
+          // Store original position and allocation data
+          cube.userData = {
+            ...alloc,
+            originalY: y,
+            originalColor: color,
+            originalEmissive: emissive
+          };
+
+          // Add entrance animation
+          cube.scale.set(0, 0, 0);
+          const targetScale = 1;
+          const animateEntrance = () => {
+            cube.scale.x += (targetScale - cube.scale.x) * 0.1;
+            cube.scale.y += (targetScale - cube.scale.y) * 0.1;
+            cube.scale.z += (targetScale - cube.scale.z) * 0.1;
+
+            if (Math.abs(cube.scale.x - targetScale) > 0.01) {
+              requestAnimationFrame(animateEntrance);
+            }
+          };
+          setTimeout(() => animateEntrance(), index * 50);
+
+          // Add hover effects
+          cube.addEventListener = (event, handler) => {
+            // Custom event handling for 3D objects
+          };
+
+          this.scene.add(cube);
+          this.memoryBlocks.push(cube);
+        });
+
+        this.update3DInfo(allocations.length);
+        this.setupRaycasting();
+      }
+
+      setupRaycasting() {
+        if (!this.renderer || !this.camera) return;
+
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+        this.hoveredObject = null;
+
+        const canvas = this.renderer.domElement;
+
+        canvas.addEventListener('mousemove', (event) => {
+          const rect = canvas.getBoundingClientRect();
+          this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+          this.raycaster.setFromCamera(this.mouse, this.camera);
+          const intersects = this.raycaster.intersectObjects(this.memoryBlocks);
+
+          // Reset previous hover
+          if (this.hoveredObject) {
+            this.hoveredObject.material.emissive.setHex(this.hoveredObject.userData.originalEmissive);
+            this.hoveredObject.scale.set(1, 1, 1);
+          }
+
+          if (intersects.length > 0) {
+            this.hoveredObject = intersects[0].object;
+            // Highlight hovered object
+            this.hoveredObject.material.emissive.setHex(0x444444);
+            this.hoveredObject.scale.set(1.2, 1.2, 1.2);
+
+            // Show tooltip
+            this.show3DTooltip(event, this.hoveredObject.userData);
+            canvas.style.cursor = 'pointer';
+          } else {
+            this.hoveredObject = null;
+            this.hide3DTooltip();
+            canvas.style.cursor = 'default';
+          }
+        });
+
+        canvas.addEventListener('click', (event) => {
+          if (this.hoveredObject) {
+            this.selectMemoryBlock(this.hoveredObject);
+          }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+          if (this.hoveredObject) {
+            this.hoveredObject.material.emissive.setHex(this.hoveredObject.userData.originalEmissive);
+            this.hoveredObject.scale.set(1, 1, 1);
+            this.hoveredObject = null;
+          }
+          this.hide3DTooltip();
+          canvas.style.cursor = 'default';
+        });
+      }
+
+      selectMemoryBlock(block) {
+        // Animate selection
+        const originalScale = { x: 1, y: 1, z: 1 };
+        const targetScale = { x: 1.5, y: 1.5, z: 1.5 };
+
+        const animateSelection = () => {
+          block.scale.x += (targetScale.x - block.scale.x) * 0.2;
+          block.scale.y += (targetScale.y - block.scale.y) * 0.2;
+          block.scale.z += (targetScale.z - block.scale.z) * 0.2;
+
+          if (Math.abs(block.scale.x - targetScale.x) > 0.01) {
+            requestAnimationFrame(animateSelection);
+          } else {
+            // Return to normal size after selection
+            setTimeout(() => {
+              const returnToNormal = () => {
+                block.scale.x += (originalScale.x - block.scale.x) * 0.2;
+                block.scale.y += (originalScale.y - block.scale.y) * 0.2;
+                block.scale.z += (originalScale.z - block.scale.z) * 0.2;
+
+                if (Math.abs(block.scale.x - originalScale.x) > 0.01) {
+                  requestAnimationFrame(returnToNormal);
+                }
+              };
+              returnToNormal();
+            }, 1000);
+          }
+        };
+        animateSelection();
+
+        // Show detailed info
+        this.showDetailedInfo(block.userData);
+      }
+
+      show3DTooltip(event, alloc) {
+        if (!this.tooltip) return;
+
+        this.tooltip.innerHTML = `
+          <div style="font-weight: bold; color: #4a90e2; margin-bottom: 4px;">${alloc.var_name || 'Unknown'}</div>
+          <div style="margin-bottom: 2px;"><span style="color: #888;">Type:</span> ${alloc.type_name || 'Unknown'}</div>
+          <div style="margin-bottom: 2px;"><span style="color: #888;">Size:</span> ${this.formatBytes(alloc.size || 0)}</div>
+          <div style="margin-bottom: 2px;"><span style="color: #888;">Address:</span> 0x${(alloc.ptr || 0).toString(16)}</div>
+          <div style="margin-bottom: 2px;"><span style="color: #888;">Lifetime:</span> ${(alloc.lifetime_ms || 0).toFixed(2)}ms</div>
+          <div style="color: ${alloc.is_leaked ? '#e74c3c' : '#2ecc71'};">
+            ${alloc.is_leaked ? '⚠️ Leaked' : '✅ Active'}
+          </div>
+        `;
+
+        this.tooltip.style.display = 'block';
+        this.tooltip.style.left = `${event.pageX + 15}px`;
+        this.tooltip.style.top = `${event.pageY - 10}px`;
+      }
+
+      hide3DTooltip() {
+        if (this.tooltip) {
+          this.tooltip.style.display = 'none';
+        }
+      }
+
+      showDetailedInfo(alloc) {
+        const infoEl = document.getElementById('memory3DInfo');
+        if (infoEl) {
+          infoEl.innerHTML = `
+            <div style="font-weight: bold; color: #4a90e2; margin-bottom: 8px;">Selected: ${alloc.var_name}</div>
+            <div style="font-size: 0.8rem; line-height: 1.4;">
+              <div>Type: ${alloc.type_name}</div>
+              <div>Size: ${this.formatBytes(alloc.size || 0)}</div>
+              <div>Address: 0x${(alloc.ptr || 0).toString(16)}</div>
+              <div>Scope: ${alloc.scope_name || 'unknown'}</div>
+              <div>Lifetime: ${(alloc.lifetime_ms || 0).toFixed(2)}ms</div>
+              <div>Status: ${alloc.is_leaked ? 'Leaked' : 'Active'}</div>
+            </div>
+          `;
+        }
+      }
+
+      update3DInfo(blockCount) {
+        const infoEl = document.getElementById('memory3DInfo');
+        if (infoEl) {
+          infoEl.innerHTML = `
+            Memory Blocks: ${blockCount}<br>
+            Camera: [${this.camera.position.x.toFixed(1)}, ${this.camera.position.y.toFixed(1)}, ${this.camera.position.z.toFixed(1)}]<br>
+            Use mouse to rotate, zoom, and pan
+          `;
+        }
+      }
+
+      initTimelineControls() {
+        console.log('Initializing timeline controls...');
+
+        const playBtn = document.getElementById('timelinePlay');
+        const pauseBtn = document.getElementById('timelinePause');
+        const resetBtn = document.getElementById('timelineReset');
+        const stepBtn = document.getElementById('timelineStep');
+        const slider = document.getElementById('timelineSlider');
+        const thumb = document.getElementById('timelineThumb');
+
+        console.log('Found timeline buttons:', {
+          playBtn: !!playBtn,
+          pauseBtn: !!pauseBtn,
+          resetBtn: !!resetBtn,
+          stepBtn: !!stepBtn,
+          slider: !!slider,
+          thumb: !!thumb
+        });
+
+        if (playBtn) {
+          playBtn.addEventListener('click', () => {
+            console.log('Timeline play button clicked');
+            this.playTimeline();
+          });
+          console.log('Play button event bound');
+        } else {
+          console.error('timelinePlay button not found');
+        }
+
+        if (pauseBtn) {
+          pauseBtn.addEventListener('click', () => {
+            console.log('Timeline pause button clicked');
+            this.pauseTimeline();
+          });
+          console.log('Pause button event bound');
+        } else {
+          console.error('timelinePause button not found');
+        }
+
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            console.log('Timeline reset button clicked');
+            this.resetTimeline();
+          });
+          console.log('Reset button event bound');
+        } else {
+          console.error('timelineReset button not found');
+        }
+
+        if (stepBtn) {
+          stepBtn.addEventListener('click', () => {
+            console.log('Timeline step button clicked');
+            this.stepTimeline();
+          });
+          console.log('Step button event bound');
+        } else {
+          console.error('timelineStep button not found');
+        }
+
+        if (slider && thumb) {
+          let isDragging = false;
+
+          thumb.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            e.preventDefault();
+          });
+
+          document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const rect = slider.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            const percentage = x / rect.width;
+
+            this.setTimelinePosition(percentage);
+          });
+
+          document.addEventListener('mouseup', () => {
+            isDragging = false;
+          });
+
+          slider.addEventListener('click', (e) => {
+            if (isDragging) return;
+
+            const rect = slider.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percentage = x / rect.width;
+
+            this.setTimelinePosition(percentage);
+          });
+        }
+      }
+
+      formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      prepareTimelineData(allocations) {
+        if (!allocations || allocations.length === 0) {
+          this.timeline.data = [];
+          this.timeline.totalTime = 0;
+          this.updateTimelineDisplay();
+          return;
+        }
+
+        // Filter out allocations with invalid timestamps and sort
+        const validAllocs = allocations.filter(alloc =>
+          alloc.timestamp_alloc &&
+          !isNaN(alloc.timestamp_alloc) &&
+          alloc.timestamp_alloc > 0
+        );
+
+        if (validAllocs.length === 0) {
+          // If no valid timestamps, create synthetic timeline based on order
+          this.timeline.data = allocations.map((alloc, index) => ({
+            ...alloc,
+            timestamp_alloc: index * 1000000, // 1ms intervals
+            timestamp_dealloc: alloc.timestamp_dealloc || (index + 1) * 1000000
+          }));
+          this.timeline.totalTime = allocations.length * 1000000;
+        } else {
+          // Sort by allocation timestamp
+          const sortedAllocs = [...validAllocs].sort((a, b) => {
+            const timeA = a.timestamp_alloc || 0;
+            const timeB = b.timestamp_alloc || 0;
+            return timeA - timeB;
+          });
+
+          this.timeline.data = sortedAllocs;
+          const minTime = sortedAllocs[0].timestamp_alloc || 0;
+          const maxTime = sortedAllocs[sortedAllocs.length - 1].timestamp_alloc || 0;
+          this.timeline.totalTime = Math.max(maxTime - minTime, 1000000); // At least 1ms
+        }
+
+        this.updateTimelineDisplay();
+      }
+
+      playTimeline() {
+        console.log('Starting timeline playback...');
+        if (this.timeline.isPlaying) {
+          console.log('Timeline already playing');
+          return;
+        }
+
+        console.log('Timeline data:', {
+          totalTime: this.timeline.totalTime,
+          currentTime: this.timeline.currentTime,
+          dataLength: this.timeline.data.length
+        });
+
+        this.timeline.isPlaying = true;
+        const playBtn = document.getElementById('timelinePlay');
+        const pauseBtn = document.getElementById('timelinePause');
+
+        if (playBtn) playBtn.disabled = true;
+        if (pauseBtn) pauseBtn.disabled = false;
+
+        console.log('Timeline playback started');
+
+        // Get speed from control
+        const speedSelect = document.getElementById('timelineSpeed');
+        const speed = speedSelect ? parseFloat(speedSelect.value) : 1.0;
+
+        // Use requestAnimationFrame for smoother animation
+        const animate = () => {
+          if (!this.timeline.isPlaying) return;
+
+          // Calculate time increment based on speed and total time for better visualization
+          const baseIncrement = Math.max(this.timeline.totalTime * 0.0005, 12500); // 0.05% of total time or 12.5μs minimum
+          this.timeline.currentTime += baseIncrement * speed;
+
+          if (this.timeline.currentTime >= this.timeline.totalTime) {
+            this.timeline.currentTime = this.timeline.totalTime;
+            this.updateTimelineVisualization();
+            this.pauseTimeline();
+            console.log('Timeline playback completed');
+            return;
+          }
+
+          this.updateTimelineVisualization();
+
+          // Continue animation with consistent frame rate
+          const frameDelay = Math.max(16, 200 / speed); // Slower frame rate for better visualization
+          setTimeout(() => {
+            if (this.timeline.isPlaying) {
+              requestAnimationFrame(animate);
+            }
+          }, frameDelay);
+        };
+
+        requestAnimationFrame(animate);
+      }
+
+      pauseTimeline() {
+        this.timeline.isPlaying = false;
+
+        const playBtn = document.getElementById('timelinePlay');
+        const pauseBtn = document.getElementById('timelinePause');
+
+        if (playBtn) playBtn.disabled = false;
+        if (pauseBtn) pauseBtn.disabled = true;
+
+        if (this.timelineInterval) {
+          clearInterval(this.timelineInterval);
+          this.timelineInterval = null;
+        }
+      }
+
+      resetTimeline() {
+        console.log('Resetting timeline...');
+        this.pauseTimeline();
+        this.timeline.currentTime = 0;
+        this.updateTimelineVisualization();
+        
+        // Reset 3D visualization to show all allocations
+        if (window.analysisData && window.analysisData.memory_analysis) {
+          this.create3DMemoryBlocks(window.analysisData.memory_analysis.allocations || []);
+        }
+        
+        console.log('Timeline reset to beginning');
+      }
+
+      stepTimeline() {
+        // Step forward by 1% of total time or 1ms, whichever is larger
+        const stepSize = Math.max(this.timeline.totalTime * 0.01, 1000000); // 1ms minimum
+        this.timeline.currentTime += stepSize;
+        if (this.timeline.currentTime > this.timeline.totalTime) {
+          this.timeline.currentTime = this.timeline.totalTime;
+        }
+        this.updateTimelineVisualization();
+        console.log(`Timeline stepped to ${(this.timeline.currentTime / 1000000).toFixed(1)}ms`);
+      }
+
+      setTimelinePosition(percentage) {
+        this.timeline.currentTime = percentage * this.timeline.totalTime;
+        this.updateTimelineVisualization();
+      }
+
+      updateTimelineVisualization() {
+        const percentage = this.timeline.totalTime > 0 ? this.timeline.currentTime / this.timeline.totalTime : 0;
+
+        // Cache DOM elements to avoid repeated queries
+        if (!this.timelineElements) {
+          this.timelineElements = {
+            progress: document.getElementById('timelineProgress'),
+            thumb: document.getElementById('timelineThumb'),
+            currentTime: document.getElementById('timelineCurrentTime'),
+            totalTime: document.getElementById('timelineTotalTime'),
+            activeCount: document.getElementById('timelineActiveCount')
+          };
+        }
+
+        // Only update if percentage changed significantly (reduce flickering)
+        const roundedPercentage = Math.round(percentage * 1000) / 10; // Round to 0.1%
+        if (this.lastPercentage !== roundedPercentage) {
+          this.lastPercentage = roundedPercentage;
+
+          if (this.timelineElements.progress) {
+            this.timelineElements.progress.style.width = `${roundedPercentage}%`;
+          }
+          if (this.timelineElements.thumb) {
+            this.timelineElements.thumb.style.left = `calc(${roundedPercentage}% - 9px)`;
+          }
+        }
+
+        // Update time display less frequently
+        if (!this.lastTimeUpdate || Date.now() - this.lastTimeUpdate > 100) {
+          this.lastTimeUpdate = Date.now();
+
+          const currentTimeMs = isNaN(this.timeline.currentTime) ? 0 : this.timeline.currentTime / 1000000;
+          const totalTimeMs = isNaN(this.timeline.totalTime) ? 0 : this.timeline.totalTime / 1000000;
+
+          if (this.timelineElements.currentTime) {
+            this.timelineElements.currentTime.textContent = `${currentTimeMs.toFixed(1)}ms`;
+          }
+          if (this.timelineElements.totalTime) {
+            this.timelineElements.totalTime.textContent = `${totalTimeMs.toFixed(1)}ms`;
+          }
+        }
+
+        // Count active allocations at current time
+        const activeAllocs = this.timeline.data.filter(alloc => {
+          const allocTime = alloc.timestamp_alloc || 0;
+          const deallocTime = alloc.timestamp_dealloc || Infinity;
+          const currentTime = this.timeline.data[0] ? (this.timeline.data[0].timestamp_alloc || 0) + this.timeline.currentTime : 0;
+
+          return allocTime <= currentTime && currentTime < deallocTime;
+        });
+
+        if (this.timelineElements.activeCount) {
+          this.timelineElements.activeCount.textContent = activeAllocs.length;
+        }
+
+        // Update 3D visualization with current active allocations
+        this.create3DMemoryBlocks(activeAllocs);
+      }
+
+      updateTimelineDisplay() {
+        const totalTimeEl = document.getElementById('timelineTotalTime');
+        const currentTimeEl = document.getElementById('timelineCurrentTime');
+
+        const totalTimeMs = isNaN(this.timeline.totalTime) ? 0 : this.timeline.totalTime / 1000000;
+        const currentTimeMs = isNaN(this.timeline.currentTime) ? 0 : this.timeline.currentTime / 1000000;
+
+        if (totalTimeEl) {
+          totalTimeEl.textContent = `${totalTimeMs.toFixed(1)}ms`;
+        }
+        if (currentTimeEl) {
+          currentTimeEl.textContent = `${currentTimeMs.toFixed(1)}ms`;
+        }
+      }
+
+      initHeatmap() {
+        const container = document.getElementById('memoryHeatmap');
+        const modeButtons = document.querySelectorAll('.heatmap-mode-btn');
+
+        modeButtons.forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            modeButtons.forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            this.heatmapMode = e.target.dataset.mode;
+            this.updateHeatmap();
+          });
+        });
+      }
+
+      generateHeatmap(allocations) {
+        console.log('Generating enhanced heatmap with', allocations?.length || 0, 'allocations');
+        if (!allocations) return;
+
+        const container = document.getElementById('memoryHeatmap');
+        if (!container) return;
+
+        // Clear existing heatmap
+        container.innerHTML = '<div class="heatmap-legend" id="heatmapLegend"></div>';
+
+        const width = container.clientWidth;
+        const height = container.clientHeight - 40; // Account for legend
+        const cellSize = 6; // Smaller cells for better resolution
+        const cols = Math.floor(width / cellSize);
+        const rows = Math.floor(height / cellSize);
+
+        // Create heatmap data based on mode
+        let heatmapData = [];
+        let metadata = {};
+
+        switch (this.heatmapMode) {
+          case 'density':
+            const densityResult = this.calculateDensityHeatmap(allocations, cols, rows);
+            heatmapData = densityResult.data || densityResult;
+            metadata = densityResult.metadata || {};
+            break;
+          case 'type':
+            const typeResult = this.calculateTypeHeatmap(allocations, cols, rows);
+            heatmapData = typeResult.data || typeResult;
+            metadata = typeResult.metadata || {};
+            break;
+          case 'scope':
+            const scopeResult = this.calculateScopeHeatmap(allocations, cols, rows);
+            heatmapData = scopeResult.data || scopeResult;
+            metadata = scopeResult.metadata || {};
+            break;
+          case 'activity':
+            const activityResult = this.calculateActivityHeatmap(allocations, cols, rows);
+            heatmapData = activityResult.data || activityResult;
+            metadata = activityResult.metadata || {};
+            break;
+          case 'fragmentation':
+            const fragResult = this.calculateFragmentationHeatmap(allocations, cols, rows);
+            heatmapData = fragResult.data || [];
+            metadata = fragResult.metadata || {};
+            break;
+          case 'lifetime':
+            const lifetimeResult = this.calculateLifetimeHeatmap(allocations, cols, rows);
+            heatmapData = lifetimeResult.data || [];
+            metadata = lifetimeResult.metadata || {};
+            break;
+        }
+
+        // Render enhanced heatmap with smooth transitions
+        const fragment = document.createDocumentFragment();
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const index = row * cols + col;
+            const intensity = heatmapData[index] || 0;
+
+            if (intensity > 0.01) { // Only render visible cells for performance
+              const cell = document.createElement('div');
+              cell.style.position = 'absolute';
+              cell.style.left = `${col * cellSize}px`;
+              cell.style.top = `${row * cellSize + 40}px`;
+              cell.style.width = `${cellSize}px`;
+              cell.style.height = `${cellSize}px`;
+              cell.style.backgroundColor = this.getHeatmapColor(intensity, this.heatmapMode);
+              cell.style.opacity = Math.max(0.1, intensity);
+              cell.style.transition = 'all 0.3s ease';
+              cell.style.borderRadius = '1px';
+
+              // Add hover effects for interactivity
+              cell.addEventListener('mouseenter', (e) => {
+                e.target.style.transform = 'scale(1.2)';
+                e.target.style.zIndex = '10';
+                this.showHeatmapTooltip(e, intensity, metadata, row, col);
+              });
+
+              cell.addEventListener('mouseleave', (e) => {
+                e.target.style.transform = 'scale(1)';
+                e.target.style.zIndex = '1';
+                this.hideHeatmapTooltip();
+              });
+
+              fragment.appendChild(cell);
+            }
+          }
+        }
+
+        container.appendChild(fragment);
+        this.updateHeatmapLegend(metadata);
+      }
+
+      calculateDensityHeatmap(allocations, cols, rows) {
+        const data = new Array(cols * rows).fill(0);
+        const maxSize = Math.max(...allocations.map(a => a.size || 0));
+
+        allocations.forEach((alloc, index) => {
+          const x = index % cols;
+          const y = Math.floor(index / cols) % rows;
+          const cellIndex = y * cols + x;
+
+          if (cellIndex < data.length) {
+            data[cellIndex] += (alloc.size || 0) / maxSize;
+          }
+        });
+
+        return data;
+      }
+
+      calculateTypeHeatmap(allocations, cols, rows) {
+        const data = new Array(cols * rows).fill(0);
+        const typeMap = new Map();
+
+        allocations.forEach(alloc => {
+          const type = alloc.type_name || 'unknown';
+          typeMap.set(type, (typeMap.get(type) || 0) + 1);
+        });
+
+        const maxCount = Math.max(...typeMap.values());
+        let index = 0;
+
+        for (const [type, count] of typeMap.entries()) {
+          const intensity = count / maxCount;
+          const startIndex = index * Math.floor(data.length / typeMap.size);
+          const endIndex = Math.min(startIndex + Math.floor(data.length / typeMap.size), data.length);
+
+          for (let i = startIndex; i < endIndex; i++) {
+            data[i] = intensity;
+          }
+          index++;
+        }
+
+        return data;
+      }
+
+      calculateScopeHeatmap(allocations, cols, rows) {
+        const data = new Array(cols * rows).fill(0);
+        const scopeMap = new Map();
+
+        allocations.forEach(alloc => {
+          const scope = alloc.scope || 'global';
+          scopeMap.set(scope, (scopeMap.get(scope) || 0) + 1);
+        });
+
+        const maxCount = Math.max(...scopeMap.values());
+        let index = 0;
+
+        for (const [scope, count] of scopeMap.entries()) {
+          const intensity = count / maxCount;
+          const startIndex = index * Math.floor(data.length / scopeMap.size);
+          const endIndex = Math.min(startIndex + Math.floor(data.length / scopeMap.size), data.length);
+
+          for (let i = startIndex; i < endIndex; i++) {
+            data[i] = intensity;
+          }
+          index++;
+        }
+
+        return data;
+      }
+
+      calculateActivityHeatmap(allocations, cols, rows) {
+        const data = new Array(cols * rows).fill(0);
+
+        if (allocations.length === 0) return { data, metadata: {} };
+
+        const minTime = Math.min(...allocations.map(a => a.timestamp_alloc || 0));
+        const maxTime = Math.max(...allocations.map(a => a.timestamp_alloc || 0));
+        const timeRange = maxTime - minTime || 1;
+
+        allocations.forEach(alloc => {
+          const timeRatio = ((alloc.timestamp_alloc || 0) - minTime) / timeRange;
+          const cellIndex = Math.floor(timeRatio * data.length);
+
+          if (cellIndex < data.length) {
+            data[cellIndex] += 0.1;
+          }
+        });
+
+        const maxActivity = Math.max(...data);
+        const normalizedData = maxActivity > 0 ? data.map(d => d / maxActivity) : data;
+
+        return {
+          data: normalizedData,
+          metadata: {
+            maxActivity,
+            totalAllocations: allocations.length,
+            timeRange: timeRange / 1000000 // Convert to ms
+          }
+        };
+      }
+
+      calculateFragmentationHeatmap(allocations, cols, rows) {
+        const data = new Array(cols * rows).fill(0);
+
+        // Sort allocations by memory address
+        const sortedAllocs = allocations
+          .filter(a => a.ptr && a.size)
+          .map(a => ({
+            address: parseInt(a.ptr.replace('0x', ''), 16),
+            size: a.size,
+            ...a
+          }))
+          .sort((a, b) => a.address - b.address);
+
+        // Calculate fragmentation score for each memory region
+        for (let i = 0; i < sortedAllocs.length - 1; i++) {
+          const current = sortedAllocs[i];
+          const next = sortedAllocs[i + 1];
+          const gap = next.address - (current.address + current.size);
+
+          if (gap > 0) {
+            // Map to heatmap coordinates
+            const normalizedAddr = (current.address % (cols * rows * 1000)) / (cols * rows * 1000);
+            const row = Math.floor(normalizedAddr * rows);
+            const col = Math.floor((i / sortedAllocs.length) * cols);
+            const cellIndex = Math.min(row * cols + col, data.length - 1);
+
+            // Higher gap = higher fragmentation
+            data[cellIndex] += Math.min(gap / 1000, 1); // Normalize gap size
+          }
+        }
+
+        const maxFrag = Math.max(...data);
+        const normalizedData = maxFrag > 0 ? data.map(d => d / maxFrag) : data;
+
+        return {
+          data: normalizedData,
+          metadata: {
+            maxFragmentation: maxFrag,
+            totalGaps: data.filter(d => d > 0).length,
+            avgFragmentation: data.reduce((a, b) => a + b, 0) / data.length
+          }
+        };
+      }
+
+      calculateLifetimeHeatmap(allocations, cols, rows) {
+        const data = new Array(cols * rows).fill(0);
+
+        allocations.forEach((alloc, index) => {
+          const allocTime = alloc.timestamp_alloc || 0;
+          const deallocTime = alloc.timestamp_dealloc || Date.now() * 1000000;
+          const lifetime = deallocTime - allocTime;
+
+          // Map lifetime to heatmap position
+          const row = Math.floor((index / allocations.length) * rows);
+          const col = Math.floor((lifetime / 1000000000) * cols) % cols; // Convert to seconds
+          const cellIndex = Math.min(row * cols + col, data.length - 1);
+
+          data[cellIndex] += 1;
+        });
+
+        const maxLifetime = Math.max(...data);
+        const normalizedData = maxLifetime > 0 ? data.map(d => d / maxLifetime) : data;
+
+        return {
+          data: normalizedData,
+          metadata: {
+            maxLifetime,
+            avgLifetime: data.reduce((a, b) => a + b, 0) / data.length,
+            activeAllocations: allocations.filter(a => !a.timestamp_dealloc).length
+          }
+        };
+      }
+
+      getHeatmapColor(intensity, mode = 'density') {
+        const scaledIntensity = Math.min(Math.max(intensity, 0), 1);
+
+        // Different color schemes for different modes
+        const colorSchemes = {
+          density: [
+            [59, 130, 246],   // Blue
+            [245, 158, 11],   // Orange
+            [220, 38, 38]     // Red
+          ],
+          type: [
+            [34, 197, 94],    // Green
+            [168, 85, 247],   // Purple
+            [239, 68, 68]     // Red
+          ],
+          scope: [
+            [14, 165, 233],   // Sky blue
+            [251, 191, 36],   // Amber
+            [239, 68, 68]     // Red
+          ],
+          activity: [
+            [99, 102, 241],   // Indigo
+            [236, 72, 153],   // Pink
+            [220, 38, 38]     // Red
+          ],
+          fragmentation: [
+            [34, 197, 94],    // Green (low fragmentation)
+            [251, 191, 36],   // Amber (medium)
+            [239, 68, 68]     // Red (high fragmentation)
+          ],
+          lifetime: [
+            [147, 51, 234],   // Purple (short-lived)
+            [59, 130, 246],   // Blue (medium)
+            [34, 197, 94]     // Green (long-lived)
+          ]
+        };
+
+        const colors = colorSchemes[mode] || colorSchemes.density;
+        const colorIndex = scaledIntensity * (colors.length - 1);
+        const lowerIndex = Math.floor(colorIndex);
+        const upperIndex = Math.ceil(colorIndex);
+        const ratio = colorIndex - lowerIndex;
+
+        if (lowerIndex === upperIndex) {
+          const [r, g, b] = colors[lowerIndex];
+          return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        const [r1, g1, b1] = colors[lowerIndex];
+        const [r2, g2, b2] = colors[upperIndex];
+
+        const r = Math.round(r1 + (r2 - r1) * ratio);
+        const g = Math.round(g1 + (g2 - g1) * ratio);
+        const b = Math.round(b1 + (b2 - b1) * ratio);
+
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+
+      showHeatmapTooltip(event, intensity, metadata, row, col) {
+        if (!this.tooltip) {
+          this.tooltip = document.createElement('div');
+          this.tooltip.style.cssText = `
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          `;
+          document.body.appendChild(this.tooltip);
+        }
+
+        const modeDescriptions = {
+          density: 'Memory usage density',
+          type: 'Type distribution',
+          scope: 'Scope activity level',
+          activity: 'Allocation activity',
+          fragmentation: 'Memory fragmentation',
+          lifetime: 'Allocation lifetime'
+        };
+
+        this.tooltip.innerHTML = `
+          <div><strong>${modeDescriptions[this.heatmapMode] || 'Intensity'}</strong></div>
+          <div>Value: ${(intensity * 100).toFixed(1)}%</div>
+          <div>Position: (${col}, ${row})</div>
+          ${metadata.maxActivity ? `<div>Max Activity: ${metadata.maxActivity}</div>` : ''}
+          ${metadata.totalGaps ? `<div>Total Gaps: ${metadata.totalGaps}</div>` : ''}
+          ${metadata.activeAllocations ? `<div>Active: ${metadata.activeAllocations}</div>` : ''}
+        `;
+
+        this.tooltip.style.left = `${event.pageX + 10}px`;
+        this.tooltip.style.top = `${event.pageY - 10}px`;
+        this.tooltip.style.display = 'block';
+      }
+
+      hideHeatmapTooltip() {
+        if (this.tooltip) {
+          this.tooltip.style.display = 'none';
+        }
+      }
+
+      updateHeatmapLegend(metadata = {}) {
+        const legend = document.getElementById('heatmapLegend');
+        if (!legend) return;
+
+        const modeLabels = {
+          density: 'Memory Density',
+          type: 'Type Distribution',
+          scope: 'Scope Activity',
+          activity: 'Allocation Activity',
+          fragmentation: 'Memory Fragmentation',
+          lifetime: 'Allocation Lifetime'
+        };
+
+        const modeDescriptions = {
+          density: 'Shows memory usage concentration',
+          type: 'Shows distribution of data types',
+          scope: 'Shows activity by scope',
+          activity: 'Shows allocation frequency over time',
+          fragmentation: 'Shows memory fragmentation levels',
+          lifetime: 'Shows allocation lifetime patterns'
+        };
+
+        const currentMode = this.heatmapMode;
+        const lowColor = this.getHeatmapColor(0.2, currentMode);
+        const medColor = this.getHeatmapColor(0.5, currentMode);
+        const highColor = this.getHeatmapColor(0.8, currentMode);
+
+        let metadataHtml = '';
+        if (metadata.maxActivity) {
+          metadataHtml += `<div style="font-size: 10px; color: rgba(255,255,255,0.8);">Max Activity: ${metadata.maxActivity}</div>`;
+        }
+        if (metadata.totalGaps) {
+          metadataHtml += `<div style="font-size: 10px; color: rgba(255,255,255,0.8);">Gaps: ${metadata.totalGaps}</div>`;
+        }
+        if (metadata.activeAllocations) {
+          metadataHtml += `<div style="font-size: 10px; color: rgba(255,255,255,0.8);">Active: ${metadata.activeAllocations}</div>`;
+        }
+
+        legend.innerHTML = `
+          <div style="font-weight: 600; margin-bottom: 2px;">${modeLabels[currentMode]}</div>
+          <div style="font-size: 10px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">${modeDescriptions[currentMode]}</div>
+          <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+            <div style="width: 12px; height: 12px; background: ${lowColor}; border-radius: 2px;"></div>
+            <span style="font-size: 11px;">Low</span>
+            <div style="width: 12px; height: 12px; background: ${medColor}; border-radius: 2px;"></div>
+            <span style="font-size: 11px;">Med</span>
+            <div style="width: 12px; height: 12px; background: ${highColor}; border-radius: 2px;"></div>
+            <span style="font-size: 11px;">High</span>
+          </div>
+          ${metadataHtml}
+        `;
+      }
+
+      updateHeatmap() {
+        if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
+          this.generateHeatmap(window.analysisData.memory_analysis.allocations);
+        }
+      }
+
+      bindEvents() {
+        console.log('🔧 Binding 3D visualization events...');
+
+        // Add visual feedback for button interactions
+        this.addButtonFeedback();
+
+        // Wait for DOM to be fully ready
+        setTimeout(() => {
+          const toggle3DBtn = document.getElementById('toggle3DView');
+          const reset3DBtn = document.getElementById('reset3DView');
+          const autoRotateBtn = document.getElementById('autoRotate3D');
+          const focusLargestBtn = document.getElementById('focusLargest');
+
+          console.log('🔍 Found buttons:', {
+            toggle3DBtn: !!toggle3DBtn,
+            reset3DBtn: !!reset3DBtn,
+            autoRotateBtn: !!autoRotateBtn,
+            focusLargestBtn: !!focusLargestBtn
+          });
+
+          if (toggle3DBtn) {
+            // Remove any existing event listeners
+            toggle3DBtn.replaceWith(toggle3DBtn.cloneNode(true));
+            const newToggle3DBtn = document.getElementById('toggle3DView');
+            
+            newToggle3DBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              console.log('🎯 Toggle 3D view clicked');
+              const container = document.getElementById('memory3DContainer');
+              if (container) {
+                const isHidden = container.style.display === 'none';
+                if (isHidden) {
+                  // Show 3D view
+                  container.style.display = 'block';
+                  newToggle3DBtn.innerHTML = '<i class="fa fa-eye-slash"></i><span>Hide 3D</span>';
+                  newToggle3DBtn.style.background = 'var(--primary-red)';
+                  console.log('✅ Showing 3D view');
+                  
+                  // Reinitialize 3D scene if needed
+                  if (!this.scene) {
+                    console.log('🔄 Reinitializing 3D scene...');
+                    this.init3DVisualization();
+                  }
+                  
+                  // Update 3D visualization with current data
+                  if (window.analysisData && window.analysisData.memory_analysis) {
+                    this.create3DMemoryBlocks(window.analysisData.memory_analysis.allocations || []);
+                  }
+                } else {
+                  // Hide 3D view
+                  container.style.display = 'none';
+                  newToggle3DBtn.innerHTML = '<i class="fa fa-eye"></i><span>Show 3D</span>';
+                  newToggle3DBtn.style.background = 'var(--primary-green)';
+                  console.log('✅ Hiding 3D view');
+                }
+              } else {
+                console.error('❌ 3D container not found');
+              }
+            });
+            console.log('✅ Toggle 3D button event bound');
+          } else {
+            console.error('❌ toggle3DView button not found');
+          }
+
+          if (reset3DBtn) {
+            // Remove any existing event listeners
+            reset3DBtn.replaceWith(reset3DBtn.cloneNode(true));
+            const newReset3DBtn = document.getElementById('reset3DView');
+            
+            newReset3DBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              console.log('🎯 Reset 3D view clicked');
+              this.reset3DView();
+            });
+            console.log('✅ Reset 3D button event bound');
+          } else {
+            console.error('❌ reset3DView button not found');
+          }
+
+          if (autoRotateBtn) {
+            // Remove any existing event listeners
+            autoRotateBtn.replaceWith(autoRotateBtn.cloneNode(true));
+            const newAutoRotateBtn = document.getElementById('autoRotate3D');
+            
+            newAutoRotateBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              console.log('🎯 Auto rotate clicked');
+              this.toggleAutoRotate();
+            });
+            console.log('✅ Auto rotate button event bound');
+          } else {
+            console.error('❌ autoRotate3D button not found');
+          }
+
+          if (focusLargestBtn) {
+            // Remove any existing event listeners
+            focusLargestBtn.replaceWith(focusLargestBtn.cloneNode(true));
+            const newFocusLargestBtn = document.getElementById('focusLargest');
+            
+            newFocusLargestBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              console.log('🎯 Focus largest clicked');
+              this.focusOnLargestBlock();
+            });
+            console.log('✅ Focus largest button event bound');
+          } else {
+            console.error('❌ focusLargest button not found');
+          }
+        }, 500); // Wait 500ms for DOM to be ready
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+          if (this.camera && this.renderer) {
+            const container = document.getElementById('memory3DContainer');
+            if (container) {
+              this.camera.aspect = container.clientWidth / container.clientHeight;
+              this.camera.updateProjectionMatrix();
+              this.renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+          }
+        });
+      }
+
+      addButtonFeedback() {
+        // Add hover and click effects to all 3D control buttons
+        const buttonIds = ['toggle3DView', 'reset3DView', 'autoRotate3D', 'focusLargest'];
+        
+        buttonIds.forEach(id => {
+          const btn = document.getElementById(id);
+          if (btn) {
+            // Add hover effect
+            btn.addEventListener('mouseenter', () => {
+              btn.style.transform = 'scale(1.05)';
+              btn.style.transition = 'all 0.2s ease';
+            });
+            
+            btn.addEventListener('mouseleave', () => {
+              btn.style.transform = 'scale(1)';
+            });
+            
+            // Add click effect
+            btn.addEventListener('mousedown', () => {
+              btn.style.transform = 'scale(0.95)';
+            });
+            
+            btn.addEventListener('mouseup', () => {
+              btn.style.transform = 'scale(1.05)';
+            });
+            
+            console.log(`✅ Added feedback effects to ${id}`);
+          }
+        });
+      }
+
+      reset3DView() {
+        console.log('🔄 Resetting 3D view...');
+        
+        // Show visual feedback
+        const resetBtn = document.getElementById('reset3DView');
+        if (resetBtn) {
+          resetBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i><span>Resetting...</span>';
+          resetBtn.style.background = 'var(--primary-yellow)';
+        }
+        
+        if (this.camera && this.controls) {
+          // Reset camera position
+          this.camera.position.set(15, 10, 15);
+          this.camera.lookAt(0, 0, 0);
+          
+          // Reset controls
+          this.controls.reset();
+          
+          // Update camera
+          this.camera.updateProjectionMatrix();
+          
+          // Restore button
+          setTimeout(() => {
+            if (resetBtn) {
+              resetBtn.innerHTML = '<i class="fa fa-refresh"></i><span>Reset</span>';
+              resetBtn.style.background = 'var(--primary-orange)';
+            }
+          }, 500);
+          
+          console.log('✅ 3D view reset complete');
+        } else {
+          console.error('❌ Camera or controls not available for reset');
+          if (resetBtn) {
+            resetBtn.innerHTML = '<i class="fa fa-exclamation"></i><span>Error</span>';
+            resetBtn.style.background = 'var(--primary-red)';
+            setTimeout(() => {
+              resetBtn.innerHTML = '<i class="fa fa-refresh"></i><span>Reset</span>';
+              resetBtn.style.background = 'var(--primary-orange)';
+            }, 1000);
+          }
+        }
+      
+      // Animation function
+      const animateReset = () => {
+        // Animation logic here if needed
+      };
+      animateReset();
+    }
+
+      toggleAutoRotate() {
+        console.log('🔄 Toggling auto rotate...');
+        if (this.controls) {
+          this.controls.autoRotate = !this.controls.autoRotate;
+          this.controls.autoRotateSpeed = 2.0; // Set rotation speed
+          
+          const btn = document.getElementById('autoRotate3D');
+          if (btn) {
+            if (this.controls.autoRotate) {
+              btn.innerHTML = '<i class="fa fa-pause"></i><span>Stop Rotate</span>';
+              btn.style.background = 'var(--primary-red)';
+              console.log('✅ Auto rotate enabled');
+            } else {
+              btn.innerHTML = '<i class="fa fa-rotate-right"></i><span>Auto Rotate</span>';
+              btn.style.background = 'var(--primary-blue)';
+              console.log('✅ Auto rotate disabled');
+            }
+          }
+        } else {
+          console.error('❌ Controls not available for auto rotate');
+          const btn = document.getElementById('autoRotate3D');
+          if (btn) {
+            btn.innerHTML = '<i class="fa fa-exclamation"></i><span>Error</span>';
+            btn.style.background = 'var(--primary-red)';
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fa fa-rotate-right"></i><span>Auto Rotate</span>';
+              btn.style.background = 'var(--primary-blue)';
+            }, 1000);
+          }
+        }
+      }
+
+      focusOnLargestBlock() {
+        console.log('🎯 Focusing on largest block...');
+        
+        // Show visual feedback
+        const focusBtn = document.getElementById('focusLargest');
+        if (focusBtn) {
+          focusBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i><span>Focusing...</span>';
+          focusBtn.style.background = 'var(--primary-yellow)';
+        }
+        
+        if (!this.memoryBlocks || this.memoryBlocks.length === 0) {
+          console.warn('❌ No memory blocks to focus on');
+          if (focusBtn) {
+            focusBtn.innerHTML = '<i class="fa fa-exclamation"></i><span>No Blocks</span>';
+            focusBtn.style.background = 'var(--primary-red)';
+            setTimeout(() => {
+              focusBtn.innerHTML = '<i class="fa fa-search-plus"></i><span>Focus Largest</span>';
+              focusBtn.style.background = 'var(--primary-red)';
+            }, 1500);
+          }
+          return;
+        }
+
+        // Find the largest block
+        let largestBlock = null;
+        let largestSize = 0;
+
+        this.memoryBlocks.forEach(block => {
+          const size = block.userData?.size || 0;
+          if (size > largestSize) {
+            largestSize = size;
+            largestBlock = block;
+          }
+        });
+
+        if (largestBlock && this.camera && this.controls) {
+          // Calculate optimal camera position
+          const blockPos = largestBlock.position;
+          const distance = Math.max(5, Math.sqrt(largestSize) / 10);
+          
+          // Position camera at an angle for better view
+          const targetPosition = new THREE.Vector3(
+            blockPos.x + distance,
+            blockPos.y + distance * 0.7,
+            blockPos.z + distance
+          );
+
+          // Smooth camera transition
+          const startPos = this.camera.position.clone();
+          let progress = 0;
+          
+          const animateFocus = () => {
+            progress += 0.05;
+            if (progress <= 1) {
+              this.camera.position.lerpVectors(startPos, targetPosition, progress);
+              this.camera.lookAt(blockPos);
+              requestAnimationFrame(animateFocus);
+            } else {
+              // Animation complete
+              console.log(`✅ Focused on largest block: ${largestBlock.userData?.var_name || 'unknown'} (${this.formatBytes(largestSize)})`);
+              this.update3DInfo(this.memoryBlocks.length);
+              
+              // Restore button
+              if (focusBtn) {
+                focusBtn.innerHTML = '<i class="fa fa-search-plus"></i><span>Focus Largest</span>';
+                focusBtn.style.background = 'var(--primary-red)';
+              }
+            }
+          };
+          animateFocus();
+        } else {
+          console.error('❌ Camera or controls not available for focus');
+          if (focusBtn) {
+            focusBtn.innerHTML = '<i class="fa fa-exclamation"></i><span>Error</span>';
+            focusBtn.style.background = 'var(--primary-red)';
+            setTimeout(() => {
+              focusBtn.innerHTML = '<i class="fa fa-search-plus"></i><span>Focus Largest</span>';
+              focusBtn.style.background = 'var(--primary-red)';
+            }, 1000);
+          }
+        }
+      }
+
+      // Main initialization method
+      initializeWithData(analysisData) {
+        console.log('initializeWithData called with:', analysisData);
+
+        let allocations = null;
+
+        // Try different data structure paths
+        if (analysisData && analysisData.memory_analysis && analysisData.memory_analysis.allocations) {
+          allocations = analysisData.memory_analysis.allocations;
+          console.log('Found allocations in memory_analysis:', allocations.length);
+        } else if (analysisData && analysisData.allocations) {
+          allocations = analysisData.allocations;
+          console.log('Found allocations directly:', allocations.length);
+        } else {
+          console.warn('No allocation data found in analysisData');
+          console.log('Available keys:', Object.keys(analysisData || {}));
+          return;
+        }
+
+        if (!allocations || allocations.length === 0) {
+          console.warn('No allocations to visualize');
+          return;
+        }
+
+        console.log(`Initializing enhanced visualization with ${allocations.length} allocations`);
+
+        // Initialize 3D visualization
+        this.create3DMemoryBlocks(allocations);
+
+        // Initialize timeline
+        this.prepareTimelineData(allocations);
+
+        // Initialize heatmap
+        this.generateHeatmap(allocations);
+
+        // Update memory distribution visualization
+        this.updateMemoryDistribution(allocations);
+
+        // Initialize memory fragmentation visualization
+        this.initializeMemoryFragmentation(allocations);
+
+        console.log('Enhanced memory visualization initialized successfully');
+      }
+
+      initializeMemoryFragmentation(allocations) {
+        console.log('Initializing memory fragmentation with', allocations?.length || 0, 'allocations');
+        const container = document.getElementById('memoryFragmentation');
+        if (!container) {
+          console.error('Memory fragmentation container not found');
+          return;
+        }
+        if (!allocations || allocations.length === 0) {
+          console.warn('No allocations data for fragmentation analysis');
+          container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">No allocation data available for fragmentation analysis</div>';
+          return;
+        }
+
+        console.log('Processing', allocations.length, 'allocations for fragmentation analysis');
+
+        // Calculate fragmentation metrics
+        const sortedAllocs = [...allocations].sort((a, b) => {
+          const addrA = parseInt(a.ptr || '0x0', 16);
+          const addrB = parseInt(b.ptr || '0x0', 16);
+          return addrA - addrB;
+        });
+
+        const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+        const addressRanges = [];
+        let gaps = 0;
+        let totalGapSize = 0;
+
+        // Calculate memory gaps
+        for (let i = 0; i < sortedAllocs.length - 1; i++) {
+          const currentAddr = parseInt(sortedAllocs[i].ptr || '0x0', 16);
+          const currentSize = sortedAllocs[i].size || 0;
+          const nextAddr = parseInt(sortedAllocs[i + 1].ptr || '0x0', 16);
+
+          const currentEnd = currentAddr + currentSize;
+          const gap = nextAddr - currentEnd;
+
+          if (gap > 0) {
+            gaps++;
+            totalGapSize += gap;
+            addressRanges.push({
+              type: 'gap',
+              start: currentEnd,
+              size: gap,
+              index: i
+            });
+          }
+
+          addressRanges.push({
+            type: 'allocation',
+            start: currentAddr,
+            size: currentSize,
+            allocation: sortedAllocs[i],
+            index: i
+          });
+        }
+
+        // Calculate fragmentation percentage
+        const fragmentation = totalMemory > 0 ? (totalGapSize / (totalMemory + totalGapSize)) * 100 : 0;
+        const efficiency = Math.max(100 - fragmentation, 0);
+
+        console.log('Fragmentation metrics:', { gaps, totalGapSize, fragmentation, efficiency });
+
+        // Create visualization
+        container.innerHTML = `
+          <div style="margin-bottom: 16px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+              <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+                <div style="font-size: 1.4rem; font-weight: 700; color: var(--primary-red);">${fragmentation.toFixed(1)}%</div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">Fragmentation</div>
+              </div>
+              <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+                <div style="font-size: 1.4rem; font-weight: 700; color: var(--primary-orange);">${gaps}</div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">Memory Gaps</div>
+              </div>
+              <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+                <div style="font-size: 1.4rem; font-weight: 700; color: var(--primary-green);">${efficiency.toFixed(1)}%</div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">Efficiency</div>
+              </div>
+            </div>
+            
+            <div style="margin-bottom: 12px;">
+              <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--text-primary);">Memory Layout Visualization</h4>
+              <div id="fragmentationChart" style="height: 120px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 6px; position: relative; overflow: hidden;">
+                <!-- Memory blocks will be inserted here -->
+              </div>
+            </div>
+            
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-align: center;">
+              <div style="display: flex; justify-content: center; gap: 16px; margin-top: 8px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 12px; height: 12px; background: var(--primary-blue); border-radius: 2px;"></div>
+                  <span>Allocated</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 12px; height: 12px; background: var(--primary-red); border-radius: 2px;"></div>
+                  <span>Gaps</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 12px; height: 12px; background: var(--primary-orange); border-radius: 2px;"></div>
+                  <span>Leaked</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Draw memory layout visualization
+        this.drawFragmentationChart(addressRanges, totalMemory + totalGapSize);
+      }
+
+      drawFragmentationChart(addressRanges, totalSize) {
+        const chartContainer = document.getElementById('fragmentationChart');
+        if (!chartContainer || addressRanges.length === 0) return;
+
+        const width = chartContainer.clientWidth;
+        const height = chartContainer.clientHeight;
+
+        let currentX = 0;
+
+        addressRanges.forEach((range, index) => {
+          const blockWidth = Math.max((range.size / totalSize) * width, 1);
+
+          const block = document.createElement('div');
+          block.style.position = 'absolute';
+          block.style.left = `${currentX}px`;
+          block.style.top = '10px';
+          block.style.width = `${blockWidth}px`;
+          block.style.height = `${height - 20}px`;
+          block.style.borderRadius = '2px';
+          block.style.cursor = 'pointer';
+          block.style.transition = 'all 0.2s ease';
+
+          if (range.type === 'gap') {
+            block.style.background = 'linear-gradient(45deg, #dc2626, #ef4444)';
+            block.style.border = '1px solid #b91c1c';
+            block.title = `Memory Gap: ${this.formatBytes(range.size)}`;
+          } else if (range.allocation && range.allocation.is_leaked) {
+            block.style.background = 'linear-gradient(45deg, #ea580c, #f97316)';
+            block.style.border = '1px solid #c2410c';
+            block.title = `Leaked: ${range.allocation.var_name} (${this.formatBytes(range.size)})`;
+          } else {
+            block.style.background = 'linear-gradient(45deg, #2563eb, #3b82f6)';
+            block.style.border = '1px solid #1d4ed8';
+            block.title = range.allocation ?
+              `${range.allocation.var_name}: ${range.allocation.type_name} (${this.formatBytes(range.size)})` :
+              `Allocation: ${this.formatBytes(range.size)}`;
+          }
+
+          // Add hover effects
+          block.addEventListener('mouseenter', () => {
+            block.style.transform = 'scaleY(1.2)';
+            block.style.zIndex = '10';
+          });
+
+          block.addEventListener('mouseleave', () => {
+            block.style.transform = 'scaleY(1)';
+            block.style.zIndex = '1';
+          });
+
+          chartContainer.appendChild(block);
+          currentX += blockWidth;
+        });
+      }
+
+      updateMemoryDistribution(allocations) {
+        const container = document.getElementById('memoryDistributionViz');
+        if (!container || !allocations) return;
+
+        container.innerHTML = '';
+
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+
+        let currentX = 0;
+        let fragmentation = 0;
+        let efficiency = 0;
+
+        // Sort by address for fragmentation calculation
+        const sortedAllocs = [...allocations].sort((a, b) => {
+          const addrA = parseInt(a.ptr || '0x0', 16);
+          const addrB = parseInt(b.ptr || '0x0', 16);
+          return addrA - addrB;
+        });
+
+        sortedAllocs.forEach((alloc, index) => {
+          const blockWidth = Math.max((alloc.size || 0) / totalMemory * width, 2);
+          const blockHeight = height * 0.8;
+
+          const block = document.createElement('div');
+          block.className = 'memory-block';
+          block.style.left = `${currentX}px`;
+          block.style.top = `${(height - blockHeight) / 2}px`;
+          block.style.width = `${blockWidth}px`;
+          block.style.height = `${blockHeight}px`;
+
+          // Determine allocation type and style
+          if (alloc.is_leaked) {
+            block.classList.add('leaked');
+          } else if (alloc.type_name && alloc.type_name.includes('Box')) {
+            block.classList.add('heap');
+          } else {
+            block.classList.add('stack');
+          }
+
+          // Add tooltip on hover
+          block.addEventListener('mouseenter', (e) => {
+            this.showTooltip(e, alloc);
+          });
+
+          block.addEventListener('mouseleave', () => {
+            this.hideTooltip();
+          });
+
+          container.appendChild(block);
+          currentX += blockWidth + 1; // Small gap between blocks
+        });
+
+        // Calculate fragmentation and efficiency
+        fragmentation = Math.min((currentX / width) * 100, 100);
+        efficiency = Math.max(100 - fragmentation, 0);
+
+        // Update metrics
+        const fragEl = document.getElementById('memoryFragmentation');
+        const effEl = document.getElementById('memoryEfficiency');
+
+        if (fragEl) fragEl.textContent = `${fragmentation.toFixed(1)}%`;
+        if (effEl) effEl.textContent = `${efficiency.toFixed(1)}%`;
+
+        // Update other metrics with real data
+        this.updateEnhancedMetrics(allocations);
+      }
+
+      updateEnhancedMetrics(allocations) {
+        if (!allocations || allocations.length === 0) return;
+
+        // Calculate real metrics from data
+        const totalAllocs = allocations.length;
+        const totalMemory = allocations.reduce((sum, alloc) => sum + (alloc.size || 0), 0);
+        const avgLifetime = allocations.reduce((sum, alloc) => sum + (alloc.lifetime_ms || 0), 0) / totalAllocs;
+        const heapAllocs = allocations.filter(a => a.type_name && (a.type_name.includes('Box') || a.type_name.includes('Vec'))).length;
+        const stackAllocs = totalAllocs - heapAllocs;
+        const heapStackRatio = stackAllocs > 0 ? (heapAllocs / stackAllocs).toFixed(2) : heapAllocs.toString();
+
+        // Update KPI cards
+        const totalAllocsEl = document.getElementById('total-allocations');
+        const activeVarsEl = document.getElementById('active-variables');
+        const totalMemoryEl = document.getElementById('total-memory');
+        const avgLifetimeEl = document.getElementById('avg-lifetime');
+        const peakMemoryEl = document.getElementById('peak-memory');
+        const allocRateEl = document.getElementById('allocation-rate');
+        const fragmentationEl = document.getElementById('fragmentation');
+
+        if (totalAllocsEl) totalAllocsEl.textContent = totalAllocs;
+        if (activeVarsEl) activeVarsEl.textContent = allocations.filter(a => !a.is_leaked).length;
+        if (totalMemoryEl) totalMemoryEl.textContent = this.formatBytes(totalMemory);
+        if (avgLifetimeEl) avgLifetimeEl.textContent = `${avgLifetime.toFixed(2)}ms`;
+        if (peakMemoryEl) peakMemoryEl.textContent = this.formatBytes(Math.max(...allocations.map(a => a.size || 0)));
+
+        // Calculate allocation rate (allocations per microsecond)
+        const timeSpan = Math.max(...allocations.map(a => a.timestamp_alloc || 0)) - Math.min(...allocations.map(a => a.timestamp_alloc || 0));
+        const allocRate = timeSpan > 0 ? ((totalAllocs / (timeSpan / 1000000)).toFixed(2) + '/sec') : '0/sec';
+        if (allocRateEl) allocRateEl.textContent = allocRate;
+
+        // Update enhanced statistics
+        const totalAllocsEnhancedEl = document.getElementById('total-allocs-enhanced');
+        const heapStackRatioEl = document.getElementById('heap-stack-ratio');
+        const avgLifetimeEnhancedEl = document.getElementById('avg-lifetime-enhanced');
+        const memoryEfficiencyEl = document.getElementById('memory-efficiency');
+
+        if (totalAllocsEnhancedEl) totalAllocsEnhancedEl.textContent = totalAllocs;
+        if (heapStackRatioEl) heapStackRatioEl.textContent = heapStackRatio;
+        if (avgLifetimeEnhancedEl) avgLifetimeEnhancedEl.textContent = `${avgLifetime.toFixed(1)}ms`;
+        if (memoryEfficiencyEl) memoryEfficiencyEl.textContent = `${((totalMemory / (totalAllocs * 100)) * 100).toFixed(1)}%`;
+
+        // Update type counts
+        const arcCountEl = document.getElementById('arc-count');
+        const rcCountEl = document.getElementById('rc-count');
+        const collectionsCountEl = document.getElementById('collections-count');
+
+        if (arcCountEl) arcCountEl.textContent = allocations.filter(a => a.type_name && a.type_name.includes('Arc')).length;
+        if (rcCountEl) rcCountEl.textContent = allocations.filter(a => a.type_name && a.type_name.includes('Rc')).length;
+        if (collectionsCountEl) collectionsCountEl.textContent = allocations.filter(a => a.type_name && (a.type_name.includes('Vec') || a.type_name.includes('HashMap'))).length;
+      }
+
+      showTooltip(event, alloc) {
+        if (!this.tooltip) return;
+
+        this.tooltip.innerHTML = `
+          <strong>${alloc.var_name || 'Unknown'}</strong><br>
+          Type: ${alloc.type_name || 'Unknown'}<br>
+          Size: ${this.formatBytes(alloc.size || 0)}<br>
+          Address: ${alloc.ptr || 'N/A'}<br>
+          Status: ${alloc.is_leaked ? 'Leaked' : 'Active'}<br>
+          Lifetime: ${alloc.lifetime_ms ? alloc.lifetime_ms.toFixed(2) + 'ms' : 'N/A'}
+        `;
+
+        this.tooltip.style.display = 'block';
+        this.tooltip.style.left = `${event.pageX + 10}px`;
+        this.tooltip.style.top = `${event.pageY - 10}px`;
+      }
+
+      hideTooltip() {
+        if (this.tooltip) {
+          this.tooltip.style.display = 'none';
+        }
+      }
+
+      formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+    }
+
+    // Global instance
+    window.enhancedVisualizer = new EnhancedMemoryVisualizer();
+
+    // Global function to bind 3D controls - can be called from console for debugging
+    window.bind3DControls = function() {
+      console.log('🔧 Manually binding 3D controls...');
+      if (window.enhancedVisualizer) {
+        window.enhancedVisualizer.bindEvents();
+      }
+    };
+
+    // Ensure 3D controls are bound when DOM is ready
+    // Safety Risk Data and Functions
+    window.safetyRisks = [];
+    
+    function loadSafetyRisks() {
+        console.log('🛡️ Loading safety risk data...');
+        const unsafeTable = document.getElementById('unsafeTable');
+        if (!unsafeTable) {
+            console.warn('⚠️ unsafeTable not found');
+            return;
+        }
+        
+        const risks = window.safetyRisks || [];
+        if (risks.length === 0) {
+            unsafeTable.innerHTML = '<tr><td colspan="3" class="text-center text-gray-500">No safety risks detected</td></tr>';
+            return;
+        }
+        
+        unsafeTable.innerHTML = '';
+        risks.forEach((risk, index) => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
+            
+            const riskLevelClass = risk.risk_level === 'High' ? 'text-red-600 font-bold' : 
+                                 risk.risk_level === 'Medium' ? 'text-yellow-600 font-semibold' : 
+                                 'text-green-600';
+            
+            row.innerHTML = `
+                <td class="px-3 py-2 text-sm">${risk.location || 'Unknown'}</td>
+                <td class="px-3 py-2 text-sm">${risk.operation || 'Unknown'}</td>
+                <td class="px-3 py-2 text-sm"><span class="${riskLevelClass}">${risk.risk_level || 'Low'}</span></td>
+            `;
+            unsafeTable.appendChild(row);
+        });
+        
+        console.log('✅ Safety risks loaded:', risks.length, 'items');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🚀 DOM loaded, binding 3D controls...');
+      setTimeout(() => {
+        if (window.enhancedVisualizer) {
+          window.enhancedVisualizer.bindEvents();
+        }
+      }, 1000);
+    });
   </script>
 </head>
+
 <body>
   <div class="dashboard-container">
     <!-- Header -->
@@ -506,7 +2880,8 @@
             <div style="font-size: 0.8rem; color: var(--text-secondary);">Peak Memory</div>
           </div>
           <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);" id="allocation-rate">0/sec</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);" id="allocation-rate">0/sec
+            </div>
             <div style="font-size: 0.8rem; color: var(--text-secondary);">Allocation Rate</div>
           </div>
           <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
@@ -531,32 +2906,159 @@
             <div style="font-size: 0.7rem; color: var(--text-secondary);">Rc</div>
           </div>
           <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-orange);" id="collections-count">0</div>
+            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-orange);" id="collections-count">0
+            </div>
             <div style="font-size: 0.7rem; color: var(--text-secondary);">Collections</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Main Charts -->
+    <!-- Enhanced 3D Memory Layout & Timeline Playback -->
+    <section class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0;"><i class="fa fa-cube"></i> 3D Memory Layout Visualization</h2>
+        <div class="memory-3d-controls">
+          <button id="toggle3DView" class="theme-toggle"
+            style="background: var(--primary-green); font-size: 12px; padding: 6px 12px;">
+            <i class="fa fa-eye"></i>
+            <span>3D View</span>
+          </button>
+          <button id="reset3DView" class="theme-toggle"
+            style="background: var(--primary-orange); font-size: 12px; padding: 6px 12px;">
+            <i class="fa fa-refresh"></i>
+            <span>Reset</span>
+          </button>
+          <button id="autoRotate3D" class="theme-toggle"
+            style="background: var(--primary-blue); font-size: 12px; padding: 6px 12px;">
+            <i class="fa fa-rotate-right"></i>
+            <span>Auto Rotate</span>
+          </button>
+          <button id="focusLargest" class="theme-toggle"
+            style="background: var(--primary-red); font-size: 12px; padding: 6px 12px;">
+            <i class="fa fa-search-plus"></i>
+            <span>Focus Largest</span>
+          </button>
+        </div>
+      </div>
+      <div id="memory3DContainer" class="memory-3d-container">
+        <div class="memory-3d-info" id="memory3DInfo">
+          Loading 3D visualization...
+        </div>
+      </div>
+
+      <!-- Timeline Playback Controls -->
+      <div class="timeline-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 1rem;"><i class="fa fa-play-circle"></i> Memory Timeline Playback</h3>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">
+            <span id="timelineCurrentTime">0ms</span> / <span id="timelineTotalTime">0ms</span>
+          </div>
+        </div>
+        <div class="timeline-slider" id="timelineSlider">
+          <div class="timeline-progress" id="timelineProgress"></div>
+          <div class="timeline-thumb" id="timelineThumb"></div>
+        </div>
+        <div class="timeline-controls">
+          <button id="timelinePlay" class="timeline-btn">
+            <i class="fa fa-play"></i> Play
+          </button>
+          <button id="timelinePause" class="timeline-btn" disabled>
+            <i class="fa fa-pause"></i> Pause
+          </button>
+          <button id="timelineReset" class="timeline-btn">
+            <i class="fa fa-refresh"></i> Reset
+          </button>
+          <button id="timelineStep" class="timeline-btn">
+            <i class="fa fa-step-forward"></i> Step
+          </button>
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: 16px;">
+            <label style="font-size: 0.8rem; color: var(--text-secondary);">Speed:</label>
+            <select id="timelineSpeed"
+              style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-light); border-radius: 4px; padding: 2px 6px; font-size: 0.8rem;">
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+              <option value="8">8x</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary); text-align: center;">
+          Active Allocations: <span id="timelineActiveCount"
+            style="color: var(--primary-blue); font-weight: 600;">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Memory Heatmap & Main Charts -->
     <section class="grid grid-2">
+      <div class="card">
+        <h2><i class="fa fa-fire"></i> Memory Usage Heatmap</h2>
+        <div class="heatmap-mode-selector">
+          <button class="heatmap-mode-btn active" data-mode="density">Density</button>
+          <button class="heatmap-mode-btn" data-mode="type">Type</button>
+          <button class="heatmap-mode-btn" data-mode="scope">Scope</button>
+          <button class="heatmap-mode-btn" data-mode="activity">Activity</button>
+          <button class="heatmap-mode-btn" data-mode="fragmentation">Fragmentation</button>
+          <button class="heatmap-mode-btn" data-mode="lifetime">Lifetime</button>
+        </div>
+        <div id="memoryHeatmap" class="heatmap-container">
+          <div class="heatmap-legend" id="heatmapLegend">
+            <div style="font-weight: 600; margin-bottom: 4px;">Memory Density</div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div style="width: 12px; height: 12px; background: #3b82f6; border-radius: 2px;"></div>
+              <span>Low</span>
+              <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 2px;"></div>
+              <span>Medium</span>
+              <div style="width: 12px; height: 12px; background: #dc2626; border-radius: 2px;"></div>
+              <span>High</span>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="card">
         <h2>Memory by Type</h2>
         <div class="chart-container">
           <canvas id="typeChart"></canvas>
         </div>
       </div>
+    </section>
+
+    <!-- Traditional Charts -->
+    <section class="grid grid-2">
       <div class="card">
         <h2>Memory Over Time</h2>
         <div class="chart-container">
           <canvas id="timelineChart"></canvas>
         </div>
-        <div style="margin-top:8px; font-size:12px; color: var(--text-secondary); display:flex; gap:8px; align-items:center;">
+        <div
+          style="margin-top:8px; font-size:12px; color: var(--text-secondary); display:flex; gap:8px; align-items:center;">
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
             <input id="toggleGrowthRate" type="checkbox" style="accent-color: var(--primary-green)">
             <span>Show Growth Rate</span>
           </label>
           <span style="opacity:0.8">Left Y: Cumulative memory, Right Y: Growth rate</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2><i class="fa fa-chart-bar"></i> Memory Distribution Analysis</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-blue);" id="memoryFragmentation">0%
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Fragmentation</div>
+          </div>
+          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-green);" id="memoryEfficiency">0%
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Efficiency</div>
+          </div>
+        </div>
+        <div id="memoryDistributionViz"
+          style="height: 200px; background: var(--bg-secondary); border-radius: 8px; position: relative;">
+          <!-- Memory blocks visualization will be inserted here -->
         </div>
       </div>
     </section>
@@ -565,32 +3067,41 @@
     <section class="grid grid-2">
       <div class="card">
         <h2>Type Treemap</h2>
-        <div id="treemap" class="chart-container" style="height: 360px; padding: 0; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden;"></div>
+        <div id="treemap" class="chart-container"
+          style="height: 360px; padding: 0; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden;">
+        </div>
       </div>
       <div class="card">
         <h2><i class="fa fa-timeline"></i> Variable Lifecycle Visualization</h2>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div style="display: flex; gap: 6px;">
-            <button id="filter-heap" class="theme-toggle" style="background: var(--primary-orange); font-size: 10px; padding: 3px 6px;">
+            <button id="filter-heap" class="theme-toggle"
+              style="background: var(--primary-orange); font-size: 10px; padding: 3px 6px;">
               <span>Heap</span>
             </button>
-            <button id="filter-stack" class="theme-toggle" style="background: var(--primary-blue); font-size: 10px; padding: 3px 6px;">
+            <button id="filter-stack" class="theme-toggle"
+              style="background: var(--primary-blue); font-size: 10px; padding: 3px 6px;">
               <span>Stack</span>
             </button>
-            <button id="toggle-lifecycle" class="theme-toggle" style="background: var(--primary-green); font-size: 10px; padding: 3px 6px;">
+            <button id="toggle-lifecycle" class="theme-toggle"
+              style="background: var(--primary-green); font-size: 10px; padding: 3px 6px;">
               <span>All</span>
             </button>
           </div>
           <div style="display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-secondary);">
-            <span>Heap: <span id="heap-count-mini" style="color: var(--primary-orange); font-weight: 600;">-</span></span>
-            <span>Stack: <span id="stack-count-mini" style="color: var(--primary-blue); font-weight: 600;">-</span></span>
+            <span>Heap: <span id="heap-count-mini"
+                style="color: var(--primary-orange); font-weight: 600;">-</span></span>
+            <span>Stack: <span id="stack-count-mini"
+                style="color: var(--primary-blue); font-weight: 600;">-</span></span>
           </div>
         </div>
         <div style="margin-bottom: 8px;">
-          <button id="manual-init-btn" style="background: var(--primary-red); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+          <button id="manual-init-btn"
+            style="background: var(--primary-red); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
             🔄 Manual Initialize
           </button>
-          <span id="init-status" style="margin-left: 8px; font-size: 0.8rem; color: var(--text-secondary);">Waiting for data...</span>
+          <span id="init-status" style="margin-left: 8px; font-size: 0.8rem; color: var(--text-secondary);">Waiting for
+            data...</span>
         </div>
         <div id="lifecycleVisualizationContainer" class="scroll" style="max-height: 320px; padding: 8px;">
           <!-- Variable lifecycle items will be inserted here -->
@@ -613,7 +3124,8 @@
     <!-- Allocation Timeline (Full Width) -->
     <section class="card">
       <h2><i class="fa fa-history"></i> Allocation Timeline</h2>
-      <div id="allocationTimelineDetail" style="height: 200px; padding: 8px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
+      <div id="allocationTimelineDetail"
+        style="height: 200px; padding: 8px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
         <div style="text-align: center; color: var(--text-secondary); margin-top: 80px;">Loading timeline...</div>
       </div>
     </section>
@@ -641,7 +3153,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="card">
         <h2><i class="fa fa-exchange"></i> Memory Operations</h2>
         <div id="memoryOperations" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
@@ -673,25 +3185,29 @@
         <h2><i class="fa fa-cubes"></i> Type Memory Blocks</h2>
         <div id="memoryDistributionChart" style="height: 200px; overflow-y: auto;"></div>
       </div>
-      
+
       <div class="card">
         <h2><i class="fa fa-info-circle"></i> Enhanced Memory Statistics</h2>
         <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="total-allocs-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-blue);">-</div>
+              <div id="total-allocs-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-blue);">-
+              </div>
               <div style="font-size: 0.7rem; color: var(--text-secondary);">Total Allocs</div>
             </div>
             <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="heap-stack-ratio" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-orange);">-</div>
+              <div id="heap-stack-ratio" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-orange);">-
+              </div>
               <div style="font-size: 0.7rem; color: var(--text-secondary);">Heap/Stack</div>
             </div>
             <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="avg-lifetime-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-green);">-</div>
+              <div id="avg-lifetime-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-green);">
+                -</div>
               <div style="font-size: 0.7rem; color: var(--text-secondary);">Avg Lifetime</div>
             </div>
             <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="memory-efficiency" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-purple);">-</div>
+              <div id="memory-efficiency" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-purple);">-
+              </div>
               <div style="font-size: 0.7rem; color: var(--text-secondary);">Efficiency</div>
             </div>
           </div>
@@ -704,42 +3220,50 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2 style="margin: 0;">Variable Relationships</h2>
         <div>
-          <button id="reset-zoom" class="theme-toggle" style="background: var(--primary-orange); font-size: 12px; padding: 6px 12px; margin-right: 8px;">
+          <button id="reset-zoom" class="theme-toggle"
+            style="background: var(--primary-orange); font-size: 12px; padding: 6px 12px; margin-right: 8px;">
             <i class="fa fa-expand"></i>
             <span>Reset View</span>
           </button>
-          <button id="auto-layout" class="theme-toggle" style="background: var(--primary-green); font-size: 12px; padding: 6px 12px;">
+          <button id="auto-layout" class="theme-toggle"
+            style="background: var(--primary-green); font-size: 12px; padding: 6px 12px;">
             <i class="fa fa-magic"></i>
             <span>Auto Layout</span>
           </button>
         </div>
       </div>
-      <div id="graph" style="height: 400px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; position: relative; overflow: hidden;"></div>
+      <div id="graph"
+        style="height: 400px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; position: relative; overflow: hidden;">
+      </div>
     </section>
 
     <!-- Memory Hotspots & Thread Analysis -->
     <section class="grid grid-2">
       <div class="card">
         <h2><i class="fa fa-bolt"></i> Memory Hotspots</h2>
-        <div id="memoryHotspots" style="height: 300px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
+        <div id="memoryHotspots"
+          style="height: 300px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
           <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
             Loading memory hotspots...
           </div>
         </div>
       </div>
-      
+
       <div class="card">
         <h2><i class="fa fa-users"></i> Thread & Concurrency</h2>
-        <div id="threadAnalysis" style="padding: 12px; background: var(--bg-secondary); border-radius: 8px; height: 300px;">
+        <div id="threadAnalysis"
+          style="padding: 12px; background: var(--bg-secondary); border-radius: 8px; height: 300px;">
           <div style="display: grid; grid-template-rows: 1fr 1fr; gap: 12px; height: 100%;">
             <!-- Thread Activity -->
             <div style="background: var(--bg-primary); padding: 12px; border-radius: 6px;">
               <h4 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 12px;">
                 <i class="fa fa-clock-o"></i> Thread Activity
               </h4>
-              <div id="threadTimeline" style="height: 60px; position: relative; border: 1px solid var(--border-light); border-radius: 4px; background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);"></div>
+              <div id="threadTimeline"
+                style="height: 60px; position: relative; border: 1px solid var(--border-light); border-radius: 4px; background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);">
+              </div>
             </div>
-            
+
             <!-- Memory Contention -->
             <div style="background: var(--bg-primary); padding: 12px; border-radius: 6px;">
               <h4 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 12px;">
@@ -747,8 +3271,10 @@
               </h4>
               <div style="display: flex; align-items: center; justify-content: center; height: 60px;">
                 <div style="text-align: center;">
-                  <div id="contention-level" style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);">LOW</div>
-                  <div style="font-size: 0.7rem; color: var(--text-secondary);" id="contention-details">Single-threaded</div>
+                  <div id="contention-level" style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);">
+                    LOW</div>
+                  <div style="font-size: 0.7rem; color: var(--text-secondary);" id="contention-details">Single-threaded
+                  </div>
                 </div>
               </div>
             </div>
@@ -794,10 +3320,12 @@
     </section>
 
     <!-- Unsafe/FFI Analysis (Unified Background Container) -->
-    <section style="background: var(--bg-secondary); padding: 24px; border-radius: 12px; border: 1px solid var(--border-light); min-height: 800px;">
+    <section
+      style="background: var(--bg-secondary); padding: 24px; border-radius: 12px; border: 1px solid var(--border-light); min-height: 800px;">
       <h2 style="margin: 0 0 20px 0; color: var(--text-primary);">Unsafe Rust & FFI Memory Analysis</h2>
       <div id="ffiVisualization" class="chart-container" style="width: 100%;">
-        <div style="background: var(--bg-primary); border-radius:8px; padding:16px; text-align:center; color: var(--text-secondary);">
+        <div
+          style="background: var(--bg-primary); border-radius:8px; padding:16px; text-align:center; color: var(--text-secondary);">
           <i class="fa fa-info-circle" style="font-size:24px; margin-bottom:8px; opacity:0.5;"></i>
           <div>Loading FFI analysis...</div>
         </div>
@@ -810,28 +3338,89 @@
     // Enhanced Lifecycle Visualization Functions
     function inferAllocationType(typeName) {
       if (!typeName) return 'unknown';
-      
+
       const heapTypes = ['Box', 'Vec', 'String', 'HashMap', 'BTreeMap', 'Arc', 'Rc', 'alloc::', 'std::collections'];
       const stackTypes = ['i32', 'i64', 'f32', 'f64', 'bool', 'char', 'usize', 'isize', 'u8', 'u16', 'u32', 'u64'];
-      
+
       for (const heapType of heapTypes) {
         if (typeName.includes(heapType)) return 'heap';
       }
-      
+
       for (const stackType of stackTypes) {
         if (typeName.includes(stackType)) return 'stack';
       }
-      
+
       if (typeName.includes('*') || typeName.includes('&')) return 'heap';
-      
+
       return 'unknown';
     }
 
     function formatTimestamp(timestamp) {
-      if (!timestamp || isNaN(timestamp)) return 'N/A';
-      const date = new Date(timestamp / 1000000); // Convert nanoseconds to milliseconds
+      if (!timestamp || isNaN(timestamp) || timestamp <= 0) return 'N/A';
+
+      // Handle different timestamp formats
+      let timeInMs;
+      if (timestamp > 1e15) {
+        // Nanoseconds
+        timeInMs = timestamp / 1000000;
+      } else if (timestamp > 1e12) {
+        // Microseconds  
+        timeInMs = timestamp / 1000;
+      } else {
+        // Already in milliseconds
+        timeInMs = timestamp;
+      }
+
+      const date = new Date(timeInMs);
       if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleTimeString() + '.' + String(date.getMilliseconds()).padStart(3, '0');
+
+      // Format as relative time if recent, otherwise absolute time
+      const now = Date.now();
+      const diffMs = Math.abs(now - timeInMs);
+
+      if (diffMs < 1000) {
+        return `${diffMs.toFixed(0)}ms ago`;
+      } else if (diffMs < 60000) {
+        return `${(diffMs / 1000).toFixed(1)}s ago`;
+      } else {
+        return date.toLocaleTimeString() + '.' + String(date.getMilliseconds()).padStart(3, '0');
+      }
+    }
+
+    function formatTimestampSafe(timestamp, fallbackIndex) {
+      if (!timestamp || isNaN(timestamp) || timestamp <= 0) {
+        // Return synthetic time based on index
+        return `T+${(fallbackIndex * 1).toFixed(1)}ms`;
+      }
+
+      // Handle nanosecond timestamps (typical format from Rust)
+      let timeInMs;
+      if (timestamp > 1e15) {
+        // Nanoseconds (typical Rust timestamp format)
+        timeInMs = timestamp / 1000000;
+      } else if (timestamp > 1e12) {
+        // Microseconds  
+        timeInMs = timestamp / 1000;
+      } else if (timestamp > 1e9) {
+        // Milliseconds
+        timeInMs = timestamp;
+      } else {
+        // Seconds to milliseconds
+        timeInMs = timestamp * 1000;
+      }
+
+      // Convert to relative time from program start
+      // Use the first allocation timestamp as reference if available
+      const firstTimestamp = window.analysisData?.memory_analysis?.allocations?.[0]?.timestamp_alloc || timestamp;
+      const relativeTimeMs = (timestamp - firstTimestamp) / 1000000;
+
+      if (Math.abs(relativeTimeMs) < 0.001) {
+        return 'T+0.00ms';
+      } else if (relativeTimeMs >= 0) {
+        return `T+${relativeTimeMs.toFixed(2)}ms`;
+      } else {
+        return `T${relativeTimeMs.toFixed(2)}ms`;
+      }
     }
 
     function calculateDropTime(allocTime, lifetimeMs) {
@@ -859,14 +3448,14 @@
       console.log('Checking data availability...');
       console.log('window.analysisData exists:', !!window.analysisData);
       console.log('window.analysisData type:', typeof window.analysisData);
-      
+
       if (window.analysisData) {
         console.log('window.analysisData keys:', Object.keys(window.analysisData));
       }
-      
+
       // Try multiple data structure paths
       let allocations = null;
-      
+
       if (window.analysisData) {
         // Method 1: Direct allocations (old structure)
         if (window.analysisData.allocations && Array.isArray(window.analysisData.allocations)) {
@@ -889,10 +3478,10 @@
           }
         }
       }
-      
+
       if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
         console.warn('No allocation data found in window.analysisData');
-        
+
         // Fallback: Try to get data from other global variables that might be set by the dashboard
         if (typeof getAllocations === 'function') {
           try {
@@ -902,7 +3491,7 @@
             console.warn('getAllocations() failed:', e);
           }
         }
-        
+
         // Another fallback: Check if data is in a different global variable
         if (!allocations && window.memoryAnalysisData) {
           if (window.memoryAnalysisData.allocations) {
@@ -910,7 +3499,7 @@
             console.log('✅ Got allocations from memoryAnalysisData:', allocations.length);
           }
         }
-        
+
         // Final fallback: Try to extract from existing DOM elements
         if (!allocations) {
           const existingTable = document.getElementById('allocTable');
@@ -934,13 +3523,13 @@
             }
           }
         }
-        
+
         if (!allocations || allocations.length === 0) {
           console.error('❌ No allocation data available from any source');
           return;
         }
       }
-      
+
       if (allocations.length === 0) {
         console.warn('No allocation data found');
         return;
@@ -948,7 +3537,7 @@
 
       console.log('✅ Found', allocations.length, 'allocations for enhanced visualization');
       console.log('Sample allocation:', allocations[0]);
-      
+
       // Statistics
       let heapCount = 0, stackCount = 0, unknownCount = 0;
       let totalLifetime = 0, validLifetimes = 0;
@@ -960,8 +3549,10 @@
         else if (type === 'stack') stackCount++;
         else unknownCount++;
 
-        if (alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null) {
-          totalLifetime += alloc.lifetime_ms;
+        // Check multiple possible lifetime fields and ensure they're valid numbers
+        const lifetime = alloc.lifetime_ms || alloc.lifetime || 0;
+        if (lifetime !== undefined && lifetime !== null && !isNaN(lifetime) && lifetime > 0) {
+          totalLifetime += lifetime;
           validLifetimes++;
         }
 
@@ -973,33 +3564,33 @@
       // Update mini counters
       const heapCountMini = document.getElementById('heap-count-mini');
       const stackCountMini = document.getElementById('stack-count-mini');
-      
+
       if (heapCountMini) {
         heapCountMini.textContent = heapCount;
         console.log('Updated heap-count-mini:', heapCount);
       } else {
         console.warn('heap-count-mini element not found');
       }
-      
+
       if (stackCountMini) {
         stackCountMini.textContent = stackCount;
         console.log('Updated stack-count-mini:', stackCount);
       } else {
         console.warn('stack-count-mini element not found');
       }
-      
+
       // Create lifecycle visualization
       console.log('Calling createLifecycleVisualization...');
       createLifecycleVisualization(allocations);
-      
+
       // Update enhanced statistics
       console.log('Calling updateEnhancedStatistics...');
       updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime);
-      
+
       // Setup filters
       console.log('Calling setupLifecycleFilters...');
       setupLifecycleFilters(allocations);
-      
+
       console.log('✅ All enhanced features processing completed');
     }
 
@@ -1021,54 +3612,67 @@
 
       allocations.forEach((alloc, index) => {
         const allocType = inferAllocationType(alloc.type_name);
-        const startTime = alloc.timestamp_alloc || alloc.timestamp || Date.now() * 1000000;
+        let startTime = alloc.timestamp_alloc || alloc.timestamp || Date.now() * 1000000;
         const lifetime = alloc.lifetime_ms || alloc.lifetime || 0;
-        const endTime = startTime + (lifetime * 1000000); // Convert ms to nanoseconds
-        
+        let endTime = startTime + (lifetime * 1000000); // Convert ms to nanoseconds
+
+        // Calculate lifetime from timestamps if not provided
+        let calculatedLifetime = 0;
+        if (alloc.timestamp_dealloc && alloc.timestamp_alloc) {
+          calculatedLifetime = (alloc.timestamp_dealloc - alloc.timestamp_alloc) / 1000000; // Convert to ms
+        } else if (alloc.lifetime_ms) {
+          calculatedLifetime = alloc.lifetime_ms;
+        } else {
+          // Default lifetime for active allocations
+          calculatedLifetime = 10; // 10ms default
+        }
+
+        // Use actual timestamps if available, otherwise create synthetic ones
+        if (alloc.timestamp_alloc && !isNaN(alloc.timestamp_alloc)) {
+          startTime = alloc.timestamp_alloc;
+          endTime = alloc.timestamp_dealloc || (startTime + calculatedLifetime * 1000000);
+        } else {
+          // Create synthetic timeline based on allocation order
+          startTime = minTime + (index * (timeRange / allocations.length));
+          endTime = startTime + (calculatedLifetime * 1000000);
+        }
+
         // Debug and validate time data
         console.log('Debug allocation:', {
           var_name: alloc.var_name,
           timestamp_alloc: alloc.timestamp_alloc,
-          timestamp: alloc.timestamp,
-          lifetime_ms: alloc.lifetime_ms,
+          timestamp_dealloc: alloc.timestamp_dealloc,
+          calculatedLifetime: calculatedLifetime,
           startTime: startTime,
           endTime: endTime,
           isValidStart: !isNaN(startTime) && startTime > 0,
           isValidEnd: !isNaN(endTime) && endTime > 0
         });
-        
-        // If timestamps are invalid, use relative positioning
-        if (isNaN(startTime) || startTime <= 0) {
-          startTime = minTime + (index * (timeRange / allocations.length));
-        }
-        if (isNaN(endTime) || endTime <= 0) {
-          endTime = startTime + (lifetime * 1000000) || startTime + (timeRange * 0.1);
-        }
-        
+
         // Calculate positions and widths with bounds checking
         let startPercent = ((startTime - minTime) / timeRange) * 100;
         let endPercent = ((endTime - minTime) / timeRange) * 100;
-        
+
         // Ensure values are within bounds
         startPercent = Math.max(0, Math.min(startPercent, 100));
         endPercent = Math.max(startPercent, Math.min(endPercent, 100));
-        
+
         let width = endPercent - startPercent;
         width = Math.max(width, 2); // Minimum 2% width
         width = Math.min(width, 100 - startPercent); // Don't exceed container
-        
+
         // Create lifecycle item
         const item = document.createElement('div');
         item.className = `lifecycle-item ${allocType}`;
         item.setAttribute('data-type', allocType);
-        
+
         // Enhanced solid colors for better visibility
-        const barColor = allocType === 'heap' ? '#ff6b35' : 
-                        allocType === 'stack' ? '#4dabf7' : '#868e96';
-        const barGradient = allocType === 'heap' ? '#ff6b35' : 
-                           allocType === 'stack' ? '#4dabf7' : 
-                           '#868e96';
-        
+        const barColor = allocType === 'heap' ? '#ff6b35' :
+          allocType === 'stack' ? '#4dabf7' : '#868e96';
+        const barGradient = allocType === 'heap' ? '#ff6b35' :
+          allocType === 'stack' ? '#4dabf7' :
+            '#868e96';
+
         item.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -1112,11 +3716,11 @@
           
           <!-- Time info -->
           <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); font-family: monospace;">
-            <span>Start: ${formatTimestamp(startTime)}</span>
-            <span>${alloc.is_leaked ? 'LEAKED' : (formatTimestamp(endTime) !== 'N/A' ? 'End: ' + formatTimestamp(endTime) : 'Active')}</span>
+            <span>Start: ${formatTimestampSafe(startTime, index)}</span>
+            <span>${alloc.is_leaked ? 'LEAKED' : (formatTimestampSafe(endTime, index + 1) !== 'N/A' ? 'End: ' + formatTimestampSafe(endTime, index + 1) : 'Active')}</span>
           </div>
         `;
-        
+
         // Enhanced hover effect and styling
         item.style.cssText += `
           margin-bottom: 18px;
@@ -1128,49 +3732,49 @@
           cursor: pointer;
           box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         `;
-        
+
         item.addEventListener('mouseenter', () => {
           item.style.transform = 'translateX(8px) translateY(-2px)';
           item.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
           item.style.background = `linear-gradient(135deg, var(--bg-primary), ${barColor}08)`;
         });
-        
+
         item.addEventListener('mouseleave', () => {
           item.style.transform = 'translateX(0) translateY(0)';
           item.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
           item.style.background = 'linear-gradient(135deg, var(--bg-primary), #fafbfc)';
         });
-        
+
         container.appendChild(item);
       });
     }
 
     function updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime) {
       console.log('Updating enhanced statistics...');
-      
+
       // Update Enhanced Memory Statistics
       const totalAllocsEnhanced = document.getElementById('total-allocs-enhanced');
       const heapStackRatio = document.getElementById('heap-stack-ratio');
       const avgLifetimeEnhanced = document.getElementById('avg-lifetime-enhanced');
       const memoryEfficiency = document.getElementById('memory-efficiency');
-      
+
       if (totalAllocsEnhanced) {
         totalAllocsEnhanced.textContent = allocations.length;
         console.log('Updated total-allocs-enhanced:', allocations.length);
       }
-      
+
       if (heapStackRatio) {
         const ratio = stackCount > 0 ? (heapCount / stackCount).toFixed(1) : heapCount;
         heapStackRatio.textContent = ratio + ':1';
         console.log('Updated heap-stack-ratio:', ratio + ':1');
       }
-      
+
       if (avgLifetimeEnhanced) {
         const avgLifetime = validLifetimes > 0 ? formatLifetime(totalLifetime / validLifetimes) : 'N/A';
         avgLifetimeEnhanced.textContent = avgLifetime;
         console.log('Updated avg-lifetime-enhanced:', avgLifetime);
       }
-      
+
       if (memoryEfficiency) {
         const efficiency = allocations.length > 0 ? ((allocations.length - allocations.filter(a => a.is_leaked).length) / allocations.length * 100).toFixed(0) : 0;
         memoryEfficiency.textContent = efficiency + '%';
@@ -1183,22 +3787,22 @@
       const heapBtn = document.getElementById('filter-heap');
       const stackBtn = document.getElementById('filter-stack');
       const allBtn = document.getElementById('toggle-lifecycle');
-      
+
       // Check if all buttons exist
       if (!heapBtn || !stackBtn || !allBtn) {
         console.warn('Some filter buttons not found');
         return;
       }
-      
+
       let currentFilter = 'all';
-      
+
       function applyFilter(filter) {
         currentFilter = filter;
         const items = document.querySelectorAll('.lifecycle-item');
-        
+
         // Update button states
         [heapBtn, stackBtn, allBtn].forEach(btn => btn.style.opacity = '0.6');
-        
+
         if (filter === 'heap') {
           heapBtn.style.opacity = '1';
           items.forEach(item => {
@@ -1216,11 +3820,11 @@
           });
         }
       }
-      
+
       heapBtn.addEventListener('click', () => applyFilter('heap'));
       stackBtn.addEventListener('click', () => applyFilter('stack'));
       allBtn.addEventListener('click', () => applyFilter('all'));
-      
+
       // Initialize
       applyFilter('all');
     }
@@ -1240,7 +3844,7 @@
       if (enhancedInitialized) {
         return; // Already initialized
       }
-      
+
       try {
         initEnhancedFeatures();
         enhancedInitialized = true;
@@ -1253,7 +3857,7 @@
     {{JS_CONTENT}}
 
     // Override problematic functions AFTER JS_CONTENT loads
-    window.updateLifecycleStatistics = function() {
+    window.updateLifecycleStatistics = function () {
       // Safe override - prevent errors from missing DOM elements
       try {
         // Try to find and update elements safely
@@ -1268,18 +3872,18 @@
     };
 
     // Override other potential problem functions
-    window.updateKPIMetrics = function() { return; };
-    window.populateLifetimeTable = function() { return; };
-    window.updateMemoryStats = function() { return; };
+    window.updateKPIMetrics = function () { return; };
+    window.populateLifetimeTable = function () { return; };
+    window.updateMemoryStats = function () { return; };
 
     // Manual initialization function for testing
     function manualInitialize() {
       const statusEl = document.getElementById('init-status');
       if (statusEl) statusEl.textContent = 'Initializing...';
-      
+
       console.log('🔄 Manual initialization triggered');
       console.log('window.analysisData:', window.analysisData);
-      
+
       if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
         console.log('✅ Data found, calling initEnhancedLifecycleVisualization...');
         initEnhancedLifecycleVisualization();
@@ -1287,7 +3891,7 @@
       } else {
         console.warn('❌ No data found, trying to load...');
         if (statusEl) statusEl.textContent = 'Loading data...';
-        
+
         // Try to load data manually
         fetch('./large_scale_user_memory_analysis.json')
           .then(response => response.json())
@@ -1310,22 +3914,37 @@
     function waitForDataAndInit() {
       if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
         safeInitEnhanced();
+        // Initialize enhanced visualization features
+        if (window.enhancedVisualizer) {
+          setTimeout(() => {
+            console.log('Initializing enhanced visualizer...');
+            window.enhancedVisualizer.init();
+            window.enhancedVisualizer.initializeWithData(window.analysisData);
+            console.log('Enhanced visualizer initialized');
+          }, 1000); // Give more time for DOM elements to be ready
+        }
       } else {
         setTimeout(waitForDataAndInit, 200);
       }
     }
-    
+
     // Initialize enhanced features after everything loads
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       // Setup manual initialize button
       const manualBtn = document.getElementById('manual-init-btn');
       if (manualBtn) {
         manualBtn.addEventListener('click', manualInitialize);
       }
       
+      // Load safety risks after initialization
+      setTimeout(function() {
+        loadSafetyRisks();
+      }, 100);
+
       // Start checking for data immediately
       waitForDataAndInit();
     });
   </script>
 </body>
+
 </html>
