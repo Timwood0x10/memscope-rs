@@ -29,7 +29,7 @@ pub fn run_generate_report(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             embed_json_to_html(input_file, &default_template, output_file)?;
         }
         _ => {
-            return Err(format!("Unsupported format: {}", format).into());
+            return Err(format!("Unsupported format: {format}").into());
         }
     }
 

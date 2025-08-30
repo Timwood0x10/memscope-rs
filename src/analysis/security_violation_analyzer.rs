@@ -335,8 +335,7 @@ impl SecurityViolationAnalyzer {
         };
 
         format!(
-            "SEC-{}-{:X}-{}",
-            violation_type,
+            "SEC-{violation_type}-{:X}-{}",
             address,
             timestamp % 1000000
         )
@@ -489,19 +488,19 @@ impl SecurityViolationAnalyzer {
         match violation {
             SafetyViolation::DoubleFree { timestamp, .. } => (
                 "Double free violation detected".to_string(),
-                format!("Attempt to free already freed memory at timestamp {}. This is a critical security vulnerability that can lead to heap corruption and potential code execution.", timestamp)
+                format!("Attempt to free already freed memory at timestamp {timestamp}. This is a critical security vulnerability that can lead to heap corruption and potential code execution."),
             ),
             SafetyViolation::InvalidFree { timestamp, .. } => (
                 "Invalid free operation detected".to_string(),
-                format!("Attempt to free memory that was not allocated or is invalid at timestamp {}. This can cause undefined behavior and potential crashes.", timestamp)
+                format!("Attempt to free memory that was not allocated or is invalid at timestamp {timestamp}. This can cause undefined behavior and potential crashes."),
             ),
             SafetyViolation::PotentialLeak { leak_detection_timestamp, .. } => (
                 "Potential memory leak detected".to_string(),
-                format!("Memory allocation detected as potentially leaked at timestamp {}. This can lead to memory exhaustion over time.", leak_detection_timestamp)
+                format!("Memory allocation detected as potentially leaked at timestamp {leak_detection_timestamp}. This can lead to memory exhaustion over time."),
             ),
             SafetyViolation::CrossBoundaryRisk { description, .. } => (
                 "Cross-boundary memory risk detected".to_string(),
-                format!("FFI boundary violation: {}. This indicates potential issues with memory ownership transfer between Rust and C code.", description)
+                format!("FFI boundary violation: {description}. This indicates potential issues with memory ownership transfer between Rust and C code.")
             ),
         }
     }

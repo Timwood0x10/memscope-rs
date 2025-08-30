@@ -71,7 +71,7 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
         tracing::info!("  run {}/{}: traditional export", run, test_runs);
 
         let start_time = Instant::now();
-        let output_path = output_dir.join(format!("traditional_export_run_{}.json", run));
+        let output_path = output_dir.join(format!("traditional_export_run_{run}.json"));
 
         // get tracker and export
         let tracker = get_global_tracker();
@@ -98,7 +98,7 @@ fn run_benchmark_tests(output_dir: &PathBuf) {
         tracing::info!("  run {}/{}: fast export", run, test_runs);
 
         let start_time = Instant::now();
-        let output_path = output_dir.join(format!("fast_export_run_{}.json", run));
+        let output_path = output_dir.join(format!("fast_export_run_{run}.json"));
 
         // get tracker and use optimized export
         let tracker = get_global_tracker();

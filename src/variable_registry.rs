@@ -315,7 +315,7 @@ impl VariableRegistry {
     fn infer_scope_from_call_stack() -> Option<String> {
         // Try to get function name from backtrace
         let backtrace = std::backtrace::Backtrace::capture();
-        let backtrace_str = format!("{}", backtrace);
+        let backtrace_str = format!("{backtrace:?}");
 
         // Look for function names in the backtrace
         for line in backtrace_str.lines() {
@@ -327,7 +327,7 @@ impl VariableRegistry {
             }
             // Look for user-defined function patterns
             if let Some(func_name) = Self::extract_function_name_from_backtrace(line) {
-                return Some(format!("function_{}", func_name));
+                return Some(format!("function_{func_name}"));
             }
         }
 
@@ -661,7 +661,7 @@ impl VariableRegistry {
         for &(size, var_prefix, type_name) in COMMON_TYPES {
             if alloc.size == size {
                 return (
-                    format!("{}_{:x}", var_prefix, alloc.ptr),
+                    format!("{var_prefix}_{:x}", alloc.ptr),
                     type_name.to_string(),
                 );
             }
@@ -686,14 +686,14 @@ impl VariableRegistry {
             s if s % 8 == 0 && s >= 16 => {
                 let elements = s / 8;
                 (
-                    format!("vec_i64_{}elem_{:x}", elements, alloc.ptr),
+                    format!("vec_i64_{elements}elem_{:x}", alloc.ptr),
                     "Vec<i64>".to_string(),
                 )
             }
             s if s % 4 == 0 && s >= 8 => {
                 let elements = s / 4;
                 (
-                    format!("vec_i32_{}elem_{:x}", elements, alloc.ptr),
+                    format!("vec_i32_{elements}elem_{:x}", alloc.ptr),
                     "Vec<i32>".to_string(),
                 )
             }
@@ -717,12 +717,12 @@ impl VariableRegistry {
             }
             // Small system allocations
             s if s <= 16 => (
-                format!("small_alloc_{}b_{:x}", s, alloc.ptr),
+                format!("small_alloc_{s}b_{:x}", alloc.ptr),
                 "SmallAlloc".to_string(),
             ),
             // Default case with size hint
             _ => (
-                format!("system_alloc_{}b_{:x}", size, alloc.ptr),
+                format!("system_alloc_{size}b_{:x}", alloc.ptr),
                 "SystemAlloc".to_string(),
             ),
         };

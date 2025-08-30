@@ -973,7 +973,7 @@ impl QualityValidator {
                 issue_type: IssueType::InconsistentData,
                 description: format!("Found {} duplicate pointers", duplicate_ptrs.len()),
                 severity: IssueSeverity::High,
-                affected_data: format!("pointers: {:?}", duplicate_ptrs),
+                affected_data: format!("pointers: {duplicate_ptrs:?}"),
                 suggested_fix: Some("Check allocation tracking deduplication logic".to_string()),
                 auto_fixable: false,
             });
@@ -1033,12 +1033,12 @@ impl QualityValidator {
                         issues.push(ValidationIssue {
                             issue_type: IssueType::CountMismatch,
                             description: format!(
-                                "Shard {index} allocation count mismatch: expected {}, actual {}",
+                                "Shard {index} allocation count mismatch: expected {0}, actual {1}",
                                 shard.allocation_count,
                                 allocations.len()
                             ),
                             severity: IssueSeverity::High,
-                            affected_data: format!("shard[{}]", index),
+                            affected_data: format!("shard[{index}]"),
                             suggested_fix: Some("Check shard processing logic".to_string()),
                             auto_fixable: false,
                         });
@@ -1108,7 +1108,7 @@ impl QualityValidator {
                     issue_type: IssueType::MissingData,
                     description: format!("Shard {index} data is empty"),
                     severity: IssueSeverity::High,
-                    affected_data: format!("shard[{}]", index),
+                    affected_data: format!("shard[{index}]"),
                     suggested_fix: Some("Check shard processing logic".to_string()),
                     auto_fixable: false,
                 });
@@ -1124,7 +1124,7 @@ impl QualityValidator {
                     description: format!("Shard {index} size abnormally small: {} bytes (expected at least {} bytes)", 
                                        shard.data.len(), expected_min_size),
                     severity: IssueSeverity::Medium,
-                    affected_data: format!("shard[{}]", index),
+                    affected_data: format!("shard[{index}]"),
                     suggested_fix: Some("Check serialization configuration".to_string()),
                     auto_fixable: false,
                 });
@@ -1139,7 +1139,7 @@ impl QualityValidator {
                         expected_max_size
                     ),
                     severity: IssueSeverity::Low,
-                    affected_data: format!("shard[{}]", index),
+                    affected_data: format!("shard[{index}]"),
                     suggested_fix: Some("Consider enabling compression".to_string()),
                     auto_fixable: false,
                 });
@@ -1168,8 +1168,8 @@ impl QualityValidator {
             issues.push(ValidationIssue {
                 issue_type: IssueType::SizeAnomaly,
                 description: format!(
-                    "File size too small: {} bytes (minimum expected {} bytes)",
-                    file_size, self.config.min_expected_file_size
+                    "File size too small: {file_size} bytes (minimum expected {} bytes)",
+                    self.config.min_expected_file_size
                 ),
                 severity: IssueSeverity::High,
                 affected_data: file_path.to_string(),
@@ -1182,8 +1182,8 @@ impl QualityValidator {
             issues.push(ValidationIssue {
                 issue_type: IssueType::SizeAnomaly,
                 description: format!(
-                    "File size too large: {} bytes (maximum expected {} bytes)",
-                    file_size, self.config.max_expected_file_size
+                    "File size too large: {file_size} bytes (maximum expected {} bytes)",
+                    self.config.max_expected_file_size
                 ),
                 severity: IssueSeverity::Medium,
                 affected_data: file_path.to_string(),
@@ -2520,15 +2520,12 @@ impl EnhancedStreamingValidator {
             validation_type: ValidationType::JsonStructure,
             message: if is_valid {
                 format!(
-                    "Streaming validation completed successfully. Processed {} bytes in {} chunks.",
-                    processed_bytes, chunk_count
+                    "Streaming validation completed successfully. Processed {processed_bytes} bytes in {chunk_count} chunks.",
                 )
             } else {
                 format!(
-                    "Streaming validation failed with {} issues. Processed {} bytes in {} chunks.",
-                    issues.len(),
-                    processed_bytes,
-                    chunk_count
+                    "Streaming validation failed with {} issues. Processed {processed_bytes} bytes in {chunk_count} chunks.",
+                    issues.len()
                 )
             },
             issues,

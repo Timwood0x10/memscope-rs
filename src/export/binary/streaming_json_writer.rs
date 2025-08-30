@@ -1754,7 +1754,7 @@ mod tests {
             .map(|i| PartialAllocationInfo {
                 ptr: Some(0x1000 + i * 0x100),
                 size: Some(1024 + i * 100),
-                var_name: Some(Some(format!("var_{}", i))),
+                var_name: Some(Some(format!("var_{i}"))),
                 type_name: Some(Some("i32".to_string())),
                 scope_name: Some(None),
                 timestamp_alloc: Some(1234567890 + i as u64),

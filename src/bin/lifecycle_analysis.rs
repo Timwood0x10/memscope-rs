@@ -39,11 +39,11 @@ fn test_short_lifetime_allocations() {
         let temp_vec = vec![i; 100];
         let _tracked = track_var!(temp_vec);
 
-        let temp_string = format!("Temporary string {}", i);
+        let temp_string = format!("Temporary string {i}");
         let _tracked_string = track_var!(temp_string);
 
         let mut temp_map = HashMap::new();
-        temp_map.insert(format!("key_{}", i), i);
+        temp_map.insert(format!("key_{i}"), i);
         let _tracked_map = track_var!(temp_map);
     } // all variables are released here
 
@@ -59,7 +59,7 @@ fn test_long_lifetime_allocations() -> Vec<Box<dyn std::any::Any>> {
         let tracked_vec = track_var!(long_vec);
         keep_alive.push(Box::new(tracked_vec) as Box<dyn std::any::Any>);
 
-        let long_string = format!("Long-lived string {}", i);
+        let long_string = format!("Long-lived string {i}");
         let tracked_string = track_var!(long_string);
         keep_alive.push(Box::new(tracked_string) as Box<dyn std::any::Any>);
     }

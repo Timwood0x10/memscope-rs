@@ -283,7 +283,7 @@ impl DataIntegrator {
             cross_refs.push(CrossReference {
                 source_type: "allocation".to_string(),
                 target_type: "performance_distribution".to_string(),
-                key: format!("allocation_{}", i),
+                key: format!("allocation_{i}"),
                 value: size_category.to_string(),
                 confidence: 0.9,
             });

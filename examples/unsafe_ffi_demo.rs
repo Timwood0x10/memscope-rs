@@ -135,7 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(analysis_dir)?;
 
     // Export main memory analysis (correct naming for html_from_json)
-    let memory_json = format!("{}/snapshot_memory_analysis.json", analysis_dir);
+    let memory_json = format!("{analysis_dir}/snapshot_memory_analysis.json");
     // Export using new unified API
     let allocations = tracker.get_active_allocations()?;
     let stats = tracker.get_stats()?;
@@ -154,14 +154,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✅ Memory analysis: {}", memory_json);
 
     // Export unsafe/FFI analysis
-    let ffi_json = format!("{}/snapshot_unsafe_ffi.json", analysis_dir);
+    let ffi_json = format!("{analysis_dir}/snapshot_unsafe_ffi.json");
     let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
     let ffi_data = serde_json::to_string_pretty(&enhanced_allocations)?;
     std::fs::write(&ffi_json, ffi_data)?;
     println!("   ✅ Unsafe/FFI analysis: {}", ffi_json);
 
     // Export performance metrics
-    let perf_json = format!("{}/snapshot_performance.json", analysis_dir);
+    let perf_json = format!("{analysis_dir}/snapshot_performance.json");
     let stats = tracker.get_stats()?;
     let perf_data = serde_json::json!({
         "performance_metrics": stats,
@@ -174,7 +174,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✅ Performance metrics: {}", perf_json);
 
     // Export security violations
-    let security_json = format!("{}/snapshot_security_violations.json", analysis_dir);
+    let security_json = format!("{analysis_dir}/snapshot_security_violations.json");
     let violations = unsafe_ffi_tracker
         .get_safety_violations()
         .unwrap_or_default();

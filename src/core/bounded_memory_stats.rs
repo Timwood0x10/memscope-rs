@@ -495,7 +495,7 @@ mod tests {
         AllocationInfo {
             ptr: 0x1000 + id,
             size: 64 + (id % 100),
-            var_name: Some(format!("var_{}", id)),
+            var_name: Some(format!("var_{id}")),
             type_name: Some("TestType".to_string()),
             scope_name: Some("test".to_string()),
             timestamp_alloc: id as u64 * 1000,

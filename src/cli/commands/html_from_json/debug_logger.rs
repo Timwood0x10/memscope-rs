@@ -334,7 +334,7 @@ impl DebugLogger {
             timings.insert(timing_id.clone(), timing_info);
         }
 
-        self.debug(&format!("Started timing: {}", operation));
+        self.debug(&format!("Started timing: {operation}"));
         timing_id
     }
 
@@ -382,7 +382,7 @@ impl DebugLogger {
             *progress = Some(progress_info);
         }
 
-        self.info(&format!("Started progress tracking: {} steps", total_steps));
+        self.info(&format!("Started progress tracking: {total_steps} steps"));
     }
 
     /// Update progress to next step
@@ -395,8 +395,8 @@ impl DebugLogger {
             if let Some(ref mut prog) = *progress {
                 prog.next_step(operation.to_string(), total_items);
                 self.info(&format!(
-                    "Progress: Step {}/{} - {}",
-                    prog.current_step, prog.total_steps, operation
+                    "Progress: Step {}/{} - {operation}",
+                    prog.current_step, prog.total_steps
                 ));
             }
         }
@@ -429,8 +429,8 @@ impl DebugLogger {
                     let overall = prog.get_overall_progress();
                     let step = prog.get_step_progress();
                     self.debug(&format!(
-                        "Progress: {:.1}% overall, {:.1}% current step ({}/{})",
-                        overall, step, prog.items_processed, prog.total_items
+                        "Progress: {overall:.1}% overall, {step:.1}% current step ({}/{})",
+                        prog.items_processed, prog.total_items
                     ));
                 }
             }
@@ -449,7 +449,7 @@ impl DebugLogger {
             String::new()
         };
 
-        self.debug(&format!("File {}: {}{}", operation, file_path, size_info));
+        self.debug(&format!("File {operation}: {file_path}{size_info}"));
     }
 
     /// Log JSON processing details
@@ -464,8 +464,7 @@ impl DebugLogger {
         }
 
         self.debug(&format!(
-            "JSON processing: {} - {} objects in {}ms",
-            file_type, objects_count, processing_time_ms
+            "JSON processing: {file_type} - {objects_count} objects in {processing_time_ms}ms",
         ));
     }
 

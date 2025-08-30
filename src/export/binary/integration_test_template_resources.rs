@@ -22,7 +22,7 @@ mod tests {
             ptr,
             size,
             type_name: Some(type_name.to_string()),
-            var_name: Some(format!("var_{}", ptr)),
+            var_name: Some(format!("var_{ptr}")),
             scope_name: Some("test_scope".to_string()),
             timestamp_alloc: 1000,
             timestamp_dealloc: None,

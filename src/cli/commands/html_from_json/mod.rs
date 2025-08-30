@@ -75,14 +75,13 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let logger = DebugLogger::with_config(debug_config);
 
     logger.info("🚀 Generating HTML report from JSON files...");
-    logger.info(&format!("📁 Input directory: {}", input_dir));
-    logger.info(&format!("📄 Output file: {}", output_file));
-    logger.info(&format!("🏷️  Base name: {}", base_name));
+    logger.info(&format!("📁 Input directory: {input_dir}"));
+    logger.info(&format!("📄 Output file: {output_file}"));
+    logger.info(&format!("🏷️  Base name: {base_name}"));
 
     if verbose {
         logger.info(&format!(
-            "🔧 Debug mode: {}, Verbose: {}, Performance: {}",
-            debug_mode, verbose, performance_mode
+            "🔧 Debug mode: {debug_mode}, Verbose: {verbose}, Performance: {performance_mode}",
         ));
     }
 

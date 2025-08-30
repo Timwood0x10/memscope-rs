@@ -549,7 +549,7 @@ impl BorrowTracker {
         if short_borrows > 10 {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::FrequentShortBorrows,
-                description: format!("Detected {} short-lived borrows (< 1ms)", short_borrows),
+                description: format!("Detected {short_borrows} short-lived borrows (< 1ms)",),
                 impact: if short_borrows > 100 {
                     PatternImpact::High
                 } else {

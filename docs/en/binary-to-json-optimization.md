@@ -175,11 +175,11 @@ pub fn parse_binary_to_json_with_index<P: AsRef<Path>>(
     let json_start = std::time::Instant::now();
     
     let file_paths = [
-        (project_dir.join(format!("{}_memory_analysis.json", base_name)), "memory"),
-        (project_dir.join(format!("{}_lifetime.json", base_name)), "lifetime"),
-        (project_dir.join(format!("{}_performance.json", base_name)), "performance"),
-        (project_dir.join(format!("{}_unsafe_ffi.json", base_name)), "unsafe_ffi"),
-        (project_dir.join(format!("{}_complex_types.json", base_name)), "complex_types"),
+        (project_dir.join(format!("{base_name}_memory_analysis.json")), "memory"),
+        (project_dir.join(format!("{base_name}_lifetime.json")), "lifetime"),
+        (project_dir.join(format!("{base_name}_performance.json")), "performance"),
+        (project_dir.join(format!("{base_name}_unsafe_ffi.json")), "unsafe_ffi"),
+        (project_dir.join(format!("{base_name}_complex_types.json")), "complex_types"),
     ];
 
     // Use parallel generation with BinaryReader

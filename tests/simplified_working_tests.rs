@@ -296,7 +296,7 @@ fn test_concurrent_tracking_fixed() {
                 while retries < 5 {
                     match tracker_clone.associate_var(
                         ptr,
-                        format!("var_{}_{}", i, j),
+                        format!("var_{i}_{j}"),
                         format!("Type{}", j % 3),
                     ) {
                         Ok(_) => break,

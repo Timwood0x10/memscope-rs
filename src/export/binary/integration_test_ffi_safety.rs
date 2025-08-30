@@ -25,7 +25,7 @@ mod tests {
             ptr,
             size,
             type_name: type_name.map(|s| s.to_string()),
-            var_name: Some(format!("var_{}", ptr)),
+            var_name: Some(format!("var_{ptr}")),
             scope_name: scope_name.map(|s| s.to_string()),
             timestamp_alloc: 1000,
             timestamp_dealloc: None,

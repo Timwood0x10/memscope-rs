@@ -410,11 +410,11 @@ impl TemplateGenerator {
         if !self.config.css_variables.is_empty() {
             let mut variables_section = String::new();
             for (key, value) in &self.config.css_variables {
-                variables_section.push_str(&format!("  --{}: {};\n", key, value));
+                variables_section.push_str(&format!("  --{key}: {value};\n",));
             }
 
             css_with_vars =
-                css_with_vars.replace(":root {", &format!(":root {{\n{}", variables_section));
+                css_with_vars.replace(":root {", &format!(":root {{\n{variables_section}",));
         }
 
         Ok(css_with_vars)
@@ -536,7 +536,7 @@ impl TemplateGenerator {
 }
 "#;
 
-        Ok(format!("{}\n{}", css, responsive_css))
+        Ok(format!("{css}\n{responsive_css}"))
     }
 
     /// Add enhanced JavaScript features
@@ -1091,7 +1091,7 @@ if (typeof initializeBasicViewUnified === 'function') {
 }
 "#;
 
-        Ok(format!("{}\n{}", js, enhanced_js))
+        Ok(format!("{js}\n{enhanced_js}"))
     }
 
     /// Minify CSS (basic implementation)
@@ -1610,8 +1610,8 @@ fn format_bytes(bytes: usize) -> String {
     }
 
     if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
+        format!("{bytes} {}", UNITS[unit_index])
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        format!("{size:.1} {}", UNITS[unit_index])
     }
 }

@@ -254,7 +254,7 @@ mod tests {
             let map_clone = map.clone();
             let handle = thread::spawn(move || {
                 for j in 0..20 {
-                    let key = format!("key_{}_{}", i, j);
+                    let key = format!("key_{i}_{j}");
                     map_clone.insert(key.clone(), i * 100 + j);
                     assert_eq!(map_clone.get(&key), Some(i * 100 + j));
                     // Use different keys per thread to minimize contention naturally

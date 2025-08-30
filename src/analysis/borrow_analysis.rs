@@ -266,7 +266,7 @@ impl BorrowAnalyzer {
         if long_lived_count > 0 {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::LongLivedBorrows,
-                description: format!("{} borrows lasted longer than 1ms", long_lived_count),
+                description: format!("{long_lived_count} borrows lasted longer than 1ms"),
                 severity: if long_lived_count > 10 {
                     PatternSeverity::Warning
                 } else {
@@ -292,7 +292,7 @@ impl BorrowAnalyzer {
         if max_concurrent > 10 {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::HighConcurrency,
-                description: format!("Up to {} concurrent borrows detected", max_concurrent),
+                description: format!("Up to {max_concurrent} concurrent borrows detected"),
                 severity: PatternSeverity::Info,
                 suggestion: "High concurrency detected - ensure this is intentional".to_string(),
             });

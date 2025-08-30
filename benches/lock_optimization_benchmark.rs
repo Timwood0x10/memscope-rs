@@ -74,7 +74,7 @@ fn benchmark_hashmap_vs_sharded(c: &mut Criterion) {
                         for j in 0..50 {
                             // Reduce operations per thread
                             let key = i * 50 + j;
-                            let value = format!("val_{}", key);
+                            let value = format!("val_{key}");
                             {
                                 let mut guard = map.lock().unwrap();
                                 guard.insert(key, value);
@@ -105,7 +105,7 @@ fn benchmark_hashmap_vs_sharded(c: &mut Criterion) {
                     thread::spawn(move || {
                         for j in 0..100 {
                             let key = i * 100 + j;
-                            let value = format!("value_{}", key);
+                            let value = format!("value_{key}");
                             map.insert(key, value);
                             black_box(map.get(&key));
                         }
@@ -130,7 +130,7 @@ fn benchmark_hashmap_vs_sharded(c: &mut Criterion) {
                     thread::spawn(move || {
                         for j in 0..100 {
                             let key = i * 100 + j;
-                            let value = format!("value_{}", key);
+                            let value = format!("value_{key}");
                             map.insert(key, value);
                             black_box(map.get(&key));
                         }

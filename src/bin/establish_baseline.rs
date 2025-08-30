@@ -24,32 +24,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Performance baseline measurement would be done here");
 
     // Create a placeholder baseline file
-    let perf_baseline_file = format!("{}/performance_baseline.json", output_dir);
+    let perf_baseline_file = format!("{output_dir}/performance_baseline.json");
     let placeholder_json =
         r#"{"status": "placeholder", "note": "Run cargo test to generate actual baseline"}"#;
     fs::write(&perf_baseline_file, placeholder_json)?;
-    println!("💾 Placeholder baseline saved to {}", perf_baseline_file);
+    println!("💾 Placeholder baseline saved to {perf_baseline_file}");
 
     // Run API compatibility check
     println!("🔧 API compatibility check would be run here");
     let api_passed = true; // Placeholder
 
     // Save API compatibility report
-    let api_report_file = format!("{}/api_compatibility_report.md", output_dir);
+    let api_report_file = format!("{output_dir}/api_compatibility_report.md");
     fs::write(
         &api_report_file,
         "# API Compatibility Report\n\nPlaceholder - run cargo test for actual results",
     )?;
 
     // Create functional baseline placeholder
-    let regression_report_file = format!("{}/functional_baseline_report.md", output_dir);
+    let regression_report_file = format!("{output_dir}/functional_baseline_report.md");
     fs::write(
         &regression_report_file,
         "# Functional Baseline Report\n\nPlaceholder - run cargo test for actual results",
     )?;
 
     // Create summary report
-    let summary_file = format!("{}/baseline_summary.md", output_dir);
+    let summary_file = format!("{output_dir}/baseline_summary.md");
     create_baseline_summary(&summary_file, api_passed)?;
 
     // Print final summary

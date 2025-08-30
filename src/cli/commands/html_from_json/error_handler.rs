@@ -415,7 +415,7 @@ impl HtmlErrorHandler {
         self.stats.total_errors += 1;
 
         let recovery_suggestions = vec![
-            format!("Check if directory '{}' exists and is readable", directory),
+            format!("Check if directory '{directory}' exists and is readable"),
             "Verify the base name pattern matches your JSON files".to_string(),
             "Ensure JSON files follow the naming convention: {base_name}_{type}.json".to_string(),
             "Check file permissions for the directory".to_string(),
@@ -640,8 +640,7 @@ impl HtmlErrorHandler {
 
         if error_str.contains("not found") {
             suggestions.push(format!(
-                "Verify the {} file exists in the expected location",
-                file_type
+                "Verify the {file_type} file exists in the expected location"
             ));
             suggestions
                 .push("Check the file naming convention matches the expected pattern".to_string());
@@ -741,9 +740,7 @@ impl HtmlErrorHandler {
                         .map(|i| {
                             let marker = if i == line { ">>> " } else { "    " };
                             format!(
-                                "{}{:3}: {}",
-                                marker,
-                                i,
+                                "{marker}{i:3}: {}",
                                 lines.get(i.saturating_sub(1)).unwrap_or(&"")
                             )
                         })

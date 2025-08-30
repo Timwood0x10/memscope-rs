@@ -179,7 +179,7 @@ impl CallStackNormalizer {
         // Get hash from ID
         let hash = if let Ok(id_map) = self.id_to_hash.lock() {
             id_map.get(&id).copied().ok_or_else(|| {
-                TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id))
+                TrackingError::InvalidPointer(format!("Invalid call stack ID: {id}"))
             })?
         } else {
             return Err(TrackingError::LockContention(

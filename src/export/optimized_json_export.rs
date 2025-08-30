@@ -175,9 +175,10 @@ impl Default for OptimizedExportOptions {
 impl OptimizedExportOptions {
     /// Create new options with specified optimization level
     pub fn with_optimization_level(level: OptimizationLevel) -> Self {
-        let mut options = Self::default();
-        options.optimization_level = level;
-
+        let mut options = OptimizedExportOptions {
+            optimization_level: level,
+            ..Default::default()
+        };
         match level {
             OptimizationLevel::Low => {
                 options.parallel_processing = false;

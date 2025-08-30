@@ -71,12 +71,12 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         tracing::info!("  run {}/{}: traditional export", run, test_runs);
 
         let start_time = Instant::now();
-        let output_path = output_dir.join(format!("traditional_export_run_{}.json", run));
+        let output_path = output_dir.join(format!("traditional_export_run_{run}.json"));
 
         // get tracker and export (use minimal configuration)
         let tracker = get_global_tracker();
         let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
-            .parallel_processing(false) // 传统方式不使用并行
+            .parallel_processing(false) 
             .fast_export_mode(true)
             .schema_validation(false);
 
@@ -103,7 +103,7 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
         tracing::info!("  run {}/{}: fast export", run, test_runs);
 
         let start_time = Instant::now();
-        let output_path = output_dir.join(format!("fast_export_run_{}.json", run));
+        let output_path = output_dir.join(format!("fast_export_run_{run}.json"));
 
         // get tracker and use fast export (disable validation)
         let tracker = get_global_tracker();

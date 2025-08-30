@@ -40,10 +40,10 @@ mod tests {
             let tracker_clone = tracker.clone();
             let handle = thread::spawn(move || {
                 for j in 0..10 {
-                    let scope_name = format!("scope_{}_{}", i, j);
+                    let scope_name = format!("scope_{i}_{j}");
                     if let Ok(scope_id) = tracker_clone.enter_scope(scope_name) {
                         // Associate some variables
-                        let _ = tracker_clone.associate_variable(format!("var_{}", j), 32);
+                        let _ = tracker_clone.associate_variable(format!("var_{j}"), 32);
                         let _ = tracker_clone.exit_scope(scope_id);
                     }
                 }

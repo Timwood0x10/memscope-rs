@@ -292,8 +292,7 @@ impl EnhancedFfiFunctionResolver {
             name if name.starts_with("rt_") => "librt",
             _ => {
                 return Err(crate::core::types::TrackingError::DataError(format!(
-                    "No pattern match for function: {}",
-                    function_name
+                    "No pattern match for function: {function_name}",
                 )))
             }
         };

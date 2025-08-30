@@ -283,8 +283,7 @@ impl AsyncAnalyzer {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::LongRunningFutures,
                 description: format!(
-                    "{} futures running longer than 1 second",
-                    long_running_count
+                    "{long_running_count} futures running longer than 1 second",
                 ),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "Consider breaking down long-running operations or adding timeouts"
@@ -303,8 +302,7 @@ impl AsyncAnalyzer {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::ExcessivePolling,
                 description: format!(
-                    "{} futures polled more than {} times",
-                    high_poll_count, high_poll_threshold
+                    "{high_poll_count} futures polled more than {high_poll_threshold} times",
                 ),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "High poll count may indicate inefficient async design".to_string(),
@@ -334,7 +332,7 @@ impl AsyncAnalyzer {
         if slow_awaits > 0 {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::SlowAwaitPoints,
-                description: format!("{} await points took longer than 100ms", slow_awaits),
+                description: format!("{slow_awaits} await points took longer than 100ms"),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "Slow await points may indicate blocking operations in async code"
                     .to_string(),

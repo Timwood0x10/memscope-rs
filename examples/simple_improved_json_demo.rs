@@ -189,7 +189,7 @@ fn verify_and_show_content(output_dir: &str) -> Result<(), Box<dyn std::error::E
     let files = vec!["memory_analysis.json", "lifetime.json"];
 
     for file in files {
-        let file_path = format!("{}/{}", output_dir, file);
+        let file_path = format!("{output_dir}/{file}");
 
         if std::path::Path::new(&file_path).exists() {
             let content = std::fs::read_to_string(&file_path)?;

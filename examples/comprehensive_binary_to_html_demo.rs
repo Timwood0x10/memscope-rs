@@ -511,7 +511,7 @@ fn create_allocation(
             .map(|b| b.immutable_borrows + b.mutable_borrows)
             .unwrap_or(0),
         stack_trace: Some(vec![
-            format!("{}::{}", scope_name, var_name),
+            format!("{scope_name}::{var_name}"),
             "main::run".to_string(),
             "std::rt::lang_start".to_string(),
         ]),

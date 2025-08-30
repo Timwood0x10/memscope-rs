@@ -482,7 +482,7 @@ impl BinaryTemplateEngine {
             if let Some(var_name) = &alloc.var_name {
                 if !var_name.is_empty() && !var_name.starts_with("__") {
                     nodes.push(json!({
-                        "id": format!("var_{}", i),
+                        "id": format!("var_{i}"),
                         "name": var_name,
                         "type": &alloc.type_name,
                         "size": alloc.size,
@@ -495,7 +495,7 @@ impl BinaryTemplateEngine {
                         if alloc.type_name == prev_alloc.type_name {
                             links.push(json!({
                                 "source": format!("var_{}", i-1),
-                                "target": format!("var_{}", i),
+                                "target": format!("var_{i}"),
                                 "strength": 0.8,
                                 "type": "type_similarity"
                             }));

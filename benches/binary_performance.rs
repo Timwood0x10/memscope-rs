@@ -13,7 +13,7 @@ fn create_test_allocations(count: usize) -> Vec<AllocationInfo> {
         .map(|i| AllocationInfo {
             ptr: 0x1000 + (i * 0x100),
             size: 1024 + (i % 512),
-            var_name: Some(format!("test_var_{}", i)),
+            var_name: Some(format!("test_var_{i}")),
             type_name: Some(format!("TestType{}", i % 10)),
             scope_name: None,
             timestamp_alloc: 1234567890 + i as u64,

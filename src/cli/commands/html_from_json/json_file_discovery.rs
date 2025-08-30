@@ -353,7 +353,7 @@ mod tests {
             .expect("Failed to convert path to string");
 
         // Create a test JSON file
-        let test_file_path = format!("{}/test_memory_analysis.json", temp_path);
+        let test_file_path = format!("{temp_path}/test_memory_analysis.json");
         fs::write(&test_file_path, r#"{"test": "data"}"#).expect("Failed to write test file");
 
         let discovery = JsonFileDiscovery::new(temp_path.to_string(), "test".to_string());

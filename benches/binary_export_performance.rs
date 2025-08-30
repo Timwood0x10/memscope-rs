@@ -32,7 +32,7 @@ fn create_test_binary_file(temp_dir: &TempDir, size: usize) -> std::path::PathBu
         data.extend_from_slice(&(i as u64).to_le_bytes()); // timestamp
 
         // var_name
-        let var_name = format!("var_{}", i);
+        let var_name = format!("var_{i}");
         data.extend_from_slice(&(var_name.len() as u32).to_le_bytes());
         data.extend_from_slice(var_name.as_bytes());
 

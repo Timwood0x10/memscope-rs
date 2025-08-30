@@ -363,8 +363,7 @@ impl ClosureAnalyzer {
                 category: OptimizationCategory::Memory,
                 priority: SuggestionPriority::High,
                 description: format!(
-                    "Found {} closures with high memory usage",
-                    high_memory_closures
+                    "Found {high_memory_closures} closures with high memory usage",
                 ),
                 recommendation: "Consider reducing capture size or using references".to_string(),
                 estimated_impact: "20-50% memory reduction".to_string(),

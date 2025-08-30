@@ -511,7 +511,7 @@ impl DataNormalizer {
                 let allocation_info = AllocationInfo {
                     ptr: self
                         .extract_string(Some(alloc), "ptr")
-                        .unwrap_or_else(|| format!("0x{:x}", index)),
+                        .unwrap_or_else(|| format!("0x{index:x}")),
                     size: self.extract_usize(Some(alloc), "size").unwrap_or(0),
                     var_name: self.extract_string(Some(alloc), "var_name"),
                     type_name: self.extract_string(Some(alloc), "type_name"),

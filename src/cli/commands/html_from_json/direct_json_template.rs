@@ -661,7 +661,7 @@ fn analyze_language_interactions(boundary_events: &[Value]) -> Value {
             event.get("from_context").and_then(|f| f.as_str()),
             event.get("to_context").and_then(|t| t.as_str()),
         ) {
-            let key = format!("{} → {}", from, to);
+            let key = format!("{from} → {to}");
             *interactions.entry(key).or_insert(0) += 1;
         }
     }
@@ -777,9 +777,9 @@ fn format_memory_size(bytes: u64) -> String {
     }
 
     if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
+        format!("{bytes} {unit}", unit = UNITS[unit_index])
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        format!("{:.1} {unit}", size, unit = UNITS[unit_index])
     }
 }
 
@@ -1246,7 +1246,7 @@ fn generate_safety_risk_data_from_json(
 
                     safety_risks.push(serde_json::json!({
                         "location": violation.get("location").and_then(|l| l.as_str()).unwrap_or("Unknown"),
-                        "operation": format!("Safety Violation: {}", violation_type),
+                        "operation": format!("Safety Violation: {violation_type}"),
                         "risk_level": risk_level,
                         "description": violation.get("description").and_then(|d| d.as_str()).unwrap_or("Safety violation detected")
                     }));
@@ -1266,7 +1266,7 @@ fn generate_safety_risk_data_from_json(
     }
 
     serde_json::to_string(&safety_risks)
-        .map_err(|e| format!("Failed to serialize safety risk data: {}", e).into())
+        .map_err(|e| format!("Failed to serialize safety risk data: {e}").into())
 }
 
 /// Inject safety risk data into HTML template
@@ -1277,7 +1277,7 @@ fn inject_safety_risk_data_into_html(
     // Replace the safety risk data in the existing template
     html = html.replace(
         "window.safetyRisks = [];",
-        &format!("window.safetyRisks = {};", safety_risk_data),
+        &format!("window.safetyRisks = {safety_risk_data};"),
     );
 
     // Always ensure loadSafetyRisks function is available
@@ -1327,7 +1327,7 @@ fn inject_safety_risk_data_into_html(
     "#
             );
 
-            html = format!("{}{}{}", before, safety_function_injection, after);
+            html = format!("{before}{safety_function_injection}{after}");
         }
     }
 

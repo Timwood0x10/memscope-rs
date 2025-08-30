@@ -536,8 +536,7 @@ impl MemoryPassportTracker {
                 Ok(true)
             } else {
                 Err(TrackingError::InvalidPointer(format!(
-                    "No passport found for 0x{:x}",
-                    allocation_ptr
+                    "No passport found for 0x{allocation_ptr:x}",
                 )))
             }
         } else {

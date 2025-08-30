@@ -101,7 +101,7 @@ fn _test_enhanced_memory_analysis() {
 
     // Run enhanced analysis
     let report = crate::analysis::analyze_memory_with_enhanced_features()
-        .unwrap_or_else(|e| format!("Error: {}", e));
+        .unwrap_or_else(|e| format!("Error: {e}"));
 
     // Print summary
     tracing::info!("Enhanced Memory Analysis Summary:");

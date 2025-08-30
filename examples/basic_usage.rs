@@ -162,7 +162,7 @@ fn show_enhanced_features(output_dir: &str) {
     println!("\n🔍 Analyzing enhanced export features...");
 
     // Check memory_analysis.json for improve.md extensions
-    let memory_analysis_path = format!("{}/memory_analysis.json", output_dir);
+    let memory_analysis_path = format!("{output_dir}/memory_analysis.json");
     if let Ok(content) = std::fs::read_to_string(&memory_analysis_path) {
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(allocations) = json_value["allocations"].as_array() {
@@ -214,7 +214,7 @@ fn show_enhanced_features(output_dir: &str) {
     }
 
     // Check lifetime.json
-    let lifetime_path = format!("{}/lifetime.json", output_dir);
+    let lifetime_path = format!("{output_dir}/lifetime.json");
     if let Ok(content) = std::fs::read_to_string(&lifetime_path) {
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(histories) = json_value["ownership_histories"].as_array() {

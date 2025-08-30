@@ -753,7 +753,7 @@ mod tests {
             allocations.push(create_test_allocation_with_relationships(
                 0x1000 + i * 1024,
                 1024,
-                Some(&format!("var_{}", i)),
+                Some(&format!("var_{i}")),
                 Some("Vec<u8>"),
                 Some("main"),
                 1000 + i as u64,
