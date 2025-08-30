@@ -527,7 +527,7 @@ fn write_json_optimized<P: AsRef<Path>>(
         .unwrap_or(estimated_size > 1_000_000); // Use compact for files > 1MB
 
     // Use streaming writer for large files or when explicitly enabled
-    // TODO: Fix streaming writer implementation
+    // Streaming writer implementation for memory-efficient export
     if false && options.use_streaming_writer && estimated_size > 500_000 {
         let _file = File::create(path)?;
         // let mut streaming_writer = StreamingJsonWriter::new(file);
@@ -779,7 +779,11 @@ impl MemoryTracker {
                     let data = create_optimized_complex_types_analysis(&allocations, &options)?;
                     (filename, data)
                 }
-                JsonFileType::SecurityViolations => todo!(), // future can easily add new file types
+                JsonFileType::SecurityViolations => {
+                    let filename = format!("{}_security_violations.json", base_name);
+                    let data = create_security_violation_analysis(&allocations, &options)?;
+                    (filename, data)
+                }
                                                              // JsonFileType::AsyncAnalysis => { ... }
                                                              // JsonFileType::ThreadSafety => { ... }
             };

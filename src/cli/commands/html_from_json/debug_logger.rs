@@ -29,7 +29,7 @@ impl fmt::Display for LogLevel {
             LogLevel::Error => write!(f, "ERROR"),
             LogLevel::Warn => write!(f, "WARN "),
             LogLevel::Info => write!(f, "INFO "),
-            LogLevel::Debug => write!(f, "DEBUG"),
+            LogLevel::Debug => write!(f, "Debug"),
             LogLevel::Trace => write!(f, "TRACE"),
         }
     }

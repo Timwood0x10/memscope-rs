@@ -228,7 +228,7 @@ mod tests {
         // Verify that we have at least the strings we added
         assert!(stats.unique_strings >= initial_stats.unique_strings + 2);
         // Verify that we had at least one cache hit
-        assert!(stats.cache_hits >= initial_stats.cache_hits + 1);
+        assert!(stats.cache_hits > initial_stats.cache_hits);
 
         // Verify the strings are actually the same Arc
         assert_eq!(&*s1, "unique_test_string_1");

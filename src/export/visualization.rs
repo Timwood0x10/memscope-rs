@@ -868,7 +868,6 @@ fn export_scope_analysis_json(
 }
 
 /// Get simple type name
-
 /// Get color based on duration ratio (0.0 to 1.0)
 /// Assign colors based on relative lifecycle length: longest time=dark color, shortest time=white, global scope=special deep blue
 fn get_duration_color(ratio: f64, is_global: bool) -> String {
@@ -1498,7 +1497,7 @@ fn add_dashboard_header(
         .sum();
 
     // Metrics cards
-    let metrics = vec![
+    let metrics = [
         ("Unsafe Allocations", unsafe_count.clone(), "#e74c3c"),
         ("FFI Allocations", ffi_count.clone(), "#3498db"),
         (

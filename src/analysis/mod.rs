@@ -280,5 +280,5 @@ pub fn perform_comprehensive_analysis(
     manager.perform_comprehensive_analysis(allocations, stats)
 }
 
-// TODO: Gradually move the actual implementation from the individual files to this module
+// Analysis module - consolidating implementations for better organization
 // For now, we're just creating the interface and delegating to the existing implementations

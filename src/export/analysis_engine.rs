@@ -508,13 +508,13 @@ impl AnalysisEngine for StandardAnalysisEngine {
             // Debug: Check if we have the enhanced data
             if alloc.memory_layout.is_some() {
                 tracing::debug!(
-                    "DEBUG: AllocationInfo has memory_layout for {}",
+                    "AllocationInfo has memory_layout for {}",
                     self.infer_var_name(alloc)
                 );
             }
             if alloc.generic_info.is_some() {
                 tracing::debug!(
-                    "DEBUG: AllocationInfo has generic_info for {}",
+                    "AllocationInfo has generic_info for {}",
                     self.infer_var_name(alloc)
                 );
             }
@@ -555,14 +555,14 @@ impl AnalysisEngine for StandardAnalysisEngine {
                     match serde_json::to_value(layout) {
                         Ok(value) => {
                             tracing::debug!(
-                                "DEBUG: Successfully serialized memory_layout for {}",
+                                "Successfully serialized memory_layout for {}",
                                 self.infer_var_name(alloc)
                             );
                             value
                         }
                         Err(e) => {
                             tracing::debug!(
-                                "DEBUG: Failed to serialize memory_layout for {}: {}",
+                                "Failed to serialize memory_layout for {}: {}",
                                 self.infer_var_name(alloc),
                                 e
                             );
@@ -580,14 +580,14 @@ impl AnalysisEngine for StandardAnalysisEngine {
                     match serde_json::to_value(info) {
                         Ok(value) => {
                             tracing::debug!(
-                                "DEBUG: Successfully serialized generic_info for {}",
+                                "Successfully serialized generic_info for {}",
                                 self.infer_var_name(alloc)
                             );
                             value
                         }
                         Err(e) => {
                             tracing::debug!(
-                                "DEBUG: Failed to serialize generic_info for {}: {}",
+                                "Failed to serialize generic_info for {}: {}",
                                 self.infer_var_name(alloc),
                                 e
                             );

@@ -231,14 +231,16 @@ impl FastExportCoordinator {
 
     /// Create a new fast export coordinator with export mode configuration
     pub fn new_with_export_config(export_config: ExportConfig) -> Self {
-        let mut fast_config = FastExportConfig::default();
-
-        // Apply export config to fast config
-        fast_config.validation_config = export_config.validation_config.clone();
-        fast_config.verbose_logging = match export_config.mode {
+        let verbose_logging = match export_config.mode {
             ExportMode::Fast => false,
             ExportMode::Slow => true,
             ExportMode::Auto => false,
+        };
+        
+        let fast_config = FastExportConfig {
+            validation_config: export_config.validation_config.clone(),
+            verbose_logging,
+            ..Default::default()
         };
 
         let mut coordinator = Self::new(fast_config);
@@ -984,8 +986,8 @@ impl FastExportCoordinator {
             overall_write_speed_mbps: overall_write_speed,
 
             data_gathering_percentage: data_percentage,
-            processing_percentage: processing_percentage,
-            writing_percentage: writing_percentage,
+            processing_percentage,
+            writing_percentage,
 
             estimated_traditional_time_ms: estimated_traditional_time,
             performance_improvement_factor: performance_improvement,

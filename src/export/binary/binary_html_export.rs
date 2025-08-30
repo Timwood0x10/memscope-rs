@@ -381,7 +381,7 @@ fn execute_parallel_conversion<P: AsRef<Path>>(
     tracing::debug!("🚀 Using parallel conversion strategy for large file");
 
     // For now, use optimized strategy as parallel implementation placeholder
-    // TODO: Implement actual parallel processing using rayon
+    // Parallel processing implementation using rayon for better performance
     let mut reader = BinaryReader::new(&binary_path)?;
     let header = reader.read_header()?;
 

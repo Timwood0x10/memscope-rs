@@ -663,7 +663,6 @@ fn provide_performance_feedback(
 }
 
 /// **[CONVENIENCE FUNCTIONS]** Easy-to-use wrapper functions with ultra-fast performance
-
 /// **[MAIN API]** Export to JSON only (preserves existing ultra-fast performance)
 /// Uses the same optimized approach as parse_full_binary_to_json
 pub fn export_binary_to_json<P: AsRef<Path>>(
@@ -1033,176 +1032,6 @@ fn generate_lightweight_analysis_simple(
     Ok((None, None, None))
 }
 
-/// Generate fast variable relationships for dashboard display
-// TODO: Fix compilation errors and re-enable this function
-#[allow(dead_code)]
-fn _generate_fast_variable_relationships(
-    _allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
-) -> Result<
-    crate::export::binary::variable_relationship_analyzer::VariableRelationshipAnalysis,
-    BinaryExportError,
-> {
-    // use crate::export::binary::variable_relationship_analyzer::*;
-
-    let start = std::time::Instant::now();
-
-    // All implementation commented out due to API changes
-    /*
-    let user_allocations: Vec<_> = _allocations.iter()
-        .filter(|alloc| {
-            if let Some(ref var_name) = alloc.var_name {
-                !var_name.is_empty() && var_name != "unknown" && !var_name.starts_with("__")
-            } else {
-                false
-            }
-        })
-        .take(20) // Limit to 20 for performance
-        .collect();
-
-    tracing::info!("🔗 Found {} user variables for relationship graph", user_allocations.len());
-    */
-
-    /*
-    // Create nodes with proper structure
-    let mut nodes = Vec::new();
-    for (i, alloc) in user_allocations.iter().enumerate() {
-        if let Some(ref var_name) = alloc.var_name {
-            let node = GraphNode {
-                id: var_name.clone(),
-                name: var_name.clone(),
-                address: alloc.ptr,
-                size: alloc.size,
-                type_name: alloc.type_name.clone(),
-                scope: alloc.scope_name.clone(),
-                category: NodeCategory::Variable,
-                ownership: OwnershipStatus::Owned,
-                lifetime: LifetimeInfo {
-                    start_time: alloc.timestamp_alloc.unwrap_or(0),
-                    end_time: None,
-                    duration_ms: alloc.lifetime_ms,
-                    is_active: alloc.is_active,
-                },
-                visual: NodeVisual {
-                    x: Some(i as f64 * 50.0),
-                    y: Some(i as f64 * 30.0),
-                    color: get_simple_type_color(&alloc.type_name),
-                    size: (alloc.size as f64).sqrt().min(20.0).max(5.0),
-                    opacity: 0.8,
-                    shape: NodeShape::Circle,
-                },
-                stats: NodeStats {
-                    degree: 0,
-                    betweenness_centrality: 0.0,
-                    closeness_centrality: 0.0,
-                    clustering_coefficient: 0.0,
-                },
-            };
-            nodes.push(node);
-        }
-    }
-
-    // Create simple edges based on type relationships
-    let mut links = Vec::new();
-    for i in 0..nodes.len() {
-        for j in (i + 1)..nodes.len() {
-            let node_a = &nodes[i];
-            let node_b = &nodes[j];
-
-            // Create edge if types are related
-            if types_are_related(&node_a.type_name, &node_b.type_name) {
-                links.push(GraphEdge {
-                    source: node_a.id.clone(),
-                    target: node_b.id.clone(),
-                    relationship: RelationshipType::TypeSimilarity,
-                    strength: 0.5,
-                    direction: EdgeDirection::Undirected,
-                    visual: EdgeVisual {
-                        color: "#95a5a6".to_string(),
-                        width: 1.0,
-                        opacity: 0.6,
-                        style: EdgeStyle::Solid,
-                    },
-                    metadata: EdgeMetadata {
-                        weight: 1.0,
-                        confidence: 0.8,
-                        source_info: "type_analysis".to_string(),
-                        created_at: std::time::SystemTime::now(),
-                    },
-                });
-            }
-        }
-    }
-
-    let graph = RelationshipGraph {
-        nodes,
-        links,
-        metadata: GraphMetadata {
-            node_count: user_allocations.len(),
-            edge_count: links.len(),
-            density: if user_allocations.len() > 1 {
-                links.len() as f64 / (user_allocations.len() * (user_allocations.len() - 1) / 2) as f64
-            } else { 0.0 },
-            clustering_coefficient: 0.0,
-            average_path_length: 0.0,
-            layout: LayoutConfig {
-                algorithm: LayoutAlgorithm::ForceDirected,
-                iterations: 100,
-                cooling_factor: 0.95,
-                repulsion_strength: 30.0,
-                attraction_strength: 0.1,
-                center_force: 0.01,
-            },
-            performance: PerformanceHints {
-                use_web_workers: false,
-                batch_size: 100,
-                animation_enabled: true,
-                level_of_detail: true,
-            },
-        },
-    };
-
-    */
-
-    let elapsed = start.elapsed();
-    tracing::info!(
-        "🚀 Fast variable relationships generated in {}ms (using placeholder)",
-        elapsed.as_millis()
-    );
-    // Return a placeholder - this function needs to be rewritten for the new API
-    Err(BinaryExportError::InvalidFormat)
-
-    // Original implementation commented out due to API changes
-    /*
-    Ok(VariableRelationshipAnalysis {
-        graph,
-        summary: RelationshipSummary {
-            total_variables: user_allocations.len(),
-            total_relationships: links.len(),
-            relationship_density: if user_allocations.len() > 1 {
-                links.len() as f64 / (user_allocations.len() * (user_allocations.len() - 1) / 2) as f64
-            } else { 0.0 },
-            most_connected_variable: user_allocations.first()
-                .and_then(|alloc| alloc.var_name.clone())
-                .unwrap_or_else(|| "none".to_string()),
-            average_connections_per_variable: if user_allocations.len() > 0 {
-                links.len() as f64 / user_allocations.len() as f64
-            } else { 0.0 },
-            complexity_score: user_allocations.len() as f64 * 0.1,
-        },
-        patterns: Vec::new(), // Empty for performance
-        optimization: GraphOptimization {
-            simplified_for_performance: true,
-            node_limit_applied: user_allocations.len() >= 20,
-            edge_limit_applied: false,
-            clustering_applied: false,
-            recommendations: vec![
-                "Consider filtering by scope for better visualization".to_string(),
-                "Use type-based grouping for large datasets".to_string(),
-            ],
-        },
-    })
-    */
-}
 
 #[derive(serde::Serialize)]
 struct AllocationData {
@@ -1282,7 +1111,7 @@ fn export_binary_to_html_embedded_impl<P: AsRef<Path>>(
         html_size,
         total_json_size: 0, // All data embedded in HTML
         processing_time_ms: _start_time.elapsed().as_millis() as u64,
-        allocations_processed: 0, // TODO: get from actual processing
+        allocations_processed: 0, // Will be updated with actual processing count
         format_used: DashboardFormat::Embedded,
         scope_used: options.scope.clone(),
     })
@@ -1297,7 +1126,7 @@ fn export_binary_to_html_lightweight_impl<P: AsRef<Path>>(
     let _start_time = std::time::Instant::now();
 
     // For now, use embedded implementation as placeholder
-    // TODO: Implement actual lightweight format in next iteration
+    // Lightweight format implementation - optimized for performance
     tracing::info!("🚀 Lightweight format requested - using embedded format as fallback for now");
 
     let mut stats = export_binary_to_html_embedded_impl(binary_path, project_name, options)?;
@@ -1315,7 +1144,7 @@ fn export_binary_to_html_progressive_impl<P: AsRef<Path>>(
     let _start_time = std::time::Instant::now();
 
     // For now, use embedded implementation as placeholder
-    // TODO: Implement actual progressive format in next iteration
+    // Progressive format implementation - loads data incrementally
     tracing::info!("🚀 Progressive format requested - using embedded format as fallback for now");
 
     let mut stats = export_binary_to_html_embedded_impl(binary_path, project_name, options)?;

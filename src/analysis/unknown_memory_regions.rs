@@ -217,6 +217,12 @@ pub struct UnknownMemoryAnalyzer {
     thread_memory_ranges: HashMap<u64, Vec<(usize, usize)>>,
 }
 
+impl Default for UnknownMemoryAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UnknownMemoryAnalyzer {
     /// Creates a new instance of UnknownMemoryAnalyzer with empty collections
     pub fn new() -> Self {
@@ -414,47 +420,45 @@ impl UnknownMemoryAnalyzer {
         &self,
         _categories: &[UnknownMemoryCategory],
     ) -> Vec<UnknownRegionReductionStrategy> {
-        let mut strategies = Vec::new();
-
-        // Enhanced instrumentation
-        strategies.push(UnknownRegionReductionStrategy {
-            strategy_type: ReductionStrategyType::EnhancedInstrumentation,
-            description: "Implement more comprehensive memory tracking hooks".to_string(),
-            implementation_steps: vec![
-                "Hook into mmap/munmap system calls".to_string(),
-                "Intercept malloc/free in all loaded libraries".to_string(),
-                "Track thread creation and destruction".to_string(),
-                "Monitor dynamic library loading".to_string(),
-            ],
-            expected_improvement: 60.0,
-            implementation_difficulty: ImplementationDifficulty::Hard,
-        });
-
-        // FFI call interception
-        strategies.push(UnknownRegionReductionStrategy {
-            strategy_type: ReductionStrategyType::FfiCallInterception,
-            description: "Intercept and track FFI calls to external libraries".to_string(),
-            implementation_steps: vec![
-                "Wrap all extern function calls".to_string(),
-                "Track memory allocations in C libraries".to_string(),
-                "Monitor shared library symbol resolution".to_string(),
-            ],
-            expected_improvement: 25.0,
-            implementation_difficulty: ImplementationDifficulty::Medium,
-        });
-
-        // Memory mapping tracking
-        strategies.push(UnknownRegionReductionStrategy {
-            strategy_type: ReductionStrategyType::MemoryMappingTracking,
-            description: "Track memory mapping operations comprehensively".to_string(),
-            implementation_steps: vec![
-                "Monitor /proc/self/maps changes".to_string(),
-                "Track mmap/mprotect/munmap calls".to_string(),
-                "Analyze virtual memory layout".to_string(),
-            ],
-            expected_improvement: 20.0,
-            implementation_difficulty: ImplementationDifficulty::Medium,
-        });
+        let strategies = vec![
+            // Enhanced instrumentation
+            UnknownRegionReductionStrategy {
+                strategy_type: ReductionStrategyType::EnhancedInstrumentation,
+                description: "Implement more comprehensive memory tracking hooks".to_string(),
+                implementation_steps: vec![
+                    "Hook into mmap/munmap system calls".to_string(),
+                    "Intercept malloc/free in all loaded libraries".to_string(),
+                    "Track thread creation and destruction".to_string(),
+                    "Monitor dynamic library loading".to_string(),
+                ],
+                expected_improvement: 60.0,
+                implementation_difficulty: ImplementationDifficulty::Hard,
+            },
+            // FFI call interception
+            UnknownRegionReductionStrategy {
+                strategy_type: ReductionStrategyType::FfiCallInterception,
+                description: "Intercept and track FFI calls to external libraries".to_string(),
+                implementation_steps: vec![
+                    "Wrap all extern function calls".to_string(),
+                    "Track memory allocations in C libraries".to_string(),
+                    "Monitor shared library symbol resolution".to_string(),
+                ],
+                expected_improvement: 25.0,
+                implementation_difficulty: ImplementationDifficulty::Medium,
+            },
+            // Memory mapping tracking
+            UnknownRegionReductionStrategy {
+                strategy_type: ReductionStrategyType::MemoryMappingTracking,
+                description: "Track memory mapping operations comprehensively".to_string(),
+                implementation_steps: vec![
+                    "Monitor /proc/self/maps changes".to_string(),
+                    "Track mmap/mprotect/munmap calls".to_string(),
+                    "Analyze virtual memory layout".to_string(),
+                ],
+                expected_improvement: 20.0,
+                implementation_difficulty: ImplementationDifficulty::Medium,
+            },
+        ];
 
         strategies
     }

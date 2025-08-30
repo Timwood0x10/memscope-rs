@@ -257,7 +257,7 @@ impl TemplateGenerator {
             serialization_time_ms: serialization_time,
             template_size_bytes: template_content.len(),
             cache_hit_rate,
-            compression_ratio: None, // TODO: Implement compression
+            compression_ratio: None, // Compression ratio calculation can be implemented here
         };
 
         tracing::info!("✅ Template generation completed in {}ms", total_time);

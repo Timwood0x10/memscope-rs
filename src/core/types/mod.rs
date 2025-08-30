@@ -3755,7 +3755,7 @@ pub enum LeakPreventionType {
     ScopedGuards,
 }
 
-// TODO: Gradually move types to these modules:
+// Type organization - gradually moving types to dedicated modules:
 // pub mod core;
 // pub mod allocation;
 // pub mod visualization;

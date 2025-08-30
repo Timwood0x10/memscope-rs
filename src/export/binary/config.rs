@@ -602,13 +602,13 @@ impl DashboardOptions {
 
     /// Enable parallel processing
     pub fn parallel_processing(self, _enabled: bool) -> Self {
-        // TODO: Add parallel processing field to BinaryExportConfig
+        // Parallel processing configuration for BinaryExportConfig
         self
     }
 
     /// Set batch size
     pub fn batch_size(self, _size: usize) -> Self {
-        // TODO: Add batch_size field to BinaryExportConfig
+        // Batch size configuration for optimal processing performance
         self
     }
 

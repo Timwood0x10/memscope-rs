@@ -155,13 +155,13 @@ impl ReferenceGraph {
                 graph
                     .adjacency
                     .entry(allocation.ptr)
-                    .or_insert_with(Vec::new);
+                    .or_default();
 
                 // Add reverse reference from data to this pointer
                 graph
                     .reverse_refs
                     .entry(smart_info.data_ptr)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(allocation.ptr);
 
                 // Add edges to cloned pointers (they share the same data)
@@ -169,7 +169,7 @@ impl ReferenceGraph {
                     graph
                         .adjacency
                         .entry(allocation.ptr)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(clone_ptr);
                 }
 
@@ -178,7 +178,7 @@ impl ReferenceGraph {
                     graph
                         .adjacency
                         .entry(source_ptr)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(allocation.ptr);
                 }
             }

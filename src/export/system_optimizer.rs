@@ -408,7 +408,7 @@ impl SystemOptimizer {
 
         reasoning.push(format!("为节省内存，推荐较小分片大小: {}", shard_size));
 
-        // 少线程减少并发内存使用
+        // 少线程减少并发内存使用 
         let thread_count = match self.system_resources.available_memory_mb {
             mem if mem >= 4096 => 4,
             mem if mem >= 2048 => 2,

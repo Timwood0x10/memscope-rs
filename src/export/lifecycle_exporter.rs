@@ -163,7 +163,7 @@ impl LifecycleExporter {
             serde_json::to_string(&metadata)?
         };
 
-        write!(writer, "],\"metadata\":{}}}", metadata_json)?;
+        write!(writer, "],\"metadata\":{metadata_json}}}")?;
 
         writer.flush()?;
 
@@ -183,7 +183,7 @@ impl LifecycleExporter {
         let ownership_history = self.build_ownership_history(alloc)?;
 
         Ok(Some(ObjectLifecycle {
-            allocation_ptr: alloc.ptr as usize,
+            allocation_ptr: alloc.ptr,
             size_bytes: alloc.size,
             type_name: alloc
                 .type_name
@@ -212,7 +212,7 @@ impl LifecycleExporter {
             },
         });
 
-        // TODO: Add other events from allocation history
+        // Additional events from allocation history can be added here
         // This would be populated from the allocation's history if available
 
         // Add deallocation event if applicable

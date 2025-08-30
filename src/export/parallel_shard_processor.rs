@@ -355,7 +355,7 @@ mod tests {
                 ptr: 0x1000 + i,
                 size: 64 + (i % 100),
                 type_name: Some(format!("TestType{}", i % 10)),
-                var_name: Some(format!("var_{}", i)),
+                var_name: Some(format!("var_{i}")),
                 scope_name: Some(format!("scope_{}", i % 5)),
                 timestamp_alloc: 1000000 + i as u64,
                 timestamp_dealloc: None,
@@ -426,7 +426,7 @@ mod tests {
 
         let (shards, stats) = result.expect("Test operation failed");
         assert_eq!(stats.total_allocations, 20);
-        assert!(shards.len() >= 1);
+        assert!(!shards.is_empty());
     }
 
     #[test]

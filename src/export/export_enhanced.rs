@@ -81,9 +81,9 @@ pub fn enhance_type_information(
 
         // Add the main type with subcategory information
         enhanced_types.push(EnhancedTypeInfo {
-            simplified_name: simplified_name,
-            category: category,
-            subcategory: subcategory,
+            simplified_name,
+            category,
+            subcategory,
             total_size: usage.total_size,
             allocation_count: usage.allocation_count,
             variable_names,

@@ -24,7 +24,7 @@ macro_rules! impl_advanced_trackable {
 
             fn get_advanced_type_info(&self) -> Option<$crate::advanced_types::AdvancedTypeInfo> {
                 let type_name = self.get_type_name();
-                let allocation = crate::core::types::AllocationInfo {
+                let allocation = $crate::core::types::AllocationInfo {
                     ptr: self.get_heap_ptr().unwrap_or(0),
                     size: self.get_size_estimate(),
                     var_name: None,
@@ -61,7 +61,7 @@ macro_rules! impl_advanced_trackable {
                 };
 
                 Some(
-                    crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(
+                    $crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(
                         type_name,
                         &allocation,
                     ),
@@ -86,9 +86,9 @@ macro_rules! impl_advanced_trackable {
                 std::mem::size_of::<$type>()
             }
 
-            fn get_advanced_type_info(&self) -> Option<crate::advanced_types::AdvancedTypeInfo> {
+            fn get_advanced_type_info(&self) -> Option<$crate::advanced_types::AdvancedTypeInfo> {
                 let type_name = self.get_type_name();
-                let allocation = crate::core::types::AllocationInfo {
+                let allocation = $crate::core::types::AllocationInfo {
                     ptr: self.get_heap_ptr().unwrap_or(0),
                     size: self.get_size_estimate(),
                     var_name: None,
@@ -125,7 +125,7 @@ macro_rules! impl_advanced_trackable {
                 };
 
                 Some(
-                    crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(
+                    $crate::advanced_types::GenericAdvancedTypeAnalyzer::analyze_by_type_name(
                         type_name,
                         &allocation,
                     ),

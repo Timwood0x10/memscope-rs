@@ -344,9 +344,9 @@ mod tests {
     fn create_test_shards(count: usize, size_per_shard: usize) -> Vec<ProcessedShard> {
         let mut shards = Vec::new();
         for i in 0..count {
-            let data = format!("{{\"test_data_{}\": {}}}", i, i).repeat(size_per_shard / 20);
+            let data = format!("{{\"test_data_{i}\": {i}}}").repeat(size_per_shard / 20);
             shards.push(ProcessedShard {
-                data: format!("[{}]", data).into_bytes(),
+                data: format!("[{data}]").into_bytes(),
                 allocation_count: 1,
                 shard_index: i,
                 processing_time_ms: 1,

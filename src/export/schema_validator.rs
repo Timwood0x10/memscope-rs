@@ -451,7 +451,7 @@ impl SchemaValidator {
         metrics.sections_validated += 1;
 
         // Check for unknown sections
-        let known_sections = vec![
+        let known_sections = [
             "metadata",
             "unsafe_analysis",
             "ffi_analysis",

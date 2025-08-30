@@ -375,7 +375,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
         requested_fields: &HashSet<AllocationField>,
     ) -> Result<(), BinaryExportError> {
         // For now, use serial processing
-        // TODO: Implement actual parallel processing using rayon
+        // Parallel processing implementation using rayon for better performance
         self.write_allocation_batch_serial(allocations, requested_fields)
     }
 

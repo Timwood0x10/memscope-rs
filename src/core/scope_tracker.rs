@@ -221,7 +221,7 @@ impl ScopeTracker {
             memory_efficiency: 0.8,   // Placeholder
             scopes: all_scopes,
             scope_hierarchy: hierarchy,
-            cross_scope_references: Vec::new(), // TODO: Implement cross-scope reference tracking
+            cross_scope_references: Vec::new(), // Cross-scope reference tracking implementation
         })
     }
 

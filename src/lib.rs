@@ -585,7 +585,7 @@ impl<T: Trackable> Trackable for Option<T> {
 
     fn get_internal_allocations(&self, var_name: &str) -> Vec<(usize, String)> {
         match self {
-            Some(value) => value.get_internal_allocations(&format!("{}::Some", var_name)),
+            Some(value) => value.get_internal_allocations(&format!("{var_name}::Some")),
             None => Vec::new(),
         }
     }
@@ -613,8 +613,8 @@ impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
 
     fn get_internal_allocations(&self, var_name: &str) -> Vec<(usize, String)> {
         match self {
-            Ok(value) => value.get_internal_allocations(&format!("{}::Ok", var_name)),
-            Err(error) => error.get_internal_allocations(&format!("{}::Err", var_name)),
+            Ok(value) => value.get_internal_allocations(&format!("{var_name}::Ok")),
+            Err(error) => error.get_internal_allocations(&format!("{var_name}::Err")),
         }
     }
 }
@@ -974,14 +974,12 @@ impl<T: Trackable> TrackedVariable<T> {
                             e
                         );
                     }
-                } else {
-                    if let Err(e) = Self::track_destruction(
-                        &manual_drop_self.var_name,
-                        ptr_val,
-                        manual_drop_self.creation_time,
-                    ) {
-                        tracing::warn!("Failed to track destruction in into_inner(): {}", e);
-                    }
+                } else if let Err(e) = Self::track_destruction(
+                    &manual_drop_self.var_name,
+                    ptr_val,
+                    manual_drop_self.creation_time,
+                ) {
+                    tracing::warn!("Failed to track destruction in into_inner(): {}", e);
                 }
             }
         }
@@ -1554,14 +1552,14 @@ fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 
-    let json_path = format!("{}.json", base_path);
+    let json_path = format!("{base_path}.json");
     tracker.export_to_json(&json_path)?;
 
     // Also export HTML if requested
     let export_format =
         std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
     if export_format == "html" || export_format == "both" {
-        let html_path = format!("{}.html", base_path);
+        let html_path = format!("{base_path}.html");
         let _ = tracker.export_interactive_dashboard(&html_path);
     }
 

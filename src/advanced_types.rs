@@ -481,7 +481,7 @@ pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAna
                 // Move analysis to category
                 by_category
                     .entry(category_key)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(analysis);
 
                 // Collect issues
@@ -791,7 +791,7 @@ fn generate_advanced_type_statistics(
 
     let mut by_latency_category = HashMap::new();
     for (category, count) in latency_counts {
-        by_latency_category.insert(format!("{:?}", category), *count);
+        by_latency_category.insert(format!("{category:?}"), *count);
     }
 
     AdvancedTypeStatistics {

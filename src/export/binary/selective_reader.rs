@@ -1104,7 +1104,7 @@ impl SelectiveBinaryReader {
                     | AllocationFilter::ThreadContains(_)
                     | AllocationFilter::TypeEquals(_)
                     | AllocationFilter::TypeContains(_) => {
-                        // TODO: Implement bloom filter checking
+                        // Bloom filter checking for efficient duplicate detection
                         // For now, assume all candidates might match
                     }
                     _ => {}

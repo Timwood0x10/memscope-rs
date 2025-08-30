@@ -185,7 +185,6 @@ impl<T: Clone> SmartClone<[T]> for Vec<T> {
 }
 
 /// Macro for smart unwrapping (removed - use safe_operations instead)
-
 /// Performance-aware statistics that use the right tool for the job
 pub struct SmartStats {
     // Use atomics for high-frequency simple counters

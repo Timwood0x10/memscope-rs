@@ -625,7 +625,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         let risk_factors = vec![RiskFactor {
             factor_type: RiskFactorType::ManualMemoryManagement,
@@ -651,7 +651,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         LibCHookInfo {
             hook_method: HookMethod::DynamicLinker,
@@ -678,10 +678,10 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         MemoryPassport {
-            passport_id: format!("passport_{:x}_{}", ptr, current_time),
+            passport_id: format!("passport_{ptr:x}_{current_time}"),
             origin: AllocationOrigin {
                 context: origin_context.to_string(),
                 allocator_function: "unknown".to_string(),
@@ -900,7 +900,7 @@ impl UnsafeFFITracker {
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_nanos() as u128;
+                    .as_nanos();
 
                 if allocation.memory_passport.is_none() {
                     allocation.memory_passport = Some(self.create_memory_passport(ptr, context));
@@ -934,7 +934,7 @@ impl UnsafeFFITracker {
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_nanos() as u128;
+                    .as_nanos();
 
                 if let Some(passport) = &mut allocation.memory_passport {
                     passport.current_owner = OwnershipInfo {
@@ -1428,7 +1428,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         let library_info = CLibraryInfo {
             library_name: library_name.clone(),
@@ -1466,7 +1466,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         if let Ok(mut libraries) = self.c_libraries.lock() {
             let library = libraries
@@ -1556,7 +1556,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         let installation_details = HookInstallationDetails {
             installation_method: hook_method,
@@ -1576,7 +1576,7 @@ impl UnsafeFFITracker {
                     requested_size: 0,
                     actual_size: 0,
                     alignment: 8,
-                    allocator_info: format!("hooked_{}", function_name),
+                    allocator_info: format!("hooked_{function_name}"),
                     protection_flags: Some(MemoryProtectionFlags {
                         readable: true,
                         writable: true,
@@ -1688,7 +1688,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         if let Ok(mut passports) = self.memory_passports.lock() {
             if let Some(passport) = passports.get_mut(&ptr) {
@@ -1723,7 +1723,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         if let Ok(mut passports) = self.memory_passports.lock() {
             if let Some(passport) = passports.get_mut(&ptr) {
@@ -1771,12 +1771,12 @@ impl UnsafeFFITracker {
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_nanos() as u128;
+                    .as_nanos();
 
                 let stamp = PassportStamp {
                     timestamp: current_time,
                     location: "memory_freed".to_string(),
-                    operation: format!("revoked: {}", reason),
+                    operation: format!("revoked: {reason}"),
                     authority: "UnsafeFFITracker".to_string(),
                     verification_hash: format!("{:x}", ptr ^ current_time as usize),
                 };

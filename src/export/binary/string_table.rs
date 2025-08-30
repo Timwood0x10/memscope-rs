@@ -576,7 +576,7 @@ mod tests {
         // In a real scenario, we'd hit the limit with many unique strings
         for i in 0..10 {
             table
-                .add_string(&format!("string_{}", i))
+                .add_string(&format!("string_{i}"))
                 .expect("Test operation failed");
         }
 
