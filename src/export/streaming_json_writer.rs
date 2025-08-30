@@ -425,7 +425,7 @@ impl<W: Write> StreamingJsonWriter<W> {
     /// Write an array in chunks to avoid memory issues
     fn write_array_chunked<T: Serialize>(&mut self, items: &[T]) -> TrackingResult<()> {
         let chunk_size = self.config.array_chunk_size;
-        let total_chunks = (items.len() + chunk_size - 1) / chunk_size;
+        let total_chunks = items.len().div_ceil(chunk_size);
 
         for (chunk_idx, chunk) in items.chunks(chunk_size).enumerate() {
             for (item_idx, item) in chunk.iter().enumerate() {
@@ -499,7 +499,7 @@ impl ExportMetadata {
             export_timestamp: current_time,
             optimization_level: optimization_level.to_string(),
             processing_mode: processing_mode.to_string(),
-            data_integrity_hash: format!("{:x}", current_time), // Simplified hash
+            data_integrity_hash: format!("{current_time:x}"), // Simplified hash
             export_config: ExportConfig {
                 buffer_size: 256 * 1024,
                 compression_enabled: false,

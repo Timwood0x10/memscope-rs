@@ -21,6 +21,12 @@ pub struct FastStatsCollector {
     detailed_data: SimpleMutex<DetailedStatsData>,
 }
 
+impl Default for FastStatsCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Default)]
 #[allow(dead_code)]
 struct DetailedStatsData {

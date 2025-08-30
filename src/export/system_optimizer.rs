@@ -453,8 +453,7 @@ impl SystemOptimizer {
 
         // balanced thread count
         let thread_count = (self.system_resources.cpu_cores / 2)
-            .max(2)
-            .min(6)
+            .clamp(2, 6)
             .min(self.validation_rules.max_thread_count);
 
         reasoning.push(format!(

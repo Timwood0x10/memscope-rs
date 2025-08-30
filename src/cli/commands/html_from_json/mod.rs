@@ -109,7 +109,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     // Check if we should only validate and exit early
     if validate_only {
         logger.info("✅ JSON validation completed successfully!");
-        logger.info(&format!("📊 Validation results:"));
+        logger.info("📊 Validation results:");
         logger.info(&format!("   - Files loaded: {}", json_data.len()));
         logger.info(&format!(
             "   - Allocations found: {}",

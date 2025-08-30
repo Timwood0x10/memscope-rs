@@ -1314,14 +1314,23 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Skip this test to avoid deadlock in concurrent test environments
     fn test_convenience_functions() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
 
-        // Test fast export function (may fail due to lack of actual data, but at least test function exists)
+        // Test fast export function (may fail due to lack of actual data, but should not panic)
         let result = export_fast(temp_file.path());
-        // In test environment, there may be no actual memory tracking data, so only test function call
-        assert!(result.is_ok() || result.is_err()); // As long as it doesn't panic, it's fine
+        // In test environment, there may be no actual memory tracking data, so we just verify it doesn't panic
+        // The function should either succeed or fail gracefully
+        match result {
+            Ok(_) => {
+                // Success case - export worked
+                assert!(true);
+            }
+            Err(_) => {
+                // Error case - expected when no tracking data is available
+                assert!(true);
+            }
+        }
     }
 
     #[test]

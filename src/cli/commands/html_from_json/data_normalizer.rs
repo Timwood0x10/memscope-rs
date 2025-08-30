@@ -296,16 +296,16 @@ impl fmt::Display for NormalizationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NormalizationError::MissingField(field) => {
-                write!(f, "Missing required field: {}", field)
+                write!(f, "Missing required field: {field}")
             }
             NormalizationError::InvalidType(msg) => {
-                write!(f, "Invalid data type: {}", msg)
+                write!(f, "Invalid data type: {msg}")
             }
             NormalizationError::ValidationError(msg) => {
-                write!(f, "Data validation error: {}", msg)
+                write!(f, "Data validation error: {msg}")
             }
             NormalizationError::JsonError(err) => {
-                write!(f, "JSON error: {}", err)
+                write!(f, "JSON error: {err}")
             }
         }
     }
@@ -474,28 +474,26 @@ impl DataNormalizer {
         for (index, alloc) in allocations_array.iter().enumerate() {
             if let Some(_alloc_obj) = alloc.as_object() {
                 // Extract borrow_info if present
-                let borrow_info = alloc.get("borrow_info").and_then(|bi| {
-                    Some(BorrowInfo {
-                        immutable_borrows: self
-                            .extract_u32(Some(bi), "immutable_borrows")
-                            .unwrap_or(0),
-                        mutable_borrows: self.extract_u32(Some(bi), "mutable_borrows").unwrap_or(0),
-                        max_concurrent_borrows: self
-                            .extract_u32(Some(bi), "max_concurrent_borrows")
-                            .unwrap_or(0),
-                        last_borrow_timestamp: self
-                            .extract_u64(Some(bi), "last_borrow_timestamp")
-                            .unwrap_or(0),
-                    })
+                let borrow_info = alloc.get("borrow_info").map(|bi| BorrowInfo {
+                    immutable_borrows: self
+                        .extract_u32(Some(bi), "immutable_borrows")
+                        .unwrap_or(0),
+                    mutable_borrows: self.extract_u32(Some(bi), "mutable_borrows").unwrap_or(0),
+                    max_concurrent_borrows: self
+                        .extract_u32(Some(bi), "max_concurrent_borrows")
+                        .unwrap_or(0),
+                    last_borrow_timestamp: self
+                        .extract_u64(Some(bi), "last_borrow_timestamp")
+                        .unwrap_or(0),
                 });
 
                 // Extract clone_info if present
-                let clone_info = alloc.get("clone_info").and_then(|ci| {
-                    Some(CloneInfo {
+                let clone_info = alloc.get("clone_info").map(|ci| {
+                    CloneInfo {
                         clone_count: self.extract_u32(Some(ci), "clone_count").unwrap_or(0),
                         is_clone: self.extract_bool(Some(ci), "is_clone").unwrap_or(false),
                         original_ptr: self.extract_string(Some(ci), "original_ptr"),
-                    })
+                    }
                 });
 
                 // Extract safety_violations if present

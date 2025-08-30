@@ -27,12 +27,10 @@ pub enum IntegrationError {
 impl fmt::Display for IntegrationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IntegrationError::DataConflict(msg) => write!(f, "Data conflict: {}", msg),
-            IntegrationError::MissingData(msg) => write!(f, "Missing data: {}", msg),
-            IntegrationError::CrossReferenceError(msg) => {
-                write!(f, "Cross-reference error: {}", msg)
-            }
-            IntegrationError::IndexError(msg) => write!(f, "Index error: {}", msg),
+            IntegrationError::DataConflict(msg) => write!(f, "Data conflict: {msg}"),
+            IntegrationError::MissingData(msg) => write!(f, "Missing data: {msg}"),
+            IntegrationError::CrossReferenceError(msg) => write!(f, "Cross-reference error: {msg}"),
+            IntegrationError::IndexError(msg) => write!(f, "Index error: {msg}"),
         }
     }
 }

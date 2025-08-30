@@ -474,7 +474,7 @@ impl DebugLogger {
         F: FnOnce(&mut PerformanceStats),
     {
         if let Ok(mut stats) = self.stats.lock() {
-            updater(&mut *stats);
+            updater(&mut stats);
         }
     }
 

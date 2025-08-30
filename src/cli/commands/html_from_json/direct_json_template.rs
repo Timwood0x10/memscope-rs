@@ -317,11 +317,11 @@ fn enhance_lifetime_data(data: &Value) -> Result<Value, Box<dyn Error>> {
                 event
                     .get("var_name")
                     .and_then(|v| v.as_str())
-                    .map_or(false, |s| s != "unknown")
+                    .is_some_and(|s| s != "unknown")
                     && event
                         .get("type_name")
                         .and_then(|v| v.as_str())
-                        .map_or(false, |s| s != "unknown")
+                        .is_some_and(|s| s != "unknown")
             })
             .collect();
 

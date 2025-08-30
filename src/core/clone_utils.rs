@@ -23,7 +23,7 @@ pub fn clone_shared_allocation(
 ) -> Arc<OptimizedAllocationInfo> {
     let size = std::mem::size_of::<OptimizedAllocationInfo>();
     clone_monitor::record_avoided_clone("AllocationInfo", size);
-    Arc::clone(&arc_info)
+    Arc::clone(arc_info)
 }
 
 /// Convert Arc-shared back to regular AllocationInfo when needed
