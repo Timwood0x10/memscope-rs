@@ -2101,7 +2101,7 @@ pub fn add_memory_timeline(
 
     // Calculate optimal row height based on available space
     let available_height = chart_height - 120; // Reserve space for title, axis, and note
-    let row_height = (available_height / max_items as i32).min(22).max(18);
+    let row_height = (available_height / max_items as i32).clamp(18, 22);
 
     // Draw timeline for tracked variables with optimized spacing
     for (i, allocation) in tracked_allocs.iter().take(max_items).enumerate() {
@@ -2983,9 +2983,7 @@ pub fn add_enhanced_timeline_dashboard(
     let plot_width = chart_width - 350; // Space for names and legend
     let plot_height = chart_height - 100;
 
-    let row_height = (plot_height as f64 / sorted_scopes.len().max(1) as f64)
-        .min(40.0)
-        .max(25.0); // Ensure minimum spacing for scopes
+    let row_height = (plot_height as f64 / sorted_scopes.len().max(1) as f64).clamp(25.0, 40.0);
 
     // Time axis (horizontal)
     let time_axis = svg::node::element::Line::new()
@@ -2999,7 +2997,7 @@ pub fn add_enhanced_timeline_dashboard(
 
     // Add time labels with better formatting - use relative time units
     let time_units = ["0ms", "0.25ms", "0.5ms", "0.75ms", "1ms"];
-    for i in 0..=4 {
+    for (i, item) in time_units.iter().enumerate() {
         let x = plot_x + (i * plot_width / 4);
 
         let tick = svg::node::element::Line::new()
@@ -3012,8 +3010,8 @@ pub fn add_enhanced_timeline_dashboard(
         document = document.add(tick);
 
         // Better formatted time labels
-        let time_label = time_units[i];
-        let label = SvgText::new(time_label)
+        let time_label = item;
+        let label = SvgText::new(*time_label)
             .set("x", x)
             .set("y", plot_y + plot_height + 18)
             .set("text-anchor", "middle")

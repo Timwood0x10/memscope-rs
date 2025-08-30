@@ -144,59 +144,59 @@ pub enum BottleneckType {
 /// Optimization suggestions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationSuggestion {
-    /// 建议类型
+    /// suggestion type
     pub suggestion_type: SuggestionType,
-    /// 优先级 (1-10)
+    /// priority (1-10)
     pub priority: u8,
-    /// 标题
+    /// title
     pub title: String,
     /// Detailed description
     pub description: String,
-    /// 预期效果
+    /// expected impact
     pub expected_impact: String,
-    /// 实施难度 (1-10)
+    /// implementation difficulty (1-10)
     pub implementation_difficulty: u8,
 }
 
-/// 建议类型
+/// Suggestion type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SuggestionType {
-    /// 配置调整
+    /// configuration tuning
     ConfigurationTuning,
-    /// 硬件升级
+    /// hardware upgrade
     HardwareUpgrade,
-    /// 软件优化
+    /// software optimization
     SoftwareOptimization,
-    /// 环境调整
+    /// environment tuning
     EnvironmentTuning,
 }
 
-/// 系统优化器
+/// System optimizer
 pub struct SystemOptimizer {
     /// System resource information
     system_resources: SystemResources,
-    /// 历史性能数据
+    /// performance history
     performance_history: Vec<PerformanceTestResult>,
-    /// 配置验证规则
+    /// configuration validation rules
     validation_rules: ConfigurationValidationRules,
 }
 
-/// 配置验证规则
+/// Configuration validation rules
 #[derive(Debug, Clone)]
 pub struct ConfigurationValidationRules {
-    /// 最小分片大小
+    /// minimum shard size
     pub min_shard_size: usize,
-    /// 最大分片大小
+    /// maximum shard size
     pub max_shard_size: usize,
-    /// 最小线程数
+    /// minimum thread count
     pub min_thread_count: usize,
-    /// 最大线程数
+    /// maximum thread count
     pub max_thread_count: usize,
-    /// 最小缓冲区大小
+    /// minimum buffer size
     pub min_buffer_size: usize,
-    /// 最大缓冲区大小
+    /// maximum buffer size
     pub max_buffer_size: usize,
-    /// 最大内存使用限制 (MB)
+    /// maximum memory limit (MB)
     pub max_memory_limit_mb: usize,
 }
 
@@ -336,7 +336,7 @@ impl SystemOptimizer {
     fn optimize_for_speed(&self, dataset_size: usize) -> (usize, usize, usize, Vec<String>) {
         let mut reasoning = Vec::new();
 
-        // 基于系统资源和数据集大小优化
+        // based on system resources and dataset size
         let base_shard_size = match self.system_resources.system_type {
             SystemType::HighPerformanceServer => 5000,
             SystemType::DevelopmentWorkstation => 3000,
@@ -346,7 +346,7 @@ impl SystemOptimizer {
             SystemType::Unknown => 1000,
         };
 
-        // 根据数据集大小调整分片大小
+        // based on dataset size
         let shard_size = if dataset_size > 50000 {
             base_shard_size * 2
         } else if dataset_size > 20000 {
@@ -357,11 +357,11 @@ impl SystemOptimizer {
         .min(self.validation_rules.max_shard_size);
 
         reasoning.push(format!(
-            "基于 {:?} 系统类型，推荐分片大小: {}",
+            "basic {:?} system type, recommended shard size: {}",
             self.system_resources.system_type, shard_size
         ));
 
-        // 线程数优化 - 充分利用 CPU 核心
+        // based on system load
         let thread_count = match self.system_resources.system_load {
             load if load < 0.5 => self.system_resources.cpu_cores,
             load if load < 1.0 => (self.system_resources.cpu_cores * 3 / 4).max(1),
@@ -371,11 +371,11 @@ impl SystemOptimizer {
         .min(self.validation_rules.max_thread_count);
 
         reasoning.push(format!(
-            "基于系统负载 {:.2}，推荐线程数: {}",
+            "basic system load {:.2}, recommended thread count: {}",
             self.system_resources.system_load, thread_count
         ));
 
-        // 缓冲区大小 - 大缓冲区提高 I/O 性能
+        // buffer size - large buffer size for better I/O performance
         let buffer_size = match self.system_resources.available_memory_mb {
             mem if mem >= 8192 => 2 * 1024 * 1024, // 2MB
             mem if mem >= 4096 => 1024 * 1024,     // 1MB
@@ -385,7 +385,7 @@ impl SystemOptimizer {
         .min(self.validation_rules.max_buffer_size);
 
         reasoning.push(format!(
-            "基于可用内存 {} MB，推荐缓冲区大小: {} KB",
+            "basic available memory {} MB, recommended buffer size: {} KB",
             self.system_resources.available_memory_mb,
             buffer_size / 1024
         ));
@@ -397,7 +397,7 @@ impl SystemOptimizer {
     fn optimize_for_memory(&self, _dataset_size: usize) -> (usize, usize, usize, Vec<String>) {
         let mut reasoning = Vec::new();
 
-        // 小分片减少内存占用
+        // small shard size to save memory
         let shard_size = match self.system_resources.available_memory_mb {
             mem if mem >= 4096 => 1000,
             mem if mem >= 2048 => 750,
@@ -406,9 +406,9 @@ impl SystemOptimizer {
         }
         .max(self.validation_rules.min_shard_size);
 
-        reasoning.push(format!("为节省内存，推荐较小分片大小: {}", shard_size));
+        reasoning.push(format!("basic available memory {} MB, recommended shard size: {shard_size}", self.system_resources.available_memory_mb));
 
-        // 少线程减少并发内存使用
+        // less thread count to reduce concurrent memory usage
         let thread_count = match self.system_resources.available_memory_mb {
             mem if mem >= 4096 => 4,
             mem if mem >= 2048 => 2,
@@ -417,9 +417,9 @@ impl SystemOptimizer {
         .min(self.system_resources.cpu_cores / 2)
         .max(1);
 
-        reasoning.push(format!("为控制内存使用，推荐线程数: {}", thread_count));
+        reasoning.push(format!("basic available memory {} MB, recommended thread count: {thread_count}", self.system_resources.available_memory_mb));
 
-        // 小缓冲区节省内存
+        // small buffer size to save memory
         let buffer_size = match self.system_resources.available_memory_mb {
             mem if mem >= 2048 => 256 * 1024, // 256KB
             mem if mem >= 1024 => 128 * 1024, // 128KB
@@ -428,18 +428,19 @@ impl SystemOptimizer {
         .max(self.validation_rules.min_buffer_size);
 
         reasoning.push(format!(
-            "为节省内存，推荐较小缓冲区: {} KB",
+            "basic available memory {} MB, recommended buffer size: {} KB",
+            self.system_resources.available_memory_mb,
             buffer_size / 1024
         ));
 
         (shard_size, thread_count, buffer_size, reasoning)
     }
 
-    /// 平衡优化
+    /// balance optimization
     fn optimize_for_balance(&self, dataset_size: usize) -> (usize, usize, usize, Vec<String>) {
         let mut reasoning = Vec::new();
 
-        // 平衡分片大小
+        // balanced shard size
         let shard_size = match (self.system_resources.cpu_cores, dataset_size) {
             (cores, size) if cores >= 8 && size > 20000 => 2000,
             (cores, size) if cores >= 4 && size > 10000 => 1500,
@@ -448,20 +449,20 @@ impl SystemOptimizer {
         }
         .min(self.validation_rules.max_shard_size);
 
-        reasoning.push(format!("平衡性能和内存，推荐分片大小: {}", shard_size));
+        reasoning.push(format!("basic cpu cores {}, dataset size {dataset_size}, recommended shard size: {shard_size}", self.system_resources.cpu_cores));
 
-        // 适中的线程数
+        // balanced thread count
         let thread_count = (self.system_resources.cpu_cores / 2)
             .max(2)
             .min(6)
             .min(self.validation_rules.max_thread_count);
 
         reasoning.push(format!(
-            "平衡并行度和资源使用，推荐线程数: {}",
-            thread_count
+            "basic cpu cores {}, dataset size {dataset_size}, recommended thread count: {thread_count}",
+            self.system_resources.cpu_cores,
         ));
 
-        // 中等缓冲区大小
+        // balanced buffer size
         let buffer_size = match self.system_resources.available_memory_mb {
             mem if mem >= 4096 => 512 * 1024, // 512KB
             mem if mem >= 2048 => 256 * 1024, // 256KB
@@ -469,14 +470,15 @@ impl SystemOptimizer {
         };
 
         reasoning.push(format!(
-            "平衡 I/O 性能和内存使用，推荐缓冲区: {} KB",
+            "basic available memory {} MB, recommended buffer size: {} KB",
+            self.system_resources.available_memory_mb,
             buffer_size / 1024
         ));
 
         (shard_size, thread_count, buffer_size, reasoning)
     }
 
-    /// 估算性能提升
+    /// estimate performance gain
     fn estimate_performance_gain(
         &self,
         target: &OptimizationTarget,
@@ -489,10 +491,10 @@ impl SystemOptimizer {
             OptimizationTarget::Balanced => 2.0,
         };
 
-        // 基于线程数的额外提升
+        // based on thread count
         let thread_multiplier = (thread_count as f64).sqrt();
 
-        // 基于分片大小的调整
+        // based on shard size
         let shard_multiplier = if shard_size > 2000 {
             1.2
         } else if shard_size < 500 {
@@ -504,30 +506,30 @@ impl SystemOptimizer {
         base_gain * thread_multiplier * shard_multiplier
     }
 
-    /// 估算内存使用
+    /// estimate memory usage
     fn estimate_memory_usage(
         &self,
         shard_size: usize,
         thread_count: usize,
         buffer_size: usize,
     ) -> f64 {
-        // 基础内存使用
-        let base_memory = 20.0; // 20MB 基础开销
+        // base memory usage
+        let base_memory = 20.0; // 20MB base overhead
 
-        // 分片内存使用 (每个分配大约 500 字节)
+        // shard memory usage (each allocation is about 500 bytes)
         let shard_memory = (shard_size as f64 * 500.0 * thread_count as f64) / (1024.0 * 1024.0);
 
-        // 缓冲区内存使用
+        // buffer memory usage
         let buffer_memory = (buffer_size as f64 * thread_count as f64) / (1024.0 * 1024.0);
 
         base_memory + shard_memory + buffer_memory
     }
 
-    /// 计算配置置信度
+    /// calculate confidence
     fn calculate_confidence(&self, target: &OptimizationTarget) -> f64 {
-        let mut confidence: f64 = 0.7; // 基础置信度
+        let mut confidence: f64 = 0.7; // base confidence
 
-        // 基于系统类型调整置信度
+        // based on system type adjustment
         confidence += match self.system_resources.system_type {
             SystemType::HighPerformanceServer => 0.2,
             SystemType::DevelopmentWorkstation => 0.15,
@@ -537,22 +539,22 @@ impl SystemOptimizer {
             SystemType::Unknown => -0.2,
         };
 
-        // 基于历史数据调整置信度
+        // based on history data adjustment
         if !self.performance_history.is_empty() {
             confidence += 0.1;
         }
 
-        // 基于优化目标调整置信度
+        // based on optimization target adjustment
         confidence += match target {
             OptimizationTarget::Balanced => 0.1,
             OptimizationTarget::Speed => 0.05,
             OptimizationTarget::Memory => 0.05,
         };
 
-        confidence.min(1.0).max(0.0)
+        confidence.clamp(0.0, 1.0)
     }
 
-    /// 验证配置
+    /// validate configuration
     pub fn validate_configuration(
         &self,
         _config: &FastExportConfigBuilder,
@@ -561,50 +563,46 @@ impl SystemOptimizer {
         let mut warnings = Vec::new();
         let mut suggestions = Vec::new();
 
-        // 这里需要从 FastExportConfigBuilder 中提取配置值
-        // 由于 FastExportConfigBuilder 可能没有公开的 getter 方法，
-        // 我们需要创建一个配置并检查其值
-
-        // 验证分片大小
-        let shard_size = 1000; // 默认值，实际应该从配置中获取
+        // validate shard size
+        let shard_size = 1000; // default value, should be from config
         if shard_size < self.validation_rules.min_shard_size {
             errors.push(format!(
-                "分片大小 {} 小于最小值 {}",
+                "shard size {} is less than minimum value {}",
                 shard_size, self.validation_rules.min_shard_size
             ));
         } else if shard_size > self.validation_rules.max_shard_size {
             errors.push(format!(
-                "分片大小 {} 超过最大值 {}",
+                "shard size {} is greater than maximum value {}",
                 shard_size, self.validation_rules.max_shard_size
             ));
         }
 
-        // 验证线程数
-        let thread_count = num_cpus::get(); // 默认值
+        // validate thread count
+        let thread_count = num_cpus::get(); // default value, should be from config
         if thread_count > self.system_resources.cpu_cores * 2 {
             warnings.push(format!(
-                "线程数 {} 超过 CPU 核心数的两倍 ({}), 可能导致上下文切换开销",
-                thread_count, self.system_resources.cpu_cores
+                "thread count {thread_count} exceeds twice the number of CPU cores ({}), may cause context switch overhead",
+                self.system_resources.cpu_cores
             ));
         }
 
-        // 验证内存使用
+        // validate memory usage
         let estimated_memory = self.estimate_memory_usage(shard_size, thread_count, 256 * 1024);
         if estimated_memory > self.system_resources.available_memory_mb as f64 * 0.8 {
             errors.push(format!(
-                "预估内存使用 {:.1} MB 超过可用内存的 80% ({:.1} MB)",
+                "estimated memory usage {:.1} MB exceeds 80% of available memory ({:.1} MB)",
                 estimated_memory,
                 self.system_resources.available_memory_mb as f64 * 0.8
             ));
         }
 
-        // 生成优化建议
+        // generate optimization suggestions
         if shard_size < 500 && self.system_resources.cpu_cores >= 4 {
-            suggestions.push("考虑增加分片大小以提高并行效率".to_string());
+            suggestions.push("consider increasing shard size for better parallelism".to_string());
         }
 
         if thread_count == 1 && self.system_resources.cpu_cores > 2 {
-            suggestions.push("考虑启用多线程处理以提高性能".to_string());
+            suggestions.push("consider enabling multi-threading for better performance".to_string());
         }
 
         ConfigurationValidationResult {
@@ -617,7 +615,7 @@ impl SystemOptimizer {
         }
     }
 
-    /// 估算配置影响
+    /// estimate configuration impact
     fn estimate_configuration_impact(
         &self,
         shard_size: usize,
@@ -649,7 +647,7 @@ impl SystemOptimizer {
         }
     }
 
-    /// 诊断性能问题
+    /// diagnose performance issues
     pub fn diagnose_performance(&self) -> PerformanceDiagnosis {
         let system_status = self.get_system_resource_status();
         let bottlenecks = self.identify_bottlenecks(&system_status);
@@ -668,12 +666,12 @@ impl SystemOptimizer {
         }
     }
 
-    /// 获取系统资源状态
+    /// get system resource status
     fn get_system_resource_status(&self) -> SystemResourceStatus {
         let cpu_usage = self.get_cpu_usage();
         let memory_usage =
             (self.system_resources.available_memory_mb as f64 / 8192.0 * 100.0).min(100.0);
-        let disk_usage = 50.0; // 简化实现
+        let disk_usage = 50.0; // simplified implementation
 
         let load_status = match self.system_resources.system_load {
             load if load < 1.0 => LoadStatus::Low,
@@ -690,18 +688,18 @@ impl SystemOptimizer {
         }
     }
 
-    /// 获取 CPU 使用率
+    /// get CPU usage percentage
     fn get_cpu_usage(&self) -> f64 {
-        // 简化实现 - 基于系统负载估算
+        // simplified implementation - based on system load estimation
         (self.system_resources.system_load / self.system_resources.cpu_cores as f64 * 100.0)
             .min(100.0)
     }
 
-    /// 识别性能瓶颈
+    /// identify performance bottlenecks
     fn identify_bottlenecks(&self, status: &SystemResourceStatus) -> Vec<PerformanceBottleneck> {
         let mut bottlenecks = Vec::new();
 
-        // CPU 瓶颈检测
+        // CPU bottleneck detection
         if status.cpu_usage_percent > 80.0 {
             bottlenecks.push(PerformanceBottleneck {
                 bottleneck_type: BottleneckType::Cpu,
@@ -710,17 +708,17 @@ impl SystemOptimizer {
                 } else {
                     7
                 },
-                description: format!("CPU 使用率过高: {:.1}%", status.cpu_usage_percent),
-                impact: "导出性能显著下降，响应时间增加".to_string(),
+                description: format!("CPU usage is high: {:.1}%", status.cpu_usage_percent),
+                impact: "Export performance significantly degraded, response time increased".to_string(),
                 suggested_solutions: vec![
-                    "减少并行线程数".to_string(),
-                    "增加分片大小以减少线程切换开销".to_string(),
-                    "考虑在系统负载较低时进行导出".to_string(),
+                    "reduce parallel thread count".to_string(),
+                    "increase shard size to reduce thread switch overhead".to_string(),
+                    "consider exporting when system load is low".to_string(),
                 ],
             });
         }
 
-        // 内存瓶颈检测
+        // memory bottleneck detection
         if status.memory_usage_percent > 85.0 {
             bottlenecks.push(PerformanceBottleneck {
                 bottleneck_type: BottleneckType::Memory,
@@ -729,28 +727,28 @@ impl SystemOptimizer {
                 } else {
                     8
                 },
-                description: format!("内存使用率过高: {:.1}%", status.memory_usage_percent),
-                impact: "可能导致内存不足，系统变慢或崩溃".to_string(),
+                description: format!("Memory usage is high: {:.1}%", status.memory_usage_percent),
+                impact: "possible memory underutilization, system may slow down or crash".to_string(),
                 suggested_solutions: vec![
-                    "减少分片大小".to_string(),
-                    "减少并行线程数".to_string(),
-                    "减少缓冲区大小".to_string(),
-                    "启用流式处理模式".to_string(),
+                    "reduce shard size".to_string(),
+                    "reduce parallel thread count".to_string(),
+                    "reduce buffer size".to_string(),
+                    "enable streaming processing mode".to_string(),
                 ],
             });
         }
 
-        // 配置瓶颈检测
+        // configuration bottleneck detection
         if self.system_resources.cpu_cores >= 8 && status.cpu_usage_percent < 30.0 {
             bottlenecks.push(PerformanceBottleneck {
                 bottleneck_type: BottleneckType::Configuration,
                 severity: 5,
-                description: "CPU 资源未充分利用".to_string(),
-                impact: "导出性能未达到最优".to_string(),
+                description: "CPU resource underutilized".to_string(),
+                impact: "Export performance suboptimal".to_string(),
                 suggested_solutions: vec![
-                    "增加并行线程数".to_string(),
-                    "减少分片大小以增加并行度".to_string(),
-                    "启用速度优化模式".to_string(),
+                    "add more threads".to_string(),
+                    "reduce shard size to increase parallelism".to_string(),
+                    "enable speed optimization mode".to_string(),
                 ],
             });
         }
@@ -758,23 +756,23 @@ impl SystemOptimizer {
         bottlenecks
     }
 
-    /// 生成优化建议
+    /// generate optimization suggestions
     fn generate_optimization_suggestions(
         &self,
         bottlenecks: &[PerformanceBottleneck],
     ) -> Vec<OptimizationSuggestion> {
         let mut suggestions = Vec::new();
 
-        // 基于瓶颈生成建议
+        // based on bottleneck generate suggestions
         for bottleneck in bottlenecks {
             match bottleneck.bottleneck_type {
                 BottleneckType::Cpu => {
                     suggestions.push(OptimizationSuggestion {
                         suggestion_type: SuggestionType::ConfigurationTuning,
                         priority: bottleneck.severity,
-                        title: "优化 CPU 使用".to_string(),
-                        description: "调整并行配置以优化 CPU 使用率".to_string(),
-                        expected_impact: "提高导出速度 20-40%".to_string(),
+                        title: "Optimize CPU usage".to_string(),
+                        description: "Adjust parallel configuration to optimize CPU usage".to_string(),
+                        expected_impact: "Increase export speed by 20-40%".to_string(),
                         implementation_difficulty: 3,
                     });
                 }
@@ -782,9 +780,9 @@ impl SystemOptimizer {
                     suggestions.push(OptimizationSuggestion {
                         suggestion_type: SuggestionType::ConfigurationTuning,
                         priority: bottleneck.severity,
-                        title: "优化内存使用".to_string(),
-                        description: "调整分片和缓冲区配置以减少内存使用".to_string(),
-                        expected_impact: "减少内存使用 30-50%".to_string(),
+                        title: "Optimize memory usage".to_string(),
+                        description: "Adjust shard size and buffer size to reduce memory usage".to_string(),
+                        expected_impact: "Reduce memory usage by 30-50%".to_string(),
                         implementation_difficulty: 2,
                     });
                 }
@@ -792,9 +790,9 @@ impl SystemOptimizer {
                     suggestions.push(OptimizationSuggestion {
                         suggestion_type: SuggestionType::ConfigurationTuning,
                         priority: bottleneck.severity,
-                        title: "优化配置参数".to_string(),
-                        description: "调整配置以充分利用系统资源".to_string(),
-                        expected_impact: "提高整体性能 15-30%".to_string(),
+                        title: "Optimize configuration parameters".to_string(),
+                        description: "Adjust configuration to fully utilize system resources".to_string(),
+                        expected_impact: "Increase overall performance by 15-30%".to_string(),
                         implementation_difficulty: 1,
                     });
                 }
@@ -802,14 +800,14 @@ impl SystemOptimizer {
             }
         }
 
-        // 通用优化建议
+        // general optimization suggestions
         if self.system_resources.system_type == SystemType::HighPerformanceServer {
             suggestions.push(OptimizationSuggestion {
                 suggestion_type: SuggestionType::ConfigurationTuning,
                 priority: 6,
-                title: "启用高性能模式".to_string(),
-                description: "在高性能服务器上启用最大性能配置".to_string(),
-                expected_impact: "提高导出速度 50-80%".to_string(),
+                title: "Enable high performance mode".to_string(),
+                description: "Enable maximum performance configuration on high performance servers".to_string(),
+                expected_impact: "Increase export speed by 50-80%".to_string(),
                 implementation_difficulty: 2,
             });
         }
@@ -817,7 +815,7 @@ impl SystemOptimizer {
         suggestions
     }
 
-    /// 计算健康评分
+    /// calculate health score
     fn calculate_health_score(
         &self,
         status: &SystemResourceStatus,
@@ -825,7 +823,7 @@ impl SystemOptimizer {
     ) -> u8 {
         let mut score = 100u8;
 
-        // 基于资源使用率扣分
+        // based on resource usage rate to score
         if status.cpu_usage_percent > 80.0 {
             score = score.saturating_sub(20);
         } else if status.cpu_usage_percent > 60.0 {
@@ -838,30 +836,30 @@ impl SystemOptimizer {
             score = score.saturating_sub(15);
         }
 
-        // 基于瓶颈扣分
+        // based on bottleneck to score
         for bottleneck in bottlenecks {
             score = score.saturating_sub(bottleneck.severity * 2);
         }
 
-        score.max(10) // 最低分数 10
+        score.max(10) // minimum score is 10
     }
 
-    /// 添加性能历史数据
+    /// add performance history data
     pub fn add_performance_data(&mut self, result: PerformanceTestResult) {
         self.performance_history.push(result);
 
-        // 保持历史数据在合理范围内
+        // keep history data within a reasonable range
         if self.performance_history.len() > 100 {
             self.performance_history.remove(0);
         }
     }
 
-    /// 获取系统资源信息
+    /// get system resources
     pub fn get_system_resources(&self) -> &SystemResources {
         &self.system_resources
     }
 
-    /// 更新系统资源信息
+    /// update system resources
     pub fn refresh_system_resources(&mut self) -> TrackingResult<()> {
         self.system_resources = Self::detect_system_resources()?;
         Ok(())
@@ -884,30 +882,30 @@ impl Default for SystemOptimizer {
     }
 }
 
-/// 配置验证结果
+/// configuration validation result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigurationValidationResult {
-    /// 配置是否有效
+    /// configuration is valid
     pub is_valid: bool,
-    /// 错误列表
+    /// error list
     pub errors: Vec<String>,
-    /// 警告列表
+    /// warning list
     pub warnings: Vec<String>,
-    /// 建议列表
+    /// suggestion list
     pub suggestions: Vec<String>,
-    /// 预估性能影响
+    /// estimated performance impact
     pub estimated_performance_impact: ConfigurationImpact,
 }
 
-/// 配置影响
+/// configuration impact
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigurationImpact {
-    /// 性能评分 (1-10)
+    /// performance score (1-10)
     pub performance_score: u8,
-    /// 内存效率 (1-10)
+    /// memory efficiency (1-10)
     pub memory_efficiency: u8,
-    /// 稳定性评分 (1-10)
+    /// stability score (1-10)
     pub stability_score: u8,
-    /// 总体评分 (1-10)
+    /// overall score (1-10)
     pub overall_score: u8,
 }

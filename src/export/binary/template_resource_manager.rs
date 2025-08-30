@@ -265,8 +265,8 @@ impl TemplateResourceManager {
 
         // Process additional placeholders from custom data
         for (key, value) in &data.custom_data {
-            let placeholder_with_spaces = format!("{{{{ {} }}}}", key);
-            let placeholder_without_spaces = format!("{{{{{}}}}}", key);
+            let placeholder_with_spaces = format!("{{{{ {key} }}}}");
+            let placeholder_without_spaces = format!("{{{{{key}}}}}");
             content = content.replace(&placeholder_with_spaces, value);
             content = content.replace(&placeholder_without_spaces, value);
         }
@@ -284,7 +284,7 @@ impl TemplateResourceManager {
 
         // Process custom placeholders using registered processors
         for (placeholder, processor) in &self.placeholder_processors {
-            let placeholder_pattern = format!("{{{{{}}}}}", placeholder);
+            let placeholder_pattern = format!("{{{{{placeholder}}}}}");
             if content.contains(&placeholder_pattern) {
                 let processed_value = processor.process(data)?;
                 content = content.replace(&placeholder_pattern, &processed_value);

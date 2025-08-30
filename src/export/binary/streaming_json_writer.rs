@@ -340,7 +340,7 @@ impl<W: Write> StreamingJsonWriter<W> {
 
         // Start the main array directly (to match existing format)
         self.write_indent()?;
-        self.write_raw(&format!("\"{}\": [\n", array_name))?;
+        self.write_raw(&format!("\"{array_name}\": [\n"))?;
         self.indent_level += 1;
         self.state = WriterState::InAllocationsArray;
         self.is_first_array_item = true;
@@ -391,7 +391,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         if requested_fields.contains(&AllocationField::Ptr) {
             if let Some(ptr) = allocation.ptr {
                 self.write_field_separator(field_count > 0)?;
-                self.write_field("ptr", &format!("\"0x{:x}\"", ptr))?;
+                self.write_field("ptr", &format!("\"0x{ptr:x}\""))?;
                 field_count += 1;
             }
         } else {
@@ -420,7 +420,7 @@ impl<W: Write> StreamingJsonWriter<W> {
                     let value = match var_name {
                         Some(name) => {
                             let escaped = self.escape_json_string_optimized(name, options);
-                            format!("\"{}\"", escaped)
+                            format!("\"{escaped}\"")
                         }
                         None => "null".to_string(),
                     };
@@ -444,7 +444,7 @@ impl<W: Write> StreamingJsonWriter<W> {
                     let value = match type_name {
                         Some(name) => {
                             let escaped = self.escape_json_string_optimized(name, options);
-                            format!("\"{}\"", escaped)
+                            format!("\"{escaped}\"")
                         }
                         None => "null".to_string(),
                     };
@@ -468,7 +468,7 @@ impl<W: Write> StreamingJsonWriter<W> {
                     let value = match scope_name {
                         Some(name) => {
                             let escaped = self.escape_json_string_optimized(name, options);
-                            format!("\"{}\"", escaped)
+                            format!("\"{escaped}\"")
                         }
                         None => "null".to_string(),
                     };
@@ -508,7 +508,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             if let Some(ref thread_id) = allocation.thread_id {
                 self.write_field_separator(field_count > 0)?;
                 let escaped = self.escape_json_string_optimized(thread_id, options);
-                self.write_field("thread_id", &format!("\"{}\"", escaped))?;
+                self.write_field("thread_id", &format!("\"{escaped}\""))?;
                 field_count += 1;
             }
         } else {
@@ -600,7 +600,7 @@ impl<W: Write> StreamingJsonWriter<W> {
                     clone_info.clone_count,
                     if clone_info.is_clone { "true" } else { "false" },
                     match clone_info.original_ptr {
-                        Some(ptr) => format!("\"0x{:x}\"", ptr),
+                        Some(ptr) => format!("\"0x{ptr:x}\""),
                         None => "null".to_string(),
                     }
                 );
@@ -800,11 +800,11 @@ impl<W: Write> StreamingJsonWriter<W> {
 
         // Write lifecycle event fields
         self.write_indent()?;
-        self.write_field("event", &format!("\"{}\"", event_type))?;
+        self.write_field("event", &format!("\"{event_type}\""))?;
 
         if let Some(ptr) = allocation.ptr {
             self.write_raw(",\n")?;
-            self.write_field("ptr", &format!("\"0x{:x}\"", ptr))?;
+            self.write_field("ptr", &format!("\"0x{ptr:x}\""))?;
         }
 
         if let Some(ref scope_name) = allocation.scope_name {
@@ -1122,7 +1122,7 @@ impl<W: Write> StreamingJsonWriter<W> {
     /// Write a JSON field with key and value
     fn write_field(&mut self, key: &str, value: &str) -> Result<(), BinaryExportError> {
         self.write_indent()?;
-        self.write_raw(&format!("\"{}\": {}", key, value))?;
+        self.write_raw(&format!("\"{key}\": {value}"))?;
         Ok(())
     }
 
@@ -1208,7 +1208,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             // First 5 frames
             for s in trace.iter().take(5) {
                 let escaped = self.escape_json_string_optimized(s, options);
-                trace_json.push(format!("\"{}\"", escaped));
+                trace_json.push(format!("\"{escaped}\""));
             }
 
             // Add ellipsis indicator
@@ -1217,7 +1217,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             // Last 3 frames
             for s in trace.iter().skip(trace.len().saturating_sub(3)) {
                 let escaped = self.escape_json_string_optimized(s, options);
-                trace_json.push(format!("\"{}\"", escaped));
+                trace_json.push(format!("\"{escaped}\""));
             }
 
             Ok(format!("[{}]", trace_json.join(", ")))
@@ -1226,7 +1226,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             let mut trace_json = Vec::new();
             for s in trace {
                 let escaped = self.escape_json_string_optimized(s, options);
-                trace_json.push(format!("\"{}\"", escaped));
+                trace_json.push(format!("\"{escaped}\""));
             }
             Ok(format!("[{}]", trace_json.join(", ")))
         }
@@ -1236,8 +1236,8 @@ impl<W: Write> StreamingJsonWriter<W> {
     fn ensure_state(&self, expected: WriterState) -> Result<(), BinaryExportError> {
         if self.state != expected {
             return Err(BinaryExportError::CorruptedData(format!(
-                "Expected state {:?}, but current state is {:?}",
-                expected, self.state
+                "Expected state {expected:?}, but current state is {:?}",
+                self.state
             )));
         }
         Ok(())
@@ -1256,9 +1256,9 @@ impl<W: Write> StreamingJsonWriter<W> {
             Some(16) => "u128_or_i128_or_complex_struct".to_string(),
             Some(24) => "Vec_or_String_header".to_string(),
             Some(32) => "HashMap_or_BTreeMap_header".to_string(),
-            Some(size) if size >= 1024 => format!("LargeAllocation_{}bytes", size),
-            Some(size) if size % 8 == 0 => format!("AlignedStruct_{}bytes", size),
-            Some(size) => format!("CustomType_{}bytes", size),
+            Some(size) if size >= 1024 => format!("LargeAllocation_{size}bytes"),
+            Some(size) if size % 8 == 0 => format!("AlignedStruct_{size}bytes"),
+            Some(size) => format!("CustomType_{size}bytes"),
             None => "UnknownSizeType".to_string(),
         }
     }
@@ -1279,8 +1279,8 @@ impl<W: Write> StreamingJsonWriter<W> {
 
         // Include pointer address for uniqueness
         match allocation.ptr {
-            Some(ptr) => format!("{}_{:x}", type_hint, ptr),
-            None => format!("{}_no_ptr", type_hint),
+            Some(ptr) => format!("{type_hint}_{ptr:x}"),
+            None => format!("{type_hint}_no_ptr", ),
         }
     }
 }
@@ -1624,7 +1624,7 @@ mod tests {
 
         // Create a long stack trace
         let long_stack_trace: Vec<String> =
-            (0..15).map(|i| format!("function_frame_{}", i)).collect();
+            (0..15).map(|i| format!("function_frame_{i}")).collect();
 
         let allocation = PartialAllocationInfo {
             ptr: Some(0x1000),

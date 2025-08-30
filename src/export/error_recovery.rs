@@ -759,10 +759,10 @@ impl ErrorRecoveryManager {
 
         // reduce parallelism
         config.shard_config.max_threads = Some(2);
-        config.shard_config.shard_size = config.shard_config.shard_size / 2;
+        config.shard_config.shard_size /= 2;
 
         // reduce buffer size
-        config.writer_config.buffer_size = config.writer_config.buffer_size / 2;
+        config.writer_config.buffer_size /= 2;
 
         // enable streaming
         config.enable_data_localization = false;

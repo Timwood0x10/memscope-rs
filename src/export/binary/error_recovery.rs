@@ -531,10 +531,12 @@ mod tests {
 
     #[test]
     fn test_error_statistics() {
-        let mut stats = ErrorStatistics::default();
-        stats.successful_recoveries = 8;
-        stats.failed_recoveries = 2;
-        stats.error_rate = 5.0;
+        let stats = ErrorStatistics {
+            successful_recoveries: 8,
+            failed_recoveries: 2,
+            error_rate: 5.0,
+            ..Default::default()
+        };
 
         assert_eq!(stats.recovery_success_rate(), 0.8);
         assert_eq!(stats.error_trend(), ErrorTrend::Stable);

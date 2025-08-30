@@ -12,6 +12,7 @@ use crate::core::types::{
     AllocationInfo, DropChainNode, DropChainPerformanceMetrics, EnhancedPotentialLeak,
     LeakEvidence, LeakEvidenceType, LeakImpact, LeakRiskLevel, LeakType, MemoryStats,
     ResourceLeakAnalysis, TrackingResult,
+    TrackingError::LockError,
 };
 
 use std::collections::HashMap;
@@ -159,9 +160,8 @@ impl MemoryTracker {
             .safe_lock()
             .map(|active| active.values().cloned().collect())
             .map_err(|e| {
-                crate::core::types::TrackingError::LockError(format!(
-                    "Failed to get active allocations: {}",
-                    e
+                LockError(format!(
+                    "Failed to get active allocations: {e}",
                 ))
             })
     }
@@ -172,9 +172,8 @@ impl MemoryTracker {
             .safe_lock()
             .map(|manager| manager.get_history_vec())
             .map_err(|e| {
-                crate::core::types::TrackingError::LockError(format!(
-                    "Failed to get allocation history: {}",
-                    e
+                LockError(format!(
+                    "Failed to get allocation history: {e}",
                 ))
             })
     }
@@ -612,7 +611,7 @@ impl MemoryTracker {
                 action_type: CleanupActionType::MemoryDeallocation,
                 timestamp,
                 duration_ns: 100, // Estimated
-                resource_description: format!("Heap memory for {}", type_name),
+                resource_description: format!("Heap memory for {type_name}"),
                 success: true,
             });
         }
@@ -642,7 +641,7 @@ impl MemoryTracker {
                 action_type: CleanupActionType::LockRelease,
                 timestamp,
                 duration_ns: 50, // Lock operations are fast
-                resource_description: format!("Lock release for {}", type_name),
+                resource_description: format!("Lock release for {type_name}"),
                 success: true,
             });
         }
@@ -1099,7 +1098,7 @@ impl MemoryTracker {
             100.0 - ((avg_time_per_object - 1000) as f64 / 9000.0) * 100.0
         };
 
-        efficiency.max(0.0).min(100.0)
+        efficiency.clamp(0.0, 100.0)
     }
 
     /// Identify drop performance bottlenecks

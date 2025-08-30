@@ -213,7 +213,7 @@ impl OptimizedRecord {
     /// Format a specific field
     fn format_field(&self, field: &AllocationField) -> Option<String> {
         match field {
-            AllocationField::Ptr => self.allocation.ptr.map(|ptr| format!("\"0x{:x}\"", ptr)),
+            AllocationField::Ptr => self.allocation.ptr.map(|ptr| format!("\"0x{ptr:x}\"")),
             AllocationField::Size => self.allocation.size.map(|size| size.to_string()),
             AllocationField::VarName => {
                 self.allocation
@@ -299,7 +299,7 @@ impl OptimizedRecord {
         let mut usage = std::mem::size_of::<Self>();
 
         // Add preformatted fields memory
-        for (_, value) in &self.preformatted_fields {
+        for value in self.preformatted_fields.values() {
             usage += value.len() + std::mem::size_of::<String>();
         }
 

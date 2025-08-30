@@ -188,7 +188,7 @@ impl ParallelShardProcessor {
         // Use serde_json's efficient API to serialize directly to byte vector
         // This is more reliable than manual formatting and performs well
         serde_json::to_writer(&mut output_buffer, shard).map_err(|e| {
-            TrackingError::ExportError(format!("Shard {} serialization failed: {}", shard_index, e))
+            TrackingError::ExportError(format!("Shard {shard_index} serialization failed: {e}"))
         })?;
 
         let processing_time = shard_start.elapsed();
@@ -201,11 +201,9 @@ impl ParallelShardProcessor {
         if self.config.enable_monitoring && shard_index % 10 == 0 {
             let _processed = self.processed_count.load(Ordering::Relaxed);
             tracing::info!(
-                "   Shard {} completed: {} allocations, {} bytes, {:?}",
-                shard_index,
+                "   Shard {shard_index} completed: {} allocations, {} bytes, {processing_time:?}",
                 shard.len(),
                 output_buffer.len(),
-                processing_time
             );
         }
 

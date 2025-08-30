@@ -6,7 +6,7 @@
 //! 3. unsafe_ffi.json - FFI safety analysis and memory passports
 
 use crate::analysis::unsafe_ffi_tracker::MemoryPassport;
-use crate::core::types::{AllocationInfo, BorrowInfo, CloneInfo, MemoryStats, TrackingResult};
+use crate::core::types::{AllocationInfo, BorrowInfo, CloneInfo, MemoryStats, TrackingResult,TrackingError::{ExportError,SerializationError}};
 use crate::UnsafeReport;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -123,9 +123,8 @@ impl EnhancedJsonExporter {
 
         // Create output directory if it doesn't exist
         std::fs::create_dir_all(output_dir).map_err(|e| {
-            crate::core::types::TrackingError::ExportError(format!(
-                "Failed to create output directory: {}",
-                e
+            ExportError(format!(
+                "Failed to create output directory: {e}",
             ))
         })?;
 
@@ -341,7 +340,7 @@ impl EnhancedJsonExporter {
                 let mut borrow_details = HashMap::new();
                 borrow_details.insert(
                     "borrower_scope".to_string(),
-                    serde_json::Value::String(format!("scope_{}", i)),
+                    serde_json::Value::String(format!("scope_{i}")),
                 );
 
                 ownership_history.push(OwnershipEvent {
@@ -384,14 +383,13 @@ impl EnhancedJsonExporter {
             serde_json::to_string(data)
         }
         .map_err(|e| {
-            crate::core::types::TrackingError::SerializationError(format!(
-                "Failed to serialize JSON: {}",
-                e
+            SerializationError(format!(
+                "Failed to serialize JSON: {e}",
             ))
         })?;
 
         std::fs::write(&path, json_string).map_err(|e| {
-            crate::core::types::TrackingError::ExportError(format!(
+            ExportError(format!(
                 "Failed to write file {}: {}",
                 path.as_ref().display(),
                 e

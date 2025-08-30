@@ -616,12 +616,12 @@ impl VariableRelationshipAnalyzer {
         self.relationship_detector
             .type_map
             .entry(type_name)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(node_id.clone());
         self.relationship_detector
             .scope_map
             .entry(scope)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(node_id.clone());
         self.relationship_detector
             .temporal_order
@@ -750,7 +750,7 @@ impl VariableRelationshipAnalyzer {
             NodeCategory::Custom => "#607D8B".to_string(), // Blue Grey
         };
 
-        let css_class = format!("node-{:?}", category).to_lowercase();
+        let css_class = format!("node-{category:?}").to_lowercase();
 
         NodeVisual {
             x: None,
@@ -808,7 +808,7 @@ impl VariableRelationshipAnalyzer {
 
     /// Detect type relationships
     fn detect_type_relationships(&mut self) -> Result<(), BinaryExportError> {
-        for (_type_name, node_ids) in &self.relationship_detector.type_map {
+        for node_ids in self.relationship_detector.type_map.values() {
             if node_ids.len() > 1 {
                 // Create type similarity relationships
                 for i in 0..node_ids.len() {
@@ -830,7 +830,7 @@ impl VariableRelationshipAnalyzer {
 
     /// Detect scope relationships
     fn detect_scope_relationships(&mut self) -> Result<(), BinaryExportError> {
-        for (_scope_name, node_ids) in &self.relationship_detector.scope_map {
+        for node_ids in self.relationship_detector.scope_map.values() {
             if node_ids.len() > 1 {
                 // Create containment relationships within same scope
                 for i in 0..node_ids.len() {
@@ -969,7 +969,7 @@ impl VariableRelationshipAnalyzer {
             color,
             opacity: (strength * 0.8).max(0.3),
             style,
-            css_class: format!("edge-{:?}", relationship).to_lowercase(),
+            css_class: format!("edge-{relationship:?}").to_lowercase(),
             marker: Some("arrow".to_string()),
         }
     }

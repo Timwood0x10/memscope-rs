@@ -301,10 +301,10 @@ impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ValidationError::FileAccessError { file_path, error } => {
-                write!(f, "file access error for {}: {}", file_path, error)
+                write!(f, "file access error for {file_path}: {error}")
             }
             ValidationError::JsonParsingError { file_path, error } => {
-                write!(f, "JSON parsing error in {}: {}", file_path, error)
+                write!(f, "JSON parsing error in {file_path}: {error}")
             }
             ValidationError::TimeoutError {
                 file_path,
@@ -312,18 +312,17 @@ impl fmt::Display for ValidationError {
             } => {
                 write!(
                     f,
-                    "validation timeout for {} after {:?}",
-                    file_path, timeout_duration
+                    "validation timeout for {file_path} after {timeout_duration:?}",
                 )
             }
             ValidationError::CancelledError { file_path, reason } => {
-                write!(f, "validation cancelled for {}: {}", file_path, reason)
+                write!(f, "validation cancelled for {file_path}: {reason}")
             }
             ValidationError::ConfigurationError { error } => {
-                write!(f, "validation configuration error: {}", error)
+                write!(f, "validation configuration error: {error}")
             }
             ValidationError::InternalError { error } => {
-                write!(f, "internal validation error: {}", error)
+                write!(f, "internal validation error: {error}")
             }
         }
     }
@@ -608,17 +607,9 @@ impl PerformanceLogger {
 
     /// check if should log
     fn should_log(&self, level: LogLevel) -> bool {
-        match (&self.log_level, &level) {
-            (LogLevel::Error, LogLevel::Error) => true,
-            (LogLevel::Warn, LogLevel::Error | LogLevel::Warn) => true,
-            (LogLevel::Info, LogLevel::Error | LogLevel::Warn | LogLevel::Info) => true,
-            (
-                LogLevel::Debug,
-                LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug,
-            ) => true,
-            (LogLevel::Trace, _) => true,
-            _ => false,
-        }
+        matches!((&self.log_level, &level),
+            (LogLevel::Error, LogLevel::Error)|(LogLevel::Warn, LogLevel::Error | LogLevel::Warn)|(LogLevel::Info, LogLevel::Error | LogLevel::Warn | LogLevel::Info)|(LogLevel::Debug, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug)|(LogLevel::Trace, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug | LogLevel::Trace)
+        )
     }
 
     /// format timestamp

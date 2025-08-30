@@ -649,23 +649,23 @@ impl SelectiveJsonExporter {
         let mut results = Vec::new();
 
         // Export memory_analysis.json
-        let memory_path = output_dir.join(format!("{}_memory_analysis.json", base_name));
+        let memory_path = output_dir.join(format!("{base_name}_memory_analysis.json"));
         results.push(self.export_memory_analysis_json(&binary_path, &memory_path)?);
 
         // Export lifetime.json
-        let lifetime_path = output_dir.join(format!("{}_lifetime.json", base_name));
+        let lifetime_path = output_dir.join(format!("{base_name}_lifetime.json"));
         results.push(self.export_lifetime_json(&binary_path, &lifetime_path)?);
 
         // Export performance.json
-        let performance_path = output_dir.join(format!("{}_performance.json", base_name));
+        let performance_path = output_dir.join(format!("{base_name}_performance.json"));
         results.push(self.export_performance_json(&binary_path, &performance_path)?);
 
         // Export unsafe_ffi.json
-        let unsafe_ffi_path = output_dir.join(format!("{}_unsafe_ffi.json", base_name));
+        let unsafe_ffi_path = output_dir.join(format!("{base_name}_unsafe_ffi.json"));
         results.push(self.export_unsafe_ffi_json(&binary_path, &unsafe_ffi_path)?);
 
         // Export complex_types.json
-        let complex_types_path = output_dir.join(format!("{}_complex_types.json", base_name));
+        let complex_types_path = output_dir.join(format!("{base_name}_complex_types.json"));
         results.push(self.export_complex_types_json(&binary_path, &complex_types_path)?);
 
         Ok(results)

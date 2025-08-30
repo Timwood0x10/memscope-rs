@@ -399,23 +399,20 @@ impl ConsoleProgressDisplay {
         };
 
         let time_info = if let Some(remaining) = progress.estimated_remaining {
-            format!(" Remaining: {:?}", remaining)
+            format!(" Remaining: {remaining:?}")
         } else {
             String::new()
         };
 
         let line = format!(
-            "{} {:.1}% {} ({}/{}){}{}",
-            progress_bar,
+            "{progress_bar} {:.1}% {} ({}/{}){speed_info}{time_info}",
             progress.overall_progress * 100.0,
             progress.current_stage.description(),
             progress.processed_allocations,
             progress.total_allocations,
-            speed_info,
-            time_info
         );
 
-        print!("{}", line);
+        print!("{line}");
         std::io::Write::flush(&mut std::io::stdout()).ok();
 
         self.last_line_length = line.len();

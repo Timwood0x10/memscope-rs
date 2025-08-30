@@ -161,7 +161,7 @@ pub fn export_comprehensive_analysis_optimized<P: AsRef<Path>>(
         .unwrap_or("memory_analysis");
 
     let mut result = ComplexTypeExportResult {
-        main_file: format!("{}.json", base_name),
+        main_file: format!("{base_name}.json"),
         complex_types_file: None,
         borrow_analysis_file: None,
         generic_analysis_file: None,
@@ -186,51 +186,44 @@ pub fn export_comprehensive_analysis_optimized<P: AsRef<Path>>(
     if config.separate_complex_types {
         // 2. Export complex type analysis
         if should_export_complex_types(&report.advanced_type_analysis) {
-            let complex_file_path =
-                base_path.with_file_name(format!("{}_complex_types.json", base_name));
+            let complex_file_path = base_path.with_file_name(format!("{base_name}_complex_types.json"));
             export_json_data(&report.advanced_type_analysis, &complex_file_path, config)?;
             result.complex_types_file = Some(complex_file_path.to_string_lossy().to_string());
         }
 
         // 3. Export borrow analysis
         if should_export_borrow_analysis(&report.borrow_analysis) {
-            let borrow_file_path =
-                base_path.with_file_name(format!("{}_borrow_analysis.json", base_name));
+            let borrow_file_path = base_path.with_file_name(format!("{base_name}_borrow_analysis.json"));
             export_json_data(&report.borrow_analysis, &borrow_file_path, config)?;
             result.borrow_analysis_file = Some(borrow_file_path.to_string_lossy().to_string());
         }
 
         // 4. Export generic analysis
         if should_export_generic_analysis(&report.generic_analysis) {
-            let generic_file_path =
-                base_path.with_file_name(format!("{}_generic_analysis.json", base_name));
+            let generic_file_path = base_path.with_file_name(format!("{base_name}_generic_analysis.json"));
             export_json_data(&report.generic_analysis, &generic_file_path, config)?;
             result.generic_analysis_file = Some(generic_file_path.to_string_lossy().to_string());
         }
 
         // 5. Export async analysis
         if should_export_async_analysis(&report.async_analysis) {
-            let async_file_path =
-                base_path.with_file_name(format!("{}_async_analysis.json", base_name));
+            let async_file_path = base_path.with_file_name(format!("{base_name}_async_analysis.json"));
             export_json_data(&report.async_analysis, &async_file_path, config)?;
             result.async_analysis_file = Some(async_file_path.to_string_lossy().to_string());
         }
 
         // 6. Export closure analysis
         if should_export_closure_analysis(&report.closure_analysis) {
-            let closure_file_path =
-                base_path.with_file_name(format!("{}_closure_analysis.json", base_name));
+            let closure_file_path = base_path.with_file_name(format!("{base_name}_closure_analysis.json"));
             export_json_data(&report.closure_analysis, &closure_file_path, config)?;
             result.closure_analysis_file = Some(closure_file_path.to_string_lossy().to_string());
         }
 
         // 7. Export lifecycle analysis
         if should_export_lifecycle_analysis(&report.lifecycle_analysis) {
-            let lifecycle_file_path =
-                base_path.with_file_name(format!("{}_lifecycle_analysis.json", base_name));
+            let lifecycle_file_path = base_path.with_file_name(format!("{base_name}_lifecycle_analysis.json"));
             export_json_data(&report.lifecycle_analysis, &lifecycle_file_path, config)?;
-            result.lifecycle_analysis_file =
-                Some(lifecycle_file_path.to_string_lossy().to_string());
+            result.lifecycle_analysis_file = Some(lifecycle_file_path.to_string_lossy().to_string());
         }
     }
 

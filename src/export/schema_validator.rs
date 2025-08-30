@@ -273,7 +273,7 @@ impl SchemaValidator {
             if !schema_version.is_supported {
                 errors.push(ValidationError {
                     code: "UNSUPPORTED_SCHEMA_VERSION".to_string(),
-                    message: format!("Schema version {} is not supported", version),
+                    message: format!("Schema version {version} is not supported"),
                     path: "metadata.schema_version".to_string(),
                     severity: ErrorSeverity::Critical,
                     suggested_fix: Some("Use a supported schema version".to_string()),
@@ -282,7 +282,7 @@ impl SchemaValidator {
         } else {
             errors.push(ValidationError {
                 code: "UNKNOWN_SCHEMA_VERSION".to_string(),
-                message: format!("Unknown schema version: {}", version),
+                message: format!("Unknown schema version: {version}"),
                 path: "metadata.schema_version".to_string(),
                 severity: ErrorSeverity::Critical,
                 suggested_fix: Some("Use a supported schema version".to_string()),
@@ -304,7 +304,7 @@ impl SchemaValidator {
             .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
         let hash = self.simple_hash(&canonical_json);
-        Ok(format!("{:x}", hash))
+        Ok(format!("{hash:x}"))
     }
 
     /// Verify data integrity using provided hash
@@ -464,7 +464,7 @@ impl SchemaValidator {
                 if !known_sections.contains(&key.as_str()) {
                     warnings.push(ValidationWarning {
                         warning_code: "UNKNOWN_SECTION".to_string(),
-                        message: format!("Unknown section: {}", key),
+                        message: format!("Unknown section: {key}"),
                         path: key.clone(),
                         suggestion: Some("Remove unknown sections or update schema".to_string()),
                     });
@@ -499,10 +499,10 @@ impl SchemaValidator {
             if unsafe_analysis.get(field).is_none() {
                 errors.push(ValidationError {
                     code: "MISSING_REQUIRED_FIELD".to_string(),
-                    message: format!("Required field '{}' is missing in unsafe_analysis", field),
-                    path: format!("unsafe_analysis.{}", field),
+                    message: format!("Required field '{field}' is missing in unsafe_analysis"),
+                    path: format!("unsafe_analysis.{field}"),
                     severity: ErrorSeverity::Critical,
-                    suggested_fix: Some(format!("Add required field '{}'", field)),
+                    suggested_fix: Some(format!("Add required field '{field}'")),
                 });
             }
         }
@@ -534,10 +534,10 @@ impl SchemaValidator {
             if ffi_analysis.get(field).is_none() {
                 errors.push(ValidationError {
                     code: "MISSING_REQUIRED_FIELD".to_string(),
-                    message: format!("Required field '{}' is missing in ffi_analysis", field),
-                    path: format!("ffi_analysis.{}", field),
+                    message: format!("Required field '{field}' is missing in ffi_analysis"),
+                    path: format!("ffi_analysis.{field}"),
                     severity: ErrorSeverity::Critical,
-                    suggested_fix: Some(format!("Add required field '{}'", field)),
+                    suggested_fix: Some(format!("Add required field '{field}'")),
                 });
             }
         }
@@ -647,7 +647,7 @@ impl SchemaValidator {
             if schema_version.backward_compatible_with.is_empty() {
                 warnings.push(ValidationWarning {
                     warning_code: "NO_BACKWARD_COMPATIBILITY".to_string(),
-                    message: format!("Schema version {} has no backward compatibility", version),
+                    message: format!("Schema version {version} has no backward compatibility"),
                     path: "metadata.schema_version".to_string(),
                     suggestion: Some("Consider using a more recent schema version".to_string()),
                 });
@@ -699,16 +699,18 @@ pub struct ValidationMetrics {
 impl SchemaValidator {
     /// Create a validator with strict mode enabled
     pub fn strict() -> Self {
-        let mut config = SchemaValidatorConfig::default();
-        config.strict_mode = true;
-        Self::with_config(config)
+        Self::with_config(SchemaValidatorConfig {
+            strict_mode: true,
+            ..Default::default()
+        })
     }
 
     /// Create a validator with integrity checking disabled
     pub fn without_integrity_check() -> Self {
-        let mut config = SchemaValidatorConfig::default();
-        config.enable_integrity_check = false;
-        Self::with_config(config)
+        Self::with_config(SchemaValidatorConfig {
+            enable_integrity_check: false,
+            ..Default::default()
+        })
     }
 }
 

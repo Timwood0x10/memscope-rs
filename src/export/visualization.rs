@@ -1498,14 +1498,14 @@ fn add_dashboard_header(
 
     // Metrics cards
     let metrics = [
-        ("Unsafe Allocations", unsafe_count.clone(), "#e74c3c"),
-        ("FFI Allocations", ffi_count.clone(), "#3498db"),
+        ("Unsafe Allocations", unsafe_count, "#e74c3c"),
+        ("FFI Allocations", ffi_count, "#3498db"),
         (
             "Boundary Crossings",
-            cross_boundary_events.clone(),
+            cross_boundary_events,
             "#f39c12",
         ),
-        ("Safety Violations", violations.len().clone(), "#e67e22"),
+        ("Safety Violations", violations.len(), "#e67e22"),
         ("Unsafe Memory", total_unsafe_memory, "#9b59b6"),
     ];
 
@@ -1527,7 +1527,7 @@ fn add_dashboard_header(
         document = document.add(card);
 
         // Value
-        let value_text = SvgText::new(&value.to_string())
+        let value_text = SvgText::new(value.to_string())
             .set("x", x)
             .set("y", y - 5)
             .set("text-anchor", "middle")
@@ -1632,7 +1632,7 @@ fn add_allocation_source_breakdown(
             document = document.add(bar);
 
             // Count label
-            let count_text = SvgText::new(&count.to_string())
+            let count_text = SvgText::new(count.to_string())
                 .set("x", x + 20)
                 .set("y", y - bar_height - 5)
                 .set("text-anchor", "middle")
@@ -1852,7 +1852,7 @@ fn add_boundary_crossing_flow(
             .set("marker-end", "url(#arrowhead)");
         document = document.add(arrow);
 
-        let count_text = SvgText::new(&rust_to_ffi.to_string())
+        let count_text = SvgText::new(rust_to_ffi.to_string())
             .set("x", start_x + 300)
             .set("y", start_y + 75)
             .set("text-anchor", "middle")
@@ -1863,7 +1863,7 @@ fn add_boundary_crossing_flow(
     }
 
     if ffi_to_rust > 0 {
-        let count_text = SvgText::new(&ffi_to_rust.to_string())
+        let count_text = SvgText::new(ffi_to_rust.to_string())
             .set("x", start_x + 300)
             .set("y", start_y + 135)
             .set("text-anchor", "middle")

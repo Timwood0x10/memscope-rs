@@ -79,7 +79,7 @@ impl BinaryWriter {
         let stats = table.compression_stats();
 
         // Only use string table if it provides meaningful compression
-        if stats.space_saved() > 0 && table.len() > 0 {
+        if stats.space_saved() > 0 && !table.is_empty() {
             tracing::debug!(
                 "String table built: {} strings, {:.1}% space savings",
                 table.len(),
@@ -766,7 +766,7 @@ impl BinaryWriter {
         match field {
             Some(value) => {
                 let json_str = serde_json::to_string(value).map_err(|e| {
-                    BinaryExportError::CorruptedData(format!("JSON serialization failed: {}", e))
+                    BinaryExportError::CorruptedData(format!("JSON serialization failed: {e}"))
                 })?;
                 self.writer.write_all(&1u8.to_le_bytes())?; // has value
                 self.write_string(&json_str)?;

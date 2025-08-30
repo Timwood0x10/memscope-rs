@@ -170,7 +170,7 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
             } else if clean_type
                 .chars()
                 .next()
-                .map_or(false, |c| c.is_uppercase())
+                .is_some_and(|c| c.is_uppercase())
             {
                 // Starts with uppercase, likely a struct/enum
                 "Custom Types"
@@ -474,8 +474,8 @@ fn find_matching_bracket(s: &str, start: usize) -> Option<usize> {
     }
 
     let mut depth = 1;
-    for i in (start + 1)..chars.len() {
-        match chars[i] {
+    for (i,item) in chars.iter().enumerate().skip(start + 1) {
+        match item {
             '<' => depth += 1,
             '>' => {
                 depth -= 1;

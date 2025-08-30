@@ -157,7 +157,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         };
 
         self.write_raw("{\n")?;
-        self.write_raw(&format!("\"metadata\": {},\n", header_json))?;
+        self.write_raw(&format!("\"metadata\": {header_json},\n"))?;
 
         Ok(())
     }
@@ -184,7 +184,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.risk_distribution)?
         };
-        self.write_raw(&format!("\"risk_distribution\": {},\n", risk_json))?;
+        self.write_raw(&format!("\"risk_distribution\": {risk_json},\n"))?;
 
         // Write unsafe blocks
         let blocks_json = if self.config.pretty_print {
@@ -192,7 +192,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.unsafe_blocks)?
         };
-        self.write_raw(&format!("\"unsafe_blocks\": {},\n", blocks_json))?;
+        self.write_raw(&format!("\"unsafe_blocks\": {blocks_json},\n"))?;
 
         // Stream allocations in chunks
         self.write_raw("\"allocations\": [\n")?;
@@ -205,7 +205,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.performance_metrics)?
         };
-        self.write_raw(&format!("\"performance_metrics\": {}\n", metrics_json))?;
+        self.write_raw(&format!("\"performance_metrics\": {metrics_json}\n"))?;
 
         self.write_raw("},\n")?;
 
@@ -231,7 +231,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.libraries_involved)?
         };
-        self.write_raw(&format!("\"libraries_involved\": {},\n", libraries_json))?;
+        self.write_raw(&format!("\"libraries_involved\": {libraries_json},\n"))?;
 
         // Write hook statistics
         let hook_stats_json = if self.config.pretty_print {
@@ -239,7 +239,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.hook_statistics)?
         };
-        self.write_raw(&format!("\"hook_statistics\": {},\n", hook_stats_json))?;
+        self.write_raw(&format!("\"hook_statistics\": {hook_stats_json},\n"))?;
 
         // Stream allocations in chunks
         self.write_raw("\"allocations\": [\n")?;
@@ -252,7 +252,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.performance_metrics)?
         };
-        self.write_raw(&format!("\"performance_metrics\": {}\n", metrics_json))?;
+        self.write_raw(&format!("\"performance_metrics\": {metrics_json}\n"))?;
 
         self.write_raw("},\n")?;
 
@@ -280,7 +280,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.transfer_patterns)?
         };
-        self.write_raw(&format!("\"transfer_patterns\": {},\n", patterns_json))?;
+        self.write_raw(&format!("\"transfer_patterns\": {patterns_json},\n"))?;
 
         // Write risk analysis
         let risk_json = if self.config.pretty_print {
@@ -288,7 +288,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.risk_analysis)?
         };
-        self.write_raw(&format!("\"risk_analysis\": {},\n", risk_json))?;
+        self.write_raw(&format!("\"risk_analysis\": {risk_json},\n"))?;
 
         // Stream events in chunks
         self.write_raw("\"events\": [\n")?;
@@ -301,7 +301,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&data.performance_impact)?
         };
-        self.write_raw(&format!("\"performance_impact\": {}\n", impact_json))?;
+        self.write_raw(&format!("\"performance_impact\": {impact_json}\n"))?;
 
         self.write_raw("},\n")?;
 
@@ -325,7 +325,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         } else {
             serde_json::to_string(&severity_breakdown)?
         };
-        self.write_raw(&format!("\"severity_breakdown\": {},\n", severity_json))?;
+        self.write_raw(&format!("\"severity_breakdown\": {severity_json},\n"))?;
 
         // Stream violations in chunks
         self.write_raw("\"violations\": [\n")?;

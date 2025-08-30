@@ -426,9 +426,11 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let mut config = BinaryExportConfig::default();
-        config.buffer_size = 100; // Too small
-        config.compression_level = 15; // Too high
+        let mut config = BinaryExportConfig{
+            buffer_size: 100,
+            compression_level: 15,
+            ..Default::default()
+        };
 
         let warnings = config.validate_and_fix();
         assert!(!warnings.is_empty());

@@ -387,13 +387,11 @@ impl FastExportCoordinator {
             let validation_result = self
                 .quality_validator
                 .validate_source_data(&localized_data)?;
-            if !validation_result.is_valid {
-                if self.config.verbose_logging {
-                    tracing::info!(
-                        "⚠️ Source data validation failed: {}",
-                        validation_result.message
-                    );
-                }
+            if !validation_result.is_valid && self.config.verbose_logging {
+                tracing::info!(
+                    "⚠️ Source data validation failed: {}",
+                    validation_result.message
+                );
             }
         }
 
@@ -405,13 +403,11 @@ impl FastExportCoordinator {
             let validation_result = self
                 .quality_validator
                 .validate_processed_shards(&processed_shards, localized_data.allocations.len())?;
-            if !validation_result.is_valid {
-                if self.config.verbose_logging {
-                    tracing::info!(
-                        "⚠️ Processed shard validation failed: {}",
-                        validation_result.message
-                    );
-                }
+            if !validation_result.is_valid && self.config.verbose_logging {
+                tracing::info!(
+                    "⚠️ Processed shard validation failed: {}",
+                    validation_result.message
+                );
             }
         }
 
@@ -425,13 +421,11 @@ impl FastExportCoordinator {
                 &output_path.as_ref().to_string_lossy(),
                 localized_data.allocations.len(),
             )?;
-            if !validation_result.is_valid {
-                if self.config.verbose_logging {
-                    tracing::info!(
-                        "⚠️ Output file validation failed: {}",
-                        validation_result.message
-                    );
-                }
+            if !validation_result.is_valid && self.config.verbose_logging {
+                tracing::info!(
+                    "⚠️ Output file validation failed: {}",
+                    validation_result.message
+                );
             }
         }
 

@@ -281,14 +281,14 @@ impl fmt::Display for MemScopeError {
                     message
                 )?;
                 if let Some(ctx) = context {
-                    write!(f, " (context: {})", ctx)?;
+                    write!(f, " (context: {ctx})")?;
                 }
                 Ok(())
             }
             Self::Analysis {
                 analyzer, message, ..
             } => {
-                write!(f, "Analysis error in {}: {}", analyzer, message)
+                write!(f, "Analysis error in {analyzer}: {message}")
             }
             Self::Export {
                 format,
@@ -296,13 +296,13 @@ impl fmt::Display for MemScopeError {
                 partial_success,
             } => {
                 if *partial_success {
-                    write!(f, "Partial export error ({}): {}", format, message)
+                    write!(f, "Partial export error ({format}): {message}")
                 } else {
-                    write!(f, "Export error ({}): {}", format, message)
+                    write!(f, "Export error ({format}): {message}")
                 }
             }
             Self::Configuration { component, message } => {
-                write!(f, "Configuration error in {}: {}", component, message)
+                write!(f, "Configuration error in {component}: {message}")
             }
             Self::System {
                 error_type,
@@ -324,14 +324,14 @@ impl fmt::Display for MemScopeError {
                     message
                 )?;
                 if let Some(source) = source_message {
-                    write!(f, " (source: {})", source)?;
+                    write!(f, " (source: {source})")?;
                 }
                 Ok(())
             }
             Self::Internal { message, location } => {
-                write!(f, "Internal error: {}", message)?;
+                write!(f, "Internal error: {message}")?;
                 if let Some(loc) = location {
-                    write!(f, " at {}", loc)?;
+                    write!(f, " at {loc}")?;
                 }
                 Ok(())
             }
@@ -346,7 +346,7 @@ impl From<std::io::Error> for MemScopeError {
     fn from(err: std::io::Error) -> Self {
         Self::system_with_source(
             SystemErrorType::Io,
-            format!("I/O operation failed: {}", err),
+            format!("I/O operation failed: {err}"),
             err,
         )
     }
@@ -356,7 +356,7 @@ impl From<serde_json::Error> for MemScopeError {
     fn from(err: serde_json::Error) -> Self {
         Self::system_with_source(
             SystemErrorType::Serialization,
-            format!("JSON serialization failed: {}", err),
+            format!("JSON serialization failed: {err}"),
             err,
         )
     }
@@ -540,7 +540,7 @@ mod tests {
             "in test function",
         );
 
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(display.contains("Memory allocation error"));
         assert!(display.contains("allocation failed"));
         assert!(display.contains("context: in test function"));

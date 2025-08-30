@@ -76,7 +76,7 @@ impl HighSpeedBufferedWriter {
     /// Create a new high-speed buffered writer
     pub fn new<P: AsRef<Path>>(path: P, config: HighSpeedWriterConfig) -> TrackingResult<Self> {
         let file = File::create(path.as_ref())
-            .map_err(|e| TrackingError::IoError(format!("create file failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("create file failed: {e}")))?;
 
         let writer = BufWriter::with_capacity(config.buffer_size, file);
 
@@ -136,7 +136,7 @@ impl HighSpeedBufferedWriter {
         // Write to file
         self.writer
             .write_all(&self.internal_buffer)
-            .map_err(|e| TrackingError::IoError(format!("write file failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("write file failed: {e}")))?;
 
         // flush cache
         if self.config.auto_flush {
@@ -221,7 +221,7 @@ impl HighSpeedBufferedWriter {
         // Write to file
         self.writer
             .write_all(&self.internal_buffer)
-            .map_err(|e| TrackingError::IoError(format!("write custom JSON failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("write custom JSON failed: {e}")))?;
 
         if self.config.auto_flush {
             self.flush()?;
@@ -250,7 +250,7 @@ impl HighSpeedBufferedWriter {
     pub fn flush(&mut self) -> TrackingResult<()> {
         self.writer
             .flush()
-            .map_err(|e| TrackingError::IoError(format!("flush buffer failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("flush buffer failed: {e}")))?;
 
         self.flush_count += 1;
         self.stats.flush_count = self.flush_count;

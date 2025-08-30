@@ -656,7 +656,7 @@ mod tests {
         let data = binary_data.expect("Failed to get test value");
         assert_eq!(data.size, 1024);
         assert_eq!(data.type_name, "Vec<u8>");
-        assert_eq!(data.is_active, true);
+        assert!(data.is_active);
     }
 
     #[test]
@@ -710,10 +710,12 @@ mod tests {
 
     #[test]
     fn test_stats_calculation() {
-        let mut stats = BinaryHtmlStats::default();
-        stats.allocations_processed = 1000;
-        stats.total_processing_time_ms = 500;
-        stats.peak_memory_usage = 1024 * 1024; // 1MB
+        let stats = BinaryHtmlStats {
+            allocations_processed: 1000,
+            total_processing_time_ms: 500,
+            peak_memory_usage: 1024 * 1024, // 1MB
+            ..Default::default()
+        };
 
         assert_eq!(stats.processing_throughput(), 2000.0); // 2000 allocations/sec
         assert_eq!(stats.memory_efficiency_ratio(), 1000.0); // 1000 allocations/MB

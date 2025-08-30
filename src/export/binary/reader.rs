@@ -680,7 +680,7 @@ impl BinaryReader {
         if self.read_u8()? == 1 {
             let json_str = self.read_string()?;
             let value = serde_json::from_str(&json_str).map_err(|e| {
-                BinaryExportError::CorruptedData(format!("JSON deserialization failed: {}", e))
+                BinaryExportError::CorruptedData(format!("JSON deserialization failed: {e}"))
             })?;
             Ok(Some(value))
         } else {

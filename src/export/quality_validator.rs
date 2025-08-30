@@ -257,7 +257,7 @@ impl ExportModeManager {
     /// Get current settings
     pub fn get_settings(&self) -> (ExportMode, usize, u64) {
         (
-            self.default_mode.clone(),
+            self.default_mode,
             self.auto_threshold,
             self.performance_threshold_ms,
         )
@@ -941,9 +941,9 @@ impl QualityValidator {
             if allocation.size == 0 {
                 issues.push(ValidationIssue {
                     issue_type: IssueType::InvalidFormat,
-                    description: format!("Allocation {} has size 0", index),
+                    description: format!("Allocation {index} has size 0"),
                     severity: IssueSeverity::Medium,
-                    affected_data: format!("allocation[{}]", index),
+                    affected_data: format!("allocation[{index}]"),
                     suggested_fix: Some("Check allocation tracking logic".to_string()),
                     auto_fixable: false,
                 });
@@ -955,11 +955,10 @@ impl QualityValidator {
                     issues.push(ValidationIssue {
                         issue_type: IssueType::InconsistentData,
                         description: format!(
-                            "Allocation {} deallocation time is before allocation time",
-                            index
+                            "Allocation {index} deallocation time is before allocation time",
                         ),
                         severity: IssueSeverity::High,
-                        affected_data: format!("allocation[{}]", index),
+                        affected_data: format!("allocation[{index}]"),
                         suggested_fix: Some("Check timestamp generation logic".to_string()),
                         auto_fixable: false,
                     });
@@ -1049,13 +1048,13 @@ impl QualityValidator {
                         issue_type: IssueType::InvalidFormat,
                         description: format!("Shard {index} JSON parsing failed: {e}"),
                         severity: IssueSeverity::Critical,
-                        affected_data: format!("shard[{}]", index),
+                        affected_data: format!("shard[{index}]"),
                         suggested_fix: Some("Check JSON serialization logic".to_string()),
                         auto_fixable: false,
                     });
                 }
             }
-        }
+        }   
 
         Ok(())
     }
@@ -1322,7 +1321,7 @@ impl QualityValidator {
             .stats
             .validation_type_stats
             .entry(result.validation_type.clone())
-            .or_insert_with(ValidationTypeStats::default);
+            .or_default();
 
         type_stats.executions += 1;
         if result.is_valid {
@@ -1598,7 +1597,7 @@ impl AsyncValidator {
             .stats
             .validation_type_stats
             .entry(result.validation_type.clone())
-            .or_insert_with(ValidationTypeStats::default);
+            .or_default();
 
         type_stats.executions += 1;
         if result.is_valid {
@@ -2407,8 +2406,7 @@ impl EnhancedStreamingValidator {
             issues_found: 0,
             current_chunk: 0,
             total_chunks: if total_bytes > 0 {
-                (total_bytes as usize + self.streaming_config.chunk_size - 1)
-                    / self.streaming_config.chunk_size
+                (total_bytes as usize).div_ceil(self.streaming_config.chunk_size)
             } else {
                 0
             },

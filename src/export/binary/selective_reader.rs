@@ -444,31 +444,17 @@ impl AllocationFilter {
             }
             Self::ThreadEquals(thread) => allocation.thread_id == *thread,
             Self::ThreadContains(pattern) => allocation.thread_id.contains(pattern),
-            Self::TypeEquals(type_name) => allocation
-                .type_name
-                .as_ref()
-                .map_or(false, |t| t == type_name),
-            Self::TypeContains(pattern) => allocation
-                .type_name
-                .as_ref()
-                .map_or(false, |t| t.contains(pattern)),
-            Self::VarNameContains(pattern) => allocation
-                .var_name
-                .as_ref()
-                .map_or(false, |v| v.contains(pattern)),
-            Self::ScopeNameContains(pattern) => allocation
-                .scope_name
-                .as_ref()
-                .map_or(false, |s| s.contains(pattern)),
+            Self::TypeEquals(type_name) => allocation.type_name.as_ref() == Some(type_name),
+            Self::TypeContains(pattern) => allocation.type_name.as_ref().is_some_and(|t| t.contains(pattern)),
+            Self::VarNameContains(pattern) => allocation.var_name.as_ref().is_some_and(|v| v.contains(pattern)),
+            Self::ScopeNameContains(pattern) => allocation.scope_name.as_ref().is_some_and(|s| s.contains(pattern)),
             Self::HasStackTrace => allocation.stack_trace.is_some(),
             Self::NoStackTrace => allocation.stack_trace.is_none(),
             Self::LeakedOnly => allocation.is_leaked,
             Self::NotLeaked => !allocation.is_leaked,
             Self::MinBorrowCount(min) => allocation.borrow_count >= *min,
             Self::MaxBorrowCount(max) => allocation.borrow_count <= *max,
-            Self::LifetimeRange(min, max) => allocation
-                .lifetime_ms
-                .map_or(false, |lifetime| lifetime >= *min && lifetime <= *max),
+            Self::LifetimeRange(min, max) => allocation.lifetime_ms.is_some_and(|lifetime| lifetime >= *min && lifetime <= *max),
         }
     }
 }
@@ -1531,20 +1517,19 @@ mod selective_reader_tests {
         let file_size = std::fs::metadata(test_file.path())
             .expect("Test operation failed")
             .len();
-        println!("Binary file size: {} bytes", file_size);
+        println!("Binary file size: {file_size} bytes");
 
         // Read the file header manually
         let mut file = std::fs::File::open(test_file.path()).expect("Test operation failed");
         let mut header_bytes = [0u8; 16];
         std::io::Read::read_exact(&mut file, &mut header_bytes).expect("Test operation failed");
-        println!("Header bytes: {:?}", header_bytes);
+        println!("Header bytes: {header_bytes:?}");
 
         // Read string table marker
         let mut marker = [0u8; 4];
         std::io::Read::read_exact(&mut file, &mut marker).expect("Test operation failed");
         println!(
-            "String table marker: {:?} ({})",
-            marker,
+            "String table marker: {marker:?} ({})",
             String::from_utf8_lossy(&marker)
         );
 
@@ -1552,15 +1537,12 @@ mod selective_reader_tests {
         let mut size_bytes = [0u8; 4];
         std::io::Read::read_exact(&mut file, &mut size_bytes).expect("Test operation failed");
         let table_size = u32::from_le_bytes(size_bytes);
-        println!("String table size: {}", table_size);
+        println!("String table size: {table_size}");
 
         // Current position should be where allocation records start
         let current_pos = std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0))
             .expect("Failed to get test value");
-        println!(
-            "Current position after string table header: {}",
-            current_pos
-        );
+        println!("Current position after string table header: {current_pos}");
 
         // Skip string table data if any
         if table_size > 0 {
@@ -1569,15 +1551,14 @@ mod selective_reader_tests {
             let pos_after_table = std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0))
                 .expect("Operation failed");
             println!(
-                "Position after skipping string table data: {}",
-                pos_after_table
+                "Position after skipping string table data: {pos_after_table}"
             );
         }
 
         // Try to read the first allocation record
         let mut record_type = [0u8; 1];
         if std::io::Read::read_exact(&mut file, &mut record_type).is_ok() {
-            println!("First allocation record type: {}", record_type[0]);
+            println!("First allocation record type: {record_type:?}");
         } else {
             println!("Failed to read first allocation record type");
         }
@@ -1586,7 +1567,7 @@ mod selective_reader_tests {
         let index_builder = crate::export::binary::BinaryIndexBuilder::new();
         let index_result = index_builder.build_index(test_file.path());
         if let Err(ref e) = index_result {
-            println!("Error building index: {:?}", e);
+            println!("Error building index: {e:?}");
         }
         assert!(
             index_result.is_ok(),
@@ -1602,7 +1583,7 @@ mod selective_reader_tests {
         // Finally test the selective reader
         let reader = SelectiveBinaryReader::new(test_file.path());
         if let Err(ref e) = reader {
-            println!("Error creating reader: {:?}", e);
+            println!("Error creating reader: {e:?}");
         }
         assert!(reader.is_ok());
 

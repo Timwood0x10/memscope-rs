@@ -567,6 +567,6 @@ mod tests {
 
         // Test Debug formatting
         let strategy = ProcessingStrategy::Optimized;
-        assert_eq!(format!("{:?}", strategy), "Optimized");
+        assert_eq!(format!("{strategy:?}"), "Optimized");
     }
 }

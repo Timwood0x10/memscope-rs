@@ -297,7 +297,7 @@ static TYPE_CACHE: LazyLock<std::sync::Mutex<HashMap<String, String>>> =
 /// Get cached type information or compute and cache it
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
     if let Ok(mut cache) = TYPE_CACHE.lock() {
-        let key = format!("{}:{}", type_name, size);
+        let key = format!("{type_name}:{size}");
         if let Some(cached) = cache.get(&key) {
             return cached.clone();
         }
@@ -571,11 +571,11 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
 fn convert_legacy_options_to_optimized(
     legacy: crate::core::tracker::ExportOptions,
 ) -> OptimizedExportOptions {
-    let mut optimized = OptimizedExportOptions::default();
-
-    // Map legacy options to optimized options
-    optimized.buffer_size = legacy.buffer_size;
-    optimized.use_compact_format = Some(!legacy.verbose_logging); // Verbose = pretty format
+    let mut optimized = OptimizedExportOptions {
+        buffer_size: legacy.buffer_size,
+        use_compact_format: Some(!legacy.verbose_logging), // Verbose = pretty format
+        ..Default::default()
+    };
 
     // Determine optimization level based on legacy settings
     if legacy.include_system_allocations {
@@ -665,36 +665,35 @@ impl MemoryTracker {
         );
 
         // 1. Memory Analysis JSON (standard file 1)
-        let memory_path = parent_dir.join(format!("{}_memory_analysis.json", base_name));
+        let memory_path = parent_dir.join(format!("{base_name}_memory_analysis.json"));
         let memory_data = create_optimized_memory_analysis(&allocations, &stats, &options)?;
         write_json_optimized(&memory_path, &memory_data, &options)?;
 
         // 2. Lifetime Analysis JSON (standard file 2)
-        let lifetime_path = parent_dir.join(format!("{}_lifetime.json", base_name));
+        let lifetime_path = parent_dir.join(format!("{base_name}_lifetime.json"));
         let lifetime_data = create_optimized_lifetime_analysis(&allocations, &options)?;
         write_json_optimized(&lifetime_path, &lifetime_data, &options)?;
 
         // 3. Unsafe FFI Analysis JSON (standard file 3)
-        let unsafe_path = parent_dir.join(format!("{}_unsafe_ffi.json", base_name));
+        let unsafe_path = parent_dir.join(format!("{base_name}_unsafe_ffi.json"));
         let unsafe_data = create_optimized_unsafe_ffi_analysis(&allocations, &options)?;
         write_json_optimized(&unsafe_path, &unsafe_data, &options)?;
 
         // 4. Performance Analysis JSON (standard file 4)
-        let perf_path = parent_dir.join(format!("{}_performance.json", base_name));
+        let perf_path = parent_dir.join(format!("{base_name}_performance.json"));
         let perf_data =
             create_optimized_performance_analysis(&allocations, &stats, start_time, &options)?;
         write_json_optimized(&perf_path, &perf_data, &options)?;
 
         let total_duration = start_time.elapsed();
         println!(
-            "✅ Optimized 4-file export completed in {:?}",
-            total_duration
+            "✅ Optimized 4-file export completed in {total_duration:?}",
         );
         println!("📁 Generated standard files:");
-        println!("   1. {}_memory_analysis.json", base_name);
-        println!("   2. {}_lifetime.json", base_name);
-        println!("   3. {}_unsafe_ffi.json", base_name);
-        println!("   4. {}_performance.json", base_name);
+        println!("   1. {base_name}_memory_analysis.json");
+        println!("   2. {base_name}_lifetime.json");
+        println!("   3. {base_name}_unsafe_ffi.json");
+        println!("   4. {base_name}_performance.json");
 
         // Show optimization effects
         if options.parallel_processing {
@@ -751,22 +750,22 @@ impl MemoryTracker {
         for file_type in file_types {
             let (filename, data) = match file_type {
                 JsonFileType::MemoryAnalysis => {
-                    let filename = format!("{}_memory_analysis.json", base_name);
+                    let filename = format!("{base_name}_memory_analysis.json");
                     let data = create_optimized_memory_analysis(&allocations, &stats, &options)?;
                     (filename, data)
                 }
                 JsonFileType::Lifetime => {
-                    let filename = format!("{}_lifetime.json", base_name);
+                    let filename = format!("{base_name}_lifetime.json");
                     let data = create_optimized_lifetime_analysis(&allocations, &options)?;
                     (filename, data)
                 }
                 JsonFileType::UnsafeFfi => {
-                    let filename = format!("{}_unsafe_ffi.json", base_name);
+                    let filename = format!("{base_name}_unsafe_ffi.json");
                     let data = create_optimized_unsafe_ffi_analysis(&allocations, &options)?;
                     (filename, data)
                 }
                 JsonFileType::Performance => {
-                    let filename = format!("{}_performance.json", base_name);
+                    let filename = format!("{base_name}_performance.json");
                     let data = create_optimized_performance_analysis(
                         &allocations,
                         &stats,
@@ -776,12 +775,12 @@ impl MemoryTracker {
                     (filename, data)
                 }
                 JsonFileType::ComplexTypes => {
-                    let filename = format!("{}_complex_types.json", base_name);
+                    let filename = format!("{base_name}_complex_types.json");
                     let data = create_optimized_complex_types_analysis(&allocations, &options)?;
                     (filename, data)
                 }
                 JsonFileType::SecurityViolations => {
-                    let filename = format!("{}_security_violations.json", base_name);
+                    let filename = format!("{base_name}_security_violations.json");
                     let data = create_security_violation_analysis(&allocations, &options)?;
                     (filename, data)
                 } // JsonFileType::AsyncAnalysis => { ... }
@@ -797,7 +796,7 @@ impl MemoryTracker {
         }
 
         let total_duration = start_time.elapsed();
-        println!("✅ Extensible export completed in {:?}", total_duration);
+        println!("✅ Extensible export completed in {total_duration:?}");
 
         Ok(())
     }
@@ -1419,11 +1418,7 @@ fn create_integrated_performance_analysis(
         "batch_processor": {
             "enabled": options.parallel_processing && allocations.len() > options.batch_size,
             "batch_size": options.batch_size,
-            "estimated_batches": if allocations.len() > options.batch_size {
-                (allocations.len() + options.batch_size - 1) / options.batch_size
-            } else {
-                1
-            }
+            "estimated_batches": allocations.len().div_ceil(options.batch_size),
         },
         "streaming_writer": {
             "enabled": options.use_streaming_writer,
@@ -1707,7 +1702,7 @@ fn normalize_type_name(type_name: &str) -> String {
     // Remove specific generic parameters, keep structure
     if type_name.contains('<') {
         if let Some(base) = type_name.split('<').next() {
-            format!("{}<T>", base)
+            format!("{base}<T>")
         } else {
             type_name.to_string()
         }
@@ -2192,7 +2187,7 @@ fn create_security_violation_analysis(
                     if let Ok(violation_id) =
                         analyzer.analyze_violation(violation, enhanced_alloc.base.ptr)
                     {
-                        println!("   ✅ Analyzed violation: {}", violation_id);
+                        println!("   ✅ Analyzed violation: {violation_id}");
                     }
                 }
             }

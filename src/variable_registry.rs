@@ -449,7 +449,7 @@ impl VariableRegistry {
 
         let user_deallocated_count = all_user
             .iter()
-            .filter(|a| a["timestamp_dealloc"].is_null() == false)
+            .filter(|a| !a["timestamp_dealloc"].is_null())
             .count();
 
         // Analyze system allocations - now all should have lifetime_ms values
@@ -465,7 +465,7 @@ impl VariableRegistry {
 
         let system_deallocated_count = all_system
             .iter()
-            .filter(|a| a["timestamp_dealloc"].is_null() == false)
+            .filter(|a| !a["timestamp_dealloc"].is_null())
             .count();
 
         serde_json::json!({
@@ -543,7 +543,7 @@ impl VariableRegistry {
             "user_deallocations": {
                 "total_deallocated": user_dealloc_times.len(),
                 "still_active": user_null_dealloc,
-                "deallocation_rate": if all_user.len() > 0 {
+                "deallocation_rate": if !all_user.is_empty() {
                     user_dealloc_times.len() as f64 / all_user.len() as f64 * 100.0
                 } else { 0.0 },
                 "earliest_dealloc": user_dealloc_times.iter().min().copied(),
@@ -556,7 +556,7 @@ impl VariableRegistry {
             "system_deallocations": {
                 "total_deallocated": system_dealloc_times.len(),
                 "still_active": system_null_dealloc,
-                "deallocation_rate": if all_system.len() > 0 {
+                "deallocation_rate": if !all_system.is_empty() {
                     system_dealloc_times.len() as f64 / all_system.len() as f64 * 100.0
                 } else { 0.0 },
                 "earliest_dealloc": system_dealloc_times.iter().min().copied(),
@@ -570,10 +570,10 @@ impl VariableRegistry {
                 "user_potential_leaks": user_null_dealloc,
                 "system_potential_leaks": system_null_dealloc,
                 "total_potential_leaks": user_null_dealloc + system_null_dealloc,
-                "user_leak_percentage": if all_user.len() > 0 {
+                "user_leak_percentage": if !all_user.is_empty() {
                     user_null_dealloc as f64 / all_user.len() as f64 * 100.0
                 } else { 0.0 },
-                "system_leak_percentage": if all_system.len() > 0 {
+                "system_leak_percentage": if !all_system.is_empty() {
                     system_null_dealloc as f64 / all_system.len() as f64 * 100.0
                 } else { 0.0 }
             }
