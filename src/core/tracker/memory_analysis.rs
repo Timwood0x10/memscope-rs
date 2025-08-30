@@ -11,6 +11,7 @@ use crate::core::types::{
     GenericTypeInfo, LayoutEfficiency, MemoryLayoutInfo, MemoryPressureInfo, MonomorphizationInfo,
     PaddingAnalysis, PerformanceImpact, ReallocationPatterns, RuntimeStateInfo, TypeErasureInfo,
     TypeParameter, TypeRelationshipInfo, TypeUsageInfo, VTableInfo,
+    ContextType::{LocalVariable, AsyncContext},
 };
 
 impl MemoryTracker {
@@ -231,12 +232,12 @@ impl MemoryTracker {
             alignment_waste: padding_overhead as usize,
             optimization_potential: if overall_score < 0.5 {
                 crate::core::types::OptimizationPotential::Major {
-                    potential_savings: (padding_overhead as f64 * 0.8) as usize,
+                    potential_savings: (padding_overhead * 0.8) as usize,
                     suggestions: self.generate_efficiency_recommendations(overall_score, type_name),
                 }
             } else if overall_score < 0.8 {
                 crate::core::types::OptimizationPotential::Moderate {
-                    potential_savings: (padding_overhead as f64 * 0.5) as usize,
+                    potential_savings: (padding_overhead * 0.5) as usize,
                     suggestions: self.generate_efficiency_recommendations(overall_score, type_name),
                 }
             } else {
@@ -465,7 +466,7 @@ impl MemoryTracker {
         // Add efficiency analysis as a virtual field
         fields.push(FieldLayoutInfo {
             field_name: "efficiency_analysis".to_string(),
-            field_type: format!("VecEfficiency<{}>", element_type),
+            field_type: format!("VecEfficiency<{element_type}>"),
             offset: 0, // Virtual field
             size: 0,   // Virtual field
             alignment: 1,
@@ -483,7 +484,7 @@ impl MemoryTracker {
         if estimated_capacity > 0 {
             fields.push(FieldLayoutInfo {
                 field_name: "capacity_analysis".to_string(),
-                field_type: format!("EstimatedCapacity: {}", estimated_capacity),
+                field_type: format!("EstimatedCapacity: {estimated_capacity}"),
                 offset: 0, // Virtual field
                 size: 0,   // Virtual field
                 alignment: 1,
@@ -502,7 +503,7 @@ impl MemoryTracker {
 
         fields.push(FieldLayoutInfo {
             field_name: "string_analysis".to_string(),
-            field_type: format!("StringCapacity: {} bytes", estimated_capacity),
+            field_type: format!("StringCapacity: {estimated_capacity} bytes"),
             offset: 0, // Virtual field
             size: 0,   // Virtual field
             alignment: 1,
@@ -1185,20 +1186,20 @@ impl MemoryTracker {
 
         // Infer context based on type name patterns
         let context_type = if type_name.starts_with("Vec<") {
-            crate::core::types::ContextType::LocalVariable
+            LocalVariable
         } else if type_name.starts_with("HashMap<") || type_name.starts_with("BTreeMap<") {
-            crate::core::types::ContextType::LocalVariable
+            LocalVariable
         } else if type_name.starts_with("Box<")
             || type_name.starts_with("Rc<")
             || type_name.starts_with("Arc<")
         {
-            crate::core::types::ContextType::LocalVariable
+            LocalVariable
         } else if type_name == "String" || type_name.starts_with("&str") {
-            crate::core::types::ContextType::LocalVariable
+            LocalVariable
         } else if type_name.contains("Future") || type_name.contains("async") {
-            crate::core::types::ContextType::AsyncContext
+            AsyncContext
         } else {
-            crate::core::types::ContextType::LocalVariable
+            LocalVariable
         };
 
         // Calculate performance metrics for this context
@@ -1297,7 +1298,7 @@ impl MemoryTracker {
                         param_names.len(),
                     );
                     parameters.push(TypeParameter {
-                        name: format!("T{}", i),
+                        name: format!("T{i}"),
                         concrete_type: param_name.to_string(),
                         size: estimated_size,
                         alignment: self.estimate_alignment(param_name, estimated_size),
@@ -1324,7 +1325,7 @@ impl MemoryTracker {
             method_count * std::mem::size_of::<usize>() + std::mem::size_of::<usize>(); // Method pointers + type info
         let methods = (0..method_count)
             .map(|i| crate::core::types::VTableMethod {
-                name: format!("method_{}", i),
+                name: format!("method_{i}"),
                 signature: "fn(&self) -> ()".to_string(),
                 vtable_offset: i * std::mem::size_of::<usize>(),
             })

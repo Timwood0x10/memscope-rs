@@ -32,9 +32,9 @@ impl Display for UnwrapError {
                 context, location, ..
             } => {
                 if let Some(loc) = location {
-                    write!(f, "Attempt to unwrap None at {}: {}", loc, context)
+                    write!(f, "Attempt to unwrap None at {loc} ({context})")
                 } else {
-                    write!(f, "Attempt to unwrap None: {}", context)
+                    write!(f, "Attempt to unwrap None ({context})")
                 }
             }
             Self::ResultError {
@@ -44,9 +44,9 @@ impl Display for UnwrapError {
                 ..
             } => {
                 if let Some(loc) = location {
-                    write!(f, "Unwrap failed at {} ({}): {}", loc, context, source)
+                    write!(f, "Unwrap failed at {loc} ({context}): {source}")
                 } else {
-                    write!(f, "Unwrap failed ({}): {}", context, source)
+                    write!(f, "Unwrap failed ({context}): {source}")
                 }
             }
         }
@@ -203,7 +203,7 @@ impl<T> UnwrapSafe<T> for Option<T> {
         self.try_unwrap(context).map_err(|e| {
             MemScopeError::memory(
                 MemoryOperation::Allocation,
-                format!("Failed to unwrap value: {}", e),
+                format!("Failed to unwrap value: {e:?}"),
             )
         })
     }
@@ -223,7 +223,7 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
                     location: None,
                     backtrace: Backtrace::capture(),
                 };
-                tracing::error!("Result unwrap failed: {}", error);
+                tracing::error!("Result unwrap failed: {error:?}");
                 Err(error)
             }
         }
@@ -250,9 +250,7 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
             }
             Err(error) => {
                 tracing::warn!(
-                    "Safe unwrap failed (Error: {:?}), using default: {}",
-                    error,
-                    context
+                    "Safe unwrap failed (Error: {error:?}), using default: {context}",
                 );
                 default
             }
@@ -270,9 +268,7 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
             }
             Err(error) => {
                 tracing::warn!(
-                    "Safe unwrap failed (Error: {:?}), using default function: {}",
-                    error,
-                    context
+                    "Safe unwrap failed (Error: {error:?}), using default function: {context}",
                 );
                 default_fn()
             }
@@ -282,16 +278,15 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
     fn try_unwrap_safe(self, context: &str) -> Result<T, MemScopeError> {
         match self {
             Ok(value) => {
-                tracing::trace!("Safe unwrap succeeded: {}", context);
+                tracing::trace!("Safe unwrap succeeded: {context}");
                 Ok(value)
             }
             Err(error) => {
-                tracing::error!("Safe unwrap failed (Error: {:?}): {}", error, context);
+                tracing::error!("Safe unwrap failed (Error: {error:?}): {context}");
                 Err(MemScopeError::system(
                     SystemErrorType::Io,
                     format!(
-                        "Result unwrap failed in context: {} - error: {:?}",
-                        context, error
+                        "Result unwrap failed in context: {context} - error: {error:?}",
                     ),
                 ))
             }

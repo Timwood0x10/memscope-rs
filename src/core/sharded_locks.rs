@@ -338,8 +338,8 @@ mod tests {
             let sharded_clone = sharded.clone();
             let handle = thread::spawn(move || {
                 for j in 0..100 {
-                    let key = format!("key_{}_{}", i, j);
-                    let value = format!("value_{}_{}", i, j);
+                    let key = format!("key_{i}_{j}");
+                    let value = format!("value_{i}_{j}");
                     sharded_clone.insert(key.clone(), value.clone());
                     assert_eq!(sharded_clone.get(&key), Some(value));
                 }
@@ -350,7 +350,7 @@ mod tests {
         // Wait for all threads to complete
         for handle in handles {
             if let Err(e) = handle.join() {
-                eprintln!("Thread join failed: {:?}", e);
+                eprintln!("Thread join failed: {e:?}");
             }
         }
 
@@ -364,7 +364,7 @@ mod tests {
 
         // Insert some data
         for i in 0..100 {
-            sharded.insert(i, format!("value_{}", i));
+            sharded.insert(i, format!("value_{i}"));
         }
 
         let stats = sharded.shard_stats();

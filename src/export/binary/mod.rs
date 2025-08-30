@@ -317,15 +317,15 @@ pub fn detect_binary_type<P: AsRef<Path>>(path: P) -> Result<BinaryFileInfo, Bin
     let path = path.as_ref();
 
     // Get file size
-    let metadata = std::fs::metadata(path).map_err(|e| BinaryExportError::Io(e))?;
+    let metadata = std::fs::metadata(path).map_err(BinaryExportError::Io)?;
     let file_size = metadata.len();
 
     // Open file and read header
-    let mut file = File::open(path).map_err(|e| BinaryExportError::Io(e))?;
+    let mut file = File::open(path).map_err(BinaryExportError::Io)?;
 
     let mut header_bytes = [0u8; format::HEADER_SIZE];
     file.read_exact(&mut header_bytes)
-        .map_err(|e| BinaryExportError::Io(e))?;
+        .map_err(BinaryExportError::Io)?;
 
     // Parse header
     let header = FileHeader::from_bytes(&header_bytes);

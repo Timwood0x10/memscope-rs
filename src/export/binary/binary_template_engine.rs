@@ -3,7 +3,7 @@
 //! This module provides a specialized template engine that processes the binary_dashboard.html
 //! template with data directly from binary sources, independent of the JSON → HTML workflow.
 
-use crate::export::binary::binary_html_writer::{BinaryAllocationData, BinaryTemplateData};
+use crate::export::binary::binary_html_writer::BinaryTemplateData;
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::template_resource_manager::{
     create_template_data, ResourceConfig, TemplateResourceManager,
@@ -133,8 +133,7 @@ impl BinaryTemplateEngine {
         if let Some(ref complex_types) = template_data.complex_types {
             let complex_types_json = serde_json::to_string(complex_types).map_err(|e| {
                 BinaryExportError::SerializationError(format!(
-                    "Complex types serialization failed: {}",
-                    e
+                    "Complex types serialization failed: {e}",
                 ))
             })?;
             custom_data.insert("complex_types".to_string(), complex_types_json);
@@ -143,8 +142,7 @@ impl BinaryTemplateEngine {
         if let Some(ref unsafe_ffi) = template_data.unsafe_ffi {
             let ffi_json = serde_json::to_string(unsafe_ffi).map_err(|e| {
                 BinaryExportError::SerializationError(format!(
-                    "FFI safety serialization failed: {}",
-                    e
+                    "FFI safety serialization failed: {e}",
                 ))
             })?;
             custom_data.insert("unsafe_ffi".to_string(), ffi_json);
@@ -154,8 +152,7 @@ impl BinaryTemplateEngine {
             let relationships_json =
                 serde_json::to_string(variable_relationships).map_err(|e| {
                     BinaryExportError::SerializationError(format!(
-                        "Variable relationships serialization failed: {}",
-                        e
+                        "Variable relationships serialization failed: {e}",
                     ))
                 })?;
             custom_data.insert("variable_relationships".to_string(), relationships_json);
@@ -360,7 +357,7 @@ impl BinaryTemplateEngine {
                            alloc.type_name.contains("ffi") ||
                            alloc.type_name.contains("extern") ||
                            alloc.size > 1024*1024 || // Large allocations
-                           (alloc.var_name.as_ref().map_or(false, |name| name.contains("ffi") || name.contains("unsafe"))) ||
+                           alloc.var_name.as_ref().is_some_and(|name| name.contains("ffi") || name.contains("unsafe")) ||
                            // Include some common patterns that might indicate unsafe operations
                            (alloc.size > 100*1024 && !alloc.type_name.contains("Vec") && !alloc.type_name.contains("String"));
 
@@ -663,8 +660,7 @@ impl BinaryTemplateEngine {
             .iter()
             .step_by(100)
             .take(20)
-            .enumerate()
-            .map(|(_index, alloc)| {
+            .map(|alloc| {
                 json!({
                     "id": alloc.id,
                     "event_type": if alloc.is_active { "Allocation" } else { "Deallocation" },
@@ -789,10 +785,10 @@ impl BinaryTemplateEngine {
                     .replace('`', "\\`")
                     .replace("${", "\\${");
 
-                svg_data.push_str(&format!("  {}: `{}`,\n", name, escaped_svg));
+                svg_data.push_str(&format!("  {name}: `{escaped_svg}`,\n"));
             } else {
                 // If SVG file doesn't exist, create a placeholder
-                svg_data.push_str(&format!("  {}: `<svg width=\"100\" height=\"100\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"100\" height=\"100\" fill=\"#f0f0f0\"/><text x=\"50\" y=\"50\" text-anchor=\"middle\" dy=\".3em\" font-family=\"Arial\" font-size=\"12\" fill=\"#666\">SVG Missing</text></svg>`,\n", name));
+                svg_data.push_str(&format!("  {name}: `<svg width=\"100\" height=\"100\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"100\" height=\"100\" fill=\"#f0f0f0\"/><text x=\"50\" y=\"50\" text-anchor=\"middle\" dy=\".3em\" font-family=\"Arial\" font-size=\"12\" fill=\"#666\">SVG Missing</text></svg>`,\n"));
             }
         }
 
@@ -1466,551 +1462,5 @@ mod tests {
         let test_data = create_test_template_data();
         let result = engine.render_binary_template(&test_data);
         assert!(result.is_ok());
-    }
-}
-
-// ============================================================================
-// DATA GENERATION FUNCTIONS FOR MISSING ANALYSIS TYPES
-// ============================================================================
-
-/// Generate complex types analysis from allocations
-fn _generate_complex_types_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
-    use serde_json::json;
-
-    let mut smart_pointers = Vec::new();
-    let mut collections = Vec::new();
-    let mut generic_types = Vec::new();
-    let mut complex_type_analysis = Vec::new();
-
-    // Categorize types based on type_name
-    for alloc in allocations.iter().filter(|a| a.var_name.is_some()) {
-        let type_name = &alloc.type_name;
-
-        // Detect smart pointers
-        if type_name.contains("Box<")
-            || type_name.contains("Rc<")
-            || type_name.contains("Arc<")
-            || type_name.contains("RefCell<")
-            || type_name.contains("Mutex<")
-        {
-            smart_pointers.push(json!({
-                "var_name": alloc.var_name,
-                "type_name": type_name,
-                "size": alloc.size,
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "smart_pointer_type": extract_smart_pointer_type(type_name),
-                "inner_type": extract_inner_type(type_name),
-                "reference_count": 1,
-                "is_thread_safe": type_name.contains("Arc") || type_name.contains("Mutex")
-            }));
-        }
-
-        // Detect collections
-        if type_name.contains("Vec<")
-            || type_name.contains("HashMap<")
-            || type_name.contains("BTreeMap<")
-            || type_name.contains("HashSet<")
-            || type_name.contains("BTreeSet<")
-            || type_name.contains("VecDeque<")
-        {
-            collections.push(json!({
-                "var_name": alloc.var_name,
-                "type_name": type_name,
-                "size": alloc.size,
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "collection_type": extract_collection_type(type_name),
-                "element_type": extract_inner_type(type_name),
-                "estimated_capacity": estimate_capacity(alloc.size, type_name),
-                "is_growable": !type_name.contains("Array")
-            }));
-        }
-
-        // Detect generic types
-        if type_name.contains("<") && type_name.contains(">") {
-            generic_types.push(json!({
-                "var_name": alloc.var_name,
-                "type_name": type_name,
-                "size": alloc.size,
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "base_type": extract_base_type(type_name),
-                "type_parameters": extract_type_parameters(type_name),
-                "complexity_score": calculate_type_complexity(type_name)
-            }));
-        }
-
-        // Add to complex type analysis
-        if is_complex_type(type_name) {
-            complex_type_analysis.push(json!({
-                "var_name": alloc.var_name,
-                "type_name": type_name,
-                "size": alloc.size,
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "complexity_score": calculate_type_complexity(type_name),
-                "memory_efficiency": calculate_memory_efficiency(alloc.size, type_name),
-                "optimization_potential": suggest_optimization(type_name),
-                "category": categorize_type(type_name)
-            }));
-        }
-    }
-
-    json!({
-        "summary": {
-            "total_complex_types": complex_type_analysis.len(),
-            "smart_pointers_count": smart_pointers.len(),
-            "collections_count": collections.len(),
-            "generic_types_count": generic_types.len()
-        },
-        "categorized_types": {
-            "smart_pointers": smart_pointers,
-            "collections": collections,
-            "generic_types": generic_types
-        },
-        "complex_type_analysis": complex_type_analysis,
-        "optimization_recommendations": generate_optimization_recommendations()
-    })
-}
-
-/// Generate unsafe FFI analysis from allocations
-fn _generate_unsafe_ffi_analysis(allocations: &[BinaryAllocationData]) -> serde_json::Value {
-    use serde_json::json;
-
-    let mut unsafe_operations = Vec::new();
-    let mut security_hotspots = Vec::new();
-    let mut enhanced_ffi_data = Vec::new();
-    let mut boundary_events = Vec::new();
-
-    // Analyze allocations for unsafe patterns
-    for alloc in allocations {
-        // Detect potential unsafe operations
-        if is_potentially_unsafe(alloc) {
-            unsafe_operations.push(json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "operation_type": "Raw Pointer Access",
-                "risk_level": assess_risk_level(alloc),
-                "size": alloc.size,
-                "var_name": alloc.var_name,
-                "type_name": alloc.type_name,
-                "safety_violations": count_safety_violations(alloc),
-                "mitigation": suggest_mitigation(alloc)
-            }));
-        }
-
-        // Detect FFI boundary crossings
-        if is_ffi_related(alloc) {
-            boundary_events.push(json!({
-                "timestamp": alloc.timestamp_alloc,
-                "event_type": "FFI_ALLOCATION",
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "direction": "Rust_to_C"
-            }));
-
-            enhanced_ffi_data.push(json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "size": alloc.size,
-                "ffi_tracked": true,
-                "safety_violations": count_safety_violations(alloc),
-                "var_name": alloc.var_name,
-                "type_name": alloc.type_name
-            }));
-        }
-
-        // Detect security hotspots
-        if is_security_hotspot(alloc) {
-            security_hotspots.push(json!({
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "hotspot_type": "Memory Leak Risk",
-                "severity": assess_severity(alloc),
-                "description": format!("Potential memory safety issue in {}", alloc.type_name),
-                "var_name": alloc.var_name,
-                "size": alloc.size
-            }));
-        }
-    }
-
-    let total_violations = unsafe_operations
-        .iter()
-        .map(|op| op["safety_violations"].as_u64().unwrap_or(0))
-        .sum::<u64>();
-
-    let risk_level = if total_violations > 10 {
-        "High"
-    } else if total_violations > 3 {
-        "Medium"
-    } else {
-        "Low"
-    };
-
-    json!({
-        "total_violations": total_violations,
-        "risk_level": risk_level,
-        "unsafe_operations": unsafe_operations,
-        "security_hotspots": security_hotspots,
-        "enhanced_ffi_data": enhanced_ffi_data,
-        "boundary_events": boundary_events
-    })
-}
-
-/// Generate variable relationships analysis from allocations
-fn _generate_variable_relationships_analysis(
-    allocations: &[BinaryAllocationData],
-) -> serde_json::Value {
-    use serde_json::json;
-
-    let user_allocations: Vec<_> = allocations
-        .iter()
-        .filter(|alloc| {
-            alloc.var_name.is_some() && alloc.var_name.as_ref().expect("Value is None") != "unknown"
-        })
-        .collect();
-
-    let mut nodes = Vec::new();
-    let mut links = Vec::new();
-
-    // Create nodes for each user variable
-    for (i, alloc) in user_allocations.iter().enumerate() {
-        if let Some(ref var_name) = alloc.var_name {
-            nodes.push(json!({
-                "id": var_name,
-                "name": var_name,
-                "type_name": alloc.type_name,
-                "size": alloc.size,
-                "ptr": format!("0x{:x}", alloc.ptr),
-                "category": categorize_variable(alloc),
-                "group": get_variable_group(&alloc.type_name),
-                "x": i as f64 * 50.0,
-                "y": i as f64 * 30.0
-            }));
-        }
-    }
-
-    // Create relationships based on type similarity and scope
-    for i in 0..user_allocations.len() {
-        for j in (i + 1)..user_allocations.len() {
-            let alloc_a = user_allocations[i];
-            let alloc_b = user_allocations[j];
-
-            if let (Some(ref name_a), Some(ref name_b)) = (&alloc_a.var_name, &alloc_b.var_name) {
-                if are_related(&alloc_a.type_name, &alloc_b.type_name) {
-                    links.push(json!({
-                        "source": name_a,
-                        "target": name_b,
-                        "relationship": determine_relationship(&alloc_a.type_name, &alloc_b.type_name),
-                        "strength": calculate_relationship_strength(alloc_a, alloc_b),
-                        "type": "type_similarity"
-                    }));
-                }
-            }
-        }
-    }
-
-    json!({
-        "nodes": nodes,
-        "links": links,
-        "summary": {
-            "total_variables": user_allocations.len(),
-            "total_relationships": links.len(),
-            "relationship_density": if user_allocations.len() > 1 {
-                links.len() as f64 / (user_allocations.len() * (user_allocations.len() - 1) / 2) as f64
-            } else { 0.0 }
-        }
-    })
-}
-
-// Helper functions for type analysis
-#[allow(dead_code)]
-fn extract_smart_pointer_type(type_name: &str) -> &str {
-    if type_name.contains("Box<") {
-        "Box"
-    } else if type_name.contains("Rc<") {
-        "Rc"
-    } else if type_name.contains("Arc<") {
-        "Arc"
-    } else if type_name.contains("RefCell<") {
-        "RefCell"
-    } else if type_name.contains("Mutex<") {
-        "Mutex"
-    } else {
-        "Unknown"
-    }
-}
-
-#[allow(dead_code)]
-fn extract_collection_type(type_name: &str) -> &str {
-    if type_name.contains("Vec<") {
-        "Vec"
-    } else if type_name.contains("HashMap<") {
-        "HashMap"
-    } else if type_name.contains("BTreeMap<") {
-        "BTreeMap"
-    } else if type_name.contains("HashSet<") {
-        "HashSet"
-    } else if type_name.contains("BTreeSet<") {
-        "BTreeSet"
-    } else {
-        "Unknown"
-    }
-}
-
-#[allow(dead_code)]
-fn extract_inner_type(type_name: &str) -> String {
-    if let Some(start) = type_name.find("<") {
-        if let Some(end) = type_name.rfind(">") {
-            return type_name[start + 1..end].to_string();
-        }
-    }
-    "Unknown".to_string()
-}
-
-#[allow(dead_code)]
-fn extract_base_type(type_name: &str) -> String {
-    if let Some(pos) = type_name.find("<") {
-        type_name[..pos].to_string()
-    } else {
-        type_name.to_string()
-    }
-}
-
-#[allow(dead_code)]
-fn extract_type_parameters(type_name: &str) -> Vec<String> {
-    if let Some(start) = type_name.find("<") {
-        if let Some(end) = type_name.rfind(">") {
-            let params = &type_name[start + 1..end];
-            return params.split(",").map(|s| s.trim().to_string()).collect();
-        }
-    }
-    vec![]
-}
-
-#[allow(dead_code)]
-fn calculate_type_complexity(type_name: &str) -> u32 {
-    let mut complexity = 0;
-    complexity += type_name.matches("<").count() as u32; // Generic depth
-    complexity += type_name.matches(",").count() as u32; // Parameter count
-    if type_name.contains("Arc") || type_name.contains("Mutex") {
-        complexity += 2;
-    }
-    if type_name.contains("RefCell") {
-        complexity += 1;
-    }
-    complexity
-}
-
-#[allow(dead_code)]
-fn is_complex_type(type_name: &str) -> bool {
-    type_name.contains("<")
-        || type_name.len() > 20
-        || type_name.contains("::") && type_name.matches("::").count() > 2
-}
-
-#[allow(dead_code)]
-fn calculate_memory_efficiency(size: usize, type_name: &str) -> f64 {
-    let base_size = match type_name {
-        t if t.contains("String") => 24,
-        t if t.contains("Vec") => 24,
-        t if t.contains("HashMap") => 48,
-        _ => 8,
-    };
-
-    if size > 0 {
-        (base_size as f64 / size as f64).min(1.0)
-    } else {
-        0.0
-    }
-}
-
-#[allow(dead_code)]
-fn suggest_optimization(type_name: &str) -> String {
-    if type_name.contains("String") && type_name.contains("Vec") {
-        "Consider using &str for read-only strings".to_string()
-    } else if type_name.contains("HashMap") {
-        "Consider BTreeMap for ordered data".to_string()
-    } else if type_name.contains("RefCell") {
-        "Consider using Mutex for thread safety".to_string()
-    } else {
-        "No specific optimization suggested".to_string()
-    }
-}
-
-#[allow(dead_code)]
-fn categorize_type(type_name: &str) -> &str {
-    if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc") {
-        "Smart Pointer"
-    } else if type_name.contains("Vec")
-        || type_name.contains("HashMap")
-        || type_name.contains("BTreeMap")
-    {
-        "Collection"
-    } else if type_name.contains("<") {
-        "Generic"
-    } else {
-        "Primitive"
-    }
-}
-
-#[allow(dead_code)]
-fn generate_optimization_recommendations() -> Vec<String> {
-    vec![
-        "Consider using Box<T> for large structs to reduce stack usage".to_string(),
-        "Use Rc<T> instead of Arc<T> for single-threaded scenarios".to_string(),
-        "Consider Vec::with_capacity() to pre-allocate collections".to_string(),
-        "Use &str instead of String for read-only string data".to_string(),
-    ]
-}
-
-// Helper functions for unsafe/FFI analysis
-#[allow(dead_code)]
-fn is_potentially_unsafe(alloc: &BinaryAllocationData) -> bool {
-    alloc.type_name.contains("*") || alloc.type_name.contains("raw") || alloc.size > 1024 * 1024
-    // Large allocations might be risky
-}
-
-#[allow(dead_code)]
-fn is_ffi_related(alloc: &BinaryAllocationData) -> bool {
-    alloc.type_name.contains("c_")
-        || alloc.type_name.contains("libc")
-        || alloc.type_name.contains("extern")
-}
-
-#[allow(dead_code)]
-fn is_security_hotspot(alloc: &BinaryAllocationData) -> bool {
-    alloc.size > 10 * 1024 * 1024 || // Very large allocations
-    alloc.type_name.contains("unsafe") ||
-    !alloc.is_active // Potential leaks
-}
-
-#[allow(dead_code)]
-fn assess_risk_level(alloc: &BinaryAllocationData) -> &str {
-    if alloc.size > 1024 * 1024 {
-        "High"
-    } else if alloc.size > 1024 {
-        "Medium"
-    } else {
-        "Low"
-    }
-}
-
-#[allow(dead_code)]
-fn assess_severity(alloc: &BinaryAllocationData) -> &str {
-    if !alloc.is_active && alloc.size > 1024 * 1024 {
-        "Critical"
-    } else if !alloc.is_active {
-        "High"
-    } else if alloc.size > 10 * 1024 * 1024 {
-        "Medium"
-    } else {
-        "Low"
-    }
-}
-
-#[allow(dead_code)]
-fn count_safety_violations(alloc: &BinaryAllocationData) -> u32 {
-    let mut violations = 0;
-    if alloc.type_name.contains("*") {
-        violations += 1;
-    }
-    if alloc.size > 1024 * 1024 {
-        violations += 1;
-    }
-    if !alloc.is_active {
-        violations += 1;
-    }
-    violations
-}
-
-#[allow(dead_code)]
-fn suggest_mitigation(alloc: &BinaryAllocationData) -> String {
-    if alloc.type_name.contains("*") {
-        "Use safe Rust alternatives like Box or Vec".to_string()
-    } else if alloc.size > 1024 * 1024 {
-        "Consider streaming or chunked processing".to_string()
-    } else {
-        "Follow Rust safety guidelines".to_string()
-    }
-}
-
-// Helper functions for variable relationships
-#[allow(dead_code)]
-fn categorize_variable(alloc: &BinaryAllocationData) -> &str {
-    if alloc.type_name.contains("String") {
-        "String"
-    } else if alloc.type_name.contains("Vec") {
-        "Collection"
-    } else if alloc.type_name.contains("Box") || alloc.type_name.contains("Rc") {
-        "Smart Pointer"
-    } else {
-        "Primitive"
-    }
-}
-
-#[allow(dead_code)]
-fn get_variable_group(type_name: &str) -> u32 {
-    if type_name.contains("String") {
-        1
-    } else if type_name.contains("Vec") || type_name.contains("HashMap") {
-        2
-    } else if type_name.contains("Box") || type_name.contains("Rc") {
-        3
-    } else {
-        0
-    }
-}
-
-#[allow(dead_code)]
-fn are_related(type_a: &str, type_b: &str) -> bool {
-    let a_base = extract_base_type(type_a);
-    let b_base = extract_base_type(type_b);
-
-    a_base == b_base
-        || (type_a.contains("String") && type_b.contains("str"))
-        || (type_a.contains("Vec") && type_b.contains("slice"))
-}
-
-#[allow(dead_code)]
-fn determine_relationship(type_a: &str, type_b: &str) -> &'static str {
-    if extract_base_type(type_a) == extract_base_type(type_b) {
-        "same_type"
-    } else if (type_a.contains("String") && type_b.contains("str"))
-        || (type_a.contains("Vec") && type_b.contains("slice"))
-    {
-        "compatible"
-    } else {
-        "related"
-    }
-}
-
-#[allow(dead_code)]
-fn calculate_relationship_strength(
-    alloc_a: &BinaryAllocationData,
-    alloc_b: &BinaryAllocationData,
-) -> f64 {
-    let mut strength = 0.0;
-
-    // Same scope increases strength
-    if alloc_a.scope_name == alloc_b.scope_name {
-        strength += 0.5;
-    }
-
-    // Similar sizes increase strength
-    let size_ratio =
-        (alloc_a.size as f64 / alloc_b.size as f64).min(alloc_b.size as f64 / alloc_a.size as f64);
-    strength += size_ratio * 0.3;
-
-    // Type similarity
-    if are_related(&alloc_a.type_name, &alloc_b.type_name) {
-        strength += 0.2;
-    }
-
-    strength.min(1.0)
-}
-
-#[allow(dead_code)]
-fn estimate_capacity(size: usize, type_name: &str) -> usize {
-    if type_name.contains("Vec") {
-        size / 8 // Rough estimate for Vec<T> where T is pointer-sized
-    } else if type_name.contains("String") {
-        size
-    } else {
-        size / 4 // Default estimate
     }
 }

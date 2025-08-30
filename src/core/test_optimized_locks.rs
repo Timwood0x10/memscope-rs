@@ -54,14 +54,14 @@ mod tests {
         // Wait for all threads to complete
         for handle in handles {
             if let Err(e) = handle.join() {
-                eprintln!("Thread join failed: {:?}", e);
+                tracing::error!("Thread join failed: {e:?}");
             }
         }
 
         // Verify we can still get analysis
         let analysis = tracker.get_scope_analysis().expect("Test operation failed");
         // analysis.total_scopes is usize, always >= 0, so this check is redundant
-        assert!(analysis.total_scopes > 0 || analysis.total_scopes == 0); // Should have some scopes
+        assert!(analysis.total_scopes >= 0); // Should have some scopes
     }
 
     #[test]

@@ -1294,10 +1294,7 @@ pub fn enhance_type_information(
                 } else {
                     None
                 }
-            })
-            .take(5) // Limit to 5 variable names
-            .map(|s| s.clone())
-            .collect();
+            }).take(5).cloned().collect();
 
         // Add the main type with subcategory information
         enhanced_types.push(crate::export::export_enhanced::EnhancedTypeInfo {

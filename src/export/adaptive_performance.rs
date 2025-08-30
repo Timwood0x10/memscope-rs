@@ -354,6 +354,12 @@ pub struct MemoryUsageMonitor {
     critical_threshold_mb: u64,
 }
 
+impl Default for MemoryUsageMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryUsageMonitor {
     /// Create a new memory usage monitor
     pub fn new() -> Self {
@@ -590,7 +596,7 @@ impl AdaptivePerformanceOptimizer {
                     "current_usage_mb": self.memory_monitor.current_usage_mb,
                     "peak_usage_mb": self.memory_monitor.peak_usage_mb,
                     "pressure_level": format!("{:?}", memory_pressure),
-                    "trend": memory_trend.map(|t| format!("{:?}", t)).unwrap_or_else(|| "Unknown".to_string())
+                    "trend": memory_trend.map(|t| format!("{t:?}")).unwrap_or_else(|| "Unknown".to_string())
                 },
                 "performance_trend": performance_trend.unwrap_or_else(|| "Insufficient data".to_string()),
                 "optimization_recommendations": self.get_optimization_recommendations()

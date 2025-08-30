@@ -271,7 +271,7 @@ impl DataLocalizer {
         // Here we estimate how many accesses we avoided through data localization
         let basic_accesses = stats.allocation_count * 2; // Each allocation needs to access tracker 2 times
         let ffi_accesses = stats.ffi_allocation_count * 3; // FFI allocations need more accesses
-        let scope_accesses = stats.scope_count * 1; // scope access
+        let scope_accesses = stats.scope_count; // scope access
 
         basic_accesses + ffi_accesses + scope_accesses
     }

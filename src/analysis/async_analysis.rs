@@ -33,6 +33,12 @@ pub struct AsyncAnalyzer {
     task_events: Mutex<Vec<TaskEvent>>,
 }
 
+impl Default for AsyncAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AsyncAnalyzer {
     /// Create a new async analyzer
     pub fn new() -> Self {
@@ -68,7 +74,7 @@ impl AsyncAnalyzer {
             event_type: TaskEventType::Created,
             timestamp: current_timestamp(),
             thread_id: format!("{:?}", std::thread::current().id()),
-            details: format!("Future {} created", future_type),
+            details: format!("Future {future_type} created"),
         };
 
         if let Ok(mut events) = self.task_events.lock() {
@@ -170,7 +176,7 @@ impl AsyncAnalyzer {
             event_type: TaskEventType::Completed,
             timestamp: completion_time,
             thread_id: format!("{:?}", std::thread::current().id()),
-            details: format!("Future completed with result: {:?}", result),
+            details: format!("Future completed with result: {result:?}"),
         };
 
         if let Ok(mut events) = self.task_events.lock() {
@@ -326,7 +332,7 @@ impl AsyncAnalyzer {
         let slow_await_threshold = 100_000_000; // 100ms in nanoseconds
         let slow_awaits = awaits
             .iter()
-            .filter(|a| a.duration.map_or(false, |d| d > slow_await_threshold))
+            .filter(|a| a.duration.is_some_and(|d| d > slow_await_threshold))
             .count();
 
         if slow_awaits > 0 {

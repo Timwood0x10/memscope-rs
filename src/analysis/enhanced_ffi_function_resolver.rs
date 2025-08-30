@@ -162,7 +162,7 @@ impl EnhancedFfiFunctionResolver {
             if let Some(cached) = self.function_database.get(function_name) {
                 self.update_stats_cache_hit();
                 self.update_stats_success(start_time);
-                tracing::debug!("🔍 Cache hit for function: {}", function_name);
+                tracing::debug!("🔍 Cache hit for function: {function_name}");
                 return Ok(Arc::clone(cached.value()));
             }
         }
@@ -183,9 +183,8 @@ impl EnhancedFfiFunctionResolver {
 
         self.update_stats_success(start_time);
         tracing::debug!(
-            "🔍 Successfully resolved function: {} -> {}",
-            function_name,
-            resolved_arc.library_name
+            "🔍 Successfully resolved function: {function_name} -> {library_name}",
+            library_name = resolved_arc.library_name
         );
 
         Ok(resolved_arc)
@@ -202,7 +201,7 @@ impl EnhancedFfiFunctionResolver {
         if start_time.elapsed().as_millis() > self.config.resolution_timeout_ms as u128 {
             self.update_stats_timeout();
             return Err(crate::core::types::TrackingError::PerformanceError(
-                format!("Function resolution timeout for: {}", function_name),
+                format!("Function resolution timeout for: {function_name}"),
             ));
         }
 

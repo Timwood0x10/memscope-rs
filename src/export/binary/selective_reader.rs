@@ -1500,7 +1500,7 @@ mod selective_reader_tests {
         let allocations_result =
             crate::export::binary::BinaryParser::load_allocations(test_file.path());
         if let Err(ref e) = allocations_result {
-            println!("Error loading allocations with BinaryParser: {:?}", e);
+            println!("Error loading allocations with BinaryParser: {e:?}");
         }
         assert!(
             allocations_result.is_ok(),

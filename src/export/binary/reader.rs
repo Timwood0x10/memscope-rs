@@ -387,7 +387,7 @@ impl BinaryReader {
         }
 
         // Try to read advanced metrics segment if present (optional)
-        if let Err(_) = self.try_read_advanced_metrics_segment() {
+        if self.try_read_advanced_metrics_segment().is_err() {
             // Advanced metrics segment not present or corrupted, continue without it
             tracing::debug!("No advanced metrics segment found or failed to read");
         }
@@ -583,8 +583,7 @@ impl BinaryReader {
                     Ok(Some(string.to_string()))
                 } else {
                     Err(BinaryExportError::CorruptedData(format!(
-                        "Invalid string table index: {}",
-                        index
+                        "Invalid string table index: {index}",
                     )))
                 }
             } else {
@@ -619,8 +618,7 @@ impl BinaryReader {
                     Ok(string.to_string())
                 } else {
                     Err(BinaryExportError::CorruptedData(format!(
-                        "Invalid string table index: {}",
-                        index
+                        "Invalid string table index: {index}",
                     )))
                 }
             } else {

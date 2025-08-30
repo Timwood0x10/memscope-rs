@@ -4,7 +4,12 @@
 //! using the templates in ./templates/
 
 use crate::export::binary::config::{DashboardExportStats, DashboardFormat, DashboardOptions};
-use crate::export::binary::{error::BinaryExportError, DataScope};
+use crate::export::binary::{
+    error::BinaryExportError, DataScope,
+    complex_type_analyzer::ComplexTypeAnalysis,
+    ffi_safety_analyzer::FfiSafetyAnalysis,
+    variable_relationship_analyzer::VariableRelationshipAnalysis,
+};
 use std::path::Path;
 
 /// Output format for binary export
@@ -174,7 +179,7 @@ pub fn export_binary_optimized<P: AsRef<Path>>(
             .num_threads(thread_count)
             .build_global()
             .map_err(|e| {
-                BinaryExportError::CorruptedData(format!("Failed to configure thread pool: {}", e))
+                BinaryExportError::CorruptedData(format!("Failed to configure thread pool: {e}"))
             })?;
     }
 
@@ -191,18 +196,18 @@ pub fn export_binary_optimized<P: AsRef<Path>>(
         }
         BinaryOutputFormat::Html => {
             // Generate user-only HTML dashboard (lightweight)
-            let html_path = project_dir.join(format!("{}_user_dashboard.html", base_name));
+            let html_path = project_dir.join(format!("{base_name}_user_dashboard.html"));
             export_html_filtered(binary_path, &html_path, base_name, &config, true)?;
         }
         BinaryOutputFormat::HtmlSystem => {
             // Generate system-only HTML dashboard
-            let html_path = project_dir.join(format!("{}_system_dashboard.html", base_name));
+            let html_path = project_dir.join(format!("{base_name}_system_dashboard.html"));
             export_html_filtered(binary_path, &html_path, base_name, &config, false)?;
         }
         BinaryOutputFormat::HtmlBoth => {
             // Generate both user and system HTML dashboards
-            let user_html_path = project_dir.join(format!("{}_user_dashboard.html", base_name));
-            let system_html_path = project_dir.join(format!("{}_system_dashboard.html", base_name));
+            let user_html_path = project_dir.join(format!("{base_name}_user_dashboard.html"));
+            let system_html_path = project_dir.join(format!("{base_name}_system_dashboard.html"));
 
             // Use parallel processing for both HTML files
             use rayon::prelude::*;
@@ -300,7 +305,7 @@ fn export_html_optimized<P: AsRef<Path>>(
     let mut active_count = 0usize;
 
     // Use batched processing for better memory management
-    let batch_count = (total_count as usize + config.batch_size - 1) / config.batch_size;
+    let batch_count = (total_count as usize).div_ceil(config.batch_size);
 
     for batch_idx in 0..batch_count {
         let batch_start = batch_idx * config.batch_size;
@@ -469,7 +474,7 @@ fn export_html_filtered<P: AsRef<Path>>(
     );
 
     let template_data = BinaryTemplateData {
-        project_name: format!("{} ({})", project_name, data_type),
+        project_name: format!("{project_name} ({data_type})"),
         allocations: binary_allocations,
         total_memory_usage: total_memory,
         peak_memory_usage: total_memory,
@@ -563,7 +568,7 @@ fn export_both_formats_parallel<P: AsRef<Path>>(
                 }
                 BinaryOutputFormat::Html => {
                     tracing::info!("🧵 [HTML Thread] Starting ultra-fast USER HTML generation");
-                    let html_path = project_dir.join(format!("{}_user_dashboard.html", base_name));
+                    let html_path = project_dir.join(format!("{base_name}_user_dashboard.html"));
                     // Use optimized HTML generation with shared data (user only)
                     export_html_with_shared_data_filtered(
                         &all_allocations,
@@ -595,7 +600,7 @@ fn export_both_formats_parallel<P: AsRef<Path>>(
 
         let base_memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
         let project_dir = base_memory_analysis_dir.join(base_name);
-        let html_path = project_dir.join(format!("{}_dashboard.html", base_name));
+        let html_path = project_dir.join(format!("{base_name}_dashboard.html"));
         export_html_optimized(binary_path, &html_path, base_name, config)?;
     }
 
@@ -946,7 +951,7 @@ fn export_html_with_shared_data_filtered(
 
     // Create optimized template data with data type tag
     let template_data = BinaryTemplateData {
-        project_name: format!("{} ({})", project_name, data_type),
+        project_name: format!("{project_name} ({data_type})"),
         allocations: all_allocations,
         total_memory_usage: total_memory,
         peak_memory_usage: total_memory,
@@ -1022,9 +1027,9 @@ fn generate_lightweight_analysis_simple(
     _allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
 ) -> Result<
     (
-        Option<crate::export::binary::complex_type_analyzer::ComplexTypeAnalysis>,
-        Option<crate::export::binary::ffi_safety_analyzer::FfiSafetyAnalysis>,
-        Option<crate::export::binary::variable_relationship_analyzer::VariableRelationshipAnalysis>,
+        Option<ComplexTypeAnalysis>,
+        Option<FfiSafetyAnalysis>,
+        Option<VariableRelationshipAnalysis>,
     ),
     BinaryExportError,
 > {

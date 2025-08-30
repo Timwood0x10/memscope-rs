@@ -308,7 +308,7 @@ impl MemoryTracker {
 
         recommendations
             .iter()
-            .map(|rec| format!("<li>{}</li>", rec))
+            .map(|rec| format!("<li>{rec}</li>"))
             .collect::<Vec<_>>()
             .join("")
     }

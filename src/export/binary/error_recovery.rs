@@ -133,6 +133,12 @@ impl Default for RecoveryConfig {
     }
 }
 
+impl Default for ErrorRecoveryManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ErrorRecoveryManager {
     /// Create a new error recovery manager
     pub fn new() -> Self {

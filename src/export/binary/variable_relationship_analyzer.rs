@@ -737,7 +737,7 @@ impl VariableRelationshipAnalyzer {
 
     /// Create visual properties for node
     fn create_node_visual(&self, category: &NodeCategory, size: usize) -> NodeVisual {
-        let radius = (size as f64).log10().max(3.0).min(20.0);
+        let radius = (size as f64).log10().clamp(3.0, 20.0);
 
         let color = match category {
             NodeCategory::Stack => "#4CAF50".to_string(), // Green

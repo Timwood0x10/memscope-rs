@@ -26,8 +26,7 @@ impl BinarySerializable for SmartPointerType {
             3 => Ok(SmartPointerType::ArcWeak),
             4 => Ok(SmartPointerType::Box),
             _ => Err(BinaryExportError::CorruptedData(format!(
-                "Invalid smart pointer type ID: {}",
-                type_id
+                "Invalid smart pointer type ID: {type_id}",
             ))),
         }
     }

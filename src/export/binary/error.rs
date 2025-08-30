@@ -35,26 +35,25 @@ pub enum BinaryExportError {
 impl fmt::Display for BinaryExportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BinaryExportError::Io(err) => write!(f, "File I/O error: {}", err),
+            BinaryExportError::Io(err) => write!(f, "File I/O error: {err}"),
             BinaryExportError::InvalidFormat => write!(f, "Invalid file format"),
             BinaryExportError::UnsupportedVersion(version) => {
-                write!(f, "Unsupported version: {}", version)
+                write!(f, "Unsupported version: {version}")
             }
             BinaryExportError::CorruptedData(reason) => {
-                write!(f, "Data corruption: {}", reason)
+                write!(f, "Data corruption: {reason}")
             }
             BinaryExportError::InvalidMagic { expected, actual } => {
                 write!(
                     f,
-                    "Invalid magic bytes: expected '{}', got '{}'",
-                    expected, actual
+                    "Invalid magic bytes: expected '{expected}', got '{actual}'",
                 )
             }
             BinaryExportError::SerializationError(msg) => {
-                write!(f, "Serialization error: {}", msg)
+                write!(f, "Serialization error: {msg}")
             }
             BinaryExportError::CompressionError(msg) => {
-                write!(f, "Compression error: {}", msg)
+                write!(f, "Compression error: {msg}")
             }
         }
     }

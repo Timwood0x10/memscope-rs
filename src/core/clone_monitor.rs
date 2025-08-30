@@ -158,41 +158,6 @@ impl CloneMonitor {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_clone_monitor_creation() {
-        let _monitor = CloneMonitor::new();
-        // Just test creation doesn't panic
-    }
-
-    #[test]
-    fn test_record_clone() {
-        let monitor = CloneMonitor::new();
-        monitor.record_clone("test_type", 1024, 456);
-
-        let stats = get_clone_stats();
-        assert!(stats.total_clones == stats.total_clones); // Just check it's accessible
-    }
-
-    #[test]
-    fn test_get_clone_stats() {
-        let stats = get_clone_stats();
-        // Stats should be accessible
-        assert!(stats.total_clones == stats.total_clones); // Just check it's accessible
-        assert!(stats.avg_clone_time_ns >= 0.0);
-    }
-
-    #[test]
-    fn test_optimization_recommendations() {
-        let recommendations = get_optimization_recommendations();
-        // Should return some recommendations
-        assert!(!recommendations.is_empty() || recommendations.is_empty()); // Either is fine
-    }
-}
-
 /// Global clone monitor instance
 static GLOBAL_CLONE_MONITOR: OnceLock<CloneMonitor> = OnceLock::new();
 
@@ -243,3 +208,39 @@ pub fn get_optimization_recommendations() -> Vec<String> {
 
     recommendations
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clone_monitor_creation() {
+        let _monitor = CloneMonitor::new();
+        // Just test creation doesn't panic
+    }
+
+    #[test]
+    fn test_record_clone() {
+        let monitor = CloneMonitor::new();
+        monitor.record_clone("test_type", 1024, 456);
+
+        let stats = get_clone_stats();
+        assert!(stats.total_clones == stats.total_clones); // Just check it's accessible
+    }
+
+    #[test]
+    fn test_get_clone_stats() {
+        let stats = get_clone_stats();
+        // Stats should be accessible
+        assert!(stats.total_clones == stats.total_clones); // Just check it's accessible
+        assert!(stats.avg_clone_time_ns >= 0.0);
+    }
+
+    #[test]
+    fn test_optimization_recommendations() {
+        let recommendations = get_optimization_recommendations();
+        // Should return some recommendations
+        assert!(!recommendations.is_empty() || recommendations.is_empty()); // Either is fine
+    }
+}
+

@@ -631,6 +631,12 @@ pub struct LifetimeGraph {
     relationships: HashMap<usize, Vec<LifetimeRelationship>>,
 }
 
+impl Default for LifetimeGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LifetimeGraph {
     /// Create a new lifetime graph
     pub fn new() -> Self {

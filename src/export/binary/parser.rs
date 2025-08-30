@@ -43,7 +43,7 @@ impl BinaryParser {
                 analysis_engine
                     .create_memory_analysis(&user_allocations)
                     .map_err(|e| {
-                        BinaryExportError::CorruptedData(format!("Memory analysis failed: {}", e))
+                        BinaryExportError::CorruptedData(format!("Memory analysis failed: {e}"))
                     })?,
             ),
             (
@@ -51,7 +51,7 @@ impl BinaryParser {
                 analysis_engine
                     .create_lifetime_analysis(&user_allocations)
                     .map_err(|e| {
-                        BinaryExportError::CorruptedData(format!("Lifetime analysis failed: {}", e))
+                        BinaryExportError::CorruptedData(format!("Lifetime analysis failed: {e}"))
                     })?,
             ),
             (
@@ -60,8 +60,7 @@ impl BinaryParser {
                     .create_performance_analysis(&user_allocations)
                     .map_err(|e| {
                         BinaryExportError::CorruptedData(format!(
-                            "Performance analysis failed: {}",
-                            e
+                            "Performance analysis failed: {e}",
                         ))
                     })?,
             ),
@@ -71,8 +70,7 @@ impl BinaryParser {
                     .create_unsafe_ffi_analysis(&user_allocations)
                     .map_err(|e| {
                         BinaryExportError::CorruptedData(format!(
-                            "Unsafe FFI analysis failed: {}",
-                            e
+                            "Unsafe FFI analysis failed: {e}",
                         ))
                     })?,
             ),
@@ -82,17 +80,16 @@ impl BinaryParser {
                     .create_complex_types_analysis(&user_allocations)
                     .map_err(|e| {
                         BinaryExportError::CorruptedData(format!(
-                            "Complex types analysis failed: {}",
-                            e
+                            "Complex types analysis failed: {e}",
                         ))
                     })?,
             ),
         ];
 
         for (file_type, analysis_data) in analyses {
-            let file_path = project_dir.join(format!("{}_{}.json", base_name, file_type));
+            let file_path = project_dir.join(format!("{base_name}_{file_type}.json"));
             let json_content = serde_json::to_string(&analysis_data.data).map_err(|e| {
-                BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e))
+                BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
             })?;
             std::fs::write(file_path, json_content)?;
         }
@@ -121,20 +118,20 @@ impl BinaryParser {
         reader.read_all()
     }
 
-    /// Load allocations with enhanced error recovery (Task 5.1: 一招制敌)
+    /// Load allocations with enhanced error recovery 
     ///
-    /// 解决"failed to fill whole buffer"错误的核心方法
+    /// fix "failed to fill whole buffer"
     pub fn load_allocations_with_recovery<P: AsRef<Path>>(
         binary_path: P,
     ) -> Result<Vec<AllocationInfo>, BinaryExportError> {
         let binary_path = binary_path.as_ref();
 
-        // 首先检查文件大小和完整性
+        // first check file size and integrity
         let file_metadata = std::fs::metadata(binary_path)?;
         let file_size = file_metadata.len();
-        tracing::debug!("Binary file size: {} bytes", file_size);
+        tracing::debug!("Binary file size: {file_size} bytes");
 
-        // 尝试正常读取
+        // try normal read
         match Self::load_allocations(binary_path) {
             Ok(allocations) => {
                 tracing::info!(
@@ -146,12 +143,12 @@ impl BinaryParser {
             Err(BinaryExportError::Io(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                 tracing::warn!("Encountered EOF error, attempting recovery read");
 
-                // 使用恢复模式读取
+                // use recovery mode read
                 let mut reader = BinaryReader::new(binary_path)?;
                 let header = reader.read_header()?;
                 let mut allocations = Vec::new();
 
-                // 逐个读取，遇到错误就停止
+                // read one by one, stop when error
                 for i in 0..header.total_count {
                     match reader.read_allocation() {
                         Ok(allocation) => allocations.push(allocation),
@@ -159,14 +156,13 @@ impl BinaryParser {
                             if e.kind() == std::io::ErrorKind::UnexpectedEof =>
                         {
                             tracing::warn!(
-                                "Recovered {} of {} allocations before EOF",
-                                i,
+                                "Recovered {i} of {} allocations before EOF",
                                 header.total_count
                             );
                             break;
                         }
                         Err(e) => {
-                            tracing::error!("Failed to read allocation {}: {}", i, e);
+                            tracing::error!("Failed to read allocation {i}: {e}");
                             return Err(e);
                         }
                     }
@@ -182,7 +178,7 @@ impl BinaryParser {
                 Ok(allocations)
             }
             Err(e) => {
-                tracing::error!("Failed to load allocations: {}", e);
+                tracing::error!("Failed to load allocations: {e}");
                 Err(e)
             }
         }
@@ -192,7 +188,7 @@ impl BinaryParser {
     pub fn to_json<P: AsRef<Path>>(binary_path: P, json_path: P) -> Result<(), BinaryExportError> {
         let allocations = Self::load_allocations(binary_path)?;
         let json_data = serde_json::to_string_pretty(&allocations).map_err(|e| {
-            BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e))
+            BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
         })?;
         std::fs::write(json_path, json_data)?;
         Ok(())
@@ -213,7 +209,7 @@ impl BinaryParser {
 </html>"#,
             allocations.len(),
             serde_json::to_string_pretty(&allocations).map_err(|e| {
-                BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e))
+                BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
             })?
         );
         std::fs::write(html_path, html_content)?;
@@ -250,15 +246,15 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// Parse full binary to JSON using ultra-fast direct approach (Task 5.2: 一招制敌)
+    /// Parse full binary to JSON using ultra-fast direct approach 
     ///
-    /// **一招制敌**: 直接使用已优化的generate_*_json方法，避免SelectiveJsonExporter的I/O错误
+    /// **One-Stop Solution**: Directly use the optimized generate_*_json method to avoid SelectiveJsonExporter's I/O errors.
     ///
-    /// 核心优化:
-    /// - 使用load_allocations但加强错误处理 (Task 5.1)
-    /// - 直接调用优化的generate_*_json方法 (避免复杂的SelectiveJsonExporter)
-    /// - 并行生成5个JSON文件 (Task 7.1)
-    /// - 目标: <300ms性能，无null字段，JSON格式一致
+    /// Core Optimizations:
+    /// - Use load_allocations with improved error handling
+    /// - Directly call optimized generate_*_json method (avoid complex SelectiveJsonExporter)
+    /// - Parallel generate 5 JSON files
+    /// - aim: <300ms, no null fields, JSON format consistent
     pub fn parse_full_binary_to_json<P: AsRef<Path>>(
         binary_path: P,
         base_name: &str,
@@ -266,7 +262,7 @@ impl BinaryParser {
         let start = Instant::now();
         tracing::info!("Starting ultra-fast full binary to JSON conversion (direct approach)");
 
-        // Load all allocations with improved error handling (Task 5.1)
+        // Load all allocations with improved error handling 
         let load_start = Instant::now();
         let all_allocations = Self::load_allocations_with_recovery(&binary_path)?;
         let load_time = load_start.elapsed();
@@ -281,7 +277,7 @@ impl BinaryParser {
         let project_dir = base_memory_analysis_dir.join(base_name);
         std::fs::create_dir_all(&project_dir)?;
 
-        // **一招制敌**: 并行生成5个JSON文件，避免SelectiveJsonExporter的I/O问题
+        // **One-Stop Solution**: Parallel generate 5 JSON files, avoid SelectiveJsonExporter's I/O problem
         let json_start = Instant::now();
 
         let paths = [
@@ -292,7 +288,7 @@ impl BinaryParser {
             project_dir.join(format!("{base_name}_complex_types.json")),
         ];
 
-        // Task 7.1: 并行生成JSON文件
+        // Parallel generate JSON files
         use rayon::prelude::*;
 
         let results: Result<Vec<()>, BinaryExportError> = paths
@@ -334,7 +330,7 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// **[Task 23]** Ultra-fast binary to JSON conversion using existing optimizations
+    /// Ultra-fast binary to JSON conversion using existing optimizations
     ///
     /// This method provides the same ultra-fast performance as v5-draft
     pub fn parse_full_binary_to_json_with_existing_optimizations<P: AsRef<Path>>(
@@ -973,7 +969,7 @@ impl BinaryParser {
         }
 
         while val > 0 {
-            temp[i] = HEX_CHARS[(val & 0xf) as usize];
+            temp[i] = HEX_CHARS[val & 0xf];
             val >>= 4;
             i += 1;
         }
@@ -1277,23 +1273,23 @@ impl BinaryParser {
 
         let file_paths = [
             (
-                project_dir.join(format!("{}_memory_analysis.json", base_name)),
+                project_dir.join(format!("{base_name}_memory_analysis.json")),
                 "memory",
             ),
             (
-                project_dir.join(format!("{}_lifetime.json", base_name)),
+                project_dir.join(format!("{base_name}_lifetime.json")),
                 "lifetime",
             ),
             (
-                project_dir.join(format!("{}_performance.json", base_name)),
+                project_dir.join(format!("{base_name}_performance.json")),
                 "performance",
             ),
             (
-                project_dir.join(format!("{}_unsafe_ffi.json", base_name)),
+                project_dir.join(format!("{base_name}_unsafe_ffi.json")),
                 "unsafe_ffi",
             ),
             (
-                project_dir.join(format!("{}_complex_types.json", base_name)),
+                project_dir.join(format!("{base_name}_complex_types.json")),
                 "complex_types",
             ),
         ];
@@ -1454,7 +1450,7 @@ impl BinaryParser {
         std::fs::create_dir_all(&project_dir)?;
 
         // Use FastExportCoordinator's export_fast method
-        let output_path = project_dir.join(format!("{}_memory_analysis.json", base_name));
+        let output_path = project_dir.join(format!("{base_name}_memory_analysis.json"));
 
         match coordinator.export_fast(&output_path) {
             Ok(stats) => {
@@ -1561,13 +1557,10 @@ impl BinaryParser {
         let results: Result<Vec<()>, BinaryExportError> = file_tasks
             .par_iter()
             .map(|(file_type, analysis_type)| {
-                let file_path = project_dir.join(format!("{}_{}.json", base_name, file_type));
+                let file_path = project_dir.join(format!("{base_name}_{file_type}.json"));
                 let mut writer = HighSpeedBufferedWriter::new(&file_path, writer_config.clone())
                     .map_err(|e| {
-                        BinaryExportError::Io(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            e.to_string(),
-                        ))
+                        BinaryExportError::Io(std::io::Error::other(e.to_string()))
                     })?;
 
                 // Generate JSON content directly
@@ -1577,10 +1570,7 @@ impl BinaryParser {
                 writer
                     .write_custom_json(json_content.as_bytes())
                     .map_err(|e| {
-                        BinaryExportError::Io(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            e.to_string(),
-                        ))
+                        BinaryExportError::Io(std::io::Error::other(e.to_string()))
                     })?;
 
                 Ok(())
@@ -1696,8 +1686,7 @@ impl BinaryParser {
             }
             _ => {
                 return Err(BinaryExportError::CorruptedData(format!(
-                    "Unknown analysis type: {}",
-                    analysis_type
+                    "Unknown analysis type: {analysis_type}",
                 )));
             }
         }
@@ -1721,23 +1710,23 @@ impl BinaryParser {
         // Generate all 5 JSON files using direct methods
         let file_paths = [
             (
-                project_dir.join(format!("{}_memory_analysis.json", base_name)),
+                project_dir.join(format!("{base_name}_memory_analysis.json")),
                 "memory",
             ),
             (
-                project_dir.join(format!("{}_lifetime.json", base_name)),
+                project_dir.join(format!("{base_name}_lifetime.json")),
                 "lifetime",
             ),
             (
-                project_dir.join(format!("{}_performance.json", base_name)),
+                project_dir.join(format!("{base_name}_performance.json")),
                 "performance",
             ),
             (
-                project_dir.join(format!("{}_unsafe_ffi.json", base_name)),
+                project_dir.join(format!("{base_name}_unsafe_ffi.json")),
                 "unsafe_ffi",
             ),
             (
-                project_dir.join(format!("{}_complex_types.json", base_name)),
+                project_dir.join(format!("{base_name}_complex_types.json")),
                 "complex_types",
             ),
         ];

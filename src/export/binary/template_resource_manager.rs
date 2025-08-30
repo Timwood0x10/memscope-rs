@@ -110,7 +110,7 @@ impl TemplateResourceManager {
         // Load template content
         let template_path = self.template_dir.join(template_name);
         let mut template_content =
-            fs::read_to_string(&template_path).map_err(|e| BinaryExportError::Io(e))?;
+            fs::read_to_string(&template_path).map_err(BinaryExportError::Io)?;
 
         // Load and embed resources
         if config.embed_css {
@@ -156,8 +156,7 @@ impl TemplateResourceManager {
 
             let css_path = self.template_dir.join(css_file);
             if css_path.exists() {
-                let css_content =
-                    fs::read_to_string(&css_path).map_err(|e| BinaryExportError::Io(e))?;
+                let css_content = fs::read_to_string(&css_path).map_err(BinaryExportError::Io)?;
 
                 let processed_css = if config.minify_resources {
                     self.minify_css(&css_content)
@@ -165,8 +164,7 @@ impl TemplateResourceManager {
                     css_content
                 };
 
-                self.css_cache
-                    .insert(css_file.to_string(), processed_css.clone());
+                self.css_cache.insert(css_file.to_string(), processed_css.clone());
                 combined_css.push_str(&processed_css);
                 combined_css.push('\n');
             }
@@ -189,8 +187,7 @@ impl TemplateResourceManager {
 
             let js_path = self.template_dir.join(js_file);
             if js_path.exists() {
-                let js_content =
-                    fs::read_to_string(&js_path).map_err(|e| BinaryExportError::Io(e))?;
+                let js_content = fs::read_to_string(&js_path).map_err(BinaryExportError::Io)?;
 
                 let processed_js = if config.minify_resources {
                     self.minify_js(&js_content)
@@ -198,8 +195,7 @@ impl TemplateResourceManager {
                     js_content
                 };
 
-                self.js_cache
-                    .insert(js_file.to_string(), processed_js.clone());
+                self.js_cache.insert(js_file.to_string(), processed_js.clone());
                 combined_js.push_str(&processed_js);
                 combined_js.push('\n');
             }

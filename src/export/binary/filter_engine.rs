@@ -484,7 +484,7 @@ impl FilterOptimizer {
         filters.dedup_by(|a, b| {
             // Remove exact duplicates
             std::mem::discriminant(a) == std::mem::discriminant(b)
-                && format!("{:?}", a) == format!("{:?}", b)
+                && format!("{a:?}") == format!("{b:?}")
         });
     }
 }

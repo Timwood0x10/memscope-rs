@@ -584,9 +584,11 @@ mod tests {
 
     #[test]
     fn test_registry_cleanup() {
-        let mut config = NormalizerConfig::default();
-        config.max_registry_size = 2;
-        config.min_ref_count_for_cleanup = 2;
+        let config = NormalizerConfig {
+            max_registry_size: 2,
+            min_ref_count_for_cleanup: 2,
+            ..Default::default()
+        };
 
         let normalizer = CallStackNormalizer::new(config);
 

@@ -1508,7 +1508,7 @@ fn create_optimized_complex_types_analysis(
             for (type_name, info) in batch_result.type_stats {
                 let entry = complex_type_stats
                     .entry(type_name)
-                    .or_insert_with(|| ComplexTypeInfo::new());
+                    .or_insert_with(ComplexTypeInfo::new);
                 entry.merge(info);
             }
             generic_types.extend(batch_result.generic_types);
@@ -1790,7 +1790,7 @@ fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize)
     let avg_size = total_size / count;
 
     //  Calculate efficiency based on type and average size
-    let efficiency = if type_name.contains("Vec<") {
+    if type_name.contains("Vec<") {
         // Vec efficiency depends on capacity utilization
         if avg_size < 64 {
             60
@@ -1813,9 +1813,8 @@ fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize)
     } else {
         // Default efficiency
         85
-    };
+    }
 
-    efficiency
 }
 
 /// Generate optimization suggestions based on type and allocation information

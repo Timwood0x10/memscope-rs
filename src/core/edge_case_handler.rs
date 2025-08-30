@@ -644,7 +644,7 @@ mod tests {
                 .handle_edge_case(
                     EdgeCaseType::AllocationFailure,
                     EdgeCaseSeverity::Medium,
-                    format!("Test case {}", i),
+                    format!("Test case {i}"),
                     context.clone(),
                 )
                 .unwrap();
@@ -657,10 +657,10 @@ mod tests {
 
     #[test]
     fn test_case_cleanup() {
-        let mut config = EdgeCaseConfig::default();
-        config.max_stored_cases = 3;
-
-        let handler = EdgeCaseHandler::new(config);
+        let handler = EdgeCaseHandler::new(EdgeCaseConfig {
+            max_stored_cases: 3,
+            ..Default::default()
+        });
         let context = HashMap::new();
 
         // Add more cases than the limit
@@ -669,7 +669,7 @@ mod tests {
                 .handle_edge_case(
                     EdgeCaseType::BufferOverflow,
                     EdgeCaseSeverity::Low,
-                    format!("Test case {}", i),
+                    format!("Test case {i}"),
                     context.clone(),
                 )
                 .unwrap();

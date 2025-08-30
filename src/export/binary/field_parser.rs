@@ -367,7 +367,7 @@ impl FieldParser {
             // Just skip all remaining bytes to avoid parsing errors
             // The test data doesn't have proper advanced field structure
             reader.seek(SeekFrom::Current(remaining_bytes as i64))?;
-            self.stats.fields_skipped += (remaining_bytes / 4) as u64; // Estimate skipped fields
+            self.stats.fields_skipped += remaining_bytes / 4; // Estimate skipped fields
             return Ok(());
         }
 
@@ -384,7 +384,7 @@ impl FieldParser {
             let mut buffer = vec![0u8; length as usize];
             reader.read_exact(&mut buffer)?;
             Ok(Some(String::from_utf8(buffer).map_err(|e| {
-                BinaryExportError::SerializationError(format!("Invalid UTF-8: {}", e))
+                BinaryExportError::SerializationError(format!("Invalid UTF-8: {e}"))
             })?))
         } else {
             Ok(None)

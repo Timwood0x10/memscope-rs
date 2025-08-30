@@ -14,6 +14,7 @@ use crate::core::types::{
     AccessPattern, BranchPredictionImpact, CacheImpact, CreationContext,
     LifecycleEfficiencyMetrics, MemoryAccessPattern, OptimizationRecommendation,
     PerformanceCharacteristics, ResourceWasteAssessment, ScopeType,
+    PerformanceImpact::Minor,
 };
 use crate::enhanced_types::*;
 use std::collections::HashMap;
@@ -121,6 +122,12 @@ impl StackFrameTracker {
     }
 }
 
+impl Default for StackFrameTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HeapBoundaryDetector {
     /// Create a new heap boundary detector
     pub fn new() -> Self {
@@ -152,6 +159,18 @@ impl HeapBoundaryDetector {
         self.heap_segments
             .iter()
             .find(|segment| segment.contains(ptr))
+    }
+}
+
+impl Default for HeapBoundaryDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for TemporaryObjectAnalyzer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -208,7 +227,7 @@ impl TemporaryObjectAnalyzer {
                 usage_frequency: 1,
                 scope_escape_analysis: EscapeAnalysis::DoesNotEscape,
             },
-            performance_impact: crate::core::types::PerformanceImpact::Minor,
+            performance_impact: Minor,
         };
 
         // Add to patterns collection
@@ -444,6 +463,12 @@ for i in 0..1000 {
     }
 }
 
+impl Default for FragmentationMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FragmentationMonitor {
     /// Create a new fragmentation monitor
     pub fn new() -> Self {
@@ -554,13 +579,15 @@ impl FragmentationMonitor {
         };
 
         // Make predictions
-        let predicted_in_1h = (latest.fragmentation_level + rate_of_change * 3600.0)
-            .max(0.0)
-            .min(1.0);
+        let predicted_in_1h = (latest.fragmentation_level + rate_of_change * 3600.0).clamp(
+            0.0,
+            1.0,
+        );
 
-        let predicted_in_24h = (latest.fragmentation_level + rate_of_change * 86400.0)
-            .max(0.0)
-            .min(1.0);
+        let predicted_in_24h = (latest.fragmentation_level + rate_of_change * 86400.0).clamp(
+            0.0,
+            1.0,
+        );
 
         // Update trends
         self.trends = FragmentationTrends {
@@ -620,6 +647,12 @@ impl FragmentationMonitor {
     }
 }
 
+impl Default for GenericInstantiationTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GenericInstantiationTracker {
     /// Create a new generic instantiation tracker
     pub fn new() -> Self {
@@ -635,6 +668,12 @@ impl GenericInstantiationTracker {
     }
 }
 
+impl Default for ObjectLifecycleManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ObjectLifecycleManager {
     /// Create a new object lifecycle manager
     pub fn new() -> Self {
@@ -647,6 +686,12 @@ impl ObjectLifecycleManager {
                 waste_categories: Vec::new(),
             },
         }
+    }
+}
+
+impl Default for MemoryAccessPatternAnalyzer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

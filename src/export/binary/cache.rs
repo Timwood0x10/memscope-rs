@@ -318,7 +318,7 @@ impl IndexCache {
             .as_secs();
 
         // Generate cache file path
-        let cache_file_name = format!("{}.index", cache_key);
+        let cache_file_name = format!("{cache_key}.index");
         let cache_file_path = self.config.cache_directory.join(cache_file_name);
 
         // Serialize and save the index
@@ -379,14 +379,14 @@ impl IndexCache {
     /// Serialize an index to bytes
     fn serialize_index(&self, index: &BinaryIndex) -> Result<Vec<u8>, BinaryExportError> {
         bincode::serialize(index).map_err(|e| {
-            BinaryExportError::SerializationError(format!("Failed to serialize index: {}", e))
+            BinaryExportError::SerializationError(format!("Failed to serialize index: {e}"))
         })
     }
 
     /// Deserialize an index from bytes
     fn deserialize_index(&self, data: &[u8]) -> Result<BinaryIndex, BinaryExportError> {
         bincode::deserialize(data).map_err(|e| {
-            BinaryExportError::SerializationError(format!("Failed to deserialize index: {}", e))
+            BinaryExportError::SerializationError(format!("Failed to deserialize index: {e}"))
         })
     }
 
@@ -398,7 +398,7 @@ impl IndexCache {
         encoder.write_all(data)?;
         encoder
             .finish()
-            .map_err(|e| BinaryExportError::CompressionError(format!("Compression failed: {}", e)))
+            .map_err(|e| BinaryExportError::CompressionError(format!("Compression failed: {e}")))
     }
 
     /// Decompress data
@@ -494,8 +494,7 @@ impl IndexCache {
         let entries: HashMap<String, CacheEntry> = serde_json::from_str(&metadata_content)
             .map_err(|e| {
                 BinaryExportError::SerializationError(format!(
-                    "Failed to parse cache metadata: {}",
-                    e
+                    "Failed to parse cache metadata: {e}",
                 ))
             })?;
 
@@ -507,8 +506,7 @@ impl IndexCache {
     fn save_metadata(&self) -> Result<(), BinaryExportError> {
         let metadata_content = serde_json::to_string_pretty(&self.entries).map_err(|e| {
             BinaryExportError::SerializationError(format!(
-                "Failed to serialize cache metadata: {}",
-                e
+                "Failed to serialize cache metadata: {e}",
             ))
         })?;
 

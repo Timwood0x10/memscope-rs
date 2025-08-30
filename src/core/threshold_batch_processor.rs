@@ -131,8 +131,7 @@ impl<T> ThresholdBatchProcessor<T> {
         let should_flush = {
             if let Ok(mut buffer) = self.buffer.try_lock() {
                 buffer.push(item);
-                let should_flush = buffer.len() >= self.config.batch_size;
-                should_flush
+                buffer.len() >= self.config.batch_size
             } else {
                 // If we can't get the lock, process directly to avoid blocking
                 self.process_direct(item);
@@ -280,7 +279,7 @@ mod tests {
         processor.flush_batch();
 
         let stats = processor.stats();
-        println!("Low frequency stats: {:?}", stats);
+        tracing::info!("Low frequency stats: {stats:?}");
 
         // Should mostly use direct processing
         assert!(!processor.is_batching_enabled());
@@ -319,7 +318,7 @@ mod tests {
         processor.flush_batch();
 
         let stats = processor.stats();
-        println!("High frequency stats: {:?}", stats);
+        tracing::info!("High frequency stats: {stats:?}");
 
         let processed_items = processed
             .safe_lock()

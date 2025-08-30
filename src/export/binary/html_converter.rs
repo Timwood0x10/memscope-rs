@@ -31,7 +31,7 @@ pub fn convert_binary_to_html<P: AsRef<Path>>(
     let html_content = generate_html_content(&template, &allocations, &stats, project_name)?;
 
     // Write HTML file
-    fs::write(&html_path, html_content).map_err(|e| BinaryExportError::Io(e))?;
+    fs::write(&html_path, html_content).map_err(BinaryExportError::Io)?;
 
     Ok(())
 }
@@ -82,16 +82,15 @@ fn load_binary_dashboard_template() -> Result<String, BinaryExportError> {
     ];
 
     for path in &template_paths {
-        println!("🔍 Trying to load template from: {}", path);
+        println!("🔍 Trying to load template from: {path}");
         if let Ok(content) = fs::read_to_string(path) {
             println!(
-                "✅ Successfully loaded template from: {} ({} chars)",
-                path,
-                content.len()
+                "✅ Successfully loaded template from: {path} ({len} chars)",
+                len = content.len()
             );
             return Ok(content);
         } else {
-            println!("❌ Failed to load from: {}", path);
+            println!("❌ Failed to load from: {path}");
         }
     }
 
@@ -127,8 +126,7 @@ fn generate_html_content(
                 let before = &html[..start + 7]; // Include "<title>"
                 let after = &html[title_end..];
                 html = format!(
-                    "{}{} - Memory Analysis Dashboard{}",
-                    before, project_name, after
+                    "{before}{project_name} - Memory Analysis Dashboard{after}",
                 );
             }
         }
@@ -136,7 +134,7 @@ fn generate_html_content(
         // Replace main header h1 - look for "MemScope Memory Analysis Dashboard"
         html = html.replace(
             "MemScope Memory Analysis Dashboard",
-            &format!("{} - Memory Analysis Report", project_name),
+            &format!("{project_name} - Memory Analysis Report"),
         );
 
         // Add stats-grid and allocations-table classes for test compatibility
@@ -235,7 +233,7 @@ fn generate_html_content(
         let safety_injection = format!(
             r#"
     // Safety Risk Data Injection
-    window.safetyRisks = {};
+    window.safetyRisks = {safety_risk_data};
     
     function loadSafetyRisks() {{
         console.log('🛡️ Loading safety risk data...');
@@ -271,11 +269,9 @@ fn generate_html_content(
         console.log('✅ Safety risks loaded:', risks.length, 'items');
     }}
     
-    "#,
-            safety_risk_data
-        );
+    "#,);
 
-        html = format!("{}{}{}", before, safety_injection, after);
+        html = format!("{before}{safety_injection}{after}");
     } else {
         println!("⚠️ Could not find DOMContentLoaded event listener for safety risk injection");
     }
@@ -297,7 +293,7 @@ fn generate_html_content(
       }, 100);
 "#;
 
-        html = format!("{}{}{}", before, safety_call_injection, after);
+        html = format!("{before}{safety_call_injection}{after}");
     }
 
     // Also try to inject into any existing initialization functions
@@ -348,7 +344,7 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
             item["clone_info"] = json!({
                 "clone_count": clone_info.clone_count,
                 "is_clone": clone_info.is_clone,
-                "original_ptr": clone_info.original_ptr.map(|p| format!("0x{:x}", p)),
+                "original_ptr": clone_info.original_ptr.map(|p| format!("0x{p:x}")),
             });
         }
 
@@ -366,7 +362,7 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
     });
 
     serde_json::to_string(&data_structure).map_err(|e| {
-        BinaryExportError::SerializationError(format!("Failed to serialize allocation data: {}", e))
+        BinaryExportError::SerializationError(format!("Failed to serialize allocation data: {e}"))
     })
 }
 
@@ -386,7 +382,7 @@ fn prepare_stats_data(stats: &MemoryStats) -> Result<String, BinaryExportError> 
     });
 
     serde_json::to_string(&data).map_err(|e| {
-        BinaryExportError::SerializationError(format!("Failed to serialize stats data: {}", e))
+        BinaryExportError::SerializationError(format!("Failed to serialize stats data: {e}"))
     })
 }
 
@@ -402,9 +398,9 @@ fn format_memory_size(bytes: usize) -> String {
     }
 
     if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
+        format!("{bytes} {}", UNITS[unit_index])
     } else {
-        format!("{:.2} {}", size, UNITS[unit_index])
+        format!("{size:.2} {}", UNITS[unit_index])
     }
 }
 
@@ -420,7 +416,7 @@ fn get_embedded_binary_template() -> String {
             return content;
         }
         Err(e) => {
-            println!("❌ Failed to load working_dashboard.html: {}", e);
+            println!("❌ Failed to load working_dashboard.html: {e}");
         }
     }
 
@@ -701,8 +697,7 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
 
     serde_json::to_string(&safety_risks).map_err(|e| {
         BinaryExportError::SerializationError(format!(
-            "Failed to serialize safety risk data: {}",
-            e
+            "Failed to serialize safety risk data: {e}",
         ))
     })
 }

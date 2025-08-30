@@ -160,13 +160,13 @@ impl BinaryAllocationData {
         }
 
         // Add more optional fields as needed
-        if requested_fields.contains(&AllocationField::SmartPointerInfo) {
-            if allocation.smart_pointer_info.is_some() {
-                optional_fields.insert(
-                    "smart_pointer_info".to_string(),
-                    BinaryFieldValue::String("present".to_string()),
-                );
-            }
+        if requested_fields.contains(&AllocationField::SmartPointerInfo)
+            && allocation.smart_pointer_info.is_some()
+        {
+            optional_fields.insert(
+                "smart_pointer_info".to_string(),
+                BinaryFieldValue::String("present".to_string()),
+            );
         }
 
         Ok(Self {
@@ -552,8 +552,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
         if let Some(ref complex_types) = data.complex_types {
             dashboard_data["complex_types"] = serde_json::to_value(complex_types).map_err(|e| {
                 BinaryExportError::SerializationError(format!(
-                    "Complex types serialization failed: {}",
-                    e
+                    "Complex types serialization failed: {e}"
                 ))
             })?;
         }
@@ -562,8 +561,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
         if let Some(ref unsafe_ffi) = data.unsafe_ffi {
             dashboard_data["unsafe_ffi"] = serde_json::to_value(unsafe_ffi).map_err(|e| {
                 BinaryExportError::SerializationError(format!(
-                    "FFI safety analysis serialization failed: {}",
-                    e
+                    "FFI safety analysis serialization failed: {e}"
                 ))
             })?;
         }
@@ -573,14 +571,13 @@ impl<W: Write> BinaryHtmlWriter<W> {
             dashboard_data["variable_relationships"] = serde_json::to_value(variable_relationships)
                 .map_err(|e| {
                     BinaryExportError::SerializationError(format!(
-                        "Variable relationship analysis serialization failed: {}",
-                        e
+                        "Variable relationship analysis serialization failed: {e}",
                     ))
                 })?;
         }
 
         serde_json::to_string_pretty(&dashboard_data).map_err(|e| {
-            BinaryExportError::SerializationError(format!("JSON serialization failed: {}", e))
+            BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
         })
     }
 

@@ -203,7 +203,7 @@ impl BinaryIndexBuilder {
             .get_ref()
             .metadata()
             .map_err(|e| {
-                BinaryExportError::CorruptedData(format!("Failed to get file metadata: {}", e))
+                BinaryExportError::CorruptedData(format!("Failed to get file metadata: {e:?}"))
             })?
             .len();
 
@@ -226,10 +226,9 @@ impl BinaryIndexBuilder {
                 Ok(metadata) => metadata,
                 Err(e) => {
                     tracing::warn!(
-                        "Failed to read record {} at offset {}: {}",
+                        "Failed to read record {} at offset {}: {e}",
                         i + 1,
                         record_start_offset,
-                        e
                     );
 
                     // Try to recover by skipping this record
@@ -291,15 +290,14 @@ impl BinaryIndexBuilder {
         let mut type_byte = [0u8; 1];
         reader.read_exact(&mut type_byte).map_err(|e| {
             BinaryExportError::CorruptedData(format!(
-                "Failed to read record type at position {}: {}",
-                current_position, e
+                "Failed to read record type at position {current_position}: {e:?}",
             ))
         })?;
 
         if type_byte[0] != ALLOCATION_RECORD_TYPE {
             return Err(BinaryExportError::CorruptedData(format!(
-                "Invalid record type: {} at position {}",
-                type_byte[0], current_position
+                "Invalid record type: {} at position {current_position}",
+                type_byte[0]
             )));
         }
 
@@ -307,9 +305,8 @@ impl BinaryIndexBuilder {
         let mut length_bytes = [0u8; 4];
         reader.read_exact(&mut length_bytes).map_err(|e| {
             BinaryExportError::CorruptedData(format!(
-                "Failed to read record length at position {}: {}",
+                "Failed to read record length at position {}: {e:?}",
                 current_position + 1,
-                e
             ))
         })?;
         let record_length = u32::from_le_bytes(length_bytes);
@@ -317,33 +314,29 @@ impl BinaryIndexBuilder {
         // Validate record length is reasonable
         if record_length == 0 || record_length > 1024 * 1024 {
             return Err(BinaryExportError::CorruptedData(format!(
-                "Invalid record length: {} at position {}",
-                record_length, current_position
+                "Invalid record length: {record_length} at position {current_position}",
             )));
         }
 
         // Read basic fields that we need for indexing
         let ptr = primitives::read_u64(reader).map_err(|e| {
             BinaryExportError::CorruptedData(format!(
-                "Failed to read ptr at position {}: {}",
+                "Failed to read ptr at position {}: {e:?}",
                 current_position + 5,
-                e
             ))
         })? as usize;
 
         let size = primitives::read_u64(reader).map_err(|e| {
             BinaryExportError::CorruptedData(format!(
-                "Failed to read size at position {}: {}",
+                "Failed to read size at position {}: {e:?}",
                 current_position + 13,
-                e
             ))
         })? as usize;
 
         let timestamp = primitives::read_u64(reader).map_err(|e| {
             BinaryExportError::CorruptedData(format!(
-                "Failed to read timestamp at position {}: {}",
+                "Failed to read timestamp at position {}: {e:?}",
                 current_position + 21,
-                e
             ))
         })?;
 
@@ -354,8 +347,7 @@ impl BinaryIndexBuilder {
 
         if record_length < bytes_read_from_data {
             return Err(BinaryExportError::CorruptedData(format!(
-                "Record length {} is smaller than minimum required {} at position {}",
-                record_length, bytes_read_from_data, current_position
+                "Record length {record_length} is smaller than minimum required {bytes_read_from_data} at position {current_position}",
             )));
         }
 
@@ -367,10 +359,8 @@ impl BinaryIndexBuilder {
                 .seek(SeekFrom::Current(remaining_bytes as i64))
                 .map_err(|e| {
                     BinaryExportError::CorruptedData(format!(
-                        "Failed to skip {} remaining bytes at position {}: {}",
-                        remaining_bytes,
+                        "Failed to skip {remaining_bytes} remaining bytes at position {}: {e:?}",
                         current_position + 29,
-                        e
                     ))
                 })?;
         }

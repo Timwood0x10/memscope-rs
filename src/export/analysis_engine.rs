@@ -44,9 +44,9 @@ pub enum AnalysisError {
 impl fmt::Display for AnalysisError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AnalysisError::ProcessingError(msg) => write!(f, "Processing error: {}", msg),
-            AnalysisError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
-            AnalysisError::InvalidData(msg) => write!(f, "Invalid data: {}", msg),
+            AnalysisError::ProcessingError(msg) => write!(f, "Processing error: {msg}"),
+            AnalysisError::SerializationError(msg) => write!(f, "Serialization error: {msg}"),
+            AnalysisError::InvalidData(msg) => write!(f, "Invalid data: {msg}"),
         }
     }
 }
@@ -687,7 +687,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "total_allocations": allocations.len(),
                 "type_categories": categorized_types.len(),
                 "generic_types": generic_stats.len(),
-                "complex_type_ratio": if allocations.len() > 0 {
+                "complex_type_ratio": if !allocations.is_empty() {
                     (categorized_types.get("generic").map(|v| v.len()).unwrap_or(0) as f64 / allocations.len() as f64) * 100.0
                 } else { 0.0 }
             }
@@ -750,9 +750,9 @@ impl StandardAnalysisEngine {
                     16 => "u128_or_i128_or_complex_struct".to_string(),
                     24 => "Vec_or_String_header".to_string(),
                     32 => "HashMap_or_BTreeMap_header".to_string(),
-                    size if size >= 1024 => format!("LargeAllocation_{}bytes", size),
-                    size if size % 8 == 0 => format!("AlignedStruct_{}bytes", size),
-                    size => format!("CustomType_{}bytes", size),
+                    size if size >= 1024 => format!("LargeAllocation_{size}bytes"),
+                    size if size % 8 == 0 => format!("AlignedStruct_{size}bytes"),
+                    size => format!("CustomType_{size}bytes"),
                 }
             }
         }

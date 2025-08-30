@@ -367,7 +367,7 @@ impl FfiSafetyAnalyzer {
                 location: type_name.to_string(),
                 stack_trace: allocation.stack_trace.clone().unwrap_or_default(),
                 risk_level: RiskLevel::High,
-                description: format!("Raw pointer type detected: {}", type_name),
+                description: format!("Raw pointer type detected: {type_name}"),
                 timestamp: allocation.timestamp_alloc,
             };
             self.unsafe_operations.push(operation);
@@ -397,7 +397,7 @@ impl FfiSafetyAnalyzer {
                 location: scope_name.to_string(),
                 stack_trace: allocation.stack_trace.clone().unwrap_or_default(),
                 risk_level: RiskLevel::Medium,
-                description: format!("Allocation in unsafe scope: {}", scope_name),
+                description: format!("Allocation in unsafe scope: {scope_name}"),
                 timestamp: allocation.timestamp_alloc,
             };
             self.unsafe_operations.push(operation);
@@ -446,7 +446,7 @@ impl FfiSafetyAnalyzer {
                     .unwrap_or_else(|| "unknown".to_string()),
                 stack_trace: allocation.stack_trace.clone().unwrap_or_default(),
                 risk_level: RiskLevel::Medium,
-                description: format!("Large allocation detected: {} bytes", allocation.size),
+                description: format!("Large allocation detected: {size} bytes", size = allocation.size),
                 timestamp: allocation.timestamp_alloc,
             };
             self.unsafe_operations.push(operation);
@@ -537,7 +537,7 @@ impl FfiSafetyAnalyzer {
             location: self.extract_function_name(frame),
             stack_trace: stack_trace.to_vec(),
             risk_level: self.assess_risk_level(frame),
-            description: format!("Unsafe operation detected in: {}", frame),
+            description: format!("Unsafe operation detected in: {frame}"),
             timestamp: allocation.timestamp_alloc,
         };
 
@@ -553,7 +553,7 @@ impl FfiSafetyAnalyzer {
         allocation: &AllocationInfo,
         type_name: &str,
     ) -> Result<(), BinaryExportError> {
-        let location = format!("ffi_type_{}", type_name);
+        let location = format!("ffi_type_{type_name}");
 
         let tracker = self.hotspots.entry(location).or_insert(FfiHotspotTracker {
             call_count: 0,

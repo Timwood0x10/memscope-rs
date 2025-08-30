@@ -370,7 +370,7 @@ mod tests {
                 // This is expected for a Vec with capacity
             }
             PointerInfo::Synthetic { reason, .. } => {
-                panic!("Expected real pointer, got synthetic: {:?}", reason);
+                panic!("Expected real pointer, got synthetic: {reason:?}");
             }
         }
     }

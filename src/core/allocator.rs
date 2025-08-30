@@ -145,13 +145,6 @@ mod tests {
     use std::alloc::{GlobalAlloc, Layout};
 
     #[test]
-    fn test_tracking_allocator_creation() {
-        let _allocator = TrackingAllocator::new();
-        // Just test that it can be created without panicking
-        assert!(true);
-    }
-
-    #[test]
     fn test_allocation_tracking() {
         let allocator = TrackingAllocator::new();
         let layout = Layout::from_size_align(1024, 8).unwrap();
