@@ -145,8 +145,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\\nPerformance Ratios");
     println!("==================");
-    println!("Full vs User Export Time: {:.1}x", export_ratio);
-    println!("Full vs User Parse Time: {:.1}x", parse_ratio);
+    println!("Full vs User Export Time: {export_ratio:.1}x");
+    println!("Full vs User Parse Time: {parse_ratio:.1}x");
 
     if full_parse_time.as_millis() < 300 {
         println!("Performance Target: ACHIEVED (<300ms for full binary parsing)");
@@ -359,10 +359,9 @@ fn analyze_binary_files() -> Result<(), Box<dyn std::error::Error>> {
     let allocation_ratio = full_info.total_count as f64 / user_info.total_count.max(1) as f64;
 
     println!("\\nComparison:");
-    println!("  File size ratio: {:.1}x larger", size_ratio);
+    println!("  File size ratio: {size_ratio:.1}x larger");
     println!(
-        "  Allocation ratio: {:.1}x more allocations",
-        allocation_ratio
+        "  Allocation ratio: {allocation_ratio:.1}x more allocations"
     );
     println!(
         "  Count consistency: User={}, Full={}",
@@ -411,12 +410,10 @@ fn analyze_json_outputs() -> Result<(), Box<dyn std::error::Error>> {
 
     for (file_suffix, description) in &json_files {
         let user_file = format!(
-            "MemoryAnalysis/large_scale_user/large_scale_user_{}",
-            file_suffix
+            "MemoryAnalysis/large_scale_user/large_scale_user_{file_suffix}"
         );
         let full_file = format!(
-            "MemoryAnalysis/large_scale_full/large_scale_full_{}",
-            file_suffix
+            "MemoryAnalysis/large_scale_full/large_scale_full_{file_suffix}"
         );
 
         // Only check file sizes, no content parsing
@@ -428,10 +425,9 @@ fn analyze_json_outputs() -> Result<(), Box<dyn std::error::Error>> {
             user_total_size += user_size;
             full_total_size += full_size;
 
-            println!("\\n{} ({}):", description, file_suffix);
+            println!("\\n{description} ({file_suffix}):");
             println!(
-                "  File sizes: {} bytes (user) vs {} bytes (full)",
-                user_size, full_size
+                "  File sizes: {user_size} bytes (user) vs {full_size} bytes (full)"
             );
             if user_size > 0 {
                 println!("  Size ratio: {:.1}x", full_size as f64 / user_size as f64);

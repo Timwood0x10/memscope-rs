@@ -163,6 +163,7 @@ impl EnhancedPointerExtractor {
     }
 
     /// Enhanced extraction for Box with validation
+    #[allow(clippy::borrowed_box)]
     pub fn extract_box_pointer<T>(boxed: &Box<T>) -> PointerInfo {
         let ptr = boxed.as_ref() as *const T as usize;
         if Self::is_valid_heap_pointer(ptr) {

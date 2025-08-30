@@ -492,7 +492,7 @@ impl<W: Write> BinaryHtmlWriter<W> {
 
         // Create and use the binary template engine
         let mut template_engine = BinaryTemplateEngine::new().map_err(|e| {
-            BinaryExportError::CorruptedData(format!("Failed to create template engine: {}", e))
+            BinaryExportError::CorruptedData(format!("Failed to create template engine: {e}"))
         })?;
 
         // Render the template with binary data

@@ -1003,6 +1003,7 @@ fn add_matrix_layout_section(
 }
 
 /// Render single scope matrix with DYNAMIC SIZING and ENHANCED MEMORY VISUALIZATION
+#[allow(clippy::too_many_arguments)]
 fn render_scope_matrix_fixed(
     mut document: Document,
     scope_name: &str,

@@ -4,7 +4,7 @@
 
 use memscope_rs::{get_global_tracker, init};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf,Path};
 use std::process::Command;
 
 fn main() {
@@ -18,7 +18,7 @@ fn main() {
     // run complex_lifecycle_showcase to generate test data
     tracing::info!("🔧 run complex_lifecycle_showcase to generate test data...");
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--release",
             "--example",
@@ -81,7 +81,7 @@ fn diagnose_allocation_count() {
     test_raw_data_access(&stats);
 }
 
-fn test_traditional_export(output_dir: &PathBuf, stats: &memscope_rs::core::types::MemoryStats) {
+fn test_traditional_export(output_dir: &Path, stats: &memscope_rs::core::types::MemoryStats) {
     tracing::info!("");
     tracing::info!("🐌 test traditional export:");
 
@@ -129,7 +129,7 @@ fn test_traditional_export(output_dir: &PathBuf, stats: &memscope_rs::core::type
     }
 }
 
-fn test_fast_export(output_dir: &PathBuf, stats: &memscope_rs::core::types::MemoryStats) {
+fn test_fast_export(output_dir: &Path, stats: &memscope_rs::core::types::MemoryStats) {
     tracing::info!("");
     tracing::info!("⚡ test fast export:");
 

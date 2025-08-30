@@ -89,7 +89,7 @@ fn main() {
                     );
                     println!("   📁 Files saved to MemoryAnalysis/basic_usage_snapshot_analysis/");
                 }
-                Err(e) => eprintln!("❌ Legacy JSON export failed: {}", e),
+                Err(e) => eprintln!("❌ Legacy JSON export failed: {e}"),
             }
 
             // Now export using enhanced API with improve.md extensions
@@ -113,7 +113,7 @@ fn main() {
             ) {
                 Ok(_) => {
                     println!("✅ Enhanced JSON export successful!");
-                    println!("   📁 Enhanced files saved to: {}/", enhanced_output_dir);
+                    println!("   📁 Enhanced files saved to: {enhanced_output_dir}/");
                     println!("   📄 memory_analysis.json - with borrow_info, clone_info, ownership_history_available");
                     println!(
                         "   📄 lifetime.json - detailed ownership events and lifecycle tracking"
@@ -122,7 +122,7 @@ fn main() {
                     // Show what's different in the enhanced export
                     show_enhanced_features(enhanced_output_dir);
                 }
-                Err(e) => eprintln!("❌ Enhanced JSON export failed: {}", e),
+                Err(e) => eprintln!("❌ Enhanced JSON export failed: {e}"),
             }
 
             // Export to binary format (efficient for large datasets)
@@ -136,7 +136,7 @@ fn main() {
                     );
                     println!("   📁 Binary file: MemoryAnalysis/basic_usage.memscope");
                 }
-                Err(e) => eprintln!("❌ Binary export failed: {}", e),
+                Err(e) => eprintln!("❌ Binary export failed: {e}"),
             }
 
             // Legacy export for comparison (deprecated but still works)
@@ -147,8 +147,8 @@ fn main() {
                 println!("✅ Legacy SVG exported to MemoryAnalysis/basic_usage/");
             }
         }
-        (Err(e), _) => eprintln!("❌ Failed to get allocations: {}", e),
-        (_, Err(e)) => eprintln!("❌ Failed to get stats: {}", e),
+        (Err(e), _) => eprintln!("❌ Failed to get allocations: {e}"),
+        (_, Err(e)) => eprintln!("❌ Failed to get stats: {e}"),
     }
 
     println!("\nExample finished. Check both legacy and enhanced exports:");
@@ -193,19 +193,18 @@ fn show_enhanced_features(output_dir: &str) {
                 }
 
                 println!("   ✅ improve.md extensions found:");
-                println!("      • borrow_info: {} allocations", has_borrow_info);
-                println!("      • clone_info: {} allocations", has_clone_info);
+                println!("      • borrow_info: {has_borrow_info} allocations");
+                println!("      • clone_info: {has_clone_info} allocations");
                 println!(
-                    "      • ownership_history_available: {} allocations",
-                    has_ownership_history
+                    "      • ownership_history_available: {has_ownership_history} allocations"
                 );
-                println!("      • lifetime_ms: {} allocations", has_lifetime_ms);
+                println!("      • lifetime_ms: {has_lifetime_ms} allocations");
 
                 // Show example of borrow_info if available
                 if let Some(first_alloc) = allocations.first() {
                     if let Some(borrow_info) = first_alloc.get("borrow_info") {
                         if !borrow_info.is_null() {
-                            println!("   📋 Example borrow_info: {}", borrow_info);
+                            println!("   📋 Example borrow_info: {borrow_info}");
                         }
                     }
                 }

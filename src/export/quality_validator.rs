@@ -22,26 +22,23 @@ use std::time::Instant;
 // use tokio::sync::oneshot;
 
 /// Validation timing configuration
-#[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, ValueEnum)]
 pub enum ValidationTiming {
     /// Validate during export (blocks I/O)
     Inline,
     /// Validate after export (async)
+    #[default]
     Deferred,
     /// No validation
     Disabled,
 }
 
-impl Default for ValidationTiming {
-    fn default() -> Self {
-        ValidationTiming::Deferred
-    }
-}
 
 /// Export mode enumeration
-#[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, ValueEnum)]
 pub enum ExportMode {
     /// Fast mode: prioritize speed over comprehensive validation
+    #[default]
     Fast,
     /// Slow mode: perform thorough validation during export
     Slow,
@@ -49,11 +46,6 @@ pub enum ExportMode {
     Auto,
 }
 
-impl Default for ExportMode {
-    fn default() -> Self {
-        ExportMode::Fast
-    }
-}
 
 /// Export configuration that combines mode and validation settings
 #[derive(Debug, Clone)]
@@ -1656,6 +1648,7 @@ impl AsyncValidator {
     }
 
     /// Validate file using enhanced streaming with progress reporting
+    #[allow(clippy::type_complexity)]
     pub async fn validate_file_with_streaming<P: AsRef<Path>>(
         &mut self,
         file_path: P,
@@ -2289,6 +2282,7 @@ pub struct EnhancedStreamingValidator {
     /// Interruption flag
     interrupted: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Progress callback function
+    #[allow(clippy::type_complexity)]
     progress_callback: Option<Box<dyn Fn(&ValidationProgress) + Send + Sync>>,
     /// Current checkpoint
     checkpoint: Option<ValidationCheckpoint>,
@@ -2597,6 +2591,7 @@ impl EnhancedStreamingValidator {
     }
 
     /// Validate JSON content structure and values
+    #[allow(clippy::only_used_in_recursion)]
     fn validate_json_content(
         &self,
         json_value: &serde_json::Value,

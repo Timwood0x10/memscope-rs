@@ -410,7 +410,7 @@ impl HtmlErrorHandler {
         directory: &str,
         base_name: &str,
         error: Box<dyn Error + Send + Sync>,
-    ) -> Result<Vec<String>, HtmlGenerationError> {
+    ) -> Result<Vec<String>, Box<HtmlGenerationError>> {
         self.start_recovery_timing();
         self.stats.total_errors += 1;
 
@@ -435,12 +435,12 @@ impl HtmlErrorHandler {
         self.stats.unrecoverable_errors += 1;
         self.end_recovery_timing();
 
-        Err(HtmlGenerationError::FileDiscoveryError {
+        Err(Box::new(HtmlGenerationError::FileDiscoveryError {
             directory: directory.to_string(),
             base_name: base_name.to_string(),
             source: error,
             recovery_suggestions,
-        })
+        }))
     }
 
     /// Handle file loading errors with recovery
@@ -450,7 +450,7 @@ impl HtmlErrorHandler {
         file_type: &str,
         file_size: usize,
         error: Box<dyn Error + Send + Sync>,
-    ) -> Result<Option<Value>, HtmlGenerationError> {
+    ) -> Result<Option<Value>, Box<HtmlGenerationError>> {
         self.start_recovery_timing();
         self.stats.total_errors += 1;
 
@@ -491,14 +491,14 @@ impl HtmlErrorHandler {
         self.stats.unrecoverable_errors += 1;
         self.end_recovery_timing();
 
-        Err(HtmlGenerationError::FileLoadingError {
+        Err(Box::new(HtmlGenerationError::FileLoadingError {
             file_path,
             file_type: file_type.to_string(),
             file_size,
             source: error,
             recoverable,
             recovery_suggestions,
-        })
+        }))
     }
 
     /// Handle JSON parsing errors with detailed context
@@ -615,6 +615,7 @@ impl HtmlErrorHandler {
         Ok(vec![])
     }
 
+    #[allow(clippy::borrowed_box)]
     fn is_file_error_recoverable(&self, error: &Box<dyn Error + Send + Sync>) -> bool {
         let error_str = error.to_string().to_lowercase();
 
@@ -625,6 +626,7 @@ impl HtmlErrorHandler {
             || error_str.contains("interrupted")
     }
 
+    #[allow(clippy::borrowed_box)]
     fn get_file_loading_suggestions(
         &self,
         file_type: &str,

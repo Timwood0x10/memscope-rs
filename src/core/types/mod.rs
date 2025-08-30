@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::thread;
 
 /// Enhanced borrowing information for allocations
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct BorrowInfo {
     /// Total number of immutable borrows during lifetime
     pub immutable_borrows: usize,
@@ -22,19 +22,9 @@ pub struct BorrowInfo {
     pub last_borrow_timestamp: Option<u64>,
 }
 
-impl Default for BorrowInfo {
-    fn default() -> Self {
-        Self {
-            immutable_borrows: 0,
-            mutable_borrows: 0,
-            max_concurrent_borrows: 0,
-            last_borrow_timestamp: None,
-        }
-    }
-}
 
 /// Enhanced cloning information for allocations
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct CloneInfo {
     /// Number of times this object was cloned
     pub clone_count: usize,
@@ -44,15 +34,6 @@ pub struct CloneInfo {
     pub original_ptr: Option<usize>,
 }
 
-impl Default for CloneInfo {
-    fn default() -> Self {
-        Self {
-            clone_count: 0,
-            is_clone: false,
-            original_ptr: None,
-        }
-    }
-}
 
 /// Result type for tracking operations
 pub type TrackingResult<T> = Result<T, TrackingError>;

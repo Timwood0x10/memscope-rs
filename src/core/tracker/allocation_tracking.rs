@@ -626,6 +626,7 @@ impl MemoryTracker {
     }
 
     /// Create a specialized synthetic allocation for smart pointers
+    #[allow(clippy::too_many_arguments)]
     pub fn create_smart_pointer_allocation(
         &self,
         ptr: usize,

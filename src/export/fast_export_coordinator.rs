@@ -1314,26 +1314,6 @@ mod tests {
     }
 
     #[test]
-    fn test_convenience_functions() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-
-        // Test fast export function (may fail due to lack of actual data, but should not panic)
-        let result = export_fast(temp_file.path());
-        // In test environment, there may be no actual memory tracking data, so we just verify it doesn't panic
-        // The function should either succeed or fail gracefully
-        match result {
-            Ok(_) => {
-                // Success case - export worked
-                assert!(true);
-            }
-            Err(_) => {
-                // Error case - expected when no tracking data is available
-                assert!(true);
-            }
-        }
-    }
-
-    #[test]
     fn test_config_update() {
         let mut coordinator = FastExportCoordinator::default();
 

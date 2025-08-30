@@ -413,7 +413,7 @@ pub enum ConflictType {
 }
 
 /// Borrow statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BorrowStatistics {
     /// Total number of borrows tracked
     pub total_borrows: usize,
@@ -429,23 +429,11 @@ pub struct BorrowStatistics {
     pub by_type: HashMap<String, usize>,
 }
 
-impl Default for BorrowStatistics {
-    fn default() -> Self {
-        Self {
-            total_borrows: 0,
-            active_borrows: 0,
-            total_conflicts: 0,
-            avg_borrow_duration: 0,
-            max_borrow_duration: 0,
-            by_type: HashMap::new(),
-        }
-    }
-}
 
 // BorrowAnalysis struct doesn't exist in this file, removing the Default impl
 
 /// Borrow pattern analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BorrowPatternAnalysis {
     /// Detected patterns
     pub patterns: Vec<BorrowPattern>,
@@ -455,15 +443,6 @@ pub struct BorrowPatternAnalysis {
     pub analysis_timestamp: u64,
 }
 
-impl Default for BorrowPatternAnalysis {
-    fn default() -> Self {
-        Self {
-            patterns: Vec::new(),
-            total_events: 0,
-            analysis_timestamp: 0,
-        }
-    }
-}
 
 /// Detected borrow pattern
 #[derive(Debug, Clone, Serialize, Deserialize)]

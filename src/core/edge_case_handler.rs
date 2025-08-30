@@ -141,6 +141,7 @@ pub struct EdgeCaseHandler {
     /// Case type counters
     case_counters: DashMap<EdgeCaseType, u64>,
     /// Recovery strategies
+    #[allow(clippy::type_complexity)]
     recovery_strategies: Arc<
         DashMap<
             EdgeCaseType,

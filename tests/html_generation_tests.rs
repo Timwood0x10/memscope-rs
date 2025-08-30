@@ -83,9 +83,8 @@ mod html_generation_tests {
 
         for func in required_functions {
             assert!(
-                content.contains(&format!("function {}(", func)),
-                "Missing function: {}",
-                func
+                content.contains(&format!("function {func}(")),
+                "Missing function: {func}"
             );
         }
     }
@@ -108,9 +107,8 @@ mod html_generation_tests {
 
         for class in required_classes {
             assert!(
-                content.contains(&format!(".{}", class)),
-                "Missing CSS class: {}",
-                class
+                content.contains(&format!(".{class}")),
+                "Missing CSS class: {class}"
             );
         }
     }
@@ -136,9 +134,8 @@ mod html_generation_tests {
 
         for id in required_ids {
             assert!(
-                content.contains(&format!("id=\"{}\"", id)),
-                "Missing DOM element ID: {}",
-                id
+                content.contains(&format!("id=\"{id}\"")),
+                "Missing DOM element ID: {id}"
             );
         }
     }

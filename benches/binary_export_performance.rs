@@ -64,7 +64,8 @@ fn bench_json_export_original(c: &mut Criterion) {
         b.iter(|| {
             // This would call the original JSON export method
             // For now, we'll simulate it
-            black_box(std::thread::sleep(std::time::Duration::from_millis(50)));
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            black_box(());
         });
     });
 }
@@ -77,7 +78,8 @@ fn bench_json_export_unified(c: &mut Criterion) {
         b.iter(|| {
             // This would call the new unified JSON export
             // memscope::export::binary::html_export::export_binary_to_json(&binary_path, "bench_test")
-            black_box(std::thread::sleep(std::time::Duration::from_millis(50)));
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            black_box(());
         });
     });
 }
@@ -90,7 +92,8 @@ fn bench_html_export_unified(c: &mut Criterion) {
         b.iter(|| {
             // This would call the new unified HTML export
             // memscope::export::binary::html_export::export_binary_to_html(&binary_path, "bench_test")
-            black_box(std::thread::sleep(std::time::Duration::from_millis(55)));
+            std::thread::sleep(std::time::Duration::from_millis(55));
+            black_box(());
         });
     });
 }
@@ -103,7 +106,8 @@ fn bench_both_formats_parallel(c: &mut Criterion) {
         b.iter(|| {
             // This would call the parallel both formats export
             // memscope::export::binary::html_export::export_binary_to_both(&binary_path, "bench_test")
-            black_box(std::thread::sleep(std::time::Duration::from_millis(60)));
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            black_box(());
         });
     });
 }
@@ -115,7 +119,8 @@ fn bench_both_formats_sequential(c: &mut Criterion) {
     c.bench_function("both_formats_sequential", |b| {
         b.iter(|| {
             // This simulates sequential processing (JSON + HTML)
-            black_box(std::thread::sleep(std::time::Duration::from_millis(105)));
+            std::thread::sleep(std::time::Duration::from_millis(105));
+            black_box(());
             // 50 + 55
         });
     });

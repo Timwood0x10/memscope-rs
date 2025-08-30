@@ -3,21 +3,17 @@
 use serde::{Deserialize, Serialize};
 
 /// Advanced metrics level configuration
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum AdvancedMetricsLevel {
     /// Only basic data (existing behavior)
     None,
     /// Core advanced metrics with minimal performance impact
+    #[default]
     Essential,
     /// All advanced metrics, may impact performance
     Comprehensive,
 }
 
-impl Default for AdvancedMetricsLevel {
-    fn default() -> Self {
-        AdvancedMetricsLevel::Essential
-    }
-}
 
 /// Binary export configuration with advanced metrics support
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -478,55 +474,43 @@ mod tests {
 }
 
 /// Dashboard export format options
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum DashboardFormat {
     /// Current embedded format - all data in HTML (backward compatible)
     Embedded,
     /// Lightweight format - HTML + separate JSON files
+    #[default]
     Lightweight,
     /// Progressive format - HTML + lazy-loaded JSON files
     Progressive,
 }
 
-impl Default for DashboardFormat {
-    fn default() -> Self {
-        DashboardFormat::Lightweight // Default to lightweight for better performance
-    }
-}
 
 /// Data scope for export
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum DataScope {
     /// Only user allocations (with var_name)
     UserOnly,
     /// Only system allocations (without var_name)
     SystemOnly,
     /// Both user and system allocations
+    #[default]
     Both,
 }
 
-impl Default for DataScope {
-    fn default() -> Self {
-        DataScope::Both
-    }
-}
 
 /// Performance mode for analysis
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum PerformanceMode {
     /// Fast mode - basic analysis only
     Fast,
     /// Complete mode - all analysis types
+    #[default]
     Complete,
     /// Custom mode - specify which analysis to include
     Custom(Vec<AnalysisType>),
 }
 
-impl Default for PerformanceMode {
-    fn default() -> Self {
-        PerformanceMode::Complete
-    }
-}
 
 /// Analysis types that can be included/excluded
 #[derive(Debug, Clone, PartialEq)]
@@ -540,7 +524,7 @@ pub enum AnalysisType {
 }
 
 /// Unified dashboard export options
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DashboardOptions {
     /// Export format (embedded, lightweight, progressive)
     pub format: DashboardFormat,
@@ -554,17 +538,6 @@ pub struct DashboardOptions {
     pub binary_config: BinaryExportConfig,
 }
 
-impl Default for DashboardOptions {
-    fn default() -> Self {
-        Self {
-            format: DashboardFormat::default(),
-            scope: DataScope::default(),
-            performance: PerformanceMode::default(),
-            output_dir: None,
-            binary_config: BinaryExportConfig::default(),
-        }
-    }
-}
 
 impl DashboardOptions {
     /// Create new dashboard options with default settings

@@ -290,6 +290,41 @@ impl OptimizedExportOptions {
     }
 }
 
+/// Simple streaming JSON writer for memory-efficient large file export
+struct StreamingJsonWriter<W: Write> {
+    writer: W,
+}
+
+impl<W: Write> StreamingJsonWriter<W> {
+    /// Create new streaming writer
+    fn new(writer: W) -> Self {
+        Self { writer }
+    }
+
+    /// Write complete JSON data using streaming approach
+    fn write_complete_json(&mut self, data: &serde_json::Value) -> TrackingResult<()> {
+        // Use serde_json's streaming capabilities for memory efficiency
+        serde_json::to_writer(&mut self.writer, data)
+            .expect("Failed to write JSON data to streaming writer");
+        Ok(())
+    }
+
+    /// Write pretty-formatted JSON data using streaming approach
+    fn write_pretty_json(&mut self, data: &serde_json::Value) -> TrackingResult<()> {
+        // Use serde_json's pretty printing with streaming
+        serde_json::to_writer_pretty(&mut self.writer, data)
+            .expect("Failed to write pretty JSON data to streaming writer");
+        Ok(())
+    }
+
+    /// Finalize the writer and ensure all data is flushed
+    fn finalize(&mut self) -> TrackingResult<()> {
+        self.writer.flush()
+            .expect("Failed to flush streaming writer");
+        Ok(())
+    }
+}
+
 /// Type inference cache for performance optimization
 static TYPE_CACHE: LazyLock<std::sync::Mutex<HashMap<String, String>>> =
     LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
@@ -527,13 +562,19 @@ fn write_json_optimized<P: AsRef<Path>>(
         .use_compact_format
         .unwrap_or(estimated_size > 1_000_000); // Use compact for files > 1MB
 
-    // Use streaming writer for large files or when explicitly enabled
-    // Streaming writer implementation for memory-efficient export
-    if false && options.use_streaming_writer && estimated_size > 500_000 {
-        let _file = File::create(path)?;
-        // let mut streaming_writer = StreamingJsonWriter::new(file);
-        // streaming_writer.write_complete_json(data)?;
-        // streaming_writer.finalize()?;
+    // Use streaming writer for large files when explicitly enabled
+    if options.use_streaming_writer && estimated_size > 500_000 {
+        tracing::info!("Using streaming writer for large file (size: {} bytes)", estimated_size);
+        let file = File::create(path)?;
+        let buffered_file = BufWriter::with_capacity(options.buffer_size * 2, file);
+        let mut streaming_writer = StreamingJsonWriter::new(buffered_file);
+
+        match use_compact {
+            true => streaming_writer.write_complete_json(data)?,
+            false => streaming_writer.write_pretty_json(data)?,
+        }
+
+        streaming_writer.finalize()?;
     } else {
         // Use traditional buffered writer for smaller files
         let file = File::create(path)?;
@@ -1500,7 +1541,7 @@ fn create_optimized_complex_types_analysis(
         // Parallel analysis of complex types
         let results: Vec<_> = allocations
             .par_chunks(options.batch_size)
-            .map(|chunk| analyze_complex_types_batch(chunk))
+            .map(analyze_complex_types_batch)
             .collect();
 
         // Merge results

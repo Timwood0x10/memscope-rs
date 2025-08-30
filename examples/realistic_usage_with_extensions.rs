@@ -50,8 +50,7 @@ fn demonstrate_borrowing_scenario() {
         let len = _borrow2.len();
         let first = _borrow3.first();
         println!(
-            "   ✓ Used borrows: sum={}, len={}, first={:?}",
-            sum, len, first
+            "   ✓ Used borrows: sum={sum}, len={len}, first={first:?}"
         );
     }
 
@@ -128,7 +127,7 @@ fn demonstrate_complex_lifecycle() {
     {
         let _borrow = &complex_data;
         for (i, item) in _borrow.iter().enumerate() {
-            println!("   📋 Item {}: {}", i, item);
+            println!("   📋 Item {i}: {item}");
         }
     }
 
@@ -235,16 +234,16 @@ fn export_enhanced_analysis() {
             ) {
                 Ok(_) => {
                     println!("✅ Enhanced export successful!");
-                    println!("   📁 Files saved to: {}/", output_dir);
+                    println!("   📁 Files saved to: {output_dir}/");
 
                     // Analyze and show the results
                     analyze_enhanced_export(output_dir);
                 }
-                Err(e) => eprintln!("❌ Enhanced export failed: {}", e),
+                Err(e) => eprintln!("❌ Enhanced export failed: {e}"),
             }
         }
-        (Err(e), _) => eprintln!("❌ Failed to get allocations: {}", e),
-        (_, Err(e)) => eprintln!("❌ Failed to get stats: {}", e),
+        (Err(e), _) => eprintln!("❌ Failed to get allocations: {e}"),
+        (_, Err(e)) => eprintln!("❌ Failed to get stats: {e}"),
     }
 }
 

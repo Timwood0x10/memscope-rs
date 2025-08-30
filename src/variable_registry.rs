@@ -267,9 +267,7 @@ impl VariableRegistry {
         } else if var_name.contains("_vec")
             || var_name.contains("_string")
             || var_name.contains("_data")
-        {
-            "user_scope".to_string()
-        } else if var_name.starts_with("boxed_")
+            || var_name.starts_with("boxed_")
             || var_name.starts_with("rc_")
             || var_name.starts_with("arc_")
         {

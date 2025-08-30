@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_default_implementation() {
-        let allocator = TrackingAllocator::default();
+        let allocator = TrackingAllocator;
         // Test that default works
         let layout = Layout::from_size_align(64, 8).unwrap();
 

@@ -57,8 +57,6 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let debug_config = DebugConfig {
         log_level: if debug_mode {
             LogLevel::Debug
-        } else if verbose {
-            LogLevel::Info
         } else {
             LogLevel::Info
         },

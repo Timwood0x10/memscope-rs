@@ -94,8 +94,8 @@ impl FastStatsCollector {
         let snapshot = self.memory_stats.snapshot();
 
         #[cfg(feature = "parking-lot")]
-        if let Some(data) = self.detailed_data.try_lock() {
-            Some(DetailedStats {
+        {
+            self.detailed_data.try_lock().map(|data| DetailedStats {
                 basic,
                 peak_memory: snapshot.peak_memory as usize,
                 avg_allocation_size: if !data.allocation_sizes.is_empty() {
@@ -105,25 +105,25 @@ impl FastStatsCollector {
                 },
                 allocation_count_by_size: data.allocation_histogram.clone(),
             })
-        } else {
-            None
         }
 
         #[cfg(not(feature = "parking-lot"))]
-        if let Ok(data) = self.detailed_data.try_lock() {
-            Some(DetailedStats {
-                basic,
-                peak_memory: snapshot.peak_memory as usize,
-                avg_allocation_size: if !data.allocation_sizes.is_empty() {
-                    data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
-                } else {
-                    0
-                },
-                allocation_count_by_size: data.allocation_histogram.clone(),
-            })
-        } else {
-            // If we can't get detailed stats, return basic stats only
-            None
+        {
+            if let Ok(data) = self.detailed_data.try_lock() {
+                Some(DetailedStats {
+                    basic,
+                    peak_memory: snapshot.peak_memory as usize,
+                    avg_allocation_size: if !data.allocation_sizes.is_empty() {
+                        data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
+                    } else {
+                        0
+                    },
+                    allocation_count_by_size: data.allocation_histogram.clone(),
+                })
+            } else {
+                // If we can't get detailed stats, return basic stats only
+                None
+            }
         }
     }
 }
@@ -146,27 +146,19 @@ pub struct DetailedStats {
 
 /// Optimized unwrap replacement for hot paths
 pub fn fast_unwrap_or_default<T: Default>(option: Option<T>) -> T {
-    match option {
-        Some(value) => value,
-        None => {
-            // In hot paths, just return default without logging
-            T::default()
-        }
-    }
+    option.unwrap_or_default()
 }
 
 /// Optimized unwrap for results in hot paths
 pub fn fast_unwrap_result_or_default<T: Default, E>(result: Result<T, E>) -> T {
-    match result {
-        Ok(value) => value,
-        Err(_) => T::default(),
-    }
+    result.unwrap_or_default()
 }
 
 /// Batch operations to reduce lock frequency
 pub struct BatchProcessor<T> {
     batch: SimpleMutex<Vec<T>>,
     batch_size: usize,
+    #[allow(clippy::type_complexity)]
     processor: Box<dyn Fn(&[T]) + Send + Sync>,
 }
 

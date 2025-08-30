@@ -13,12 +13,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if binary file exists
     if !std::path::Path::new(binary_file).exists() {
-        println!("❌ Binary file not found: {}", binary_file);
+        println!("❌ Binary file not found: {binary_file}");
         return Ok(());
     }
 
     let file_size = std::fs::metadata(binary_file)?.len();
-    println!("📁 Binary file: {} ({} bytes)", binary_file, file_size);
+    println!("📁 Binary file: {binary_file} ({file_size} bytes)");
 
     // Read binary file
     println!("\n📖 Reading binary file...");
@@ -50,10 +50,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         if let Some(ref var_name) = alloc.var_name {
-            println!("   • var_name: {}", var_name);
+            println!("   • var_name: {var_name}");
         }
         if let Some(ref type_name) = alloc.type_name {
-            println!("   • type_name: {}", type_name);
+            println!("   • type_name: {type_name}");
         }
 
         // Check improve.md extensions
@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if let Some(lifetime_ms) = alloc.lifetime_ms {
             has_lifetime_ms += 1;
-            println!("   ✅ lifetime_ms: {} ms", lifetime_ms);
+            println!("   ✅ lifetime_ms: {lifetime_ms} ms");
         } else {
             println!("   ❌ lifetime_ms: None");
         }
@@ -95,13 +95,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Summary statistics
     println!("\n📊 improve.md Extensions Summary (first 10 allocations):");
-    println!("   • borrow_info present: {}/10", has_borrow_info);
-    println!("   • clone_info present: {}/10", has_clone_info);
+    println!("   • borrow_info present: {has_borrow_info}/10");
+    println!("   • clone_info present: {has_clone_info}/10");
     println!(
-        "   • ownership_history_available: {}/10",
-        has_ownership_history
+        "   • ownership_history_available: {has_ownership_history}/10"
     );
-    println!("   • lifetime_ms present: {}/10", has_lifetime_ms);
+    println!("   • lifetime_ms present: {has_lifetime_ms}/10");
 
     // Overall statistics
     let total_allocations = allocations.len();
@@ -123,8 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .count();
 
     println!(
-        "\n📈 Overall Statistics (all {} allocations):",
-        total_allocations
+        "\n📈 Overall Statistics (all {total_allocations} allocations):"
     );
     println!(
         "   • borrow_info: {}/{} ({:.1}%)",
@@ -158,8 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let json_size = json_output.len();
     println!(
-        "✅ JSON output written to: binary_to_json_output.json ({} bytes)",
-        json_size
+        "✅ JSON output written to: binary_to_json_output.json ({json_size} bytes)"
     );
 
     // Show sample JSON content
@@ -168,7 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let sample_json = serde_json::to_string_pretty(first_alloc)?;
         let lines: Vec<&str> = sample_json.lines().take(20).collect();
         for line in lines {
-            println!("   {}", line);
+            println!("   {line}");
         }
         if sample_json.lines().count() > 20 {
             println!("   ... (truncated)");

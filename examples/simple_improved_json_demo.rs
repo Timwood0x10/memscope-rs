@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_dir = "output/simple_improved_json";
     std::fs::create_dir_all(output_dir)?;
 
-    println!("\n📊 Exporting enhanced JSON files to: {}", output_dir);
+    println!("\n📊 Exporting enhanced JSON files to: {output_dir}");
 
     // Export with empty FFI data for simplicity
     exporter.export_enhanced_analysis(
@@ -195,7 +195,7 @@ fn verify_and_show_content(output_dir: &str) -> Result<(), Box<dyn std::error::E
             let content = std::fs::read_to_string(&file_path)?;
             let json_value: serde_json::Value = serde_json::from_str(&content)?;
 
-            println!("\n📄 {} (first 800 chars):", file);
+            println!("\n📄 {file} (first 800 chars):");
             println!("   {}", content.chars().take(800).collect::<String>());
             if content.len() > 800 {
                 println!("   ... (truncated)");
@@ -213,18 +213,17 @@ fn verify_and_show_content(output_dir: &str) -> Result<(), Box<dyn std::error::E
                             let has_lifetime_ms = first_alloc.get("lifetime_ms").is_some();
 
                             println!("\n   ✅ improve.md fields present:");
-                            println!("      • borrow_info: {}", has_borrow_info);
-                            println!("      • clone_info: {}", has_clone_info);
+                            println!("      • borrow_info: {has_borrow_info}");
+                            println!("      • clone_info: {has_clone_info}");
                             println!(
-                                "      • ownership_history_available: {}",
-                                has_ownership_flag
+                                "      • ownership_history_available: {has_ownership_flag}"
                             );
-                            println!("      • lifetime_ms: {}", has_lifetime_ms);
+                            println!("      • lifetime_ms: {has_lifetime_ms}");
 
                             // Show specific borrow_info content
                             if let Some(borrow_info) = first_alloc.get("borrow_info") {
                                 if !borrow_info.is_null() {
-                                    println!("      • borrow_info content: {}", borrow_info);
+                                    println!("      • borrow_info content: {borrow_info}");
                                 }
                             }
                         }
@@ -252,7 +251,7 @@ fn verify_and_show_content(output_dir: &str) -> Result<(), Box<dyn std::error::E
                 _ => {}
             }
         } else {
-            println!("❌ File not found: {}", file_path);
+            println!("❌ File not found: {file_path}");
         }
     }
 

@@ -172,7 +172,7 @@ pub enum RecoveryStrategy {
     /// config adjustment
     ConfigAdjustment {
         /// new config
-        new_config: Box<FastExportConfig>,
+        new_config: Box::new(Box<FastExportConfig>,
         /// reason for adjustment
         reason: String,
     },
@@ -347,7 +347,7 @@ impl ErrorRecoveryManager {
                 // performance threshold exceeded: adjust configuration or degrade
                 match stage {
                     ExportStage::ParallelProcessing => Ok(RecoveryStrategy::ConfigAdjustment {
-                        new_config: Box::new(self.create_performance_optimized_config(context)),
+                        new_config: Box::new(self.create_performance_optimized_config(context),
                         reason: "performance threshold exceeded, adjust configuration".to_string(),
                     }),
                     _ => Ok(RecoveryStrategy::GracefulDegradation {
@@ -454,7 +454,7 @@ impl ErrorRecoveryManager {
             } => self.execute_partial_save(save_path, progress_percentage, context),
 
             RecoveryStrategy::ConfigAdjustment { new_config, reason } => {
-                self.execute_config_adjustment(*new_config, reason)
+                self.execute_config_adjustment(new_config, reason)
             }
 
             RecoveryStrategy::ResourceRelease {
@@ -621,13 +621,13 @@ impl ErrorRecoveryManager {
     /// execute config adjustment
     fn execute_config_adjustment(
         &self,
-        new_config: FastExportConfig,
+        new_config: Box::new(FastExportConfig,
         reason: String,
     ) -> TrackingResult<RecoveryResult> {
         Ok(RecoveryResult {
             success: true,
             strategy: RecoveryStrategy::ConfigAdjustment {
-                new_config: Box::new(new_config),
+                new_config,
                 reason: reason.clone(),
             },
             message: format!("config adjusted: {reason}"),

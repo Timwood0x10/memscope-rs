@@ -4,7 +4,7 @@
 
 use memscope_rs::{get_global_tracker, init};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf,Path};
 use std::process::Command;
 use std::time::Instant;
 
@@ -26,7 +26,7 @@ fn main() {
     // run complex_lifecycle_showcase to generate test data
     tracing::info!("🔧 run complex_lifecycle_showcase to generate test data...");
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--release",
             "--example",
@@ -56,7 +56,7 @@ fn main() {
     run_core_performance_tests(&output_dir);
 }
 
-fn run_core_performance_tests(output_dir: &PathBuf) {
+fn run_core_performance_tests(output_dir: &Path) {
     tracing::info!("");
     tracing::info!("📊 start core performance tests...");
     tracing::info!("======================");
@@ -71,7 +71,7 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
         tracing::info!("  run {}/{}: traditional export core", run, test_runs);
 
         let start_time = Instant::now();
-        let output_path = output_dir.join(format!("traditional_core_run_{}.json", run));
+        let output_path = output_dir.join(format!("traditional_core_run_{run}.json"));
 
         // get global tracker and export (use minimal config, only generate main file)
         let tracker = get_global_tracker();
@@ -98,7 +98,7 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
 
         // directly test fast export coordinator
         let start_time = Instant::now();
-        let output_path = output_dir.join(format!("fast_core_run_{}", run));
+        let output_path = output_dir.join(format!("fast_core_run_{run}"));
 
         // use fast export coordinator
         let config = memscope_rs::export::fast_export_coordinator::FastExportConfig {
@@ -177,7 +177,7 @@ fn run_core_performance_tests(output_dir: &PathBuf) {
 fn display_core_performance_results(
     traditional_times: &[u64],
     fast_times: &[u64],
-    output_dir: &PathBuf,
+    output_dir: &Path,
 ) {
     tracing::info!("");
     tracing::info!("📈 core performance test results");
@@ -293,7 +293,7 @@ fn generate_core_performance_report(
     traditional_times: &[u64],
     fast_times: &[u64],
     improvement_percent: f64,
-    output_dir: &PathBuf,
+    output_dir: &Path,
 ) {
     let report_file = output_dir.join("core_performance_report.md");
 

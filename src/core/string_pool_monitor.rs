@@ -372,7 +372,7 @@ static GLOBAL_MONITOR: std::sync::OnceLock<StringPoolMonitor> = std::sync::OnceL
 
 /// Get the global string pool monitor
 pub fn get_string_pool_monitor() -> &'static StringPoolMonitor {
-    GLOBAL_MONITOR.get_or_init(|| StringPoolMonitor::new())
+    GLOBAL_MONITOR.get_or_init(StringPoolMonitor::new)
 }
 
 /// Record an intern operation for monitoring

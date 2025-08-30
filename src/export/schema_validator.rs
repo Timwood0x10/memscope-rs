@@ -480,7 +480,7 @@ impl SchemaValidator {
         &self,
         unsafe_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !unsafe_analysis.is_object() {
             errors.push(ValidationError {
@@ -515,7 +515,7 @@ impl SchemaValidator {
         &self,
         ffi_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !ffi_analysis.is_object() {
             errors.push(ValidationError {
@@ -550,7 +550,7 @@ impl SchemaValidator {
         &self,
         boundary_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !boundary_analysis.is_object() {
             errors.push(ValidationError {
@@ -584,7 +584,7 @@ impl SchemaValidator {
         &self,
         safety_violations: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !safety_violations.is_object() {
             errors.push(ValidationError {
@@ -618,7 +618,7 @@ impl SchemaValidator {
         &self,
         data: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         for rule in &self.config.custom_rules {
             // Simplified path matching - in production, use proper JSONPath

@@ -145,7 +145,7 @@ static GLOBAL_STRING_POOL: OnceLock<StringPool> = OnceLock::new();
 
 /// Get the global string pool instance
 fn get_global_pool() -> &'static StringPool {
-    GLOBAL_STRING_POOL.get_or_init(|| StringPool::new())
+    GLOBAL_STRING_POOL.get_or_init(StringPool::new)
 }
 
 /// Intern a string using the global string pool

@@ -67,6 +67,7 @@ impl Default for BatchConfig {
 pub struct ThresholdBatchProcessor<T> {
     config: BatchConfig,
     buffer: Mutex<Vec<T>>,
+    #[allow(clippy::type_complexity)]
     processor: Box<dyn Fn(&[T]) + Send + Sync>,
 
     // Frequency tracking

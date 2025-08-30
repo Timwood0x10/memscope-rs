@@ -998,10 +998,10 @@ impl MemoryTracker {
 
     /// Calculate ownership hierarchy depth
     fn calculate_ownership_depth(&self, _ptr: usize, type_name: &str) -> usize {
-        if type_name.starts_with("Vec<") || type_name.starts_with("HashMap<") {
-            2 // Collection + elements
-        } else if type_name.starts_with("Box<") {
-            2 // Box + boxed value
+        if type_name.starts_with("Vec<") 
+            || type_name.starts_with("HashMap<") 
+            || type_name.starts_with("Box<") {
+            2 // Collection/Box + elements/boxed value
         } else {
             1 // Simple object
         }
@@ -1058,6 +1058,7 @@ impl MemoryTracker {
     }
 
     /// Calculate depth of a single node
+    #[allow(clippy::only_used_in_recursion)]
     fn calculate_node_depth(
         &self,
         node: &crate::core::types::DropChainNode,

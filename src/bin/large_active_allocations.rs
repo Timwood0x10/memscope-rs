@@ -21,17 +21,17 @@ fn main() {
         // Reduced from 10000 to 1000
         // create different types of allocations
         let large_vec = vec![i; 100];
-        let tracked_vec = track_var!(large_vec);
-        keep_alive.push(Box::new(tracked_vec) as Box<dyn std::any::Any>);
+        track_var!(large_vec);
+        keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
         let large_string = format!("Large string with data {i}");
-        let tracked_string = track_var!(large_string);
-        keep_alive.push(Box::new(tracked_string) as Box<dyn std::any::Any>);
+        track_var!(large_string);
+        keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
         let mut map = HashMap::new();
         map.insert(format!("key_{i}"), i);
-        let tracked_map = track_var!(map);
-        keep_alive.push(Box::new(tracked_map) as Box<dyn std::any::Any>);
+        track_var!(map);
+        keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
         if i % 1000 == 0 {
             tracing::info!("  ✅ created {} groups", i);

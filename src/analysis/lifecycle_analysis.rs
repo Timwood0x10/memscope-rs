@@ -157,9 +157,8 @@ impl LifecycleAnalyzer {
 
     /// Identify how the resource is released
     fn identify_release_method(&self, type_name: &str) -> ReleaseMethod {
-        if type_name.contains("Guard") || type_name.contains("Lock") {
-            ReleaseMethod::AutomaticDrop
-        } else if type_name.contains("File") || type_name.contains("Stream") {
+        if type_name.contains("Guard") || type_name.contains("Lock") 
+            || type_name.contains("File") || type_name.contains("Stream") {
             ReleaseMethod::AutomaticDrop
         } else if type_name.contains("Box") || type_name.contains("Vec") {
             ReleaseMethod::Deallocation
@@ -518,10 +517,7 @@ impl BorrowTracker {
     }
 
     fn has_borrow_conflict(&self, borrow1: &BorrowInfo, borrow2: &BorrowInfo) -> bool {
-        match (&borrow1.borrow_type, &borrow2.borrow_type) {
-            (BorrowType::Mutable, _) | (_, BorrowType::Mutable) => true,
-            _ => false,
-        }
+        matches!((&borrow1.borrow_type, &borrow2.borrow_type), (BorrowType::Mutable, _) | (_, BorrowType::Mutable))
     }
 
     fn classify_conflict(&self, borrow1: &BorrowInfo, borrow2: &BorrowInfo) -> ConflictType {
@@ -617,7 +613,7 @@ pub enum BorrowEventType {
 }
 
 /// Borrow analysis results
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BorrowAnalysis {
     /// Total number of borrows
     pub total_borrows: usize,
@@ -741,7 +737,7 @@ pub enum CaptureMode {
 }
 
 /// Comprehensive lifecycle analysis report
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LifecycleAnalysisReport {
     /// Drop events
     pub drop_events: Vec<DropEvent>,
@@ -755,29 +751,7 @@ pub struct LifecycleAnalysisReport {
     pub analysis_timestamp: u64,
 }
 
-impl Default for BorrowAnalysis {
-    fn default() -> Self {
-        Self {
-            conflicts: Vec::new(),
-            active_borrows: 0,
-            borrow_patterns: Vec::new(),
-            long_lived_borrows: Vec::new(),
-            total_borrows: 0,
-        }
-    }
-}
 
-impl Default for LifecycleAnalysisReport {
-    fn default() -> Self {
-        Self {
-            drop_events: Vec::new(),
-            raii_patterns: Vec::new(),
-            borrow_analysis: BorrowAnalysis::default(),
-            closure_captures: Vec::new(),
-            analysis_timestamp: 0,
-        }
-    }
-}
 
 /// Get current timestamp in nanoseconds
 fn current_timestamp() -> u64 {

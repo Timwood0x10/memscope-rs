@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     );
     println!("   Functional baseline: ✅ Placeholder created");
-    println!("   Output directory: {}", output_dir);
+    println!("   Output directory: {output_dir}");
 
     println!("\n✅ Baseline establishment completed successfully!");
     println!("💡 Run 'cargo test' to generate actual baseline measurements");
@@ -128,7 +128,7 @@ fn create_baseline_summary(
     }
 
     fs::write(filename, content)?;
-    println!("📄 Baseline summary saved to {}", filename);
+    println!("📄 Baseline summary saved to {filename}");
 
     Ok(())
 }

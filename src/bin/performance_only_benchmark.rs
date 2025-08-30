@@ -4,7 +4,7 @@
 
 use memscope_rs::{get_global_tracker, init};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path,PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -26,7 +26,7 @@ fn main() {
     // run complex_lifecycle_showcase to generate test data
     tracing::info!("🔧 run complex_lifecycle_showcase to generate test data...");
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--release",
             "--example",
@@ -56,7 +56,7 @@ fn main() {
     run_performance_only_tests(&output_dir);
 }
 
-fn run_performance_only_tests(output_dir: &PathBuf) {
+fn run_performance_only_tests(output_dir: &Path) {
     tracing::info!("");
     tracing::info!("📊 start pure performance tests...");
     tracing::info!("====================");
@@ -138,7 +138,7 @@ fn run_performance_only_tests(output_dir: &PathBuf) {
 fn display_performance_results(
     traditional_times: &[u64],
     fast_times: &[u64],
-    output_dir: &PathBuf,
+    output_dir: &Path,
 ) {
     tracing::info!("");
     tracing::info!("📈 pure performance test results");
@@ -236,7 +236,7 @@ fn generate_performance_report(
     traditional_times: &[u64],
     fast_times: &[u64],
     improvement_percent: f64,
-    output_dir: &PathBuf,
+    output_dir: &Path,
 ) {
     let report_file = output_dir.join("pure_performance_report.md");
 

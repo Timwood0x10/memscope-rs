@@ -58,8 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if std::path::Path::new(binary_file).exists() {
                         let file_size = std::fs::metadata(binary_file)?.len();
                         println!(
-                            "   📁 Binary file created: {} ({} bytes)",
-                            binary_file, file_size
+                            "   📁 Binary file created: {binary_file} ({file_size} bytes)"
                         );
 
                         if file_size > 40 {
@@ -72,12 +71,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Err(e) => {
-                    println!("❌ Binary export failed: {}", e);
+                    println!("❌ Binary export failed: {e}");
                 }
             }
         }
-        (Err(e), _) => println!("❌ Failed to get allocations: {}", e),
-        (_, Err(e)) => println!("❌ Failed to get stats: {}", e),
+        (Err(e), _) => println!("❌ Failed to get allocations: {e}"),
+        (_, Err(e)) => println!("❌ Failed to get stats: {e}"),
     }
 
     Ok(())

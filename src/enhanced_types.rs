@@ -739,7 +739,7 @@ pub struct OverallOptimizationRecommendation {
 }
 
 /// Additional supporting types for comprehensive analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StackHeapInteractionAnalysis {
     /// Reference relationships between stack and heap allocations
     pub reference_relationships: Vec<ReferenceRelationship>,
@@ -982,7 +982,7 @@ pub struct EnhancedMemoryAnalysisReport {
 }
 
 /// Stack heap boundary analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StackHeapBoundaryAnalysis {
     /// Stack allocations of memory
     pub stack_allocations: Vec<StackAllocationDetails>,
@@ -1000,19 +1000,6 @@ pub struct StackHeapBoundaryAnalysis {
     pub optimization_opportunities: Vec<StackHeapOptimization>,
 }
 
-impl Default for StackHeapBoundaryAnalysis {
-    fn default() -> Self {
-        Self {
-            stack_allocations: Vec::new(),
-            heap_allocations: Vec::new(),
-            ambiguous_allocations: Vec::new(),
-            stack_heap_interactions: StackHeapInteractionAnalysis::default(),
-            memory_space_coverage: MemorySpaceCoverage::default(),
-            boundary_detection_accuracy: BoundaryDetectionAccuracy::default(),
-            optimization_opportunities: Vec::new(),
-        }
-    }
-}
 
 /// Code bloat assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1417,15 +1404,6 @@ impl Default for ResourceWasteAnalysis {
     }
 }
 
-impl Default for StackHeapInteractionAnalysis {
-    fn default() -> Self {
-        Self {
-            reference_relationships: Vec::new(),
-            lifetime_dependencies: Vec::new(),
-            performance_implications: Vec::new(),
-        }
-    }
-}
 
 impl Default for MemorySpaceCoverage {
     fn default() -> Self {

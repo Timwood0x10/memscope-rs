@@ -296,7 +296,7 @@ fn process_allocation_batch_enhanced(
         // Process chunks in parallel and flatten the results
         allocations
             .par_chunks(chunk_size)
-            .map(|chunk| process_allocation_batch(chunk))
+            .map(process_allocation_batch)
             .reduce(
                 || Ok(Vec::new()),
                 |acc, chunk_result| match (acc, chunk_result) {

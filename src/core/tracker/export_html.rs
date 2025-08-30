@@ -137,7 +137,7 @@ impl MemoryTracker {
         // Calculate key metrics
         let total_types = memory_by_type.len();
         let avg_allocation_size = if stats.total_allocations > 0 {
-            stats.total_allocated / stats.total_allocations as usize
+            stats.total_allocated / stats.total_allocations
         } else {
             0
         };

@@ -495,11 +495,7 @@ impl MemoryTracker {
 
     fn analyze_string_efficiency(&self, total_size: usize, fields: &mut Vec<FieldLayoutInfo>) {
         // String is essentially Vec<u8>, so similar analysis
-        let estimated_capacity = if total_size > 24 {
-            total_size - 24 // Subtract Vec header size
-        } else {
-            0
-        };
+        let estimated_capacity = total_size.saturating_sub(24);
 
         fields.push(FieldLayoutInfo {
             field_name: "string_analysis".to_string(),
@@ -629,13 +625,11 @@ impl MemoryTracker {
                     "Evaluate if BTreeMap might be more efficient for your use case".to_string(),
                 );
             }
-        } else if type_name == "String" {
-            if score < 0.8 {
-                recommendations.push(
-                    "Consider using String::with_capacity() for known string sizes".to_string(),
-                );
-                recommendations.push("Use &str instead of String when possible".to_string());
-            }
+        } else if type_name == "String" && score < 0.8 {
+            recommendations.push(
+                "Consider using String::with_capacity() for known string sizes".to_string(),
+            );
+            recommendations.push("Use &str instead of String when possible".to_string());
         }
 
         if score < 0.6 {
@@ -1185,16 +1179,15 @@ impl MemoryTracker {
         let mut contexts = Vec::new();
 
         // Infer context based on type name patterns
-        let context_type = if type_name.starts_with("Vec<") {
-            LocalVariable
-        } else if type_name.starts_with("HashMap<") || type_name.starts_with("BTreeMap<") {
-            LocalVariable
-        } else if type_name.starts_with("Box<")
+        let context_type = if type_name.starts_with("Vec<")
+            || type_name.starts_with("HashMap<") 
+            || type_name.starts_with("BTreeMap<")
+            || type_name.starts_with("Box<")
             || type_name.starts_with("Rc<")
             || type_name.starts_with("Arc<")
+        || type_name == "String" 
+        || type_name.starts_with("&str")
         {
-            LocalVariable
-        } else if type_name == "String" || type_name.starts_with("&str") {
             LocalVariable
         } else if type_name.contains("Future") || type_name.contains("async") {
             AsyncContext

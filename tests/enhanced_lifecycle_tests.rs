@@ -2,6 +2,30 @@ use memscope_rs::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+// Helper function for allocation type inference (matches the JavaScript logic)
+fn infer_allocation_type(type_name: &str) -> &'static str {
+    let heap_types = ["Box", "Vec", "String", "HashMap", "BTreeMap", "Arc", "Rc"];
+    let stack_types = ["i32", "i64", "f32", "f64", "bool", "char", "usize", "isize"];
+
+    for heap_type in &heap_types {
+        if type_name.contains(heap_type) {
+            return "heap";
+        }
+    }
+
+    for stack_type in &stack_types {
+        if type_name.contains(stack_type) {
+            return "stack";
+        }
+    }
+
+    if type_name.contains('*') || type_name.contains('&') {
+        return "heap";
+    }
+
+    "unknown"
+}
+
 #[cfg(test)]
 mod enhanced_lifecycle_tests {
     use super::*;
@@ -27,7 +51,7 @@ mod enhanced_lifecycle_tests {
         let _ = tracker.track_allocation(map_ptr, std::mem::size_of::<HashMap<&str, &str>>());
 
         // Test passes if no panics occur during tracking
-        assert!(true, "Allocation tracking completed successfully");
+        // Allocation tracking completed successfully
     }
 
     #[test]
@@ -47,7 +71,7 @@ mod enhanced_lifecycle_tests {
 
         for (type_name, expected) in test_cases {
             let inferred = infer_allocation_type(type_name);
-            assert_eq!(inferred, expected, "Failed for type: {}", type_name);
+            assert_eq!(inferred, expected, "Failed for type: {type_name}");
         }
     }
 
@@ -69,7 +93,7 @@ mod enhanced_lifecycle_tests {
         drop(test_var);
 
         // Test passes if tracking works without errors
-        assert!(true, "Timeline calculation test completed");
+        // Timeline calculation test completed
     }
 
     #[test]
@@ -116,38 +140,14 @@ mod enhanced_lifecycle_tests {
             let end_percent = ((end_time - min_time) as f64 / time_range as f64) * 100.0;
 
             // Ensure bounds are respected
-            let bounded_start = start_percent.max(0.0).min(100.0);
+            let bounded_start = start_percent.clamp(0.0, 100.0);
             let bounded_end = end_percent.max(bounded_start).min(100.0);
             let width = bounded_end - bounded_start;
 
-            assert!(bounded_start >= 0.0 && bounded_start <= 100.0);
-            assert!(bounded_end >= 0.0 && bounded_end <= 100.0);
+            assert!((0.0..=100.0).contains(&bounded_start));
+            assert!((0.0..=100.0).contains(&bounded_end));
             assert!(width >= 0.0);
             assert!(bounded_end >= bounded_start);
         }
     }
-}
-
-// Helper function for allocation type inference (matches the JavaScript logic)
-fn infer_allocation_type(type_name: &str) -> &'static str {
-    let heap_types = ["Box", "Vec", "String", "HashMap", "BTreeMap", "Arc", "Rc"];
-    let stack_types = ["i32", "i64", "f32", "f64", "bool", "char", "usize", "isize"];
-
-    for heap_type in &heap_types {
-        if type_name.contains(heap_type) {
-            return "heap";
-        }
-    }
-
-    for stack_type in &stack_types {
-        if type_name.contains(stack_type) {
-            return "stack";
-        }
-    }
-
-    if type_name.contains('*') || type_name.contains('&') {
-        return "heap";
-    }
-
-    "unknown"
 }

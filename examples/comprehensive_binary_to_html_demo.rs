@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     binary::export_to_binary(&allocations, &binary_path)?;
 
     let binary_size = std::fs::metadata(&binary_path)?.len();
-    println!("   Binary file size: {} bytes", binary_size);
+    println!("   Binary file size: {binary_size} bytes");
 
     // Convert binary to HTML using binary_dashboard.html template
     println!("🎨 Converting binary to HTML report...");
@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ parse_binary_to_html_direct completed");
 
     let html_size = std::fs::metadata(&html_path)?.len();
-    println!("   HTML file size: {} bytes", html_size);
+    println!("   HTML file size: {html_size} bytes");
 
     // Display results
     println!("\n✅ Conversion completed successfully!");
@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   🌐 comprehensive_report.html");
 
     // Analyze the generated HTML
-    analyze_html_content(&current_html)?;
+    analyze_html_content(current_html)?;
 
     println!(
         "\n🎯 Demo completed! Open 'comprehensive_report.html' in your browser to see the results."
@@ -483,6 +483,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
 }
 
 /// Create a standard allocation with all improve.md extensions
+#[allow(clippy::too_many_arguments)]
 fn create_allocation(
     ptr: usize,
     size: usize,
@@ -539,6 +540,7 @@ fn create_allocation(
 }
 
 /// Create a deallocated allocation for comparison
+#[allow(clippy::too_many_arguments)]
 fn create_deallocated_allocation(
     ptr: usize,
     size: usize,
@@ -627,10 +629,10 @@ fn analyze_html_content(html_path: &Path) -> Result<(), Box<dyn std::error::Erro
     let clone_info_count = content.matches("clone_info").count();
     let smart_pointer_count = content.matches("smart_pointer").count();
 
-    println!("   Allocations displayed: {}", allocation_count);
-    println!("   Borrow info entries: {}", borrow_info_count);
-    println!("   Clone info entries: {}", clone_info_count);
-    println!("   Smart pointer entries: {}", smart_pointer_count);
+    println!("   Allocations displayed: {allocation_count}");
+    println!("   Borrow info entries: {borrow_info_count}");
+    println!("   Clone info entries: {clone_info_count}");
+    println!("   Smart pointer entries: {smart_pointer_count}");
 
     // Check for key features
     let features = [

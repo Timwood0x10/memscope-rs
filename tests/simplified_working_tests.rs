@@ -12,7 +12,7 @@ fn test_basic_memory_tracking_fixed() {
     // Use associate_var which creates synthetic allocation and updates stats
     let ptr = 0x1000;
     let result = tracker.associate_var(ptr, "test_var".to_string(), "i32".to_string());
-    assert!(result.is_ok(), "Failed to associate variable: {:?}", result);
+    assert!(result.is_ok(), "Failed to associate variable: {result:?}");
 
     // Give time for async updates
     std::thread::sleep(std::time::Duration::from_millis(10));
@@ -35,7 +35,7 @@ fn test_basic_memory_tracking_fixed() {
 
     // Test deallocation
     let result = tracker.track_deallocation(ptr);
-    assert!(result.is_ok(), "Failed to track deallocation: {:?}", result);
+    assert!(result.is_ok(), "Failed to track deallocation: {result:?}");
 
     // Give time for deallocation to be processed
     std::thread::sleep(std::time::Duration::from_millis(10));
@@ -145,7 +145,7 @@ fn test_binary_export_and_import_with_extensions() {
 
     // Test binary export
     let result = binary::export_to_binary(&allocations, &binary_path);
-    assert!(result.is_ok(), "Binary export failed: {:?}", result);
+    assert!(result.is_ok(), "Binary export failed: {result:?}");
     assert!(binary_path.exists(), "Binary file was not created");
 
     // Test binary import
@@ -165,8 +165,8 @@ fn test_binary_export_and_import_with_extensions() {
     // Verify improve.md extensions are preserved
     assert!(imported_allocations[0].borrow_info.is_some());
     assert!(imported_allocations[0].clone_info.is_some());
-    assert_eq!(imported_allocations[0].ownership_history_available, true);
-    assert_eq!(imported_allocations[1].ownership_history_available, false);
+    assert!(imported_allocations[0].ownership_history_available);
+    assert!(!imported_allocations[1].ownership_history_available);
 }
 
 #[test]
@@ -225,8 +225,7 @@ fn test_binary_to_html_conversion_with_clean_template() {
     let result = binary::parse_binary_to_html_direct(&binary_path, &html_path, "test_project");
     assert!(
         result.is_ok(),
-        "Binary to HTML conversion failed: {:?}",
-        result
+        "Binary to HTML conversion failed: {result:?}"
     );
     assert!(html_path.exists(), "HTML file was not created");
 
@@ -445,7 +444,7 @@ fn test_allocation_info_enhancement() {
     // Should have default improve.md extensions
     assert!(allocation.borrow_info.is_some());
     assert!(allocation.clone_info.is_some());
-    assert_eq!(allocation.ownership_history_available, true);
+    assert!(allocation.ownership_history_available);
     assert!(allocation.lifetime_ms.is_some());
 
     // Test type-specific enhancement
@@ -545,8 +544,7 @@ fn test_html_converter_functionality() {
         binary::parse_binary_to_html_direct(&binary_path, &html_path, "HTML Converter Test");
     assert!(
         result.is_ok(),
-        "HTML conversion should succeed: {:?}",
-        result
+        "HTML conversion should succeed: {result:?}"
     );
 
     // Verify HTML file exists and has content

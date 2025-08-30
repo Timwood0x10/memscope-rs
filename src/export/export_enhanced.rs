@@ -1123,6 +1123,7 @@ struct TreemapNode {
 
 /// Layout strategy for treemap rendering
 #[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
 enum TreemapLayoutStrategy {
     /// Full treemap with all categories and subcategories
     FullLayout,

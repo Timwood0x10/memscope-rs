@@ -727,7 +727,7 @@ impl CachePerformanceOptimizer {
 }
 
 /// Simple stub types for missing structs with serde support
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct MonomorphizationStatistics {
     /// Total number of instantiations
     pub total_instantiations: usize,
@@ -739,13 +739,13 @@ pub struct EfficiencyMetrics {
     pub efficiency_score: f64,
 }
 /// Object relationship graph
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ObjectRelationshipGraph {
     /// List of nodes in the graph
     pub nodes: Vec<String>,
 }
 /// Actual access tracking
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ActualAccessTracking {
     /// Total number of accesses
     pub total_accesses: usize,
@@ -1371,6 +1371,7 @@ impl EnhancedMemoryAnalyzer {
     }
 
     /// Generate overall recommendations
+    #[allow(clippy::too_many_arguments)]
     fn generate_overall_recommendations(
         &self,
         _stack_heap_analysis: &StackHeapBoundaryAnalysis,
@@ -1507,13 +1508,6 @@ pub fn analyze_memory_with_enhanced_features_detailed(
 // TODO add model  test cases
 
 // Default implementations for missing structures
-impl Default for MonomorphizationStatistics {
-    fn default() -> Self {
-        Self {
-            total_instantiations: 0,
-        }
-    }
-}
 
 impl Default for EfficiencyMetrics {
     fn default() -> Self {
@@ -1523,17 +1517,7 @@ impl Default for EfficiencyMetrics {
     }
 }
 
-impl Default for ObjectRelationshipGraph {
-    fn default() -> Self {
-        Self { nodes: Vec::new() }
-    }
-}
 
-impl Default for ActualAccessTracking {
-    fn default() -> Self {
-        Self { total_accesses: 0 }
-    }
-}
 
 impl Default for BandwidthUtilization {
     fn default() -> Self {

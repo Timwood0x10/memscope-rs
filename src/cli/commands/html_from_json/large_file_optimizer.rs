@@ -217,7 +217,7 @@ impl LargeFileOptimizer {
     }
 
     /// Create optimizer with default configuration
-    pub fn default() -> Self {
+    pub fn new_default() -> Self {
         Self::new(LargeFileConfig::default())
     }
 
@@ -515,7 +515,7 @@ mod tests {
             r#"{"allocations": [{"ptr": "0x123", "size": 100}], "summary": {"total": 1}}"#;
         fs::write(&file_path, test_data).expect("Failed to write test file");
 
-        let optimizer = LargeFileOptimizer::default();
+        let optimizer = LargeFileOptimizer::new_default();
         let result = optimizer.process_file(&file_path, "memory_analysis");
 
         assert!(result.is_ok());
@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn test_json_validation() {
-        let optimizer = LargeFileOptimizer::default();
+        let optimizer = LargeFileOptimizer::new_default();
 
         // Test valid memory analysis JSON
         let valid_json = serde_json::json!({

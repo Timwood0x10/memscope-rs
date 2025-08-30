@@ -1287,25 +1287,24 @@ fn inject_safety_risk_data_into_html(
             let before = &html[..script_end];
             let after = &html[script_end..];
 
-            let safety_function_injection = format!(
-                r#"
+            let safety_function_injection = r#"
     // Safety Risk Data Management Function
-    function loadSafetyRisks() {{
+    function loadSafetyRisks() {
         console.log('🛡️ Loading safety risk data...');
         const unsafeTable = document.getElementById('unsafeTable');
-        if (!unsafeTable) {{
+        if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
             return;
-        }}
+        }
         
         const risks = window.safetyRisks || [];
-        if (risks.length === 0) {{
+        if (risks.length === 0) {
             unsafeTable.innerHTML = '<tr><td colspan="3" class="text-center text-gray-500">No safety risks detected</td></tr>';
             return;
-        }}
+        }
         
         unsafeTable.innerHTML = '';
-        risks.forEach((risk, index) => {{
+        risks.forEach((risk, index) => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
             
@@ -1314,18 +1313,17 @@ fn inject_safety_risk_data_into_html(
                                  'text-green-600';
             
             row.innerHTML = `
-                <td class="px-3 py-2 text-sm">${{risk.location || 'Unknown'}}</td>
-                <td class="px-3 py-2 text-sm">${{risk.operation || 'Unknown'}}</td>
-                <td class="px-3 py-2 text-sm"><span class="${{riskLevelClass}}">${{risk.risk_level || 'Low'}}</span></td>
+                <td class="px-3 py-2 text-sm">${risk.location || 'Unknown'}</td>
+                <td class="px-3 py-2 text-sm">${risk.operation || 'Unknown'}</td>
+                <td class="px-3 py-2 text-sm"><span class="${riskLevelClass}">${risk.risk_level || 'Low'}</span></td>
             `;
             unsafeTable.appendChild(row);
-        }});
+        });
         
         console.log('✅ Safety risks loaded:', risks.length, 'items');
-    }}
+    }
     
-    "#
-            );
+    "#;
 
             html = format!("{before}{safety_function_injection}{after}");
         }

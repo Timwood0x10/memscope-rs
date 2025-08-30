@@ -419,7 +419,7 @@ impl BatchProcessor {
                 self.thread_pool
                     .as_ref()
                     .map(|p| p.current_num_threads())
-                    .unwrap_or_else(|| rayon::current_num_threads())
+                    .unwrap_or_else(rayon::current_num_threads)
             } else {
                 1
             };
