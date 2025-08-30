@@ -1032,7 +1032,7 @@ impl Default for MemoryAccessAnalysisReport {
 }
 
 /// Cache optimization report
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CacheOptimizationReport {
     /// Cache line analysis of memory
     pub cache_line_analysis: crate::enhanced_memory_analysis::CacheLineAnalysis,

@@ -152,10 +152,7 @@ impl ReferenceGraph {
                 graph.allocations.insert(allocation.ptr, allocation.clone());
 
                 // Add edge from this pointer to its data
-                graph
-                    .adjacency
-                    .entry(allocation.ptr)
-                    .or_default();
+                graph.adjacency.entry(allocation.ptr).or_default();
 
                 // Add reverse reference from data to this pointer
                 graph

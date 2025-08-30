@@ -236,7 +236,7 @@ impl FastExportCoordinator {
             ExportMode::Slow => true,
             ExportMode::Auto => false,
         };
-        
+
         let fast_config = FastExportConfig {
             validation_config: export_config.validation_config.clone(),
             verbose_logging,

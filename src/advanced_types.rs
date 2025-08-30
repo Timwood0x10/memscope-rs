@@ -479,10 +479,7 @@ pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAna
                 let latency_category = analysis.performance_info.latency_category.clone();
 
                 // Move analysis to category
-                by_category
-                    .entry(category_key)
-                    .or_default()
-                    .push(analysis);
+                by_category.entry(category_key).or_default().push(analysis);
 
                 // Collect issues
                 all_issues.extend(issues);

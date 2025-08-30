@@ -783,9 +783,8 @@ impl MemoryTracker {
                     let filename = format!("{}_security_violations.json", base_name);
                     let data = create_security_violation_analysis(&allocations, &options)?;
                     (filename, data)
-                }
-                                                             // JsonFileType::AsyncAnalysis => { ... }
-                                                             // JsonFileType::ThreadSafety => { ... }
+                } // JsonFileType::AsyncAnalysis => { ... }
+                  // JsonFileType::ThreadSafety => { ... }
             };
 
             let file_path = parent_dir.join(filename);

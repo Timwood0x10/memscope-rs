@@ -1032,7 +1032,6 @@ fn generate_lightweight_analysis_simple(
     Ok((None, None, None))
 }
 
-
 #[derive(serde::Serialize)]
 struct AllocationData {
     id: u64,
