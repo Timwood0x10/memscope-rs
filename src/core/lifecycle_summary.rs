@@ -397,7 +397,7 @@ impl LifecycleSummaryGenerator {
         }
 
         // Clamp score between 0.0 and 1.0
-        score.max(0.0).min(1.0)
+        score.clamp(0.0, 1.0)
     }
 
     /// Check if a variable name indicates a user-defined variable
@@ -425,7 +425,7 @@ impl LifecycleSummaryGenerator {
                 let group_name = self.extract_base_type_name(type_name);
                 groups
                     .entry(group_name)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(event);
             }
         }

@@ -406,6 +406,13 @@ pub struct BorrowTracker {
     next_borrow_id: u64,
 }
 
+impl Default for BorrowTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
 impl BorrowTracker {
     /// Create a new borrow tracker
     pub fn new() -> Self {
@@ -431,7 +438,7 @@ impl BorrowTracker {
 
         self.active_borrows
             .entry(ptr)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(borrow_info.clone());
 
         self.borrow_history.push(BorrowEvent {

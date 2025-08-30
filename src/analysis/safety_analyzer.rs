@@ -780,7 +780,7 @@ impl SafetyAnalyzer {
 
         let source = UnsafeSource::RawPointer {
             operation: "passport_creation".to_string(),
-            location: format!("0x{:x}", allocation_ptr),
+            location: format!("0x{allocation_ptr:x}"),
         };
 
         let risk_assessment = self.risk_engine.assess_risk(&source, &memory_context, &[]);
@@ -1078,7 +1078,7 @@ impl SafetyAnalyzer {
     fn update_stats(&self, _report_id: &str, risk_level: &RiskLevel) {
         if let Ok(mut stats) = self.stats.lock() {
             stats.total_reports += 1;
-            let risk_key = format!("{:?}", risk_level);
+            let risk_key = format!("{risk_level:?}");
             *stats.reports_by_risk_level.entry(risk_key).or_insert(0) += 1;
         }
     }

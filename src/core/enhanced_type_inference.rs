@@ -401,7 +401,7 @@ impl TypeInferenceEngine {
                 alternative_types: vec!["large_array".to_string()],
             }),
             _ => Some(InferredType {
-                type_name: format!("large_type_{}bytes", size),
+                type_name: format!("large_type_{size}bytes"),
                 confidence: TypeConfidence::Low,
                 inference_method: InferenceMethod::SizeHeuristic,
                 alternative_types: vec!["buffer".to_string(), "large_struct".to_string()],

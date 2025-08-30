@@ -547,15 +547,12 @@ impl FfiFunctionResolver {
         category: &FfiFunctionCategory,
     ) -> FfiRiskLevel {
         // High-risk functions
-        if ["strcpy", "sprintf", "gets", "scanf"]
-            .iter()
-            .any(|&f| function_name == f)
-        {
+        if ["strcpy", "sprintf", "gets", "scanf"].contains(&function_name) {
             return FfiRiskLevel::Critical;
         }
 
         // Medium-high risk functions
-        if ["free", "realloc"].iter().any(|&f| function_name == f) {
+        if ["free", "realloc"].contains(&function_name) {
             return FfiRiskLevel::High;
         }
 

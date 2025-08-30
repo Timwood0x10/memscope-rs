@@ -18,7 +18,6 @@ pub mod debug_logger;
 pub mod error_handler;
 pub mod json_file_discovery;
 pub mod large_file_optimizer;
-pub mod template_generator;
 
 use data_integrator::DataIntegrator;
 use data_normalizer::DataNormalizer;
@@ -120,7 +119,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             "   - Lifecycle events: {}",
             unified_data.lifecycle.lifecycle_events.len()
         ));
-        logger.info(&format!("   - Performance data: Available"));
+        logger.info("- Performance data: Available");
         logger.info(&format!(
             "   - Security violations: {}",
             unified_data.security.total_violations
@@ -184,39 +183,19 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         let template_time = logger.end_timing(&template_timing).unwrap_or(0);
         logger.update_stats(|stats| stats.template_time_ms = template_time);
 
-        let template_stats =
-            crate::cli::commands::html_from_json::template_generator::TemplateStats {
-                template_size_bytes: html_content.len(),
-                css_processing_time_ms: 0,
-                js_processing_time_ms: 0,
-                serialization_time_ms: 0,
-                generation_time_ms: 1,
-                cache_hit_rate: 0.0,
-                compression_ratio: Some(1.0),
-            };
+        // Simple template statistics
+        let template_size_bytes = html_content.len();
+        let generation_time_ms = template_time;
 
         tracing::info!("🎨 Template Generation Statistics:");
         tracing::info!(
             "   Template size: {:.1} KB",
-            template_stats.template_size_bytes as f64 / 1024.0
-        );
-        tracing::info!(
-            "   CSS processing: {}ms",
-            template_stats.css_processing_time_ms
-        );
-        tracing::info!(
-            "   JS processing: {}ms",
-            template_stats.js_processing_time_ms
-        );
-        tracing::info!(
-            "   Data serialization: {}ms",
-            template_stats.serialization_time_ms
+            template_size_bytes as f64 / 1024.0
         );
         tracing::info!(
             "   Total generation time: {}ms",
-            template_stats.generation_time_ms
+            generation_time_ms
         );
-        tracing::info!("   Cache hit rate: {:.1}%", template_stats.cache_hit_rate);
 
         // Determine output path - if output is just a filename, put it in the input directory
         let output_path = if Path::new(output_file).is_absolute() || output_file.contains('/') {
@@ -229,7 +208,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 
         logger.next_progress_step("Writing HTML file", 1);
         let write_timing = logger.start_timing("file_write");
-        logger.info(&format!("📁 Writing HTML file to: {}", output_path));
+        logger.info(&format!("📁 Writing HTML file to: {output_path}"));
 
         // Write HTML file
         fs::write(&output_path, &html_content)?;
@@ -240,8 +219,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         // Update the output message
         logger.info("✅ HTML report generated successfully!");
         logger.info(&format!(
-            "🌐 Open {} in your browser to view the interactive report",
-            output_path
+            "🌐 Open {output_path} in your browser to view the interactive report",
         ));
 
         // Print comprehensive performance report if requested
@@ -302,8 +280,8 @@ fn load_json_files_with_logging(
     let start_time = Instant::now();
 
     logger.debug("🚀 Starting optimized JSON file loading with comprehensive error handling...");
-    logger.debug(&format!("📁 Directory: {}", input_dir));
-    logger.debug(&format!("🏷️  Base name: {}", base_name));
+    logger.debug(&format!("📁 Directory: {input_dir}"));
+    logger.debug(&format!("🏷️  Base name: {base_name}"));
 
     // Initialize error handler with recovery context
     let recovery_context = ErrorRecoveryContext {
@@ -330,13 +308,12 @@ fn load_json_files_with_logging(
             match error_handler.handle_file_discovery_error(input_dir, base_name, Box::new(e)) {
                 Ok(alternatives) => {
                     logger.warn(&format!(
-                        "🔄 Found alternative directories: {:?}",
-                        alternatives
+                        "🔄 Found alternative directories: {alternatives:?}",
                     ));
                     return Err("JSON file discovery failed after attempting recovery".into());
                 }
                 Err(handled_error) => {
-                    logger.error(&format!("{}", handled_error));
+                    logger.error(&format!("{handled_error}"));
                     return Err(handled_error.into());
                 }
             }
@@ -479,7 +456,7 @@ fn load_files_parallel_with_logging(
         .par_iter()
         .enumerate()
         .map(|(index, (config, file_path, file_size))| {
-            let file_timing = format!("load_file_{}", index);
+            let file_timing = format!("load_file_{index}");
             let timing_id = logger.start_timing(&file_timing);
 
             logger.log_file_operation("loading", file_path, Some(*file_size));
@@ -512,7 +489,7 @@ fn load_files_sequential_with_logging(
     let mut results = Vec::new();
 
     for (index, (config, file_path, file_size)) in files.iter().enumerate() {
-        let file_timing = format!("load_file_{}", index);
+        let file_timing = format!("load_file_{index}");
         let timing_id = logger.start_timing(&file_timing);
 
         logger.log_file_operation("loading", file_path, Some(*file_size));
@@ -574,9 +551,7 @@ fn load_single_file_internal(
 
     // Use large file optimizer for files > 50MB or if specified in config
     let use_large_file_optimizer = file_size > 50 * 1024 * 1024
-        || config
-            .max_size_mb
-            .map_or(false, |max_mb| file_size > max_mb * 1024 * 1024 / 2);
+        || config.max_size_mb.is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
 
     if use_large_file_optimizer {
         // Use optimized large file processing
@@ -739,9 +714,7 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
 
     // Use large file optimizer for files > 50MB or if specified in config
     let use_large_file_optimizer = file_size > 50 * 1024 * 1024
-        || config
-            .max_size_mb
-            .map_or(false, |max_mb| file_size > max_mb * 1024 * 1024 / 2);
+        || config.max_size_mb.is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
 
     let result = if use_large_file_optimizer {
         // Use optimized large file processing
@@ -778,7 +751,7 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
                 suffix: config.suffix.to_string(),
                 success: false,
                 data: None,
-                error: Some(format!("Large file processing error: {}", e)),
+                error: Some(format!("Large file processing error: {e}")),
                 file_size,
                 load_time_ms: start_time.elapsed().as_millis() as u64,
             },
@@ -891,19 +864,19 @@ fn print_load_statistics_with_logging(stats: &JsonLoadStats, logger: &DebugLogge
         } else {
             0.0
         };
-        logger.info(&format!("   Average time per file: {}ms", avg_time));
-        logger.info(&format!("   Throughput: {:.1} MB/s", throughput));
+        logger.info(&format!("   Average time per file: {avg_time}ms"));
+        logger.info(&format!("   Throughput: {throughput:.1} MB/s"));
 
         // Memory efficiency information
         let memory_efficiency = if stats.total_size_bytes > 0 {
             // Estimate memory efficiency based on file sizes and processing time
             let estimated_peak_memory = stats.total_size_bytes as f64 * 1.5; // Assume 1.5x overhead
             let efficiency = (stats.total_size_bytes as f64 / estimated_peak_memory) * 100.0;
-            format!("{:.1}%", efficiency)
+            format!("{efficiency:.1}%")
         } else {
             "N/A".to_string()
         };
-        logger.info(&format!("   Memory efficiency: {}", memory_efficiency));
+        logger.info(&format!("   Memory efficiency: {memory_efficiency}"));
     }
     logger.info("");
 }

@@ -1343,8 +1343,7 @@ impl BinaryParser {
             "complex_types" => writer.write_all(b"{\"allocations\":[")?,
             _ => {
                 return Err(BinaryExportError::CorruptedData(format!(
-                    "Unknown JSON type: {}",
-                    json_type
+                    "Unknown JSON type: {json_type}"
                 )))
             }
         }

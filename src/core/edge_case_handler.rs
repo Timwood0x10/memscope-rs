@@ -279,7 +279,7 @@ impl EdgeCaseHandler {
                     );
                 }
                 Err(e) => {
-                    occurrence.recovery_action = Some(format!("Recovery failed: {}", e));
+                    occurrence.recovery_action = Some(format!("Recovery failed: {e}"));
                     occurrence.handled_successfully = false;
                     tracing::warn!(
                         "🛡️ Failed to recover from edge case: {:?} - {}",
@@ -331,8 +331,7 @@ impl EdgeCaseHandler {
         match self.case_storage.get(&case_id) {
             Some(occurrence) => Ok(Arc::clone(occurrence.value())),
             None => Err(crate::core::types::TrackingError::DataError(format!(
-                "Edge case with ID {} not found",
-                case_id
+                "Edge case with ID {case_id} not found",
             ))),
         }
     }

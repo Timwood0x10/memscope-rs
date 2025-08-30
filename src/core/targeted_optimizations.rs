@@ -290,7 +290,7 @@ mod tests {
 
         for handle in handles {
             if let Err(e) = handle.join() {
-                eprintln!("Thread join failed: {:?}", e);
+                eprintln!("Thread join failed: {e:?}");
             }
         }
 

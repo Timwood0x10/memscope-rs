@@ -203,7 +203,7 @@ impl VariableRelationshipBuilder {
             if let Some(smart_ptr_info) = &node.smart_pointer_info {
                 // Create relationships for smart pointer clones
                 for &clone_addr in &smart_ptr_info.clones {
-                    let clone_id = format!("0x{:x}", clone_addr);
+                    let clone_id = format!("0x{clone_addr:x}");
                     if self.nodes.contains_key(&clone_id) {
                         self.relationships.push(VariableRelationship {
                             source: node.id.clone(),
@@ -217,7 +217,7 @@ impl VariableRelationshipBuilder {
 
                 // Create relationship to cloned_from
                 if let Some(cloned_from_addr) = smart_ptr_info.cloned_from {
-                    let parent_id = format!("0x{:x}", cloned_from_addr);
+                    let parent_id = format!("0x{cloned_from_addr:x}");
                     if self.nodes.contains_key(&parent_id) {
                         self.relationships.push(VariableRelationship {
                             source: parent_id,
@@ -232,7 +232,7 @@ impl VariableRelationshipBuilder {
                 // Create ownership relationship for Box pointers
                 if smart_ptr_info.pointer_type == "Box" {
                     if let Some(data_ptr) = smart_ptr_info.data_ptr {
-                        let data_id = format!("0x{:x}", data_ptr);
+                        let data_id = format!("0x{data_ptr:x}");
                         if self.nodes.contains_key(&data_id) {
                             self.relationships.push(VariableRelationship {
                                 source: node.id.clone(),
@@ -267,7 +267,7 @@ impl VariableRelationshipBuilder {
             if variable_ids.len() > 1 {
                 // Create cluster
                 self.clusters.push(VariableCluster {
-                    id: format!("scope_{}", scope_name),
+                    id: format!("scope_{scope_name}"),
                     cluster_type: ClusterType::Scope,
                     variables: variable_ids.clone(),
                     layout_hint: None,
@@ -321,7 +321,7 @@ impl VariableRelationshipBuilder {
         // Add circular reference relationships
         for cycle in &circular_analysis.circular_references {
             for window in cycle.cycle_path.windows(2) {
-                if let (Some(source), Some(target)) = (window.get(0), window.get(1)) {
+                if let (Some(source), Some(target)) = (window.first(), window.last()) {
                     let source_id = format!("0x{:p}", source as *const CircularReferenceNode);
                     let target_id = format!("0x{:p}", target as *const CircularReferenceNode);
 

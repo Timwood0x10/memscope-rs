@@ -255,7 +255,7 @@ impl StringPoolMonitor {
         };
 
         MemoryEfficiencyMetrics {
-            efficiency_ratio: efficiency_ratio.max(0.0).min(1.0),
+            efficiency_ratio: efficiency_ratio.clamp(0.0, 1.0),
             memory_without_interning_bytes: memory_without_interning,
             memory_with_interning_bytes: memory_with_interning,
             pool_overhead_bytes: pool_overhead,

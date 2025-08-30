@@ -1704,8 +1704,7 @@ impl UnsafeFFITracker {
                 tracing::debug!("Stamped passport for ptr {:x}: {}", ptr, operation);
             } else {
                 return Err(TrackingError::InvalidPointer(format!(
-                    "No passport found for pointer: 0x{:x}",
-                    ptr
+                    "No passport found for pointer: 0x{ptr:x}",
                 )));
             }
         }
@@ -1752,8 +1751,7 @@ impl UnsafeFFITracker {
                 );
             } else {
                 return Err(TrackingError::InvalidPointer(format!(
-                    "No passport found for pointer: 0x{:x}",
-                    ptr
+                    "No passport found for pointer: 0x{ptr:x}",
                 )));
             }
         }
@@ -1782,7 +1780,7 @@ impl UnsafeFFITracker {
                 };
 
                 passport.journey.push(stamp);
-                tracing::info!("Revoked passport for ptr {:x}: {}", ptr, reason);
+                tracing::info!("Revoked passport for ptr {ptr:x}: {reason}");
             }
         }
 
@@ -1824,8 +1822,7 @@ impl UnsafeFFITracker {
                     risks.push(SafetyViolation::CrossBoundaryRisk {
                         risk_level: RiskLevel::Medium,
                         description: format!(
-                            "Memory at {:x} has crossed boundaries {} times",
-                            ptr,
+                            "Memory at {ptr:x} has crossed boundaries {} times",
                             passport.journey.len()
                         ),
                         stack: {
@@ -1841,7 +1838,7 @@ impl UnsafeFFITracker {
                 if matches!(passport.validity_status, ValidityStatus::Expired) {
                     risks.push(SafetyViolation::CrossBoundaryRisk {
                         risk_level: RiskLevel::High,
-                        description: format!("Expired passport detected for memory at {:x}", ptr),
+                        description: format!("Expired passport detected for memory at {ptr:x}"),
                         stack: {
                             let normalizer = get_global_call_stack_normalizer();
                             let empty_frames = vec![];
@@ -1868,7 +1865,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         // Record the boundary event
         self.record_boundary_event(
@@ -1892,7 +1889,7 @@ impl UnsafeFFITracker {
 
         // Create comprehensive analysis
         let analysis = BoundaryEventAnalysis {
-            event_id: format!("boundary_{}_{}", ptr, current_time),
+            event_id: format!("boundary_{ptr}_{current_time}"),
             ptr,
             event_type: event_type.clone(),
             from_context: from_context.to_string(),
@@ -1974,7 +1971,7 @@ impl UnsafeFFITracker {
             risk_factors.push(BoundaryRiskFactor {
                 factor_type: BoundaryRiskFactorType::LargeTransfer,
                 severity: 4.0,
-                description: format!("Large memory transfer: {} bytes", transfer_size),
+                description: format!("Large memory transfer: {transfer_size} bytes"),
                 mitigation: "Consider streaming or chunked transfer for large data".to_string(),
             });
             risk_score += 4.0;
@@ -2017,7 +2014,7 @@ impl UnsafeFFITracker {
             assessment_timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_nanos() as u128,
+                .as_nanos(),
         })
     }
 
@@ -2031,7 +2028,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         // Update memory passport ownership
         if let Ok(mut passports) = self.memory_passports.lock() {
@@ -2040,7 +2037,7 @@ impl UnsafeFFITracker {
                 let stamp = PassportStamp {
                     timestamp: current_time,
                     location: to_context.to_string(),
-                    operation: format!("ownership_transfer_from_{}", from_context),
+                    operation: format!("ownership_transfer_from_{from_context}"),
                     authority: "BoundaryEventProcessor".to_string(),
                     verification_hash: format!("{:x}", ptr ^ current_time as usize),
                 };
@@ -2061,7 +2058,7 @@ impl UnsafeFFITracker {
             if let Some(allocation) = allocations.get_mut(&ptr) {
                 // Add ownership transfer event
                 let ownership_event = OwnershipTransferEvent {
-                    transfer_id: format!("transfer_{}_{}", ptr, current_time),
+                    transfer_id: format!("transfer_{ptr}_{current_time}"),
                     ptr,
                     from_context: from_context.to_string(),
                     to_context: to_context.to_string(),
@@ -2245,7 +2242,7 @@ impl UnsafeFFITracker {
             analysis_timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_nanos() as u128,
+                .as_nanos(),
         };
 
         if let Ok(allocations) = self.enhanced_allocations.lock() {
@@ -2422,7 +2419,7 @@ impl UnsafeFFITracker {
                     attempted_pointer, ..
                 } => crate::analysis::UnsafeSource::RawPointer {
                     operation: "invalid_free".to_string(),
-                    location: format!("0x{:x}", attempted_pointer),
+                    location: format!("0x{attempted_pointer:x}"),
                 },
                 SafetyViolation::PotentialLeak { .. } => {
                     crate::analysis::UnsafeSource::RawPointer {

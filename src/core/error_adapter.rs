@@ -89,7 +89,7 @@ impl ErrorAdapter for DefaultErrorAdapter {
                 context,
             } => {
                 let full_message = if let Some(ctx) = context {
-                    format!("{} (context: {})", message, ctx)
+                    format!("{message} (context: {ctx})")
                 } else {
                     message.to_string()
                 };
@@ -107,7 +107,7 @@ impl ErrorAdapter for DefaultErrorAdapter {
             MemScopeError::Analysis {
                 analyzer, message, ..
             } => {
-                let full_message = format!("{}: {}", analyzer, message);
+                let full_message = format!("{analyzer}: {message}");
                 match analyzer.as_ref() {
                     "unsafe" => TrackingError::UnsafeOperationDetected(full_message),
                     "ffi" => TrackingError::FFIError(full_message),
@@ -120,14 +120,14 @@ impl ErrorAdapter for DefaultErrorAdapter {
             MemScopeError::Export {
                 format, message, ..
             } => {
-                let full_message = format!("{}: {}", format, message);
+                let full_message = format!("{format}: {message}");
                 match format.as_ref() {
                     "visualization" => TrackingError::VisualizationError(full_message),
                     _ => TrackingError::ExportError(full_message),
                 }
             }
             MemScopeError::Configuration { component, message } => {
-                let full_message = format!("{}: {}", component, message);
+                let full_message = format!("{component}: {message}");
                 match component.as_ref() {
                     "tracker" => TrackingError::TrackingDisabled,
                     "initialization" => TrackingError::InitializationError(full_message),

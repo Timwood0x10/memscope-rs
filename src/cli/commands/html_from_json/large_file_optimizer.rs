@@ -91,15 +91,13 @@ impl fmt::Display for LargeFileError {
             LargeFileError::FileTooLarge(size, limit) => {
                 write!(
                     f,
-                    "File size ({} bytes) exceeds limit ({} bytes)",
-                    size, limit
+                    "File size ({size} bytes) exceeds limit ({limit} bytes)",
                 )
             }
             LargeFileError::MemoryLimitExceeded(used, limit) => {
                 write!(
                     f,
-                    "Memory usage ({} bytes) exceeds limit ({} bytes)",
-                    used, limit
+                    "Memory usage ({used} bytes) exceeds limit ({limit} bytes)",
                 )
             }
             LargeFileError::StreamingParseError(msg) => {

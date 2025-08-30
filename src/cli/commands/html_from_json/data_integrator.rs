@@ -201,7 +201,7 @@ impl DataIntegrator {
                 index
                     .var_to_allocation
                     .entry(var_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(i);
             }
 
@@ -210,7 +210,7 @@ impl DataIntegrator {
                 index
                     .type_to_allocation
                     .entry(type_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(i);
             }
 
@@ -218,7 +218,7 @@ impl DataIntegrator {
             index
                 .timestamp_to_allocation
                 .entry(alloc.timestamp_alloc)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(i);
 
             // Index by scope
@@ -226,7 +226,7 @@ impl DataIntegrator {
                 index
                     .scope_to_allocation
                     .entry(scope_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(i);
             }
         }

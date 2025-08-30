@@ -199,7 +199,7 @@ impl OwnershipHistoryRecorder {
         };
 
         // Add event to history
-        let events = self.ownership_events.entry(ptr).or_insert_with(Vec::new);
+        let events = self.ownership_events.entry(ptr).or_default();
         events.push(event);
 
         // Limit the number of events per allocation
@@ -262,8 +262,7 @@ impl OwnershipHistoryRecorder {
                     data_ptr: 0,   // Would need to be provided separately
                 }),
                 context: Some(format!(
-                    "Reference count changed from {} to {}",
-                    old_count, new_count
+                    "Reference count changed from {old_count} to {new_count}",
                 )),
             },
             _ => OwnershipEventDetails {

@@ -19,8 +19,7 @@ impl<T> SafeLock<T> for Mutex<T> {
     fn safe_lock(&self) -> TrackingResult<std::sync::MutexGuard<T>> {
         self.lock().map_err(|e| {
             crate::core::types::TrackingError::LockError(format!(
-                "Failed to acquire mutex lock: {}",
-                e
+                "Failed to acquire mutex lock: {e}",
             ))
         })
     }
@@ -30,7 +29,7 @@ impl<T> SafeLock<T> for Mutex<T> {
             Ok(guard) => Ok(Some(guard)),
             Err(std::sync::TryLockError::WouldBlock) => Ok(None),
             Err(std::sync::TryLockError::Poisoned(e)) => Err(
-                crate::core::types::TrackingError::LockError(format!("Mutex poisoned: {}", e)),
+                crate::core::types::TrackingError::LockError(format!("Mutex poisoned: {e}")),
             ),
         }
     }
@@ -49,8 +48,7 @@ impl<T> SafeRwLock<T> for RwLock<T> {
     fn safe_read(&self) -> TrackingResult<std::sync::RwLockReadGuard<T>> {
         self.read().map_err(|e| {
             crate::core::types::TrackingError::LockError(format!(
-                "Failed to acquire read lock: {}",
-                e
+                "Failed to acquire read lock: {e}",
             ))
         })
     }
@@ -58,8 +56,7 @@ impl<T> SafeRwLock<T> for RwLock<T> {
     fn safe_write(&self) -> TrackingResult<std::sync::RwLockWriteGuard<T>> {
         self.write().map_err(|e| {
             crate::core::types::TrackingError::LockError(format!(
-                "Failed to acquire write lock: {}",
-                e
+                "Failed to acquire write lock: {e}",
             ))
         })
     }

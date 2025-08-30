@@ -168,8 +168,7 @@ impl EnhancedCallStackNormalizer {
         }
 
         Err(crate::core::types::TrackingError::DataError(format!(
-            "Call stack with ID {} not found",
-            id
+            "Call stack with ID {id} not found"
         )))
     }
 
@@ -192,8 +191,7 @@ impl EnhancedCallStackNormalizer {
         }
 
         Err(crate::core::types::TrackingError::DataError(format!(
-            "Call stack with ID {} not found for ref count increment",
-            id
+            "Call stack with ID {id} not found for ref count increment" 
         )))
     }
 
@@ -217,8 +215,7 @@ impl EnhancedCallStackNormalizer {
         }
 
         Err(crate::core::types::TrackingError::DataError(format!(
-            "Call stack with ID {} not found for ref count decrement",
-            id
+            "Call stack with ID {id} not found for ref count decrement",
         )))
     }
 

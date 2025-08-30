@@ -233,7 +233,7 @@ impl TemporaryObjectAnalyzer {
         // Add to patterns collection
         self._patterns
             .entry(pattern)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(enhanced_info.clone());
 
         // Update hot patterns if needed
@@ -707,6 +707,12 @@ impl MemoryAccessPatternAnalyzer {
     }
 }
 
+impl Default for CachePerformanceOptimizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CachePerformanceOptimizer {
     /// Create a new cache performance optimizer
     pub fn new() -> Self {
@@ -834,6 +840,12 @@ pub struct EnhancedMemoryAnalyzer {
     cache_optimizer: Arc<RwLock<CachePerformanceOptimizer>>,
 }
 
+impl Default for EnhancedMemoryAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Main function for enhanced memory analysis
 pub fn analyze_memory_with_enhanced_features() -> Result<String, Box<dyn std::error::Error>> {
     let _analyzer = EnhancedMemoryAnalyzer::new();
@@ -853,7 +865,7 @@ pub fn analyze_memory_with_enhanced_features() -> Result<String, Box<dyn std::er
     ));
 
     let total_memory: usize = allocations.iter().map(|a| a.size).sum();
-    report.push_str(&format!("Total memory usage: {} bytes\n", total_memory));
+    report.push_str(&format!("Total memory usage: {total_memory} bytes\n"));
 
     // Add more analysis here as needed
     report.push_str("\nAnalysis completed successfully.\n");

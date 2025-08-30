@@ -193,7 +193,7 @@ impl CallStackNormalizer {
                 .get(&hash)
                 .map(|normalized| normalized.frames.clone())
                 .ok_or_else(|| {
-                    TrackingError::InvalidPointer(format!("Call stack not found for ID: {}", id))
+                    TrackingError::InvalidPointer(format!("Call stack not found for ID: {id}"))
                 })
         } else {
             Err(TrackingError::LockContention(
@@ -206,7 +206,7 @@ impl CallStackNormalizer {
     pub fn increment_ref_count(&self, id: CallStackId) -> TrackingResult<()> {
         let hash = if let Ok(id_map) = self.id_to_hash.lock() {
             id_map.get(&id).copied().ok_or_else(|| {
-                TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id))
+                TrackingError::InvalidPointer(format!("Invalid call stack ID: {id}"))
             })?
         } else {
             return Err(TrackingError::LockContention(
@@ -225,8 +225,7 @@ impl CallStackNormalizer {
                 Ok(())
             } else {
                 Err(TrackingError::InvalidPointer(format!(
-                    "Call stack not found for ID: {}",
-                    id
+                    "Call stack not found for ID: {id}",
                 )))
             }
         } else {
@@ -240,7 +239,7 @@ impl CallStackNormalizer {
     pub fn decrement_ref_count(&self, id: CallStackId) -> TrackingResult<()> {
         let hash = if let Ok(id_map) = self.id_to_hash.lock() {
             id_map.get(&id).copied().ok_or_else(|| {
-                TrackingError::InvalidPointer(format!("Invalid call stack ID: {}", id))
+                TrackingError::InvalidPointer(format!("Invalid call stack ID: {id}"))
             })?
         } else {
             return Err(TrackingError::LockContention(
@@ -261,8 +260,7 @@ impl CallStackNormalizer {
                 Ok(())
             } else {
                 Err(TrackingError::InvalidPointer(format!(
-                    "Call stack not found for ID: {}",
-                    id
+                    "Call stack not found for ID: {id}"
                 )))
             }
         } else {

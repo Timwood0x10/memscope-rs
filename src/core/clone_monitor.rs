@@ -163,7 +163,7 @@ static GLOBAL_CLONE_MONITOR: OnceLock<CloneMonitor> = OnceLock::new();
 
 /// Get the global clone monitor
 pub fn get_clone_monitor() -> &'static CloneMonitor {
-    GLOBAL_CLONE_MONITOR.get_or_init(|| CloneMonitor::new())
+    GLOBAL_CLONE_MONITOR.get_or_init(CloneMonitor::new)
 }
 
 /// Record a clone operation

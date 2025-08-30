@@ -124,7 +124,7 @@ pub trait UnwrapSafe<T> {
         self.try_unwrap(context).map_err(|e| {
             MemScopeError::memory(
                 MemoryOperation::Allocation,
-                format!("Failed to unwrap value: {}", e),
+                format!("Failed to unwrap value: {e}"),
             )
         })
     }

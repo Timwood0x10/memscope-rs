@@ -639,14 +639,14 @@ impl SecurityViolationAnalyzer {
 
         let serialized = match serde_json::to_string(&hashable_report) {
             Ok(s) => s,
-            Err(e) => return Err(format!("Failed to serialize report for hashing: {}", e)),
+            Err(e) => return Err(format!("Failed to serialize report for hashing: {e}")),
         };
 
         let mut hasher = DefaultHasher::new();
         serialized.hash(&mut hasher);
         let hash_value = hasher.finish();
 
-        Ok(format!("{:016x}", hash_value))
+        Ok(format!("{hash_value:016x}"))
     }
 
     /// Get all violation reports

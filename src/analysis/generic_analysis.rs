@@ -17,7 +17,7 @@ static GLOBAL_GENERIC_ANALYZER: OnceLock<Arc<GenericAnalyzer>> = OnceLock::new()
 /// Get the global generic analyzer instance
 pub fn get_global_generic_analyzer() -> Arc<GenericAnalyzer> {
     GLOBAL_GENERIC_ANALYZER
-        .get_or_init(|| Arc::new(GenericAnalyzer::new()))
+        .get_or_init(|| Arc::new(GenericAnalyzer::default()))
         .clone()
 }
 
@@ -30,6 +30,13 @@ pub struct GenericAnalyzer {
     /// Generic instantiation events
     instantiation_events: Mutex<Vec<InstantiationEvent>>,
 }
+
+impl Default for GenericAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 
 impl GenericAnalyzer {
     /// Create a new generic analyzer
@@ -72,7 +79,7 @@ impl GenericAnalyzer {
         if let Ok(mut instances) = self.generic_instances.lock() {
             instances
                 .entry(base_type.to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(instance);
         }
     }

@@ -30,8 +30,7 @@ impl BinarySerializable for PaddingReason {
             2 => Ok(PaddingReason::EnumDiscriminant),
             3 => Ok(PaddingReason::Other(primitives::read_string(reader)?)),
             _ => Err(BinaryExportError::CorruptedData(format!(
-                "Invalid padding reason type ID: {}",
-                type_id
+                "Invalid padding reason type ID: {type_id}"
             ))),
         }
     }
@@ -195,8 +194,7 @@ impl BinarySerializable for OptimizationPotential {
                 })
             }
             _ => Err(BinaryExportError::CorruptedData(format!(
-                "Invalid optimization potential type ID: {}",
-                type_id
+                "Invalid optimization potential type ID: {type_id}"
             ))),
         }
     }

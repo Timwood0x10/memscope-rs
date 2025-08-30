@@ -31,6 +31,12 @@ pub struct BorrowAnalyzer {
     conflicts: Mutex<Vec<BorrowConflict>>,
 }
 
+impl Default for BorrowAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BorrowAnalyzer {
     /// Create a new borrow analyzer
     pub fn new() -> Self {
@@ -62,7 +68,7 @@ impl BorrowAnalyzer {
         if let Ok(mut active) = self.active_borrows.lock() {
             active
                 .entry(ptr)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(borrow_info.clone());
         }
 

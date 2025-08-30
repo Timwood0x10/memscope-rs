@@ -118,8 +118,6 @@ pub struct ComprehensiveDataDeduplicator {
     stats: Arc<Mutex<DeduplicationStats>>,
     /// Configuration
     config: DeduplicationConfig,
-    /// Access frequency tracking for cleanup
-    access_frequency: DashMap<u64, u64>,
 }
 
 impl ComprehensiveDataDeduplicator {
@@ -141,7 +139,6 @@ impl ComprehensiveDataDeduplicator {
             compressed_storage: DashMap::new(),
             stats: Arc::new(Mutex::new(DeduplicationStats::default())),
             config,
-            access_frequency: DashMap::new(),
         }
     }
 
@@ -156,7 +153,6 @@ impl ComprehensiveDataDeduplicator {
         }
 
         let hash = self.calculate_string_hash(input);
-        self.update_access_frequency(hash);
 
         // Check if string already exists
         if let Some(existing_ref) = self.string_refs.get(&hash) {
@@ -203,7 +199,6 @@ impl ComprehensiveDataDeduplicator {
     /// Retrieve deduplicated string
     pub fn get_string(&self, dedup_ref: &DeduplicatedString) -> TrackingResult<Arc<String>> {
         let hash = dedup_ref.hash;
-        self.update_access_frequency(hash);
 
         // Try regular storage first
         if let Some(string) = self.string_storage.get(&hash) {
@@ -215,16 +210,14 @@ impl ComprehensiveDataDeduplicator {
             let decompressed = self.decompress_data(&compressed)?;
             let string = String::from_utf8(decompressed).map_err(|e| {
                 crate::core::types::TrackingError::DataError(format!(
-                    "Failed to decode decompressed string: {}",
-                    e
+                    "Failed to decode decompressed string: {e}"
                 ))
             })?;
             return Ok(Arc::new(string));
         }
 
         Err(crate::core::types::TrackingError::DataError(format!(
-            "String with hash {} not found",
-            hash
+            "String with hash {hash} not found"
         )))
     }
 
@@ -242,7 +235,6 @@ impl ComprehensiveDataDeduplicator {
         }
 
         let hash = self.calculate_stack_hash(frames);
-        self.update_access_frequency(hash);
 
         // Check if stack trace already exists
         if let Some(existing_ref) = self.stack_refs.get(&hash) {
@@ -264,7 +256,7 @@ impl ComprehensiveDataDeduplicator {
         };
 
         // Check if compression is needed
-        let serialized_size = frames.len() * std::mem::size_of::<StackFrame>();
+        let serialized_size = std::mem::size_of_val(frames);
         if self.config.enable_compression && serialized_size > self.config.compression_threshold {
             let serialized = self.serialize_stack_frames(frames)?;
             let compressed = self.compress_data(&serialized)?;
@@ -292,7 +284,6 @@ impl ComprehensiveDataDeduplicator {
         dedup_ref: &DeduplicatedStackTrace,
     ) -> TrackingResult<Arc<Vec<StackFrame>>> {
         let hash = dedup_ref.hash;
-        self.update_access_frequency(hash);
 
         // Try regular storage first
         if let Some(frames) = self.stack_storage.get(&hash) {
@@ -307,8 +298,7 @@ impl ComprehensiveDataDeduplicator {
         }
 
         Err(crate::core::types::TrackingError::DataError(format!(
-            "Stack trace with hash {} not found",
-            hash
+            "Stack trace with hash {hash} not found"
         )))
     }
 
@@ -326,7 +316,6 @@ impl ComprehensiveDataDeduplicator {
         }
 
         let hash = self.calculate_metadata_hash(metadata);
-        self.update_access_frequency(hash);
 
         // Check if metadata already exists
         if let Some(existing_ref) = self.metadata_refs.get(&hash) {
@@ -380,7 +369,6 @@ impl ComprehensiveDataDeduplicator {
         dedup_ref: &DeduplicatedMetadata,
     ) -> TrackingResult<Arc<HashMap<String, String>>> {
         let hash = dedup_ref.hash;
-        self.update_access_frequency(hash);
 
         // Try regular storage first
         if let Some(metadata) = self.metadata_storage.get(&hash) {
@@ -395,8 +383,7 @@ impl ComprehensiveDataDeduplicator {
         }
 
         Err(crate::core::types::TrackingError::DataError(format!(
-            "Metadata with hash {} not found",
-            hash
+            "Metadata with hash {hash} not found"
         )))
     }
 
@@ -432,7 +419,6 @@ impl ComprehensiveDataDeduplicator {
         self.metadata_storage.clear();
         self.metadata_refs.clear();
         self.compressed_storage.clear();
-        self.access_frequency.clear();
 
         match self.stats.safe_lock() {
             Ok(mut stats) => {
@@ -506,7 +492,7 @@ impl ComprehensiveDataDeduplicator {
     /// Serialize stack frames
     fn serialize_stack_frames(&self, frames: &[StackFrame]) -> TrackingResult<Vec<u8>> {
         // Simulate serialization (in real implementation, use bincode, serde_json, etc.)
-        let serialized = format!("{:?}", frames);
+        let serialized = format!("{frames:?}");
         Ok(serialized.into_bytes())
     }
 
@@ -515,8 +501,7 @@ impl ComprehensiveDataDeduplicator {
         // Simulate deserialization
         let _serialized = String::from_utf8(data.to_vec()).map_err(|e| {
             crate::core::types::TrackingError::DataError(format!(
-                "Failed to decode serialized stack frames: {}",
-                e
+                "Failed to decode serialized stack frames: {e}"
             ))
         })?;
 
@@ -527,7 +512,7 @@ impl ComprehensiveDataDeduplicator {
     /// Serialize metadata
     fn serialize_metadata(&self, metadata: &HashMap<String, String>) -> TrackingResult<Vec<u8>> {
         // Simulate serialization
-        let serialized = format!("{:?}", metadata);
+        let serialized = format!("{metadata:?}");
         Ok(serialized.into_bytes())
     }
 
@@ -536,8 +521,7 @@ impl ComprehensiveDataDeduplicator {
         // Simulate deserialization
         let _serialized = String::from_utf8(data.to_vec()).map_err(|e| {
             crate::core::types::TrackingError::DataError(format!(
-                "Failed to decode serialized metadata: {}",
-                e
+                "Failed to decode serialized metadata: {e}"
             ))
         })?;
 
@@ -545,13 +529,6 @@ impl ComprehensiveDataDeduplicator {
         Ok(HashMap::new())
     }
 
-    /// Update access frequency for cleanup decisions (optimized)
-    fn update_access_frequency(&self, _hash: u64) {
-        // Skip frequency tracking for better performance
-        // self.access_frequency.entry(hash)
-        //     .and_modify(|freq| *freq += 1)
-        //     .or_insert(1);
-    }
 
     /// Maybe trigger cleanup based on thresholds
     fn maybe_cleanup(&self) {
@@ -565,41 +542,46 @@ impl ComprehensiveDataDeduplicator {
         }
     }
 
-    /// Cleanup least used items
+    /// Cleanup items using simple strategy (no frequency tracking for performance)
     fn cleanup_least_used(&self) {
         let target_size = self.config.max_cache_size / 2; // Clean to 50% capacity
 
-        // Collect access frequencies
-        let mut frequencies: Vec<(u64, u64)> = self
-            .access_frequency
-            .iter()
-            .map(|entry| (*entry.key(), *entry.value()))
-            .collect();
+        // Collect all hashes from different storages
+        let mut all_hashes = std::collections::HashSet::new();
+        
+        // Collect hashes from all storage types
+        for entry in self.string_storage.iter() {
+            all_hashes.insert(*entry.key());
+        }
+        for entry in self.stack_storage.iter() {
+            all_hashes.insert(*entry.key());
+        }
+        for entry in self.metadata_storage.iter() {
+            all_hashes.insert(*entry.key());
+        }
+        for entry in self.compressed_storage.iter() {
+            all_hashes.insert(*entry.key());
+        }
 
-        // Sort by frequency (ascending - least used first)
-        frequencies.sort_by_key(|(_, freq)| *freq);
+        // Convert to vector and take first N items for simple cleanup
+        let hashes_to_remove: Vec<u64> = all_hashes.into_iter().take(target_size).collect();
 
         let mut removed_count = 0;
-        for (hash, _) in frequencies.iter() {
-            if removed_count >= target_size {
-                break;
-            }
-
+        for hash in hashes_to_remove {
             // Remove from all storages
-            self.string_storage.remove(hash);
-            self.string_refs.remove(hash);
-            self.stack_storage.remove(hash);
-            self.stack_refs.remove(hash);
-            self.metadata_storage.remove(hash);
-            self.metadata_refs.remove(hash);
-            self.compressed_storage.remove(hash);
-            self.access_frequency.remove(hash);
+            self.string_storage.remove(&hash);
+            self.string_refs.remove(&hash);
+            self.stack_storage.remove(&hash);
+            self.stack_refs.remove(&hash);
+            self.metadata_storage.remove(&hash);
+            self.metadata_refs.remove(&hash);
+            self.compressed_storage.remove(&hash);
 
             removed_count += 1;
         }
 
         self.update_stats_cleanup(removed_count);
-        tracing::info!("🔄 Cleaned up {} least used items", removed_count);
+        tracing::info!("🔄 Cleaned up {} items using simple strategy", removed_count);
     }
 
     // Statistics update methods

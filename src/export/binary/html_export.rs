@@ -6,9 +6,6 @@
 use crate::export::binary::config::{DashboardExportStats, DashboardFormat, DashboardOptions};
 use crate::export::binary::{
     error::BinaryExportError, DataScope,
-    complex_type_analyzer::ComplexTypeAnalysis,
-    ffi_safety_analyzer::FfiSafetyAnalysis,
-    variable_relationship_analyzer::VariableRelationshipAnalysis,
 };
 use std::path::Path;
 
@@ -352,9 +349,8 @@ fn export_html_optimized<P: AsRef<Path>>(
     // Step 3: Create template data with full analysis
     let analysis_start = std::time::Instant::now();
 
-    // Generate lightweight analysis data for performance
-    let (complex_types, unsafe_ffi, variable_relationships) =
-        generate_lightweight_analysis_simple(&all_allocations)?;
+    // Skip all analysis for maximum performance
+    let (complex_types, unsafe_ffi, variable_relationships) = (None, None, None);
 
     let analysis_time = analysis_start.elapsed();
     tracing::info!("📊 Analysis completed in {}ms", analysis_time.as_millis());
@@ -462,9 +458,8 @@ fn export_html_filtered<P: AsRef<Path>>(
     // Create template data with full analysis for filtered data
     let analysis_start = std::time::Instant::now();
 
-    // Generate lightweight analysis data for filtered allocations
-    let (complex_types, unsafe_ffi, variable_relationships) =
-        generate_lightweight_analysis_simple(&binary_allocations)?;
+    // Skip all analysis for maximum performance
+    let (complex_types, unsafe_ffi, variable_relationships) = (None, None, None);
 
     let analysis_time = analysis_start.elapsed();
     tracing::info!(
@@ -1021,21 +1016,6 @@ fn convert_allocation_to_binary_data(
     )
 }
 
-/// Generate lightweight analysis data optimized for performance
-/// Returns (complex_types, unsafe_ffi, variable_relationships) as Options
-fn generate_lightweight_analysis_simple(
-    _allocations: &[crate::export::binary::binary_html_writer::BinaryAllocationData],
-) -> Result<
-    (
-        Option<ComplexTypeAnalysis>,
-        Option<FfiSafetyAnalysis>,
-        Option<VariableRelationshipAnalysis>,
-    ),
-    BinaryExportError,
-> {
-    // Skip all analysis for maximum performance - return None immediately
-    Ok((None, None, None))
-}
 
 #[derive(serde::Serialize)]
 struct AllocationData {

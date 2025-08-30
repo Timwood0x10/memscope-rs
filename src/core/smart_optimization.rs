@@ -140,11 +140,11 @@ impl<T, E: std::fmt::Debug> SafeUnwrap<T> for Result<T, E> {
             Ok(value) => value,
             Err(e) => {
                 #[cfg(debug_assertions)]
-                panic!("Called safe_unwrap on Err: {:?}", e);
+                panic!("Called safe_unwrap on Err: {e:?}");
 
                 #[cfg(not(debug_assertions))]
                 {
-                    tracing::warn!("safe_unwrap called on Err: {:?}, using fallback", e);
+                    tracing::warn!("safe_unwrap called on Err: {e:?}, using fallback");
                     _fallback
                 }
             }
@@ -156,8 +156,7 @@ impl<T, E: std::fmt::Debug> SafeUnwrap<T> for Result<T, E> {
             Ok(value) => value,
             Err(e) => {
                 tracing::warn!(
-                    "safe_unwrap_or_log failed in context: {} - error: {:?}",
-                    context,
+                    "safe_unwrap_or_log failed in context: {context} - error: {:?}",
                     e
                 );
                 fallback

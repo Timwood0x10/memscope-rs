@@ -134,14 +134,14 @@ fn _original_main() {
         }
         Some(("analyze", sub_matches)) => {
             if let Err(e) = handle_analyze_command(sub_matches) {
-                eprintln!("Error in analyze command: {}", e);
+                eprintln!("Error in analyze command: {e}");
                 std::process::exit(1);
             }
         }
         _ => {
             // Legacy mode for backward compatibility
             if let Err(e) = handle_legacy_mode(&matches) {
-                eprintln!("Error in legacy mode: {}", e);
+                eprintln!("Error in legacy mode: {e}");
                 std::process::exit(1);
             }
         }
@@ -320,24 +320,24 @@ fn _analyze_existing_snapshot(
     format: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !Path::new(input_path).exists() {
-        return Err(format!("Input file not found: {}", input_path).into());
+        return Err(format!("Input file not found: {input_path}").into());
     }
 
     match format {
         "html" => {
             // Generate HTML report from JSON - not implemented
-            return Err("HTML generation not implemented".into());
+            Err("HTML generation not implemented".into())
         }
         "svg" => {
             // Generate SVG visualization from JSON - not implemented
-            return Err("SVG generation not implemented".into());
+            Err("SVG generation not implemented".into())
         }
         "both" => {
             // Both HTML and SVG generation - not implemented
-            return Err("Both format generation not implemented".into());
+            Err("Both format generation not implemented".into())
         }
         _ => {
-            return Err(format!("Unsupported format: {}", format).into());
+            Err(format!("Unsupported format: {format}").into())
         }
     }
 }
@@ -353,9 +353,7 @@ fn generate_html_report(
 
     // Create HTML content
     let html_content = format!(
-        "<!DOCTYPE html>\n<html>\n<head>\n    <title>MemScope Analysis Report</title>\n    <style>\n        body {{ font-family: Arial, sans-serif; margin: 20px; }}\n        .header {{ background: #f0f0f0; padding: 20px; border-radius: 5px; }}\n        .section {{ margin: 20px 0; }}\n        .data {{ background: #f9f9f9; padding: 10px; border-radius: 3px; }}\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>🚀 MemScope Analysis Report</h1>\n        <p>Generated from: {}</p>\n    </div>\n    <div class=\"section\">\n        <h2>📊 Memory Analysis Data</h2>\n        <div class=\"data\">\n            <pre>{}</pre>\n        </div>\n    </div>\n</body>\n</html>",
-        input_path,
-        json_content
+        "<!DOCTYPE html>\n<html>\n<head>\n    <title>MemScope Analysis Report</title>\n    <style>\n        body {{ font-family: Arial, sans-serif; margin: 20px; }}\n        .header {{ background: #f0f0f0; padding: 20px; border-radius: 5px; }}\n        .section {{ margin: 20px 0; }}\n        .data {{ background: #f9f9f9; padding: 10px; border-radius: 3px; }}\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>🚀 MemScope Analysis Report</h1>\n        <p>Generated from: {input_path}</p>\n    </div>\n    <div class=\"section\">\n        <h2>📊 Memory Analysis Data</h2>\n        <div class=\"data\">\n            <pre>{json_content}</pre>\n        </div>\n    </div>\n</body>\n</html>",
     );
 
     std::fs::write(output_path, html_content)?;
@@ -370,8 +368,7 @@ fn generate_svg_visualization(
 
     // Create SVG content
     let svg_content = format!(
-        "<svg width=\"800\" height=\"600\" xmlns=\"http://www.w3.org/2000/svg\">\n    <rect width=\"800\" height=\"600\" fill=\"#f0f0f0\"/>\n    <text x=\"400\" y=\"50\" text-anchor=\"middle\" font-size=\"24\" font-weight=\"bold\">MemScope Visualization</text>\n    <text x=\"400\" y=\"80\" text-anchor=\"middle\" font-size=\"14\">Generated from: {}</text>\n    <text x=\"400\" y=\"300\" text-anchor=\"middle\" font-size=\"16\">SVG visualization would be generated here</text>\n</svg>",
-        input_path
+        "<svg width=\"800\" height=\"600\" xmlns=\"http://www.w3.org/2000/svg\">\n    <rect width=\"800\" height=\"600\" fill=\"#f0f0f0\"/>\n    <text x=\"400\" y=\"50\" text-anchor=\"middle\" font-size=\"24\" font-weight=\"bold\">MemScope Visualization</text>\n    <text x=\"400\" y=\"80\" text-anchor=\"middle\" font-size=\"14\">Generated from: {input_path}</text>\n    <text x=\"400\" y=\"300\" text-anchor=\"middle\" font-size=\"16\">SVG visualization would be generated here</text>\n</svg>",
     );
 
     std::fs::write(output_path, svg_content)?;
@@ -449,14 +446,14 @@ fn handle_legacy_mode_wrapper(matches: &clap::ArgMatches) {
 fn _post_process_analysis(output_path: &str, format: &str) {
     match format {
         "json" => {
-            let json_path = format!("{}.json", output_path);
+            let json_path = format!("{output_path}.json");
             if Path::new(&json_path).exists() {
                 tracing::info!("📄 JSON analysis: {}", json_path);
                 // JSON analysis would happen here
             }
         }
         "html" => {
-            let html_path = format!("{}.html", output_path);
+            let html_path = format!("{output_path}.html");
             if Path::new(&html_path).exists() {
                 tracing::info!("🌐 HTML dashboard: {}", html_path);
             }

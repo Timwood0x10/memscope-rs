@@ -90,16 +90,16 @@ impl fmt::Display for JsonDiscoveryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             JsonDiscoveryError::DirectoryNotFound(dir) => {
-                write!(f, "Directory not found or not accessible: {}", dir)
+                write!(f, "Directory not found or not accessible: {dir}")
             }
             JsonDiscoveryError::MissingRequiredFiles(files) => {
-                write!(f, "Missing required JSON files: {}", files.join(", "))
+                write!(f, "Missing required JSON files: {files:?}")
             }
             JsonDiscoveryError::FilesTooLarge(files) => {
-                write!(f, "Files exceed size limit: {}", files.join(", "))
+                write!(f, "Files exceed size limit: {files:?}")
             }
             JsonDiscoveryError::IoError(err) => {
-                write!(f, "IO error during file discovery: {}", err)
+                write!(f, "IO error during file discovery: {err}")
             }
         }
     }
