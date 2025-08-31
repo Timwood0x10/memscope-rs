@@ -1,7 +1,7 @@
 //! Unified error handling system for memscope-rs
 //!
 //! This module provides a simplified, efficient error handling system that:
-//! - Reduces string cloning overhead using Arc<str>
+//! - Reduces string cloning overhead using `Arc<str>`
 //! - Maintains all existing error information
 //! - Provides error recovery mechanisms
 //! - Ensures backward compatibility

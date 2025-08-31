@@ -96,13 +96,13 @@ impl BinaryParser {
 
         let elapsed = start.elapsed();
         if elapsed.as_millis() > 300 {
-            eprintln!(
-                "⚠️  Performance target missed: {}ms (target: <300ms)",
+            tracing::warn!(
+                "Performance target missed: {}ms (target: <300ms)",
                 elapsed.as_millis()
             );
         } else {
-            println!(
-                "✅ Optimized conversion completed in {}ms",
+            tracing::debug!(
+                "Optimized conversion completed in {}ms",
                 elapsed.as_millis()
             );
         }

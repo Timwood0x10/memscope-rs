@@ -61,19 +61,20 @@ tempfile = "3.10.1"
 criterion = { version = "0.7.0", features = ["html_reports"] }
 
 [[bench]]
-name = "binary_performance"
+name = "fast_realistic_tracking"
 harness = false
 
 [[bench]]
-name = "binary_export_performance"
+name = "minimal_performance"
+harness = false
+
+# Original benchmarks (slower)
+[[bench]]
+name = "realistic_memory_tracking"
 harness = false
 
 [[bench]]
-name = "lock_optimization_benchmark"
-harness = false
-
-[[bench]]
-name = "real_optimization_benchmark"
+name = "performance_comparison"
 harness = false
 
 

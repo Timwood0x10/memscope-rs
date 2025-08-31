@@ -147,7 +147,7 @@ pub fn parse_binary_to_html_direct<P: AsRef<Path>>(
     html_path: P,
     project_name: &str,
 ) -> Result<BinaryHtmlExportStats, BinaryExportError> {
-    println!("🔄 parse_binary_to_html_direct called - using binary_dashboard.html template");
+    tracing::debug!("parse_binary_to_html_direct called - using binary_dashboard.html template");
 
     // Use our new html_converter for binary dashboard template
     crate::export::binary::html_converter::convert_binary_to_html(

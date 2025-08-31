@@ -789,7 +789,7 @@ pub fn export_binary_with_config<P: AsRef<Path>>(
 
 // Removed unused legacy function export_binary_to_html_legacy
 
-/// **[UTILITY]** Show available export options and performance tips
+/// **\[UTILITY\]** Show available export options and performance tips
 pub fn show_export_options() {
     tracing::info!("🚀 Binary Export Options - Optimized Performance");
     tracing::info!("================================================");

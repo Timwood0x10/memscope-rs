@@ -96,7 +96,7 @@ pub struct GenericTypeAnalysis {
 pub struct GenericInstantiation {
     /// Base generic type name (e.g., "Vec")
     pub base_type: String,
-    /// Full instantiated type name (e.g., "Vec<String>")
+    /// Full instantiated type name (e.g., "`Vec<String>`")
     pub full_type: String,
     /// Type parameters
     pub type_parameters: Vec<String>,

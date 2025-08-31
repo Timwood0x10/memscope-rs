@@ -1,7 +1,7 @@
 //! Optimized data structures using string interning and Arc sharing
 //!
 //! This module provides memory-optimized versions of core data structures
-//! that use Arc<str> for string fields and the global string pool for
+//! that use `Arc<str>` for string fields and the global string pool for
 //! memory efficiency.
 
 use crate::core::string_pool::intern_string;
@@ -14,10 +14,10 @@ use crate::core::types::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Optimized allocation information using Arc<str> for string fields
+/// Optimized allocation information using `Arc<str>` for string fields
 ///
 /// This structure is a drop-in replacement for AllocationInfo that uses
-/// Arc<str> for all string fields to reduce memory usage through string
+/// `Arc<str>` for all string fields to reduce memory usage through string
 /// interning. All string fields are automatically interned using the
 /// global string pool.
 #[derive(Debug, Clone, PartialEq)]
@@ -187,7 +187,7 @@ impl OptimizedAllocationInfo {
     }
 }
 
-/// Custom serialization to handle Arc<str> fields
+/// Custom serialization to handle `Arc<str>` fields
 impl Serialize for OptimizedAllocationInfo {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

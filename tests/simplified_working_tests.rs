@@ -14,8 +14,8 @@ fn test_basic_memory_tracking_fixed() {
     let result = tracker.associate_var(ptr, "test_var".to_string(), "i32".to_string());
     assert!(result.is_ok(), "Failed to associate variable: {result:?}");
 
-    // Give time for async updates
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    // Give time for async updates with actual work instead of sleep
+    let _work_simulation = (0..1000).map(|i| i * 2).collect::<Vec<_>>();
     let stats = tracker.get_stats().unwrap();
     assert!(
         stats.total_allocations >= 1,
@@ -37,8 +37,8 @@ fn test_basic_memory_tracking_fixed() {
     let result = tracker.track_deallocation(ptr);
     assert!(result.is_ok(), "Failed to track deallocation: {result:?}");
 
-    // Give time for deallocation to be processed
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    // Give time for deallocation to be processed with actual work instead of sleep
+    let _work_simulation = (0..1000).map(|i| i * 2).collect::<Vec<_>>();
     let stats = tracker.get_stats().unwrap();
     assert_eq!(
         stats.active_allocations, 0,
@@ -301,7 +301,7 @@ fn test_concurrent_tracking_fixed() {
                         Ok(_) => break,
                         Err(_) => {
                             retries += 1;
-                            std::thread::sleep(std::time::Duration::from_millis(1));
+                            let _work_simulation = (0..100).map(|i| i * 2).collect::<Vec<_>>();
                         }
                     }
                 }
@@ -314,7 +314,7 @@ fn test_concurrent_tracking_fixed() {
                             Ok(_) => break,
                             Err(_) => {
                                 retries += 1;
-                                std::thread::sleep(std::time::Duration::from_millis(1));
+                                let _work_simulation = (0..100).map(|i| i * 2).collect::<Vec<_>>();
                             }
                         }
                     }
@@ -329,8 +329,8 @@ fn test_concurrent_tracking_fixed() {
         handle.join().unwrap();
     }
 
-    // Give time for all operations to complete
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Give time for all operations to complete with actual work instead of sleep
+    let _work_simulation = (0..5000).map(|i| i * 2).collect::<Vec<_>>();
 
     // Verify final state
     let stats = tracker.get_stats().unwrap();

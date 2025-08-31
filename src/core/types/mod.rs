@@ -1390,7 +1390,7 @@ pub struct ContainerAnalysis {
 /// Container type classification
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ContainerType {
-    /// Vec<T> container
+    /// `Vec<T>` container
     Vec {
         /// Element type
         element_type: String,
@@ -1408,23 +1408,23 @@ pub enum ContainerType {
         /// Value size in bytes
         value_size: usize,
     },
-    /// Box<T> container
+    /// `Box<T>` container
     Box {
         /// Boxed type
         boxed_type: String,
         /// Boxed type size in bytes
         boxed_size: usize,
     },
-    /// String container (special case of Vec<u8>)
+    /// String container (special case of `Vec<u8>`)
     String,
-    /// Rc<T> reference counted container
+    /// `Rc<T>` reference counted container
     Rc {
         /// Referenced type
         referenced_type: String,
         /// Referenced type size in bytes
         referenced_size: usize,
     },
-    /// Arc<T> atomic reference counted container
+    /// `Arc<T>` atomic reference counted container
     Arc {
         /// Referenced type
         referenced_type: String,

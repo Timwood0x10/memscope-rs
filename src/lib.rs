@@ -619,7 +619,7 @@ impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
     }
 }
 
-/// **[RECOMMENDED]** Track a variable's memory allocation without taking ownership.
+/// **\[RECOMMENDED\]** Track a variable's memory allocation without taking ownership.
 ///
 /// This is the **default and recommended** tracking macro for most use cases.
 /// It performs zero-cost tracking by reference, allowing continued use of the original variable.
@@ -651,7 +651,7 @@ macro_rules! track_var {
     }};
 }
 
-/// **[ADVANCED]** Track a variable with full lifecycle management and ownership transfer.
+/// **\[ADVANCED\]** Track a variable with full lifecycle management and ownership transfer.
 ///
 /// This macro creates a tracking wrapper that takes ownership of the variable
 /// and provides automatic lifecycle tracking with precise timing measurements.
@@ -688,7 +688,8 @@ macro_rules! track_var {
 ///
 /// let my_vec = vec![1, 2, 3, 4, 5];
 /// let tracked_vec = track_var_owned!(my_vec); // Takes ownership
-/// ```
+/// ```text
+/// // This macro takes ownership of the variable
 /// ```
 #[macro_export]
 macro_rules! track_var_owned {
@@ -698,7 +699,7 @@ macro_rules! track_var_owned {
     }};
 }
 
-/// **[SMART]** Intelligent tracking that automatically chooses the best strategy.
+/// **\[SMART\]** Intelligent tracking that automatically chooses the best strategy.
 ///
 /// This macro automatically detects the variable type and chooses the optimal tracking approach:
 /// - For `Copy` types (i32, f64, bool, etc.): Creates a copy for tracking (zero overhead)

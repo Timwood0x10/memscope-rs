@@ -2,7 +2,7 @@
 //!
 //! This module provides a global string interning system to reduce memory usage
 //! by sharing common strings across the application. All string fields in
-//! AllocationInfo and related structures use Arc<str> backed by this pool.
+//! AllocationInfo and related structures use `Arc<str>` backed by this pool.
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -58,7 +58,7 @@ impl PoolMetrics {
 
 /// Global string pool for memory-efficient string storage
 pub struct StringPool {
-    /// Map from string content to interned Arc<str>
+    /// Map from string content to interned `Arc<str>`
     pool: DashMap<String, Arc<str>>,
     /// Performance and usage metrics
     metrics: PoolMetrics,
@@ -73,10 +73,10 @@ impl StringPool {
         }
     }
 
-    /// Intern a string, returning an Arc<str> that can be shared
+    /// Intern a string, returning an `Arc<str>` that can be shared
     ///
-    /// If the string already exists in the pool, returns the existing Arc<str>.
-    /// Otherwise, creates a new Arc<str> and stores it in the pool.
+    /// If the string already exists in the pool, returns the existing `Arc<str>`.
+    /// Otherwise, creates a new `Arc<str>` and stores it in the pool.
     pub fn intern(&self, s: &str) -> Arc<str> {
         let string_len = s.len();
 

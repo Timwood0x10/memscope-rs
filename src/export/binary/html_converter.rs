@@ -23,9 +23,9 @@ pub fn convert_binary_to_html<P: AsRef<Path>>(
     let stats = generate_statistics(&allocations);
 
     // Load binary dashboard template
-    println!("🔄 Loading binary dashboard template...");
+    tracing::debug!("Loading binary dashboard template...");
     let template = load_binary_dashboard_template()?;
-    println!("📄 Template loaded, length: {} chars", template.len());
+    tracing::debug!("Template loaded, length: {} chars", template.len());
 
     // Generate HTML content
     let html_content = generate_html_content(&template, &allocations, &stats, project_name)?;
@@ -82,19 +82,19 @@ fn load_binary_dashboard_template() -> Result<String, BinaryExportError> {
     ];
 
     for path in &template_paths {
-        println!("🔍 Trying to load template from: {path}");
+        tracing::debug!("Trying to load template from: {path}");
         if let Ok(content) = fs::read_to_string(path) {
-            println!(
-                "✅ Successfully loaded template from: {path} ({len} chars)",
+            tracing::debug!(
+                "Successfully loaded template from: {path} ({len} chars)",
                 len = content.len()
             );
             return Ok(content);
         } else {
-            println!("❌ Failed to load from: {path}");
+            tracing::debug!("Failed to load from: {path}");
         }
     }
 
-    println!("⚠️ Using fallback embedded template");
+    tracing::debug!("Using fallback embedded template");
     // Fallback to embedded template
     Ok(get_embedded_binary_template())
 }
@@ -166,14 +166,14 @@ fn generate_html_content(
                 "{}window.analysisData = {};{}",
                 before, &allocation_data, after
             );
-            println!(
-                "✅ Successfully replaced hardcoded window.analysisData with real binary data"
+            tracing::debug!(
+                "Successfully replaced hardcoded window.analysisData with real binary data"
             );
         } else {
-            println!("❌ Could not find end of window.analysisData assignment");
+            tracing::debug!("Could not find end of window.analysisData assignment");
         }
     } else {
-        println!("❌ Could not find window.analysisData assignment in template");
+        tracing::debug!("Could not find window.analysisData assignment in template");
         // Fallback to placeholder replacement
         html = html.replace("{{BINARY_DATA}}", &allocation_data);
         html = html.replace("{{ALLOCATION_DATA}}", &allocation_data);
@@ -273,7 +273,7 @@ fn generate_html_content(
 
         html = format!("{before}{safety_injection}{after}");
     } else {
-        println!("⚠️ Could not find DOMContentLoaded event listener for safety risk injection");
+        tracing::debug!("Could not find DOMContentLoaded event listener for safety risk injection");
     }
 
     // Find and modify the existing initialization to include safety risk loading
@@ -302,8 +302,8 @@ fn generate_html_content(
         "console.log('✅ Enhanced dashboard initialized'); loadSafetyRisks();",
     );
 
-    println!(
-        "📊 Data injection completed: {} allocations, {} stats, safety risks injected",
+    tracing::debug!(
+        "Data injection completed: {} allocations, {} stats, safety risks injected",
         allocations.len(),
         stats.total_allocations
     );
@@ -409,14 +409,14 @@ fn get_embedded_binary_template() -> String {
     // Force read the actual working_dashboard.html template
     match std::fs::read_to_string("templates/working_dashboard.html") {
         Ok(content) => {
-            println!(
-                "✅ Successfully loaded working_dashboard.html template ({} chars)",
+            tracing::debug!(
+                "Successfully loaded working_dashboard.html template ({} chars)",
                 content.len()
             );
             return content;
         }
         Err(e) => {
-            println!("❌ Failed to load working_dashboard.html: {e}");
+            tracing::debug!("Failed to load working_dashboard.html: {e}");
         }
     }
 

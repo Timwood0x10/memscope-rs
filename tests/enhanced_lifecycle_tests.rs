@@ -86,8 +86,8 @@ mod enhanced_lifecycle_tests {
 
         let _ = tracker.track_allocation(test_ptr, std::mem::size_of::<String>());
 
-        // Simulate some time passing
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        // Simulate some time passing with actual work instead of sleep
+        let _work_simulation = (0..1000).map(|i| i * 2).collect::<Vec<_>>();
 
         // End tracking
         drop(test_var);

@@ -1289,7 +1289,6 @@ impl Default for FastExportConfigBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_fast_export_coordinator_creation() {

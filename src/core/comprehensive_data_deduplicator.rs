@@ -100,11 +100,11 @@ pub struct DeduplicatedMetadata {
 
 /// Comprehensive data deduplicator
 pub struct ComprehensiveDataDeduplicator {
-    /// String storage (hash -> Arc<String>)
+    /// String storage (hash -> `Arc<String>`)
     string_storage: DashMap<u64, Arc<String>>,
     /// String reference tracking
     string_refs: DashMap<u64, DeduplicatedString>,
-    /// Stack trace storage (hash -> Arc<Vec<StackFrame>>)
+    /// Stack trace storage (hash -> `Arc<Vec<StackFrame>>`)
     stack_storage: DashMap<u64, Arc<Vec<StackFrame>>>,
     /// Stack trace reference tracking
     stack_refs: DashMap<u64, DeduplicatedStackTrace>,

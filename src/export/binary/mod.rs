@@ -20,7 +20,7 @@ mod field_parser;
 mod filter_engine;
 pub mod format;
 pub mod html_converter;
-mod html_export;
+pub mod html_export;
 mod index;
 mod index_builder;
 #[cfg(test)]
