@@ -20,6 +20,9 @@ help:
 	@echo "  $(GREEN)build$(NC)              - Build the project in release mode"
 	@echo "  $(GREEN)test$(NC)               - Run all tests"
 	@echo "  $(GREEN)test-coverage$(NC)      - Run comprehensive test coverage analysis"
+	@echo "  $(GREEN)test-coverage-enhanced$(NC) - Run enhanced coverage with all features"
+	@echo "  $(GREEN)test-coverage-detailed$(NC) - Run detailed coverage including tests"
+	@echo "  $(GREEN)improve-coverage$(NC)   - Run coverage improvement analysis"
 	@echo "  $(GREEN)benchmark$(NC)          - Run performance benchmarks"
 	@echo "  $(GREEN)benchmark-main$(NC)     - Run only main (realistic) benchmarks"
 	@echo "  $(GREEN)examples$(NC)           - Run all examples"
@@ -85,20 +88,36 @@ test-examples:
 	@cargo test --examples --verbose
 	@echo "$(GREEN)✅ Example tests completed$(NC)"
 
-# Enhanced test coverage
-.PHONY: test-coverage
+# Enhanced test coverage with tarpaulin
+.PHONY: test-coverage test-coverage-enhanced test-coverage-detailed
 test-coverage:
-	@echo "$(BLUE)📊 Running comprehensive test coverage analysis...$(NC)"
-	@mkdir -p scripts
-	@if [ ! -f scripts/test_coverage.sh ]; then \
-		echo "$(RED)❌ Test coverage script not found$(NC)"; \
-		exit 1; \
-	fi
-	@./scripts/test_coverage.sh
+	@echo "$(BLUE)📊 Running test coverage analysis with tarpaulin...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report
 	@echo "$(GREEN)✅ Test coverage analysis completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+test-coverage-enhanced:
+	@echo "$(BLUE)📊 Running enhanced test coverage analysis with tarpaulin...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --verbose --all-features
+	@echo "$(GREEN)✅ Enhanced test coverage analysis completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+test-coverage-detailed:
+	@echo "$(BLUE)📊 Running detailed test coverage analysis with tarpaulin...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --verbose --all-features --include-tests
+	@echo "$(GREEN)✅ Detailed test coverage analysis completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+improve-coverage:
+	@echo "$(BLUE)🚀 Running coverage improvement analysis...$(NC)"
+	@./scripts/improve_test_coverage.sh
+	@echo "$(GREEN)✅ Coverage improvement analysis completed$(NC)"
 
 # Benchmarking targets
-.PHONY: benchmark benchmark-main benchmark-legacy benchmark-clean
+.PHONY: benchmark benchmark-main benchmark-legacy benchmark-clean benchmark-enhanced
 benchmark:
 	@echo "$(BLUE)⚡ Running all benchmarks...$(NC)"
 	@mkdir -p scripts
@@ -108,6 +127,16 @@ benchmark:
 	fi
 	@./scripts/benchmark.sh
 	@echo "$(GREEN)✅ Benchmark analysis completed$(NC)"
+
+benchmark-enhanced:
+	@echo "$(BLUE)⚡ Running enhanced benchmarks with HTML dashboard...$(NC)"
+	@mkdir -p scripts
+	@if [ ! -f scripts/enhanced_benchmark.sh ]; then \
+		echo "$(RED)❌ Enhanced benchmark script not found$(NC)"; \
+		exit 1; \
+	fi
+	@./scripts/enhanced_benchmark.sh
+	@echo "$(GREEN)✅ Enhanced benchmark analysis completed$(NC)"
 
 benchmark-main:
 	@echo "$(BLUE)⚡ Running fast benchmarks...$(NC)"
