@@ -74,6 +74,7 @@ fn benchmark_concurrent_tracking(c: &mut Criterion) {
     group.bench_function("multi_thread_tracking", |b| {
         b.iter(|| {
             let tracker = Arc::new(MemoryTracker::new());
+            tracker.enable_fast_mode(); // Enable fast mode for accurate tracking in benchmarks
             let mut handles = vec![];
             
             for thread_id in 0..4 {

@@ -410,7 +410,7 @@ pub fn get_string_pool_monitor_stats() -> StringPoolMonitorStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    // use std::time::Duration;
 
     // Helper function to create test StringPoolStats
     fn create_test_stats() -> StringPoolStats {
