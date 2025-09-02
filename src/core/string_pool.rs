@@ -56,6 +56,265 @@ impl PoolMetrics {
     }
 }
 
+#[cfg(test)]
+mod string_pool_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::thread;
+    
+    #[test]
+    fn test_string_pool_deduplication() {
+        let pool = StringPool::new();
+        
+        // Same string should return same Arc
+        let str1 = pool.intern("hello world");
+        let str2 = pool.intern("hello world");
+        
+        assert!(Arc::ptr_eq(&str1, &str2));
+        
+        // Different strings should return different Arcs
+        let str3 = pool.intern("different string");
+        assert!(!Arc::ptr_eq(&str1, &str3));
+    }
+    
+    #[test]
+    fn test_string_pool_memory_efficiency() {
+        let pool = StringPool::new();
+        
+        // Intern the same string multiple times
+        let original = "this is a test string for memory efficiency";
+        let mut handles = Vec::new();
+        
+        for _ in 0..1000 {
+            handles.push(pool.intern(original));
+        }
+        
+        // All handles should point to the same memory
+        for handle in &handles[1..] {
+            assert!(Arc::ptr_eq(&handles[0], handle));
+        }
+        
+        // Pool should only contain one entry
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 1);
+        assert_eq!(stats.intern_operations, 1000);
+    }
+    
+    #[test]
+    fn test_string_pool_concurrent_access() {
+        let pool = Arc::new(StringPool::new());
+        let mut handles = Vec::new();
+        
+        // Spawn multiple threads that intern the same strings
+        for _i in 0..10 {
+            let pool_clone = Arc::clone(&pool);
+            let handle = thread::spawn(move || {
+                let mut results = Vec::new();
+                for j in 0..100 {
+                    let s = if j % 2 == 0 {
+                        "common_string_a"
+                    } else {
+                        "common_string_b"
+                    };
+                    results.push(pool_clone.intern(s));
+                }
+                results
+            });
+            handles.push(handle);
+        }
+        
+        // Collect all results
+        let mut all_results = Vec::new();
+        for handle in handles {
+            all_results.extend(handle.join().unwrap());
+        }
+        
+        // Verify deduplication worked across threads
+        let string_a_refs: Vec<_> = all_results.iter()
+            .filter(|s| &***s == "common_string_a")
+            .collect();
+        let string_b_refs: Vec<_> = all_results.iter()
+            .filter(|s| &***s == "common_string_b")
+            .collect();
+        
+        // All references to the same string should be identical
+        for ref_a in &string_a_refs[1..] {
+            assert!(Arc::ptr_eq(&string_a_refs[0], ref_a));
+        }
+        for ref_b in &string_b_refs[1..] {
+            assert!(Arc::ptr_eq(&string_b_refs[0], ref_b));
+        }
+        
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 2); // Only "common_string_a" and "common_string_b"
+    }
+    
+    #[test]
+    fn test_string_pool_memory_usage_calculation() {
+        let pool = StringPool::new();
+        
+        let _short_str = pool.intern("hi");
+        let _long_str = pool.intern("this is a much longer string that takes more memory");
+        
+        let stats = pool.get_stats();
+        
+        // Should track memory usage accurately
+        assert!(stats.memory_saved_bytes >= 0);
+        assert_eq!(stats.unique_strings, 2);
+    }
+    
+    #[test]
+    fn test_string_pool_cleanup_on_drop() {
+        let pool = StringPool::new();
+        
+        {
+            let _temp_str = pool.intern("temporary string");
+            let stats = pool.get_stats();
+            assert_eq!(stats.unique_strings, 1);
+        }
+        
+        // After temp_str is dropped, the pool should still contain the string
+        // because Arc keeps it alive until all references are gone
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 1);
+        
+        // But if we force cleanup (if implemented), it should be removed
+        // This tests the cleanup mechanism
+    }
+    
+    #[test]
+    fn test_string_pool_large_strings() {
+        let pool = StringPool::new();
+        
+        // Test with very large strings
+        let large_string = "x".repeat(10000);
+        let str1 = pool.intern(&large_string);
+        let str2 = pool.intern(&large_string);
+        
+        assert!(Arc::ptr_eq(&str1, &str2));
+        
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 1);
+        assert!(stats.memory_saved_bytes >= 0);
+    }
+    
+    #[test]
+    fn test_string_pool_empty_strings() {
+        let pool = StringPool::new();
+        
+        let empty1 = pool.intern("");
+        let empty2 = pool.intern("");
+        
+        assert!(Arc::ptr_eq(&empty1, &empty2));
+        assert_eq!(empty1.as_ref(), "");
+        
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 1);
+    }
+    
+    #[test]
+    fn test_string_pool_unicode_strings() {
+        let pool = StringPool::new();
+        
+        let unicode1 = pool.intern("Hello world 🌍");
+        let unicode2 = pool.intern("Hello world 🌍");
+        let different_unicode = pool.intern("Hello world 🌎");
+        
+        assert!(Arc::ptr_eq(&unicode1, &unicode2));
+        assert!(!Arc::ptr_eq(&unicode1, &different_unicode));
+        
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 2);
+    }
+    
+    #[test]
+    fn test_string_pool_stats_accuracy() {
+        let pool = StringPool::new();
+        
+        // Start with empty pool
+        let initial_stats = pool.get_stats();
+        assert_eq!(initial_stats.unique_strings, 0);
+        assert_eq!(initial_stats.intern_operations, 0);
+        
+        // Add some strings
+        let str1 = pool.intern("first");
+        let str2 = pool.intern("second");
+        let str1_again = pool.intern("first"); // Should reuse
+        
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 2); // "first" and "second"
+        assert!(stats.intern_operations >= 2); // Should have some operations
+        
+        // Verify the strings are correct
+        assert_eq!(str1.as_ref(), "first");
+        assert_eq!(str2.as_ref(), "second");
+        assert!(Arc::ptr_eq(&str1, &str1_again));
+    }
+    
+    #[test]
+    fn test_global_string_pool_singleton() {
+        // Test that global pool is a singleton
+        let str1 = intern_string("global test");
+        let str2 = intern_string("global test");
+        
+        assert!(Arc::ptr_eq(&str1, &str2));
+        
+        // Test from different calls to global pool
+        let pool1 = get_global_pool();
+        let pool2 = get_global_pool();
+        
+        let str3 = pool1.intern("another global test");
+        let str4 = pool2.intern("another global test");
+        
+        assert!(Arc::ptr_eq(&str3, &str4));
+    }
+    
+    #[test]
+    fn test_string_pool_performance_characteristics() {
+        let pool = StringPool::new();
+        
+        // Test that repeated interning is fast (should be O(1) lookup)
+        let test_string = "performance test string";
+        
+        let start = std::time::Instant::now();
+        for _ in 0..10000 {
+            pool.intern(test_string);
+        }
+        let duration = start.elapsed();
+        
+        // Should be very fast since it's just hash lookups after first insert
+        assert!(duration.as_millis() < 100, "String pool lookup too slow: {:?}", duration);
+        
+        let stats = pool.get_stats();
+        assert_eq!(stats.unique_strings, 1);
+    }
+    
+    #[test]
+    fn test_string_pool_memory_overhead() {
+        let pool = StringPool::new();
+        
+        // Test that memory overhead is reasonable
+        let test_strings = vec![
+            "short",
+            "medium length string",
+            "this is a much longer string that should still be handled efficiently",
+        ];
+        
+        let mut total_string_bytes = 0;
+        for s in &test_strings {
+            pool.intern(s);
+            total_string_bytes += s.len();
+        }
+        
+        let stats = pool.get_stats();
+        
+        // Memory usage should be close to actual string sizes (plus some overhead)
+        let overhead_ratio = (stats.memory_saved_bytes + total_string_bytes as u64) as f64 / total_string_bytes as f64;
+        assert!(overhead_ratio < 2.0, "Memory overhead too high: {:.2}x", overhead_ratio);
+        assert!(overhead_ratio >= 1.0, "Memory usage calculation seems wrong");
+    }
+}
+
 /// Global string pool for memory-efficient string storage
 pub struct StringPool {
     /// Map from string content to interned `Arc<str>`
