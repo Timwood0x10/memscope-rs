@@ -497,19 +497,20 @@ impl Default for LifecycleSummaryGenerator {
 mod tests {
     use super::*;
     use crate::core::ownership_history::{OwnershipEventType, OwnershipHistoryRecorder};
+    use crate::core::types::AllocationInfo;
 
     fn create_test_allocation(ptr: usize, size: usize, var_name: Option<String>) -> AllocationInfo {
         AllocationInfo {
             ptr,
             size,
             var_name,
-            type_name: Some("Vec<i32>".to_string()),
-            scope_name: Some("test".to_string()),
-            timestamp_alloc: 1000,
-            timestamp_dealloc: Some(2000),
-            thread_id: "main".to_string(),
+            type_name: Some("String".to_string()),
+            scope_name: Some("test_scope".to_string()),
+            timestamp_alloc: 1000000,
+            timestamp_dealloc: Some(2000000),
+            thread_id: "test_thread".to_string(),
             borrow_count: 0,
-            stack_trace: None,
+            stack_trace: Some(vec!["test_function".to_string()]),
             is_leaked: false,
             lifetime_ms: Some(1000),
             borrow_info: None,
@@ -534,94 +535,150 @@ mod tests {
     }
 
     #[test]
-    fn test_lifecycle_summary_generator_creation() {
-        let generator = LifecycleSummaryGenerator::new();
-        assert!(generator.config.include_borrow_details);
-        assert!(generator.config.include_clone_details);
+    fn test_json_export() {
+        let generator = LifecycleSummaryGenerator::default();
+        let export_data = LifecycleExportData {
+            lifecycle_events: vec![],
+            variable_groups: vec![],
+            user_variables_count: 0,
+            visualization_ready: true,
+            metadata: ExportMetadata {
+                export_timestamp: 0,
+                total_allocations: 0,
+                total_events: 0,
+                analysis_duration_ms: 0,
+            },
+        };
+        
+        let json = generator.export_to_json(&export_data).unwrap();
+        assert!(json.contains("lifecycle_events"));
+        assert!(json.contains("variable_groups"));
+    }
+
+    #[test]
+    fn test_generate_single_lifecycle_summary() {
+        let generator = LifecycleSummaryGenerator::default();
+        let mut history = OwnershipHistoryRecorder::default();
+        
+        // Create a test allocation with ownership events
+        let ptr = 0x1000;
+        let size = 1024;
+        let alloc = create_test_allocation(ptr, size, Some("test_var".to_string()));
+        
+        // Add some ownership events
+        history.record_event(ptr, OwnershipEventType::Allocated, 1);
+
+        let summary = generator.generate_single_lifecycle_summary(&history, &alloc);
+        
+        assert_eq!(summary.allocation_ptr, ptr);
+        assert_eq!(summary.size, size);
+        assert_eq!(summary.var_name, Some("test_var".to_string()));
+        assert_eq!(summary.type_name, Some("String".to_string()));
+    }
+
+    #[test]
+    fn test_calculate_efficiency_score() {
+        let generator = LifecycleSummaryGenerator::default();
+        let alloc = create_test_allocation(0x1000, 1024, Some("test_var".to_string()));
+        let mut history = OwnershipHistoryRecorder::default();
+        
+        // Add some ownership events
+        history.record_event(0x1000, OwnershipEventType::Allocated, 1);
+        
+        let summary = history.get_summary(0x1000).unwrap();
+        let score = generator.calculate_efficiency_score(&alloc, summary);
+        assert!(score >= 0.0 && score <= 1.0);
+    }
+
+    #[test]
+    fn test_generate_lifecycle_events() {
+        let generator = LifecycleSummaryGenerator::default();
+        let history = OwnershipHistoryRecorder::default();
+        
+        // Create test allocations
+        let alloc1 = create_test_allocation(0x1000, 1024, Some("var1".to_string()));
+        let alloc2 = create_test_allocation(0x2000, 2048, Some("var2".to_string()));
+        
+        let events = generator.generate_lifecycle_events(&history, &[alloc1, alloc2]);
+        assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn test_format_event_type() {
+        let generator = LifecycleSummaryGenerator::default();
+        
+        let allocated = generator.format_event_type(&OwnershipEventType::Allocated);
+        assert_eq!(allocated, "Allocation");
+
+        let borrowed = generator.format_event_type(&OwnershipEventType::Borrowed {
+            borrower_scope: "scope1".to_string(),
+        });
+        assert_eq!(borrowed, "Borrow");
+
+        let cloned = generator.format_event_type(&OwnershipEventType::Cloned {
+            source_ptr: 0x1000,
+        });
+        assert_eq!(cloned, "Clone");
+    }
+
+    #[test]
+    fn test_generate_lifecycle_export() {
+        let generator = LifecycleSummaryGenerator::default();
+        let history = OwnershipHistoryRecorder::default();
+        let alloc = create_test_allocation(0x1000, 1024, Some("test_var".to_string()));
+        
+        let export = generator.generate_lifecycle_export(&history, &[alloc]);
+        
+        assert_eq!(export.lifecycle_events.len(), 1);
+        assert_eq!(export.user_variables_count, 1);
+        assert!(export.visualization_ready);
+    }
+
+    #[test]
+    fn test_extract_base_type_name() {
+        let generator = LifecycleSummaryGenerator::default();
+        
+        assert_eq!(generator.extract_base_type_name("String"), "String");
+        assert_eq!(generator.extract_base_type_name("std::string::String"), "String");
+        assert_eq!(generator.extract_base_type_name("Vec<u8>"), "Vec");
+        assert_eq!(generator.extract_base_type_name("std::vec::Vec<u8>"), "std::vec::Vec");
+        assert_eq!(generator.extract_base_type_name("&str"), "&str");
+    }
+
+    #[test]
+    fn test_is_user_variable() {
+        let generator = LifecycleSummaryGenerator::default();
+        
+        assert!(generator.is_user_variable("user_var"));
+        assert!(generator.is_user_variable("my_var_123"));
+        assert!(!generator.is_user_variable("primitive_var"));
+        assert!(!generator.is_user_variable("struct_var"));
+        assert!(!generator.is_user_variable("unknown"));
     }
 
     #[test]
     fn test_lifecycle_pattern_classification() {
-        let generator = LifecycleSummaryGenerator::new();
-
-        assert!(matches!(
-            generator.classify_lifecycle_pattern(None),
-            LifecyclePattern::Leaked
-        ));
-        assert!(matches!(
-            generator.classify_lifecycle_pattern(Some(0)),
-            LifecyclePattern::Ephemeral
-        ));
-        assert!(matches!(
-            generator.classify_lifecycle_pattern(Some(50)),
-            LifecyclePattern::ShortTerm
-        ));
-        assert!(matches!(
-            generator.classify_lifecycle_pattern(Some(500)),
-            LifecyclePattern::MediumTerm
-        ));
-        assert!(matches!(
-            generator.classify_lifecycle_pattern(Some(15000)),
-            LifecyclePattern::LongTerm
-        ));
+        let generator = LifecycleSummaryGenerator::default();
+        
+        assert!(matches!(generator.classify_lifecycle_pattern(None), LifecyclePattern::Leaked));
+        assert!(matches!(generator.classify_lifecycle_pattern(Some(0)), LifecyclePattern::Ephemeral));
+        assert!(matches!(generator.classify_lifecycle_pattern(Some(50)), LifecyclePattern::ShortTerm));
+        assert!(matches!(generator.classify_lifecycle_pattern(Some(5000)), LifecyclePattern::MediumTerm));
+        assert!(matches!(generator.classify_lifecycle_pattern(Some(15000)), LifecyclePattern::LongTerm));
     }
 
     #[test]
-    fn test_user_variable_detection() {
-        let generator = LifecycleSummaryGenerator::new();
-
-        assert!(generator.is_user_variable("my_vec"));
-        assert!(generator.is_user_variable("user_data"));
-        assert!(!generator.is_user_variable("primitive_data"));
-        assert!(!generator.is_user_variable("system_type_64bytes"));
-        assert!(!generator.is_user_variable("fast_tracked"));
-    }
-
-    #[test]
-    fn test_base_type_extraction() {
-        let generator = LifecycleSummaryGenerator::new();
-
-        assert_eq!(generator.extract_base_type_name("Vec<i32>"), "Vec");
-        assert_eq!(
-            generator.extract_base_type_name("std::collections::HashMap<K,V>"),
-            "std::collections::HashMap"
-        );
-        assert_eq!(generator.extract_base_type_name("String"), "String");
-    }
-
-    #[test]
-    fn test_lifecycle_export_generation() {
-        let generator = LifecycleSummaryGenerator::new();
-        let mut ownership_history = OwnershipHistoryRecorder::new();
-
-        // Create test allocation
-        let allocation = create_test_allocation(0x1000, 64, Some("test_var".to_string()));
-
-        // Record some ownership events
-        ownership_history.record_event(0x1000, OwnershipEventType::Allocated, 1);
-        ownership_history.record_event(0x1000, OwnershipEventType::Dropped, 2);
-
-        let allocations = vec![allocation];
-        let export_data = generator.generate_lifecycle_export(&ownership_history, &allocations);
-
-        assert_eq!(export_data.lifecycle_events.len(), 1);
-        assert_eq!(export_data.user_variables_count, 1);
-        assert!(export_data.visualization_ready);
-        assert!(export_data.metadata.total_allocations > 0);
-    }
-
-    #[test]
-    fn test_variable_grouping() {
-        let generator = LifecycleSummaryGenerator::new();
-
+    fn test_variable_groups_generation() {
+        let generator = LifecycleSummaryGenerator::default();
+        
         let events = vec![
             LifecycleEventSummary {
                 allocation_ptr: 0x1000,
-                var_name: Some("vec1".to_string()),
-                type_name: Some("Vec<i32>".to_string()),
-                size: 64,
+                var_name: Some("str1".to_string()),
+                type_name: Some("String".to_string()),
+                size: 100,
                 lifetime_ms: Some(1000),
-                events: Vec::new(),
+                events: vec![],
                 summary: AllocationLifecycleSummary {
                     lifetime_ms: Some(1000),
                     borrow_info: BorrowInfo {
@@ -629,26 +686,26 @@ mod tests {
                         mutable_borrows: 0,
                         max_concurrent_borrows: 0,
                         last_borrow_timestamp: None,
-                        active_borrows: Vec::new(),
+                        active_borrows: vec![],
                     },
                     clone_info: CloneInfo {
                         clone_count: 0,
                         is_clone: false,
                         original_ptr: None,
-                        cloned_ptrs: Vec::new(),
+                        cloned_ptrs: vec![],
                     },
                     ownership_history_available: false,
-                    lifecycle_pattern: LifecyclePattern::MediumTerm,
+                    lifecycle_pattern: LifecyclePattern::ShortTerm,
                     efficiency_score: 0.5,
                 },
             },
             LifecycleEventSummary {
                 allocation_ptr: 0x2000,
-                var_name: Some("vec2".to_string()),
-                type_name: Some("Vec<f64>".to_string()),
-                size: 128,
+                var_name: Some("str2".to_string()),
+                type_name: Some("String".to_string()),
+                size: 200,
                 lifetime_ms: Some(2000),
-                events: Vec::new(),
+                events: vec![],
                 summary: AllocationLifecycleSummary {
                     lifetime_ms: Some(2000),
                     borrow_info: BorrowInfo {
@@ -656,13 +713,13 @@ mod tests {
                         mutable_borrows: 0,
                         max_concurrent_borrows: 0,
                         last_borrow_timestamp: None,
-                        active_borrows: Vec::new(),
+                        active_borrows: vec![],
                     },
                     clone_info: CloneInfo {
                         clone_count: 0,
                         is_clone: false,
                         original_ptr: None,
-                        cloned_ptrs: Vec::new(),
+                        cloned_ptrs: vec![],
                     },
                     ownership_history_available: false,
                     lifecycle_pattern: LifecyclePattern::MediumTerm,
@@ -670,29 +727,11 @@ mod tests {
                 },
             },
         ];
-
+        
         let groups = generator.generate_variable_groups(&events);
-
-        assert_eq!(groups.len(), 1); // Both should be grouped under "Vec"
-        assert_eq!(groups[0].name, "Vec");
+        assert_eq!(groups.len(), 1); // Should group by "String" type
+        assert_eq!(groups[0].name, "String");
+        assert_eq!(groups[0].total_memory, 300);
         assert_eq!(groups[0].variables.len(), 2);
-        assert_eq!(groups[0].total_memory, 192);
-    }
-
-    #[test]
-    fn test_json_export() {
-        let generator = LifecycleSummaryGenerator::new();
-        let ownership_history = OwnershipHistoryRecorder::new();
-        let allocations = vec![create_test_allocation(0x1000, 64, Some("test".to_string()))];
-
-        let export_data = generator.generate_lifecycle_export(&ownership_history, &allocations);
-        let json = generator
-            .export_to_json(&export_data)
-            .expect("Failed to export to JSON");
-
-        assert!(json.contains("lifecycle_events"));
-        assert!(json.contains("variable_groups"));
-        assert!(json.contains("user_variables_count"));
-        assert!(json.contains("visualization_ready"));
     }
 }

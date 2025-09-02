@@ -893,3 +893,340 @@ impl VariableRegistry {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::AllocationInfo;
+
+    fn create_test_allocation(ptr: usize, size: usize, var_name: Option<String>, type_name: Option<String>) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name,
+            type_name,
+            scope_name: Some("test_scope".to_string()),
+            timestamp_alloc: 1000000,
+            timestamp_dealloc: Some(2000000),
+            thread_id: "test_thread".to_string(),
+            borrow_count: 0,
+            stack_trace: Some(vec!["test_function".to_string()]),
+            is_leaked: false,
+            lifetime_ms: Some(1000),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    #[test]
+    fn test_variable_registry_register_and_get() {
+        let address = 0x1000;
+        let var_name = "test_var".to_string();
+        let type_name = "String".to_string();
+        let size = 24;
+
+        // Register variable
+        let result = VariableRegistry::register_variable(address, var_name.clone(), type_name.clone(), size);
+        assert!(result.is_ok());
+
+        // Get variable info
+        let var_info = VariableRegistry::get_variable_info(address);
+        assert!(var_info.is_some());
+        
+        let info = var_info.unwrap();
+        assert_eq!(info.var_name, var_name);
+        assert_eq!(info.type_name, type_name);
+        assert_eq!(info.size, size);
+        assert!(info.timestamp > 0);
+    }
+
+    #[test]
+    fn test_variable_registry_mark_destroyed() {
+        let address = 0x2000;
+        let destruction_time = 5000000;
+
+        let result = VariableRegistry::mark_variable_destroyed(address, destruction_time);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_all_variables() {
+        let address1 = 0x3000;
+        let address2 = 0x4000;
+        
+        let _ = VariableRegistry::register_variable(address1, "var1".to_string(), "i32".to_string(), 4);
+        let _ = VariableRegistry::register_variable(address2, "var2".to_string(), "String".to_string(), 24);
+
+        let all_vars = VariableRegistry::get_all_variables();
+        // Just check that we can get variables and the specific ones we added exist
+        assert!(all_vars.contains_key(&address1) || all_vars.contains_key(&address2));
+    }
+
+    #[test]
+    fn test_enhance_allocations_with_registry() {
+        // Clear registry first
+        let _ = VariableRegistry::clear_registry();
+
+        let address = 0x5000;
+        let _ = VariableRegistry::register_variable(address, "tracked_var".to_string(), "Vec<u8>".to_string(), 100);
+
+        let allocations = vec![
+            create_test_allocation(address, 100, None, None),
+            create_test_allocation(0x6000, 50, Some("explicit_var".to_string()), Some("i64".to_string())),
+            create_test_allocation(0x7000, 200, None, None), // System allocation
+        ];
+
+        let enhanced = VariableRegistry::enhance_allocations_with_registry(&allocations);
+        assert_eq!(enhanced.len(), 3);
+
+        // Check tracked variable
+        assert_eq!(enhanced[0]["allocation_source"], "user");
+        assert_eq!(enhanced[0]["variable_name"], "tracked_var");
+        assert_eq!(enhanced[0]["type_name"], "Vec<u8>");
+
+        // Check explicit variable
+        assert_eq!(enhanced[1]["allocation_source"], "user");
+        assert_eq!(enhanced[1]["variable_name"], "explicit_var");
+        assert_eq!(enhanced[1]["type_name"], "i64");
+
+        // Check system allocation
+        assert_eq!(enhanced[2]["allocation_source"], "system");
+        assert!(enhanced[2]["variable_name"].as_str().unwrap().contains("alloc"));
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name() {
+        // The function tries to get current scope first, which may return "user_code_scope"
+        // So we test the patterns that should work regardless
+        assert_eq!(VariableRegistry::extract_scope_from_var_name("scope::variable"), "scope");
+        assert_eq!(VariableRegistry::extract_scope_from_var_name("my_vec"), "user_scope");
+        
+        // These may return "user_code_scope" due to backtrace inference
+        let main_result = VariableRegistry::extract_scope_from_var_name("main_variable");
+        assert!(main_result == "main_function" || main_result == "user_code_scope");
+        
+        let test_result = VariableRegistry::extract_scope_from_var_name("test_variable");
+        assert!(test_result == "test_function" || test_result == "user_code_scope");
+    }
+
+    #[test]
+    fn test_categorize_system_allocation() {
+        let small_alloc = create_test_allocation(0x1000, 8, None, None);
+        let medium_alloc = create_test_allocation(0x2000, 32, None, None);
+        let large_alloc = create_test_allocation(0x3000, 512, None, None);
+        let buffer_alloc = create_test_allocation(0x4000, 4096, None, None);
+        let huge_alloc = create_test_allocation(0x5000, 100000, None, None);
+
+        assert_eq!(VariableRegistry::categorize_system_allocation(&small_alloc), "small_system_alloc");
+        assert_eq!(VariableRegistry::categorize_system_allocation(&medium_alloc), "medium_system_alloc");
+        assert_eq!(VariableRegistry::categorize_system_allocation(&large_alloc), "large_system_alloc");
+        assert_eq!(VariableRegistry::categorize_system_allocation(&buffer_alloc), "buffer_allocation");
+        assert_eq!(VariableRegistry::categorize_system_allocation(&huge_alloc), "huge_allocation");
+    }
+
+    #[test]
+    fn test_infer_allocation_info() {
+        let string_alloc = create_test_allocation(0x1000, 24, None, None);
+        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&string_alloc);
+        assert!(var_name.contains("string_alloc"));
+        assert_eq!(type_name, "String");
+
+        let vec_alloc = create_test_allocation(0x2000, 32, None, None);
+        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&vec_alloc);
+        assert!(var_name.contains("vec_i32"));
+        assert_eq!(type_name, "Vec<i32>");
+
+        let box_alloc = create_test_allocation(0x3000, 8, None, None);
+        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&box_alloc);
+        assert!(var_name.contains("box_u64"));
+        assert_eq!(type_name, "Box<u64>");
+
+        let large_alloc = create_test_allocation(0x4000, 2048, None, None);
+        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&large_alloc);
+        assert!(var_name.contains("large_buffer"));
+        assert_eq!(type_name, "LargeBuffer");
+    }
+
+    #[test]
+    fn test_infer_allocation_info_cached() {
+        let common_alloc = create_test_allocation(0x1000, 24, None, None);
+        let (var_name, type_name) = VariableRegistry::infer_allocation_info_cached(&common_alloc);
+        assert!(var_name.contains("string_alloc"));
+        assert_eq!(type_name, "String");
+
+        let uncommon_alloc = create_test_allocation(0x2000, 123, None, None);
+        let (var_name, type_name) = VariableRegistry::infer_allocation_info_cached(&uncommon_alloc);
+        assert!(var_name.contains("system_alloc"));
+        assert_eq!(type_name, "SystemAlloc");
+    }
+
+    #[test]
+    fn test_calculate_percentile() {
+        let values = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        
+        assert_eq!(VariableRegistry::calculate_percentile(&values, 50.0), 5);
+        assert_eq!(VariableRegistry::calculate_percentile(&values, 90.0), 9);
+        assert_eq!(VariableRegistry::calculate_percentile(&values, 100.0), 10);
+        
+        let empty_values: Vec<u64> = vec![];
+        assert_eq!(VariableRegistry::calculate_percentile(&empty_values, 50.0), 0);
+    }
+
+    #[test]
+    fn test_calculate_lifetime_stats() {
+        let lifetimes = vec![0, 1, 5, 15, 50, 150, 500, 1500];
+        let stats = VariableRegistry::calculate_lifetime_stats(&lifetimes);
+        
+        assert_eq!(stats["count"], 8);
+        assert_eq!(stats["categories"]["very_short"], 2); // 0, 1
+        assert_eq!(stats["categories"]["short"], 1);      // 5
+        assert_eq!(stats["categories"]["medium"], 2);     // 15, 50
+        assert_eq!(stats["categories"]["long"], 2);       // 150, 500
+        assert_eq!(stats["categories"]["very_long"], 1);  // 1500
+
+        let empty_lifetimes: Vec<u64> = vec![];
+        let empty_stats = VariableRegistry::calculate_lifetime_stats(&empty_lifetimes);
+        assert_eq!(empty_stats["count"], 0);
+    }
+
+    #[test]
+    fn test_get_stats() {
+        // Clear registry first
+        let _ = VariableRegistry::clear_registry();
+
+        let (total_before, recent_before) = VariableRegistry::get_stats();
+        
+        // Add some variables
+        let _ = VariableRegistry::register_variable(0x8000, "stat_var1".to_string(), "i32".to_string(), 4);
+        let _ = VariableRegistry::register_variable(0x9000, "stat_var2".to_string(), "String".to_string(), 24);
+
+        let (total_after, recent_after) = VariableRegistry::get_stats();
+        assert!(total_after >= total_before + 2);
+        assert!(recent_after >= recent_before + 2);
+    }
+
+    #[test]
+    fn test_clear_registry() {
+        // Add some variables
+        let _ = VariableRegistry::register_variable(0xa000, "clear_test1".to_string(), "i32".to_string(), 4);
+        let _ = VariableRegistry::register_variable(0xb000, "clear_test2".to_string(), "String".to_string(), 24);
+
+        // Clear registry
+        let result = VariableRegistry::clear_registry();
+        assert!(result.is_ok());
+
+        // Verify cleared (note: other tests might have added variables, so we just check the specific ones)
+        let var_info1 = VariableRegistry::get_variable_info(0xa000);
+        let var_info2 = VariableRegistry::get_variable_info(0xb000);
+        
+        // After clearing, these specific variables should not be found
+        // (though other variables from concurrent tests might exist)
+        assert!(var_info1.is_none() || var_info2.is_none() || 
+                VariableRegistry::get_all_variables().is_empty());
+    }
+
+    #[test]
+    fn test_sequential_vs_parallel_processing() {
+        // Clear registry first
+        let _ = VariableRegistry::clear_registry();
+
+        // Create a small dataset (should use sequential processing)
+        let small_allocations = vec![
+            create_test_allocation(0x1000, 100, None, None),
+            create_test_allocation(0x2000, 200, None, None),
+        ];
+
+        let enhanced_small = VariableRegistry::enhance_allocations_with_registry(&small_allocations);
+        assert_eq!(enhanced_small.len(), 2);
+
+        // Create a large dataset (should use parallel processing)
+        let large_allocations: Vec<_> = (0..150)
+            .map(|i| create_test_allocation(0x10000 + i, 100, None, None))
+            .collect();
+
+        let enhanced_large = VariableRegistry::enhance_allocations_with_registry(&large_allocations);
+        assert_eq!(enhanced_large.len(), 150);
+    }
+
+    #[test]
+    fn test_extract_function_name_from_backtrace() {
+        let backtrace_line = "   10: my_crate::my_module::my_function::h1234567890abcdef";
+        let func_name = VariableRegistry::extract_function_name_from_backtrace(backtrace_line);
+        assert_eq!(func_name, Some("my_module".to_string()));
+
+        let system_line = "   10: std::alloc::alloc::h1234567890abcdef";
+        let system_func = VariableRegistry::extract_function_name_from_backtrace(system_line);
+        assert!(system_func.is_none());
+
+        let invalid_line = "invalid backtrace line";
+        let invalid_func = VariableRegistry::extract_function_name_from_backtrace(invalid_line);
+        assert!(invalid_func.is_none());
+    }
+
+    #[test]
+    fn test_group_by_scope() {
+        let active_allocations = vec![
+            serde_json::json!({
+                "scope_name": "main_function",
+                "size": 100,
+                "ptr": 0x1000
+            }),
+            serde_json::json!({
+                "scope_name": "test_function", 
+                "size": 200,
+                "ptr": 0x2000
+            }),
+        ];
+
+        let history_allocations = vec![
+            serde_json::json!({
+                "scope_name": "main_function",
+                "size": 150,
+                "ptr": 0x3000
+            }),
+        ];
+
+        let grouped = VariableRegistry::group_by_scope(&active_allocations, &history_allocations);
+        
+        assert!(grouped["main_function"]["allocation_count"].as_u64().unwrap() >= 2);
+        assert!(grouped["test_function"]["allocation_count"].as_u64().unwrap() >= 1);
+        assert!(grouped["main_function"]["total_size_bytes"].as_u64().unwrap() >= 250);
+    }
+
+    #[test]
+    fn test_get_scope_summary() {
+        let mut registry = HashMap::new();
+        registry.insert(0x1000, VariableInfo {
+            var_name: "main_var".to_string(),
+            type_name: "i32".to_string(),
+            timestamp: 1000,
+            size: 4,
+        });
+        registry.insert(0x2000, VariableInfo {
+            var_name: "test_var".to_string(),
+            type_name: "String".to_string(),
+            timestamp: 2000,
+            size: 24,
+        });
+
+        let summary = VariableRegistry::get_scope_summary(&registry);
+        assert!(summary["main_function"].as_u64().unwrap_or(0) >= 1);
+        assert!(summary["test_function"].as_u64().unwrap_or(0) >= 1);
+    }
+}

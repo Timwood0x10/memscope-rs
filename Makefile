@@ -62,31 +62,43 @@ build-dev:
 # Testing targets
 .PHONY: test quick-test test-lib test-integration test-doc test-examples
 test:
-	@echo "$(BLUE)🧪 Running all tests...$(NC)"
-	@cargo test --all --verbose
-	@echo "$(GREEN)✅ All tests completed$(NC)"
+	@echo "$(BLUE)🧪 Running all tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --all-targets --lib --bins --tests --examples
+	@echo "$(GREEN)✅ All tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
 
 quick-test: test-lib
 
+
 test-lib:
-	@echo "$(BLUE)🧪 Running library tests...$(NC)"
-	@cargo test --lib --verbose
-	@echo "$(GREEN)✅ Library tests completed$(NC)"
+	@echo "$(BLUE)🧪 Running library tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --lib
+	@echo "$(GREEN)✅ Library tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
 
 test-integration:
-	@echo "$(BLUE)🧪 Running integration tests...$(NC)"
-	@cargo test --tests --verbose
-	@echo "$(GREEN)✅ Integration tests completed$(NC)"
+	@echo "$(BLUE)🧪 Running integration tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --tests
+	@echo "$(GREEN)✅ Integration tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
 
 test-doc:
-	@echo "$(BLUE)🧪 Running documentation tests...$(NC)"
-	@cargo test --doc --verbose
-	@echo "$(GREEN)✅ Documentation tests completed$(NC)"
+	@echo "$(BLUE)🧪 Running documentation tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --doc
+	@echo "$(GREEN)✅ Documentation tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
 
 test-examples:
-	@echo "$(BLUE)🧪 Running example tests...$(NC)"
-	@cargo test --examples --verbose
-	@echo "$(GREEN)✅ Example tests completed$(NC)"
+	@echo "$(BLUE)🧪 Running example tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --examples
+	@echo "$(GREEN)✅ Example tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
 
 # Enhanced test coverage with tarpaulin
 .PHONY: test-coverage test-coverage-enhanced test-coverage-detailed
