@@ -426,3 +426,299 @@ pub fn get_unwrap_stats_mut() -> Option<std::sync::MutexGuard<'static, UnwrapSta
     let stats_mutex = GLOBAL_UNWRAP_STATS.get_or_init(|| Mutex::new(UnwrapStats::new()));
     stats_mutex.try_lock().ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unwrap_error_display() {
+        let none_error = UnwrapError::NoneValue {
+            context: "test context",
+            location: Some("test.rs:42"),
+            backtrace: Backtrace::capture(),
+        };
+        
+        let display_str = format!("{}", none_error);
+        assert!(display_str.contains("test context"));
+        assert!(display_str.contains("test.rs:42"));
+        
+        let none_error_no_location = UnwrapError::NoneValue {
+            context: "test context",
+            location: None,
+            backtrace: Backtrace::capture(),
+        };
+        
+        let display_str = format!("{}", none_error_no_location);
+        assert!(display_str.contains("test context"));
+        assert!(!display_str.contains("test.rs:42"));
+    }
+
+    #[test]
+    fn test_unwrap_error_result_display() {
+        let source_error = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let result_error = UnwrapError::ResultError {
+            source: Box::new(source_error),
+            context: "file operation",
+            location: Some("main.rs:10"),
+            backtrace: Backtrace::capture(),
+        };
+        
+        let display_str = format!("{}", result_error);
+        assert!(display_str.contains("file operation"));
+        assert!(display_str.contains("main.rs:10"));
+        assert!(display_str.contains("file not found"));
+    }
+
+    #[test]
+    fn test_option_try_unwrap_success() {
+        let option = Some(42);
+        let result = option.try_unwrap("test success");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[test]
+    fn test_option_try_unwrap_failure() {
+        let option: Option<i32> = None;
+        let result = option.try_unwrap("test failure");
+        assert!(result.is_err());
+        
+        if let Err(UnwrapError::NoneValue { context, .. }) = result {
+            assert_eq!(context, "test failure");
+        } else {
+            panic!("Expected NoneValue error");
+        }
+    }
+
+    #[test]
+    fn test_option_try_unwrap_at() {
+        let option: Option<i32> = None;
+        let result = option.try_unwrap_at("test context", "test.rs:100");
+        assert!(result.is_err());
+        
+        if let Err(UnwrapError::NoneValue { context, location, .. }) = result {
+            assert_eq!(context, "test context");
+            assert_eq!(location, Some("test.rs:100"));
+        } else {
+            panic!("Expected NoneValue error with location");
+        }
+    }
+
+    #[test]
+    fn test_option_unwrap_or_default_safe() {
+        let some_option = Some(42);
+        let result = some_option.unwrap_or_default_safe(99, "test default");
+        assert_eq!(result, 42);
+        
+        let none_option: Option<i32> = None;
+        let result = none_option.unwrap_or_default_safe(99, "test default");
+        assert_eq!(result, 99);
+    }
+
+    #[test]
+    fn test_option_unwrap_or_else_safe() {
+        let some_option = Some(42);
+        let result = some_option.unwrap_or_else_safe(|| 99, "test else");
+        assert_eq!(result, 42);
+        
+        let none_option: Option<i32> = None;
+        let result = none_option.unwrap_or_else_safe(|| 99, "test else");
+        assert_eq!(result, 99);
+    }
+
+    #[test]
+    fn test_result_try_unwrap_success() {
+        let result: Result<i32, std::io::Error> = Ok(42);
+        let unwrap_result = result.try_unwrap("test success");
+        assert!(unwrap_result.is_ok());
+        assert_eq!(unwrap_result.unwrap(), 42);
+    }
+
+    #[test]
+    fn test_result_try_unwrap_failure() {
+        let result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
+        let unwrap_result = result.try_unwrap("test failure");
+        assert!(unwrap_result.is_err());
+        
+        if let Err(UnwrapError::ResultError { context, .. }) = unwrap_result {
+            assert_eq!(context, "test failure");
+        } else {
+            panic!("Expected ResultError");
+        }
+    }
+
+    #[test]
+    fn test_result_try_unwrap_at() {
+        let result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
+        let unwrap_result = result.try_unwrap_at("test context", "main.rs:50");
+        assert!(unwrap_result.is_err());
+        
+        if let Err(UnwrapError::ResultError { context, location, .. }) = unwrap_result {
+            assert_eq!(context, "test context");
+            assert_eq!(location, Some("main.rs:50"));
+        } else {
+            panic!("Expected ResultError with location");
+        }
+    }
+
+    #[test]
+    fn test_result_unwrap_or_default_safe() {
+        let ok_result: Result<i32, std::io::Error> = Ok(42);
+        let result = ok_result.unwrap_or_default_safe(99, "test default");
+        assert_eq!(result, 42);
+        
+        let err_result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+        let result = err_result.unwrap_or_default_safe(99, "test default");
+        assert_eq!(result, 99);
+    }
+
+    #[test]
+    fn test_result_unwrap_or_else_safe() {
+        let ok_result: Result<i32, std::io::Error> = Ok(42);
+        let result = ok_result.unwrap_or_else_safe(|| 99, "test else");
+        assert_eq!(result, 42);
+        
+        let err_result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+        let result = err_result.unwrap_or_else_safe(|| 99, "test else");
+        assert_eq!(result, 99);
+    }
+
+    #[test]
+    fn test_unwrap_stats_creation() {
+        let stats = UnwrapStats::new();
+        assert_eq!(stats.successful_unwraps, 0);
+        assert_eq!(stats.failed_unwraps, 0);
+        assert_eq!(stats.default_value_uses, 0);
+        assert_eq!(stats.panic_preservations, 0);
+    }
+
+    #[test]
+    fn test_unwrap_stats_record_operations() {
+        let mut stats = UnwrapStats::new();
+        
+        stats.record_success();
+        stats.record_failure();
+        stats.record_default_use();
+        stats.record_panic_preservation();
+        
+        assert_eq!(stats.successful_unwraps, 1);
+        assert_eq!(stats.failed_unwraps, 1);
+        assert_eq!(stats.default_value_uses, 1);
+        assert_eq!(stats.panic_preservations, 1);
+    }
+
+    #[test]
+    fn test_unwrap_stats_total_operations() {
+        let mut stats = UnwrapStats::new();
+        
+        stats.record_success();
+        stats.record_success();
+        stats.record_failure();
+        stats.record_default_use();
+        
+        assert_eq!(stats.total_operations(), 4);
+    }
+
+    #[test]
+    fn test_unwrap_stats_success_rate() {
+        let mut stats = UnwrapStats::new();
+        
+        // Test with no operations
+        assert_eq!(stats.success_rate(), 0.0);
+        
+        // Test with some operations
+        stats.record_success();
+        stats.record_success();
+        stats.record_success();
+        stats.record_failure();
+        
+        let expected_rate = 3.0 / 4.0;
+        assert!((stats.success_rate() - expected_rate).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_global_unwrap_stats() {
+        let stats = get_unwrap_stats();
+        assert!(stats.total_operations() >= 0);
+    }
+
+    #[test]
+    fn test_update_unwrap_stats() {
+        let result = update_unwrap_stats(|stats| {
+            stats.record_success();
+            42
+        });
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn test_unwrap_error_backtrace() {
+        let error = UnwrapError::NoneValue {
+            context: "test",
+            location: None,
+            backtrace: Backtrace::capture(),
+        };
+        
+        let _backtrace = error.backtrace();
+        // Just ensure we can access the backtrace without panic
+    }
+
+    #[test]
+    fn test_unwrap_error_source() {
+        let none_error = UnwrapError::NoneValue {
+            context: "test",
+            location: None,
+            backtrace: Backtrace::capture(),
+        };
+        assert!(none_error.source().is_none());
+        
+        let source_error = std::io::Error::new(std::io::ErrorKind::NotFound, "test");
+        let result_error = UnwrapError::ResultError {
+            source: Box::new(source_error),
+            context: "test",
+            location: None,
+            backtrace: Backtrace::capture(),
+        };
+        assert!(result_error.source().is_some());
+    }
+
+    #[test]
+    fn test_option_try_unwrap_safe_deprecated() {
+        #[allow(deprecated)]
+        {
+            let some_option = Some(42);
+            let result = some_option.try_unwrap_safe("test");
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), 42);
+            
+            let none_option: Option<i32> = None;
+            let result = none_option.try_unwrap_safe("test");
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn test_result_try_unwrap_safe_deprecated() {
+        #[allow(deprecated)]
+        {
+            let ok_result: Result<i32, std::io::Error> = Ok(42);
+            let result = ok_result.try_unwrap_safe("test");
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), 42);
+            
+            let err_result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+            let result = err_result.try_unwrap_safe("test");
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn test_unwrap_stats_default() {
+        let stats = UnwrapStats::default();
+        assert_eq!(stats.successful_unwraps, 0);
+        assert_eq!(stats.failed_unwraps, 0);
+        assert_eq!(stats.default_value_uses, 0);
+        assert_eq!(stats.panic_preservations, 0);
+    }
+}

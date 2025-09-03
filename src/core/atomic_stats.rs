@@ -411,3 +411,329 @@ impl PerformanceSnapshot {
         }
     }
 }
+
+/// Global atomic memory statistics instance
+static GLOBAL_ATOMIC_STATS: std::sync::OnceLock<AtomicMemoryStats> = std::sync::OnceLock::new();
+
+/// Get global atomic memory statistics
+pub fn get_global_atomic_stats() -> &'static AtomicMemoryStats {
+    GLOBAL_ATOMIC_STATS.get_or_init(|| AtomicMemoryStats::new())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_simple_memory_stats_creation() {
+        let stats = SimpleMemoryStats::new();
+        let snapshot = stats.snapshot();
+        
+        assert_eq!(snapshot.total_allocations, 0);
+        assert_eq!(snapshot.total_allocated, 0);
+        assert_eq!(snapshot.active_allocations, 0);
+        assert_eq!(snapshot.active_memory, 0);
+    }
+
+    #[test]
+    fn test_simple_memory_stats_fast_allocation() {
+        let stats = SimpleMemoryStats::new();
+        stats.record_allocation_fast(1024);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.total_allocations, 1);
+        assert_eq!(snapshot.total_allocated, 1024);
+    }
+
+    #[test]
+    fn test_simple_memory_stats_detailed_allocation() {
+        let stats = SimpleMemoryStats::new();
+        stats.record_allocation_detailed(2048);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.total_allocations, 1);
+        assert_eq!(snapshot.total_allocated, 2048);
+        assert_eq!(snapshot.active_allocations, 1);
+        assert_eq!(snapshot.active_memory, 2048);
+        assert_eq!(snapshot.peak_allocations, 1);
+        assert_eq!(snapshot.peak_memory, 2048);
+    }
+
+    #[test]
+    fn test_simple_memory_stats_deallocation() {
+        let stats = SimpleMemoryStats::new();
+        stats.record_allocation_detailed(1024);
+        stats.record_deallocation(1024);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.total_deallocations, 1);
+        assert_eq!(snapshot.total_deallocated, 1024);
+        assert_eq!(snapshot.active_allocations, 0);
+        assert_eq!(snapshot.active_memory, 0);
+    }
+
+    #[test]
+    fn test_simple_memory_stats_leak() {
+        let stats = SimpleMemoryStats::new();
+        stats.record_leak(512);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.leaked_allocations, 1);
+        assert_eq!(snapshot.leaked_memory, 512);
+    }
+
+    #[test]
+    fn test_simple_memory_stats_reset() {
+        let stats = SimpleMemoryStats::new();
+        stats.record_allocation_fast(1024);
+        stats.record_leak(256);
+        
+        stats.reset();
+        let snapshot = stats.snapshot();
+        
+        assert_eq!(snapshot.total_allocations, 0);
+        assert_eq!(snapshot.total_allocated, 0);
+    }
+
+    #[test]
+    fn test_atomic_memory_stats_creation() {
+        let stats = AtomicMemoryStats::new();
+        let snapshot = stats.snapshot();
+        
+        assert_eq!(snapshot.total_allocations, 0);
+        assert_eq!(snapshot.total_allocated, 0);
+        assert_eq!(snapshot.active_allocations, 0);
+        assert_eq!(snapshot.active_memory, 0);
+    }
+
+    #[test]
+    fn test_atomic_memory_stats_allocation() {
+        let stats = AtomicMemoryStats::new();
+        stats.record_allocation(1024);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.total_allocations, 1);
+        assert_eq!(snapshot.total_allocated, 1024);
+        assert_eq!(snapshot.active_allocations, 1);
+        assert_eq!(snapshot.active_memory, 1024);
+        assert_eq!(snapshot.peak_allocations, 1);
+        assert_eq!(snapshot.peak_memory, 1024);
+    }
+
+    #[test]
+    fn test_atomic_memory_stats_multiple_allocations() {
+        let stats = AtomicMemoryStats::new();
+        
+        stats.record_allocation(512);
+        stats.record_allocation(1024);
+        stats.record_allocation(256);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.total_allocations, 3);
+        assert_eq!(snapshot.total_allocated, 1792);
+        assert_eq!(snapshot.active_allocations, 3);
+        assert_eq!(snapshot.active_memory, 1792);
+        assert_eq!(snapshot.peak_memory, 1792);
+    }
+
+    #[test]
+    fn test_atomic_memory_stats_deallocation() {
+        let stats = AtomicMemoryStats::new();
+        stats.record_allocation(1024);
+        stats.record_deallocation(1024);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.total_allocations, 1);
+        assert_eq!(snapshot.total_deallocations, 1);
+        assert_eq!(snapshot.total_deallocated, 1024);
+        assert_eq!(snapshot.active_allocations, 0);
+        assert_eq!(snapshot.active_memory, 0);
+    }
+
+    #[test]
+    fn test_atomic_memory_stats_peak_tracking() {
+        let stats = AtomicMemoryStats::new();
+        
+        // Build up to peak
+        stats.record_allocation(1000);
+        stats.record_allocation(2000);
+        let peak_snapshot = stats.snapshot();
+        
+        // Deallocate one
+        stats.record_deallocation(1000);
+        let current_snapshot = stats.snapshot();
+        
+        // Peak should remain at the maximum
+        assert_eq!(peak_snapshot.peak_memory, 3000);
+        assert_eq!(current_snapshot.peak_memory, 3000);
+        assert_eq!(current_snapshot.active_memory, 2000);
+    }
+
+    #[test]
+    fn test_atomic_memory_stats_leak() {
+        let stats = AtomicMemoryStats::new();
+        stats.record_leak(512);
+        
+        let snapshot = stats.snapshot();
+        assert_eq!(snapshot.leaked_allocations, 1);
+        assert_eq!(snapshot.leaked_memory, 512);
+    }
+
+    #[test]
+    fn test_atomic_memory_stats_reset() {
+        let stats = AtomicMemoryStats::new();
+        stats.record_allocation(1024);
+        stats.record_leak(256);
+        
+        stats.reset();
+        let snapshot = stats.snapshot();
+        
+        assert_eq!(snapshot.total_allocations, 0);
+        assert_eq!(snapshot.total_allocated, 0);
+        assert_eq!(snapshot.leaked_allocations, 0);
+        assert_eq!(snapshot.leaked_memory, 0);
+    }
+
+    #[test]
+    fn test_atomic_performance_counters_creation() {
+        let counters = AtomicPerformanceCounters::new();
+        let snapshot = counters.snapshot();
+        
+        assert_eq!(snapshot.clone_count, 0);
+        assert_eq!(snapshot.lock_acquisitions, 0);
+        assert_eq!(snapshot.lock_contentions, 0);
+        assert_eq!(snapshot.cache_hits, 0);
+        assert_eq!(snapshot.cache_misses, 0);
+    }
+
+    #[test]
+    fn test_atomic_performance_counters_clone() {
+        let counters = AtomicPerformanceCounters::new();
+        counters.record_clone();
+        counters.record_clone();
+        
+        let snapshot = counters.snapshot();
+        assert_eq!(snapshot.clone_count, 2);
+    }
+
+    #[test]
+    fn test_atomic_performance_counters_lock_acquisition() {
+        let counters = AtomicPerformanceCounters::new();
+        let wait_time = Duration::from_millis(10);
+        counters.record_lock_acquisition(wait_time);
+        
+        let snapshot = counters.snapshot();
+        assert_eq!(snapshot.lock_acquisitions, 1);
+        assert_eq!(snapshot.lock_wait_time_ns, wait_time.as_nanos() as u64);
+    }
+
+    #[test]
+    fn test_atomic_performance_counters_lock_contention() {
+        let counters = AtomicPerformanceCounters::new();
+        counters.record_lock_contention();
+        counters.record_lock_contention();
+        
+        let snapshot = counters.snapshot();
+        assert_eq!(snapshot.lock_contentions, 2);
+    }
+
+    #[test]
+    fn test_atomic_performance_counters_cache() {
+        let counters = AtomicPerformanceCounters::new();
+        counters.record_cache_hit();
+        counters.record_cache_hit();
+        counters.record_cache_miss();
+        
+        let snapshot = counters.snapshot();
+        assert_eq!(snapshot.cache_hits, 2);
+        assert_eq!(snapshot.cache_misses, 1);
+    }
+
+    #[test]
+    fn test_performance_snapshot_calculations() {
+        let snapshot = PerformanceSnapshot {
+            clone_count: 100,
+            lock_acquisitions: 80,
+            lock_contentions: 8,
+            lock_wait_time_ns: 800_000,
+            cache_hits: 90,
+            cache_misses: 10,
+        };
+        
+        // Test cache hit ratio
+        let hit_ratio = snapshot.cache_hit_ratio();
+        assert!((hit_ratio - 0.9).abs() < f64::EPSILON);
+        
+        // Test average lock wait time
+        let avg_wait = snapshot.avg_lock_wait_time_ns();
+        assert!((avg_wait - 10_000.0).abs() < f64::EPSILON);
+        
+        // Test lock contention ratio
+        let contention_ratio = snapshot.lock_contention_ratio();
+        assert!((contention_ratio - 0.1).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_performance_snapshot_edge_cases() {
+        let empty_snapshot = PerformanceSnapshot {
+            clone_count: 0,
+            lock_acquisitions: 0,
+            lock_contentions: 0,
+            lock_wait_time_ns: 0,
+            cache_hits: 0,
+            cache_misses: 0,
+        };
+        
+        assert_eq!(empty_snapshot.cache_hit_ratio(), 0.0);
+        assert_eq!(empty_snapshot.avg_lock_wait_time_ns(), 0.0);
+        assert_eq!(empty_snapshot.lock_contention_ratio(), 0.0);
+    }
+
+    #[test]
+    fn test_memory_stats_snapshot_creation() {
+        let snapshot = MemoryStatsSnapshot {
+            total_allocations: 100,
+            total_allocated: 10240,
+            active_allocations: 50,
+            active_memory: 5120,
+            peak_allocations: 80,
+            peak_memory: 8192,
+            total_deallocations: 50,
+            total_deallocated: 5120,
+            leaked_allocations: 5,
+            leaked_memory: 512,
+        };
+        
+        assert_eq!(snapshot.total_allocations, 100);
+        assert_eq!(snapshot.total_allocated, 10240);
+        assert_eq!(snapshot.active_allocations, 50);
+        assert_eq!(snapshot.peak_memory, 8192);
+        assert_eq!(snapshot.leaked_allocations, 5);
+    }
+
+    #[test]
+    fn test_default_implementations() {
+        let simple_stats = SimpleMemoryStats::default();
+        let atomic_stats = AtomicMemoryStats::default();
+        let counters = AtomicPerformanceCounters::default();
+        
+        assert_eq!(simple_stats.snapshot().total_allocations, 0);
+        assert_eq!(atomic_stats.snapshot().total_allocations, 0);
+        assert_eq!(counters.snapshot().clone_count, 0);
+    }
+
+    #[test]
+    fn test_global_atomic_stats() {
+        let stats = get_global_atomic_stats();
+        
+        // Test that we get the same instance
+        let stats2 = get_global_atomic_stats();
+        assert!(std::ptr::eq(stats, stats2));
+        
+        // Test basic functionality
+        stats.record_allocation(1024);
+        let snapshot = stats.snapshot();
+        assert!(snapshot.total_allocations > 0);
+    }
+}

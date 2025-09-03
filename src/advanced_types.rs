@@ -812,13 +812,12 @@ pub fn detect_interior_mutability_patterns(
 
     for allocation in allocations {
         if let Some(type_name) = &allocation.type_name {
-            if type_name.contains("Cell<") {
-                cell_instances.push(CellInstance {
+            if type_name.contains("UnsafeCell<") {
+                unsafe_cell_instances.push(UnsafeCellInstance {
                     ptr: allocation.ptr,
                     type_name: type_name.clone(),
                     size: allocation.size,
-                    thread_safe: true, // Cell is always thread-safe
-                    zero_cost: true,   // Cell has no runtime overhead
+                    requires_unsafe_access: true,
                 });
             } else if type_name.contains("RefCell<") {
                 let instance = RefCellInstance {
@@ -841,12 +840,13 @@ pub fn detect_interior_mutability_patterns(
                 }
 
                 refcell_instances.push(instance);
-            } else if type_name.contains("UnsafeCell<") {
-                unsafe_cell_instances.push(UnsafeCellInstance {
+            } else if type_name.contains("Cell<") && !type_name.contains("RefCell<") && !type_name.contains("UnsafeCell<") {
+                cell_instances.push(CellInstance {
                     ptr: allocation.ptr,
                     type_name: type_name.clone(),
                     size: allocation.size,
-                    requires_unsafe_access: true,
+                    thread_safe: true, // Cell is always thread-safe
+                    zero_cost: true,   // Cell has no runtime overhead
                 });
             }
         }
@@ -1133,4 +1133,283 @@ pub enum ContentionType {
     RwLockReadContention,
     /// RwLock write contention
     RwLockWriteContention,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::AllocationInfo;
+
+    fn create_test_allocation(type_name: &str, size: usize) -> AllocationInfo {
+        AllocationInfo {
+            ptr: 0x12345678,
+            size,
+            var_name: Some("test_var".to_string()),
+            type_name: Some(type_name.to_string()),
+            timestamp_alloc: 1000,
+            borrow_count: 0,
+            scope_name: None,
+            timestamp_dealloc: None,
+            thread_id: "test_thread".to_string(),
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    #[test]
+    fn test_is_advanced_type() {
+        assert!(is_advanced_type("std::cell::RefCell<i32>"));
+        assert!(is_advanced_type("std::sync::Mutex<String>"));
+        assert!(is_advanced_type("std::sync::RwLock<Vec<u8>>"));
+        assert!(is_advanced_type("std::sync::atomic::AtomicBool"));
+        assert!(is_advanced_type("std::sync::mpsc::Sender<i32>"));
+        assert!(is_advanced_type("std::sync::Arc<i32>"));
+        assert!(is_advanced_type("std::collections::HashMap<String, i32>"));
+        
+        assert!(!is_advanced_type("i32"));
+        assert!(!is_advanced_type("String"));
+        assert!(!is_advanced_type("Vec<u8>"));
+    }
+
+    #[test]
+    fn test_get_type_category() {
+        assert_eq!(get_type_category("std::cell::Cell<i32>"), Some(AdvancedTypeCategory::InteriorMutability));
+        assert_eq!(get_type_category("std::cell::RefCell<String>"), Some(AdvancedTypeCategory::InteriorMutability));
+        assert_eq!(get_type_category("std::sync::Mutex<i32>"), Some(AdvancedTypeCategory::Synchronization));
+        assert_eq!(get_type_category("std::sync::RwLock<String>"), Some(AdvancedTypeCategory::Synchronization));
+        assert_eq!(get_type_category("std::sync::mpsc::Sender<i32>"), Some(AdvancedTypeCategory::Channel));
+        assert_eq!(get_type_category("std::sync::atomic::AtomicBool"), Some(AdvancedTypeCategory::Atomic));
+        assert_eq!(get_type_category("std::mem::ManuallyDrop<String>"), Some(AdvancedTypeCategory::MemoryManagement));
+        assert_eq!(get_type_category("std::future::Future"), Some(AdvancedTypeCategory::Async));
+        assert_eq!(get_type_category("i32"), None);
+    }
+
+    #[test]
+    fn test_create_behavior_pattern() {
+        let refcell_pattern = create_behavior_pattern("std::cell::RefCell<i32>");
+        assert!(refcell_pattern.has_interior_mutability);
+        assert!(!refcell_pattern.is_thread_safe);
+        assert!(refcell_pattern.has_runtime_borrow_check);
+        assert!(refcell_pattern.has_runtime_overhead);
+
+        let mutex_pattern = create_behavior_pattern("std::sync::Mutex<i32>");
+        assert!(mutex_pattern.has_interior_mutability);
+        assert!(mutex_pattern.is_thread_safe);
+        assert!(mutex_pattern.can_block);
+        assert!(mutex_pattern.deadlock_potential);
+
+        let atomic_pattern = create_behavior_pattern("std::sync::atomic::AtomicBool");
+        assert!(atomic_pattern.has_interior_mutability);
+        assert!(atomic_pattern.is_thread_safe);
+        assert!(!atomic_pattern.can_block);
+        assert!(!atomic_pattern.has_runtime_overhead);
+    }
+
+    #[test]
+    fn test_generic_advanced_type_analyzer() {
+        let allocation = create_test_allocation("std::cell::RefCell<i32>", 1024);
+        let analysis = GenericAdvancedTypeAnalyzer::analyze_by_type_name("std::cell::RefCell<i32>", &allocation);
+        
+        assert_eq!(analysis.category, AdvancedTypeCategory::InteriorMutability);
+        assert!(analysis.behavior.has_interior_mutability);
+        assert!(analysis.behavior.has_runtime_borrow_check);
+        assert!(!analysis.potential_issues.is_empty());
+        assert!(analysis.performance_info.overhead_factor >= 1.0); // RefCell has 2.0, Cell has 1.0
+    }
+
+    #[test]
+    fn test_analyze_type() {
+        let allocation = create_test_allocation("std::sync::Mutex<String>", 2048);
+        let analysis = analyze_type(&allocation).unwrap();
+        
+        assert_eq!(analysis.category, AdvancedTypeCategory::Synchronization);
+        assert!(analysis.behavior.deadlock_potential);
+        assert!(!analysis.potential_issues.is_empty());
+        
+        // Test with non-advanced type
+        let simple_allocation = create_test_allocation("i32", 4);
+        assert!(analyze_type(&simple_allocation).is_none());
+    }
+
+    #[test]
+    fn test_analyze_advanced_types() {
+        let allocations = vec![
+            create_test_allocation("std::cell::RefCell<i32>", 1024),
+            create_test_allocation("std::sync::Mutex<String>", 2048),
+            create_test_allocation("i32", 4), // Should be ignored
+        ];
+        
+        let report = analyze_advanced_types(&allocations);
+        
+        assert_eq!(report.statistics.total_advanced_types, 2);
+        assert!(!report.all_issues.is_empty());
+        assert!(!report.by_category.is_empty());
+        assert!(report.performance_summary.total_overhead_factor > 1.0);
+    }
+
+    #[test]
+    fn test_detect_interior_mutability_patterns() {
+        let mut allocation = create_test_allocation("std::cell::RefCell<i32>", 1024);
+        allocation.borrow_count = 2; // Multiple borrows
+        
+        let allocations = vec![
+            create_test_allocation("std::cell::Cell<i32>", 512),
+            allocation,
+            create_test_allocation("std::cell::UnsafeCell<String>", 256),
+        ];
+        
+        let report = detect_interior_mutability_patterns(&allocations);
+        
+        assert_eq!(report.cell_instances.len(), 1);
+        assert_eq!(report.refcell_instances.len(), 1);
+        assert_eq!(report.unsafe_cell_instances.len(), 1);
+        assert_eq!(report.runtime_borrow_violations.len(), 1);
+        assert_eq!(report.total_interior_mutability_types, 3);
+    }
+
+    #[test]
+    fn test_monitor_concurrency_primitives() {
+        let allocations = vec![
+            create_test_allocation("std::sync::Mutex<i32>", 1024),
+            create_test_allocation("std::sync::RwLock<String>", 2048),
+            create_test_allocation("std::sync::Condvar", 512),
+        ];
+        
+        let report = monitor_concurrency_primitives(&allocations);
+        
+        assert_eq!(report.mutex_instances.len(), 1);
+        assert_eq!(report.rwlock_instances.len(), 1);
+        assert_eq!(report.condvar_instances.len(), 1);
+        assert!(report.deadlock_potential_score > 0.0);
+    }
+
+    #[test]
+    fn test_advanced_type_category_variants() {
+        // Test all enum variants can be created
+        let categories = vec![
+            AdvancedTypeCategory::InteriorMutability,
+            AdvancedTypeCategory::Synchronization,
+            AdvancedTypeCategory::Channel,
+            AdvancedTypeCategory::Atomic,
+            AdvancedTypeCategory::ThreadLocal,
+            AdvancedTypeCategory::MemoryManagement,
+            AdvancedTypeCategory::Async,
+        ];
+        
+        for category in categories {
+            assert!(format!("{:?}", category).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_issue_severity_variants() {
+        let severities = vec![
+            IssueSeverity::Info,
+            IssueSeverity::Warning,
+            IssueSeverity::Error,
+            IssueSeverity::Critical,
+        ];
+        
+        for severity in severities {
+            assert!(format!("{:?}", severity).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_latency_category_variants() {
+        let categories = vec![
+            LatencyCategory::Immediate,
+            LatencyCategory::Fast,
+            LatencyCategory::Moderate,
+            LatencyCategory::Slow,
+            LatencyCategory::VerySlow,
+        ];
+        
+        for category in categories {
+            assert!(format!("{:?}", category).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_type_behavior_pattern_creation() {
+        let pattern = TypeBehaviorPattern {
+            has_interior_mutability: true,
+            is_thread_safe: false,
+            can_block: true,
+            manages_memory_layout: false,
+            deadlock_potential: true,
+            has_runtime_borrow_check: false,
+            has_runtime_overhead: true,
+        };
+        
+        assert!(pattern.has_interior_mutability);
+        assert!(!pattern.is_thread_safe);
+        assert!(pattern.can_block);
+        assert!(pattern.deadlock_potential);
+        assert!(pattern.has_runtime_overhead);
+    }
+
+    #[test]
+    fn test_performance_info_creation() {
+        let perf_info = PerformanceInfo {
+            overhead_factor: 2.5,
+            memory_overhead: 64,
+            is_lock_free: false,
+            latency_category: LatencyCategory::Moderate,
+        };
+        
+        assert!((perf_info.overhead_factor - 2.5).abs() < f64::EPSILON);
+        assert_eq!(perf_info.memory_overhead, 64);
+        assert!(!perf_info.is_lock_free);
+        assert_eq!(perf_info.latency_category, LatencyCategory::Moderate);
+    }
+
+    #[test]
+    fn test_channel_state_info() {
+        let channel_info = ChannelStateInfo {
+            capacity: Some(100),
+            current_size: 50,
+            sender_count: 2,
+            receiver_count: 1,
+            is_closed: false,
+        };
+        
+        assert_eq!(channel_info.capacity, Some(100));
+        assert_eq!(channel_info.current_size, 50);
+        assert_eq!(channel_info.sender_count, 2);
+        assert_eq!(channel_info.receiver_count, 1);
+        assert!(!channel_info.is_closed);
+    }
+
+    #[test]
+    fn test_contention_type_variants() {
+        let types = vec![
+            ContentionType::MutexContention,
+            ContentionType::RwLockReadContention,
+            ContentionType::RwLockWriteContention,
+        ];
+        
+        for contention_type in types {
+            assert!(!format!("{contention_type:?}").is_empty());
+        }
+    }
 }

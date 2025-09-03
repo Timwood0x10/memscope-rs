@@ -3780,3 +3780,382 @@ impl Default for LifecycleEfficiencyMetrics {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tracking_error_creation() {
+        let error = TrackingError::AllocationFailed("test error".to_string());
+        assert!(error.to_string().contains("test error"));
+        
+        let error2 = TrackingError::TrackingDisabled;
+        assert!(error2.to_string().contains("disabled"));
+    }
+
+    #[test]
+    fn test_tracking_error_clone() {
+        let original = TrackingError::InvalidPointer("null pointer".to_string());
+        let cloned = original.clone();
+        
+        assert_eq!(original.to_string(), cloned.to_string());
+    }
+
+    #[test]
+    fn test_allocation_info_creation() {
+        let info = AllocationInfo::new(0x12345678, 1024);
+        
+        assert_eq!(info.ptr, 0x12345678);
+        assert_eq!(info.size, 1024);
+        assert!(info.is_active());
+        assert!(info.borrow_info.is_some());
+        assert!(info.clone_info.is_some());
+        assert!(info.ownership_history_available);
+    }
+
+    #[test]
+    fn test_allocation_info_mark_deallocated() {
+        let mut info = AllocationInfo::new(0x1000, 512);
+        assert!(info.is_active());
+        
+        info.mark_deallocated();
+        assert!(!info.is_active());
+        assert!(info.timestamp_dealloc.is_some());
+    }
+
+    #[test]
+    fn test_allocation_info_enhance_with_type_info() {
+        let mut info = AllocationInfo::new(0x1000, 512);
+        
+        // Test with Rc type
+        info.enhance_with_type_info("std::rc::Rc<String>");
+        if let Some(clone_info) = &info.clone_info {
+            assert_eq!(clone_info.clone_count, 2);
+        }
+        
+        // Test with Vec type
+        info.enhance_with_type_info("Vec<i32>");
+        if let Some(borrow_info) = &info.borrow_info {
+            assert_eq!(borrow_info.immutable_borrows, 4);
+            assert_eq!(borrow_info.mutable_borrows, 2);
+        }
+    }
+
+    #[test]
+    fn test_memory_stats_creation() {
+        let stats = MemoryStats::new();
+        
+        assert_eq!(stats.total_allocations, 0);
+        assert_eq!(stats.total_allocated, 0);
+        assert_eq!(stats.active_allocations, 0);
+        assert_eq!(stats.lifecycle_stats.scope_name, "global");
+    }
+
+    #[test]
+    fn test_smart_pointer_info_rc_arc() {
+        let info = SmartPointerInfo::new_rc_arc(
+            0x1000,
+            SmartPointerType::Rc,
+            1,
+            0
+        );
+        
+        assert_eq!(info.data_ptr, 0x1000);
+        assert!(matches!(info.pointer_type, SmartPointerType::Rc));
+        assert!(info.is_data_owner);
+        assert!(!info.is_weak_reference);
+        assert_eq!(info.ref_count_history.len(), 1);
+    }
+
+    #[test]
+    fn test_smart_pointer_info_weak() {
+        let info = SmartPointerInfo::new_weak(
+            0x2000,
+            SmartPointerType::RcWeak,
+            1
+        );
+        
+        assert_eq!(info.data_ptr, 0x2000);
+        assert!(matches!(info.pointer_type, SmartPointerType::RcWeak));
+        assert!(!info.is_data_owner);
+        assert!(info.is_weak_reference);
+    }
+
+    #[test]
+    fn test_smart_pointer_info_record_clone() {
+        let mut info = SmartPointerInfo::new_rc_arc(
+            0x1000,
+            SmartPointerType::Arc,
+            1,
+            0
+        );
+        
+        info.record_clone(0x2000, 0x1000);
+        assert_eq!(info.cloned_from, Some(0x1000));
+        assert_eq!(info.clones.len(), 1);
+        assert_eq!(info.clones[0], 0x2000);
+    }
+
+    #[test]
+    fn test_smart_pointer_info_update_ref_count() {
+        let mut info = SmartPointerInfo::new_rc_arc(
+            0x1000,
+            SmartPointerType::Rc,
+            1,
+            0
+        );
+        
+        info.update_ref_count(2, 1);
+        assert_eq!(info.ref_count_history.len(), 2);
+        assert_eq!(info.weak_count, Some(1));
+        assert!(!info.is_data_owner); // Not owner when count > 1
+    }
+
+    #[test]
+    fn test_borrow_info_default() {
+        let borrow_info = BorrowInfo::default();
+        
+        assert_eq!(borrow_info.immutable_borrows, 0);
+        assert_eq!(borrow_info.mutable_borrows, 0);
+        assert_eq!(borrow_info.max_concurrent_borrows, 0);
+        assert_eq!(borrow_info.last_borrow_timestamp, None);
+    }
+
+    #[test]
+    fn test_clone_info_default() {
+        let clone_info = CloneInfo::default();
+        
+        assert_eq!(clone_info.clone_count, 0);
+        assert!(!clone_info.is_clone);
+        assert_eq!(clone_info.original_ptr, None);
+    }
+
+    #[test]
+    fn test_fragmentation_analysis_default() {
+        let frag = FragmentationAnalysis::default();
+        
+        assert_eq!(frag.fragmentation_ratio, 0.0);
+        assert_eq!(frag.largest_free_block, 0);
+        assert_eq!(frag.free_block_count, 0);
+    }
+
+    #[test]
+    fn test_system_library_stats_default() {
+        let stats = SystemLibraryStats::default();
+        
+        assert_eq!(stats.std_collections.allocation_count, 0);
+        assert_eq!(stats.async_runtime.total_bytes, 0);
+        assert_eq!(stats.network_io.peak_bytes, 0);
+    }
+
+    #[test]
+    fn test_library_usage_default() {
+        let usage = LibraryUsage::default();
+        
+        assert_eq!(usage.allocation_count, 0);
+        assert_eq!(usage.total_bytes, 0);
+        assert_eq!(usage.average_size, 0.0);
+        assert!(usage.categories.is_empty());
+        assert!(usage.hotspot_functions.is_empty());
+    }
+
+    #[test]
+    fn test_concurrency_analysis_default() {
+        let analysis = ConcurrencyAnalysis::default();
+        
+        assert_eq!(analysis.thread_safety_allocations, 0);
+        assert_eq!(analysis.shared_memory_bytes, 0);
+        assert_eq!(analysis.mutex_protected, 0);
+    }
+
+    #[test]
+    fn test_scope_analysis_default() {
+        let analysis = ScopeAnalysis::default();
+        
+        assert_eq!(analysis.total_scopes, 0);
+        assert_eq!(analysis.active_scopes, 0);
+        assert_eq!(analysis.max_depth, 0);
+        assert!(analysis.scopes.is_empty());
+    }
+
+    #[test]
+    fn test_risk_distribution_default() {
+        let risk = RiskDistribution::default();
+        
+        assert_eq!(risk.low_risk, 0);
+        assert_eq!(risk.medium_risk, 0);
+        assert_eq!(risk.high_risk, 0);
+        assert_eq!(risk.critical_risk, 0);
+    }
+
+    #[test]
+    fn test_allocation_event_type_variants() {
+        let events = vec![
+            AllocationEventType::Allocate,
+            AllocationEventType::Deallocate,
+            AllocationEventType::Reallocate,
+            AllocationEventType::Move,
+            AllocationEventType::Borrow,
+            AllocationEventType::Return,
+        ];
+        
+        for event in events {
+            assert!(format!("{:?}", event).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_scope_event_type_variants() {
+        let events = vec![
+            ScopeEventType::Enter,
+            ScopeEventType::Exit,
+            ScopeEventType::Create,
+            ScopeEventType::Destroy,
+        ];
+        
+        for event in events {
+            assert!(format!("{:?}", event).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_growth_reason_variants() {
+        let reasons = vec![
+            GrowthReason::Initial,
+            GrowthReason::Expansion,
+            GrowthReason::Reallocation,
+            GrowthReason::Optimization,
+            GrowthReason::UserRequested,
+        ];
+        
+        for reason in reasons {
+            assert!(format!("{:?}", reason).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_smart_pointer_type_variants() {
+        let types = vec![
+            SmartPointerType::Rc,
+            SmartPointerType::Arc,
+            SmartPointerType::RcWeak,
+            SmartPointerType::ArcWeak,
+            SmartPointerType::Box,
+        ];
+        
+        for ptr_type in types {
+            assert!(format!("{:?}", ptr_type).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_safety_violation_variants() {
+        let violations = vec![
+            SafetyViolation::PotentialLeak {
+                ptr: 0x1000,
+                size: 1024,
+                age_ms: 5000,
+                description: "test leak".to_string(),
+            },
+            SafetyViolation::UseAfterFree {
+                ptr: 0x2000,
+                description: "test use after free".to_string(),
+            },
+            SafetyViolation::DoubleFree {
+                ptr: 0x3000,
+                description: "test double free".to_string(),
+            },
+            SafetyViolation::BufferOverflow {
+                ptr: 0x4000,
+                size: 512,
+                description: "test overflow".to_string(),
+            },
+        ];
+        
+        for violation in violations {
+            assert!(format!("{:?}", violation).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_allocation_info_serialization() {
+        let info = AllocationInfo::new(0x1000, 512);
+        
+        // Test that it can be serialized
+        let serialized = serde_json::to_string(&info);
+        assert!(serialized.is_ok());
+        
+        // Test that serialized data contains expected fields
+        let json_str = serialized.unwrap();
+        assert!(json_str.contains("ptr"));
+        assert!(json_str.contains("size"));
+        assert!(json_str.contains("4096")); // 0x1000 in decimal is 4096
+        assert!(json_str.contains("512"));
+    }
+
+    #[test]
+    fn test_memory_stats_serialization() {
+        let stats = MemoryStats::new();
+        
+        // Test that it can be serialized
+        let serialized = serde_json::to_string(&stats);
+        assert!(serialized.is_ok());
+    }
+
+    #[test]
+    fn test_tracking_result_type() {
+        let success: TrackingResult<i32> = Ok(42);
+        let failure: TrackingResult<i32> = Err(TrackingError::TrackingDisabled);
+        
+        assert!(success.is_ok());
+        assert!(failure.is_err());
+        assert_eq!(success.unwrap(), 42);
+    }
+
+    #[test]
+    fn test_ref_count_snapshot() {
+        let snapshot = RefCountSnapshot {
+            timestamp: 1000,
+            strong_count: 2,
+            weak_count: 1,
+        };
+        
+        assert_eq!(snapshot.timestamp, 1000);
+        assert_eq!(snapshot.strong_count, 2);
+        assert_eq!(snapshot.weak_count, 1);
+    }
+
+    #[test]
+    fn test_stack_frame() {
+        let frame = StackFrame {
+            function_name: "main".to_string(),
+            file_name: Some("main.rs".to_string()),
+            line_number: Some(42),
+            module_path: Some("my_crate".to_string()),
+        };
+        
+        assert_eq!(frame.function_name, "main");
+        assert_eq!(frame.file_name, Some("main.rs".to_string()));
+        assert_eq!(frame.line_number, Some(42));
+    }
+
+    #[test]
+    fn test_performance_characteristics_default() {
+        let perf = PerformanceCharacteristics::default();
+        
+        assert_eq!(perf.avg_allocation_time_ns, 0.0);
+        assert_eq!(perf.avg_deallocation_time_ns, 0.0);
+        assert!(matches!(perf.access_pattern, MemoryAccessPattern::Sequential));
+    }
+
+    #[test]
+    fn test_lifecycle_efficiency_metrics_default() {
+        let metrics = LifecycleEfficiencyMetrics::default();
+        
+        assert_eq!(metrics.utilization_ratio, 0.0);
+        assert_eq!(metrics.memory_efficiency, 0.0);
+        assert_eq!(metrics.performance_efficiency, 0.0);
+        assert_eq!(metrics.resource_waste.wasted_memory_percent, 0.0);
+    }
+}
