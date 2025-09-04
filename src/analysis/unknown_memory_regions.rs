@@ -675,3 +675,397 @@ pub enum MemoryAccessPattern {
     /// Memory access pattern is unknown or cannot be determined
     Unknown,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::{AllocationInfo, ImplementationDifficulty};
+
+    /// Helper function to create test allocation info
+    fn create_test_allocation(
+        ptr: usize,
+        size: usize,
+        timestamp: u64,
+        type_name: Option<String>,
+        var_name: Option<String>,
+    ) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            timestamp_alloc: timestamp,
+            timestamp_dealloc: None,
+            type_name,
+            var_name,
+            scope_name: Some("test_scope".to_string()),
+            thread_id: "test_thread".to_string(),
+            borrow_count: 0,
+            stack_trace: Some(vec!["test_function".to_string()]),
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    /// Helper function to create test allocations with various patterns
+    fn create_test_allocations() -> Vec<AllocationInfo> {
+        vec![
+            // Large page-aligned allocation (likely mmap)
+            create_test_allocation(0x7f0000000000, 8192, 1000, None, None),
+            // Small allocation in thread range
+            create_test_allocation(0x7fff00000100, 512, 2000, Some("ThreadLocal".to_string()), None),
+            // Library allocation
+            create_test_allocation(0x7f8000000000, 4096, 3000, Some("LibCode".to_string()), Some("lib_var".to_string())),
+            // FFI allocation (no type/var names)
+            create_test_allocation(0x600000000000, 1024, 4000, None, None),
+            // System allocation (very high address)
+            create_test_allocation(0x7fff_ffff_0000, 256, 5000, None, None),
+            // Pre-tracking allocation (early timestamp)
+            create_test_allocation(0x400000000000, 2048, 100, Some("Early".to_string()), None),
+            // Regular heap allocation (should not be unknown)
+            create_test_allocation(0x55555555_0000, 128, 6000, Some("HeapData".to_string()), Some("heap_var".to_string())),
+        ]
+    }
+
+    #[test]
+    fn test_unknown_memory_analyzer_creation() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        assert!(analyzer.known_system_regions.is_empty());
+        assert!(analyzer.library_mappings.is_empty());
+        assert!(analyzer.thread_memory_ranges.is_empty());
+    }
+
+    #[test]
+    fn test_unknown_memory_analyzer_default() {
+        let analyzer = UnknownMemoryAnalyzer::default();
+        assert!(analyzer.known_system_regions.is_empty());
+        assert!(analyzer.library_mappings.is_empty());
+        assert!(analyzer.thread_memory_ranges.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_unknown_regions_basic() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = create_test_allocations();
+        
+        let analysis = analyzer.analyze_unknown_regions(&allocations);
+        
+        // Verify basic structure
+        assert!(analysis.total_unknown_bytes > 0);
+        assert!(analysis.unknown_percentage >= 0.0 && analysis.unknown_percentage <= 100.0);
+        assert!(!analysis.unknown_categories.is_empty());
+        assert!(!analysis.potential_causes.is_empty());
+        assert!(!analysis.reduction_strategies.is_empty());
+    }
+
+    #[test]
+    fn test_identify_unknown_allocations() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = create_test_allocations();
+        
+        let unknown = analyzer.identify_unknown_allocations(&allocations);
+        
+        // Most allocations should be identified as unknown since we don't have
+        // stack/heap detection configured
+        assert!(!unknown.is_empty());
+        assert!(unknown.len() <= allocations.len());
+    }
+
+    #[test]
+    fn test_is_unknown_allocation_logic() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        
+        // Test with various allocation patterns
+        let mmap_alloc = create_test_allocation(0x7f0000000000, 8192, 1000, None, None);
+        let small_alloc = create_test_allocation(0x7fff00000100, 512, 2000, Some("Test".to_string()), None);
+        
+        // Since we don't have stack/heap detection configured, these should be unknown
+        assert!(analyzer.is_unknown_allocation(&mmap_alloc));
+        assert!(analyzer.is_unknown_allocation(&small_alloc));
+    }
+
+    #[test]
+    fn test_categorize_unknown_regions() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = create_test_allocations();
+        let unknown_refs: Vec<&AllocationInfo> = allocations.iter().collect();
+        
+        let categories = analyzer.categorize_unknown_regions(&unknown_refs);
+        
+        // Verify categories are created
+        assert!(!categories.is_empty());
+        
+        // Check that each category has valid data
+        for category in &categories {
+            assert!(category.estimated_size > 0);
+            assert!(category.confidence_level >= 0.0 && category.confidence_level <= 1.0);
+            assert!(!category.description.is_empty());
+            assert!(!category.examples.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_identify_potential_causes() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = create_test_allocations();
+        let unknown_refs: Vec<&AllocationInfo> = allocations.iter().collect();
+        
+        let causes = analyzer.identify_potential_causes(&unknown_refs);
+        
+        // Should identify various causes
+        assert!(!causes.is_empty());
+        
+        // Check for expected cause types
+        let has_ffi_cause = causes.iter().any(|cause| {
+            matches!(cause, UnknownMemoryCause::ForeignFunctionInterface { .. })
+        });
+        let has_instrumentation_gap = causes.iter().any(|cause| {
+            matches!(cause, UnknownMemoryCause::InstrumentationGaps { .. })
+        });
+        
+        assert!(has_ffi_cause || has_instrumentation_gap);
+    }
+
+    #[test]
+    fn test_generate_reduction_strategies() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        let categories = vec![]; // Empty categories for this test
+        
+        let strategies = analyzer.generate_reduction_strategies(&categories);
+        
+        // Should always generate some strategies
+        assert!(!strategies.is_empty());
+        
+        // Verify strategy structure
+        for strategy in &strategies {
+            assert!(!strategy.description.is_empty());
+            assert!(!strategy.implementation_steps.is_empty());
+            assert!(strategy.expected_improvement >= 0.0);
+            assert!(strategy.expected_improvement <= 100.0);
+        }
+        
+        // Check for expected strategy types
+        let has_enhanced_instrumentation = strategies.iter().any(|s| {
+            matches!(s.strategy_type, ReductionStrategyType::EnhancedInstrumentation)
+        });
+        let has_ffi_interception = strategies.iter().any(|s| {
+            matches!(s.strategy_type, ReductionStrategyType::FfiCallInterception)
+        });
+        
+        assert!(has_enhanced_instrumentation);
+        assert!(has_ffi_interception);
+    }
+
+    #[test]
+    fn test_memory_pattern_detection() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        
+        // Test mmap pattern detection
+        let mmap_alloc = create_test_allocation(0x7f0000000000, 8192, 1000, None, None);
+        assert!(analyzer.is_likely_mmap_allocation(&mmap_alloc));
+        
+        // Test small allocation (not mmap)
+        let small_alloc = create_test_allocation(0x7fff00000100, 512, 2000, Some("Test".to_string()), None);
+        assert!(!analyzer.is_likely_mmap_allocation(&small_alloc));
+        
+        // Test FFI allocation detection
+        let ffi_alloc = create_test_allocation(0x600000000000, 1024, 4000, None, None);
+        assert!(analyzer.is_likely_ffi_allocation(&ffi_alloc));
+        
+        // Test non-FFI allocation
+        let typed_alloc = create_test_allocation(0x600000000000, 1024, 4000, Some("Type".to_string()), Some("var".to_string()));
+        assert!(!analyzer.is_likely_ffi_allocation(&typed_alloc));
+    }
+
+    #[test]
+    fn test_system_allocation_detection() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        
+        // Test very high address (system allocation)
+        let high_addr_alloc = create_test_allocation(0x7fff_ffff_0000, 256, 5000, None, None);
+        assert!(analyzer.is_likely_system_allocation(&high_addr_alloc));
+        
+        // Test very low address (system allocation)
+        let low_addr_alloc = create_test_allocation(0x500, 256, 5000, None, None);
+        assert!(analyzer.is_likely_system_allocation(&low_addr_alloc));
+        
+        // Test normal address (not system allocation)
+        let normal_alloc = create_test_allocation(0x55555555_0000, 256, 5000, None, None);
+        assert!(!analyzer.is_likely_system_allocation(&normal_alloc));
+    }
+
+    #[test]
+    fn test_pre_tracking_allocation_detection() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        
+        // Test early timestamp (pre-tracking)
+        let early_alloc = create_test_allocation(0x400000000000, 2048, 100, Some("Early".to_string()), None);
+        assert!(analyzer.is_likely_pre_tracking_allocation(&early_alloc));
+        
+        // Test normal timestamp (not pre-tracking)
+        let normal_alloc = create_test_allocation(0x400000000000, 2048, 5000, Some("Normal".to_string()), None);
+        assert!(!analyzer.is_likely_pre_tracking_allocation(&normal_alloc));
+    }
+
+    #[test]
+    fn test_library_mapping_info() {
+        let lib_info = LibraryMappingInfo {
+            start_address: 0x7f8000000000,
+            end_address: 0x7f8000010000,
+            permissions: "r-x".to_string(),
+            file_path: "/lib/x86_64-linux-gnu/libc.so.6".to_string(),
+        };
+        
+        // Test address containment
+        assert!(lib_info.contains_address(0x7f8000005000));
+        assert!(!lib_info.contains_address(0x7f8000015000));
+        assert!(!lib_info.contains_address(0x7f7000000000));
+    }
+
+    #[test]
+    fn test_unknown_memory_example_creation() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![
+            create_test_allocation(0x7f0000000000, 8192, 1000, None, None),
+            create_test_allocation(0x7f0000002000, 4096, 1100, None, None),
+        ];
+        let alloc_refs: Vec<&AllocationInfo> = allocations.iter().collect();
+        
+        let examples = analyzer.generate_examples(&alloc_refs, "Test origin");
+        
+        assert!(!examples.is_empty());
+        assert!(examples.len() <= 3); // Limited to 3 examples
+        
+        for example in &examples {
+            assert!(example.size > 0);
+            assert!(example.address_range.1 > example.address_range.0);
+            assert_eq!(example.suspected_origin, "Test origin");
+        }
+    }
+
+    #[test]
+    fn test_unknown_region_types_serialization() {
+        // Test that all enum variants can be serialized/deserialized
+        let region_types = vec![
+            UnknownRegionType::MemoryMappedRegions,
+            UnknownRegionType::ThreadLocalStorage,
+            UnknownRegionType::DynamicLibraryRegions,
+            UnknownRegionType::SystemReservedRegions,
+            UnknownRegionType::JitCodeRegions,
+            UnknownRegionType::ExternalLibraryAllocations,
+            UnknownRegionType::GuardPages,
+            UnknownRegionType::VdsoRegions,
+            UnknownRegionType::AnonymousMappings,
+            UnknownRegionType::SharedMemorySegments,
+            UnknownRegionType::PreTrackingAllocations,
+            UnknownRegionType::CorruptedMetadata,
+        ];
+        
+        for region_type in region_types {
+            let serialized = serde_json::to_string(&region_type).expect("Failed to serialize");
+            let _deserialized: UnknownRegionType = serde_json::from_str(&serialized).expect("Failed to deserialize");
+        }
+    }
+
+    #[test]
+    fn test_memory_access_pattern_serialization() {
+        let patterns = vec![
+            MemoryAccessPattern::Sequential,
+            MemoryAccessPattern::Random,
+            MemoryAccessPattern::Sparse,
+            MemoryAccessPattern::Unknown,
+        ];
+        
+        for pattern in patterns {
+            let serialized = serde_json::to_string(&pattern).expect("Failed to serialize");
+            let _deserialized: MemoryAccessPattern = serde_json::from_str(&serialized).expect("Failed to deserialize");
+        }
+    }
+
+    #[test]
+    fn test_reduction_strategy_difficulty_levels() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        let strategies = analyzer.generate_reduction_strategies(&[]);
+        
+        // Verify that strategies have appropriate difficulty levels
+        for strategy in &strategies {
+            match strategy.strategy_type {
+                ReductionStrategyType::EnhancedInstrumentation => {
+                    assert_eq!(strategy.implementation_difficulty, ImplementationDifficulty::Hard);
+                }
+                ReductionStrategyType::FfiCallInterception | 
+                ReductionStrategyType::MemoryMappingTracking => {
+                    assert_eq!(strategy.implementation_difficulty, ImplementationDifficulty::Medium);
+                }
+                _ => {
+                    // Other strategies can have various difficulties
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_comprehensive_analysis_workflow() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = create_test_allocations();
+        
+        // Run full analysis
+        let analysis = analyzer.analyze_unknown_regions(&allocations);
+        
+        // Verify comprehensive results
+        assert!(analysis.total_unknown_bytes > 0);
+        assert!(analysis.unknown_percentage > 0.0);
+        assert!(!analysis.unknown_categories.is_empty());
+        assert!(!analysis.potential_causes.is_empty());
+        assert!(!analysis.reduction_strategies.is_empty());
+        
+        // Verify data consistency - categories may overlap, so total can exceed
+        // but each category should have reasonable size
+        for category in &analysis.unknown_categories {
+            assert!(category.estimated_size > 0);
+            assert!(category.confidence_level >= 0.0);
+            assert!(category.confidence_level <= 1.0);
+            assert!(!category.examples.is_empty());
+            assert!(!category.description.is_empty());
+        }
+        
+        // Verify potential causes have meaningful content
+        for cause in &analysis.potential_causes {
+            match cause {
+                UnknownMemoryCause::ForeignFunctionInterface { library_name, .. } => {
+                    assert!(!library_name.is_empty());
+                }
+                UnknownMemoryCause::InstrumentationGaps { description, .. } => {
+                    assert!(!description.is_empty());
+                }
+                _ => {
+                    // Other cause types are valid
+                }
+            }
+        }
+        
+        // Verify reduction strategies are meaningful
+        for strategy in &analysis.reduction_strategies {
+            assert!(!strategy.description.is_empty());
+            assert!(!strategy.implementation_steps.is_empty());
+            assert!(strategy.expected_improvement >= 0.0);
+            assert!(strategy.expected_improvement <= 100.0);
+        }
+    }
+}

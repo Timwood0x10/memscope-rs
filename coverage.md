@@ -10,22 +10,22 @@
 Filename                                                     Regions    Missed Regions     Cover   Functions  Missed Functions  Executed       Lines      Missed Lines     Cover    Branches   Missed Branches     Cover
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 advanced_trackable_macro.rs                                      419                 2    99.52%          21                 0   100.00%         247                 0   100.00%           0                 0         -
-advanced_types.rs                                                890                63    92.92%          35                 1    97.14%         818               150    81.66%           0                 0         -
-analysis/async_analysis.rs                                       391               144    63.17%          22                 9    59.09%         294               119    59.52%           0                 0         -
-analysis/borrow_analysis.rs                                      350               166    52.57%          25                10    60.00%         244               117    52.05%           0                 0         -
-analysis/circular_reference.rs                                   320               249    22.19%          11                 7    36.36%         233               161    30.90%           0                 0         -
-analysis/closure_analysis.rs                                    1261                40    96.83%          79                 4    94.94%         849                28    96.70%           0                 0         -
+advanced_types.rs                                                890                61    93.15%          35                 1    97.14%         818               143    82.52%           0                 0         -
+analysis/async_analysis.rs                                       391                93    76.21%          22                 6    72.73%         294                73    75.17%           0                 0         -
+analysis/borrow_analysis.rs                                      350               120    65.71%          25                 5    80.00%         244                80    67.21%           0                 0         -
+analysis/circular_reference.rs                                   320               201    37.19%          11                 4    63.64%         233               125    46.35%           0                 0         -
+analysis/closure_analysis.rs                                    1261                32    97.46%          79                 2    97.47%         849                21    97.53%           0                 0         -
 analysis/enhanced_ffi_function_resolver.rs                       866               344    60.28%          36                11    69.44%         554               206    62.82%           0                 0         -
-analysis/enhanced_memory_analysis.rs                            1667               173    89.62%          98                 4    95.92%        1375               145    89.45%           0                 0         -
+analysis/enhanced_memory_analysis.rs                            1667               190    88.60%          98                 4    95.92%        1375               161    88.29%           0                 0         -
 analysis/ffi_function_resolver.rs                                642               154    76.01%          44                12    72.73%         511               100    80.43%           0                 0         -
-analysis/generic_analysis.rs                                     324               225    30.56%          34                26    23.53%         226               166    26.55%           0                 0         -
-analysis/lifecycle_analysis.rs                                  1133                55    95.15%          66                 6    90.91%         716                37    94.83%           0                 0         -
+analysis/generic_analysis.rs                                     324               158    51.23%          34                21    38.24%         226               119    47.35%           0                 0         -
+analysis/lifecycle_analysis.rs                                  1133                48    95.76%          66                 4    93.94%         716                31    95.67%           0                 0         -
 analysis/memory_passport_tracker.rs                              642               141    78.04%          40                14    65.00%         476               134    71.85%           0                 0         -
-analysis/mod.rs                                                  153               153     0.00%          21                21     0.00%         126               126     0.00%           0                 0         -
-analysis/safety_analyzer.rs                                      706               706     0.00%          35                35     0.00%         599               599     0.00%           0                 0         -
-analysis/security_violation_analyzer.rs                          533               533     0.00%          27                27     0.00%         393               393     0.00%           0                 0         -
+analysis/mod.rs                                                  560                 0   100.00%          40                 0   100.00%         344                 0   100.00%           0                 0         -
+analysis/safety_analyzer.rs                                     1359               146    89.26%          69                 6    91.30%        1082               120    88.91%           0                 0         -
+analysis/security_violation_analyzer.rs                         1317                64    95.14%          65                 0   100.00%         952                33    96.53%           0                 0         -
 analysis/unknown_memory_regions.rs                               410               410     0.00%          44                44     0.00%         323               323     0.00%           0                 0         -
-analysis/unsafe_ffi_tracker.rs                                  1340              1340     0.00%          61                61     0.00%        1253              1253     0.00%           0                 0         -
+analysis/unsafe_ffi_tracker.rs                                  1340              1298     3.13%          61                57     6.56%        1253              1219     2.71%           0                 0         -
 analysis/variable_relationships.rs                               361               361     0.00%          17                17     0.00%         288               288     0.00%           0                 0         -
 bin/allocation_count_diagnostic.rs                               187               187     0.00%           5                 5     0.00%         129               129     0.00%           0                 0         -
 bin/core_performance_test.rs                                     370               370     0.00%           8                 8     0.00%         310               310     0.00%           0                 0         -
@@ -80,10 +80,10 @@ core/string_pool_monitor.rs                                      337            
 core/targeted_optimizations.rs                                   236                70    70.34%          23                 9    60.87%         158                43    72.78%           0                 0         -
 core/test_optimized_locks.rs                                     106                 6    94.34%           6                 0   100.00%          58                 3    94.83%           0                 0         -
 core/threshold_batch_processor.rs                                270                76    71.85%          21                 4    80.95%         193                44    77.20%           0                 0         -
-core/tracker/allocation_tracking.rs                              736               410    44.29%          32                19    40.62%         562               322    42.70%           0                 0         -
+core/tracker/allocation_tracking.rs                              736               409    44.43%          32                19    40.62%         562               322    42.70%           0                 0         -
 core/tracker/config.rs                                            22                22     0.00%           6                 6     0.00%          27                27     0.00%           0                 0         -
 core/tracker/export_html.rs                                      148               148     0.00%          10                10     0.00%         183               183     0.00%           0                 0         -
-core/tracker/export_json.rs                                     1111               634    42.93%          58                27    53.45%         798               460    42.36%           0                 0         -
+core/tracker/export_json.rs                                     1111               625    43.74%          58                26    55.17%         798               455    42.98%           0                 0         -
 core/tracker/global_functions.rs                                  41                41     0.00%           6                 6     0.00%          23                23     0.00%           0                 0         -
 core/tracker/memory_analysis.rs                                 1303              1278     1.92%          55                54     1.82%        1126              1113     1.15%           0                 0         -
 core/tracker/memory_tracker.rs                                  1336               237    82.26%          90                20    77.78%         971               223    77.03%           0                 0         -
@@ -155,7 +155,8 @@ main.rs                                                          168            
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         734                79    89.24%           0                 0         -
 variable_registry.rs                                            1578               562    64.39%          78                27    65.38%         907               314    65.38%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                          90783             48424    46.66%        4972              2329    53.16%       63724             33280    47.77%           0                 0         -
+TOTAL                                                          92627             46978    49.28%        5063              2227    56.01%       64984             32106    50.59%           0                 0         -
+
 
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
 
