@@ -5,19 +5,21 @@
 1. 对于缺少test的模块，以test mod的形式进行添加到文件内，编码风格参考./aim/requirement.md。
 2. 工作流程是先定位覆盖率低的模块，然后阅读模块中的代码，制定合适的test case，并且每编写一个模块就测试一次，测试通过之后，再进行下一个模块，并且test case 一定要有意义，且符合当前模块，不能写一些无意义的test case，质量要很高。
 
-3.  Filename                                                     Regions    Missed Regions     Cover   Functions  Missed Functions  Executed       Lines      Missed Lines     Cover    Branches   Missed Branches     Cover
+3. 
+
+Filename                                                     Regions    Missed Regions     Cover   Functions  Missed Functions  Executed       Lines      Missed Lines     Cover    Branches   Missed Branches     Cover
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-advanced_trackable_macro.rs                                      104               104     0.00%           8                 8     0.00%         108               108     0.00%           0                 0         -
-advanced_types.rs                                                890               101    88.65%          35                 1    97.14%         818               183    77.63%           0                 0         -
+advanced_trackable_macro.rs                                      419                 2    99.52%          21                 0   100.00%         247                 0   100.00%           0                 0         -
+advanced_types.rs                                                890                63    92.92%          35                 1    97.14%         818               150    81.66%           0                 0         -
 analysis/async_analysis.rs                                       391               144    63.17%          22                 9    59.09%         294               119    59.52%           0                 0         -
 analysis/borrow_analysis.rs                                      350               166    52.57%          25                10    60.00%         244               117    52.05%           0                 0         -
 analysis/circular_reference.rs                                   320               249    22.19%          11                 7    36.36%         233               161    30.90%           0                 0         -
-analysis/closure_analysis.rs                                     484               484     0.00%          40                40     0.00%         365               365     0.00%           0                 0         -
+analysis/closure_analysis.rs                                    1261                40    96.83%          79                 4    94.94%         849                28    96.70%           0                 0         -
 analysis/enhanced_ffi_function_resolver.rs                       866               344    60.28%          36                11    69.44%         554               206    62.82%           0                 0         -
-analysis/enhanced_memory_analysis.rs                             939               939     0.00%          58                58     0.00%         974               974     0.00%           0                 0         -
+analysis/enhanced_memory_analysis.rs                            1667               173    89.62%          98                 4    95.92%        1375               145    89.45%           0                 0         -
 analysis/ffi_function_resolver.rs                                642               154    76.01%          44                12    72.73%         511               100    80.43%           0                 0         -
 analysis/generic_analysis.rs                                     324               225    30.56%          34                26    23.53%         226               166    26.55%           0                 0         -
-analysis/lifecycle_analysis.rs                                   486               486     0.00%          42                42     0.00%         335               335     0.00%           0                 0         -
+analysis/lifecycle_analysis.rs                                  1133                55    95.15%          66                 6    90.91%         716                37    94.83%           0                 0         -
 analysis/memory_passport_tracker.rs                              642               141    78.04%          40                14    65.00%         476               134    71.85%           0                 0         -
 analysis/mod.rs                                                  153               153     0.00%          21                21     0.00%         126               126     0.00%           0                 0         -
 analysis/safety_analyzer.rs                                      706               706     0.00%          35                35     0.00%         599               599     0.00%           0                 0         -
@@ -88,7 +90,7 @@ core/tracker/memory_tracker.rs                                  1336            
 core/tracker/tracking_manager.rs                                  80                80     0.00%          15                15     0.00%          73                73     0.00%           0                 0         -
 core/types/mod.rs                                                727               183    74.83%          48                 3    93.75%         621                70    88.73%           0                 0         -
 core/unwrap_safe.rs                                              611                92    84.94%          63                11    82.54%         431                56    87.01%           0                 0         -
-enhanced_types.rs                                                 57                57     0.00%          16                16     0.00%         105               105     0.00%           0                 0         -
+enhanced_types.rs                                                670                10    98.51%          64                 0   100.00%         538                 0   100.00%           0                 0         -
 export/adaptive_performance.rs                                   423               423     0.00%          33                33     0.00%         359               359     0.00%           0                 0         -
 export/analysis_engine.rs                                        822               641    22.02%          32                21    34.38%         533               396    25.70%           0                 0         -
 export/api.rs                                                    306               206    32.68%          27                18    33.33%         230               154    33.04%           0                 0         -
@@ -111,7 +113,7 @@ export/binary/html_export.rs                                    1009            
 export/binary/index.rs                                           345                17    95.07%          27                 2    92.59%         231                14    93.94%           0                 0         -
 export/binary/index_builder.rs                                   679               128    81.15%          29                 9    68.97%         442               109    75.34%           0                 0         -
 export/binary/integration_test_complex_types.rs                  264                 0   100.00%          12                 0   100.00%         163                 0   100.00%           0                 0         -
-export/binary/integration_test_ffi_safety.rs                     349                 2    99.43%          18                 0   100.00%         245                 0   100.00%           0                 0         -
+export/binary/integration_test_ffi_safety.rs                     349                 3    99.14%          18                 0   100.00%         245                 0   100.00%           0                 0         -
 export/binary/integration_test_template_resources.rs             364                 5    98.63%          10                 0   100.00%         233                 5    97.85%           0                 0         -
 export/binary/integration_test_variable_relationships.rs         708                 1    99.86%          41                 0   100.00%         577                 0   100.00%           0                 0         -
 export/binary/memory_layout_serialization.rs                     571               303    46.94%          29                18    37.93%         324               154    52.47%           0                 0         -
@@ -153,6 +155,8 @@ main.rs                                                          168            
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         734                79    89.24%           0                 0         -
 variable_registry.rs                                            1578               562    64.39%          78                27    65.38%         907               314    65.38%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                          87703             50251    42.70%        4808              2479    48.44%       61886             34990    43.46%           0                 0         -
+TOTAL                                                          90783             48424    46.66%        4972              2329    53.16%       63724             33280    47.77%           0                 0         -
 
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
+
+4.慎用global_tracker 尤其是在运行多个test case 的时候会导致死锁。必须想法子规避。

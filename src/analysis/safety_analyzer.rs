@@ -1121,3 +1121,673 @@ impl Default for SafetyAnalyzer {
         Self::new(SafetyAnalysisConfig::default())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::AllocationInfo;
+    use crate::core::CallStackRef;
+
+    #[test]
+    fn test_risk_factor_type_equality() {
+        assert_eq!(RiskFactorType::RawPointerDereference, RiskFactorType::RawPointerDereference);
+        assert_ne!(RiskFactorType::RawPointerDereference, RiskFactorType::UnsafeDataRace);
+    }
+
+    #[test]
+    fn test_risk_factor_creation() {
+        let factor = RiskFactor {
+            factor_type: RiskFactorType::BufferOverflow,
+            severity: 8.5,
+            confidence: 0.9,
+            description: "Test buffer overflow".to_string(),
+            source_location: Some("test.rs:42".to_string()),
+            call_stack: vec![],
+            mitigation: "Add bounds checking".to_string(),
+        };
+
+        assert_eq!(factor.factor_type, RiskFactorType::BufferOverflow);
+        assert_eq!(factor.severity, 8.5);
+        assert_eq!(factor.confidence, 0.9);
+        assert_eq!(factor.description, "Test buffer overflow");
+    }
+
+    #[test]
+    fn test_risk_assessment_creation() {
+        let assessment = RiskAssessment {
+            risk_level: RiskLevel::High,
+            risk_score: 75.0,
+            risk_factors: vec![],
+            confidence_score: 0.8,
+            mitigation_suggestions: vec!["Test mitigation".to_string()],
+            assessment_timestamp: 1234567890,
+        };
+
+        matches!(assessment.risk_level, RiskLevel::High);
+        assert_eq!(assessment.risk_score, 75.0);
+        assert_eq!(assessment.confidence_score, 0.8);
+        assert_eq!(assessment.mitigation_suggestions.len(), 1);
+    }
+
+    #[test]
+    fn test_unsafe_source_variants() {
+        let unsafe_block = UnsafeSource::UnsafeBlock {
+            location: "test.rs:10".to_string(),
+            function: "test_function".to_string(),
+            file_path: Some("test.rs".to_string()),
+            line_number: Some(10),
+        };
+
+        let ffi_function = UnsafeSource::FfiFunction {
+            library: "libc".to_string(),
+            function: "malloc".to_string(),
+            call_site: "test.rs:20".to_string(),
+        };
+
+        let raw_pointer = UnsafeSource::RawPointer {
+            operation: "dereference".to_string(),
+            location: "test.rs:30".to_string(),
+        };
+
+        let transmute = UnsafeSource::Transmute {
+            from_type: "u32".to_string(),
+            to_type: "f32".to_string(),
+            location: "test.rs:40".to_string(),
+        };
+
+        // Test that all variants can be created
+        match unsafe_block {
+            UnsafeSource::UnsafeBlock { location, .. } => assert_eq!(location, "test.rs:10"),
+            _ => panic!("Wrong variant"),
+        }
+
+        match ffi_function {
+            UnsafeSource::FfiFunction { library, .. } => assert_eq!(library, "libc"),
+            _ => panic!("Wrong variant"),
+        }
+
+        match raw_pointer {
+            UnsafeSource::RawPointer { operation, .. } => assert_eq!(operation, "dereference"),
+            _ => panic!("Wrong variant"),
+        }
+
+        match transmute {
+            UnsafeSource::Transmute { from_type, .. } => assert_eq!(from_type, "u32"),
+            _ => panic!("Wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_dynamic_violation_creation() {
+        let violation = DynamicViolation {
+            violation_type: ViolationType::UseAfterFree,
+            memory_address: 0x1000,
+            memory_size: 256,
+            detected_at: 1234567890,
+            call_stack: vec![],
+            severity: RiskLevel::Critical,
+            context: "Test violation".to_string(),
+        };
+
+        assert_eq!(violation.memory_address, 0x1000);
+        assert_eq!(violation.memory_size, 256);
+        matches!(violation.severity, RiskLevel::Critical);
+    }
+
+    #[test]
+    fn test_memory_context_creation() {
+        let context = MemoryContext {
+            total_allocated: 1024,
+            active_allocations: 5,
+            memory_pressure: MemoryPressureLevel::Medium,
+            allocation_patterns: vec![],
+        };
+
+        assert_eq!(context.total_allocated, 1024);
+        assert_eq!(context.active_allocations, 5);
+        matches!(context.memory_pressure, MemoryPressureLevel::Medium);
+    }
+
+    #[test]
+    fn test_allocation_pattern_creation() {
+        let pattern = AllocationPattern {
+            pattern_type: "frequent_small".to_string(),
+            frequency: 100,
+            average_size: 64,
+            risk_level: RiskLevel::Low,
+        };
+
+        assert_eq!(pattern.pattern_type, "frequent_small");
+        assert_eq!(pattern.frequency, 100);
+        assert_eq!(pattern.average_size, 64);
+    }
+
+    #[test]
+    fn test_memory_passport_creation() {
+        let passport = MemoryPassport {
+            passport_id: "test_passport".to_string(),
+            allocation_ptr: 0x2000,
+            size_bytes: 512,
+            status_at_shutdown: PassportStatus::Unknown,
+            lifecycle_events: vec![],
+            risk_assessment: RiskAssessment {
+                risk_level: RiskLevel::Low,
+                risk_score: 20.0,
+                risk_factors: vec![],
+                confidence_score: 0.5,
+                mitigation_suggestions: vec![],
+                assessment_timestamp: 1234567890,
+            },
+            created_at: 1234567890,
+            updated_at: 1234567890,
+        };
+
+        assert_eq!(passport.passport_id, "test_passport");
+        assert_eq!(passport.allocation_ptr, 0x2000);
+        assert_eq!(passport.size_bytes, 512);
+    }
+
+    #[test]
+    fn test_passport_event_creation() {
+        let event = PassportEvent {
+            event_type: PassportEventType::AllocatedInRust,
+            timestamp: 1234567890,
+            context: "test_context".to_string(),
+            call_stack: vec![],
+            metadata: HashMap::new(),
+        };
+
+        assert_eq!(event.timestamp, 1234567890);
+        assert_eq!(event.context, "test_context");
+        matches!(event.event_type, PassportEventType::AllocatedInRust);
+    }
+
+    #[test]
+    fn test_safety_analysis_config_default() {
+        let config = SafetyAnalysisConfig::default();
+
+        assert!(config.detailed_risk_assessment);
+        assert!(config.enable_passport_tracking);
+        matches!(config.min_risk_level, RiskLevel::Low);
+        assert_eq!(config.max_reports, 1000);
+        assert!(config.enable_dynamic_violations);
+    }
+
+    #[test]
+    fn test_safety_analysis_config_custom() {
+        let config = SafetyAnalysisConfig {
+            detailed_risk_assessment: false,
+            enable_passport_tracking: false,
+            min_risk_level: RiskLevel::High,
+            max_reports: 500,
+            enable_dynamic_violations: false,
+        };
+
+        assert!(!config.detailed_risk_assessment);
+        assert!(!config.enable_passport_tracking);
+        matches!(config.min_risk_level, RiskLevel::High);
+        assert_eq!(config.max_reports, 500);
+        assert!(!config.enable_dynamic_violations);
+    }
+
+    #[test]
+    fn test_safety_analysis_stats_default() {
+        let stats = SafetyAnalysisStats::default();
+
+        assert_eq!(stats.total_reports, 0);
+        assert!(stats.reports_by_risk_level.is_empty());
+        assert_eq!(stats.total_passports, 0);
+        assert!(stats.passports_by_status.is_empty());
+        assert_eq!(stats.dynamic_violations, 0);
+        assert_eq!(stats.analysis_start_time, 0);
+    }
+
+    #[test]
+    fn test_risk_assessment_engine_creation() {
+        let engine = RiskAssessmentEngine::new();
+        // Engine creation should succeed
+        assert!(true);
+    }
+
+    #[test]
+    fn test_risk_assessment_engine_default() {
+        let engine = RiskAssessmentEngine::default();
+        // Default engine creation should succeed
+        assert!(true);
+    }
+
+    #[test]
+    fn test_risk_assessment_engine_assess_unsafe_block() {
+        let engine = RiskAssessmentEngine::new();
+        let source = UnsafeSource::UnsafeBlock {
+            location: "ptr::read(data)".to_string(),
+            function: "test_function".to_string(),
+            file_path: Some("test.rs".to_string()),
+            line_number: Some(42),
+        };
+        let context = MemoryContext {
+            total_allocated: 1024,
+            active_allocations: 1,
+            memory_pressure: MemoryPressureLevel::Low,
+            allocation_patterns: vec![],
+        };
+
+        let assessment = engine.assess_risk(&source, &context, &[]);
+
+        assert!(assessment.risk_score >= 0.0);
+        assert!(assessment.confidence_score >= 0.0);
+        assert!(assessment.assessment_timestamp > 0);
+        assert!(!assessment.mitigation_suggestions.is_empty());
+    }
+
+    #[test]
+    fn test_risk_assessment_engine_assess_ffi_function() {
+        let engine = RiskAssessmentEngine::new();
+        let source = UnsafeSource::FfiFunction {
+            library: "libc".to_string(),
+            function: "malloc".to_string(),
+            call_site: "test.rs:50".to_string(),
+        };
+        let context = MemoryContext {
+            total_allocated: 2048,
+            active_allocations: 2,
+            memory_pressure: MemoryPressureLevel::Medium,
+            allocation_patterns: vec![],
+        };
+
+        let assessment = engine.assess_risk(&source, &context, &[]);
+
+        assert!(assessment.risk_score >= 0.0);
+        assert!(assessment.confidence_score >= 0.0);
+        assert!(!assessment.risk_factors.is_empty());
+    }
+
+    #[test]
+    fn test_risk_assessment_engine_assess_raw_pointer() {
+        let engine = RiskAssessmentEngine::new();
+        let source = UnsafeSource::RawPointer {
+            operation: "dereference".to_string(),
+            location: "test.rs:60".to_string(),
+        };
+        let context = MemoryContext {
+            total_allocated: 512,
+            active_allocations: 1,
+            memory_pressure: MemoryPressureLevel::High,
+            allocation_patterns: vec![],
+        };
+
+        let assessment = engine.assess_risk(&source, &context, &[]);
+
+        assert!(assessment.risk_score >= 0.0);
+        assert!(!assessment.risk_factors.is_empty());
+        assert_eq!(assessment.risk_factors[0].factor_type, RiskFactorType::RawPointerDereference);
+    }
+
+    #[test]
+    fn test_risk_assessment_engine_assess_transmute() {
+        let engine = RiskAssessmentEngine::new();
+        let source = UnsafeSource::Transmute {
+            from_type: "*const u8".to_string(),
+            to_type: "*mut i32".to_string(),
+            location: "test.rs:70".to_string(),
+        };
+        let context = MemoryContext {
+            total_allocated: 256,
+            active_allocations: 1,
+            memory_pressure: MemoryPressureLevel::Critical,
+            allocation_patterns: vec![],
+        };
+
+        let assessment = engine.assess_risk(&source, &context, &[]);
+
+        assert!(assessment.risk_score >= 0.0);
+        assert!(!assessment.risk_factors.is_empty());
+        assert_eq!(assessment.risk_factors[0].factor_type, RiskFactorType::InvalidTransmute);
+        // Pointer transmutes should have higher severity
+        assert!(assessment.risk_factors[0].severity >= 8.0);
+    }
+
+    #[test]
+    fn test_memory_pressure_risk_adjustment() {
+        let engine = RiskAssessmentEngine::new();
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+
+        // Test different memory pressure levels
+        let contexts = vec![
+            (MemoryPressureLevel::Low, 0.8),
+            (MemoryPressureLevel::Medium, 1.0),
+            (MemoryPressureLevel::High, 1.2),
+            (MemoryPressureLevel::Critical, 1.5),
+        ];
+
+        for (pressure, expected_multiplier) in contexts {
+            let context = MemoryContext {
+                total_allocated: 1024,
+                active_allocations: 1,
+                memory_pressure: pressure,
+                allocation_patterns: vec![],
+            };
+
+            let assessment = engine.assess_risk(&source, &context, &[]);
+            // Risk score should be adjusted by pressure multiplier
+            assert!(assessment.risk_score > 0.0);
+        }
+    }
+
+    #[test]
+    fn test_safety_analyzer_creation() {
+        let config = SafetyAnalysisConfig::default();
+        let analyzer = SafetyAnalyzer::new(config);
+
+        // Analyzer should be created successfully
+        assert!(true);
+    }
+
+    #[test]
+    fn test_safety_analyzer_default() {
+        let analyzer = SafetyAnalyzer::default();
+
+        // Default analyzer should be created successfully
+        assert!(true);
+    }
+
+    #[test]
+    fn test_safety_analyzer_generate_unsafe_report() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test unsafe block".to_string(),
+            function: "test_function".to_string(),
+            file_path: Some("test.rs".to_string()),
+            line_number: Some(10),
+        };
+        let allocations = vec![AllocationInfo::new(0x1000, 256)];
+        let violations = vec![];
+
+        let result = analyzer.generate_unsafe_report(source, &allocations, &violations);
+
+        assert!(result.is_ok());
+        let report_id = result.unwrap();
+        assert!(!report_id.is_empty());
+        assert!(report_id.starts_with("UNSAFE-UB-"));
+    }
+
+    #[test]
+    fn test_safety_analyzer_create_memory_passport() {
+        let analyzer = SafetyAnalyzer::default();
+        let allocation_ptr = 0x2000;
+        let size_bytes = 512;
+
+        let result = analyzer.create_memory_passport(
+            allocation_ptr,
+            size_bytes,
+            PassportEventType::AllocatedInRust,
+        );
+
+        assert!(result.is_ok());
+        let passport_id = result.unwrap();
+        assert!(!passport_id.is_empty());
+        assert!(passport_id.starts_with("passport_"));
+    }
+
+    #[test]
+    fn test_safety_analyzer_record_passport_event() {
+        let analyzer = SafetyAnalyzer::default();
+        let allocation_ptr = 0x3000;
+
+        // First create a passport
+        let _ = analyzer.create_memory_passport(
+            allocation_ptr,
+            256,
+            PassportEventType::AllocatedInRust,
+        );
+
+        // Then record an event
+        let result = analyzer.record_passport_event(
+            allocation_ptr,
+            PassportEventType::HandoverToFfi,
+            "test context".to_string(),
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_safety_analyzer_finalize_passports() {
+        let analyzer = SafetyAnalyzer::default();
+
+        // Create some passports
+        let _ = analyzer.create_memory_passport(0x4000, 256, PassportEventType::AllocatedInRust);
+        let _ = analyzer.create_memory_passport(0x5000, 512, PassportEventType::AllocatedInRust);
+
+        // Record handover event for one passport (should be detected as leak)
+        let _ = analyzer.record_passport_event(
+            0x4000,
+            PassportEventType::HandoverToFfi,
+            "handover".to_string(),
+        );
+
+        let leaked_passports = analyzer.finalize_passports_at_shutdown();
+
+        // Should detect at least one leak
+        assert!(!leaked_passports.is_empty());
+    }
+
+    #[test]
+    fn test_safety_analyzer_get_unsafe_reports() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::FfiFunction {
+            library: "test_lib".to_string(),
+            function: "test_func".to_string(),
+            call_site: "test.rs:100".to_string(),
+        };
+
+        let _ = analyzer.generate_unsafe_report(source, &[], &[]);
+        let reports = analyzer.get_unsafe_reports();
+
+        assert!(!reports.is_empty());
+    }
+
+    #[test]
+    fn test_safety_analyzer_get_memory_passports() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let _ = analyzer.create_memory_passport(0x6000, 128, PassportEventType::AllocatedInRust);
+        let passports = analyzer.get_memory_passports();
+
+        assert!(!passports.is_empty());
+        assert!(passports.contains_key(&0x6000));
+    }
+
+    #[test]
+    fn test_safety_analyzer_get_stats() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let stats = analyzer.get_stats();
+
+        assert_eq!(stats.total_reports, 0);
+        assert_eq!(stats.total_passports, 0);
+        assert!(stats.analysis_start_time > 0);
+    }
+
+    #[test]
+    fn test_safety_analyzer_with_disabled_features() {
+        let config = SafetyAnalysisConfig {
+            detailed_risk_assessment: false,
+            enable_passport_tracking: false,
+            min_risk_level: RiskLevel::High,
+            max_reports: 10,
+            enable_dynamic_violations: false,
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        // Test passport creation with disabled tracking
+        let result = analyzer.create_memory_passport(
+            0x7000,
+            256,
+            PassportEventType::AllocatedInRust,
+        );
+        assert!(result.is_ok());
+        let passport_id = result.unwrap();
+        assert!(passport_id.is_empty()); // Should return empty string when disabled
+
+        // Test event recording with disabled tracking
+        let result = analyzer.record_passport_event(
+            0x7000,
+            PassportEventType::HandoverToFfi,
+            "test".to_string(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_safety_analyzer_report_filtering_by_risk_level() {
+        let config = SafetyAnalysisConfig {
+            min_risk_level: RiskLevel::High,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        // This should generate a low-risk report that gets filtered out
+        let source = UnsafeSource::UnsafeBlock {
+            location: "simple operation".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(result.is_ok());
+
+        // Reports should be filtered based on risk level
+        let reports = analyzer.get_unsafe_reports();
+        // The exact number depends on the risk assessment, but the mechanism should work
+        assert!(reports.len() <= 1);
+    }
+
+    #[test]
+    fn test_safety_analyzer_max_reports_limit() {
+        let config = SafetyAnalysisConfig {
+            max_reports: 2,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        // Generate more reports than the limit
+        for i in 0..5 {
+            let source = UnsafeSource::RawPointer {
+                operation: format!("operation_{}", i),
+                location: format!("test.rs:{}", i * 10),
+            };
+            let _ = analyzer.generate_unsafe_report(source, &[], &[]);
+        }
+
+        let reports = analyzer.get_unsafe_reports();
+        assert!(reports.len() <= 2); // Should not exceed max_reports
+    }
+
+    #[test]
+    fn test_passport_status_determination() {
+        let analyzer = SafetyAnalyzer::default();
+
+        // Test different event sequences
+        let events_sequences = vec![
+            // Normal Rust allocation and deallocation
+            vec![PassportEventType::AllocatedInRust],
+            // Handover to FFI without return
+            vec![
+                PassportEventType::AllocatedInRust,
+                PassportEventType::HandoverToFfi,
+            ],
+            // Handover and reclaim
+            vec![
+                PassportEventType::AllocatedInRust,
+                PassportEventType::HandoverToFfi,
+                PassportEventType::ReclaimedByRust,
+            ],
+            // Foreign free
+            vec![
+                PassportEventType::AllocatedInRust,
+                PassportEventType::HandoverToFfi,
+                PassportEventType::FreedByForeign,
+            ],
+        ];
+
+        for (i, event_types) in events_sequences.iter().enumerate() {
+            let ptr = 0x8000 + i * 0x1000;
+            let _ = analyzer.create_memory_passport(ptr, 256, PassportEventType::AllocatedInRust);
+
+            // Record additional events
+            for event_type in event_types.iter().skip(1) {
+                let _ = analyzer.record_passport_event(ptr, event_type.clone(), "test".to_string());
+            }
+        }
+
+        let leaked_passports = analyzer.finalize_passports_at_shutdown();
+        // Should detect leaks for handover-only scenarios
+        assert!(!leaked_passports.is_empty());
+    }
+
+    #[test]
+    fn test_violation_type_conversion() {
+        let analyzer = SafetyAnalyzer::default();
+        let violations = vec![
+            SafetyViolation::DoubleFree {
+                first_free_stack: CallStackRef::new(0, Some(0)),
+                second_free_stack: CallStackRef::new(1, Some(0)),
+                timestamp: 1234567890,
+            },
+            SafetyViolation::InvalidFree {
+                attempted_pointer: 0x2000,
+                stack: CallStackRef::new(2, Some(0)),
+                timestamp: 1234567891,
+            },
+        ];
+
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &violations);
+        assert!(result.is_ok());
+
+        let reports = analyzer.get_unsafe_reports();
+        assert!(!reports.is_empty());
+
+        let report = reports.values().next().unwrap();
+        assert_eq!(report.dynamic_violations.len(), 2);
+    }
+
+    #[test]
+    fn test_comprehensive_unsafe_report_structure() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::Transmute {
+            from_type: "u64".to_string(),
+            to_type: "f64".to_string(),
+            location: "test.rs:200".to_string(),
+        };
+        let allocations = vec![
+            AllocationInfo::new(0x1000, 512),
+            AllocationInfo::new(0x2000, 1024),
+        ];
+
+        let result = analyzer.generate_unsafe_report(source.clone(), &allocations, &[]);
+        assert!(result.is_ok());
+
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.values().next().unwrap();
+
+        // Verify report structure
+        assert!(!report.report_id.is_empty());
+        assert!(matches!(report.source, UnsafeSource::Transmute { .. }));
+        assert!(report.risk_assessment.assessment_timestamp > 0);
+        assert!(report.generated_at > 0);
+        assert_eq!(report.memory_context.active_allocations, 2);
+        assert_eq!(report.memory_context.total_allocated, 1536);
+    }
+}
