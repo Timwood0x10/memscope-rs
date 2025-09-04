@@ -288,9 +288,7 @@ impl AsyncAnalyzer {
         if long_running_count > 0 {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::LongRunningFutures,
-                description: format!(
-                    "{long_running_count} futures running longer than 1 second",
-                ),
+                description: format!("{long_running_count} futures running longer than 1 second",),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "Consider breaking down long-running operations or adding timeouts"
                     .to_string(),

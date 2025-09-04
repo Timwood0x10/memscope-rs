@@ -11,8 +11,7 @@ use crate::core::safe_operations::SafeLock;
 use crate::core::types::{
     AllocationInfo, DropChainNode, DropChainPerformanceMetrics, EnhancedPotentialLeak,
     LeakEvidence, LeakEvidenceType, LeakImpact, LeakRiskLevel, LeakType, MemoryStats,
-    ResourceLeakAnalysis, TrackingResult,
-    TrackingError::LockError,
+    ResourceLeakAnalysis, TrackingError::LockError, TrackingResult,
 };
 
 use std::collections::HashMap;
@@ -159,11 +158,7 @@ impl MemoryTracker {
         self.active_allocations
             .safe_lock()
             .map(|active| active.values().cloned().collect())
-            .map_err(|e| {
-                LockError(format!(
-                    "Failed to get active allocations: {e}",
-                ))
-            })
+            .map_err(|e| LockError(format!("Failed to get active allocations: {e}",)))
     }
 
     /// Get the complete allocation history.
@@ -171,11 +166,7 @@ impl MemoryTracker {
         self.history_manager
             .safe_lock()
             .map(|manager| manager.get_history_vec())
-            .map_err(|e| {
-                LockError(format!(
-                    "Failed to get allocation history: {e}",
-                ))
-            })
+            .map_err(|e| LockError(format!("Failed to get allocation history: {e}",)))
     }
 
     /// Enable or disable fast mode.
@@ -998,9 +989,10 @@ impl MemoryTracker {
 
     /// Calculate ownership hierarchy depth
     fn calculate_ownership_depth(&self, _ptr: usize, type_name: &str) -> usize {
-        if type_name.starts_with("Vec<") 
-            || type_name.starts_with("HashMap<") 
-            || type_name.starts_with("Box<") {
+        if type_name.starts_with("Vec<")
+            || type_name.starts_with("HashMap<")
+            || type_name.starts_with("Box<")
+        {
             2 // Collection/Box + elements/boxed value
         } else {
             1 // Simple object
@@ -1267,85 +1259,87 @@ impl Drop for MemoryTracker {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    
+
     #[test]
     fn test_memory_tracker_creation() {
         let tracker = MemoryTracker::new();
-        
+
         // Test that tracker is created with default values
-        assert!(!tracker.is_fast_mode() || std::env::var("MEMSCOPE_TEST_MODE").is_ok() || cfg!(test));
-        
+        assert!(
+            !tracker.is_fast_mode() || std::env::var("MEMSCOPE_TEST_MODE").is_ok() || cfg!(test)
+        );
+
         // Test that we can get stats without errors
         let stats_result = tracker.get_stats();
         assert!(stats_result.is_ok());
     }
-    
+
     #[test]
     fn test_fast_mode_toggle() {
         let tracker = MemoryTracker::new();
-        
+
         // Test enabling fast mode
         tracker.set_fast_mode(true);
         assert!(tracker.is_fast_mode());
-        
+
         // Test disabling fast mode
         tracker.set_fast_mode(false);
         assert!(!tracker.is_fast_mode());
-        
+
         // Test enable_fast_mode method
         tracker.enable_fast_mode();
         assert!(tracker.is_fast_mode());
     }
-    
+
     #[test]
     fn test_get_active_allocations() {
         let tracker = MemoryTracker::new();
         tracker.enable_fast_mode();
-        
+
         // Initially should be empty
         let allocations = tracker.get_active_allocations();
         assert!(allocations.is_ok());
         assert_eq!(allocations.unwrap().len(), 0);
     }
-    
+
     #[test]
     fn test_get_allocation_history() {
         let tracker = MemoryTracker::new();
         tracker.enable_fast_mode();
-        
+
         // Initially should be empty
         let history = tracker.get_allocation_history();
         assert!(history.is_ok());
         assert_eq!(history.unwrap().len(), 0);
     }
-    
+
     #[test]
     fn test_memory_analysis_path_creation() {
         let tracker = MemoryTracker::new();
-        
+
         let path = tracker.ensure_memory_analysis_path("test.svg");
         assert!(path.to_string_lossy().contains("MemoryAnalysis"));
         assert!(path.to_string_lossy().ends_with("test.svg"));
     }
-    
+
     #[test]
     fn test_memscope_path_creation() {
         let tracker = MemoryTracker::new();
-        
+
         let path = tracker.ensure_memscope_path("test");
         assert!(path.to_string_lossy().contains("MemoryAnalysis"));
         assert!(path.to_string_lossy().ends_with(".memscope"));
-        
+
         let path_with_ext = tracker.ensure_memscope_path("test.memscope");
         assert!(path_with_ext.to_string_lossy().ends_with(".memscope"));
     }
-    
+
     #[test]
     fn test_binary_export_mode_default() {
         let mode = BinaryExportMode::default();
         assert_eq!(mode, BinaryExportMode::UserOnly);
     }
-    
+
     #[test]
     fn test_binary_export_mode_variants() {
         // Test that enum variants are different
@@ -1354,102 +1348,111 @@ mod tests {
             std::mem::discriminant(&BinaryExportMode::Full)
         );
     }
-    
+
     #[test]
     fn test_global_tracker_singleton() {
         let tracker1 = get_global_tracker();
         let tracker2 = get_global_tracker();
-        
+
         // Should be the same instance (Arc comparison)
         assert!(Arc::ptr_eq(&tracker1, &tracker2));
     }
-    
+
     #[test]
     fn test_drop_chain_analysis_basic() {
         let tracker = MemoryTracker::new();
         tracker.enable_fast_mode();
-        
+
         let analysis = tracker.analyze_drop_chain(0x1000, "Vec<i32>");
         assert!(analysis.is_some());
-        
+
         let analysis = analysis.unwrap();
         assert_eq!(analysis.root_object.object_id, 0x1000);
         assert_eq!(analysis.root_object.type_name, "Vec<i32>");
         assert!(analysis.total_duration_ns > 0);
     }
-    
+
     #[test]
     fn test_drop_implementation_type_detection() {
         let tracker = MemoryTracker::new();
-        
+
         // Test smart pointer detection
         let box_type = tracker.determine_drop_implementation_type("Box<i32>");
-        assert_eq!(box_type, crate::core::types::DropImplementationType::SmartPointer);
-        
+        assert_eq!(
+            box_type,
+            crate::core::types::DropImplementationType::SmartPointer
+        );
+
         // Test collection detection
         let vec_type = tracker.determine_drop_implementation_type("Vec<i32>");
-        assert_eq!(vec_type, crate::core::types::DropImplementationType::Collection);
-        
+        assert_eq!(
+            vec_type,
+            crate::core::types::DropImplementationType::Collection
+        );
+
         // Test resource handle detection
         let file_type = tracker.determine_drop_implementation_type("File");
-        assert_eq!(file_type, crate::core::types::DropImplementationType::ResourceHandle);
-        
+        assert_eq!(
+            file_type,
+            crate::core::types::DropImplementationType::ResourceHandle
+        );
+
         // Test copy type detection
         let int_type = tracker.determine_drop_implementation_type("i32");
         assert_eq!(int_type, crate::core::types::DropImplementationType::NoOp);
     }
-    
+
     #[test]
     fn test_copy_type_detection() {
         let tracker = MemoryTracker::new();
-        
+
         assert!(tracker.is_copy_type("i32"));
         assert!(tracker.is_copy_type("u64"));
         assert!(tracker.is_copy_type("f32"));
         assert!(tracker.is_copy_type("bool"));
         assert!(tracker.is_copy_type("char"));
         assert!(tracker.is_copy_type("&str"));
-        
+
         assert!(!tracker.is_copy_type("String"));
         assert!(!tracker.is_copy_type("Vec<i32>"));
         assert!(!tracker.is_copy_type("HashMap<String, i32>"));
     }
-    
+
     #[test]
     fn test_custom_drop_detection() {
         let tracker = MemoryTracker::new();
-        
+
         assert!(tracker.has_custom_drop_impl("MutexGuard"));
         assert!(tracker.has_custom_drop_impl("RwLockWriteGuard"));
         assert!(tracker.has_custom_drop_impl("Receiver<i32>"));
         assert!(tracker.has_custom_drop_impl("Sender<String>"));
-        
+
         assert!(!tracker.has_custom_drop_impl("i32"));
         assert!(!tracker.has_custom_drop_impl("String"));
     }
-    
+
     #[test]
     fn test_drop_duration_estimation() {
         let tracker = MemoryTracker::new();
-        
+
         // Vec should have reasonable drop time
         let vec_duration = tracker.estimate_drop_duration("Vec<i32>");
         assert!(vec_duration > 0);
         assert!(vec_duration < 10000); // Should be reasonable
-        
+
         // File operations should be slower
         let file_duration = tracker.estimate_drop_duration("File");
         assert!(file_duration > vec_duration);
-        
+
         // Simple types should be fastest
         let simple_duration = tracker.estimate_drop_duration("i32");
         assert!(simple_duration < vec_duration);
     }
-    
+
     #[test]
     fn test_ownership_type_determination() {
         let tracker = MemoryTracker::new();
-        
+
         assert_eq!(
             tracker.determine_ownership_type("Box<i32>"),
             crate::core::types::OwnershipType::Unique
@@ -1471,49 +1474,49 @@ mod tests {
             crate::core::types::OwnershipType::Weak
         );
     }
-    
+
     #[test]
     fn test_ownership_depth_calculation() {
         let tracker = MemoryTracker::new();
-        
+
         // Collections should have depth > 1
         assert!(tracker.calculate_ownership_depth(0x1000, "Vec<i32>") > 1);
         assert!(tracker.calculate_ownership_depth(0x1000, "HashMap<String, i32>") > 1);
         assert!(tracker.calculate_ownership_depth(0x1000, "Box<i32>") > 1);
-        
+
         // Simple types should have depth 1
         assert_eq!(tracker.calculate_ownership_depth(0x1000, "i32"), 1);
     }
-    
+
     #[test]
     fn test_owned_objects_counting() {
         let tracker = MemoryTracker::new();
-        
+
         // Collections should own multiple objects
         assert!(tracker.count_owned_objects(0x1000, "Vec<i32>") > 1);
         assert!(tracker.count_owned_objects(0x1000, "HashMap<String, i32>") > 1);
-        
+
         // Simple types should own just themselves
         assert_eq!(tracker.count_owned_objects(0x1000, "i32"), 1);
     }
-    
+
     #[test]
     fn test_reference_count_detection() {
         let tracker = MemoryTracker::new();
-        
+
         // Reference counted types should return Some
         assert!(tracker.get_reference_count_for_type("Rc<i32>").is_some());
         assert!(tracker.get_reference_count_for_type("Arc<i32>").is_some());
-        
+
         // Non-reference counted types should return None
         assert!(tracker.get_reference_count_for_type("Box<i32>").is_none());
         assert!(tracker.get_reference_count_for_type("i32").is_none());
     }
-    
+
     #[test]
     fn test_generic_type_extraction() {
         let tracker = MemoryTracker::new();
-        
+
         assert_eq!(
             tracker.extract_generic_type("Vec<i32>", "Vec"),
             Some("i32".to_string())
@@ -1526,7 +1529,7 @@ mod tests {
             tracker.extract_generic_type("Box<Vec<String>>", "Box"),
             Some("Vec<String>".to_string())
         );
-        
+
         // Non-generic types should return None
         assert_eq!(tracker.extract_generic_type("i32", ""), None);
     }

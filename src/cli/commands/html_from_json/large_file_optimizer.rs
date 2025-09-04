@@ -89,10 +89,7 @@ impl fmt::Display for LargeFileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LargeFileError::FileTooLarge(size, limit) => {
-                write!(
-                    f,
-                    "File size ({size} bytes) exceeds limit ({limit} bytes)",
-                )
+                write!(f, "File size ({size} bytes) exceeds limit ({limit} bytes)",)
             }
             LargeFileError::MemoryLimitExceeded(used, limit) => {
                 write!(

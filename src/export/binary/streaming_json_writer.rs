@@ -1280,7 +1280,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         // Include pointer address for uniqueness
         match allocation.ptr {
             Some(ptr) => format!("{type_hint}_{ptr:x}"),
-            None => format!("{type_hint}_no_ptr", ),
+            None => format!("{type_hint}_no_ptr",),
         }
     }
 }

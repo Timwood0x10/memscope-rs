@@ -235,7 +235,7 @@ mod tests {
     fn test_shared_allocation_info_creation() {
         let allocation_info = create_test_allocation_info(0x1000, 1024, "test_var");
         let shared_info = SharedAllocationInfo::from_allocation_info(allocation_info);
-        
+
         assert_eq!(shared_info.ptr(), 0x1000);
         assert_eq!(shared_info.size(), 1024);
         assert_eq!(shared_info.var_name_str(), Some("test_var"));
@@ -248,7 +248,7 @@ mod tests {
         let original_info = create_test_allocation_info(0x2000, 2048, "test_vector");
         let shared_info = SharedAllocationInfo::from_allocation_info(original_info.clone());
         let converted_back = shared_info.to_allocation_info();
-        
+
         assert_eq!(converted_back.ptr, original_info.ptr);
         assert_eq!(converted_back.size, original_info.size);
         assert_eq!(converted_back.var_name, original_info.var_name);
@@ -259,10 +259,10 @@ mod tests {
     fn test_shared_allocation_info_arc_sharing() {
         let allocation_info = create_test_allocation_info(0x3000, 512, "shared_var");
         let shared_info = SharedAllocationInfo::from_allocation_info(allocation_info);
-        
+
         let arc_copy = shared_info.arc();
         let inner_ref = shared_info.inner();
-        
+
         // Both should point to the same data
         assert_eq!(inner_ref.ptr, arc_copy.ptr);
         assert_eq!(inner_ref.size, arc_copy.size);
@@ -275,7 +275,7 @@ mod tests {
         // Set both timestamp_dealloc and lifetime_ms to simulate a deallocated allocation
         allocation_info.timestamp_dealloc = Some(allocation_info.timestamp_alloc + 500_000_000); // 500ms later in nanoseconds
         allocation_info.lifetime_ms = Some(500);
-        
+
         let shared_info = SharedAllocationInfo::from_allocation_info(allocation_info);
         assert_eq!(shared_info.lifetime_duration_ms(), Some(500));
     }
@@ -287,9 +287,9 @@ mod tests {
             create_test_allocation_info(0x2000, 1024, "var2"),
             create_test_allocation_info(0x3000, 256, "var3"),
         ];
-        
+
         let collection = SharedAllocationCollection::from_allocation_infos(infos);
-        
+
         assert_eq!(collection.len(), 3);
         assert!(!collection.is_empty());
         assert_eq!(collection.total_memory(), 1792); // 512 + 1024 + 256
@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn test_shared_allocation_collection_empty() {
         let collection = SharedAllocationCollection::new(vec![]);
-        
+
         assert_eq!(collection.len(), 0);
         assert!(collection.is_empty());
         assert_eq!(collection.total_memory(), 0);
@@ -310,17 +310,17 @@ mod tests {
             create_test_allocation_info(0x1000, 512, "var1"),
             create_test_allocation_info(0x2000, 1024, "var2"),
         ];
-        
+
         let collection = SharedAllocationCollection::from_allocation_infos(infos);
-        
+
         let first = collection.get(0);
         assert!(first.is_some());
         assert_eq!(first.unwrap().ptr(), 0x1000);
-        
+
         let second = collection.get(1);
         assert!(second.is_some());
         assert_eq!(second.unwrap().ptr(), 0x2000);
-        
+
         let third = collection.get(2);
         assert!(third.is_none());
     }
@@ -331,16 +331,16 @@ mod tests {
             create_test_allocation_info(0x1000, 512, "var1"),
             create_test_allocation_info(0x2000, 1024, "var2"),
         ];
-        
+
         let collection = SharedAllocationCollection::from_allocation_infos(infos);
-        
+
         let mut count = 0;
         let mut total_size = 0;
         for info in collection.iter() {
             count += 1;
             total_size += info.size();
         }
-        
+
         assert_eq!(count, 2);
         assert_eq!(total_size, 1536);
     }
@@ -352,13 +352,16 @@ mod tests {
             create_test_allocation_info(0x2000, 2048, "large_var"),
             create_test_allocation_info(0x3000, 256, "tiny_var"),
         ];
-        
+
         let collection = SharedAllocationCollection::from_allocation_infos(infos);
         let large_allocations = collection.filter(|info| info.size() > 1000);
-        
+
         assert_eq!(large_allocations.len(), 1);
         assert_eq!(large_allocations.get(0).unwrap().size(), 2048);
-        assert_eq!(large_allocations.get(0).unwrap().var_name_str(), Some("large_var"));
+        assert_eq!(
+            large_allocations.get(0).unwrap().var_name_str(),
+            Some("large_var")
+        );
     }
 
     #[test]
@@ -366,11 +369,11 @@ mod tests {
         let mut active_info = create_test_allocation_info(0x1000, 512, "active_var");
         let mut inactive_info = create_test_allocation_info(0x2000, 1024, "inactive_var");
         inactive_info.timestamp_dealloc = Some(2000); // Mark as deallocated
-        
+
         let infos = vec![active_info, inactive_info];
         let collection = SharedAllocationCollection::from_allocation_infos(infos);
         let active = collection.active_allocations();
-        
+
         assert_eq!(active.len(), 1);
         assert_eq!(active.get(0).unwrap().var_name_str(), Some("active_var"));
     }
@@ -381,10 +384,10 @@ mod tests {
             create_test_allocation_info(0x1000, 512, "var1"),
             create_test_allocation_info(0x2000, 1024, "var2"),
         ];
-        
+
         let collection = SharedAllocationCollection::from_allocation_infos(original_infos.clone());
         let converted_back = collection.to_allocation_infos();
-        
+
         assert_eq!(converted_back.len(), original_infos.len());
         for (original, converted) in original_infos.iter().zip(converted_back.iter()) {
             assert_eq!(original.ptr, converted.ptr);
@@ -395,16 +398,17 @@ mod tests {
 
     #[test]
     fn test_shared_allocation_collection_arc_sharing() {
-        let infos = vec![
-            create_test_allocation_info(0x1000, 512, "var1"),
-        ];
-        
+        let infos = vec![create_test_allocation_info(0x1000, 512, "var1")];
+
         let collection = SharedAllocationCollection::from_allocation_infos(infos);
         let arc_copy = collection.arc();
-        
+
         // Both should point to the same data
         assert_eq!(collection.len(), arc_copy.len());
-        assert!(std::ptr::eq(collection.allocations.as_ref(), arc_copy.as_ref()));
+        assert!(std::ptr::eq(
+            collection.allocations.as_ref(),
+            arc_copy.as_ref()
+        ));
     }
 
     #[test]
@@ -414,14 +418,14 @@ mod tests {
             value: i32,
             name: String,
         }
-        
+
         let config = TestConfig {
             value: 42,
             name: "test".to_string(),
         };
-        
+
         let shared_config = SharedConfig::new(config.clone());
-        
+
         assert_eq!(shared_config.inner().value, 42);
         assert_eq!(shared_config.inner().name, "test");
         assert_eq!(shared_config.to_owned(), config);
@@ -433,10 +437,10 @@ mod tests {
         struct TestConfig {
             value: i32,
         }
-        
+
         let config = TestConfig { value: 100 };
         let shared_config = SharedConfig::new(config);
-        
+
         // Test deref functionality
         assert_eq!(shared_config.value, 100);
     }
@@ -447,14 +451,14 @@ mod tests {
         struct TestConfig {
             data: Vec<i32>,
         }
-        
+
         let config = TestConfig {
             data: vec![1, 2, 3, 4, 5],
         };
-        
+
         let shared_config = SharedConfig::new(config);
         let arc_copy = shared_config.arc();
-        
+
         // Both should point to the same data
         assert_eq!(shared_config.inner().data, arc_copy.data);
         assert!(std::ptr::eq(shared_config.inner(), arc_copy.as_ref()));
@@ -466,14 +470,14 @@ mod tests {
         struct TestConfig {
             value: String,
         }
-        
+
         let config = TestConfig {
             value: "original".to_string(),
         };
-        
+
         let shared_config = SharedConfig::new(config);
         let cloned_config = shared_config.clone();
-        
+
         // Both should point to the same Arc
         assert!(std::ptr::eq(shared_config.inner(), cloned_config.inner()));
         assert_eq!(shared_config.inner().value, cloned_config.inner().value);
@@ -484,13 +488,13 @@ mod tests {
         struct NonCloneConfig {
             value: i32,
         }
-        
+
         let config = NonCloneConfig { value: 42 };
         let shared_config = SharedConfig::new(config);
-        
+
         assert_eq!(shared_config.inner().value, 42);
         assert_eq!(shared_config.value, 42); // Test deref
-        
+
         // Note: to_owned() is not available for non-Clone types
         // This is expected behavior
     }

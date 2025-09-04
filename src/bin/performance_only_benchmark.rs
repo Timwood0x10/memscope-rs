@@ -4,7 +4,7 @@
 
 use memscope_rs::{get_global_tracker, init};
 use std::fs;
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -76,7 +76,7 @@ fn run_performance_only_tests(output_dir: &Path) {
         // get tracker and export (use minimal configuration)
         let tracker = get_global_tracker();
         let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
-            .parallel_processing(false) 
+            .parallel_processing(false)
             .fast_export_mode(true)
             .schema_validation(false);
 
@@ -135,11 +135,7 @@ fn run_performance_only_tests(output_dir: &Path) {
     display_performance_results(&traditional_times, &fast_times, output_dir);
 }
 
-fn display_performance_results(
-    traditional_times: &[u64],
-    fast_times: &[u64],
-    output_dir: &Path,
-) {
+fn display_performance_results(traditional_times: &[u64], fast_times: &[u64], output_dir: &Path) {
     tracing::info!("");
     tracing::info!("📈 pure performance test results");
     tracing::info!("==================");

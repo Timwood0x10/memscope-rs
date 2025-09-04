@@ -6,12 +6,13 @@
 use super::memory_tracker::MemoryTracker;
 use crate::core::types::{
     AllocatorStateInfo, CachePerformanceInfo, CapacityUtilization, CodeBloatLevel,
-    ContainerAnalysis, ContainerEfficiencyMetrics, ContainerType, CpuUsageInfo, DispatchOverhead,
-    DynamicTypeInfo, EnhancedFragmentationAnalysis, FieldLayoutInfo, GenericConstraint,
-    GenericTypeInfo, LayoutEfficiency, MemoryLayoutInfo, MemoryPressureInfo, MonomorphizationInfo,
-    PaddingAnalysis, PerformanceImpact, ReallocationPatterns, RuntimeStateInfo, TypeErasureInfo,
-    TypeParameter, TypeRelationshipInfo, TypeUsageInfo, VTableInfo,
-    ContextType::{LocalVariable, AsyncContext},
+    ContainerAnalysis, ContainerEfficiencyMetrics, ContainerType,
+    ContextType::{AsyncContext, LocalVariable},
+    CpuUsageInfo, DispatchOverhead, DynamicTypeInfo, EnhancedFragmentationAnalysis,
+    FieldLayoutInfo, GenericConstraint, GenericTypeInfo, LayoutEfficiency, MemoryLayoutInfo,
+    MemoryPressureInfo, MonomorphizationInfo, PaddingAnalysis, PerformanceImpact,
+    ReallocationPatterns, RuntimeStateInfo, TypeErasureInfo, TypeParameter, TypeRelationshipInfo,
+    TypeUsageInfo, VTableInfo,
 };
 
 impl MemoryTracker {
@@ -626,9 +627,8 @@ impl MemoryTracker {
                 );
             }
         } else if type_name == "String" && score < 0.8 {
-            recommendations.push(
-                "Consider using String::with_capacity() for known string sizes".to_string(),
-            );
+            recommendations
+                .push("Consider using String::with_capacity() for known string sizes".to_string());
             recommendations.push("Use &str instead of String when possible".to_string());
         }
 
@@ -1180,13 +1180,13 @@ impl MemoryTracker {
 
         // Infer context based on type name patterns
         let context_type = if type_name.starts_with("Vec<")
-            || type_name.starts_with("HashMap<") 
+            || type_name.starts_with("HashMap<")
             || type_name.starts_with("BTreeMap<")
             || type_name.starts_with("Box<")
             || type_name.starts_with("Rc<")
             || type_name.starts_with("Arc<")
-        || type_name == "String" 
-        || type_name.starts_with("&str")
+            || type_name == "String"
+            || type_name.starts_with("&str")
         {
             LocalVariable
         } else if type_name.contains("Future") || type_name.contains("async") {

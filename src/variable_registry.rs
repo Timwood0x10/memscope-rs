@@ -899,7 +899,12 @@ mod tests {
     use super::*;
     use crate::core::types::AllocationInfo;
 
-    fn create_test_allocation(ptr: usize, size: usize, var_name: Option<String>, type_name: Option<String>) -> AllocationInfo {
+    fn create_test_allocation(
+        ptr: usize,
+        size: usize,
+        var_name: Option<String>,
+        type_name: Option<String>,
+    ) -> AllocationInfo {
         AllocationInfo {
             ptr,
             size,
@@ -942,13 +947,14 @@ mod tests {
         let size = 24;
 
         // Register variable
-        let result = VariableRegistry::register_variable(address, var_name.clone(), type_name.clone(), size);
+        let result =
+            VariableRegistry::register_variable(address, var_name.clone(), type_name.clone(), size);
         assert!(result.is_ok());
 
         // Get variable info
         let var_info = VariableRegistry::get_variable_info(address);
         assert!(var_info.is_some());
-        
+
         let info = var_info.unwrap();
         assert_eq!(info.var_name, var_name);
         assert_eq!(info.type_name, type_name);
@@ -969,9 +975,15 @@ mod tests {
     fn test_get_all_variables() {
         let address1 = 0x3000;
         let address2 = 0x4000;
-        
-        let _ = VariableRegistry::register_variable(address1, "var1".to_string(), "i32".to_string(), 4);
-        let _ = VariableRegistry::register_variable(address2, "var2".to_string(), "String".to_string(), 24);
+
+        let _ =
+            VariableRegistry::register_variable(address1, "var1".to_string(), "i32".to_string(), 4);
+        let _ = VariableRegistry::register_variable(
+            address2,
+            "var2".to_string(),
+            "String".to_string(),
+            24,
+        );
 
         let all_vars = VariableRegistry::get_all_variables();
         // Just check that we can get variables and the specific ones we added exist
@@ -981,11 +993,21 @@ mod tests {
     #[test]
     fn test_enhance_allocations_with_registry() {
         let address = 0x5000;
-        let _ = VariableRegistry::register_variable(address, "tracked_var".to_string(), "Vec<u8>".to_string(), 100);
+        let _ = VariableRegistry::register_variable(
+            address,
+            "tracked_var".to_string(),
+            "Vec<u8>".to_string(),
+            100,
+        );
 
         let allocations = vec![
             create_test_allocation(address, 100, None, None),
-            create_test_allocation(0x6000, 50, Some("explicit_var".to_string()), Some("i64".to_string())),
+            create_test_allocation(
+                0x6000,
+                50,
+                Some("explicit_var".to_string()),
+                Some("i64".to_string()),
+            ),
             create_test_allocation(0x7000, 200, None, None), // System allocation
         ];
 
@@ -1014,13 +1036,13 @@ mod tests {
         // The function returns "user_code_scope" for most cases due to backtrace inference
         let result1 = VariableRegistry::extract_scope_from_var_name("scope::variable");
         assert!(result1 == "scope" || result1 == "user_code_scope");
-        
+
         let result2 = VariableRegistry::extract_scope_from_var_name("my_vec");
         assert!(result2 == "user_scope" || result2 == "user_code_scope");
-        
+
         let result3 = VariableRegistry::extract_scope_from_var_name("main_variable");
         assert!(result3 == "main_function" || result3 == "user_code_scope");
-        
+
         let result4 = VariableRegistry::extract_scope_from_var_name("test_variable");
         assert!(result4 == "test_function" || result4 == "user_code_scope");
     }
@@ -1033,11 +1055,26 @@ mod tests {
         let buffer_alloc = create_test_allocation(0x4000, 4096, None, None);
         let huge_alloc = create_test_allocation(0x5000, 100000, None, None);
 
-        assert_eq!(VariableRegistry::categorize_system_allocation(&small_alloc), "small_system_alloc");
-        assert_eq!(VariableRegistry::categorize_system_allocation(&medium_alloc), "medium_system_alloc");
-        assert_eq!(VariableRegistry::categorize_system_allocation(&large_alloc), "large_system_alloc");
-        assert_eq!(VariableRegistry::categorize_system_allocation(&buffer_alloc), "buffer_allocation");
-        assert_eq!(VariableRegistry::categorize_system_allocation(&huge_alloc), "huge_allocation");
+        assert_eq!(
+            VariableRegistry::categorize_system_allocation(&small_alloc),
+            "small_system_alloc"
+        );
+        assert_eq!(
+            VariableRegistry::categorize_system_allocation(&medium_alloc),
+            "medium_system_alloc"
+        );
+        assert_eq!(
+            VariableRegistry::categorize_system_allocation(&large_alloc),
+            "large_system_alloc"
+        );
+        assert_eq!(
+            VariableRegistry::categorize_system_allocation(&buffer_alloc),
+            "buffer_allocation"
+        );
+        assert_eq!(
+            VariableRegistry::categorize_system_allocation(&huge_alloc),
+            "huge_allocation"
+        );
     }
 
     #[test]
@@ -1081,7 +1118,7 @@ mod tests {
         assert_eq!(type_name, "Vec<i64>");
         assert!(var_name.starts_with("vec_i64_"));
         assert!(var_name.contains("256elem")); // 2048 / 8 = 256 elements
-        
+
         // Test LargeBuffer allocation (size >= 1024 but not multiple of 8)
         let large_alloc = create_test_allocation(0x5000, 1030, None, None);
         let (var_name, type_name) = VariableRegistry::infer_allocation_info(&large_alloc);
@@ -1107,26 +1144,29 @@ mod tests {
     #[test]
     fn test_calculate_percentile() {
         let values = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        
+
         assert_eq!(VariableRegistry::calculate_percentile(&values, 50.0), 5);
         assert_eq!(VariableRegistry::calculate_percentile(&values, 90.0), 9);
         assert_eq!(VariableRegistry::calculate_percentile(&values, 100.0), 10);
-        
+
         let empty_values: Vec<u64> = vec![];
-        assert_eq!(VariableRegistry::calculate_percentile(&empty_values, 50.0), 0);
+        assert_eq!(
+            VariableRegistry::calculate_percentile(&empty_values, 50.0),
+            0
+        );
     }
 
     #[test]
     fn test_calculate_lifetime_stats() {
         let lifetimes = vec![0, 1, 5, 15, 50, 150, 500, 1500];
         let stats = VariableRegistry::calculate_lifetime_stats(&lifetimes);
-        
+
         assert_eq!(stats["count"], 8);
         assert_eq!(stats["categories"]["very_short"], 2); // 0, 1
-        assert_eq!(stats["categories"]["short"], 1);      // 5
-        assert_eq!(stats["categories"]["medium"], 2);     // 15, 50
-        assert_eq!(stats["categories"]["long"], 2);       // 150, 500
-        assert_eq!(stats["categories"]["very_long"], 1);  // 1500
+        assert_eq!(stats["categories"]["short"], 1); // 5
+        assert_eq!(stats["categories"]["medium"], 2); // 15, 50
+        assert_eq!(stats["categories"]["long"], 2); // 150, 500
+        assert_eq!(stats["categories"]["very_long"], 1); // 1500
 
         let empty_lifetimes: Vec<u64> = vec![];
         let empty_stats = VariableRegistry::calculate_lifetime_stats(&empty_lifetimes);
@@ -1139,10 +1179,20 @@ mod tests {
         let _ = VariableRegistry::clear_registry();
 
         let (total_before, recent_before) = VariableRegistry::get_stats();
-        
+
         // Add some variables
-        let _ = VariableRegistry::register_variable(0x8000, "stat_var1".to_string(), "i32".to_string(), 4);
-        let _ = VariableRegistry::register_variable(0x9000, "stat_var2".to_string(), "String".to_string(), 24);
+        let _ = VariableRegistry::register_variable(
+            0x8000,
+            "stat_var1".to_string(),
+            "i32".to_string(),
+            4,
+        );
+        let _ = VariableRegistry::register_variable(
+            0x9000,
+            "stat_var2".to_string(),
+            "String".to_string(),
+            24,
+        );
 
         let (total_after, recent_after) = VariableRegistry::get_stats();
         assert!(total_after >= total_before + 2);
@@ -1152,8 +1202,18 @@ mod tests {
     #[test]
     fn test_clear_registry() {
         // Add some variables
-        let _ = VariableRegistry::register_variable(0xa000, "clear_test1".to_string(), "i32".to_string(), 4);
-        let _ = VariableRegistry::register_variable(0xb000, "clear_test2".to_string(), "String".to_string(), 24);
+        let _ = VariableRegistry::register_variable(
+            0xa000,
+            "clear_test1".to_string(),
+            "i32".to_string(),
+            4,
+        );
+        let _ = VariableRegistry::register_variable(
+            0xb000,
+            "clear_test2".to_string(),
+            "String".to_string(),
+            24,
+        );
 
         // Clear registry
         let result = VariableRegistry::clear_registry();
@@ -1162,11 +1222,14 @@ mod tests {
         // Verify cleared (note: other tests might have added variables, so we just check the specific ones)
         let var_info1 = VariableRegistry::get_variable_info(0xa000);
         let var_info2 = VariableRegistry::get_variable_info(0xb000);
-        
+
         // After clearing, these specific variables should not be found
         // (though other variables from concurrent tests might exist)
-        assert!(var_info1.is_none() || var_info2.is_none() || 
-                VariableRegistry::get_all_variables().is_empty());
+        assert!(
+            var_info1.is_none()
+                || var_info2.is_none()
+                || VariableRegistry::get_all_variables().is_empty()
+        );
     }
 
     #[test]
@@ -1180,7 +1243,8 @@ mod tests {
             create_test_allocation(0x2000, 200, None, None),
         ];
 
-        let enhanced_small = VariableRegistry::enhance_allocations_with_registry(&small_allocations);
+        let enhanced_small =
+            VariableRegistry::enhance_allocations_with_registry(&small_allocations);
         assert_eq!(enhanced_small.len(), 2);
 
         // Create a large dataset (should use parallel processing)
@@ -1188,7 +1252,8 @@ mod tests {
             .map(|i| create_test_allocation(0x10000 + i, 100, None, None))
             .collect();
 
-        let enhanced_large = VariableRegistry::enhance_allocations_with_registry(&large_allocations);
+        let enhanced_large =
+            VariableRegistry::enhance_allocations_with_registry(&large_allocations);
         assert_eq!(enhanced_large.len(), 150);
     }
 
@@ -1216,54 +1281,85 @@ mod tests {
                 "ptr": 0x1000
             }),
             serde_json::json!({
-                "scope_name": "test_function", 
+                "scope_name": "test_function",
                 "size": 200,
                 "ptr": 0x2000
             }),
         ];
 
-        let history_allocations = vec![
-            serde_json::json!({
-                "scope_name": "main_function",
-                "size": 150,
-                "ptr": 0x3000
-            }),
-        ];
+        let history_allocations = vec![serde_json::json!({
+            "scope_name": "main_function",
+            "size": 150,
+            "ptr": 0x3000
+        })];
 
         let grouped = VariableRegistry::group_by_scope(&active_allocations, &history_allocations);
-        
-        assert!(grouped["main_function"]["allocation_count"].as_u64().unwrap() >= 2);
-        assert!(grouped["test_function"]["allocation_count"].as_u64().unwrap() >= 1);
-        assert!(grouped["main_function"]["total_size_bytes"].as_u64().unwrap() >= 250);
+
+        assert!(
+            grouped["main_function"]["allocation_count"]
+                .as_u64()
+                .unwrap()
+                >= 2
+        );
+        assert!(
+            grouped["test_function"]["allocation_count"]
+                .as_u64()
+                .unwrap()
+                >= 1
+        );
+        assert!(
+            grouped["main_function"]["total_size_bytes"]
+                .as_u64()
+                .unwrap()
+                >= 250
+        );
     }
 
     #[test]
     fn test_get_scope_summary() {
         let mut registry = HashMap::new();
-        registry.insert(0x1000, VariableInfo {
-            var_name: "main_var".to_string(),
-            type_name: "i32".to_string(),
-            timestamp: 1000,
-            size: 4,
-        });
-        registry.insert(0x2000, VariableInfo {
-            var_name: "test_var".to_string(),
-            type_name: "String".to_string(),
-            timestamp: 2000,
-            size: 24,
-        });
+        registry.insert(
+            0x1000,
+            VariableInfo {
+                var_name: "main_var".to_string(),
+                type_name: "i32".to_string(),
+                timestamp: 1000,
+                size: 4,
+            },
+        );
+        registry.insert(
+            0x2000,
+            VariableInfo {
+                var_name: "test_var".to_string(),
+                type_name: "String".to_string(),
+                timestamp: 2000,
+                size: 24,
+            },
+        );
 
         let summary = VariableRegistry::get_scope_summary(&registry);
         // The function may return "user_code_scope" for most variables
         if let Some(obj) = summary.as_object() {
             let total_count: u64 = obj.values().map(|v| v.as_u64().unwrap_or(0)).sum();
             assert!(total_count >= 2); // At least our 2 variables should be counted
-            
+
             // Check if specific scopes exist or if they're grouped under user_code_scope
-            let has_main = obj.get("main_function").and_then(|v| v.as_u64()).unwrap_or(0) >= 1;
-            let has_test = obj.get("test_function").and_then(|v| v.as_u64()).unwrap_or(0) >= 1;
-            let has_user_code = obj.get("user_code_scope").and_then(|v| v.as_u64()).unwrap_or(0) >= 1;
-            
+            let has_main = obj
+                .get("main_function")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+                >= 1;
+            let has_test = obj
+                .get("test_function")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+                >= 1;
+            let has_user_code = obj
+                .get("user_code_scope")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+                >= 1;
+
             assert!(has_main || has_test || has_user_code);
         } else {
             panic!("Expected summary to be a JSON object");

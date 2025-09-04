@@ -14,7 +14,6 @@ pub enum AdvancedMetricsLevel {
     Comprehensive,
 }
 
-
 /// Binary export configuration with advanced metrics support
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryExportConfig {
@@ -422,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let mut config = BinaryExportConfig{
+        let mut config = BinaryExportConfig {
             buffer_size: 100,
             compression_level: 15,
             ..Default::default()
@@ -485,7 +484,6 @@ pub enum DashboardFormat {
     Progressive,
 }
 
-
 /// Data scope for export
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum DataScope {
@@ -498,7 +496,6 @@ pub enum DataScope {
     Both,
 }
 
-
 /// Performance mode for analysis
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum PerformanceMode {
@@ -510,7 +507,6 @@ pub enum PerformanceMode {
     /// Custom mode - specify which analysis to include
     Custom(Vec<AnalysisType>),
 }
-
 
 /// Analysis types that can be included/excluded
 #[derive(Debug, Clone, PartialEq)]
@@ -537,7 +533,6 @@ pub struct DashboardOptions {
     /// Underlying binary export config
     pub binary_config: BinaryExportConfig,
 }
-
 
 impl DashboardOptions {
     /// Create new dashboard options with default settings

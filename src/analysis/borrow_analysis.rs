@@ -66,10 +66,7 @@ impl BorrowAnalyzer {
 
         // Add to active borrows
         if let Ok(mut active) = self.active_borrows.lock() {
-            active
-                .entry(ptr)
-                .or_default()
-                .push(borrow_info.clone());
+            active.entry(ptr).or_default().push(borrow_info.clone());
         }
 
         // Record the borrow event
@@ -429,7 +426,6 @@ pub struct BorrowStatistics {
     pub by_type: HashMap<String, usize>,
 }
 
-
 // BorrowAnalysis struct doesn't exist in this file, removing the Default impl
 
 /// Borrow pattern analysis
@@ -442,7 +438,6 @@ pub struct BorrowPatternAnalysis {
     /// Analysis timestamp
     pub analysis_timestamp: u64,
 }
-
 
 /// Detected borrow pattern
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -334,11 +334,7 @@ impl SecurityViolationAnalyzer {
             SafetyViolation::CrossBoundaryRisk { .. } => "CBR",
         };
 
-        format!(
-            "SEC-{violation_type}-{:X}-{}",
-            address,
-            timestamp % 1000000
-        )
+        format!("SEC-{violation_type}-{:X}-{}", address, timestamp % 1000000)
     }
 
     /// Assess violation severity
@@ -951,28 +947,40 @@ mod tests {
             second_free_stack: CallStackRef::new(1, Some(0)),
             timestamp: 1234567890,
         };
-        assert_eq!(analyzer.assess_severity(&double_free), ViolationSeverity::Critical);
+        assert_eq!(
+            analyzer.assess_severity(&double_free),
+            ViolationSeverity::Critical
+        );
 
         let invalid_free = SafetyViolation::InvalidFree {
             attempted_pointer: 0x1000,
             stack: CallStackRef::new(0, Some(0)),
             timestamp: 1234567890,
         };
-        assert_eq!(analyzer.assess_severity(&invalid_free), ViolationSeverity::High);
+        assert_eq!(
+            analyzer.assess_severity(&invalid_free),
+            ViolationSeverity::High
+        );
 
         let potential_leak = SafetyViolation::PotentialLeak {
             allocation_stack: CallStackRef::new(0, Some(0)),
             allocation_timestamp: 1234567890,
             leak_detection_timestamp: 1234567900,
         };
-        assert_eq!(analyzer.assess_severity(&potential_leak), ViolationSeverity::Medium);
+        assert_eq!(
+            analyzer.assess_severity(&potential_leak),
+            ViolationSeverity::Medium
+        );
 
         let cross_boundary = SafetyViolation::CrossBoundaryRisk {
             risk_level: crate::analysis::unsafe_ffi_tracker::RiskLevel::Medium,
             description: "Test risk".to_string(),
             stack: CallStackRef::new(0, Some(0)),
         };
-        assert_eq!(analyzer.assess_severity(&cross_boundary), ViolationSeverity::Medium);
+        assert_eq!(
+            analyzer.assess_severity(&cross_boundary),
+            ViolationSeverity::Medium
+        );
     }
 
     #[test]
@@ -1018,7 +1026,10 @@ mod tests {
 
         // Same region (within allocation bounds: 0x1000 to 0x1100)
         let same_region = analyzer.determine_relationship(0x1080, &alloc);
-        assert!(matches!(same_region, Some(AllocationRelationship::SameRegion)));
+        assert!(matches!(
+            same_region,
+            Some(AllocationRelationship::SameRegion)
+        ));
 
         // Adjacent (just after allocation end: 0x1100 + small offset)
         let adjacent = analyzer.determine_relationship(0x1100 + 32, &alloc);
@@ -1143,14 +1154,20 @@ mod tests {
             second_free_stack: CallStackRef::new(1, Some(0)),
             timestamp: 1234567890,
         };
-        assert_eq!(analyzer.get_violation_type_string(&double_free), "DoubleFree");
+        assert_eq!(
+            analyzer.get_violation_type_string(&double_free),
+            "DoubleFree"
+        );
 
         let invalid_free = SafetyViolation::InvalidFree {
             attempted_pointer: 0x1000,
             stack: CallStackRef::new(0, Some(0)),
             timestamp: 1234567890,
         };
-        assert_eq!(analyzer.get_violation_type_string(&invalid_free), "InvalidFree");
+        assert_eq!(
+            analyzer.get_violation_type_string(&invalid_free),
+            "InvalidFree"
+        );
     }
 
     #[test]
@@ -1468,7 +1485,7 @@ mod tests {
         let serialized = serde_json::to_string(&report);
         assert!(serialized.is_ok());
 
-        let deserialized: Result<SecurityViolationReport, _> = 
+        let deserialized: Result<SecurityViolationReport, _> =
             serde_json::from_str(&serialized.unwrap());
         assert!(deserialized.is_ok());
     }

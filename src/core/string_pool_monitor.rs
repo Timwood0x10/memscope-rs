@@ -437,7 +437,7 @@ mod tests {
     fn test_default_implementation() {
         let monitor = StringPoolMonitor::default();
         let stats = monitor.get_stats();
-        
+
         // Default should be same as new()
         assert_eq!(stats.performance.avg_intern_time_ns, 0.0);
         assert_eq!(stats.performance.peak_ops_per_second, 0.0);
@@ -453,11 +453,11 @@ mod tests {
         monitor.record_intern_operation(150);
 
         let stats = monitor.get_stats();
-        
+
         // Check average and total time
         assert_eq!(stats.performance.avg_intern_time_ns, 150.0);
         assert_eq!(stats.performance.total_intern_time_ns, 450);
-        
+
         // For peak_ops_per_second, we can't guarantee it's > 0 in test environment
         // as it depends on timing, so we'll just check that it's not negative
         assert!(stats.performance.peak_ops_per_second >= 0.0);
@@ -467,12 +467,12 @@ mod tests {
     #[test]
     fn test_record_intern_operation_edge_cases() {
         let monitor = StringPoolMonitor::new();
-        
+
         // Test with zero duration
         monitor.record_intern_operation(0);
         let stats = monitor.get_stats();
         assert_eq!(stats.performance.avg_intern_time_ns, 0.0);
-        
+
         // Test with very large duration
         monitor.record_intern_operation(u64::MAX);
         let stats = monitor.get_stats();
@@ -483,7 +483,7 @@ mod tests {
     fn test_memory_efficiency_calculation() {
         let monitor = StringPoolMonitor::new();
         let pool_stats = create_test_stats();
-        
+
         let efficiency = monitor.calculate_memory_efficiency(&pool_stats);
 
         // Basic validation of efficiency metrics
@@ -491,7 +491,7 @@ mod tests {
         assert!(efficiency.memory_without_interning_bytes > 0);
         assert!(efficiency.memory_with_interning_bytes > 0);
         assert!(efficiency.memory_without_interning_bytes > efficiency.memory_with_interning_bytes);
-        
+
         // Test with empty stats
         let empty_stats = StringPoolStats {
             unique_strings: 0,
@@ -508,14 +508,14 @@ mod tests {
     fn test_analyze_usage_patterns() {
         let monitor = StringPoolMonitor::new();
         let pool_stats = create_test_stats();
-        
+
         let usage_patterns = monitor.analyze_usage_patterns(&pool_stats);
-        
+
         // Check temporal patterns
         let temporal = &usage_patterns.temporal_patterns;
         assert!(temporal.ops_last_minute <= temporal.ops_last_hour);
         assert!(temporal.peak_ops_per_minute >= temporal.ops_last_minute);
-        
+
         // Note: top_strings and length_distribution might be empty in some implementations
         // so we don't assert on them
     }
@@ -524,21 +524,24 @@ mod tests {
     fn test_global_functions() {
         // Reset global state
         let _ = GLOBAL_MONITOR.set(StringPoolMonitor::new());
-        
+
         // Test record_intern_operation
         record_intern_operation(100);
         record_intern_operation(200);
-        
+
         // Test get_string_pool_monitor
         let monitor = get_string_pool_monitor();
         let stats = monitor.get_stats();
-        
+
         // The total should be at least our two operations
         assert!(stats.performance.total_intern_time_ns >= 300);
-        
+
         // Test get_string_pool_monitor_stats
         let stats2 = get_string_pool_monitor_stats();
-        assert_eq!(stats2.performance.total_intern_time_ns, stats.performance.total_intern_time_ns);
+        assert_eq!(
+            stats2.performance.total_intern_time_ns,
+            stats.performance.total_intern_time_ns
+        );
     }
 
     #[test]
@@ -579,7 +582,7 @@ mod tests {
         assert!(recommendations
             .iter()
             .any(|r| matches!(r.recommendation_type, RecommendationType::UsageOptimization)));
-            
+
         // Test with empty stats
         let empty_stats = StringPoolStats {
             unique_strings: 0,
@@ -589,13 +592,13 @@ mod tests {
             average_string_length: 0.0,
         };
         let empty_recs = monitor.generate_recommendations(
-            &empty_stats, 
-            &PerformanceMetrics::default(), 
-            &MemoryEfficiencyMetrics::default()
+            &empty_stats,
+            &PerformanceMetrics::default(),
+            &MemoryEfficiencyMetrics::default(),
         );
         assert!(!empty_recs.is_empty());
     }
-    
+
     #[test]
     fn test_string_usage_info() {
         let info = StringUsageInfo {
@@ -603,12 +606,12 @@ mod tests {
             usage_count: 10,
             memory_saved_bytes: 100,
         };
-        
+
         assert_eq!(info.content, "test");
         assert_eq!(info.usage_count, 10);
         assert_eq!(info.memory_saved_bytes, 100);
     }
-    
+
     #[test]
     fn test_length_bucket() {
         let bucket = LengthBucket {
@@ -617,13 +620,13 @@ mod tests {
             count: 5,
             total_bytes: 50,
         };
-        
+
         assert_eq!(bucket.min_length, 0);
         assert_eq!(bucket.max_length, 10);
         assert_eq!(bucket.count, 5);
         assert_eq!(bucket.total_bytes, 50);
     }
-    
+
     #[test]
     fn test_temporal_patterns() {
         let patterns = TemporalPatterns {
@@ -631,7 +634,7 @@ mod tests {
             ops_last_hour: 100,
             peak_ops_per_minute: 50,
         };
-        
+
         assert_eq!(patterns.ops_last_minute, 10);
         assert_eq!(patterns.ops_last_hour, 100);
         assert_eq!(patterns.peak_ops_per_minute, 50);

@@ -378,12 +378,12 @@ impl BatchProcessor {
 
     /// Create a new batch processor with custom configuration
     pub fn with_config(config: BatchProcessorConfig) -> Self {
-        let thread_pool = config.max_threads.map(|max_threads| 
+        let thread_pool = config.max_threads.map(|max_threads| {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(max_threads)
                 .build()
                 .expect("Failed to create thread pool")
-        );
+        });
 
         let metrics = Arc::new(Mutex::new(BatchProcessingMetrics {
             total_items: 0,

@@ -246,9 +246,7 @@ fn generate_enum_size_estimate_impl(
             }
             Fields::Unnamed(fields) => {
                 let field_patterns: Vec<_> = (0..fields.unnamed.len())
-                    .map(|i| {
-                        syn::Ident::new(&format!("field_{i}"), proc_macro2::Span::call_site())
-                    })
+                    .map(|i| syn::Ident::new(&format!("field_{i}"), proc_macro2::Span::call_site()))
                     .collect();
                 let field_sizes = field_patterns.iter().map(|field_name| {
                     quote! {

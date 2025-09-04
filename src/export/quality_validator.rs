@@ -33,7 +33,6 @@ pub enum ValidationTiming {
     Disabled,
 }
 
-
 /// Export mode enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Default, ValueEnum)]
 pub enum ExportMode {
@@ -45,7 +44,6 @@ pub enum ExportMode {
     /// Auto mode: automatically choose based on data size
     Auto,
 }
-
 
 /// Export configuration that combines mode and validation settings
 #[derive(Debug, Clone)]
@@ -1046,7 +1044,7 @@ impl QualityValidator {
                     });
                 }
             }
-        }   
+        }
 
         Ok(())
     }

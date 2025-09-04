@@ -57,9 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let binary_file = "simple_binary_test.memscope";
                     if std::path::Path::new(binary_file).exists() {
                         let file_size = std::fs::metadata(binary_file)?.len();
-                        println!(
-                            "   📁 Binary file created: {binary_file} ({file_size} bytes)"
-                        );
+                        println!("   📁 Binary file created: {binary_file} ({file_size} bytes)");
 
                         if file_size > 40 {
                             println!("   ✅ File has content beyond header");

@@ -423,10 +423,7 @@ impl LifecycleSummaryGenerator {
         for event in lifecycle_events {
             if let Some(ref type_name) = event.type_name {
                 let group_name = self.extract_base_type_name(type_name);
-                groups
-                    .entry(group_name)
-                    .or_default()
-                    .push(event);
+                groups.entry(group_name).or_default().push(event);
             }
         }
 
@@ -549,7 +546,7 @@ mod tests {
                 analysis_duration_ms: 0,
             },
         };
-        
+
         let json = generator.export_to_json(&export_data).unwrap();
         assert!(json.contains("lifecycle_events"));
         assert!(json.contains("variable_groups"));
@@ -559,17 +556,17 @@ mod tests {
     fn test_generate_single_lifecycle_summary() {
         let generator = LifecycleSummaryGenerator::default();
         let mut history = OwnershipHistoryRecorder::default();
-        
+
         // Create a test allocation with ownership events
         let ptr = 0x1000;
         let size = 1024;
         let alloc = create_test_allocation(ptr, size, Some("test_var".to_string()));
-        
+
         // Add some ownership events
         history.record_event(ptr, OwnershipEventType::Allocated, 1);
 
         let summary = generator.generate_single_lifecycle_summary(&history, &alloc);
-        
+
         assert_eq!(summary.allocation_ptr, ptr);
         assert_eq!(summary.size, size);
         assert_eq!(summary.var_name, Some("test_var".to_string()));
@@ -581,10 +578,10 @@ mod tests {
         let generator = LifecycleSummaryGenerator::default();
         let alloc = create_test_allocation(0x1000, 1024, Some("test_var".to_string()));
         let mut history = OwnershipHistoryRecorder::default();
-        
+
         // Add some ownership events
         history.record_event(0x1000, OwnershipEventType::Allocated, 1);
-        
+
         let summary = history.get_summary(0x1000).unwrap();
         let score = generator.calculate_efficiency_score(&alloc, summary);
         assert!(score >= 0.0 && score <= 1.0);
@@ -594,11 +591,11 @@ mod tests {
     fn test_generate_lifecycle_events() {
         let generator = LifecycleSummaryGenerator::default();
         let history = OwnershipHistoryRecorder::default();
-        
+
         // Create test allocations
         let alloc1 = create_test_allocation(0x1000, 1024, Some("var1".to_string()));
         let alloc2 = create_test_allocation(0x2000, 2048, Some("var2".to_string()));
-        
+
         let events = generator.generate_lifecycle_events(&history, &[alloc1, alloc2]);
         assert_eq!(events.len(), 2);
     }
@@ -606,7 +603,7 @@ mod tests {
     #[test]
     fn test_format_event_type() {
         let generator = LifecycleSummaryGenerator::default();
-        
+
         let allocated = generator.format_event_type(&OwnershipEventType::Allocated);
         assert_eq!(allocated, "Allocation");
 
@@ -615,9 +612,8 @@ mod tests {
         });
         assert_eq!(borrowed, "Borrow");
 
-        let cloned = generator.format_event_type(&OwnershipEventType::Cloned {
-            source_ptr: 0x1000,
-        });
+        let cloned =
+            generator.format_event_type(&OwnershipEventType::Cloned { source_ptr: 0x1000 });
         assert_eq!(cloned, "Clone");
     }
 
@@ -626,9 +622,9 @@ mod tests {
         let generator = LifecycleSummaryGenerator::default();
         let history = OwnershipHistoryRecorder::default();
         let alloc = create_test_allocation(0x1000, 1024, Some("test_var".to_string()));
-        
+
         let export = generator.generate_lifecycle_export(&history, &[alloc]);
-        
+
         assert_eq!(export.lifecycle_events.len(), 1);
         assert_eq!(export.user_variables_count, 1);
         assert!(export.visualization_ready);
@@ -637,18 +633,24 @@ mod tests {
     #[test]
     fn test_extract_base_type_name() {
         let generator = LifecycleSummaryGenerator::default();
-        
+
         assert_eq!(generator.extract_base_type_name("String"), "String");
-        assert_eq!(generator.extract_base_type_name("std::string::String"), "String");
+        assert_eq!(
+            generator.extract_base_type_name("std::string::String"),
+            "String"
+        );
         assert_eq!(generator.extract_base_type_name("Vec<u8>"), "Vec");
-        assert_eq!(generator.extract_base_type_name("std::vec::Vec<u8>"), "std::vec::Vec");
+        assert_eq!(
+            generator.extract_base_type_name("std::vec::Vec<u8>"),
+            "std::vec::Vec"
+        );
         assert_eq!(generator.extract_base_type_name("&str"), "&str");
     }
 
     #[test]
     fn test_is_user_variable() {
         let generator = LifecycleSummaryGenerator::default();
-        
+
         assert!(generator.is_user_variable("user_var"));
         assert!(generator.is_user_variable("my_var_123"));
         assert!(!generator.is_user_variable("primitive_var"));
@@ -659,18 +661,33 @@ mod tests {
     #[test]
     fn test_lifecycle_pattern_classification() {
         let generator = LifecycleSummaryGenerator::default();
-        
-        assert!(matches!(generator.classify_lifecycle_pattern(None), LifecyclePattern::Leaked));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(0)), LifecyclePattern::Ephemeral));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(50)), LifecyclePattern::ShortTerm));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(5000)), LifecyclePattern::MediumTerm));
-        assert!(matches!(generator.classify_lifecycle_pattern(Some(15000)), LifecyclePattern::LongTerm));
+
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(None),
+            LifecyclePattern::Leaked
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(0)),
+            LifecyclePattern::Ephemeral
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(50)),
+            LifecyclePattern::ShortTerm
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(5000)),
+            LifecyclePattern::MediumTerm
+        ));
+        assert!(matches!(
+            generator.classify_lifecycle_pattern(Some(15000)),
+            LifecyclePattern::LongTerm
+        ));
     }
 
     #[test]
     fn test_variable_groups_generation() {
         let generator = LifecycleSummaryGenerator::default();
-        
+
         let events = vec![
             LifecycleEventSummary {
                 allocation_ptr: 0x1000,
@@ -727,7 +744,7 @@ mod tests {
                 },
             },
         ];
-        
+
         let groups = generator.generate_variable_groups(&events);
         assert_eq!(groups.len(), 1); // Should group by "String" type
         assert_eq!(groups[0].name, "String");

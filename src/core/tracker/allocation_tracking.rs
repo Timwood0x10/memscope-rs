@@ -492,7 +492,7 @@ impl MemoryTracker {
 
                 // Release active lock before acquiring bounded_stats lock
                 drop(active);
-                
+
                 let mut bounded_stats = self.bounded_stats.lock().map_err(|_| {
                     crate::core::types::TrackingError::LockError(
                         "Failed to acquire bounded_stats lock".to_string(),
@@ -500,8 +500,12 @@ impl MemoryTracker {
                 })?;
                 bounded_stats.add_allocation(&synthetic_allocation);
 
-                tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
-                               var_name, ptr, estimated_size);
+                tracing::debug!(
+                    "Created synthetic allocation for variable '{}' at {:x} (estimated size: {})",
+                    var_name,
+                    ptr,
+                    estimated_size
+                );
             }
             Ok(())
         } else {
@@ -554,7 +558,7 @@ impl MemoryTracker {
 
                         // Release active lock before acquiring bounded_stats lock
                         drop(active);
-                        
+
                         if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
                             bounded_stats.add_allocation(&synthetic_allocation);
                         }

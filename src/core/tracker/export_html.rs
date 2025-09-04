@@ -313,3 +313,230 @@ impl MemoryTracker {
             .join("")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::{
+        ConcurrencyAnalysis, FragmentationAnalysis, LibraryUsage, MemoryStats,
+        ScopeLifecycleMetrics, SystemLibraryStats, TypeMemoryUsage,
+    };
+    use std::collections::HashMap;
+    use tempfile::tempdir;
+
+    // Helper function to create a test MemoryTracker instance with sample data
+    fn create_test_tracker() -> MemoryTracker {
+        MemoryTracker::new()
+    }
+
+    // Create test data
+    fn create_test_data() -> (MemoryStats, HashMap<String, TypeMemoryUsage>) {
+        // Create a default LibraryUsage with some test data
+        let create_test_library_usage = || LibraryUsage {
+            allocation_count: 10,
+            total_bytes: 1024,
+            peak_bytes: 2048,
+            average_size: 102.4,
+            categories: HashMap::new(),
+            hotspot_functions: vec![],
+        };
+
+        let stats = MemoryStats {
+            total_allocations: 10,
+            total_allocated: 1024,
+            active_allocations: 5,
+            active_memory: 512,
+            peak_allocations: 10,
+            peak_memory: 1024,
+            total_deallocations: 5,
+            total_deallocated: 512,
+            leaked_allocations: 0,
+            leaked_memory: 0,
+            allocations: vec![],
+            fragmentation_analysis: FragmentationAnalysis {
+                fragmentation_ratio: 0.0,
+                largest_free_block: 0,
+                smallest_free_block: 0,
+                free_block_count: 0,
+                total_free_memory: 0,
+                external_fragmentation: 0.0,
+                internal_fragmentation: 0.0,
+            },
+            lifecycle_stats: ScopeLifecycleMetrics::default(),
+            system_library_stats: SystemLibraryStats {
+                std_collections: create_test_library_usage(),
+                async_runtime: create_test_library_usage(),
+                network_io: create_test_library_usage(),
+                file_system: create_test_library_usage(),
+                serialization: create_test_library_usage(),
+                regex_engine: create_test_library_usage(),
+                crypto_security: create_test_library_usage(),
+                database: create_test_library_usage(),
+                graphics_ui: create_test_library_usage(),
+                http_stack: create_test_library_usage(),
+            },
+            concurrency_analysis: ConcurrencyAnalysis {
+                thread_safety_allocations: 0,
+                shared_memory_bytes: 0,
+                mutex_protected: 0,
+                arc_shared: 0,
+                rc_shared: 0,
+                channel_buffers: 0,
+                thread_local_storage: 0,
+                atomic_operations: 0,
+                lock_contention_risk: "low".to_string(),
+            },
+        };
+
+        let mut type_usage = HashMap::new();
+
+        // Add a String type
+        type_usage.insert(
+            "String".to_string(),
+            TypeMemoryUsage {
+                type_name: "String".to_string(),
+                total_size: 1024,
+                allocation_count: 10,
+                average_size: 102.4,
+                peak_size: 1024,
+                current_size: 512,
+                efficiency_score: 0.5, // Lower score to trigger recommendations
+            },
+        );
+
+        // Add a Vec<u8> type to test the recommendation
+        type_usage.insert(
+            "Vec<u8>".to_string(),
+            TypeMemoryUsage {
+                type_name: "Vec<u8>".to_string(),
+                total_size: 2048,
+                allocation_count: 20,
+                average_size: 102.4,
+                peak_size: 2048,
+                current_size: 1024,
+                efficiency_score: 0.3, // Low score to ensure it triggers recommendations
+            },
+        );
+
+        (stats, type_usage)
+    }
+
+    #[test]
+    fn test_export_html_summary() -> TrackingResult<()> {
+        // Setup
+        let tracker = create_test_tracker();
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("summary.html");
+
+        // Test
+        tracker.export_html_summary(&output_path)?;
+
+        // Verify
+        assert!(output_path.exists(), "Summary HTML file was not created");
+        let content = std::fs::read_to_string(&output_path)?;
+        assert!(!content.is_empty(), "Summary HTML file is empty");
+        assert!(
+            content.contains("Memory Analysis Summary"),
+            "Summary title not found"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_bytes() {
+        let tracker = create_test_tracker();
+
+        // Test various byte sizes
+        assert_eq!(tracker.format_bytes(0), "0 B");
+        assert_eq!(tracker.format_bytes(1023), "1023 B");
+        assert_eq!(tracker.format_bytes(1024), "1.0 KB");
+        assert_eq!(tracker.format_bytes(1536), "1.5 KB");
+        assert_eq!(tracker.format_bytes(1024 * 1024), "1.0 MB");
+        assert_eq!(tracker.format_bytes(1024 * 1024 * 1024), "1.0 GB");
+        assert_eq!(tracker.format_bytes(1024 * 1024 * 1024 * 5), "5.0 GB");
+    }
+
+    #[test]
+    fn test_generate_recommendations_html() {
+        let tracker = create_test_tracker();
+
+        // Create test data
+        let (mut stats, type_usage) = create_test_data();
+        let memory_by_type: Vec<_> = type_usage.into_values().collect();
+
+        // Test with initial data
+        let recommendations = tracker.generate_recommendations_html(&stats, &memory_by_type);
+        assert!(!recommendations.is_empty());
+        assert!(recommendations.contains("<li>"));
+
+        // Check for memory efficiency or no optimizations needed
+        assert!(
+            recommendations.contains("memory efficiency")
+                || recommendations.contains("No immediate optimizations")
+                || recommendations.contains("large average allocations")
+        );
+
+        // Test with high fragmentation
+        stats.total_allocated = 1000;
+        stats.active_memory = 600; // 40% fragmentation
+        let frag_recommendations = tracker.generate_recommendations_html(&stats, &memory_by_type);
+        assert!(frag_recommendations.contains("fragmentation"));
+
+        // Test with high allocation-to-deallocation ratio
+        let mut alloc_stats = stats.clone();
+        alloc_stats.total_allocations = 1000;
+        alloc_stats.total_deallocations = 300; // High ratio
+        let alloc_recommendations =
+            tracker.generate_recommendations_html(&alloc_stats, &memory_by_type);
+        assert!(alloc_recommendations.contains("allocation-to-deallocation"));
+    }
+
+    #[test]
+    fn test_export_to_nonexistent_directory() -> TrackingResult<()> {
+        let tracker = create_test_tracker();
+        let temp_dir = tempdir()?;
+        let output_dir = temp_dir.path().join("nonexistent");
+        let output_path = output_dir.join("dashboard.html");
+
+        // Create the parent directory first
+        std::fs::create_dir_all(&output_dir)?;
+
+        // Now export should work
+        tracker.export_interactive_dashboard(&output_path)?;
+
+        assert!(output_path.exists());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_with_invalid_path() {
+        let tracker = create_test_tracker();
+
+        // Try to write to a directory that should be read-only
+        let result = tracker.export_interactive_dashboard("/proc/invalid/path/dashboard.html");
+
+        assert!(
+            result.is_err(),
+            "Expected error when writing to invalid path"
+        );
+    }
+
+    #[test]
+    fn test_generate_summary_html_empty_data() -> TrackingResult<()> {
+        let tracker = create_test_tracker();
+
+        let stats = MemoryStats::default();
+        let memory_by_type = Vec::new();
+        let active_allocations = Vec::new();
+
+        // Should not panic with empty data
+        let html = tracker.generate_summary_html(&stats, &memory_by_type, &active_allocations)?;
+
+        assert!(!html.is_empty());
+        assert!(html.contains("Memory Analysis Summary"));
+
+        Ok(())
+    }
+}

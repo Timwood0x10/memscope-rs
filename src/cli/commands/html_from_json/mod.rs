@@ -190,10 +190,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             "   Template size: {:.1} KB",
             template_size_bytes as f64 / 1024.0
         );
-        tracing::info!(
-            "   Total generation time: {}ms",
-            generation_time_ms
-        );
+        tracing::info!("   Total generation time: {}ms", generation_time_ms);
 
         // Determine output path - if output is just a filename, put it in the input directory
         let output_path = if Path::new(output_file).is_absolute() || output_file.contains('/') {
@@ -549,7 +546,9 @@ fn load_single_file_internal(
 
     // Use large file optimizer for files > 50MB or if specified in config
     let use_large_file_optimizer = file_size > 50 * 1024 * 1024
-        || config.max_size_mb.is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
+        || config
+            .max_size_mb
+            .is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
 
     if use_large_file_optimizer {
         // Use optimized large file processing
@@ -712,7 +711,9 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
 
     // Use large file optimizer for files > 50MB or if specified in config
     let use_large_file_optimizer = file_size > 50 * 1024 * 1024
-        || config.max_size_mb.is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
+        || config
+            .max_size_mb
+            .is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
 
     let result = if use_large_file_optimizer {
         // Use optimized large file processing

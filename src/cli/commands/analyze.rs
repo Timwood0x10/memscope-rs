@@ -336,9 +336,7 @@ fn _analyze_existing_snapshot(
             // Both HTML and SVG generation - not implemented
             Err("Both format generation not implemented".into())
         }
-        _ => {
-            Err(format!("Unsupported format: {format}").into())
-        }
+        _ => Err(format!("Unsupported format: {format}").into()),
     }
 }
 

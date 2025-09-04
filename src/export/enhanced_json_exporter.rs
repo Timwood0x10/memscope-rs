@@ -6,7 +6,11 @@
 //! 3. unsafe_ffi.json - FFI safety analysis and memory passports
 
 use crate::analysis::unsafe_ffi_tracker::MemoryPassport;
-use crate::core::types::{AllocationInfo, BorrowInfo, CloneInfo, MemoryStats, TrackingResult,TrackingError::{ExportError,SerializationError}};
+use crate::core::types::{
+    AllocationInfo, BorrowInfo, CloneInfo, MemoryStats,
+    TrackingError::{ExportError, SerializationError},
+    TrackingResult,
+};
 use crate::UnsafeReport;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -122,11 +126,8 @@ impl EnhancedJsonExporter {
         );
 
         // Create output directory if it doesn't exist
-        std::fs::create_dir_all(output_dir).map_err(|e| {
-            ExportError(format!(
-                "Failed to create output directory: {e}",
-            ))
-        })?;
+        std::fs::create_dir_all(output_dir)
+            .map_err(|e| ExportError(format!("Failed to create output directory: {e}",)))?;
 
         // 1. Export main memory analysis with extended fields
         self.export_memory_analysis(output_dir, memory_stats)?;
@@ -382,11 +383,7 @@ impl EnhancedJsonExporter {
         } else {
             serde_json::to_string(data)
         }
-        .map_err(|e| {
-            SerializationError(format!(
-                "Failed to serialize JSON: {e}",
-            ))
-        })?;
+        .map_err(|e| SerializationError(format!("Failed to serialize JSON: {e}",)))?;
 
         std::fs::write(&path, json_string).map_err(|e| {
             ExportError(format!(

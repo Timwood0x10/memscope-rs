@@ -191,7 +191,7 @@ impl EnhancedCallStackNormalizer {
         }
 
         Err(crate::core::types::TrackingError::DataError(format!(
-            "Call stack with ID {id} not found for ref count increment" 
+            "Call stack with ID {id} not found for ref count increment"
         )))
     }
 

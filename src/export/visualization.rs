@@ -1295,7 +1295,10 @@ pub fn enhance_type_information(
                 } else {
                     None
                 }
-            }).take(5).cloned().collect();
+            })
+            .take(5)
+            .cloned()
+            .collect();
 
         // Add the main type with subcategory information
         enhanced_types.push(crate::export::export_enhanced::EnhancedTypeInfo {
@@ -1498,11 +1501,7 @@ fn add_dashboard_header(
     let metrics = [
         ("Unsafe Allocations", unsafe_count, "#e74c3c"),
         ("FFI Allocations", ffi_count, "#3498db"),
-        (
-            "Boundary Crossings",
-            cross_boundary_events,
-            "#f39c12",
-        ),
+        ("Boundary Crossings", cross_boundary_events, "#f39c12"),
         ("Safety Violations", violations.len(), "#e67e22"),
         ("Unsafe Memory", total_unsafe_memory, "#9b59b6"),
     ];

@@ -30,11 +30,11 @@ mod tests {
     fn test_basic_allocation_tracking() {
         // Test basic allocation tracking functionality
         ensure_init();
-        
+
         // Track a simple allocation
         let data = vec![1, 2, 3, 4, 5];
         track_var!(data);
-        
+
         // Verify the data is still accessible
         assert_eq!(data, vec![1, 2, 3, 4, 5]);
     }
@@ -44,13 +44,13 @@ mod tests {
         // Test variable lifecycle tracking
         ensure_init();
         let tracker = get_global_tracker();
-        
+
         {
             let data = String::from("test_string");
             track_var!(data);
             // Variable goes out of scope here
         }
-        
+
         // Test that tracker handles scope exit properly
         let stats_result = tracker.get_stats();
         assert!(stats_result.is_ok());
@@ -61,14 +61,14 @@ mod tests {
         // Test tracking multiple variables
         ensure_init();
         let tracker = get_global_tracker();
-        
+
         let vec_data = vec![1, 2, 3];
         let string_data = String::from("test");
         let _number_data = 42i32; // i32 doesn't implement Trackable
-        
+
         track_var!(vec_data);
         track_var!(string_data);
-        
+
         // Verify all variables are tracked
         let stats_result = tracker.get_stats();
         assert!(stats_result.is_ok());
@@ -79,7 +79,7 @@ mod tests {
         // Test error handling in various scenarios
         ensure_init();
         let tracker = get_global_tracker();
-        
+
         // Test export with empty tracker
         let result = tracker.get_stats();
         assert!(result.is_ok());
@@ -89,20 +89,22 @@ mod tests {
     fn test_concurrent_tracking() {
         // Test concurrent access to tracking functionality
         use std::thread;
-        
+
         // Ensure initialization happens in main thread first
         ensure_init();
-        
-        let handles: Vec<_> = (0..4).map(|i| {
-            thread::spawn(move || {
-                let tracker = get_global_tracker();
-                let data = vec![i; 10];
-                track_var!(data);
-                let export_result = tracker.get_stats();
-                export_result
+
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                thread::spawn(move || {
+                    let tracker = get_global_tracker();
+                    let data = vec![i; 10];
+                    track_var!(data);
+                    let export_result = tracker.get_stats();
+                    export_result
+                })
             })
-        }).collect();
-        
+            .collect();
+
         for handle in handles {
             let export_result = handle.join().expect("Thread panicked");
             assert!(export_result.is_ok());
@@ -114,10 +116,10 @@ mod tests {
         // Test tracking of larger data structures
         ensure_init();
         let tracker = get_global_tracker();
-        
+
         let large_vec: Vec<i32> = (0..1000).collect();
         track_var!(large_vec);
-        
+
         let result = tracker.get_stats();
         assert!(result.is_ok());
     }
@@ -127,14 +129,10 @@ mod tests {
         // Test tracking of nested data structures
         ensure_init();
         let tracker = get_global_tracker();
-        
-        let nested_data = vec![
-            vec![1, 2, 3],
-            vec![4, 5, 6],
-            vec![7, 8, 9],
-        ];
+
+        let nested_data = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
         track_var!(nested_data);
-        
+
         let result = tracker.get_stats();
         assert!(result.is_ok());
     }
@@ -144,11 +142,11 @@ mod tests {
         // Test string-related tracking
         ensure_init();
         let tracker = get_global_tracker();
-        
+
         let mut string_data = String::from("initial");
         string_data.push_str(" appended");
         track_var!(string_data);
-        
+
         let result = tracker.get_stats();
         assert!(result.is_ok());
     }
@@ -158,13 +156,13 @@ mod tests {
         // Test tracking of Option types
         ensure_init();
         let tracker = get_global_tracker();
-        
+
         let some_data = Some(vec![1, 2, 3]);
         let none_data: Option<Vec<i32>> = None;
-        
+
         track_var!(some_data);
         track_var!(none_data);
-        
+
         let result = tracker.get_stats();
         assert!(result.is_ok());
     }

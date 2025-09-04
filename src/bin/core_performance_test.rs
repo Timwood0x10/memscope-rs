@@ -4,7 +4,7 @@
 
 use memscope_rs::{get_global_tracker, init};
 use std::fs;
-use std::path::{PathBuf,Path};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 

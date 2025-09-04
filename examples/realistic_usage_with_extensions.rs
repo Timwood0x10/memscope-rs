@@ -49,9 +49,7 @@ fn demonstrate_borrowing_scenario() {
         let sum: i32 = _borrow1.iter().sum();
         let len = _borrow2.len();
         let first = _borrow3.first();
-        println!(
-            "   ✓ Used borrows: sum={sum}, len={len}, first={first:?}"
-        );
+        println!("   ✓ Used borrows: sum={sum}, len={len}, first={first:?}");
     }
 
     // Mutable borrow

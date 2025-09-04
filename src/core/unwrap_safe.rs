@@ -249,9 +249,7 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
                 value
             }
             Err(error) => {
-                tracing::warn!(
-                    "Safe unwrap failed (Error: {error:?}), using default: {context}",
-                );
+                tracing::warn!("Safe unwrap failed (Error: {error:?}), using default: {context}",);
                 default
             }
         }
@@ -285,9 +283,7 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
                 tracing::error!("Safe unwrap failed (Error: {error:?}): {context}");
                 Err(MemScopeError::system(
                     SystemErrorType::Io,
-                    format!(
-                        "Result unwrap failed in context: {context} - error: {error:?}",
-                    ),
+                    format!("Result unwrap failed in context: {context} - error: {error:?}",),
                 ))
             }
         }
@@ -438,17 +434,17 @@ mod tests {
             location: Some("test.rs:42"),
             backtrace: Backtrace::capture(),
         };
-        
+
         let display_str = format!("{}", none_error);
         assert!(display_str.contains("test context"));
         assert!(display_str.contains("test.rs:42"));
-        
+
         let none_error_no_location = UnwrapError::NoneValue {
             context: "test context",
             location: None,
             backtrace: Backtrace::capture(),
         };
-        
+
         let display_str = format!("{}", none_error_no_location);
         assert!(display_str.contains("test context"));
         assert!(!display_str.contains("test.rs:42"));
@@ -463,7 +459,7 @@ mod tests {
             location: Some("main.rs:10"),
             backtrace: Backtrace::capture(),
         };
-        
+
         let display_str = format!("{}", result_error);
         assert!(display_str.contains("file operation"));
         assert!(display_str.contains("main.rs:10"));
@@ -483,7 +479,7 @@ mod tests {
         let option: Option<i32> = None;
         let result = option.try_unwrap("test failure");
         assert!(result.is_err());
-        
+
         if let Err(UnwrapError::NoneValue { context, .. }) = result {
             assert_eq!(context, "test failure");
         } else {
@@ -496,8 +492,11 @@ mod tests {
         let option: Option<i32> = None;
         let result = option.try_unwrap_at("test context", "test.rs:100");
         assert!(result.is_err());
-        
-        if let Err(UnwrapError::NoneValue { context, location, .. }) = result {
+
+        if let Err(UnwrapError::NoneValue {
+            context, location, ..
+        }) = result
+        {
             assert_eq!(context, "test context");
             assert_eq!(location, Some("test.rs:100"));
         } else {
@@ -510,7 +509,7 @@ mod tests {
         let some_option = Some(42);
         let result = some_option.unwrap_or_default_safe(99, "test default");
         assert_eq!(result, 42);
-        
+
         let none_option: Option<i32> = None;
         let result = none_option.unwrap_or_default_safe(99, "test default");
         assert_eq!(result, 99);
@@ -521,7 +520,7 @@ mod tests {
         let some_option = Some(42);
         let result = some_option.unwrap_or_else_safe(|| 99, "test else");
         assert_eq!(result, 42);
-        
+
         let none_option: Option<i32> = None;
         let result = none_option.unwrap_or_else_safe(|| 99, "test else");
         assert_eq!(result, 99);
@@ -537,10 +536,11 @@ mod tests {
 
     #[test]
     fn test_result_try_unwrap_failure() {
-        let result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
+        let result: Result<i32, std::io::Error> =
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
         let unwrap_result = result.try_unwrap("test failure");
         assert!(unwrap_result.is_err());
-        
+
         if let Err(UnwrapError::ResultError { context, .. }) = unwrap_result {
             assert_eq!(context, "test failure");
         } else {
@@ -550,11 +550,15 @@ mod tests {
 
     #[test]
     fn test_result_try_unwrap_at() {
-        let result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
+        let result: Result<i32, std::io::Error> =
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
         let unwrap_result = result.try_unwrap_at("test context", "main.rs:50");
         assert!(unwrap_result.is_err());
-        
-        if let Err(UnwrapError::ResultError { context, location, .. }) = unwrap_result {
+
+        if let Err(UnwrapError::ResultError {
+            context, location, ..
+        }) = unwrap_result
+        {
             assert_eq!(context, "test context");
             assert_eq!(location, Some("main.rs:50"));
         } else {
@@ -567,8 +571,9 @@ mod tests {
         let ok_result: Result<i32, std::io::Error> = Ok(42);
         let result = ok_result.unwrap_or_default_safe(99, "test default");
         assert_eq!(result, 42);
-        
-        let err_result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+
+        let err_result: Result<i32, std::io::Error> =
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
         let result = err_result.unwrap_or_default_safe(99, "test default");
         assert_eq!(result, 99);
     }
@@ -578,8 +583,9 @@ mod tests {
         let ok_result: Result<i32, std::io::Error> = Ok(42);
         let result = ok_result.unwrap_or_else_safe(|| 99, "test else");
         assert_eq!(result, 42);
-        
-        let err_result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+
+        let err_result: Result<i32, std::io::Error> =
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
         let result = err_result.unwrap_or_else_safe(|| 99, "test else");
         assert_eq!(result, 99);
     }
@@ -596,12 +602,12 @@ mod tests {
     #[test]
     fn test_unwrap_stats_record_operations() {
         let mut stats = UnwrapStats::new();
-        
+
         stats.record_success();
         stats.record_failure();
         stats.record_default_use();
         stats.record_panic_preservation();
-        
+
         assert_eq!(stats.successful_unwraps, 1);
         assert_eq!(stats.failed_unwraps, 1);
         assert_eq!(stats.default_value_uses, 1);
@@ -611,28 +617,28 @@ mod tests {
     #[test]
     fn test_unwrap_stats_total_operations() {
         let mut stats = UnwrapStats::new();
-        
+
         stats.record_success();
         stats.record_success();
         stats.record_failure();
         stats.record_default_use();
-        
+
         assert_eq!(stats.total_operations(), 4);
     }
 
     #[test]
     fn test_unwrap_stats_success_rate() {
         let mut stats = UnwrapStats::new();
-        
+
         // Test with no operations
         assert_eq!(stats.success_rate(), 0.0);
-        
+
         // Test with some operations
         stats.record_success();
         stats.record_success();
         stats.record_success();
         stats.record_failure();
-        
+
         let expected_rate = 3.0 / 4.0;
         assert!((stats.success_rate() - expected_rate).abs() < f64::EPSILON);
     }
@@ -659,7 +665,7 @@ mod tests {
             location: None,
             backtrace: Backtrace::capture(),
         };
-        
+
         let _backtrace = error.backtrace();
         // Just ensure we can access the backtrace without panic
     }
@@ -672,7 +678,7 @@ mod tests {
             backtrace: Backtrace::capture(),
         };
         assert!(none_error.source().is_none());
-        
+
         let source_error = std::io::Error::new(std::io::ErrorKind::NotFound, "test");
         let result_error = UnwrapError::ResultError {
             source: Box::new(source_error),
@@ -691,7 +697,7 @@ mod tests {
             let result = some_option.try_unwrap_safe("test");
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), 42);
-            
+
             let none_option: Option<i32> = None;
             let result = none_option.try_unwrap_safe("test");
             assert!(result.is_err());
@@ -706,8 +712,9 @@ mod tests {
             let result = ok_result.try_unwrap_safe("test");
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), 42);
-            
-            let err_result: Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+
+            let err_result: Result<i32, std::io::Error> =
+                Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
             let result = err_result.try_unwrap_safe("test");
             assert!(result.is_err());
         }

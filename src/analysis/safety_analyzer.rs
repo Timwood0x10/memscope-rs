@@ -1130,8 +1130,14 @@ mod tests {
 
     #[test]
     fn test_risk_factor_type_equality() {
-        assert_eq!(RiskFactorType::RawPointerDereference, RiskFactorType::RawPointerDereference);
-        assert_ne!(RiskFactorType::RawPointerDereference, RiskFactorType::UnsafeDataRace);
+        assert_eq!(
+            RiskFactorType::RawPointerDereference,
+            RiskFactorType::RawPointerDereference
+        );
+        assert_ne!(
+            RiskFactorType::RawPointerDereference,
+            RiskFactorType::UnsafeDataRace
+        );
     }
 
     #[test]
@@ -1343,20 +1349,6 @@ mod tests {
     }
 
     #[test]
-    fn test_risk_assessment_engine_creation() {
-        let engine = RiskAssessmentEngine::new();
-        // Engine creation should succeed
-        assert!(true);
-    }
-
-    #[test]
-    fn test_risk_assessment_engine_default() {
-        let engine = RiskAssessmentEngine::default();
-        // Default engine creation should succeed
-        assert!(true);
-    }
-
-    #[test]
     fn test_risk_assessment_engine_assess_unsafe_block() {
         let engine = RiskAssessmentEngine::new();
         let source = UnsafeSource::UnsafeBlock {
@@ -1420,7 +1412,10 @@ mod tests {
 
         assert!(assessment.risk_score >= 0.0);
         assert!(!assessment.risk_factors.is_empty());
-        assert_eq!(assessment.risk_factors[0].factor_type, RiskFactorType::RawPointerDereference);
+        assert_eq!(
+            assessment.risk_factors[0].factor_type,
+            RiskFactorType::RawPointerDereference
+        );
     }
 
     #[test]
@@ -1442,7 +1437,10 @@ mod tests {
 
         assert!(assessment.risk_score >= 0.0);
         assert!(!assessment.risk_factors.is_empty());
-        assert_eq!(assessment.risk_factors[0].factor_type, RiskFactorType::InvalidTransmute);
+        assert_eq!(
+            assessment.risk_factors[0].factor_type,
+            RiskFactorType::InvalidTransmute
+        );
         // Pointer transmutes should have higher severity
         assert!(assessment.risk_factors[0].severity >= 8.0);
     }
@@ -1624,11 +1622,8 @@ mod tests {
         let analyzer = SafetyAnalyzer::new(config);
 
         // Test passport creation with disabled tracking
-        let result = analyzer.create_memory_passport(
-            0x7000,
-            256,
-            PassportEventType::AllocatedInRust,
-        );
+        let result =
+            analyzer.create_memory_passport(0x7000, 256, PassportEventType::AllocatedInRust);
         assert!(result.is_ok());
         let passport_id = result.unwrap();
         assert!(passport_id.is_empty()); // Should return empty string when disabled

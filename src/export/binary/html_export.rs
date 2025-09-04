@@ -4,9 +4,7 @@
 //! using the templates in ./templates/
 
 use crate::export::binary::config::{DashboardExportStats, DashboardFormat, DashboardOptions};
-use crate::export::binary::{
-    error::BinaryExportError, DataScope,
-};
+use crate::export::binary::{error::BinaryExportError, DataScope};
 use std::path::Path;
 
 /// Output format for binary export
@@ -1015,7 +1013,6 @@ fn convert_allocation_to_binary_data(
         },
     )
 }
-
 
 #[derive(serde::Serialize)]
 struct AllocationData {

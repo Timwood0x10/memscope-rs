@@ -97,9 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📊 improve.md Extensions Summary (first 10 allocations):");
     println!("   • borrow_info present: {has_borrow_info}/10");
     println!("   • clone_info present: {has_clone_info}/10");
-    println!(
-        "   • ownership_history_available: {has_ownership_history}/10"
-    );
+    println!("   • ownership_history_available: {has_ownership_history}/10");
     println!("   • lifetime_ms present: {has_lifetime_ms}/10");
 
     // Overall statistics
@@ -121,9 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|a| a.lifetime_ms.is_some())
         .count();
 
-    println!(
-        "\n📈 Overall Statistics (all {total_allocations} allocations):"
-    );
+    println!("\n📈 Overall Statistics (all {total_allocations} allocations):");
     println!(
         "   • borrow_info: {}/{} ({:.1}%)",
         total_with_borrow_info,
@@ -155,9 +151,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write("binary_to_json_output.json", &json_output)?;
 
     let json_size = json_output.len();
-    println!(
-        "✅ JSON output written to: binary_to_json_output.json ({json_size} bytes)"
-    );
+    println!("✅ JSON output written to: binary_to_json_output.json ({json_size} bytes)");
 
     // Show sample JSON content
     println!("\n📄 Sample JSON content (first allocation):");

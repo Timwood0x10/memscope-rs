@@ -157,8 +157,11 @@ impl LifecycleAnalyzer {
 
     /// Identify how the resource is released
     fn identify_release_method(&self, type_name: &str) -> ReleaseMethod {
-        if type_name.contains("Guard") || type_name.contains("Lock") 
-            || type_name.contains("File") || type_name.contains("Stream") {
+        if type_name.contains("Guard")
+            || type_name.contains("Lock")
+            || type_name.contains("File")
+            || type_name.contains("Stream")
+        {
             ReleaseMethod::AutomaticDrop
         } else if type_name.contains("Box") || type_name.contains("Vec") {
             ReleaseMethod::Deallocation
@@ -411,7 +414,6 @@ impl Default for BorrowTracker {
     }
 }
 
-
 impl BorrowTracker {
     /// Create a new borrow tracker
     pub fn new() -> Self {
@@ -517,7 +519,10 @@ impl BorrowTracker {
     }
 
     fn has_borrow_conflict(&self, borrow1: &BorrowInfo, borrow2: &BorrowInfo) -> bool {
-        matches!((&borrow1.borrow_type, &borrow2.borrow_type), (BorrowType::Mutable, _) | (_, BorrowType::Mutable))
+        matches!(
+            (&borrow1.borrow_type, &borrow2.borrow_type),
+            (BorrowType::Mutable, _) | (_, BorrowType::Mutable)
+        )
     }
 
     fn classify_conflict(&self, borrow1: &BorrowInfo, borrow2: &BorrowInfo) -> ConflictType {
@@ -752,8 +757,6 @@ pub struct LifecycleAnalysisReport {
     pub analysis_timestamp: u64,
 }
 
-
-
 /// Get current timestamp in nanoseconds
 fn current_timestamp() -> u64 {
     SystemTime::now()
@@ -782,7 +785,7 @@ mod tests {
     #[test]
     fn test_lifecycle_analyzer_creation() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         // Test that analyzer is properly initialized
         assert!(analyzer.drop_events.lock().is_ok());
         assert!(analyzer.raii_patterns.lock().is_ok());
@@ -795,7 +798,7 @@ mod tests {
         // Test that we can create multiple analyzers without issues
         let analyzer1 = LifecycleAnalyzer::new();
         let analyzer2 = LifecycleAnalyzer::new();
-        
+
         // Each should be independent instances
         assert!(analyzer1.drop_events.lock().is_ok());
         assert!(analyzer2.drop_events.lock().is_ok());
@@ -804,9 +807,9 @@ mod tests {
     #[test]
     fn test_record_drop_event() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         analyzer.record_drop_event(0x1000, "Vec<i32>", true);
-        
+
         // Verify drop event was recorded
         let events = analyzer.drop_events.lock().unwrap();
         assert_eq!(events.len(), 1);
@@ -821,7 +824,7 @@ mod tests {
     #[test]
     fn test_identify_resource_type() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         // Test file handle detection
         assert_eq!(
             analyzer.identify_resource_type("std::fs::File"),
@@ -831,7 +834,7 @@ mod tests {
             analyzer.identify_resource_type("BufReader<File>"),
             Some(ResourceType::FileHandle)
         );
-        
+
         // Test network socket detection
         assert_eq!(
             analyzer.identify_resource_type("TcpStream"),
@@ -841,7 +844,7 @@ mod tests {
             analyzer.identify_resource_type("UdpSocket"),
             Some(ResourceType::NetworkSocket)
         );
-        
+
         // Test synchronization primitive detection
         assert_eq!(
             analyzer.identify_resource_type("Mutex<T>"),
@@ -851,13 +854,13 @@ mod tests {
             analyzer.identify_resource_type("RwLock<T>"),
             Some(ResourceType::SynchronizationPrimitive)
         );
-        
+
         // Test thread handle detection
         assert_eq!(
             analyzer.identify_resource_type("JoinHandle<()>"),
             Some(ResourceType::ThreadHandle)
         );
-        
+
         // Test memory detection
         assert_eq!(
             analyzer.identify_resource_type("Box<dyn Trait>"),
@@ -871,24 +874,21 @@ mod tests {
             analyzer.identify_resource_type("String"),
             Some(ResourceType::Memory)
         );
-        
+
         // Test lock guard detection
         assert_eq!(
             analyzer.identify_resource_type("MutexGuard<T>"),
             Some(ResourceType::SynchronizationPrimitive)
         );
-        
+
         // Test unknown type
-        assert_eq!(
-            analyzer.identify_resource_type("SomeCustomType"),
-            None
-        );
+        assert_eq!(analyzer.identify_resource_type("SomeCustomType"), None);
     }
 
     #[test]
     fn test_identify_acquisition_method() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         assert_eq!(
             analyzer.identify_acquisition_method("Box::new"),
             AcquisitionMethod::Constructor
@@ -914,7 +914,7 @@ mod tests {
     #[test]
     fn test_identify_release_method() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         assert_eq!(
             analyzer.identify_release_method("MutexGuard"),
             ReleaseMethod::AutomaticDrop
@@ -940,7 +940,7 @@ mod tests {
     #[test]
     fn test_infer_scope_type() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         assert_eq!(
             analyzer.infer_scope_type(&Some("fn main()".to_string())),
             ScopeType::Function
@@ -969,16 +969,13 @@ mod tests {
             analyzer.infer_scope_type(&Some("{ block }".to_string())),
             ScopeType::Block
         );
-        assert_eq!(
-            analyzer.infer_scope_type(&None),
-            ScopeType::Unknown
-        );
+        assert_eq!(analyzer.infer_scope_type(&None), ScopeType::Unknown);
     }
 
     #[test]
     fn test_calculate_nesting_level() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         assert_eq!(
             analyzer.calculate_nesting_level(&Some("fn main() { { } }".to_string())),
             2
@@ -987,16 +984,13 @@ mod tests {
             analyzer.calculate_nesting_level(&Some("simple".to_string())),
             0
         );
-        assert_eq!(
-            analyzer.calculate_nesting_level(&None),
-            0
-        );
+        assert_eq!(analyzer.calculate_nesting_level(&None), 0);
     }
 
     #[test]
     fn test_is_exception_safe() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         assert!(analyzer.is_exception_safe("Vec<i32>"));
         assert!(analyzer.is_exception_safe("String"));
         assert!(!analyzer.is_exception_safe("unsafe fn"));
@@ -1006,14 +1000,14 @@ mod tests {
     #[test]
     fn test_detect_raii_patterns() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         let mut allocation = AllocationInfo::new(0x1000, 1024);
         allocation.type_name = Some("std::fs::File".to_string());
         allocation.scope_name = Some("fn main()".to_string());
-        
+
         let allocations = vec![allocation];
         let patterns = analyzer.detect_raii_patterns(&allocations);
-        
+
         assert_eq!(patterns.len(), 1);
         let pattern = &patterns[0];
         assert_eq!(pattern.ptr, 0x1000);
@@ -1029,7 +1023,7 @@ mod tests {
     #[test]
     fn test_borrow_tracker_creation() {
         let tracker = BorrowTracker::new();
-        
+
         assert!(tracker.active_borrows.is_empty());
         assert!(tracker.borrow_history.is_empty());
         assert_eq!(tracker.next_borrow_id, 1);
@@ -1038,15 +1032,15 @@ mod tests {
     #[test]
     fn test_track_borrow() {
         let mut tracker = BorrowTracker::new();
-        
+
         let borrow_id = tracker.track_borrow(0x1000, BorrowType::Immutable, "test.rs:10");
-        
+
         assert_eq!(borrow_id, 1);
         assert_eq!(tracker.next_borrow_id, 2);
         assert!(tracker.active_borrows.contains_key(&0x1000));
         assert_eq!(tracker.active_borrows[&0x1000].len(), 1);
         assert_eq!(tracker.borrow_history.len(), 1);
-        
+
         let borrow_info = &tracker.active_borrows[&0x1000][0];
         assert_eq!(borrow_info.borrow_id, 1);
         assert_eq!(borrow_info.borrow_type, BorrowType::Immutable);
@@ -1057,13 +1051,13 @@ mod tests {
     #[test]
     fn test_release_borrow() {
         let mut tracker = BorrowTracker::new();
-        
+
         let borrow_id = tracker.track_borrow(0x1000, BorrowType::Mutable, "test.rs:15");
         tracker.release_borrow(0x1000, borrow_id);
-        
+
         assert!(!tracker.active_borrows.contains_key(&0x1000));
         assert_eq!(tracker.borrow_history.len(), 2); // Acquire + Release
-        
+
         let release_event = &tracker.borrow_history[1];
         assert_eq!(release_event.event_type, BorrowEventType::Released);
         assert_eq!(release_event.ptr, 0x1000);
@@ -1072,17 +1066,17 @@ mod tests {
     #[test]
     fn test_borrow_conflict_detection() {
         let mut tracker = BorrowTracker::new();
-        
+
         // Create conflicting borrows
         tracker.track_borrow(0x1000, BorrowType::Mutable, "test.rs:20");
         tracker.track_borrow(0x1000, BorrowType::Immutable, "test.rs:21");
-        
+
         let analysis = tracker.get_analysis();
-        
+
         assert_eq!(analysis.total_borrows, 2);
         assert_eq!(analysis.active_borrows, 1); // Same pointer, so only one entry
         assert_eq!(analysis.conflicts.len(), 1);
-        
+
         let conflict = &analysis.conflicts[0];
         assert_eq!(conflict.ptr, 0x1000);
         assert_eq!(conflict.conflict_type, ConflictType::MutableImmutable);
@@ -1091,7 +1085,7 @@ mod tests {
     #[test]
     fn test_has_borrow_conflict() {
         let tracker = BorrowTracker::new();
-        
+
         let mutable_borrow = BorrowInfo {
             borrow_id: 1,
             borrow_type: BorrowType::Mutable,
@@ -1099,7 +1093,7 @@ mod tests {
             location: "test.rs:1".to_string(),
             thread_id: "thread-1".to_string(),
         };
-        
+
         let immutable_borrow = BorrowInfo {
             borrow_id: 2,
             borrow_type: BorrowType::Immutable,
@@ -1107,7 +1101,7 @@ mod tests {
             location: "test.rs:2".to_string(),
             thread_id: "thread-1".to_string(),
         };
-        
+
         let another_immutable = BorrowInfo {
             borrow_id: 3,
             borrow_type: BorrowType::Immutable,
@@ -1115,11 +1109,11 @@ mod tests {
             location: "test.rs:3".to_string(),
             thread_id: "thread-1".to_string(),
         };
-        
+
         // Mutable vs Immutable should conflict
         assert!(tracker.has_borrow_conflict(&mutable_borrow, &immutable_borrow));
         assert!(tracker.has_borrow_conflict(&immutable_borrow, &mutable_borrow));
-        
+
         // Immutable vs Immutable should not conflict
         assert!(!tracker.has_borrow_conflict(&immutable_borrow, &another_immutable));
     }
@@ -1127,7 +1121,7 @@ mod tests {
     #[test]
     fn test_classify_conflict() {
         let tracker = BorrowTracker::new();
-        
+
         let mutable1 = BorrowInfo {
             borrow_id: 1,
             borrow_type: BorrowType::Mutable,
@@ -1135,7 +1129,7 @@ mod tests {
             location: "test.rs:1".to_string(),
             thread_id: "thread-1".to_string(),
         };
-        
+
         let mutable2 = BorrowInfo {
             borrow_id: 2,
             borrow_type: BorrowType::Mutable,
@@ -1143,7 +1137,7 @@ mod tests {
             location: "test.rs:2".to_string(),
             thread_id: "thread-1".to_string(),
         };
-        
+
         let immutable = BorrowInfo {
             borrow_id: 3,
             borrow_type: BorrowType::Immutable,
@@ -1151,7 +1145,7 @@ mod tests {
             location: "test.rs:3".to_string(),
             thread_id: "thread-1".to_string(),
         };
-        
+
         assert_eq!(
             tracker.classify_conflict(&mutable1, &mutable2),
             ConflictType::MutableMutable
@@ -1169,7 +1163,7 @@ mod tests {
     #[test]
     fn test_analyze_closure_capture() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         let captured_vars = vec![
             CapturedVariable {
                 var_name: "x".to_string(),
@@ -1186,20 +1180,23 @@ mod tests {
                 size: 8,
             },
         ];
-        
+
         analyzer.analyze_closure_capture(0x5000, captured_vars.clone());
-        
+
         // Verify closure capture was recorded
         let captures = analyzer.closure_captures.lock().unwrap();
         assert_eq!(captures.len(), 1);
-        
+
         let capture = &captures[0];
         assert_eq!(capture.closure_ptr, 0x5000);
         assert_eq!(capture.captured_vars.len(), 2);
         assert_eq!(capture.captured_vars[0].var_name, "x");
         assert_eq!(capture.captured_vars[0].capture_mode, CaptureMode::ByValue);
         assert_eq!(capture.captured_vars[1].var_name, "y");
-        assert_eq!(capture.captured_vars[1].capture_mode, CaptureMode::ByReference);
+        assert_eq!(
+            capture.captured_vars[1].capture_mode,
+            CaptureMode::ByReference
+        );
         assert!(capture.capture_timestamp > 0);
         assert!(!capture.thread_id.is_empty());
     }
@@ -1207,10 +1204,10 @@ mod tests {
     #[test]
     fn test_track_borrow_operations() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         analyzer.track_borrow(0x1000, BorrowType::Immutable, "test.rs:30");
         analyzer.track_borrow_release(0x1000, 1);
-        
+
         // Verify borrow operations were tracked
         let tracker = analyzer.borrow_tracker.lock().unwrap();
         assert_eq!(tracker.borrow_history.len(), 2);
@@ -1220,16 +1217,16 @@ mod tests {
     #[test]
     fn test_get_lifecycle_report() {
         let analyzer = LifecycleAnalyzer::new();
-        
+
         // Add some test data
         analyzer.record_drop_event(0x1000, "Vec<i32>", true);
-        
+
         let mut allocation = AllocationInfo::new(0x2000, 512);
         allocation.type_name = Some("std::fs::File".to_string());
         analyzer.detect_raii_patterns(&[allocation]);
-        
+
         analyzer.track_borrow(0x3000, BorrowType::Mutable, "test.rs:40");
-        
+
         let captured_vars = vec![CapturedVariable {
             var_name: "data".to_string(),
             var_ptr: 0x4000,
@@ -1238,9 +1235,9 @@ mod tests {
             size: 24,
         }];
         analyzer.analyze_closure_capture(0x5000, captured_vars);
-        
+
         let report = analyzer.get_lifecycle_report();
-        
+
         assert_eq!(report.drop_events.len(), 1);
         assert_eq!(report.raii_patterns.len(), 1);
         assert_eq!(report.borrow_analysis.total_borrows, 1);
@@ -1251,7 +1248,7 @@ mod tests {
     #[test]
     fn test_borrow_pattern_analysis() {
         let mut tracker = BorrowTracker::new();
-        
+
         // Create many short borrows to trigger pattern detection
         for i in 0..15 {
             let borrow_id = tracker.track_borrow(0x1000 + i, BorrowType::Immutable, "test.rs");
@@ -1269,18 +1266,21 @@ mod tests {
                 timestamp: 1000 + 500_000, // 0.5ms later
             });
         }
-        
+
         let analysis = tracker.get_analysis();
-        
+
         // The pattern detection should find short borrows
         // If no patterns are detected, that's also valid behavior
         if !analysis.borrow_patterns.is_empty() {
             let pattern = &analysis.borrow_patterns[0];
-            assert_eq!(pattern.pattern_type, BorrowPatternType::FrequentShortBorrows);
+            assert_eq!(
+                pattern.pattern_type,
+                BorrowPatternType::FrequentShortBorrows
+            );
             assert!(pattern.description.contains("short-lived borrows"));
             assert!(!pattern.suggestion.is_empty());
         }
-        
+
         // Verify that we have the expected number of borrow events
         assert_eq!(analysis.total_borrows, 30); // 15 acquire + 15 release
     }
@@ -1297,11 +1297,11 @@ mod tests {
             ResourceType::LockGuard,
             ResourceType::Other("custom".to_string()),
         ];
-        
+
         for resource_type in resource_types {
             assert!(format!("{:?}", resource_type).len() > 0);
         }
-        
+
         let acquisition_methods = vec![
             AcquisitionMethod::Constructor,
             AcquisitionMethod::SystemCall,
@@ -1309,22 +1309,22 @@ mod tests {
             AcquisitionMethod::Allocation,
             AcquisitionMethod::Unknown,
         ];
-        
+
         for method in acquisition_methods {
             assert!(format!("{:?}", method).len() > 0);
         }
-        
+
         let release_methods = vec![
             ReleaseMethod::AutomaticDrop,
             ReleaseMethod::CustomDrop,
             ReleaseMethod::Deallocation,
             ReleaseMethod::SystemCall,
         ];
-        
+
         for method in release_methods {
             assert!(format!("{:?}", method).len() > 0);
         }
-        
+
         let scope_types = vec![
             ScopeType::Function,
             ScopeType::Method,
@@ -1333,23 +1333,23 @@ mod tests {
             ScopeType::Conditional,
             ScopeType::Unknown,
         ];
-        
+
         for scope_type in scope_types {
             assert!(format!("{:?}", scope_type).len() > 0);
         }
-        
+
         let borrow_types = vec![BorrowType::Immutable, BorrowType::Mutable];
-        
+
         for borrow_type in borrow_types {
             assert!(format!("{:?}", borrow_type).len() > 0);
         }
-        
+
         let capture_modes = vec![
             CaptureMode::ByValue,
             CaptureMode::ByReference,
             CaptureMode::ByMutableReference,
         ];
-        
+
         for mode in capture_modes {
             assert!(format!("{:?}", mode).len() > 0);
         }
@@ -1360,7 +1360,7 @@ mod tests {
         let timestamp1 = current_timestamp();
         std::thread::sleep(std::time::Duration::from_millis(1));
         let timestamp2 = current_timestamp();
-        
+
         assert!(timestamp2 > timestamp1);
         assert!(timestamp1 > 0);
     }

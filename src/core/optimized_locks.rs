@@ -333,31 +333,31 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
-    
+
     #[test]
     fn test_optimized_mutex_basic_functionality() {
         let mutex = OptimizedMutex::new(42);
-        
+
         {
             let guard = mutex.lock();
             assert_eq!(*guard, 42);
         }
-        
+
         // Test that lock is released
         {
             let mut guard = mutex.lock();
             *guard = 100;
         }
-        
+
         let guard = mutex.lock();
         assert_eq!(*guard, 100);
     }
-    
+
     #[test]
     fn test_optimized_mutex_concurrent_access() {
         let mutex = Arc::new(OptimizedMutex::new(0));
         let mut handles = Vec::new();
-        
+
         // Spawn multiple threads that increment the counter
         for _ in 0..10 {
             let mutex_clone = Arc::clone(&mutex);
@@ -369,58 +369,58 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all threads to complete
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         // Verify final value
         let guard = mutex.lock();
         assert_eq!(*guard, 10000);
     }
-    
+
     #[test]
     fn test_optimized_mutex_try_lock() {
         let mutex = OptimizedMutex::new(42);
-        
+
         // First try_lock should succeed
         let guard1 = mutex.try_lock();
         assert!(guard1.is_some());
         assert_eq!(*guard1.unwrap(), 42);
-        
+
         // Second try_lock should fail while first is held
         let _guard1 = mutex.lock(); // Hold the lock
         let guard2 = mutex.try_lock();
         assert!(guard2.is_none());
     }
-    
+
     #[test]
     fn test_optimized_rwlock_basic_functionality() {
         let rwlock = OptimizedRwLock::new(42);
-        
+
         // Test read access
         {
             let read_guard = rwlock.read();
             assert_eq!(*read_guard, 42);
         }
-        
+
         // Test write access
         {
             let mut write_guard = rwlock.write();
             *write_guard = 100;
         }
-        
+
         // Verify write took effect
         let read_guard = rwlock.read();
         assert_eq!(*read_guard, 100);
     }
-    
+
     #[test]
     fn test_optimized_rwlock_concurrent_readers() {
         let rwlock = Arc::new(OptimizedRwLock::new(42));
         let mut handles = Vec::new();
-        
+
         // Spawn multiple reader threads
         for _ in 0..10 {
             let rwlock_clone = Arc::clone(&rwlock);
@@ -431,18 +431,18 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // All readers should be able to proceed concurrently
         for handle in handles {
             handle.join().unwrap();
         }
     }
-    
+
     #[test]
     fn test_optimized_rwlock_writer_exclusivity() {
         let rwlock = Arc::new(OptimizedRwLock::new(0));
         let rwlock_clone = Arc::clone(&rwlock);
-        
+
         // Start a writer thread
         let writer_handle = thread::spawn(move || {
             let mut write_guard = rwlock_clone.write();
@@ -450,70 +450,70 @@ mod tests {
             thread::sleep(Duration::from_millis(50)); // Hold write lock
             *write_guard = 200;
         });
-        
+
         // Give writer time to acquire lock
         thread::sleep(Duration::from_millis(10));
-        
+
         // Try to read - should wait for writer to finish
         let start = std::time::Instant::now();
         let read_guard = rwlock.read();
         let duration = start.elapsed();
-        
+
         // Should have waited for writer
         assert!(duration >= Duration::from_millis(30));
         assert_eq!(*read_guard, 200);
-        
+
         writer_handle.join().unwrap();
     }
-    
+
     #[test]
     fn test_optimized_rwlock_try_operations() {
         let rwlock = OptimizedRwLock::new(42);
-        
+
         // try_read should succeed when unlocked
         let read_guard = rwlock.try_read();
         assert!(read_guard.is_some());
         if let Some(guard) = read_guard {
             assert_eq!(*guard, 42);
         }
-        
+
         // try_write should succeed when unlocked
         let write_guard = rwlock.try_write();
         assert!(write_guard.is_some());
-        
+
         // try_read should fail when write locked
         let try_read = rwlock.try_read();
         assert!(try_read.is_none());
-        
+
         // try_write should fail when already write locked
         let try_write = rwlock.try_write();
         assert!(try_write.is_none());
     }
-    
+
     #[test]
     fn test_lock_free_counter_basic_operations() {
         let counter = LockFreeCounter::new(0);
-        
+
         assert_eq!(counter.get(), 0);
-        
+
         assert_eq!(counter.increment(), 1);
         assert_eq!(counter.get(), 1);
-        
+
         assert_eq!(counter.add(5), 6);
         assert_eq!(counter.get(), 6);
-        
+
         assert_eq!(counter.decrement(), 5);
         assert_eq!(counter.get(), 5);
-        
+
         assert_eq!(counter.sub(3), 2);
         assert_eq!(counter.get(), 2);
     }
-    
+
     #[test]
     fn test_lock_free_counter_concurrent_increments() {
         let counter = Arc::new(LockFreeCounter::new(0));
         let mut handles = Vec::new();
-        
+
         // Spawn multiple threads that increment
         for _ in 0..10 {
             let counter_clone = Arc::clone(&counter);
@@ -524,21 +524,21 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all threads
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         // Should have exactly 10,000 increments
         assert_eq!(counter.get(), 10000);
     }
-    
+
     #[test]
     fn test_lock_free_counter_mixed_operations() {
         let counter = Arc::new(LockFreeCounter::new(0));
         let mut handles = Vec::new();
-        
+
         // Incrementing threads
         for _ in 0..5 {
             let counter_clone = Arc::clone(&counter);
@@ -549,7 +549,7 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Decrementing threads
         for _ in 0..3 {
             let counter_clone = Arc::clone(&counter);
@@ -560,7 +560,7 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Adding threads
         for _ in 0..2 {
             let counter_clone = Arc::clone(&counter);
@@ -571,58 +571,58 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         // Expected: 5*1000 - 3*500 + 2*100*10 = 5000 - 1500 + 2000 = 5500
         assert_eq!(counter.get(), 5500);
     }
-    
+
     #[test]
     fn test_lock_free_counter_compare_and_swap() {
         let counter = LockFreeCounter::new(42);
-        
+
         // Successful compare and swap
         let result = counter.compare_and_swap(42, 100);
         assert_eq!(result, Ok(42));
         assert_eq!(counter.get(), 100);
-        
+
         // Failed compare and swap
         let result = counter.compare_and_swap(42, 200);
         assert_eq!(result, Err(100)); // Returns current value
         assert_eq!(counter.get(), 100); // Value unchanged
     }
-    
+
     #[test]
     fn test_lock_free_counter_set_operation() {
         let counter = LockFreeCounter::new(0);
-        
+
         counter.set(12345);
         assert_eq!(counter.get(), 12345);
-        
+
         // Should work with large values
         counter.set(u64::MAX - 1);
         assert_eq!(counter.get(), u64::MAX - 1);
     }
-    
+
     #[test]
     fn test_lock_free_counter_default() {
         let counter = LockFreeCounter::default();
         assert_eq!(counter.get(), 0);
-        
+
         counter.increment();
         assert_eq!(counter.get(), 1);
     }
-    
+
     #[test]
     fn test_lock_contention_performance() {
         let mutex = Arc::new(OptimizedMutex::new(0));
         let mut handles = Vec::new();
-        
+
         let start = std::time::Instant::now();
-        
+
         // Create high contention scenario
         for _ in 0..20 {
             let mutex_clone = Arc::clone(&mutex);
@@ -636,23 +636,23 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         let duration = start.elapsed();
-        
+
         // Should handle contention correctly and efficiently
         assert_eq!(*mutex.lock(), 2000);
         assert!(duration < Duration::from_secs(1)); // Should complete reasonably fast
     }
-    
+
     #[test]
     fn test_rwlock_reader_writer_fairness() {
         let rwlock = Arc::new(OptimizedRwLock::new(0));
         let rwlock_clone = Arc::clone(&rwlock);
-        
+
         // Start multiple readers
         let mut reader_handles = Vec::new();
         for i in 0..5 {
@@ -664,20 +664,20 @@ mod tests {
             });
             reader_handles.push(handle);
         }
-        
+
         // Start a writer after readers have started
         thread::sleep(Duration::from_millis(20));
         let writer_handle = thread::spawn(move || {
             let mut guard = rwlock_clone.write();
             *guard = 42;
         });
-        
+
         // Wait for all to complete
         for handle in reader_handles {
             handle.join().unwrap();
         }
         writer_handle.join().unwrap();
-        
+
         // Writer should have eventually acquired the lock
         let guard = rwlock.read();
         assert_eq!(*guard, 42);

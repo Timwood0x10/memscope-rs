@@ -145,7 +145,7 @@ mod tests {
     use std::alloc::{GlobalAlloc, Layout};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Once;
-    
+
     // Helper to reset thread-local state between tests
     fn reset_thread_local_state() {
         TRACKING_DISABLED.with(|disabled| disabled.set(false));
@@ -274,48 +274,108 @@ mod tests {
             std::mem::size_of::<TrackingAllocator>()
         );
     }
-    
+
     #[test]
     fn test_type_inference() {
         // Test type inference for various sizes
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(1), "u8");
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(2), "u16");
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(4), "u32");
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(8), "u64");
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(16), "u128");
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(24), "String");
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(32), "Vec<T>");
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(48), "HashMap<K,V>");
-        
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(1),
+            "u8"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(2),
+            "u16"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(4),
+            "u32"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(8),
+            "u64"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(16),
+            "u128"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(24),
+            "String"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(32),
+            "Vec<T>"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(48),
+            "HashMap<K,V>"
+        );
+
         // Test unknown size
-        assert_eq!(TrackingAllocator::_infer_type_from_allocation_context(12345), "unknown");
+        assert_eq!(
+            TrackingAllocator::_infer_type_from_allocation_context(12345),
+            "unknown"
+        );
     }
-    
+
     #[test]
     fn test_variable_inference() {
         // Test variable inference for different size ranges
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(0), "buffer_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(4), "primitive_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(8), "primitive_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(16), "struct_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(32), "struct_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(64), "struct_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(65), "collection_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(128), "collection_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(1024), "collection_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(1025), "buffer_data");
-        assert_eq!(TrackingAllocator::_infer_variable_from_allocation_context(usize::MAX), "buffer_data");
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(0),
+            "buffer_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(4),
+            "primitive_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(8),
+            "primitive_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(16),
+            "struct_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(32),
+            "struct_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(64),
+            "struct_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(65),
+            "collection_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(128),
+            "collection_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(1024),
+            "collection_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(1025),
+            "buffer_data"
+        );
+        assert_eq!(
+            TrackingAllocator::_infer_variable_from_allocation_context(usize::MAX),
+            "buffer_data"
+        );
     }
-    
+
     #[test]
     fn test_thread_local_tracking() {
         reset_thread_local_state();
-        
+
         // Test that tracking is enabled by default
         TRACKING_DISABLED.with(|disabled| {
             assert!(!disabled.get());
         });
-        
+
         // Test disabling tracking
         TRACKING_DISABLED.with(|disabled| {
             disabled.set(true);
@@ -323,7 +383,7 @@ mod tests {
             disabled.set(false);
         });
     }
-    
+
     #[test]
     fn test_simplified_call_stack() {
         let stack = TrackingAllocator::_get_simplified_call_stack();
@@ -331,15 +391,15 @@ mod tests {
         assert_eq!(stack[0], "global_allocator");
         assert_eq!(stack[1], "system_alloc");
     }
-    
+
     #[test]
     fn test_allocation_edge_cases() {
         let allocator = TrackingAllocator::new();
-        
+
         // Test with maximum alignment
         let max_align = std::mem::size_of::<usize>() * 2;
         let layout = Layout::from_size_align(16, max_align).unwrap();
-        
+
         unsafe {
             let ptr = allocator.alloc(layout);
             if !ptr.is_null() {
@@ -348,7 +408,7 @@ mod tests {
                 allocator.dealloc(ptr, layout);
             }
         }
-        
+
         // Test with minimal size but non-zero
         let layout = Layout::from_size_align(1, 1).unwrap();
         unsafe {
@@ -358,17 +418,17 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_recursive_allocation_handling() {
         // This test verifies that recursive allocations don't cause infinite loops
         let allocator = TrackingAllocator::new();
         let layout = Layout::from_size_align(64, 8).unwrap();
-        
+
         // Set up a flag to detect if we're in a recursive call
         static RECURSION_DETECTED: AtomicBool = AtomicBool::new(false);
         static INIT: Once = Once::new();
-        
+
         INIT.call_once(|| {
             // Install a panic hook to detect if we hit a stack overflow
             let original_hook = std::panic::take_hook();
@@ -381,7 +441,7 @@ mod tests {
                 original_hook(panic_info);
             }));
         });
-        
+
         // This allocation will trigger tracking, but the thread-local flag should prevent recursion
         unsafe {
             let ptr = allocator.alloc(layout);
@@ -389,9 +449,11 @@ mod tests {
                 allocator.dealloc(ptr, layout);
             }
         }
-        
+
         // Verify we didn't hit a stack overflow
-        assert!(!RECURSION_DETECTED.load(Ordering::SeqCst), 
-               "Recursive allocation detected - thread-local tracking failed");
+        assert!(
+            !RECURSION_DETECTED.load(Ordering::SeqCst),
+            "Recursive allocation detected - thread-local tracking failed"
+        );
     }
 }

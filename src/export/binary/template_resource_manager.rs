@@ -164,7 +164,8 @@ impl TemplateResourceManager {
                     css_content
                 };
 
-                self.css_cache.insert(css_file.to_string(), processed_css.clone());
+                self.css_cache
+                    .insert(css_file.to_string(), processed_css.clone());
                 combined_css.push_str(&processed_css);
                 combined_css.push('\n');
             }
@@ -195,7 +196,8 @@ impl TemplateResourceManager {
                     js_content
                 };
 
-                self.js_cache.insert(js_file.to_string(), processed_js.clone());
+                self.js_cache
+                    .insert(js_file.to_string(), processed_js.clone());
                 combined_js.push_str(&processed_js);
                 combined_js.push('\n');
             }

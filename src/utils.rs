@@ -167,11 +167,7 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
                 "Configuration"
             } else if clean_type.ends_with("Builder") || clean_type.ends_with("Factory") {
                 "Builders"
-            } else if clean_type
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_uppercase())
-            {
+            } else if clean_type.chars().next().is_some_and(|c| c.is_uppercase()) {
                 // Starts with uppercase, likely a struct/enum
                 "Custom Types"
             } else {
@@ -474,7 +470,7 @@ fn find_matching_bracket(s: &str, start: usize) -> Option<usize> {
     }
 
     let mut depth = 1;
-    for (i,item) in chars.iter().enumerate().skip(start + 1) {
+    for (i, item) in chars.iter().enumerate().skip(start + 1) {
         match item {
             '<' => depth += 1,
             '>' => {
@@ -606,7 +602,7 @@ mod tests {
         let timestamp1 = current_timestamp_nanos();
         thread::sleep(Duration::from_millis(1));
         let timestamp2 = current_timestamp_nanos();
-        
+
         assert!(timestamp2 > timestamp1);
         assert!(timestamp1 > 0);
     }
@@ -757,9 +753,15 @@ mod tests {
     fn test_extract_generic_type() {
         assert_eq!(extract_generic_type("Vec<i32>", "Vec"), "i32");
         assert_eq!(extract_generic_type("Box<String>", "Box"), "String");
-        assert_eq!(extract_generic_type("HashMap<String, i32>", "HashMap"), "String, i32");
+        assert_eq!(
+            extract_generic_type("HashMap<String, i32>", "HashMap"),
+            "String, i32"
+        );
         assert_eq!(extract_generic_type("Vec", "Vec"), "?");
-        assert_eq!(extract_generic_type("std::vec::Vec<std::string::String>", "Vec"), "String");
+        assert_eq!(
+            extract_generic_type("std::vec::Vec<std::string::String>", "Vec"),
+            "String"
+        );
     }
 
     #[test]
@@ -904,17 +906,26 @@ mod tests {
 
     #[test]
     fn test_extract_generic_params() {
-        assert_eq!(extract_generic_params("HashMap<String, i32>", "HashMap"), "String, i32");
+        assert_eq!(
+            extract_generic_params("HashMap<String, i32>", "HashMap"),
+            "String, i32"
+        );
         assert_eq!(extract_generic_params("Vec<u8>", "Vec"), "u8");
         assert_eq!(extract_generic_params("Box<String>", "Box"), "String");
         assert_eq!(extract_generic_params("Vec", "Vec"), "");
-        assert_eq!(extract_generic_params("std::vec::Vec<std::string::String>", "Vec"), "String");
+        assert_eq!(
+            extract_generic_params("std::vec::Vec<std::string::String>", "Vec"),
+            "String"
+        );
     }
 
     #[test]
     fn test_find_matching_bracket() {
         assert_eq!(find_matching_bracket("Vec<i32>", 3), Some(7));
-        assert_eq!(find_matching_bracket("HashMap<String, Vec<i32>>", 7), Some(24));
+        assert_eq!(
+            find_matching_bracket("HashMap<String, Vec<i32>>", 7),
+            Some(24)
+        );
         assert_eq!(find_matching_bracket("Vec<i32", 3), None);
         assert_eq!(find_matching_bracket("Vec", 3), None);
     }
@@ -928,11 +939,11 @@ mod tests {
         assert!(is_primitive_type("char"));
         assert!(is_primitive_type("isize"));
         assert!(is_primitive_type("usize"));
-        
+
         assert!(!is_primitive_type("String"));
         assert!(!is_primitive_type("Vec<i32>"));
         assert!(!is_primitive_type("CustomType"));
-        
+
         // Test with namespace
         assert!(is_primitive_type("std::primitive::i32"));
         assert!(!is_primitive_type("std::string::String"));
@@ -948,7 +959,10 @@ mod tests {
 
     #[test]
     fn test_extract_std_module() {
-        assert_eq!(extract_std_module("std::collections::HashMap"), "Collections");
+        assert_eq!(
+            extract_std_module("std::collections::HashMap"),
+            "Collections"
+        );
         assert_eq!(extract_std_module("std::sync::Mutex"), "Synchronization");
         assert_eq!(extract_std_module("std::thread::JoinHandle"), "Threading");
         assert_eq!(extract_std_module("std::fs::File"), "File System");
@@ -961,10 +975,10 @@ mod tests {
     #[test]
     fn test_join_handle_ext_immediate_completion() {
         let handle = thread::spawn(|| 42);
-        
+
         // Give the thread time to complete
         thread::sleep(Duration::from_millis(10));
-        
+
         let result = handle.join_timeout(Duration::from_millis(100));
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
@@ -976,7 +990,7 @@ mod tests {
             thread::sleep(Duration::from_millis(200));
             42
         });
-        
+
         let result = handle.join_timeout(Duration::from_millis(50));
         assert!(result.is_err());
     }
@@ -987,7 +1001,7 @@ mod tests {
             thread::sleep(Duration::from_millis(50));
             42
         });
-        
+
         let result = handle.join_timeout(Duration::from_millis(200));
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);

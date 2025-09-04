@@ -529,7 +529,6 @@ impl ComprehensiveDataDeduplicator {
         Ok(HashMap::new())
     }
 
-
     /// Maybe trigger cleanup based on thresholds
     fn maybe_cleanup(&self) {
         let total_items =
@@ -548,7 +547,7 @@ impl ComprehensiveDataDeduplicator {
 
         // Collect all hashes from different storages
         let mut all_hashes = std::collections::HashSet::new();
-        
+
         // Collect hashes from all storage types
         for entry in self.string_storage.iter() {
             all_hashes.insert(*entry.key());
@@ -581,7 +580,10 @@ impl ComprehensiveDataDeduplicator {
         }
 
         self.update_stats_cleanup(removed_count);
-        tracing::info!("🔄 Cleaned up {} items using simple strategy", removed_count);
+        tracing::info!(
+            "🔄 Cleaned up {} items using simple strategy",
+            removed_count
+        );
     }
 
     // Statistics update methods

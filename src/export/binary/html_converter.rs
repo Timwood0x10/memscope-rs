@@ -125,9 +125,7 @@ fn generate_html_content(
                 let title_end = start + end;
                 let before = &html[..start + 7]; // Include "<title>"
                 let after = &html[title_end..];
-                html = format!(
-                    "{before}{project_name} - Memory Analysis Dashboard{after}",
-                );
+                html = format!("{before}{project_name} - Memory Analysis Dashboard{after}",);
             }
         }
 
@@ -269,7 +267,8 @@ fn generate_html_content(
         console.log('✅ Safety risks loaded:', risks.length, 'items');
     }}
     
-    "#,);
+    "#,
+        );
 
         html = format!("{before}{safety_injection}{after}");
     } else {
@@ -696,9 +695,7 @@ fn prepare_safety_risk_data(allocations: &[AllocationInfo]) -> Result<String, Bi
     }
 
     serde_json::to_string(&safety_risks).map_err(|e| {
-        BinaryExportError::SerializationError(format!(
-            "Failed to serialize safety risk data: {e}",
-        ))
+        BinaryExportError::SerializationError(format!("Failed to serialize safety risk data: {e}",))
     })
 }
 

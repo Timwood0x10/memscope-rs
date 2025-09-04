@@ -215,9 +215,7 @@ fn verify_and_show_content(output_dir: &str) -> Result<(), Box<dyn std::error::E
                             println!("\n   ✅ improve.md fields present:");
                             println!("      • borrow_info: {has_borrow_info}");
                             println!("      • clone_info: {has_clone_info}");
-                            println!(
-                                "      • ownership_history_available: {has_ownership_flag}"
-                            );
+                            println!("      • ownership_history_available: {has_ownership_flag}");
                             println!("      • lifetime_ms: {has_lifetime_ms}");
 
                             // Show specific borrow_info content

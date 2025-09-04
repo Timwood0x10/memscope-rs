@@ -360,9 +360,7 @@ fn analyze_binary_files() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\\nComparison:");
     println!("  File size ratio: {size_ratio:.1}x larger");
-    println!(
-        "  Allocation ratio: {allocation_ratio:.1}x more allocations"
-    );
+    println!("  Allocation ratio: {allocation_ratio:.1}x more allocations");
     println!(
         "  Count consistency: User={}, Full={}",
         user_info.is_count_consistent, full_info.is_count_consistent
@@ -409,12 +407,8 @@ fn analyze_json_outputs() -> Result<(), Box<dyn std::error::Error>> {
     let mut full_total_size = 0;
 
     for (file_suffix, description) in &json_files {
-        let user_file = format!(
-            "MemoryAnalysis/large_scale_user/large_scale_user_{file_suffix}"
-        );
-        let full_file = format!(
-            "MemoryAnalysis/large_scale_full/large_scale_full_{file_suffix}"
-        );
+        let user_file = format!("MemoryAnalysis/large_scale_user/large_scale_user_{file_suffix}");
+        let full_file = format!("MemoryAnalysis/large_scale_full/large_scale_full_{file_suffix}");
 
         // Only check file sizes, no content parsing
         if let (Ok(user_meta), Ok(full_meta)) = (fs::metadata(&user_file), fs::metadata(&full_file))
@@ -426,9 +420,7 @@ fn analyze_json_outputs() -> Result<(), Box<dyn std::error::Error>> {
             full_total_size += full_size;
 
             println!("\\n{description} ({file_suffix}):");
-            println!(
-                "  File sizes: {user_size} bytes (user) vs {full_size} bytes (full)"
-            );
+            println!("  File sizes: {user_size} bytes (user) vs {full_size} bytes (full)");
             if user_size > 0 {
                 println!("  Size ratio: {:.1}x", full_size as f64 / user_size as f64);
             }

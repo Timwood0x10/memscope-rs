@@ -1000,7 +1000,6 @@ pub struct StackHeapBoundaryAnalysis {
     pub optimization_opportunities: Vec<StackHeapOptimization>,
 }
 
-
 /// Code bloat assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeBloatAssessment {
@@ -1404,7 +1403,6 @@ impl Default for ResourceWasteAnalysis {
     }
 }
 
-
 impl Default for MemorySpaceCoverage {
     fn default() -> Self {
         Self {
@@ -1446,24 +1444,27 @@ mod tests {
     #[test]
     fn test_stack_boundaries_creation() {
         let boundaries = StackBoundaries::detect();
-        
+
         assert_eq!(boundaries.stack_base, 0x7fff_0000_0000);
         assert_eq!(boundaries.stack_size, 8 * 1024 * 1024);
-        assert_eq!(boundaries.stack_top, boundaries.stack_base + boundaries.stack_size);
+        assert_eq!(
+            boundaries.stack_top,
+            boundaries.stack_base + boundaries.stack_size
+        );
     }
 
     #[test]
     fn test_stack_boundaries_contains() {
         let boundaries = StackBoundaries::detect();
-        
+
         // Test pointer within stack
         let stack_ptr = boundaries.stack_base + 1024;
         assert!(boundaries.contains(stack_ptr));
-        
+
         // Test pointer outside stack
         let heap_ptr = 0x1000_0000;
         assert!(!boundaries.contains(heap_ptr));
-        
+
         // Test boundary conditions
         assert!(boundaries.contains(boundaries.stack_base));
         assert!(!boundaries.contains(boundaries.stack_top));
@@ -1472,10 +1473,10 @@ mod tests {
     #[test]
     fn test_stack_boundaries_get_frame_base() {
         let boundaries = StackBoundaries::detect();
-        
+
         let frame_base_0 = boundaries.get_frame_base(0);
         let frame_base_1 = boundaries.get_frame_base(1);
-        
+
         assert_eq!(frame_base_0, boundaries.stack_base);
         assert_eq!(frame_base_1, boundaries.stack_base + 4096);
         assert!(frame_base_1 > frame_base_0);
@@ -1487,14 +1488,14 @@ mod tests {
             start: 0x1000_0000,
             end: 0x2000_0000,
         };
-        
+
         // Test pointer within segment
         assert!(segment.contains(0x1500_0000));
-        
+
         // Test pointer outside segment
         assert!(!segment.contains(0x500_0000));
         assert!(!segment.contains(0x2500_0000));
-        
+
         // Test boundary conditions
         assert!(segment.contains(segment.start));
         assert!(!segment.contains(segment.end));
@@ -1509,7 +1510,7 @@ mod tests {
             AllocationStrategy::NextFit,
             AllocationStrategy::SlabAllocation,
         ];
-        
+
         for strategy in strategies {
             assert!(format!("{:?}", strategy).len() > 0);
         }
@@ -1529,7 +1530,7 @@ mod tests {
             TemporaryPatternClassification::TraitObjectCreation,
             TemporaryPatternClassification::Unknown,
         ];
-        
+
         for pattern in patterns {
             assert!(format!("{:?}", pattern).len() > 0);
         }
@@ -1551,7 +1552,7 @@ mod tests {
                 reasons: vec!["Required by interface".to_string()],
             },
         ];
-        
+
         for feasibility in feasibilities {
             assert!(format!("{:?}", feasibility).len() > 0);
         }
@@ -1566,7 +1567,7 @@ mod tests {
             EscapeAnalysis::EscapesToGlobal,
             EscapeAnalysis::Unknown,
         ];
-        
+
         for analysis in analyses {
             assert!(format!("{:?}", analysis).len() > 0);
         }
@@ -1575,7 +1576,7 @@ mod tests {
     #[test]
     fn test_real_time_metrics_creation() {
         let metrics = RealTimeMetrics::new();
-        
+
         assert_eq!(metrics.current_fragmentation, 0.0);
         assert_eq!(metrics.allocation_rate, 0.0);
         assert_eq!(metrics.deallocation_rate, 0.0);
@@ -1585,7 +1586,7 @@ mod tests {
     #[test]
     fn test_real_time_metrics_default() {
         let metrics = RealTimeMetrics::default();
-        
+
         assert_eq!(metrics.current_fragmentation, 0.0);
         assert_eq!(metrics.allocation_rate, 0.0);
         assert_eq!(metrics.deallocation_rate, 0.0);
@@ -1595,13 +1596,13 @@ mod tests {
     #[test]
     fn test_real_time_metrics_update_allocation() {
         use crate::core::types::AllocationInfo;
-        
+
         let mut metrics = RealTimeMetrics::new();
         let allocation = AllocationInfo::new(0x1000, 512);
-        
+
         let initial_rate = metrics.allocation_rate;
         metrics.update_allocation(&allocation);
-        
+
         assert!(metrics.allocation_rate > initial_rate);
         assert_eq!(metrics.allocation_rate, initial_rate + 1.0);
     }
@@ -1613,7 +1614,7 @@ mod tests {
             EnhancedAllocationEventType::Deallocate,
             EnhancedAllocationEventType::Reallocate,
         ];
-        
+
         for event in events {
             assert!(format!("{:?}", event).len() > 0);
         }
@@ -1628,7 +1629,7 @@ mod tests {
             FragmentationCause::PoorDeallocationPatterns,
             FragmentationCause::AllocatorLimitations,
         ];
-        
+
         for cause in causes {
             assert!(format!("{:?}", cause).len() > 0);
         }
@@ -1643,7 +1644,7 @@ mod tests {
             MitigationStrategyType::CompactionGC,
             MitigationStrategyType::CustomAllocator,
         ];
-        
+
         for strategy in strategies {
             assert!(format!("{:?}", strategy).len() > 0);
         }
@@ -1657,7 +1658,7 @@ mod tests {
             ImplementationComplexity::High,
             ImplementationComplexity::VeryHigh,
         ];
-        
+
         for complexity in complexities {
             assert!(format!("{:?}", complexity).len() > 0);
         }
@@ -1671,7 +1672,7 @@ mod tests {
             ImpactLevel::High,
             ImpactLevel::Critical,
         ];
-        
+
         for level in levels {
             assert!(format!("{:?}", level).len() > 0);
         }
@@ -1686,7 +1687,7 @@ mod tests {
             OptimizationType::LazyInitialization,
             OptimizationType::CopyElision,
         ];
-        
+
         for opt_type in types {
             assert!(format!("{:?}", opt_type).len() > 0);
         }
@@ -1700,7 +1701,7 @@ mod tests {
             Priority::High,
             Priority::Critical,
         ];
-        
+
         for priority in priorities {
             assert!(format!("{:?}", priority).len() > 0);
         }
@@ -1715,7 +1716,7 @@ mod tests {
             OptimizationCategory::AllocationStrategy,
             OptimizationCategory::LifecycleManagement,
         ];
-        
+
         for category in categories {
             assert!(format!("{:?}", category).len() > 0);
         }
@@ -1724,7 +1725,7 @@ mod tests {
     #[test]
     fn test_pattern_statistics_default() {
         let stats = PatternStatistics::default();
-        
+
         assert_eq!(stats.total_patterns_detected, 0);
         assert!(stats.pattern_frequency_distribution.is_empty());
         assert!(stats.memory_impact_by_pattern.is_empty());
@@ -1733,7 +1734,7 @@ mod tests {
     #[test]
     fn test_performance_impact_assessment_default() {
         let assessment = PerformanceImpactAssessment::default();
-        
+
         assert_eq!(assessment.allocation_overhead, 0.0);
         assert_eq!(assessment.deallocation_overhead, 0.0);
         assert_eq!(assessment.cache_impact, 0.0);
@@ -1748,7 +1749,7 @@ mod tests {
             TrendDirection::Degrading,
             TrendDirection::Volatile,
         ];
-        
+
         for direction in directions {
             assert!(format!("{:?}", direction).len() > 0);
         }
@@ -1757,7 +1758,7 @@ mod tests {
     #[test]
     fn test_fragmentation_prediction_default() {
         let prediction = FragmentationPrediction::default();
-        
+
         assert_eq!(prediction.predicted_fragmentation_in_1h, 0.0);
         assert_eq!(prediction.predicted_fragmentation_in_24h, 0.0);
         assert_eq!(prediction.confidence_level, 0.0);
@@ -1766,7 +1767,7 @@ mod tests {
     #[test]
     fn test_fragmentation_trends_default() {
         let trends = FragmentationTrends::default();
-        
+
         assert!(matches!(trends.trend_direction, TrendDirection::Stable));
         assert_eq!(trends.rate_of_change, 0.0);
     }
@@ -1779,7 +1780,7 @@ mod tests {
             MemoryBlockType::Reserved,
             MemoryBlockType::Fragmented,
         ];
-        
+
         for block_type in types {
             assert!(format!("{:?}", block_type).len() > 0);
         }
@@ -1788,7 +1789,7 @@ mod tests {
     #[test]
     fn test_memory_block_default() {
         let block = MemoryBlock::default();
-        
+
         assert_eq!(block.start_address, 0);
         assert_eq!(block.size, 0);
         assert!(matches!(block.block_type, MemoryBlockType::Free));
@@ -1803,7 +1804,7 @@ mod tests {
             ReferenceType::WeakReference,
             ReferenceType::OwnershipTransfer,
         ];
-        
+
         for ref_type in types {
             assert!(format!("{:?}", ref_type).len() > 0);
         }
@@ -1816,7 +1817,7 @@ mod tests {
             DependencyStrength::Weak,
             DependencyStrength::Optional,
         ];
-        
+
         for strength in strengths {
             assert!(format!("{:?}", strength).len() > 0);
         }
@@ -1833,7 +1834,7 @@ mod tests {
             PerformanceImplicationType::Negative,
             PerformanceImplicationType::Neutral,
         ];
-        
+
         for impl_type in types {
             assert!(format!("{:?}", impl_type).len() > 0);
         }
@@ -1847,7 +1848,7 @@ mod tests {
             Severity::High,
             Severity::Critical,
         ];
-        
+
         for severity in severities {
             assert!(format!("{:?}", severity).len() > 0);
         }
@@ -1856,7 +1857,7 @@ mod tests {
     #[test]
     fn test_fragmentation_metrics_default() {
         let metrics = FragmentationMetrics::default();
-        
+
         assert_eq!(metrics.external_fragmentation_ratio, 0.0);
         assert_eq!(metrics.internal_fragmentation_ratio, 0.0);
         assert_eq!(metrics.total_fragmentation_ratio, 0.0);
@@ -1874,7 +1875,7 @@ mod tests {
             FragmentationSeverity::High,
             FragmentationSeverity::Critical,
         ];
-        
+
         for severity in severities {
             assert!(format!("{:?}", severity).len() > 0);
         }
@@ -1889,7 +1890,7 @@ mod tests {
             BloatLevel::High,
             BloatLevel::Severe,
         ];
-        
+
         for level in levels {
             assert!(format!("{:?}", level).len() > 0);
         }
@@ -1898,7 +1899,7 @@ mod tests {
     #[test]
     fn test_code_bloat_assessment_default() {
         let assessment = CodeBloatAssessment::default();
-        
+
         assert!(matches!(assessment.bloat_level, BloatLevel::Minimal));
         assert_eq!(assessment.estimated_code_size_increase, 0.0);
         assert_eq!(assessment.compilation_time_impact, 0.0);
@@ -1914,7 +1915,7 @@ mod tests {
             WasteCategoryType::FragmentationWaste,
             WasteCategoryType::TemporaryObjectWaste,
         ];
-        
+
         for waste_type in types {
             assert!(format!("{:?}", waste_type).len() > 0);
         }
@@ -1923,7 +1924,7 @@ mod tests {
     #[test]
     fn test_resource_waste_analysis_default() {
         let analysis = ResourceWasteAnalysis::default();
-        
+
         assert_eq!(analysis.wasted_allocations, 0);
         assert_eq!(analysis.total_wasted_memory, 0);
         assert_eq!(analysis.waste_percentage, 0.0);
@@ -1938,7 +1939,7 @@ mod tests {
             AmbiguityReason::CorruptedTracking,
             AmbiguityReason::ExternalAllocation,
         ];
-        
+
         for reason in reasons {
             assert!(format!("{:?}", reason).len() > 0);
         }
@@ -1952,7 +1953,7 @@ mod tests {
             HeapRegionType::SmallObjectHeap,
             HeapRegionType::ThreadLocalHeap,
         ];
-        
+
         for region_type in types {
             assert!(format!("{:?}", region_type).len() > 0);
         }
@@ -1961,7 +1962,7 @@ mod tests {
     #[test]
     fn test_memory_space_coverage_default() {
         let coverage = MemorySpaceCoverage::default();
-        
+
         assert_eq!(coverage.total_tracked_bytes, 0);
         assert_eq!(coverage.stack_coverage_percent, 0.0);
         assert_eq!(coverage.heap_coverage_percent, 0.0);
@@ -1971,7 +1972,7 @@ mod tests {
     #[test]
     fn test_boundary_detection_accuracy_default() {
         let accuracy = BoundaryDetectionAccuracy::default();
-        
+
         assert_eq!(accuracy.stack_detection_accuracy, 0.0);
         assert_eq!(accuracy.heap_detection_accuracy, 0.0);
         assert_eq!(accuracy.false_positive_rate, 0.0);
@@ -1981,8 +1982,11 @@ mod tests {
     #[test]
     fn test_performance_implication_default() {
         let implication = PerformanceImplication::default();
-        
-        assert!(matches!(implication.implication_type, PerformanceImplicationType::Neutral));
+
+        assert!(matches!(
+            implication.implication_type,
+            PerformanceImplicationType::Neutral
+        ));
         assert!(matches!(implication.severity, Severity::Low));
         assert!(implication.description.is_empty());
         assert!(implication.mitigation_suggestion.is_empty());
@@ -1995,7 +1999,7 @@ mod tests {
             ScalabilityImpact::Neutral,
             ScalabilityImpact::Negative,
         ];
-        
+
         for impact in impacts {
             assert!(format!("{:?}", impact).len() > 0);
         }
@@ -2009,7 +2013,7 @@ mod tests {
             OptimizationStrategy::Pool,
             OptimizationStrategy::Defer,
         ];
-        
+
         for strategy in strategies {
             assert!(format!("{:?}", strategy).len() > 0);
         }
@@ -2018,7 +2022,7 @@ mod tests {
     #[test]
     fn test_temporary_object_analysis_report_default() {
         let report = TemporaryObjectAnalysisReport::default();
-        
+
         assert!(report.temporary_objects.is_empty());
         assert!(report.optimization_candidates.is_empty());
         assert!(report.hot_temporary_patterns.is_empty());
@@ -2028,10 +2032,16 @@ mod tests {
     #[test]
     fn test_real_time_fragmentation_analysis_default() {
         let analysis = RealTimeFragmentationAnalysis::default();
-        
+
         // Test that default values are reasonable
-        assert_eq!(analysis.current_fragmentation.external_fragmentation_ratio, 0.0);
-        assert!(matches!(analysis.fragmentation_trends.trend_direction, TrendDirection::Stable));
+        assert_eq!(
+            analysis.current_fragmentation.external_fragmentation_ratio,
+            0.0
+        );
+        assert!(matches!(
+            analysis.fragmentation_trends.trend_direction,
+            TrendDirection::Stable
+        ));
         assert!(analysis.adaptive_strategies.is_empty());
         assert_eq!(analysis.real_time_metrics.current_fragmentation, 0.0);
     }
@@ -2045,9 +2055,12 @@ mod tests {
             size: 512,
             type_name: Some("Vec<i32>".to_string()),
         };
-        
+
         assert_eq!(allocation_event.timestamp, 1000);
-        assert!(matches!(allocation_event.event_type, EnhancedAllocationEventType::Allocate));
+        assert!(matches!(
+            allocation_event.event_type,
+            EnhancedAllocationEventType::Allocate
+        ));
         assert_eq!(allocation_event.ptr, 0x1000);
         assert_eq!(allocation_event.size, 512);
         assert_eq!(allocation_event.type_name, Some("Vec<i32>".to_string()));
@@ -2062,12 +2075,15 @@ mod tests {
             usage_frequency: 5,
             scope_escape_analysis: EscapeAnalysis::DoesNotEscape,
         };
-        
+
         assert_eq!(analysis.creation_time, 1000);
         assert_eq!(analysis.destruction_time, Some(2000));
         assert_eq!(analysis.estimated_lifetime, Duration::from_millis(1000));
         assert_eq!(analysis.usage_frequency, 5);
-        assert!(matches!(analysis.scope_escape_analysis, EscapeAnalysis::DoesNotEscape));
+        assert!(matches!(
+            analysis.scope_escape_analysis,
+            EscapeAnalysis::DoesNotEscape
+        ));
     }
 
     #[test]
@@ -2078,10 +2094,16 @@ mod tests {
             expected_improvement: 0.3,
             implementation_complexity: ImplementationComplexity::Medium,
         };
-        
-        assert!(matches!(strategy.strategy_type, MitigationStrategyType::PoolAllocation));
+
+        assert!(matches!(
+            strategy.strategy_type,
+            MitigationStrategyType::PoolAllocation
+        ));
         assert!(strategy.description.contains("memory pools"));
         assert_eq!(strategy.expected_improvement, 0.3);
-        assert!(matches!(strategy.implementation_complexity, ImplementationComplexity::Medium));
+        assert!(matches!(
+            strategy.implementation_complexity,
+            ImplementationComplexity::Medium
+        ));
     }
 }

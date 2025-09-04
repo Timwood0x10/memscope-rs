@@ -607,8 +607,26 @@ impl PerformanceLogger {
 
     /// check if should log
     fn should_log(&self, level: LogLevel) -> bool {
-        matches!((&self.log_level, &level),
-            (LogLevel::Error, LogLevel::Error)|(LogLevel::Warn, LogLevel::Error | LogLevel::Warn)|(LogLevel::Info, LogLevel::Error | LogLevel::Warn | LogLevel::Info)|(LogLevel::Debug, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug)|(LogLevel::Trace, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug | LogLevel::Trace)
+        matches!(
+            (&self.log_level, &level),
+            (LogLevel::Error, LogLevel::Error)
+                | (LogLevel::Warn, LogLevel::Error | LogLevel::Warn)
+                | (
+                    LogLevel::Info,
+                    LogLevel::Error | LogLevel::Warn | LogLevel::Info
+                )
+                | (
+                    LogLevel::Debug,
+                    LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug
+                )
+                | (
+                    LogLevel::Trace,
+                    LogLevel::Error
+                        | LogLevel::Warn
+                        | LogLevel::Info
+                        | LogLevel::Debug
+                        | LogLevel::Trace
+                )
         )
     }
 

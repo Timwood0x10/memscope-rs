@@ -22,7 +22,6 @@ pub struct BorrowInfo {
     pub last_borrow_timestamp: Option<u64>,
 }
 
-
 /// Enhanced cloning information for allocations
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct CloneInfo {
@@ -33,7 +32,6 @@ pub struct CloneInfo {
     /// If is_clone is true, points to the original object's pointer
     pub original_ptr: Option<usize>,
 }
-
 
 /// Result type for tracking operations
 pub type TrackingResult<T> = Result<T, TrackingError>;
@@ -3789,7 +3787,7 @@ mod tests {
     fn test_tracking_error_creation() {
         let error = TrackingError::AllocationFailed("test error".to_string());
         assert!(error.to_string().contains("test error"));
-        
+
         let error2 = TrackingError::TrackingDisabled;
         assert!(error2.to_string().contains("disabled"));
     }
@@ -3798,14 +3796,14 @@ mod tests {
     fn test_tracking_error_clone() {
         let original = TrackingError::InvalidPointer("null pointer".to_string());
         let cloned = original.clone();
-        
+
         assert_eq!(original.to_string(), cloned.to_string());
     }
 
     #[test]
     fn test_allocation_info_creation() {
         let info = AllocationInfo::new(0x12345678, 1024);
-        
+
         assert_eq!(info.ptr, 0x12345678);
         assert_eq!(info.size, 1024);
         assert!(info.is_active());
@@ -3818,7 +3816,7 @@ mod tests {
     fn test_allocation_info_mark_deallocated() {
         let mut info = AllocationInfo::new(0x1000, 512);
         assert!(info.is_active());
-        
+
         info.mark_deallocated();
         assert!(!info.is_active());
         assert!(info.timestamp_dealloc.is_some());
@@ -3827,13 +3825,13 @@ mod tests {
     #[test]
     fn test_allocation_info_enhance_with_type_info() {
         let mut info = AllocationInfo::new(0x1000, 512);
-        
+
         // Test with Rc type
         info.enhance_with_type_info("std::rc::Rc<String>");
         if let Some(clone_info) = &info.clone_info {
             assert_eq!(clone_info.clone_count, 2);
         }
-        
+
         // Test with Vec type
         info.enhance_with_type_info("Vec<i32>");
         if let Some(borrow_info) = &info.borrow_info {
@@ -3845,7 +3843,7 @@ mod tests {
     #[test]
     fn test_memory_stats_creation() {
         let stats = MemoryStats::new();
-        
+
         assert_eq!(stats.total_allocations, 0);
         assert_eq!(stats.total_allocated, 0);
         assert_eq!(stats.active_allocations, 0);
@@ -3854,13 +3852,8 @@ mod tests {
 
     #[test]
     fn test_smart_pointer_info_rc_arc() {
-        let info = SmartPointerInfo::new_rc_arc(
-            0x1000,
-            SmartPointerType::Rc,
-            1,
-            0
-        );
-        
+        let info = SmartPointerInfo::new_rc_arc(0x1000, SmartPointerType::Rc, 1, 0);
+
         assert_eq!(info.data_ptr, 0x1000);
         assert!(matches!(info.pointer_type, SmartPointerType::Rc));
         assert!(info.is_data_owner);
@@ -3870,12 +3863,8 @@ mod tests {
 
     #[test]
     fn test_smart_pointer_info_weak() {
-        let info = SmartPointerInfo::new_weak(
-            0x2000,
-            SmartPointerType::RcWeak,
-            1
-        );
-        
+        let info = SmartPointerInfo::new_weak(0x2000, SmartPointerType::RcWeak, 1);
+
         assert_eq!(info.data_ptr, 0x2000);
         assert!(matches!(info.pointer_type, SmartPointerType::RcWeak));
         assert!(!info.is_data_owner);
@@ -3884,13 +3873,8 @@ mod tests {
 
     #[test]
     fn test_smart_pointer_info_record_clone() {
-        let mut info = SmartPointerInfo::new_rc_arc(
-            0x1000,
-            SmartPointerType::Arc,
-            1,
-            0
-        );
-        
+        let mut info = SmartPointerInfo::new_rc_arc(0x1000, SmartPointerType::Arc, 1, 0);
+
         info.record_clone(0x2000, 0x1000);
         assert_eq!(info.cloned_from, Some(0x1000));
         assert_eq!(info.clones.len(), 1);
@@ -3899,13 +3883,8 @@ mod tests {
 
     #[test]
     fn test_smart_pointer_info_update_ref_count() {
-        let mut info = SmartPointerInfo::new_rc_arc(
-            0x1000,
-            SmartPointerType::Rc,
-            1,
-            0
-        );
-        
+        let mut info = SmartPointerInfo::new_rc_arc(0x1000, SmartPointerType::Rc, 1, 0);
+
         info.update_ref_count(2, 1);
         assert_eq!(info.ref_count_history.len(), 2);
         assert_eq!(info.weak_count, Some(1));
@@ -3915,7 +3894,7 @@ mod tests {
     #[test]
     fn test_borrow_info_default() {
         let borrow_info = BorrowInfo::default();
-        
+
         assert_eq!(borrow_info.immutable_borrows, 0);
         assert_eq!(borrow_info.mutable_borrows, 0);
         assert_eq!(borrow_info.max_concurrent_borrows, 0);
@@ -3925,7 +3904,7 @@ mod tests {
     #[test]
     fn test_clone_info_default() {
         let clone_info = CloneInfo::default();
-        
+
         assert_eq!(clone_info.clone_count, 0);
         assert!(!clone_info.is_clone);
         assert_eq!(clone_info.original_ptr, None);
@@ -3934,7 +3913,7 @@ mod tests {
     #[test]
     fn test_fragmentation_analysis_default() {
         let frag = FragmentationAnalysis::default();
-        
+
         assert_eq!(frag.fragmentation_ratio, 0.0);
         assert_eq!(frag.largest_free_block, 0);
         assert_eq!(frag.free_block_count, 0);
@@ -3943,7 +3922,7 @@ mod tests {
     #[test]
     fn test_system_library_stats_default() {
         let stats = SystemLibraryStats::default();
-        
+
         assert_eq!(stats.std_collections.allocation_count, 0);
         assert_eq!(stats.async_runtime.total_bytes, 0);
         assert_eq!(stats.network_io.peak_bytes, 0);
@@ -3952,7 +3931,7 @@ mod tests {
     #[test]
     fn test_library_usage_default() {
         let usage = LibraryUsage::default();
-        
+
         assert_eq!(usage.allocation_count, 0);
         assert_eq!(usage.total_bytes, 0);
         assert_eq!(usage.average_size, 0.0);
@@ -3963,7 +3942,7 @@ mod tests {
     #[test]
     fn test_concurrency_analysis_default() {
         let analysis = ConcurrencyAnalysis::default();
-        
+
         assert_eq!(analysis.thread_safety_allocations, 0);
         assert_eq!(analysis.shared_memory_bytes, 0);
         assert_eq!(analysis.mutex_protected, 0);
@@ -3972,7 +3951,7 @@ mod tests {
     #[test]
     fn test_scope_analysis_default() {
         let analysis = ScopeAnalysis::default();
-        
+
         assert_eq!(analysis.total_scopes, 0);
         assert_eq!(analysis.active_scopes, 0);
         assert_eq!(analysis.max_depth, 0);
@@ -3982,7 +3961,7 @@ mod tests {
     #[test]
     fn test_risk_distribution_default() {
         let risk = RiskDistribution::default();
-        
+
         assert_eq!(risk.low_risk, 0);
         assert_eq!(risk.medium_risk, 0);
         assert_eq!(risk.high_risk, 0);
@@ -3999,7 +3978,7 @@ mod tests {
             AllocationEventType::Borrow,
             AllocationEventType::Return,
         ];
-        
+
         for event in events {
             assert!(format!("{:?}", event).len() > 0);
         }
@@ -4013,7 +3992,7 @@ mod tests {
             ScopeEventType::Create,
             ScopeEventType::Destroy,
         ];
-        
+
         for event in events {
             assert!(format!("{:?}", event).len() > 0);
         }
@@ -4028,7 +4007,7 @@ mod tests {
             GrowthReason::Optimization,
             GrowthReason::UserRequested,
         ];
-        
+
         for reason in reasons {
             assert!(format!("{:?}", reason).len() > 0);
         }
@@ -4043,7 +4022,7 @@ mod tests {
             SmartPointerType::ArcWeak,
             SmartPointerType::Box,
         ];
-        
+
         for ptr_type in types {
             assert!(format!("{:?}", ptr_type).len() > 0);
         }
@@ -4072,7 +4051,7 @@ mod tests {
                 description: "test overflow".to_string(),
             },
         ];
-        
+
         for violation in violations {
             assert!(format!("{:?}", violation).len() > 0);
         }
@@ -4081,11 +4060,11 @@ mod tests {
     #[test]
     fn test_allocation_info_serialization() {
         let info = AllocationInfo::new(0x1000, 512);
-        
+
         // Test that it can be serialized
         let serialized = serde_json::to_string(&info);
         assert!(serialized.is_ok());
-        
+
         // Test that serialized data contains expected fields
         let json_str = serialized.unwrap();
         assert!(json_str.contains("ptr"));
@@ -4097,7 +4076,7 @@ mod tests {
     #[test]
     fn test_memory_stats_serialization() {
         let stats = MemoryStats::new();
-        
+
         // Test that it can be serialized
         let serialized = serde_json::to_string(&stats);
         assert!(serialized.is_ok());
@@ -4107,7 +4086,7 @@ mod tests {
     fn test_tracking_result_type() {
         let success: TrackingResult<i32> = Ok(42);
         let failure: TrackingResult<i32> = Err(TrackingError::TrackingDisabled);
-        
+
         assert!(success.is_ok());
         assert!(failure.is_err());
         assert_eq!(success.unwrap(), 42);
@@ -4120,7 +4099,7 @@ mod tests {
             strong_count: 2,
             weak_count: 1,
         };
-        
+
         assert_eq!(snapshot.timestamp, 1000);
         assert_eq!(snapshot.strong_count, 2);
         assert_eq!(snapshot.weak_count, 1);
@@ -4134,7 +4113,7 @@ mod tests {
             line_number: Some(42),
             module_path: Some("my_crate".to_string()),
         };
-        
+
         assert_eq!(frame.function_name, "main");
         assert_eq!(frame.file_name, Some("main.rs".to_string()));
         assert_eq!(frame.line_number, Some(42));
@@ -4143,16 +4122,19 @@ mod tests {
     #[test]
     fn test_performance_characteristics_default() {
         let perf = PerformanceCharacteristics::default();
-        
+
         assert_eq!(perf.avg_allocation_time_ns, 0.0);
         assert_eq!(perf.avg_deallocation_time_ns, 0.0);
-        assert!(matches!(perf.access_pattern, MemoryAccessPattern::Sequential));
+        assert!(matches!(
+            perf.access_pattern,
+            MemoryAccessPattern::Sequential
+        ));
     }
 
     #[test]
     fn test_lifecycle_efficiency_metrics_default() {
         let metrics = LifecycleEfficiencyMetrics::default();
-        
+
         assert_eq!(metrics.utilization_ratio, 0.0);
         assert_eq!(metrics.memory_efficiency, 0.0);
         assert_eq!(metrics.performance_efficiency, 0.0);

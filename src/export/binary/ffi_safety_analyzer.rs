@@ -446,7 +446,10 @@ impl FfiSafetyAnalyzer {
                     .unwrap_or_else(|| "unknown".to_string()),
                 stack_trace: allocation.stack_trace.clone().unwrap_or_default(),
                 risk_level: RiskLevel::Medium,
-                description: format!("Large allocation detected: {size} bytes", size = allocation.size),
+                description: format!(
+                    "Large allocation detected: {size} bytes",
+                    size = allocation.size
+                ),
                 timestamp: allocation.timestamp_alloc,
             };
             self.unsafe_operations.push(operation);

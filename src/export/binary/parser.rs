@@ -69,9 +69,9 @@ impl BinaryParser {
                 analysis_engine
                     .create_unsafe_ffi_analysis(&user_allocations)
                     .map_err(|e| {
-                        BinaryExportError::CorruptedData(format!(
-                            "Unsafe FFI analysis failed: {e}",
-                        ))
+                        BinaryExportError::CorruptedData(
+                            format!("Unsafe FFI analysis failed: {e}",),
+                        )
                     })?,
             ),
             (
@@ -118,7 +118,7 @@ impl BinaryParser {
         reader.read_all()
     }
 
-    /// Load allocations with enhanced error recovery 
+    /// Load allocations with enhanced error recovery
     ///
     /// fix "failed to fill whole buffer"
     pub fn load_allocations_with_recovery<P: AsRef<Path>>(
@@ -246,7 +246,7 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// Parse full binary to JSON using ultra-fast direct approach 
+    /// Parse full binary to JSON using ultra-fast direct approach
     ///
     /// **One-Stop Solution**: Directly use the optimized generate_*_json method to avoid SelectiveJsonExporter's I/O errors.
     ///
@@ -262,7 +262,7 @@ impl BinaryParser {
         let start = Instant::now();
         tracing::info!("Starting ultra-fast full binary to JSON conversion (direct approach)");
 
-        // Load all allocations with improved error handling 
+        // Load all allocations with improved error handling
         let load_start = Instant::now();
         let all_allocations = Self::load_allocations_with_recovery(&binary_path)?;
         let load_time = load_start.elapsed();
@@ -1558,9 +1558,7 @@ impl BinaryParser {
             .map(|(file_type, analysis_type)| {
                 let file_path = project_dir.join(format!("{base_name}_{file_type}.json"));
                 let mut writer = HighSpeedBufferedWriter::new(&file_path, writer_config.clone())
-                    .map_err(|e| {
-                        BinaryExportError::Io(std::io::Error::other(e.to_string()))
-                    })?;
+                    .map_err(|e| BinaryExportError::Io(std::io::Error::other(e.to_string())))?;
 
                 // Generate JSON content directly
                 let json_content = Self::generate_json_content_fast(allocations, analysis_type)?;
@@ -1568,9 +1566,7 @@ impl BinaryParser {
                 // Write using high-speed writer's custom JSON method
                 writer
                     .write_custom_json(json_content.as_bytes())
-                    .map_err(|e| {
-                        BinaryExportError::Io(std::io::Error::other(e.to_string()))
-                    })?;
+                    .map_err(|e| BinaryExportError::Io(std::io::Error::other(e.to_string())))?;
 
                 Ok(())
             })

@@ -537,7 +537,10 @@ pub fn build_variable_relationship_graph(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::{AllocationInfo, SmartPointerInfo as CoreSmartPointerInfo, SmartPointerType, RefCountSnapshot};
+    use crate::core::types::{
+        AllocationInfo, RefCountSnapshot, SmartPointerInfo as CoreSmartPointerInfo,
+        SmartPointerType,
+    };
     use crate::variable_registry::VariableInfo;
 
     /// Helper function to create test allocation info
@@ -600,7 +603,7 @@ mod tests {
             Some(type_name),
             Some("main".to_string()),
         );
-        
+
         alloc.smart_pointer_info = Some(CoreSmartPointerInfo {
             data_ptr,
             pointer_type,
@@ -616,7 +619,7 @@ mod tests {
             clones,
             cloned_from,
         });
-        
+
         alloc
     }
 
@@ -639,10 +642,11 @@ mod tests {
             RelationshipType::Contains,
             RelationshipType::DependsOn,
         ];
-        
+
         for rel_type in relationship_types {
             let serialized = serde_json::to_string(&rel_type).expect("Failed to serialize");
-            let _deserialized: RelationshipType = serde_json::from_str(&serialized).expect("Failed to deserialize");
+            let _deserialized: RelationshipType =
+                serde_json::from_str(&serialized).expect("Failed to deserialize");
         }
     }
 
@@ -654,10 +658,11 @@ mod tests {
             VariableCategory::SmartPointer,
             VariableCategory::Collection,
         ];
-        
+
         for category in categories {
             let serialized = serde_json::to_string(&category).expect("Failed to serialize");
-            let _deserialized: VariableCategory = serde_json::from_str(&serialized).expect("Failed to deserialize");
+            let _deserialized: VariableCategory =
+                serde_json::from_str(&serialized).expect("Failed to deserialize");
         }
     }
 
@@ -669,10 +674,11 @@ mod tests {
             ClusterType::Lifetime,
             ClusterType::SmartPointerGroup,
         ];
-        
+
         for cluster_type in cluster_types {
             let serialized = serde_json::to_string(&cluster_type).expect("Failed to serialize");
-            let _deserialized: ClusterType = serde_json::from_str(&serialized).expect("Failed to deserialize");
+            let _deserialized: ClusterType =
+                serde_json::from_str(&serialized).expect("Failed to deserialize");
         }
     }
 
@@ -695,19 +701,30 @@ mod tests {
     #[test]
     fn test_add_allocations_basic() {
         let allocations = vec![
-            create_test_allocation(0x1000, 1024, Some("var1".to_string()), Some("i32".to_string()), Some("main".to_string())),
-            create_test_allocation(0x2000, 512, Some("var2".to_string()), Some("String".to_string()), Some("main".to_string())),
+            create_test_allocation(
+                0x1000,
+                1024,
+                Some("var1".to_string()),
+                Some("i32".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                512,
+                Some("var2".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
         ];
-        
+
         let registry = HashMap::new();
-        
-        let builder = VariableRelationshipBuilder::new()
-            .add_allocations(&allocations, &registry);
-        
+
+        let builder = VariableRelationshipBuilder::new().add_allocations(&allocations, &registry);
+
         assert_eq!(builder.nodes.len(), 2);
         assert!(builder.nodes.contains_key("0x1000"));
         assert!(builder.nodes.contains_key("0x2000"));
-        
+
         let node1 = &builder.nodes["0x1000"];
         assert_eq!(node1.name, "var1");
         assert_eq!(node1.type_name, "i32");
@@ -719,16 +736,16 @@ mod tests {
 
     #[test]
     fn test_add_allocations_with_registry() {
-        let allocations = vec![
-            create_test_allocation(0x1000, 1024, None, None, None),
-        ];
-        
+        let allocations = vec![create_test_allocation(0x1000, 1024, None, None, None)];
+
         let mut registry = HashMap::new();
-        registry.insert(0x1000, create_test_variable_info("registry_var".to_string(), "u64".to_string()));
-        
-        let builder = VariableRelationshipBuilder::new()
-            .add_allocations(&allocations, &registry);
-        
+        registry.insert(
+            0x1000,
+            create_test_variable_info("registry_var".to_string(), "u64".to_string()),
+        );
+
+        let builder = VariableRelationshipBuilder::new().add_allocations(&allocations, &registry);
+
         assert_eq!(builder.nodes.len(), 1);
         let node = &builder.nodes["0x1000"];
         assert_eq!(node.name, "registry_var");
@@ -741,30 +758,43 @@ mod tests {
         let allocations = vec![
             create_test_allocation(0x1000, 1024, None, Some("Vec<i32>".to_string()), None),
             create_test_allocation(0x2000, 512, None, Some("Box<String>".to_string()), None),
-            create_test_allocation(0x3000, 256, None, Some("HashMap<String, i32>".to_string()), None),
+            create_test_allocation(
+                0x3000,
+                256,
+                None,
+                Some("HashMap<String, i32>".to_string()),
+                None,
+            ),
             create_test_allocation(0x4000, 128, None, Some("Rc<Data>".to_string()), None),
         ];
-        
+
         let registry = HashMap::new();
-        
-        let builder = VariableRelationshipBuilder::new()
-            .add_allocations(&allocations, &registry);
-        
+
+        let builder = VariableRelationshipBuilder::new().add_allocations(&allocations, &registry);
+
         assert_eq!(builder.nodes.len(), 4);
-        
+
         // Check that nodes are created with appropriate categories
         // The exact categorization may depend on the inference logic implementation
         let categories: Vec<_> = builder.nodes.values().map(|node| &node.category).collect();
-        
+
         // We should have some user variables since we provided explicit type names
-        let has_user_vars = categories.iter().any(|&cat| *cat == VariableCategory::UserVariable);
-        let has_smart_ptrs = categories.iter().any(|&cat| *cat == VariableCategory::SmartPointer);
-        let has_collections = categories.iter().any(|&cat| *cat == VariableCategory::Collection);
-        let has_system_allocs = categories.iter().any(|&cat| *cat == VariableCategory::SystemAllocation);
-        
+        let has_user_vars = categories
+            .iter()
+            .any(|&cat| *cat == VariableCategory::UserVariable);
+        let has_smart_ptrs = categories
+            .iter()
+            .any(|&cat| *cat == VariableCategory::SmartPointer);
+        let has_collections = categories
+            .iter()
+            .any(|&cat| *cat == VariableCategory::Collection);
+        let has_system_allocs = categories
+            .iter()
+            .any(|&cat| *cat == VariableCategory::SystemAllocation);
+
         // At least one of these should be true
         assert!(has_user_vars || has_smart_ptrs || has_collections || has_system_allocs);
-        
+
         // Verify specific nodes exist
         assert!(builder.nodes.contains_key("0x1000"));
         assert!(builder.nodes.contains_key("0x2000"));
@@ -776,42 +806,62 @@ mod tests {
     fn test_detect_references_smart_pointers() {
         let allocations = vec![
             create_smart_pointer_allocation(
-                0x1000, 64, "rc1".to_string(), "Rc<i32>".to_string(),
-                SmartPointerType::Rc, 0x5000, vec![0x2000, 0x3000], None
+                0x1000,
+                64,
+                "rc1".to_string(),
+                "Rc<i32>".to_string(),
+                SmartPointerType::Rc,
+                0x5000,
+                vec![0x2000, 0x3000],
+                None,
             ),
             create_smart_pointer_allocation(
-                0x2000, 64, "rc2".to_string(), "Rc<i32>".to_string(),
-                SmartPointerType::Rc, 0x5000, vec![], Some(0x1000)
+                0x2000,
+                64,
+                "rc2".to_string(),
+                "Rc<i32>".to_string(),
+                SmartPointerType::Rc,
+                0x5000,
+                vec![],
+                Some(0x1000),
             ),
             create_smart_pointer_allocation(
-                0x3000, 64, "rc3".to_string(), "Rc<i32>".to_string(),
-                SmartPointerType::Rc, 0x5000, vec![], Some(0x1000)
+                0x3000,
+                64,
+                "rc3".to_string(),
+                "Rc<i32>".to_string(),
+                SmartPointerType::Rc,
+                0x5000,
+                vec![],
+                Some(0x1000),
             ),
         ];
-        
+
         let registry = HashMap::new();
-        
+
         let builder = VariableRelationshipBuilder::new()
             .add_allocations(&allocations, &registry)
             .detect_references();
-        
+
         // Should have clone relationships
         assert!(!builder.relationships.is_empty());
-        
-        let clone_relationships: Vec<_> = builder.relationships.iter()
+
+        let clone_relationships: Vec<_> = builder
+            .relationships
+            .iter()
             .filter(|rel| rel.relationship_type == RelationshipType::Clones)
             .collect();
-        
+
         assert!(!clone_relationships.is_empty());
-        
+
         // Check that relationships exist between clones
         let has_clone_rel = clone_relationships.iter().any(|rel| {
-            (rel.source == "0x1000" && rel.target == "0x2000") ||
-            (rel.source == "0x1000" && rel.target == "0x3000") ||
-            (rel.source == "0x1000" && rel.target == "0x2000") ||
-            (rel.source == "0x1000" && rel.target == "0x3000")
+            (rel.source == "0x1000" && rel.target == "0x2000")
+                || (rel.source == "0x1000" && rel.target == "0x3000")
+                || (rel.source == "0x1000" && rel.target == "0x2000")
+                || (rel.source == "0x1000" && rel.target == "0x3000")
         });
-        
+
         assert!(has_clone_rel);
     }
 
@@ -819,97 +869,145 @@ mod tests {
     fn test_detect_references_box_ownership() {
         let allocations = vec![
             create_smart_pointer_allocation(
-                0x1000, 64, "box_ptr".to_string(), "Box<String>".to_string(),
-                SmartPointerType::Box, 0x2000, vec![], None
+                0x1000,
+                64,
+                "box_ptr".to_string(),
+                "Box<String>".to_string(),
+                SmartPointerType::Box,
+                0x2000,
+                vec![],
+                None,
             ),
-            create_test_allocation(0x2000, 32, Some("data".to_string()), Some("String".to_string()), Some("main".to_string())),
+            create_test_allocation(
+                0x2000,
+                32,
+                Some("data".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
         ];
-        
+
         let registry = HashMap::new();
-        
+
         let builder = VariableRelationshipBuilder::new()
             .add_allocations(&allocations, &registry)
             .detect_references();
-        
+
         // Should have ownership relationship
-        let ownership_relationships: Vec<_> = builder.relationships.iter()
+        let ownership_relationships: Vec<_> = builder
+            .relationships
+            .iter()
             .filter(|rel| rel.relationship_type == RelationshipType::Owns)
             .collect();
-        
+
         assert!(!ownership_relationships.is_empty());
-        
-        let has_ownership = ownership_relationships.iter().any(|rel| {
-            rel.source == "0x1000" && rel.target == "0x2000"
-        });
-        
+
+        let has_ownership = ownership_relationships
+            .iter()
+            .any(|rel| rel.source == "0x1000" && rel.target == "0x2000");
+
         assert!(has_ownership);
     }
 
     #[test]
     fn test_detect_scope_relationships() {
         let allocations = vec![
-            create_test_allocation(0x1000, 1024, Some("var1".to_string()), Some("i32".to_string()), Some("main".to_string())),
-            create_test_allocation(0x2000, 512, Some("var2".to_string()), Some("String".to_string()), Some("main".to_string())),
-            create_test_allocation(0x3000, 256, Some("var3".to_string()), Some("f64".to_string()), Some("function".to_string())),
+            create_test_allocation(
+                0x1000,
+                1024,
+                Some("var1".to_string()),
+                Some("i32".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                512,
+                Some("var2".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x3000,
+                256,
+                Some("var3".to_string()),
+                Some("f64".to_string()),
+                Some("function".to_string()),
+            ),
         ];
-        
+
         let registry = HashMap::new();
-        
+
         let builder = VariableRelationshipBuilder::new()
             .add_allocations(&allocations, &registry)
             .detect_scope_relationships();
-        
+
         // Should have scope clusters
         assert!(!builder.clusters.is_empty());
-        
-        let scope_clusters: Vec<_> = builder.clusters.iter()
+
+        let scope_clusters: Vec<_> = builder
+            .clusters
+            .iter()
             .filter(|cluster| cluster.cluster_type == ClusterType::Scope)
             .collect();
-        
+
         assert!(!scope_clusters.is_empty());
-        
+
         // Should have main scope cluster with 2 variables
-        let main_cluster = scope_clusters.iter().find(|cluster| {
-            cluster.id == "scope_main"
-        });
-        
+        let main_cluster = scope_clusters
+            .iter()
+            .find(|cluster| cluster.id == "scope_main");
+
         assert!(main_cluster.is_some());
         let main_cluster = main_cluster.unwrap();
         assert_eq!(main_cluster.variables.len(), 2);
         assert!(main_cluster.variables.contains(&"0x1000".to_string()));
         assert!(main_cluster.variables.contains(&"0x2000".to_string()));
-        
+
         // Should have containment relationships within scope
-        let containment_relationships: Vec<_> = builder.relationships.iter()
+        let containment_relationships: Vec<_> = builder
+            .relationships
+            .iter()
             .filter(|rel| rel.relationship_type == RelationshipType::Contains)
             .collect();
-        
+
         assert!(!containment_relationships.is_empty());
     }
 
     #[test]
     fn test_build_graph_basic() {
         let allocations = vec![
-            create_test_allocation(0x1000, 1024, Some("var1".to_string()), Some("i32".to_string()), Some("main".to_string())),
-            create_test_allocation(0x2000, 512, Some("var2".to_string()), Some("String".to_string()), Some("main".to_string())),
+            create_test_allocation(
+                0x1000,
+                1024,
+                Some("var1".to_string()),
+                Some("i32".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                512,
+                Some("var2".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
         ];
-        
+
         let registry = HashMap::new();
-        
+
         let graph = VariableRelationshipBuilder::new()
             .add_allocations(&allocations, &registry)
             .detect_scope_relationships()
             .build_graph();
-        
+
         assert_eq!(graph.nodes.len(), 2);
         assert!(!graph.relationships.is_empty());
         assert!(!graph.clusters.is_empty());
-        
+
         // Check statistics
         assert_eq!(graph.statistics.total_nodes, 2);
         assert!(graph.statistics.total_relationships > 0);
         assert!(graph.statistics.avg_relationships_per_node >= 0.0);
-        
+
         // Check metadata
         assert!(graph.metadata.contains_key("build_timestamp"));
     }
@@ -917,18 +1015,36 @@ mod tests {
     #[test]
     fn test_calculate_statistics() {
         let allocations = vec![
-            create_test_allocation(0x1000, 1024, Some("var1".to_string()), Some("i32".to_string()), Some("main".to_string())),
-            create_test_allocation(0x2000, 512, Some("var2".to_string()), Some("String".to_string()), Some("main".to_string())),
-            create_test_allocation(0x3000, 256, Some("isolated".to_string()), Some("f64".to_string()), Some("other".to_string())),
+            create_test_allocation(
+                0x1000,
+                1024,
+                Some("var1".to_string()),
+                Some("i32".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                512,
+                Some("var2".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x3000,
+                256,
+                Some("isolated".to_string()),
+                Some("f64".to_string()),
+                Some("other".to_string()),
+            ),
         ];
-        
+
         let registry = HashMap::new();
-        
+
         let graph = VariableRelationshipBuilder::new()
             .add_allocations(&allocations, &registry)
             .detect_scope_relationships()
             .build_graph();
-        
+
         let stats = &graph.statistics;
         assert_eq!(stats.total_nodes, 3);
         assert!(stats.total_relationships > 0);
@@ -939,21 +1055,24 @@ mod tests {
 
     #[test]
     fn test_smart_pointer_info_conversion() {
-        let allocations = vec![
-            create_smart_pointer_allocation(
-                0x1000, 64, "rc_ptr".to_string(), "Rc<Data>".to_string(),
-                SmartPointerType::Rc, 0x2000, vec![0x3000], Some(0x4000)
-            ),
-        ];
-        
+        let allocations = vec![create_smart_pointer_allocation(
+            0x1000,
+            64,
+            "rc_ptr".to_string(),
+            "Rc<Data>".to_string(),
+            SmartPointerType::Rc,
+            0x2000,
+            vec![0x3000],
+            Some(0x4000),
+        )];
+
         let registry = HashMap::new();
-        
-        let builder = VariableRelationshipBuilder::new()
-            .add_allocations(&allocations, &registry);
-        
+
+        let builder = VariableRelationshipBuilder::new().add_allocations(&allocations, &registry);
+
         let node = &builder.nodes["0x1000"];
         assert!(node.smart_pointer_info.is_some());
-        
+
         let smart_ptr_info = node.smart_pointer_info.as_ref().unwrap();
         assert_eq!(smart_ptr_info.pointer_type, "Rc");
         assert_eq!(smart_ptr_info.ref_count, Some(1));
@@ -970,10 +1089,11 @@ mod tests {
             width: Some(100.0),
             height: Some(50.0),
         };
-        
+
         let serialized = serde_json::to_string(&layout_hint).expect("Failed to serialize");
-        let deserialized: LayoutHint = serde_json::from_str(&serialized).expect("Failed to deserialize");
-        
+        let deserialized: LayoutHint =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
         assert_eq!(deserialized.x, 10.0);
         assert_eq!(deserialized.y, 20.0);
         assert_eq!(deserialized.width, Some(100.0));
@@ -994,10 +1114,11 @@ mod tests {
             created_at: 1000,
             destroyed_at: None,
         };
-        
+
         let serialized = serde_json::to_string(&node).expect("Failed to serialize");
-        let deserialized: VariableNode = serde_json::from_str(&serialized).expect("Failed to deserialize");
-        
+        let deserialized: VariableNode =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
         assert_eq!(deserialized.id, "0x1000");
         assert_eq!(deserialized.name, "test_var");
         assert_eq!(deserialized.type_name, "i32");
@@ -1008,8 +1129,11 @@ mod tests {
     #[test]
     fn test_variable_relationship_serialization() {
         let mut metadata = HashMap::new();
-        metadata.insert("test_key".to_string(), serde_json::Value::String("test_value".to_string()));
-        
+        metadata.insert(
+            "test_key".to_string(),
+            serde_json::Value::String("test_value".to_string()),
+        );
+
         let relationship = VariableRelationship {
             source: "0x1000".to_string(),
             target: "0x2000".to_string(),
@@ -1017,10 +1141,11 @@ mod tests {
             weight: 0.8,
             metadata,
         };
-        
+
         let serialized = serde_json::to_string(&relationship).expect("Failed to serialize");
-        let deserialized: VariableRelationship = serde_json::from_str(&serialized).expect("Failed to deserialize");
-        
+        let deserialized: VariableRelationship =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
         assert_eq!(deserialized.source, "0x1000");
         assert_eq!(deserialized.target, "0x2000");
         assert_eq!(deserialized.relationship_type, RelationshipType::References);
@@ -1031,15 +1156,27 @@ mod tests {
     #[test]
     fn test_build_variable_relationship_graph_function() {
         let allocations = vec![
-            create_test_allocation(0x1000, 1024, Some("var1".to_string()), Some("i32".to_string()), Some("main".to_string())),
-            create_test_allocation(0x2000, 512, Some("var2".to_string()), Some("String".to_string()), Some("main".to_string())),
+            create_test_allocation(
+                0x1000,
+                1024,
+                Some("var1".to_string()),
+                Some("i32".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                512,
+                Some("var2".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
         ];
-        
+
         let registry = HashMap::new();
-        
+
         let result = build_variable_relationship_graph(&allocations, &registry);
         assert!(result.is_ok());
-        
+
         let graph = result.unwrap();
         assert_eq!(graph.nodes.len(), 2);
         assert!(!graph.relationships.is_empty());
@@ -1051,96 +1188,157 @@ mod tests {
         // Create a complex scenario with multiple types of relationships
         let allocations = vec![
             // Main scope variables
-            create_test_allocation(0x1000, 1024, Some("main_var1".to_string()), Some("i32".to_string()), Some("main".to_string())),
-            create_test_allocation(0x2000, 512, Some("main_var2".to_string()), Some("String".to_string()), Some("main".to_string())),
-            
+            create_test_allocation(
+                0x1000,
+                1024,
+                Some("main_var1".to_string()),
+                Some("i32".to_string()),
+                Some("main".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                512,
+                Some("main_var2".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
             // Function scope variable
-            create_test_allocation(0x3000, 256, Some("func_var".to_string()), Some("f64".to_string()), Some("function".to_string())),
-            
+            create_test_allocation(
+                0x3000,
+                256,
+                Some("func_var".to_string()),
+                Some("f64".to_string()),
+                Some("function".to_string()),
+            ),
             // Smart pointers
             create_smart_pointer_allocation(
-                0x4000, 64, "rc1".to_string(), "Rc<Data>".to_string(),
-                SmartPointerType::Rc, 0x6000, vec![0x5000], None
+                0x4000,
+                64,
+                "rc1".to_string(),
+                "Rc<Data>".to_string(),
+                SmartPointerType::Rc,
+                0x6000,
+                vec![0x5000],
+                None,
             ),
             create_smart_pointer_allocation(
-                0x5000, 64, "rc2".to_string(), "Rc<Data>".to_string(),
-                SmartPointerType::Rc, 0x6000, vec![], Some(0x4000)
+                0x5000,
+                64,
+                "rc2".to_string(),
+                "Rc<Data>".to_string(),
+                SmartPointerType::Rc,
+                0x6000,
+                vec![],
+                Some(0x4000),
             ),
-            
             // Box pointer
             create_smart_pointer_allocation(
-                0x7000, 64, "box_ptr".to_string(), "Box<String>".to_string(),
-                SmartPointerType::Box, 0x8000, vec![], None
+                0x7000,
+                64,
+                "box_ptr".to_string(),
+                "Box<String>".to_string(),
+                SmartPointerType::Box,
+                0x8000,
+                vec![],
+                None,
             ),
-            create_test_allocation(0x8000, 32, Some("boxed_data".to_string()), Some("String".to_string()), Some("main".to_string())),
-            
+            create_test_allocation(
+                0x8000,
+                32,
+                Some("boxed_data".to_string()),
+                Some("String".to_string()),
+                Some("main".to_string()),
+            ),
             // Collections
-            create_test_allocation(0x9000, 128, Some("vec_data".to_string()), Some("Vec<i32>".to_string()), Some("main".to_string())),
+            create_test_allocation(
+                0x9000,
+                128,
+                Some("vec_data".to_string()),
+                Some("Vec<i32>".to_string()),
+                Some("main".to_string()),
+            ),
         ];
-        
+
         let mut registry = HashMap::new();
-        registry.insert(0x1000, create_test_variable_info("registry_main_var".to_string(), "u32".to_string()));
-        
+        registry.insert(
+            0x1000,
+            create_test_variable_info("registry_main_var".to_string(), "u32".to_string()),
+        );
+
         let graph = VariableRelationshipBuilder::new()
             .add_allocations(&allocations, &registry)
             .detect_references()
             .detect_scope_relationships()
             .detect_circular_references()
             .build_graph();
-        
+
         // Verify comprehensive results
         assert_eq!(graph.nodes.len(), 8);
         assert!(!graph.relationships.is_empty());
         assert!(!graph.clusters.is_empty());
-        
+
         // Check for different types of relationships
-        let has_clones = graph.relationships.iter().any(|rel| rel.relationship_type == RelationshipType::Clones);
-        let has_ownership = graph.relationships.iter().any(|rel| rel.relationship_type == RelationshipType::Owns);
-        let has_containment = graph.relationships.iter().any(|rel| rel.relationship_type == RelationshipType::Contains);
-        
+        let has_clones = graph
+            .relationships
+            .iter()
+            .any(|rel| rel.relationship_type == RelationshipType::Clones);
+        let has_ownership = graph
+            .relationships
+            .iter()
+            .any(|rel| rel.relationship_type == RelationshipType::Owns);
+        let has_containment = graph
+            .relationships
+            .iter()
+            .any(|rel| rel.relationship_type == RelationshipType::Contains);
+
         assert!(has_clones || has_ownership || has_containment);
-        
+
         // Check for different categories - be flexible about categorization
         let mut categories = Vec::new();
-        
+
         // Collect all unique categories
         for node in &graph.nodes {
             if !categories.contains(&&node.category) {
                 categories.push(&node.category);
             }
         }
-        
+
         // Debug output to help diagnose test failures
         println!("Found categories: {:?}", categories);
-        
+
         // We should have at least one category
-        assert!(!categories.is_empty(), "Expected at least one variable category");
-        
+        assert!(
+            !categories.is_empty(),
+            "Expected at least one variable category"
+        );
+
         // We should have user variables since we provided explicit names and types
         let has_user_vars = categories.contains(&&VariableCategory::UserVariable);
         assert!(has_user_vars, "Expected at least one user variable");
-        
+
         // Check statistics
         let stats = &graph.statistics;
         assert_eq!(stats.total_nodes, 8);
         assert!(stats.total_relationships > 0);
         assert!(stats.avg_relationships_per_node >= 0.0);
-        
+
         // Check metadata
         assert!(graph.metadata.contains_key("build_timestamp"));
-        
+
         // Verify clusters exist
-        let scope_clusters: Vec<_> = graph.clusters.iter()
+        let scope_clusters: Vec<_> = graph
+            .clusters
+            .iter()
             .filter(|cluster| cluster.cluster_type == ClusterType::Scope)
             .collect();
-        
+
         assert!(!scope_clusters.is_empty());
-        
+
         // Should have main scope cluster with multiple variables
-        let main_cluster = scope_clusters.iter().find(|cluster| {
-            cluster.variables.len() > 1
-        });
-        
+        let main_cluster = scope_clusters
+            .iter()
+            .find(|cluster| cluster.variables.len() > 1);
+
         assert!(main_cluster.is_some());
     }
 }

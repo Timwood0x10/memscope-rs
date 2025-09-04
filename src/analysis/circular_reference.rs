@@ -393,20 +393,20 @@ fn generate_statistics(circular_references: &[CircularReference]) -> CircularRef
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_circular_reference_statistics_generation() {
         // Test with empty cycles
         let empty_cycles = vec![];
         let stats = generate_statistics(&empty_cycles);
-        
+
         assert_eq!(stats.average_cycle_length, 0.0);
         assert_eq!(stats.largest_cycle_size, 0);
         assert!(stats.by_severity.is_empty());
         assert!(stats.by_type.is_empty());
         assert!(stats.by_pointer_type.is_empty());
     }
-    
+
     #[test]
     fn test_circular_reference_node_creation() {
         let node = CircularReferenceNode {
@@ -417,14 +417,14 @@ mod tests {
             pointer_type: SmartPointerType::Rc,
             ref_count: 1,
         };
-        
+
         assert_eq!(node.ptr, 0x1000);
         assert_eq!(node.data_ptr, 0x2000);
         assert_eq!(node.var_name, Some("test_node".to_string()));
         assert_eq!(node.pointer_type, SmartPointerType::Rc);
         assert_eq!(node.ref_count, 1);
     }
-    
+
     #[test]
     fn test_circular_reference_creation() {
         let cycle_path = vec![
@@ -445,7 +445,7 @@ mod tests {
                 ref_count: 1,
             },
         ];
-        
+
         let circular_ref = CircularReference {
             cycle_path: cycle_path.clone(),
             suggested_weak_positions: vec![1],
@@ -453,7 +453,7 @@ mod tests {
             severity: CircularReferenceSeverity::Medium,
             cycle_type: CircularReferenceType::Simple,
         };
-        
+
         assert_eq!(circular_ref.cycle_path.len(), 2);
         assert_eq!(circular_ref.suggested_weak_positions, vec![1]);
         assert_eq!(circular_ref.estimated_leaked_memory, 1024);

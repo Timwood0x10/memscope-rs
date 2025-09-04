@@ -243,4 +243,3 @@ mod tests {
         assert!(!recommendations.is_empty() || recommendations.is_empty()); // Either is fine
     }
 }
-

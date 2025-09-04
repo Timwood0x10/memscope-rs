@@ -1189,9 +1189,7 @@ impl BinaryTemplateEngine {
 
         // Combine script.js content with embedded JS
         if !script_js_content.is_empty() {
-            format!(
-                "{script_js_content}\n\n// === EMBEDDED SAFE OVERRIDES ===\n{embedded_js}"
-            )
+            format!("{script_js_content}\n\n// === EMBEDDED SAFE OVERRIDES ===\n{embedded_js}")
         } else {
             embedded_js.to_string()
         }

@@ -289,29 +289,15 @@ mod tests {
     use crate::core::types::AllocationInfo;
 
     #[test]
-    fn test_analysis_manager_creation() {
-        let manager = AnalysisManager::new();
-        // Test that manager can be created successfully
-        assert!(true); // Manager creation doesn't have observable state
-    }
-
-    #[test]
-    fn test_analysis_manager_default() {
-        let manager = AnalysisManager::default();
-        // Test that default implementation works
-        assert!(true); // Default creation doesn't have observable state
-    }
-
-    #[test]
     fn test_analyze_fragmentation() {
         let manager = AnalysisManager::new();
         let allocations = vec![
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 512),
         ];
-        
+
         let result = manager.analyze_fragmentation(&allocations);
-        
+
         // Test that fragmentation analysis returns valid default values
         assert_eq!(result.fragmentation_ratio, 0.0);
         assert_eq!(result.largest_free_block, 0);
@@ -324,12 +310,10 @@ mod tests {
     #[test]
     fn test_analyze_system_libraries() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0x1000, 256),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0x1000, 256)];
+
         let result = manager.analyze_system_libraries(&allocations);
-        
+
         // Test that system library analysis returns valid default values
         assert_eq!(result.std_collections.allocation_count, 0);
         assert_eq!(result.async_runtime.total_bytes, 0);
@@ -342,12 +326,10 @@ mod tests {
     #[test]
     fn test_analyze_concurrency_safety() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0x3000, 2048),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0x3000, 2048)];
+
         let result = manager.analyze_concurrency_safety(&allocations);
-        
+
         // Test that concurrency analysis returns valid default values
         assert_eq!(result.thread_safety_allocations, 0);
         assert_eq!(result.shared_memory_bytes, 0);
@@ -363,9 +345,9 @@ mod tests {
     #[test]
     fn test_get_unsafe_ffi_tracker() {
         let manager = AnalysisManager::new();
-        
+
         let tracker = manager.get_unsafe_ffi_tracker();
-        
+
         // Test that tracker is returned successfully
         assert!(tracker.as_ref() as *const _ != std::ptr::null());
     }
@@ -373,9 +355,9 @@ mod tests {
     #[test]
     fn test_get_unsafe_ffi_stats() {
         let manager = AnalysisManager::new();
-        
+
         let stats = manager.get_unsafe_ffi_stats();
-        
+
         // Test that stats are returned with valid default values
         assert_eq!(stats.total_operations, 0);
         assert_eq!(stats.ffi_calls, 0);
@@ -391,9 +373,9 @@ mod tests {
             AllocationInfo::new(0x4000, 128),
             AllocationInfo::new(0x5000, 256),
         ];
-        
+
         let result = manager.analyze_circular_references(&allocations);
-        
+
         // Test that circular reference analysis returns valid results
         assert_eq!(result.total_smart_pointers, 0);
         assert_eq!(result.circular_references.len(), 0);
@@ -404,12 +386,10 @@ mod tests {
     #[test]
     fn test_analyze_advanced_types() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0x6000, 512),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0x6000, 512)];
+
         let result = manager.analyze_advanced_types(&allocations);
-        
+
         // Test that advanced type analysis returns valid results
         assert!(result.by_category.is_empty());
         assert!(result.all_issues.is_empty());
@@ -421,12 +401,10 @@ mod tests {
     #[test]
     fn test_analyze_borrow_patterns() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0x7000, 1024),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0x7000, 1024)];
+
         let result = manager.analyze_borrow_patterns(&allocations);
-        
+
         // Test that borrow pattern analysis returns valid results
         assert!(result.patterns.is_empty());
         assert_eq!(result.total_events, 0);
@@ -436,12 +414,10 @@ mod tests {
     #[test]
     fn test_analyze_generic_types() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0x8000, 256),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0x8000, 256)];
+
         let result = manager.analyze_generic_types(&allocations);
-        
+
         // Test that generic type analysis returns valid results
         assert_eq!(result.total_instances, 0);
         assert_eq!(result.unique_base_types, 0);
@@ -453,12 +429,10 @@ mod tests {
     #[test]
     fn test_analyze_async_patterns() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0x9000, 2048),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0x9000, 2048)];
+
         let result = manager.analyze_async_patterns(&allocations);
-        
+
         // Test that async pattern analysis returns valid results
         assert!(result.patterns.is_empty());
         assert_eq!(result.total_futures_analyzed, 0);
@@ -468,12 +442,10 @@ mod tests {
     #[test]
     fn test_analyze_closure_patterns() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0xa000, 128),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0xa000, 128)];
+
         let result = manager.analyze_closure_patterns(&allocations);
-        
+
         // Test that closure pattern analysis returns valid results
         assert!(result.detected_closures.is_empty());
         assert_eq!(result.capture_statistics.total_closures, 0);
@@ -485,12 +457,10 @@ mod tests {
     #[test]
     fn test_analyze_lifecycle_patterns() {
         let manager = AnalysisManager::new();
-        let allocations = vec![
-            AllocationInfo::new(0xb000, 512),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0xb000, 512)];
+
         let result = manager.analyze_lifecycle_patterns(&allocations);
-        
+
         // Test that lifecycle pattern analysis returns valid results
         assert!(result.drop_events.is_empty());
         assert!(result.raii_patterns.is_empty());
@@ -508,12 +478,15 @@ mod tests {
             AllocationInfo::new(0x3000, 256),
         ];
         let stats = MemoryStats::new();
-        
+
         let result = manager.perform_comprehensive_analysis(&allocations, &stats);
-        
+
         // Test that comprehensive analysis includes all components
         assert_eq!(result.fragmentation_analysis.fragmentation_ratio, 0.0);
-        assert_eq!(result.system_library_stats.std_collections.allocation_count, 0);
+        assert_eq!(
+            result.system_library_stats.std_collections.allocation_count,
+            0
+        );
         assert_eq!(result.concurrency_analysis.thread_safety_allocations, 0);
         assert_eq!(result.unsafe_ffi_stats.total_operations, 0);
         assert_eq!(result.circular_reference_analysis.total_smart_pointers, 0);
@@ -529,26 +502,24 @@ mod tests {
 
     #[test]
     fn test_backward_compatibility_functions() {
-        let allocations = vec![
-            AllocationInfo::new(0x1000, 1024),
-        ];
-        
+        let allocations = vec![AllocationInfo::new(0x1000, 1024)];
+
         // Test backward compatibility functions
         let frag_result = analyze_fragmentation(&allocations);
         assert_eq!(frag_result.fragmentation_ratio, 0.0);
-        
+
         let lib_result = analyze_system_libraries(&allocations);
         assert_eq!(lib_result.std_collections.allocation_count, 0);
-        
+
         let conc_result = analyze_concurrency_safety(&allocations);
         assert_eq!(conc_result.thread_safety_allocations, 0);
-        
+
         let tracker = get_global_unsafe_ffi_tracker();
         assert!(tracker.as_ref() as *const _ != std::ptr::null());
-        
+
         let stats = get_unsafe_ffi_stats();
         assert_eq!(stats.total_operations, 0);
-        
+
         let memory_stats = MemoryStats::new();
         let comp_result = perform_comprehensive_analysis(&allocations, &memory_stats);
         assert!(comp_result.analysis_timestamp > 0);
@@ -559,9 +530,9 @@ mod tests {
         let allocations = vec![AllocationInfo::new(0x1000, 512)];
         let stats = MemoryStats::new();
         let manager = AnalysisManager::new();
-        
+
         let report = manager.perform_comprehensive_analysis(&allocations, &stats);
-        
+
         // Test that all required fields are present and have expected types
         let _frag: FragmentationAnalysis = report.fragmentation_analysis;
         let _sys: SystemLibraryStats = report.system_library_stats;
@@ -576,7 +547,7 @@ mod tests {
         let _lifecycle = report.lifecycle_analysis;
         let _mem_stats: MemoryStats = report.memory_stats;
         let _timestamp: u64 = report.analysis_timestamp;
-        
+
         // If we reach here, all fields are accessible and have correct types
         assert!(true);
     }
@@ -585,20 +556,20 @@ mod tests {
     fn test_empty_allocations_analysis() {
         let manager = AnalysisManager::new();
         let empty_allocations: Vec<AllocationInfo> = vec![];
-        
+
         // Test that analysis works with empty allocation list
         let frag_result = manager.analyze_fragmentation(&empty_allocations);
         assert_eq!(frag_result.fragmentation_ratio, 0.0);
-        
+
         let lib_result = manager.analyze_system_libraries(&empty_allocations);
         assert_eq!(lib_result.std_collections.allocation_count, 0);
-        
+
         let conc_result = manager.analyze_concurrency_safety(&empty_allocations);
         assert_eq!(conc_result.thread_safety_allocations, 0);
-        
+
         let circ_result = manager.analyze_circular_references(&empty_allocations);
         assert_eq!(circ_result.total_smart_pointers, 0);
-        
+
         let adv_result = manager.analyze_advanced_types(&empty_allocations);
         assert!(adv_result.by_category.is_empty());
     }
@@ -607,15 +578,15 @@ mod tests {
     fn test_large_allocation_list_analysis() {
         let manager = AnalysisManager::new();
         let mut allocations = Vec::new();
-        
+
         // Create a larger list of allocations to test performance
         for i in 0..100 {
             allocations.push(AllocationInfo::new(0x1000 + i * 0x1000, 1024 + i));
         }
-        
+
         let stats = MemoryStats::new();
         let result = manager.perform_comprehensive_analysis(&allocations, &stats);
-        
+
         // Test that analysis completes successfully with larger datasets
         assert!(result.analysis_timestamp > 0);
         assert_eq!(result.memory_stats.total_allocations, 0); // Default stats

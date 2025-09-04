@@ -406,7 +406,10 @@ impl SystemOptimizer {
         }
         .max(self.validation_rules.min_shard_size);
 
-        reasoning.push(format!("basic available memory {} MB, recommended shard size: {shard_size}", self.system_resources.available_memory_mb));
+        reasoning.push(format!(
+            "basic available memory {} MB, recommended shard size: {shard_size}",
+            self.system_resources.available_memory_mb
+        ));
 
         // less thread count to reduce concurrent memory usage
         let thread_count = match self.system_resources.available_memory_mb {
@@ -417,7 +420,10 @@ impl SystemOptimizer {
         .min(self.system_resources.cpu_cores / 2)
         .max(1);
 
-        reasoning.push(format!("basic available memory {} MB, recommended thread count: {thread_count}", self.system_resources.available_memory_mb));
+        reasoning.push(format!(
+            "basic available memory {} MB, recommended thread count: {thread_count}",
+            self.system_resources.available_memory_mb
+        ));
 
         // small buffer size to save memory
         let buffer_size = match self.system_resources.available_memory_mb {
@@ -449,7 +455,10 @@ impl SystemOptimizer {
         }
         .min(self.validation_rules.max_shard_size);
 
-        reasoning.push(format!("basic cpu cores {}, dataset size {dataset_size}, recommended shard size: {shard_size}", self.system_resources.cpu_cores));
+        reasoning.push(format!(
+            "basic cpu cores {}, dataset size {dataset_size}, recommended shard size: {shard_size}",
+            self.system_resources.cpu_cores
+        ));
 
         // balanced thread count
         let thread_count = (self.system_resources.cpu_cores / 2)
@@ -601,7 +610,8 @@ impl SystemOptimizer {
         }
 
         if thread_count == 1 && self.system_resources.cpu_cores > 2 {
-            suggestions.push("consider enabling multi-threading for better performance".to_string());
+            suggestions
+                .push("consider enabling multi-threading for better performance".to_string());
         }
 
         ConfigurationValidationResult {
@@ -708,7 +718,8 @@ impl SystemOptimizer {
                     7
                 },
                 description: format!("CPU usage is high: {:.1}%", status.cpu_usage_percent),
-                impact: "Export performance significantly degraded, response time increased".to_string(),
+                impact: "Export performance significantly degraded, response time increased"
+                    .to_string(),
                 suggested_solutions: vec![
                     "reduce parallel thread count".to_string(),
                     "increase shard size to reduce thread switch overhead".to_string(),
@@ -727,7 +738,8 @@ impl SystemOptimizer {
                     8
                 },
                 description: format!("Memory usage is high: {:.1}%", status.memory_usage_percent),
-                impact: "possible memory underutilization, system may slow down or crash".to_string(),
+                impact: "possible memory underutilization, system may slow down or crash"
+                    .to_string(),
                 suggested_solutions: vec![
                     "reduce shard size".to_string(),
                     "reduce parallel thread count".to_string(),
@@ -770,7 +782,8 @@ impl SystemOptimizer {
                         suggestion_type: SuggestionType::ConfigurationTuning,
                         priority: bottleneck.severity,
                         title: "Optimize CPU usage".to_string(),
-                        description: "Adjust parallel configuration to optimize CPU usage".to_string(),
+                        description: "Adjust parallel configuration to optimize CPU usage"
+                            .to_string(),
                         expected_impact: "Increase export speed by 20-40%".to_string(),
                         implementation_difficulty: 3,
                     });
@@ -780,7 +793,8 @@ impl SystemOptimizer {
                         suggestion_type: SuggestionType::ConfigurationTuning,
                         priority: bottleneck.severity,
                         title: "Optimize memory usage".to_string(),
-                        description: "Adjust shard size and buffer size to reduce memory usage".to_string(),
+                        description: "Adjust shard size and buffer size to reduce memory usage"
+                            .to_string(),
                         expected_impact: "Reduce memory usage by 30-50%".to_string(),
                         implementation_difficulty: 2,
                     });
@@ -790,7 +804,8 @@ impl SystemOptimizer {
                         suggestion_type: SuggestionType::ConfigurationTuning,
                         priority: bottleneck.severity,
                         title: "Optimize configuration parameters".to_string(),
-                        description: "Adjust configuration to fully utilize system resources".to_string(),
+                        description: "Adjust configuration to fully utilize system resources"
+                            .to_string(),
                         expected_impact: "Increase overall performance by 15-30%".to_string(),
                         implementation_difficulty: 1,
                     });
@@ -805,7 +820,8 @@ impl SystemOptimizer {
                 suggestion_type: SuggestionType::ConfigurationTuning,
                 priority: 6,
                 title: "Enable high performance mode".to_string(),
-                description: "Enable maximum performance configuration on high performance servers".to_string(),
+                description: "Enable maximum performance configuration on high performance servers"
+                    .to_string(),
                 expected_impact: "Increase export speed by 50-80%".to_string(),
                 implementation_difficulty: 2,
             });

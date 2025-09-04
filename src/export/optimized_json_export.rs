@@ -319,7 +319,8 @@ impl<W: Write> StreamingJsonWriter<W> {
 
     /// Finalize the writer and ensure all data is flushed
     fn finalize(&mut self) -> TrackingResult<()> {
-        self.writer.flush()
+        self.writer
+            .flush()
             .expect("Failed to flush streaming writer");
         Ok(())
     }
@@ -564,7 +565,10 @@ fn write_json_optimized<P: AsRef<Path>>(
 
     // Use streaming writer for large files when explicitly enabled
     if options.use_streaming_writer && estimated_size > 500_000 {
-        tracing::info!("Using streaming writer for large file (size: {} bytes)", estimated_size);
+        tracing::info!(
+            "Using streaming writer for large file (size: {} bytes)",
+            estimated_size
+        );
         let file = File::create(path)?;
         let buffered_file = BufWriter::with_capacity(options.buffer_size * 2, file);
         let mut streaming_writer = StreamingJsonWriter::new(buffered_file);
@@ -727,9 +731,7 @@ impl MemoryTracker {
         write_json_optimized(&perf_path, &perf_data, &options)?;
 
         let total_duration = start_time.elapsed();
-        println!(
-            "✅ Optimized 4-file export completed in {total_duration:?}",
-        );
+        println!("✅ Optimized 4-file export completed in {total_duration:?}",);
         println!("📁 Generated standard files:");
         println!("   1. {base_name}_memory_analysis.json");
         println!("   2. {base_name}_lifetime.json");
@@ -1855,7 +1857,6 @@ fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize)
         // Default efficiency
         85
     }
-
 }
 
 /// Generate optimization suggestions based on type and allocation information

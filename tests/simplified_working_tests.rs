@@ -542,10 +542,7 @@ fn test_html_converter_functionality() {
     // Convert to HTML using our new converter
     let result =
         binary::parse_binary_to_html_direct(&binary_path, &html_path, "HTML Converter Test");
-    assert!(
-        result.is_ok(),
-        "HTML conversion should succeed: {result:?}"
-    );
+    assert!(result.is_ok(), "HTML conversion should succeed: {result:?}");
 
     // Verify HTML file exists and has content
     assert!(html_path.exists(), "HTML file should exist");

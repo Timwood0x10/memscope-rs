@@ -475,9 +475,7 @@ impl DataNormalizer {
             if let Some(_alloc_obj) = alloc.as_object() {
                 // Extract borrow_info if present
                 let borrow_info = alloc.get("borrow_info").map(|bi| BorrowInfo {
-                    immutable_borrows: self
-                        .extract_u32(Some(bi), "immutable_borrows")
-                        .unwrap_or(0),
+                    immutable_borrows: self.extract_u32(Some(bi), "immutable_borrows").unwrap_or(0),
                     mutable_borrows: self.extract_u32(Some(bi), "mutable_borrows").unwrap_or(0),
                     max_concurrent_borrows: self
                         .extract_u32(Some(bi), "max_concurrent_borrows")
@@ -488,12 +486,10 @@ impl DataNormalizer {
                 });
 
                 // Extract clone_info if present
-                let clone_info = alloc.get("clone_info").map(|ci| {
-                    CloneInfo {
-                        clone_count: self.extract_u32(Some(ci), "clone_count").unwrap_or(0),
-                        is_clone: self.extract_bool(Some(ci), "is_clone").unwrap_or(false),
-                        original_ptr: self.extract_string(Some(ci), "original_ptr"),
-                    }
+                let clone_info = alloc.get("clone_info").map(|ci| CloneInfo {
+                    clone_count: self.extract_u32(Some(ci), "clone_count").unwrap_or(0),
+                    is_clone: self.extract_bool(Some(ci), "is_clone").unwrap_or(false),
+                    original_ptr: self.extract_string(Some(ci), "original_ptr"),
                 });
 
                 // Extract safety_violations if present

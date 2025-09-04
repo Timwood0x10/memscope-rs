@@ -445,16 +445,27 @@ impl AllocationFilter {
             Self::ThreadEquals(thread) => allocation.thread_id == *thread,
             Self::ThreadContains(pattern) => allocation.thread_id.contains(pattern),
             Self::TypeEquals(type_name) => allocation.type_name.as_ref() == Some(type_name),
-            Self::TypeContains(pattern) => allocation.type_name.as_ref().is_some_and(|t| t.contains(pattern)),
-            Self::VarNameContains(pattern) => allocation.var_name.as_ref().is_some_and(|v| v.contains(pattern)),
-            Self::ScopeNameContains(pattern) => allocation.scope_name.as_ref().is_some_and(|s| s.contains(pattern)),
+            Self::TypeContains(pattern) => allocation
+                .type_name
+                .as_ref()
+                .is_some_and(|t| t.contains(pattern)),
+            Self::VarNameContains(pattern) => allocation
+                .var_name
+                .as_ref()
+                .is_some_and(|v| v.contains(pattern)),
+            Self::ScopeNameContains(pattern) => allocation
+                .scope_name
+                .as_ref()
+                .is_some_and(|s| s.contains(pattern)),
             Self::HasStackTrace => allocation.stack_trace.is_some(),
             Self::NoStackTrace => allocation.stack_trace.is_none(),
             Self::LeakedOnly => allocation.is_leaked,
             Self::NotLeaked => !allocation.is_leaked,
             Self::MinBorrowCount(min) => allocation.borrow_count >= *min,
             Self::MaxBorrowCount(max) => allocation.borrow_count <= *max,
-            Self::LifetimeRange(min, max) => allocation.lifetime_ms.is_some_and(|lifetime| lifetime >= *min && lifetime <= *max),
+            Self::LifetimeRange(min, max) => allocation
+                .lifetime_ms
+                .is_some_and(|lifetime| lifetime >= *min && lifetime <= *max),
         }
     }
 }
@@ -1550,9 +1561,7 @@ mod selective_reader_tests {
                 .expect("Operation failed");
             let pos_after_table = std::io::Seek::seek(&mut file, std::io::SeekFrom::Current(0))
                 .expect("Operation failed");
-            println!(
-                "Position after skipping string table data: {pos_after_table}"
-            );
+            println!("Position after skipping string table data: {pos_after_table}");
         }
 
         // Try to read the first allocation record

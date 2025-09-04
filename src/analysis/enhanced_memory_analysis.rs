@@ -13,8 +13,7 @@ use crate::core::types::AllocationInfo;
 use crate::core::types::{
     AccessPattern, BranchPredictionImpact, CacheImpact, CreationContext,
     LifecycleEfficiencyMetrics, MemoryAccessPattern, OptimizationRecommendation,
-    PerformanceCharacteristics, ResourceWasteAssessment, ScopeType,
-    PerformanceImpact::Minor,
+    PerformanceCharacteristics, PerformanceImpact::Minor, ResourceWasteAssessment, ScopeType,
 };
 use crate::enhanced_types::*;
 use std::collections::HashMap;
@@ -579,15 +578,11 @@ impl FragmentationMonitor {
         };
 
         // Make predictions
-        let predicted_in_1h = (latest.fragmentation_level + rate_of_change * 3600.0).clamp(
-            0.0,
-            1.0,
-        );
+        let predicted_in_1h =
+            (latest.fragmentation_level + rate_of_change * 3600.0).clamp(0.0, 1.0);
 
-        let predicted_in_24h = (latest.fragmentation_level + rate_of_change * 86400.0).clamp(
-            0.0,
-            1.0,
-        );
+        let predicted_in_24h =
+            (latest.fragmentation_level + rate_of_change * 86400.0).clamp(0.0, 1.0);
 
         // Update trends
         self.trends = FragmentationTrends {
@@ -1517,8 +1512,6 @@ impl Default for EfficiencyMetrics {
     }
 }
 
-
-
 impl Default for BandwidthUtilization {
     fn default() -> Self {
         Self {
@@ -1552,7 +1545,7 @@ mod tests {
     #[test]
     fn test_stack_frame_tracker_creation() {
         let tracker = StackFrameTracker::new();
-        
+
         assert!(tracker.frames.is_empty());
         assert_eq!(tracker.stack_boundaries.stack_base, 0x7fff_0000_0000);
         assert_eq!(tracker.stack_boundaries.stack_size, 8 * 1024 * 1024);
@@ -1561,11 +1554,11 @@ mod tests {
     #[test]
     fn test_stack_frame_tracker_is_stack_pointer() {
         let tracker = StackFrameTracker::new();
-        
+
         // Test pointer within stack boundaries
         let stack_ptr = tracker.stack_boundaries.stack_base + 1024;
         assert!(tracker.is_stack_pointer(stack_ptr));
-        
+
         // Test pointer outside stack boundaries
         let heap_ptr = 0x1000_0000;
         assert!(!tracker.is_stack_pointer(heap_ptr));
@@ -1574,7 +1567,7 @@ mod tests {
     #[test]
     fn test_heap_boundary_detector_creation() {
         let detector = HeapBoundaryDetector::new();
-        
+
         assert_eq!(detector.heap_segments.len(), 1);
         assert_eq!(detector.heap_segments[0].start, 0x1000_0000);
         assert_eq!(detector.heap_segments[0].end, 0x7000_0000);
@@ -1583,11 +1576,11 @@ mod tests {
     #[test]
     fn test_heap_boundary_detector_is_heap_pointer() {
         let detector = HeapBoundaryDetector::new();
-        
+
         // Test pointer within heap segment
         let heap_ptr = 0x2000_0000;
         assert!(detector.is_heap_pointer(heap_ptr));
-        
+
         // Test pointer outside heap segment
         let stack_ptr = 0x7fff_0000_0000;
         assert!(!detector.is_heap_pointer(stack_ptr));
@@ -1596,12 +1589,12 @@ mod tests {
     #[test]
     fn test_heap_boundary_detector_get_segment_for_pointer() {
         let detector = HeapBoundaryDetector::new();
-        
+
         let heap_ptr = 0x2000_0000;
         let segment = detector.get_segment_for_pointer(heap_ptr);
         assert!(segment.is_some());
         assert_eq!(segment.unwrap().start, 0x1000_0000);
-        
+
         let invalid_ptr = 0x8000_0000;
         assert!(detector.get_segment_for_pointer(invalid_ptr).is_none());
     }
@@ -1609,7 +1602,7 @@ mod tests {
     #[test]
     fn test_temporary_object_analyzer_creation() {
         let analyzer = TemporaryObjectAnalyzer::new();
-        
+
         assert!(analyzer.hot_patterns.is_empty());
         assert!(analyzer.suggestions.is_empty());
     }
@@ -1617,24 +1610,24 @@ mod tests {
     #[test]
     fn test_temporary_object_analyzer_is_likely_temporary() {
         let mut allocation = AllocationInfo::new(0x1000, 64);
-        
+
         // Test with temporary-like type names
         allocation.type_name = Some("&str".to_string());
         assert!(TemporaryObjectAnalyzer::is_likely_temporary(&allocation));
-        
+
         allocation.type_name = Some("Iterator<Item=i32>".to_string());
         assert!(TemporaryObjectAnalyzer::is_likely_temporary(&allocation));
-        
+
         allocation.type_name = Some("impl Fn()".to_string());
         assert!(TemporaryObjectAnalyzer::is_likely_temporary(&allocation));
-        
+
         allocation.type_name = Some("TempBuilder".to_string());
         assert!(TemporaryObjectAnalyzer::is_likely_temporary(&allocation));
-        
+
         // Test with non-temporary type names
         allocation.type_name = Some("Vec<i32>".to_string());
         assert!(!TemporaryObjectAnalyzer::is_likely_temporary(&allocation));
-        
+
         allocation.type_name = Some("HashMap<K, V>".to_string());
         assert!(!TemporaryObjectAnalyzer::is_likely_temporary(&allocation));
     }
@@ -1642,70 +1635,70 @@ mod tests {
     #[test]
     fn test_temporary_object_analyzer_classify_temporary_pattern() {
         let mut allocation = AllocationInfo::new(0x1000, 64);
-        
+
         // Test string concatenation pattern
         allocation.type_name = Some("String".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::StringConcatenation
         );
-        
+
         // Test vector reallocation pattern
         allocation.type_name = Some("Vec<i32>".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::VectorReallocation
         );
-        
+
         // Test iterator chaining pattern
         allocation.type_name = Some("Iterator<Item=String>".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::IteratorChaining
         );
-        
+
         // Test closure capture pattern
         allocation.type_name = Some("Closure".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::ClosureCapture
         );
-        
+
         // Test async/await pattern
         allocation.type_name = Some("Future<Output=()>".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::AsyncAwait
         );
-        
+
         // Test error handling pattern
         allocation.type_name = Some("Result<T, E>".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::ErrorHandling
         );
-        
+
         // Test serialization pattern
         allocation.type_name = Some("Serialize".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::SerializationDeserialization
         );
-        
+
         // Test generic instantiation pattern
         allocation.type_name = Some("Option<T>".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::GenericInstantiation
         );
-        
+
         // Test trait object creation pattern
         allocation.type_name = Some("dyn Trait".to_string());
         assert_eq!(
             TemporaryObjectAnalyzer::classify_temporary_pattern(&allocation),
             TemporaryPatternClassification::TraitObjectCreation
         );
-        
+
         // Test unknown pattern
         allocation.type_name = Some("SomeUnknownType".to_string());
         assert_eq!(
@@ -1718,32 +1711,47 @@ mod tests {
     fn test_temporary_object_analyzer_assess_elimination_feasibility() {
         // Test highly feasible patterns
         let string_feasibility = TemporaryObjectAnalyzer::assess_elimination_feasibility(
-            &TemporaryPatternClassification::StringConcatenation
+            &TemporaryPatternClassification::StringConcatenation,
         );
-        assert!(matches!(string_feasibility, EliminationFeasibility::HighlyFeasible { .. }));
-        
+        assert!(matches!(
+            string_feasibility,
+            EliminationFeasibility::HighlyFeasible { .. }
+        ));
+
         let vector_feasibility = TemporaryObjectAnalyzer::assess_elimination_feasibility(
-            &TemporaryPatternClassification::VectorReallocation
+            &TemporaryPatternClassification::VectorReallocation,
         );
-        assert!(matches!(vector_feasibility, EliminationFeasibility::HighlyFeasible { .. }));
-        
+        assert!(matches!(
+            vector_feasibility,
+            EliminationFeasibility::HighlyFeasible { .. }
+        ));
+
         // Test feasible patterns
         let iterator_feasibility = TemporaryObjectAnalyzer::assess_elimination_feasibility(
-            &TemporaryPatternClassification::IteratorChaining
+            &TemporaryPatternClassification::IteratorChaining,
         );
-        assert!(matches!(iterator_feasibility, EliminationFeasibility::Feasible { .. }));
-        
+        assert!(matches!(
+            iterator_feasibility,
+            EliminationFeasibility::Feasible { .. }
+        ));
+
         // Test difficult patterns
         let closure_feasibility = TemporaryObjectAnalyzer::assess_elimination_feasibility(
-            &TemporaryPatternClassification::ClosureCapture
+            &TemporaryPatternClassification::ClosureCapture,
         );
-        assert!(matches!(closure_feasibility, EliminationFeasibility::Difficult { .. }));
-        
+        assert!(matches!(
+            closure_feasibility,
+            EliminationFeasibility::Difficult { .. }
+        ));
+
         // Test infeasible patterns
         let unknown_feasibility = TemporaryObjectAnalyzer::assess_elimination_feasibility(
-            &TemporaryPatternClassification::Unknown
+            &TemporaryPatternClassification::Unknown,
         );
-        assert!(matches!(unknown_feasibility, EliminationFeasibility::Infeasible { .. }));
+        assert!(matches!(
+            unknown_feasibility,
+            EliminationFeasibility::Infeasible { .. }
+        ));
     }
 
     #[test]
@@ -1751,21 +1759,24 @@ mod tests {
         let mut analyzer = TemporaryObjectAnalyzer::new();
         let mut allocation = AllocationInfo::new(0x1000, 64);
         allocation.type_name = Some("&str".to_string());
-        
+
         let result = analyzer.analyze_temporary(&allocation);
         assert!(result.is_some());
-        
+
         let temp_info = result.unwrap();
         assert_eq!(temp_info.allocation.ptr, 0x1000);
         assert_eq!(temp_info.allocation.size, 64);
-        assert_eq!(temp_info.pattern_classification, TemporaryPatternClassification::StringConcatenation);
+        assert_eq!(
+            temp_info.pattern_classification,
+            TemporaryPatternClassification::StringConcatenation
+        );
         assert!(!temp_info.hot_path_involvement);
     }
 
     #[test]
     fn test_fragmentation_monitor_creation() {
         let monitor = FragmentationMonitor::new();
-        
+
         assert_eq!(monitor.current_metrics.external_fragmentation_ratio, 0.0);
         assert_eq!(monitor.current_metrics.internal_fragmentation_ratio, 0.0);
         assert_eq!(monitor.current_metrics.total_fragmentation_ratio, 0.0);
@@ -1781,9 +1792,9 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         monitor.update_metrics(&allocations);
-        
+
         assert!(monitor.current_metrics.external_fragmentation_ratio > 0.0);
         assert!(monitor.current_metrics.internal_fragmentation_ratio > 0.0);
         assert!(monitor.current_metrics.total_fragmentation_ratio > 0.0);
@@ -1794,8 +1805,11 @@ mod tests {
     #[test]
     fn test_generic_instantiation_tracker_creation() {
         let tracker = GenericInstantiationTracker::new();
-        
-        assert!(matches!(tracker.bloat_assessment.bloat_level, BloatLevel::Low));
+
+        assert!(matches!(
+            tracker.bloat_assessment.bloat_level,
+            BloatLevel::Low
+        ));
         assert_eq!(tracker.bloat_assessment.estimated_code_size_increase, 0.0);
         assert_eq!(tracker.bloat_assessment.compilation_time_impact, 0.0);
         assert_eq!(tracker.bloat_assessment.binary_size_impact, 0.0);
@@ -1804,7 +1818,7 @@ mod tests {
     #[test]
     fn test_object_lifecycle_manager_creation() {
         let manager = ObjectLifecycleManager::new();
-        
+
         assert_eq!(manager.waste_analysis.wasted_allocations, 0);
         assert_eq!(manager.waste_analysis.total_wasted_memory, 0);
         assert_eq!(manager.waste_analysis.waste_percentage, 0.0);
@@ -1814,14 +1828,14 @@ mod tests {
     #[test]
     fn test_memory_access_pattern_analyzer_creation() {
         let analyzer = MemoryAccessPatternAnalyzer::new();
-        
+
         assert_eq!(analyzer.locality.locality_score, 0.0);
     }
 
     #[test]
     fn test_cache_performance_optimizer_creation() {
         let optimizer = CachePerformanceOptimizer::new();
-        
+
         assert_eq!(optimizer.cache_line_analysis.utilization_percentage, 0.0);
         assert_eq!(optimizer.cache_line_analysis.estimated_cache_misses, 0);
         assert!(optimizer.recommendations.is_empty());
@@ -1830,7 +1844,7 @@ mod tests {
     #[test]
     fn test_enhanced_memory_analyzer_creation() {
         let analyzer = EnhancedMemoryAnalyzer::new();
-        
+
         // Test that all components are properly initialized
         assert!(analyzer.stack_frame_tracker.read().is_ok());
         assert!(analyzer.heap_boundary_detector.read().is_ok());
@@ -1849,9 +1863,9 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         let report = analyzer.analyze_comprehensive(&allocations);
-        
+
         assert!(report.analysis_duration_ms >= 0);
         assert!(report.timestamp > 0);
         assert!(!report.overall_recommendations.is_empty());
@@ -1861,15 +1875,15 @@ mod tests {
     fn test_enhanced_memory_analyzer_analyze_stack_heap_boundaries() {
         let analyzer = EnhancedMemoryAnalyzer::new();
         let allocations = vec![
-            AllocationInfo::new(0x1000_0000, 1024), // Heap allocation
+            AllocationInfo::new(0x1000_0000, 1024),     // Heap allocation
             AllocationInfo::new(0x7fff_0000_1000, 512), // Stack allocation
-            AllocationInfo::new(0x8000_0000, 256), // Ambiguous allocation
+            AllocationInfo::new(0x8000_0000, 256),      // Ambiguous allocation
         ];
-        
+
         let analysis = analyzer.analyze_stack_heap_boundaries(&allocations);
-        
+
         assert_eq!(analysis.heap_allocations.len(), 1);
-        assert_eq!(analysis.stack_allocations.len(),0);
+        assert_eq!(analysis.stack_allocations.len(), 0);
         assert_eq!(analysis.ambiguous_allocations.len(), 1);
         assert_eq!(analysis.memory_space_coverage.total_tracked_bytes, 1792);
     }
@@ -1880,9 +1894,9 @@ mod tests {
         let mut allocation = AllocationInfo::new(0x1000, 64);
         allocation.type_name = Some("&str".to_string());
         let allocations = vec![allocation];
-        
+
         let analysis = analyzer.analyze_temporary_objects(&allocations);
-        
+
         assert_eq!(analysis.temporary_objects.len(), 1);
         assert_eq!(analysis.pattern_statistics.total_patterns_detected, 1);
         assert!(analysis.performance_impact_assessment.allocation_overhead > 0.0);
@@ -1895,9 +1909,9 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         let analysis = analyzer.analyze_fragmentation(&allocations);
-        
+
         assert!(analysis.current_fragmentation.total_fragmentation_ratio > 0.0);
         assert!(analysis.real_time_metrics.allocation_rate > 0.0);
         assert!(!analysis.mitigation_recommendations.is_empty());
@@ -1909,9 +1923,9 @@ mod tests {
         let mut allocation = AllocationInfo::new(0x1000, 64);
         allocation.type_name = Some("Vec<i32>".to_string());
         let allocations = vec![allocation];
-        
+
         let analysis = analyzer.analyze_generic_types(&allocations);
-        
+
         assert_eq!(analysis.monomorphization_statistics.total_instantiations, 0);
         assert!(analysis.performance_characteristics.avg_allocation_time_ns > 0.0);
     }
@@ -1923,9 +1937,9 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         let analysis = analyzer.analyze_object_lifecycles(&allocations);
-        
+
         assert!(analysis.efficiency_metrics.efficiency_score > 0.0);
         assert!(analysis.object_relationship_graph.nodes.is_empty());
     }
@@ -1937,9 +1951,9 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         let analysis = analyzer.analyze_access_patterns(&allocations);
-        
+
         assert_eq!(analysis.actual_access_tracking.total_accesses, 2);
         assert_eq!(analysis.bandwidth_utilization.utilization_percentage, 75.0);
         assert_eq!(analysis.locality_analysis.locality_score, 0.0);
@@ -1952,9 +1966,9 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         let analysis = analyzer.analyze_cache_performance(&allocations);
-        
+
         assert_eq!(analysis.cache_line_analysis.utilization_percentage, 0.0);
         assert_eq!(analysis.cache_efficiency_metrics.utilization_ratio, 0.8);
         assert!(matches!(
@@ -1971,7 +1985,7 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         let report = analyze_memory_with_enhanced_features_detailed(&allocations);
         assert!(report.analysis_duration_ms >= 0);
         assert!(report.timestamp > 0);
@@ -1983,9 +1997,9 @@ mod tests {
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 2048),
         ];
-        
+
         let report = analyze_memory_with_enhanced_features_detailed(&allocations);
-        
+
         assert!(report.analysis_duration_ms >= 0);
         assert!(report.timestamp > 0);
         assert!(!report.overall_recommendations.is_empty());
@@ -2003,7 +2017,7 @@ mod tests {
         let _access_analyzer = MemoryAccessPatternAnalyzer::default();
         let _cache_optimizer = CachePerformanceOptimizer::default();
         let _memory_analyzer = EnhancedMemoryAnalyzer::default();
-        
+
         // Test stub type defaults
         let _mono_stats = MonomorphizationStatistics::default();
         let _efficiency_metrics = EfficiencyMetrics::default();
@@ -2019,11 +2033,13 @@ mod tests {
         let mono_stats = MonomorphizationStatistics::default();
         let serialized = serde_json::to_string(&mono_stats);
         assert!(serialized.is_ok());
-        
-        let efficiency_metrics = EfficiencyMetrics { efficiency_score: 0.8 };
+
+        let efficiency_metrics = EfficiencyMetrics {
+            efficiency_score: 0.8,
+        };
         let serialized = serde_json::to_string(&efficiency_metrics);
         assert!(serialized.is_ok());
-        
+
         let object_graph = ObjectRelationshipGraph::default();
         let serialized = serde_json::to_string(&object_graph);
         assert!(serialized.is_ok());
@@ -2032,18 +2048,21 @@ mod tests {
     #[test]
     fn test_temporary_object_analyzer_update_hot_patterns() {
         let mut analyzer = TemporaryObjectAnalyzer::new();
-        
+
         // Add multiple instances of the same pattern
         for i in 0..10 {
             let mut allocation = AllocationInfo::new(0x1000 + i * 64, 64);
             allocation.type_name = Some("&str".to_string()); // Use a type that's recognized as temporary
             analyzer.analyze_temporary(&allocation);
         }
-        
+
         // Should have created hot patterns (need at least 5 instances)
         if !analyzer.hot_patterns.is_empty() {
             assert_eq!(analyzer.hot_patterns[0].frequency, 10);
-            assert_eq!(analyzer.hot_patterns[0].pattern, TemporaryPatternClassification::StringConcatenation);
+            assert_eq!(
+                analyzer.hot_patterns[0].pattern,
+                TemporaryPatternClassification::StringConcatenation
+            );
         } else {
             // If no hot patterns, verify we have the right number of pattern instances
             assert_eq!(analyzer._patterns.len(), 1);
@@ -2053,17 +2072,20 @@ mod tests {
     #[test]
     fn test_temporary_object_analyzer_generate_suggestions() {
         let mut analyzer = TemporaryObjectAnalyzer::new();
-        
+
         // Add enough instances to trigger suggestions
         for i in 0..10 {
             let mut allocation = AllocationInfo::new(0x1000 + i * 64, 64);
             allocation.type_name = Some("&str".to_string()); // Use a type that's recognized as temporary
             analyzer.analyze_temporary(&allocation);
         }
-        
+
         // Should have generated suggestions (only if hot patterns exist)
         if !analyzer.suggestions.is_empty() {
-            assert!(matches!(analyzer.suggestions[0].category, OptimizationCategory::TemporaryObjectReduction));
+            assert!(matches!(
+                analyzer.suggestions[0].category,
+                OptimizationCategory::TemporaryObjectReduction
+            ));
         } else {
             // If no suggestions, verify we have pattern instances
             assert!(!analyzer._patterns.is_empty());
@@ -2074,39 +2096,52 @@ mod tests {
     fn test_fragmentation_monitor_update_trends() {
         let mut monitor = FragmentationMonitor::new();
         let allocations = vec![AllocationInfo::new(0x1000, 1024)];
-        
+
         // Update metrics twice to generate trends
         monitor.update_metrics(&allocations);
         std::thread::sleep(std::time::Duration::from_millis(10));
         monitor.update_metrics(&allocations);
-        
+
         assert_eq!(monitor.history.len(), 2);
-        assert!(matches!(monitor.trends.trend_direction, TrendDirection::Stable));
+        assert!(matches!(
+            monitor.trends.trend_direction,
+            TrendDirection::Stable
+        ));
     }
 
     #[test]
     fn test_fragmentation_monitor_generate_strategies() {
         let mut monitor = FragmentationMonitor::new();
-        
+
         // Set high fragmentation to trigger strategies
         monitor.current_metrics.total_fragmentation_ratio = 0.4;
         monitor.current_metrics.external_fragmentation_ratio = 0.3;
         monitor.current_metrics.internal_fragmentation_ratio = 0.2;
-        
+
         monitor.generate_strategies();
-        
+
         assert!(!monitor.strategies.is_empty());
-        
+
         // Should have multiple strategies for high fragmentation
-        let has_compaction = monitor.strategies.iter()
+        let has_compaction = monitor
+            .strategies
+            .iter()
             .any(|s| matches!(s.strategy_type, MitigationStrategyType::CompactionGC));
-        let has_size_class = monitor.strategies.iter()
-            .any(|s| matches!(s.strategy_type, MitigationStrategyType::SizeClassSegregation));
-        let has_custom_allocator = monitor.strategies.iter()
+        let has_size_class = monitor.strategies.iter().any(|s| {
+            matches!(
+                s.strategy_type,
+                MitigationStrategyType::SizeClassSegregation
+            )
+        });
+        let has_custom_allocator = monitor
+            .strategies
+            .iter()
             .any(|s| matches!(s.strategy_type, MitigationStrategyType::CustomAllocator));
-        let has_pool_allocation = monitor.strategies.iter()
+        let has_pool_allocation = monitor
+            .strategies
+            .iter()
             .any(|s| matches!(s.strategy_type, MitigationStrategyType::PoolAllocation));
-        
+
         assert!(has_compaction);
         assert!(has_size_class);
         assert!(has_custom_allocator);
@@ -2116,27 +2151,33 @@ mod tests {
     #[test]
     fn test_enhanced_memory_analyzer_generate_overall_recommendations() {
         let analyzer = EnhancedMemoryAnalyzer::new();
-        
+
         // Create mock analysis results
         let stack_heap_analysis = StackHeapBoundaryAnalysis::default();
         let mut temp_object_analysis = TemporaryObjectAnalysisReport::default();
-        temp_object_analysis.hot_temporary_patterns.push(HotTemporaryPattern {
-            pattern: TemporaryPatternClassification::StringConcatenation,
-            frequency: 10,
-            total_memory_impact: 1024,
-            optimization_priority: Priority::High,
-        });
-        
+        temp_object_analysis
+            .hot_temporary_patterns
+            .push(HotTemporaryPattern {
+                pattern: TemporaryPatternClassification::StringConcatenation,
+                frequency: 10,
+                total_memory_impact: 1024,
+                optimization_priority: Priority::High,
+            });
+
         let mut fragmentation_analysis = RealTimeFragmentationAnalysis::default();
-        fragmentation_analysis.current_fragmentation.total_fragmentation_ratio = 0.3;
-        
+        fragmentation_analysis
+            .current_fragmentation
+            .total_fragmentation_ratio = 0.3;
+
         let generic_analysis = GenericTypeAnalysisReport::default();
         let lifecycle_analysis = ObjectLifecycleAnalysisReport::default();
         let access_pattern_analysis = MemoryAccessAnalysisReport::default();
-        
+
         let mut cache_optimization = CacheOptimizationReport::default();
-        cache_optimization.cache_line_analysis.utilization_percentage = 60.0;
-        
+        cache_optimization
+            .cache_line_analysis
+            .utilization_percentage = 60.0;
+
         let recommendations = analyzer.generate_overall_recommendations(
             &stack_heap_analysis,
             &temp_object_analysis,
@@ -2146,9 +2187,9 @@ mod tests {
             &access_pattern_analysis,
             &cache_optimization,
         );
-        
+
         assert_eq!(recommendations.len(), 3);
-        
+
         // Should be sorted by priority (highest first)
         assert!(matches!(recommendations[0].priority, Priority::High));
         assert!(matches!(recommendations[1].priority, Priority::High));
@@ -2157,12 +2198,12 @@ mod tests {
 
     #[test]
     fn test_thread_safety() {
-        use std::thread;
         use std::sync::Arc;
-        
+        use std::thread;
+
         let analyzer = Arc::new(EnhancedMemoryAnalyzer::new());
         let mut handles = vec![];
-        
+
         // Test concurrent access to analyzer components
         for i in 0..4 {
             let analyzer_clone = analyzer.clone();
@@ -2172,7 +2213,7 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         for handle in handles {
             handle.join().unwrap();
         }

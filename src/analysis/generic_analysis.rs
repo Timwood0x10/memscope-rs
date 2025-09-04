@@ -37,7 +37,6 @@ impl Default for GenericAnalyzer {
     }
 }
 
-
 impl GenericAnalyzer {
     /// Create a new generic analyzer
     pub fn new() -> Self {
