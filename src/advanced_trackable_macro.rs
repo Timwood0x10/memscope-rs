@@ -137,7 +137,6 @@ macro_rules! impl_advanced_trackable {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::Trackable;
     use std::cell::RefCell;
     use std::sync::Mutex;

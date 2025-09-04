@@ -863,3 +863,697 @@ impl Default for ClosureAnalyzer {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::AllocationInfo;
+
+    #[test]
+    fn test_closure_analyzer_creation() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        // Test that analyzer is properly initialized
+        assert!(analyzer.closures.lock().unwrap().is_empty());
+        assert!(analyzer.capture_events.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_global_closure_analyzer() {
+        let analyzer1 = get_global_closure_analyzer();
+        let analyzer2 = get_global_closure_analyzer();
+        
+        // Should return the same instance
+        assert!(Arc::ptr_eq(&analyzer1, &analyzer2));
+    }
+
+    #[test]
+    fn test_register_closure() {
+        let analyzer = ClosureAnalyzer::new();
+        let captures = vec![
+            CaptureInfo {
+                var_name: "x".to_string(),
+                var_ptr: 0x1000,
+                mode: CaptureMode::ByValue,
+                var_type: "i32".to_string(),
+                size: 4,
+                lifetime_bound: None,
+            },
+            CaptureInfo {
+                var_name: "y".to_string(),
+                var_ptr: 0x2000,
+                mode: CaptureMode::ByReference,
+                var_type: "&str".to_string(),
+                size: 8,
+                lifetime_bound: Some("'a".to_string()),
+            },
+        ];
+        
+        analyzer.register_closure(0x5000, captures.clone());
+        
+        // Verify closure was registered
+        let closures = analyzer.closures.lock().unwrap();
+        assert!(closures.contains_key(&0x5000));
+        
+        let closure_info = &closures[&0x5000];
+        assert_eq!(closure_info.ptr, 0x5000);
+        assert_eq!(closure_info.captures.len(), 2);
+        assert_eq!(closure_info.memory_footprint.capture_count, 2);
+        assert_eq!(closure_info.memory_footprint.by_value_count, 1);
+        assert_eq!(closure_info.memory_footprint.by_ref_count, 1);
+        
+        // Verify capture events were recorded
+        let events = analyzer.capture_events.lock().unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(events.iter().all(|e| e.closure_ptr == 0x5000));
+        assert!(events.iter().all(|e| e.event_type == CaptureEventType::Captured));
+    }
+
+    #[test]
+    fn test_track_closure_drop() {
+        let analyzer = ClosureAnalyzer::new();
+        let captures = vec![
+            CaptureInfo {
+                var_name: "data".to_string(),
+                var_ptr: 0x3000,
+                mode: CaptureMode::ByValue,
+                var_type: "Vec<i32>".to_string(),
+                size: 24,
+                lifetime_bound: None,
+            },
+        ];
+        
+        analyzer.register_closure(0x6000, captures);
+        
+        // Verify closure exists
+        assert!(analyzer.closures.lock().unwrap().contains_key(&0x6000));
+        
+        // Track drop
+        analyzer.track_closure_drop(0x6000);
+        
+        // Verify closure was removed
+        assert!(!analyzer.closures.lock().unwrap().contains_key(&0x6000));
+        
+        // Verify release events were recorded
+        let events = analyzer.capture_events.lock().unwrap();
+        let release_events: Vec<_> = events.iter()
+            .filter(|e| e.event_type == CaptureEventType::Released)
+            .collect();
+        assert_eq!(release_events.len(), 1);
+        assert_eq!(release_events[0].closure_ptr, 0x6000);
+    }
+
+    #[test]
+    fn test_is_closure_type() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        // Test various closure type names
+        assert!(analyzer.is_closure_type("closure"));
+        assert!(analyzer.is_closure_type("{{closure}}"));
+        assert!(analyzer.is_closure_type("fn()"));
+        assert!(analyzer.is_closure_type("fn(i32) -> bool"));
+        assert!(analyzer.is_closure_type("dyn Fn()"));
+        assert!(analyzer.is_closure_type("impl Fn(i32)"));
+        assert!(analyzer.is_closure_type("some_module::{{closure}}"));
+        
+        // Test non-closure types
+        assert!(!analyzer.is_closure_type("Vec<i32>"));
+        assert!(!analyzer.is_closure_type("String"));
+        assert!(!analyzer.is_closure_type("HashMap<K, V>"));
+    }
+
+    #[test]
+    fn test_estimate_captures_from_size() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        assert_eq!(analyzer.estimate_captures_from_size(0), 0);
+        assert_eq!(analyzer.estimate_captures_from_size(8), 0);
+        assert_eq!(analyzer.estimate_captures_from_size(16), 2);
+        assert_eq!(analyzer.estimate_captures_from_size(32), 2);
+        assert_eq!(analyzer.estimate_captures_from_size(64), 8);
+        assert_eq!(analyzer.estimate_captures_from_size(128), 8);
+        assert_eq!(analyzer.estimate_captures_from_size(256), 16);
+    }
+
+    #[test]
+    fn test_classify_closure_type() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        assert_eq!(analyzer.classify_closure_type("dyn FnOnce()"), ClosureType::FnOnce);
+        assert_eq!(analyzer.classify_closure_type("impl FnMut(i32)"), ClosureType::FnMut);
+        assert_eq!(analyzer.classify_closure_type("dyn Fn() -> bool"), ClosureType::Fn);
+        assert_eq!(analyzer.classify_closure_type("{{closure}}"), ClosureType::Unknown);
+        assert_eq!(analyzer.classify_closure_type("some_closure"), ClosureType::Unknown);
+    }
+
+    #[test]
+    fn test_assess_memory_impact() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        assert_eq!(analyzer.assess_memory_impact(0), MemoryImpact::Minimal);
+        assert_eq!(analyzer.assess_memory_impact(16), MemoryImpact::Minimal);
+        assert_eq!(analyzer.assess_memory_impact(32), MemoryImpact::Low);
+        assert_eq!(analyzer.assess_memory_impact(64), MemoryImpact::Low);
+        assert_eq!(analyzer.assess_memory_impact(128), MemoryImpact::Medium);
+        assert_eq!(analyzer.assess_memory_impact(256), MemoryImpact::Medium);
+        assert_eq!(analyzer.assess_memory_impact(512), MemoryImpact::High);
+        assert_eq!(analyzer.assess_memory_impact(1024), MemoryImpact::High);
+        assert_eq!(analyzer.assess_memory_impact(2048), MemoryImpact::VeryHigh);
+    }
+
+    #[test]
+    fn test_is_heap_allocated_type() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        // Test heap-allocated types
+        assert!(analyzer.is_heap_allocated_type("Vec<i32>"));
+        assert!(analyzer.is_heap_allocated_type("String"));
+        assert!(analyzer.is_heap_allocated_type("HashMap<K, V>"));
+        assert!(analyzer.is_heap_allocated_type("Box<dyn Trait>"));
+        assert!(analyzer.is_heap_allocated_type("Arc<Mutex<T>>"));
+        assert!(analyzer.is_heap_allocated_type("Rc<RefCell<T>>"));
+        
+        // Test stack-allocated types
+        assert!(!analyzer.is_heap_allocated_type("i32"));
+        assert!(!analyzer.is_heap_allocated_type("&str"));
+        assert!(!analyzer.is_heap_allocated_type("bool"));
+        assert!(!analyzer.is_heap_allocated_type("[i32; 10]"));
+    }
+
+    #[test]
+    fn test_calculate_closure_footprint() {
+        let analyzer = ClosureAnalyzer::new();
+        let captures = vec![
+            CaptureInfo {
+                var_name: "a".to_string(),
+                var_ptr: 0x1000,
+                mode: CaptureMode::ByValue,
+                var_type: "i32".to_string(),
+                size: 4,
+                lifetime_bound: None,
+            },
+            CaptureInfo {
+                var_name: "b".to_string(),
+                var_ptr: 0x2000,
+                mode: CaptureMode::ByReference,
+                var_type: "&str".to_string(),
+                size: 8,
+                lifetime_bound: None,
+            },
+            CaptureInfo {
+                var_name: "c".to_string(),
+                var_ptr: 0x3000,
+                mode: CaptureMode::ByMutableReference,
+                var_type: "&mut Vec<i32>".to_string(),
+                size: 8,
+                lifetime_bound: None,
+            },
+        ];
+        
+        let footprint = analyzer.calculate_closure_footprint(&captures);
+        
+        assert_eq!(footprint.total_size, 20);
+        assert_eq!(footprint.capture_count, 3);
+        assert_eq!(footprint.by_value_count, 1);
+        assert_eq!(footprint.by_ref_count, 1);
+        assert_eq!(footprint.by_mut_ref_count, 1);
+        assert_eq!(footprint.estimated_heap_usage, 0); // No heap-allocated types by value
+    }
+
+    #[test]
+    fn test_analyze_optimization_potential() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        // Test with large by-value capture
+        let large_captures = vec![
+            CaptureInfo {
+                var_name: "large_data".to_string(),
+                var_ptr: 0x1000,
+                mode: CaptureMode::ByValue,
+                var_type: "[u8; 1024]".to_string(),
+                size: 1024,
+                lifetime_bound: None,
+            },
+        ];
+        
+        let potential = analyzer.analyze_optimization_potential(&large_captures);
+        assert_eq!(potential.level, OptimizationLevel::High);
+        assert_eq!(potential.potential_savings, 1024);
+        assert!(!potential.suggestions.is_empty());
+        
+        // Test with small captures
+        let small_captures = vec![
+            CaptureInfo {
+                var_name: "x".to_string(),
+                var_ptr: 0x1000,
+                mode: CaptureMode::ByValue,
+                var_type: "i32".to_string(),
+                size: 4,
+                lifetime_bound: None,
+            },
+        ];
+        
+        let potential = analyzer.analyze_optimization_potential(&small_captures);
+        assert_eq!(potential.level, OptimizationLevel::None);
+        assert_eq!(potential.potential_savings, 0);
+    }
+
+    #[test]
+    fn test_analyze_closure_patterns() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        // Create test allocations with closure types
+        let mut alloc1 = AllocationInfo::new(0x1000, 32);
+        alloc1.type_name = Some("{{closure}}".to_string());
+        
+        let mut alloc2 = AllocationInfo::new(0x2000, 64);
+        alloc2.type_name = Some("dyn FnOnce()".to_string());
+        
+        let mut alloc3 = AllocationInfo::new(0x3000, 16);
+        alloc3.type_name = Some("Vec<i32>".to_string()); // Not a closure
+        
+        let allocations = vec![alloc1, alloc2, alloc3];
+        
+        let report = analyzer.analyze_closure_patterns(&allocations);
+        
+        // Should detect 2 closures
+        assert_eq!(report.detected_closures.len(), 2);
+        
+        // Check first detected closure
+        let first_closure = &report.detected_closures[0];
+        assert_eq!(first_closure.ptr, 0x1000);
+        assert_eq!(first_closure.size, 32);
+        assert_eq!(first_closure.estimated_captures, 2); // 32 bytes -> 2 captures
+        assert_eq!(first_closure.closure_type, ClosureType::Unknown);
+        assert_eq!(first_closure.memory_impact, MemoryImpact::Low);
+        
+        // Check second detected closure
+        let second_closure = &report.detected_closures[1];
+        assert_eq!(second_closure.ptr, 0x2000);
+        assert_eq!(second_closure.size, 64);
+        assert_eq!(second_closure.estimated_captures, 8); // 64 bytes -> 8 captures
+        assert_eq!(second_closure.closure_type, ClosureType::FnOnce);
+        assert_eq!(second_closure.memory_impact, MemoryImpact::Low);
+        
+        // Verify timestamp
+        assert!(report.analysis_timestamp > 0);
+    }
+
+    #[test]
+    fn test_lifetime_graph() {
+        let mut graph = LifetimeGraph::new();
+        
+        let captures = vec![
+            CaptureInfo {
+                var_name: "x".to_string(),
+                var_ptr: 0x1000,
+                mode: CaptureMode::ByValue,
+                var_type: "i32".to_string(),
+                size: 4,
+                lifetime_bound: None,
+            },
+            CaptureInfo {
+                var_name: "y".to_string(),
+                var_ptr: 0x2000,
+                mode: CaptureMode::ByReference,
+                var_type: "&str".to_string(),
+                size: 8,
+                lifetime_bound: None,
+            },
+        ];
+        
+        graph.add_closure_relationships(0x5000, &captures);
+        
+        // Verify relationships were added
+        assert!(graph.relationships.contains_key(&0x5000));
+        let relationships = &graph.relationships[&0x5000];
+        assert_eq!(relationships.len(), 2);
+        
+        // Check relationship types
+        assert_eq!(relationships[0].relationship_type, RelationshipType::Ownership);
+        assert_eq!(relationships[1].relationship_type, RelationshipType::SharedBorrow);
+        
+        // Test removal
+        graph.remove_closure(0x5000);
+        assert!(!graph.relationships.contains_key(&0x5000));
+    }
+
+    #[test]
+    fn test_lifetime_analysis() {
+        let mut graph = LifetimeGraph::new();
+        
+        // Add closure with mixed capture modes (should trigger issue)
+        let mixed_captures = vec![
+            CaptureInfo {
+                var_name: "owned".to_string(),
+                var_ptr: 0x1000,
+                mode: CaptureMode::ByValue,
+                var_type: "String".to_string(),
+                size: 24,
+                lifetime_bound: None,
+            },
+            CaptureInfo {
+                var_name: "borrowed".to_string(),
+                var_ptr: 0x2000,
+                mode: CaptureMode::ByReference,
+                var_type: "&i32".to_string(),
+                size: 8,
+                lifetime_bound: None,
+            },
+        ];
+        
+        graph.add_closure_relationships(0x5000, &mixed_captures);
+        
+        let analysis = graph.analyze_lifetimes();
+        
+        assert_eq!(analysis.total_relationships, 1);
+        assert_eq!(analysis.potential_issues.len(), 1);
+        
+        let issue = &analysis.potential_issues[0];
+        assert_eq!(issue.closure_ptr, 0x5000);
+        assert_eq!(issue.issue_type, LifetimeIssueType::MixedCaptureMode);
+        assert_eq!(issue.severity, IssueSeverity::Medium);
+    }
+
+    #[test]
+    fn test_lifetime_analysis_many_captures() {
+        let mut graph = LifetimeGraph::new();
+        
+        // Create closure with many captures
+        let many_captures: Vec<CaptureInfo> = (0..8).map(|i| {
+            CaptureInfo {
+                var_name: format!("var_{}", i),
+                var_ptr: 0x1000 + i * 8,
+                mode: CaptureMode::ByValue,
+                var_type: "i32".to_string(),
+                size: 4,
+                lifetime_bound: None,
+            }
+        }).collect();
+        
+        graph.add_closure_relationships(0x6000, &many_captures);
+        
+        let analysis = graph.analyze_lifetimes();
+        
+        assert_eq!(analysis.total_relationships, 1);
+        assert_eq!(analysis.lifetime_patterns.len(), 1);
+        
+        let pattern = &analysis.lifetime_patterns[0];
+        assert_eq!(pattern.pattern_type, LifetimePatternType::ManyCaptures);
+        assert_eq!(pattern.impact, PatternImpact::Medium);
+    }
+
+    #[test]
+    fn test_capture_mode_variants() {
+        let modes = vec![
+            CaptureMode::ByValue,
+            CaptureMode::ByReference,
+            CaptureMode::ByMutableReference,
+        ];
+        
+        for mode in modes {
+            assert!(format!("{:?}", mode).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_optimization_level_variants() {
+        let levels = vec![
+            OptimizationLevel::None,
+            OptimizationLevel::Low,
+            OptimizationLevel::Medium,
+            OptimizationLevel::High,
+        ];
+        
+        for level in levels {
+            assert!(format!("{:?}", level).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_closure_type_variants() {
+        let types = vec![
+            ClosureType::Fn,
+            ClosureType::FnMut,
+            ClosureType::FnOnce,
+            ClosureType::Unknown,
+        ];
+        
+        for closure_type in types {
+            assert!(format!("{:?}", closure_type).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_memory_impact_variants() {
+        let impacts = vec![
+            MemoryImpact::Minimal,
+            MemoryImpact::Low,
+            MemoryImpact::Medium,
+            MemoryImpact::High,
+            MemoryImpact::VeryHigh,
+        ];
+        
+        for impact in impacts {
+            assert!(format!("{:?}", impact).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_capture_statistics_default() {
+        let stats = CaptureStatistics::default();
+        
+        assert_eq!(stats.total_closures, 0);
+        assert_eq!(stats.total_captures, 0);
+        assert_eq!(stats.avg_captures_per_closure, 0.0);
+        assert_eq!(stats.total_memory_usage, 0);
+        assert!(stats.captures_by_mode.is_empty());
+        assert!(stats.captures_by_type.is_empty());
+    }
+
+    #[test]
+    fn test_optimization_category_variants() {
+        let categories = vec![
+            OptimizationCategory::Memory,
+            OptimizationCategory::Performance,
+            OptimizationCategory::Lifetime,
+        ];
+        
+        for category in categories {
+            assert!(format!("{:?}", category).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_suggestion_priority_variants() {
+        let priorities = vec![
+            SuggestionPriority::Low,
+            SuggestionPriority::Medium,
+            SuggestionPriority::High,
+            SuggestionPriority::Critical,
+        ];
+        
+        for priority in priorities {
+            assert!(format!("{:?}", priority).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_relationship_type_variants() {
+        let types = vec![
+            RelationshipType::Ownership,
+            RelationshipType::SharedBorrow,
+            RelationshipType::ExclusiveBorrow,
+        ];
+        
+        for rel_type in types {
+            assert!(format!("{:?}", rel_type).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_lifetime_analysis_default() {
+        let analysis = LifetimeAnalysis::default();
+        
+        assert_eq!(analysis.total_relationships, 0);
+        assert!(analysis.potential_issues.is_empty());
+        assert!(analysis.lifetime_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_lifetime_issue_type_variants() {
+        let types = vec![
+            LifetimeIssueType::MixedCaptureMode,
+            LifetimeIssueType::PotentialDanglingReference,
+            LifetimeIssueType::UnnecessaryCapture,
+        ];
+        
+        for issue_type in types {
+            assert!(format!("{:?}", issue_type).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_issue_severity_variants() {
+        let severities = vec![
+            IssueSeverity::Low,
+            IssueSeverity::Medium,
+            IssueSeverity::High,
+            IssueSeverity::Critical,
+        ];
+        
+        for severity in severities {
+            assert!(format!("{:?}", severity).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_lifetime_pattern_type_variants() {
+        let types = vec![
+            LifetimePatternType::ManyCaptures,
+            LifetimePatternType::LongLivedClosure,
+            LifetimePatternType::FrequentCreation,
+        ];
+        
+        for pattern_type in types {
+            assert!(format!("{:?}", pattern_type).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_pattern_impact_variants() {
+        let impacts = vec![
+            PatternImpact::Low,
+            PatternImpact::Medium,
+            PatternImpact::High,
+        ];
+        
+        for impact in impacts {
+            assert!(format!("{:?}", impact).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_capture_event_type_variants() {
+        let types = vec![
+            CaptureEventType::Captured,
+            CaptureEventType::Released,
+        ];
+        
+        for event_type in types {
+            assert!(format!("{:?}", event_type).len() > 0);
+        }
+    }
+
+    #[test]
+    fn test_current_timestamp() {
+        let timestamp1 = current_timestamp();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let timestamp2 = current_timestamp();
+        
+        assert!(timestamp2 > timestamp1);
+        assert!(timestamp1 > 0);
+    }
+
+    #[test]
+    fn test_capture_call_site() {
+        let call_site = capture_call_site();
+        assert!(!call_site.is_empty());
+        assert_eq!(call_site, "<call_site_placeholder>");
+    }
+
+    #[test]
+    fn test_complex_closure_analysis_scenario() {
+        let analyzer = ClosureAnalyzer::new();
+        
+        // Register multiple closures with different characteristics
+        let small_captures = vec![
+            CaptureInfo {
+                var_name: "x".to_string(),
+                var_ptr: 0x1000,
+                mode: CaptureMode::ByValue,
+                var_type: "i32".to_string(),
+                size: 4,
+                lifetime_bound: None,
+            },
+        ];
+        
+        let large_captures = vec![
+            CaptureInfo {
+                var_name: "data".to_string(),
+                var_ptr: 0x2000,
+                mode: CaptureMode::ByValue,
+                var_type: "Vec<u8>".to_string(),
+                size: 1024,
+                lifetime_bound: None,
+            },
+        ];
+        
+        analyzer.register_closure(0x5000, small_captures);
+        analyzer.register_closure(0x6000, large_captures);
+        
+        // Create allocations for analysis
+        let mut alloc1 = AllocationInfo::new(0x5000, 8);
+        alloc1.type_name = Some("{{closure}}".to_string());
+        
+        let mut alloc2 = AllocationInfo::new(0x6000, 1024);
+        alloc2.type_name = Some("dyn FnOnce()".to_string());
+        
+        let allocations = vec![alloc1, alloc2];
+        
+        let report = analyzer.analyze_closure_patterns(&allocations);
+        
+        // Verify comprehensive analysis
+        assert_eq!(report.detected_closures.len(), 2);
+        assert!(report.capture_statistics.total_closures > 0);
+        assert!(!report.optimization_suggestions.is_empty());
+        assert!(report.analysis_timestamp > 0);
+        
+        // Check that high memory usage triggered optimization suggestions
+        let memory_suggestions: Vec<_> = report.optimization_suggestions.iter()
+            .filter(|s| s.category == OptimizationCategory::Memory)
+            .collect();
+        assert!(!memory_suggestions.is_empty());
+    }
+
+    #[test]
+    fn test_thread_safety() {
+        use std::thread;
+        use std::sync::Arc;
+        
+        let analyzer = Arc::new(ClosureAnalyzer::new());
+        let mut handles = vec![];
+        
+        // Test concurrent access
+        for i in 0..4 {
+            let analyzer_clone = analyzer.clone();
+            let handle = thread::spawn(move || {
+                let captures = vec![
+                    CaptureInfo {
+                        var_name: format!("var_{}", i),
+                        var_ptr: 0x1000 + i * 8,
+                        mode: CaptureMode::ByValue,
+                        var_type: "i32".to_string(),
+                        size: 4,
+                        lifetime_bound: None,
+                    },
+                ];
+                
+                analyzer_clone.register_closure(0x5000 + i, captures);
+                analyzer_clone.track_closure_drop(0x5000 + i);
+            });
+            handles.push(handle);
+        }
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        // All closures should be dropped
+        assert!(analyzer.closures.lock().unwrap().is_empty());
+        
+        // Should have capture and release events
+        let events = analyzer.capture_events.lock().unwrap();
+        assert_eq!(events.len(), 8); // 4 captures + 4 releases
+    }
+}
