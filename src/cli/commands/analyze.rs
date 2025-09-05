@@ -509,7 +509,7 @@ mod tests {
             .try_get_matches_from(
                 std::iter::once("test".to_string())
                     .chain(command_strings)
-                    .collect::<Vec<String>>()
+                    .collect::<Vec<String>>(),
             )
             .expect("Failed to create test matches")
     }
@@ -527,12 +527,9 @@ mod tests {
     fn test_argument_extraction() {
         // Test argument extraction from ArgMatches
         let matches = create_test_matches_with_command(vec!["echo", "hello"]);
-        
-        let command_args: Vec<&String> = matches
-            .get_many::<String>("command")
-            .unwrap()
-            .collect();
-        
+
+        let command_args: Vec<&String> = matches.get_many::<String>("command").unwrap().collect();
+
         assert_eq!(command_args.len(), 2);
         assert_eq!(command_args[0], "echo");
         assert_eq!(command_args[1], "hello");
@@ -542,7 +539,7 @@ mod tests {
     fn test_default_values() {
         // Test default value handling
         let matches = create_test_matches_with_command(vec!["echo", "test"]);
-        
+
         let export_format = matches
             .get_one::<String>("export")
             .map(|s| s.as_str())
@@ -551,7 +548,7 @@ mod tests {
             .get_one::<String>("output")
             .map(|s| s.as_str())
             .unwrap_or("memory_analysis");
-        
+
         assert_eq!(export_format, "html");
         assert_eq!(output_path, "memory_analysis");
     }
@@ -581,7 +578,9 @@ mod tests {
 
         assert_eq!(env_vars.len(), 5); // 4 base + 1 auto_track
         assert!(env_vars.contains(&("MEMSCOPE_AUTO_TRACK", "1")));
-        assert!(!env_vars.iter().any(|(k, _)| *k == "MEMSCOPE_WAIT_COMPLETION"));
+        assert!(!env_vars
+            .iter()
+            .any(|(k, _)| *k == "MEMSCOPE_WAIT_COMPLETION"));
     }
 
     #[test]
@@ -612,10 +611,8 @@ mod tests {
         fs::write(&input_path, test_json).expect("Failed to write test JSON");
 
         // Test HTML generation
-        let result = generate_html_report(
-            input_path.to_str().unwrap(),
-            output_path.to_str().unwrap(),
-        );
+        let result =
+            generate_html_report(input_path.to_str().unwrap(), output_path.to_str().unwrap());
 
         assert!(result.is_ok());
         assert!(output_path.exists());
@@ -637,10 +634,8 @@ mod tests {
         fs::write(&input_path, "{}").expect("Failed to write test file");
 
         // Test SVG generation
-        let result = generate_svg_visualization(
-            input_path.to_str().unwrap(),
-            output_path.to_str().unwrap(),
-        );
+        let result =
+            generate_svg_visualization(input_path.to_str().unwrap(), output_path.to_str().unwrap());
 
         assert!(result.is_ok());
         assert!(output_path.exists());
@@ -703,7 +698,7 @@ mod tests {
         assert!(json_path.exists());
         let content = fs::read_to_string(&json_path).expect("Failed to read JSON");
         let data: serde_json::Value = serde_json::from_str(&content).expect("Invalid JSON");
-        
+
         assert!(data.get("memory_analysis").is_some());
     }
 
@@ -729,7 +724,10 @@ mod tests {
         // Test path handling and validation
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let valid_path = temp_dir.path().join("valid_file.json");
-        let invalid_path = temp_dir.path().join("nonexistent").join("invalid_file.json");
+        let invalid_path = temp_dir
+            .path()
+            .join("nonexistent")
+            .join("invalid_file.json");
 
         // Test valid path
         fs::write(&valid_path, "{}").expect("Failed to write test file");
@@ -756,7 +754,7 @@ mod tests {
             // Test argument splitting
             let program = args[0];
             let remaining_args = &args[1..];
-            
+
             assert_eq!(program, args[0]);
             assert_eq!(remaining_args.len(), args.len() - 1);
         }
@@ -765,7 +763,7 @@ mod tests {
     #[test]
     fn test_error_handling() {
         // Test error handling scenarios
-        
+
         // Test missing command
         let empty_command: Vec<&String> = vec![];
         assert!(empty_command.is_empty());
@@ -779,7 +777,7 @@ mod tests {
 
         let missing_input = matches.get_one::<String>("input");
         let missing_output = matches.get_one::<String>("output");
-        
+
         assert!(missing_input.is_none());
         assert!(missing_output.is_none());
     }

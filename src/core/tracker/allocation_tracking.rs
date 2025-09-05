@@ -28,10 +28,7 @@ impl MemoryTracker {
         self.calculate_and_analyze_lifetime(&mut allocation);
 
         // Use blocking locks in fast mode for accurate tracking
-        match (
-            self.active_allocations.lock(),
-            self.bounded_stats.lock(),
-        ) {
+        match (self.active_allocations.lock(), self.bounded_stats.lock()) {
             (Ok(mut active), Ok(mut bounded_stats)) => {
                 active.insert(ptr, allocation.clone());
                 bounded_stats.add_allocation(&allocation);
@@ -482,9 +479,10 @@ impl MemoryTracker {
                 // Clone the allocation to pass to bounded_stats
                 let allocation_clone = allocation.clone();
                 drop(active); // Release active lock before acquiring bounded_stats lock
-                
+
                 if let Ok(mut bounded_stats) = self.bounded_stats.lock() {
-                    bounded_stats.update_active_allocation_status(&allocation_clone, old_var_name_is_none);
+                    bounded_stats
+                        .update_active_allocation_status(&allocation_clone, old_var_name_is_none);
                 }
 
                 tracing::debug!(

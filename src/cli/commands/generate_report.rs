@@ -157,14 +157,14 @@ mod tests {
     fn test_argument_extraction() {
         // Test argument extraction from ArgMatches
         let matches = create_test_matches("input.json", "output.html", Some("html"));
-        
+
         let input_file = matches.get_one::<String>("input").unwrap();
         let output_file = matches.get_one::<String>("output").unwrap();
         let format = matches
             .get_one::<String>("format")
             .map(|s| s.as_str())
             .unwrap_or("html");
-        
+
         assert_eq!(input_file, "input.json");
         assert_eq!(output_file, "output.html");
         assert_eq!(format, "html");
@@ -174,12 +174,12 @@ mod tests {
     fn test_default_format() {
         // Test default format handling
         let matches = create_test_matches("input.json", "output.html", None);
-        
+
         let format = matches
             .get_one::<String>("format")
             .map(|s| s.as_str())
             .unwrap_or("html");
-        
+
         assert_eq!(format, "html");
     }
 
@@ -187,12 +187,12 @@ mod tests {
     fn test_embed_json_to_html() {
         // Test JSON embedding into HTML template
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         // Create test JSON file
         let json_file = temp_dir.path().join("test_data.json");
         let test_json = r#"{"memory_analysis": {"total_allocations": 100}}"#;
         fs::write(&json_file, test_json).expect("Failed to write JSON file");
-        
+
         // Create test HTML template
         let template_file = temp_dir.path().join("template.html");
         let template_content = r#"<!DOCTYPE html>
@@ -205,7 +205,7 @@ mod tests {
 </body>
 </html>"#;
         fs::write(&template_file, template_content).expect("Failed to write template file");
-        
+
         // Test embedding
         let output_file = temp_dir.path().join("output.html");
         let result = embed_json_to_html(
@@ -213,10 +213,10 @@ mod tests {
             template_file.to_str().unwrap(),
             output_file.to_str().unwrap(),
         );
-        
+
         assert!(result.is_ok());
         assert!(output_file.exists());
-        
+
         // Verify embedded content
         let output_content = fs::read_to_string(&output_file).expect("Failed to read output file");
         assert!(output_content.contains("window.EMBEDDED_MEMORY_DATA"));
@@ -229,33 +229,33 @@ mod tests {
     fn test_run_generate_report_html_format() {
         // Test report generation with HTML format
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         // Create test files
         let json_file = temp_dir.path().join("input.json");
         let template_file = temp_dir.path().join("report_template.html");
         let output_file = temp_dir.path().join("output.html");
-        
+
         let test_json = r#"{"test": "data"}"#;
         fs::write(&json_file, test_json).expect("Failed to write JSON file");
-        
+
         let template_content = r#"<html><body><!-- DATA_INJECTION_POINT --></body></html>"#;
         fs::write(&template_file, template_content).expect("Failed to write template file");
-        
+
         let matches = create_test_matches(
             json_file.to_str().unwrap(),
             output_file.to_str().unwrap(),
             Some("html"),
         );
-        
+
         // Change to temp directory to find the template
         let original_dir = std::env::current_dir().expect("Failed to get current directory");
         std::env::set_current_dir(&temp_dir).expect("Failed to change directory");
-        
+
         let result = run_generate_report(&matches);
-        
+
         // Restore original directory
         std::env::set_current_dir(original_dir).expect("Failed to restore directory");
-        
+
         assert!(result.is_ok());
         assert!(output_file.exists());
     }
@@ -266,18 +266,21 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let json_file = temp_dir.path().join("input.json");
         let output_file = temp_dir.path().join("output.xml");
-        
+
         fs::write(&json_file, "{}").expect("Failed to write JSON file");
-        
+
         let matches = create_test_matches(
             json_file.to_str().unwrap(),
             output_file.to_str().unwrap(),
             Some("xml"),
         );
-        
+
         let result = run_generate_report(&matches);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported format: xml"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported format: xml"));
     }
 
     #[test]
@@ -286,12 +289,12 @@ mod tests {
         let cmd = ClapCommand::new("test")
             .arg(Arg::new("input"))
             .arg(Arg::new("output"));
-        
+
         let matches = cmd.try_get_matches_from(vec!["test"]).unwrap();
-        
+
         let input_result = matches.get_one::<String>("input");
         let output_result = matches.get_one::<String>("output");
-        
+
         assert!(input_result.is_none());
         assert!(output_result.is_none());
     }
@@ -300,7 +303,7 @@ mod tests {
     fn test_json_injection_script_generation() {
         // Test JSON injection script generation
         let test_json = r#"{"allocations": [{"id": 1}, {"id": 2}]}"#;
-        
+
         let inline_script = format!(
             r#"<script type="text/javascript">
 // Embedded JSON data for offline analysis
@@ -308,7 +311,7 @@ window.EMBEDDED_MEMORY_DATA = {test_json};
 console.log('📊 Loaded embedded memory analysis data');
 </script>"#
         );
-        
+
         assert!(inline_script.contains("window.EMBEDDED_MEMORY_DATA"));
         assert!(inline_script.contains("allocations"));
         assert!(inline_script.contains("console.log"));
@@ -327,10 +330,11 @@ console.log('📊 Loaded embedded memory analysis data');
     <footer>End</footer>
 </body>
 </html>"#;
-        
+
         let replacement_script = r#"<script>window.DATA = {};</script>"#;
-        let final_html = template_content.replace("<!-- DATA_INJECTION_POINT -->", replacement_script);
-        
+        let final_html =
+            template_content.replace("<!-- DATA_INJECTION_POINT -->", replacement_script);
+
         assert!(!final_html.contains("<!-- DATA_INJECTION_POINT -->"));
         assert!(final_html.contains("<script>window.DATA = {};</script>"));
         assert!(final_html.contains("<title>Report</title>"));
@@ -341,19 +345,19 @@ console.log('📊 Loaded embedded memory analysis data');
     fn test_file_operations() {
         // Test file read/write operations
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         // Test file writing
         let test_file = temp_dir.path().join("test.txt");
         let test_content = "Hello, World!";
         let write_result = fs::write(&test_file, test_content);
         assert!(write_result.is_ok());
         assert!(test_file.exists());
-        
+
         // Test file reading
         let read_result = fs::read_to_string(&test_file);
         assert!(read_result.is_ok());
         assert_eq!(read_result.unwrap(), test_content);
-        
+
         // Test reading non-existent file
         let non_existent = temp_dir.path().join("non_existent.txt");
         let read_error = fs::read_to_string(&non_existent);
@@ -365,11 +369,11 @@ console.log('📊 Loaded embedded memory analysis data');
         // Test format validation logic
         let supported_formats = ["html"];
         let unsupported_formats = ["xml", "pdf", "docx", "txt"];
-        
+
         for format in supported_formats {
             assert_eq!(format, "html");
         }
-        
+
         for format in unsupported_formats {
             assert_ne!(format, "html");
         }
@@ -379,7 +383,7 @@ console.log('📊 Loaded embedded memory analysis data');
     fn test_complex_json_embedding() {
         // Test embedding complex JSON data
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         let complex_json = r#"{
             "memory_analysis": {
                 "statistics": {
@@ -393,23 +397,23 @@ console.log('📊 Loaded embedded memory analysis data');
                 ]
             }
         }"#;
-        
+
         let json_file = temp_dir.path().join("complex.json");
         let template_file = temp_dir.path().join("template.html");
         let output_file = temp_dir.path().join("output.html");
-        
+
         fs::write(&json_file, complex_json).expect("Failed to write JSON");
         fs::write(&template_file, "<html><!-- DATA_INJECTION_POINT --></html>")
             .expect("Failed to write template");
-        
+
         let result = embed_json_to_html(
             json_file.to_str().unwrap(),
             template_file.to_str().unwrap(),
             output_file.to_str().unwrap(),
         );
-        
+
         assert!(result.is_ok());
-        
+
         let output_content = fs::read_to_string(&output_file).expect("Failed to read output");
         assert!(output_content.contains("total_allocations"));
         assert!(output_content.contains("1000"));

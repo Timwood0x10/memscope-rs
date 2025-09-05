@@ -343,18 +343,19 @@ mod tests {
         // Test performance improvement calculation without running actual benchmarks
         let traditional_times = vec![200, 220, 240, 180, 260];
         let fast_times = vec![100, 110, 120, 90, 130];
-        
+
         // Calculate averages
-        let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+        let avg_traditional =
+            traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
         let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
-        
+
         assert_eq!(avg_traditional, 220.0);
         assert_eq!(avg_fast, 110.0);
-        
+
         // Calculate improvement
         let improvement_percent = ((avg_traditional - avg_fast) / avg_traditional) * 100.0;
         assert_eq!(improvement_percent, 50.0);
-        
+
         // Test min/max calculations
         assert_eq!(*traditional_times.iter().min().unwrap(), 180);
         assert_eq!(*traditional_times.iter().max().unwrap(), 260);
@@ -367,13 +368,13 @@ mod tests {
         // Test time range calculations for stability analysis
         let times1 = vec![100, 105, 110, 95, 115];
         let times2 = vec![50, 80, 60, 70, 90];
-        
+
         let range1 = times1.iter().max().unwrap() - times1.iter().min().unwrap();
         let range2 = times2.iter().max().unwrap() - times2.iter().min().unwrap();
-        
+
         assert_eq!(range1, 20); // 115 - 95
         assert_eq!(range2, 40); // 90 - 50
-        
+
         // Test that range2 has higher variability
         assert!(range2 > range1);
     }
@@ -386,7 +387,7 @@ mod tests {
         let output_dir = tempdir().expect("Failed to create temp directory");
 
         display_performance_results(&traditional_times, &fast_times, output_dir.path());
-        
+
         // Verify report file is created
         let report_path = output_dir.path().join("pure_performance_report.md");
         assert!(report_path.exists());
@@ -409,10 +410,10 @@ mod tests {
 
         let report_path = output_dir.path().join("pure_performance_report.md");
         assert!(report_path.exists(), "Report file should be created");
-        
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
-        
+
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
+
         // Verify essential content is present
         assert!(report_content.contains("Pure Performance Benchmark Report"));
         assert!(report_content.contains("50.0%"));
@@ -436,9 +437,9 @@ mod tests {
         );
 
         let report_path = output_dir.path().join("pure_performance_report.md");
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
-        
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
+
         // Should contain excellent conclusion for 75% improvement
         assert!(report_content.contains("75.0%"));
         assert!(report_content.contains("excellent"));
@@ -454,7 +455,7 @@ mod tests {
             (10.0, "minor improvement"),
             (-10.0, "not improved"),
         ];
-        
+
         for (improvement, expected_keyword) in test_cases {
             let conclusion = if improvement >= 60.0 {
                 "excellent! the fast export system's core algorithm is effective"
@@ -467,7 +468,7 @@ mod tests {
             } else {
                 "the fast export system's core performance has not improved"
             };
-            
+
             assert!(conclusion.contains(expected_keyword.split('!').next().unwrap()));
         }
     }
@@ -481,12 +482,12 @@ mod tests {
             .enumerate()
             .map(|(i, t)| format!("- run {}: {}ms", i + 1, t))
             .collect();
-        
+
         assert_eq!(formatted.len(), 3);
         assert_eq!(formatted[0], "- run 1: 100ms");
         assert_eq!(formatted[1], "- run 2: 110ms");
         assert_eq!(formatted[2], "- run 3: 120ms");
-        
+
         let joined = formatted.join("\n");
         assert!(joined.contains("run 1: 100ms"));
         assert!(joined.contains("run 2: 110ms"));

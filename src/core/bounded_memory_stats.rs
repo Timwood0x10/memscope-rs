@@ -167,7 +167,7 @@ impl BoundedMemoryStats {
     pub fn add_allocation(&mut self, alloc: &AllocationInfo) {
         // CRITICAL FIX: Track all allocations initially, but only count user variables in active_allocations
         // This allows the two-phase tracking: track_allocation() -> associate_var() to work correctly
-        
+
         // Always update total statistics for all allocations
         self.total_allocations += 1;
         self.total_allocated += alloc.size;
@@ -200,14 +200,18 @@ impl BoundedMemoryStats {
 
     /// Update the status of an active allocation, especially its var_name status.
     /// This is used when a var_name is associated with an already tracked allocation.
-    pub fn update_active_allocation_status(&mut self, alloc: &AllocationInfo, old_var_name_is_none: bool) {
+    pub fn update_active_allocation_status(
+        &mut self,
+        alloc: &AllocationInfo,
+        old_var_name_is_none: bool,
+    ) {
         // If the var_name was None and is now Some, increment active_allocations
         // This handles the case where an allocation was initially tracked but not counted as "active"
         // because it didn't have a var_name (user variable) yet.
         if old_var_name_is_none && alloc.var_name.is_some() {
             self.active_allocations += 1;
             self.active_memory += alloc.size;
-            
+
             // Update peaks as well
             if self.active_allocations > self.peak_allocations {
                 self.peak_allocations = self.active_allocations;
@@ -221,7 +225,11 @@ impl BoundedMemoryStats {
             self.add_allocation_summary(summary);
         } else if alloc.var_name.is_some() {
             // Update existing summary in recent_allocations if found
-            if let Some(summary) = self.recent_allocations.iter_mut().find(|s| s.ptr == alloc.ptr) {
+            if let Some(summary) = self
+                .recent_allocations
+                .iter_mut()
+                .find(|s| s.ptr == alloc.ptr)
+            {
                 summary.var_name = alloc.var_name.clone();
                 summary.type_name = alloc.type_name.clone();
                 summary.size = alloc.size; // Size might have been estimated initially
@@ -246,7 +254,7 @@ impl BoundedMemoryStats {
             // This is a user variable, decrease active counts
             self.active_allocations = self.active_allocations.saturating_sub(1);
             self.active_memory = self.active_memory.saturating_sub(size);
-            
+
             // Update deallocation timestamp
             summary.timestamp_dealloc = Some(current_timestamp);
             if let Some(alloc_time) = summary.timestamp_dealloc {

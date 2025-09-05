@@ -177,6 +177,11 @@ mod tests {
         let result = benchmark.run_full_benchmark();
         assert!(result.is_ok());
         let comparison = result.unwrap();
-        assert_eq!(comparison.performance_improvement.avg_time_improvement_percent, 0.0);
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_time_improvement_percent,
+            0.0
+        );
     }
 }

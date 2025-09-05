@@ -188,7 +188,7 @@ mod tests {
     fn test_clone_optimizer_new() {
         let optimizer = CloneOptimizer::new();
         let stats = optimizer.get_stats();
-        
+
         assert_eq!(stats.total_clones, 0);
         assert_eq!(stats.optimizable_clones, 0);
         assert_eq!(stats.optimized_clones, 0);
@@ -201,7 +201,7 @@ mod tests {
     fn test_clone_optimizer_default() {
         let optimizer = CloneOptimizer::default();
         let stats = optimizer.get_stats();
-        
+
         assert_eq!(stats.total_clones, 0);
         assert_eq!(stats.optimizable_clones, 0);
         assert_eq!(stats.optimized_clones, 0);
@@ -212,52 +212,58 @@ mod tests {
     #[test]
     fn test_record_optimizable_clone() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         optimizer.record_clone("main.rs:10", "AllocationInfo", 256);
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.total_clones, 1);
         assert_eq!(stats.optimizable_clones, 1);
         assert_eq!(stats.optimized_clones, 0);
-        
+
         let clone_info = optimizer.get_clone_info();
         assert_eq!(clone_info.len(), 1);
         assert_eq!(clone_info[0].location, "main.rs:10");
         assert_eq!(clone_info[0].type_name, "AllocationInfo");
         assert_eq!(clone_info[0].estimated_size, 256);
         assert!(clone_info[0].can_optimize);
-        assert_eq!(clone_info[0].optimization_reason, "Can be replaced with Arc sharing");
+        assert_eq!(
+            clone_info[0].optimization_reason,
+            "Can be replaced with Arc sharing"
+        );
     }
 
     #[test]
     fn test_record_non_optimizable_clone() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         optimizer.record_clone("main.rs:20", "i32", 4);
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.total_clones, 1);
         assert_eq!(stats.optimizable_clones, 0);
         assert_eq!(stats.optimized_clones, 0);
-        
+
         let clone_info = optimizer.get_clone_info();
         assert_eq!(clone_info.len(), 1);
         assert_eq!(clone_info[0].location, "main.rs:20");
         assert_eq!(clone_info[0].type_name, "i32");
         assert_eq!(clone_info[0].estimated_size, 4);
         assert!(!clone_info[0].can_optimize);
-        assert_eq!(clone_info[0].optimization_reason, "Primitive type, clone is cheap");
+        assert_eq!(
+            clone_info[0].optimization_reason,
+            "Primitive type, clone is cheap"
+        );
     }
 
     #[test]
     fn test_can_optimize_type_optimizable_types() {
         let optimizer = CloneOptimizer::new();
-        
+
         // Test exact matches that definitely work
         assert!(optimizer.can_optimize_type("AllocationInfo"));
         assert!(optimizer.can_optimize_type("ExportConfig"));
         assert!(optimizer.can_optimize_type("AnalysisResult"));
-        
+
         // Test pattern matches
         assert!(optimizer.can_optimize_type("MyConfig")); // contains "Config"
         assert!(optimizer.can_optimize_type("TestResult")); // contains "Result"
@@ -268,7 +274,7 @@ mod tests {
     #[test]
     fn test_can_optimize_type_non_optimizable_types() {
         let optimizer = CloneOptimizer::new();
-        
+
         assert!(!optimizer.can_optimize_type("i32"));
         assert!(!optimizer.can_optimize_type("u64"));
         assert!(!optimizer.can_optimize_type("f64"));
@@ -280,7 +286,7 @@ mod tests {
     #[test]
     fn test_is_primitive_type() {
         let optimizer = CloneOptimizer::new();
-        
+
         // Test all integer types
         assert!(optimizer.is_primitive_type("i8"));
         assert!(optimizer.is_primitive_type("i16"));
@@ -294,15 +300,15 @@ mod tests {
         assert!(optimizer.is_primitive_type("u64"));
         assert!(optimizer.is_primitive_type("u128"));
         assert!(optimizer.is_primitive_type("usize"));
-        
+
         // Test floating point types
         assert!(optimizer.is_primitive_type("f32"));
         assert!(optimizer.is_primitive_type("f64"));
-        
+
         // Test other primitive types
         assert!(optimizer.is_primitive_type("bool"));
         assert!(optimizer.is_primitive_type("char"));
-        
+
         // Test non-primitive types
         assert!(!optimizer.is_primitive_type("String"));
         assert!(!optimizer.is_primitive_type("Vec<i32>"));
@@ -312,10 +318,10 @@ mod tests {
     #[test]
     fn test_get_optimization_reason_mutex_types() {
         let optimizer = CloneOptimizer::new();
-        
+
         let reason = optimizer.get_optimization_reason("Mutex<i32>");
         assert_eq!(reason, "Already uses interior mutability");
-        
+
         let reason = optimizer.get_optimization_reason("RwLock<String>");
         assert_eq!(reason, "Already uses interior mutability");
     }
@@ -323,7 +329,7 @@ mod tests {
     #[test]
     fn test_get_optimization_reason_arc_types() {
         let optimizer = CloneOptimizer::new();
-        
+
         let reason = optimizer.get_optimization_reason("Arc<String>");
         assert_eq!(reason, "Already uses Arc sharing");
     }
@@ -331,7 +337,7 @@ mod tests {
     #[test]
     fn test_get_optimization_reason_rc_types() {
         let optimizer = CloneOptimizer::new();
-        
+
         let reason = optimizer.get_optimization_reason("Rc<String>");
         assert_eq!(reason, "Uses Rc, consider Arc for thread safety");
     }
@@ -339,10 +345,10 @@ mod tests {
     #[test]
     fn test_get_optimization_reason_primitive_types() {
         let optimizer = CloneOptimizer::new();
-        
+
         let reason = optimizer.get_optimization_reason("i32");
         assert_eq!(reason, "Primitive type, clone is cheap");
-        
+
         let reason = optimizer.get_optimization_reason("bool");
         assert_eq!(reason, "Primitive type, clone is cheap");
     }
@@ -350,7 +356,7 @@ mod tests {
     #[test]
     fn test_get_optimization_reason_unknown_types() {
         let optimizer = CloneOptimizer::new();
-        
+
         let reason = optimizer.get_optimization_reason("UnknownType");
         assert_eq!(reason, "Type analysis needed");
     }
@@ -358,32 +364,35 @@ mod tests {
     #[test]
     fn test_mark_optimized_valid_location() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         // Record an optimizable clone
         optimizer.record_clone("main.rs:10", "AllocationInfo", 256);
-        
+
         // Mark it as optimized
         optimizer.mark_optimized("main.rs:10");
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.optimized_clones, 1);
         assert_eq!(stats.memory_saved_bytes, 256);
         assert_eq!(stats.performance_improvement, 1.0); // 1/1 = 100%
-        
+
         let clone_info = optimizer.get_clone_info();
-        assert_eq!(clone_info[0].optimization_reason, "Optimized with Arc sharing");
+        assert_eq!(
+            clone_info[0].optimization_reason,
+            "Optimized with Arc sharing"
+        );
     }
 
     #[test]
     fn test_mark_optimized_invalid_location() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         // Record an optimizable clone
         optimizer.record_clone("main.rs:10", "AllocationInfo", 256);
-        
+
         // Try to mark a different location as optimized
         optimizer.mark_optimized("main.rs:20");
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.optimized_clones, 0);
         assert_eq!(stats.memory_saved_bytes, 0);
@@ -393,13 +402,13 @@ mod tests {
     #[test]
     fn test_mark_optimized_non_optimizable_clone() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         // Record a non-optimizable clone
         optimizer.record_clone("main.rs:10", "i32", 4);
-        
+
         // Try to mark it as optimized
         optimizer.mark_optimized("main.rs:10");
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.optimized_clones, 0);
         assert_eq!(stats.memory_saved_bytes, 0);
@@ -409,22 +418,22 @@ mod tests {
     #[test]
     fn test_performance_improvement_calculation() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         // Record multiple optimizable clones
         optimizer.record_clone("main.rs:10", "AllocationInfo", 256);
         optimizer.record_clone("main.rs:20", "ExportConfig", 128);
         optimizer.record_clone("main.rs:30", "Vec<_>", 512);
         optimizer.record_clone("main.rs:40", "i32", 4); // Non-optimizable
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.total_clones, 4);
         assert_eq!(stats.optimizable_clones, 2); // Only AllocationInfo and ExportConfig are optimizable
         assert_eq!(stats.optimized_clones, 0);
-        
+
         // Optimize 2 out of 2 optimizable clones
         optimizer.mark_optimized("main.rs:10");
         optimizer.mark_optimized("main.rs:20");
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.optimized_clones, 2);
         assert_eq!(stats.memory_saved_bytes, 384); // 256 + 128
@@ -434,21 +443,21 @@ mod tests {
     #[test]
     fn test_multiple_clone_records() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         // Record various types of clones
         optimizer.record_clone("file1.rs:10", "AllocationInfo", 256);
         optimizer.record_clone("file2.rs:20", "i32", 4);
         optimizer.record_clone("file3.rs:30", "ExportConfig", 64);
         optimizer.record_clone("file4.rs:40", "Mutex<i32>", 32);
         optimizer.record_clone("file5.rs:50", "Arc<String>", 48);
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.total_clones, 5);
         assert_eq!(stats.optimizable_clones, 2); // AllocationInfo and ExportConfig
-        
+
         let clone_info = optimizer.get_clone_info();
         assert_eq!(clone_info.len(), 5);
-        
+
         // Check specific clone info
         assert!(clone_info[0].can_optimize); // AllocationInfo
         assert!(!clone_info[1].can_optimize); // i32
@@ -463,8 +472,10 @@ mod tests {
         assert!(should_use_arc("MyConfig"));
         assert!(should_use_arc("TestResult"));
         assert!(should_use_arc("DataCollection"));
-        assert!(should_use_arc("VeryLongTypeNameThatExceedsFiftyCharactersInLengthAndMoreToMakeSureItIsLongEnough"));
-        
+        assert!(should_use_arc(
+            "VeryLongTypeNameThatExceedsFiftyCharactersInLengthAndMoreToMakeSureItIsLongEnough"
+        ));
+
         assert!(!should_use_arc("i32"));
         assert!(!should_use_arc("String"));
         assert!(!should_use_arc("ShortType"));
@@ -479,11 +490,12 @@ mod tests {
             memory_saved_bytes: 1024,
             performance_improvement: 0.714,
         };
-        
+
         // Test that it can be serialized and deserialized
         let serialized = serde_json::to_string(&stats).expect("Failed to serialize");
-        let deserialized: CloneStats = serde_json::from_str(&serialized).expect("Failed to deserialize");
-        
+        let deserialized: CloneStats =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
         assert_eq!(deserialized.total_clones, 10);
         assert_eq!(deserialized.optimizable_clones, 7);
         assert_eq!(deserialized.optimized_clones, 5);
@@ -500,16 +512,20 @@ mod tests {
             can_optimize: true,
             optimization_reason: "Can be replaced with Arc sharing".to_string(),
         };
-        
+
         // Test that it can be serialized and deserialized
         let serialized = serde_json::to_string(&info).expect("Failed to serialize");
-        let deserialized: CloneInfo = serde_json::from_str(&serialized).expect("Failed to deserialize");
-        
+        let deserialized: CloneInfo =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
         assert_eq!(deserialized.location, "main.rs:42");
         assert_eq!(deserialized.type_name, "AllocationInfo");
         assert_eq!(deserialized.estimated_size, 256);
         assert!(deserialized.can_optimize);
-        assert_eq!(deserialized.optimization_reason, "Can be replaced with Arc sharing");
+        assert_eq!(
+            deserialized.optimization_reason,
+            "Can be replaced with Arc sharing"
+        );
     }
 
     #[test]
@@ -521,7 +537,7 @@ mod tests {
             memory_saved_bytes: 512,
             performance_improvement: 0.667,
         };
-        
+
         let debug_str = format!("{:?}", stats);
         assert!(debug_str.contains("total_clones: 5"));
         assert!(debug_str.contains("optimizable_clones: 3"));
@@ -537,7 +553,7 @@ mod tests {
             can_optimize: false,
             optimization_reason: "Test reason".to_string(),
         };
-        
+
         let debug_str = format!("{:?}", info);
         assert!(debug_str.contains("location: \"test.rs:1\""));
         assert!(debug_str.contains("type_name: \"TestType\""));
@@ -547,9 +563,9 @@ mod tests {
     #[test]
     fn test_edge_case_empty_type_name() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         optimizer.record_clone("main.rs:1", "", 0);
-        
+
         let clone_info = optimizer.get_clone_info();
         assert_eq!(clone_info.len(), 1);
         assert_eq!(clone_info[0].type_name, "");
@@ -560,10 +576,10 @@ mod tests {
     #[test]
     fn test_edge_case_zero_size_clone() {
         let mut optimizer = CloneOptimizer::new();
-        
+
         optimizer.record_clone("main.rs:1", "AllocationInfo", 0);
         optimizer.mark_optimized("main.rs:1");
-        
+
         let stats = optimizer.get_stats();
         assert_eq!(stats.memory_saved_bytes, 0);
         assert_eq!(stats.optimized_clones, 1);

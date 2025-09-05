@@ -304,18 +304,19 @@ mod tests {
         // Test benchmark calculation without running actual performance tests
         let traditional_times = vec![150, 160, 170, 140, 180];
         let fast_times = vec![75, 80, 85, 70, 90];
-        
+
         // Calculate averages
-        let avg_traditional = traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
+        let avg_traditional =
+            traditional_times.iter().sum::<u64>() as f64 / traditional_times.len() as f64;
         let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
-        
+
         assert_eq!(avg_traditional, 160.0);
         assert_eq!(avg_fast, 80.0);
-        
+
         // Calculate improvement
         let improvement_percent = ((avg_traditional - avg_fast) / avg_traditional) * 100.0;
         assert_eq!(improvement_percent, 50.0);
-        
+
         // Test min/max calculations
         assert_eq!(*traditional_times.iter().min().unwrap(), 140);
         assert_eq!(*traditional_times.iter().max().unwrap(), 180);
@@ -331,7 +332,7 @@ mod tests {
         let output_dir = tempdir().expect("Failed to create temp directory");
 
         display_results(&traditional_times, &fast_times, output_dir.path());
-        
+
         // Verify report file is created
         let report_path = output_dir.path().join("simple_benchmark_report.md");
         assert!(report_path.exists());
@@ -354,10 +355,10 @@ mod tests {
 
         let report_path = output_dir.path().join("simple_benchmark_report.md");
         assert!(report_path.exists(), "Report file should be created");
-        
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
-        
+
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
+
         // Verify essential content is present
         assert!(report_content.contains("simple benchmark report"));
         assert!(report_content.contains("50.0%"));
@@ -375,7 +376,7 @@ mod tests {
             (10.0, "minor improvement"),
             (-5.0, "not improved"),
         ];
-        
+
         for (improvement, expected_keyword) in test_cases {
             let evaluation = if improvement >= 60.0 {
                 "excellent! reached 60-80% export time reduction target"
@@ -388,7 +389,7 @@ mod tests {
             } else {
                 "performance not improved, need to re-examine the algorithm"
             };
-            
+
             assert!(evaluation.contains(expected_keyword.split('!').next().unwrap()));
         }
     }
@@ -409,15 +410,15 @@ mod tests {
         );
 
         let report_path = output_dir.path().join("simple_benchmark_report.md");
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
 
         // Verify report sections exist
         assert!(report_content.contains("## 📊 performance improvement summary"));
         assert!(report_content.contains("## 📈 detailed results"));
         assert!(report_content.contains("## 🎯 evaluation result"));
         assert!(report_content.contains("## 📁 generated files"));
-        
+
         // Verify data is included
         assert!(report_content.contains("run 1: 200ms"));
         assert!(report_content.contains("run 1: 100ms"));
@@ -432,12 +433,12 @@ mod tests {
             .enumerate()
             .map(|(i, t)| format!("- run {}: {}ms", i + 1, t))
             .collect();
-        
+
         assert_eq!(formatted.len(), 3);
         assert_eq!(formatted[0], "- run 1: 150ms");
         assert_eq!(formatted[1], "- run 2: 160ms");
         assert_eq!(formatted[2], "- run 3: 170ms");
-        
+
         let joined = formatted.join("\n");
         assert!(joined.contains("run 1: 150ms"));
         assert!(joined.contains("run 2: 160ms"));
@@ -448,11 +449,11 @@ mod tests {
     fn test_empty_times_handling() {
         // Test handling of empty time vectors
         let empty_times: Vec<u64> = vec![];
-        
+
         // Test that unwrap_or works correctly for empty vectors
         assert_eq!(*empty_times.iter().min().unwrap_or(&0), 0);
         assert_eq!(*empty_times.iter().max().unwrap_or(&0), 0);
-        
+
         // Test with non-empty vectors
         let non_empty_times = vec![100, 200, 300];
         assert_eq!(*non_empty_times.iter().min().unwrap_or(&0), 100);

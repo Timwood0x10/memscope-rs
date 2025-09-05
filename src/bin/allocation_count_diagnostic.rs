@@ -251,7 +251,7 @@ mod tests {
         // Test file content analysis
         let content = fs::read_to_string(&test_file).expect("Failed to read file");
         assert!(content.contains("allocations"));
-        
+
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(allocations) = json_value.get("allocations") {
                 if let Some(alloc_array) = allocations.as_array() {
@@ -307,7 +307,7 @@ mod tests {
         // Test memory formatting
         let peak_mb = stats.peak_memory as f64 / 1024.0 / 1024.0;
         let active_mb = stats.active_memory as f64 / 1024.0 / 1024.0;
-        
+
         assert!((peak_mb - 3.0).abs() < 0.01);
         assert!((active_mb - 1.0).abs() < 0.01);
 
@@ -316,7 +316,8 @@ mod tests {
         assert_eq!(released_count, 512);
 
         // Test percentage calculations
-        let active_percentage = stats.active_allocations as f64 / stats.total_allocations as f64 * 100.0;
+        let active_percentage =
+            stats.active_allocations as f64 / stats.total_allocations as f64 * 100.0;
         assert_eq!(active_percentage, 50.0);
     }
 
@@ -324,7 +325,7 @@ mod tests {
     fn test_export_path_handling() {
         // Test export path handling logic
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         // Test valid path creation
         let valid_path = temp_dir.path().join("diagnostic_results");
         let create_result = fs::create_dir_all(&valid_path);
@@ -334,7 +335,7 @@ mod tests {
         // Test file path generation
         let json_path = valid_path.join("traditional_diagnostic.json");
         let binary_path = valid_path.join("fast_diagnostic");
-        
+
         assert!(json_path.to_str().is_some());
         assert!(binary_path.to_str().is_some());
         assert!(json_path.extension().unwrap() == "json");

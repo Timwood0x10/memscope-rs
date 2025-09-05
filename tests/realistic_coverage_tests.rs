@@ -28,11 +28,11 @@ mod data_structure_tests {
 
         assert_eq!(rc_data.len(), 3);
         assert_eq!(*arc_data, "arc_test");
-        
+
         // Test cloning
         let rc_clone = Rc::clone(&rc_data);
         let arc_clone = Arc::clone(&arc_data);
-        
+
         assert_eq!(rc_clone.len(), 3);
         assert_eq!(*arc_clone, "arc_test");
     }
@@ -49,7 +49,7 @@ mod data_structure_tests {
         assert!(none_data.is_none());
         assert!(ok_data.is_ok());
         assert!(err_data.is_err());
-        
+
         // Test unwrapping with defaults
         assert_eq!(some_data.unwrap_or_else(Vec::new), vec![1, 2, 3]);
         assert_eq!(none_data.unwrap_or_else(Vec::new), Vec::<i32>::new());
@@ -91,7 +91,10 @@ mod data_structure_tests {
         assert_eq!(nested_vec.len(), 3);
         assert_eq!(nested_vec[0], vec![1, 2, 3]);
         assert_eq!(nested_map.len(), 2);
-        assert_eq!(nested_map.get("outer1"), Some(&vec!["inner1".to_string(), "inner2".to_string()]));
+        assert_eq!(
+            nested_map.get("outer1"),
+            Some(&vec!["inner1".to_string(), "inner2".to_string()])
+        );
     }
 
     #[test]
@@ -111,15 +114,15 @@ mod data_structure_tests {
     fn test_concurrent_data_operations() {
         // Test concurrent-like operations without actual threading
         use std::sync::{Arc, Mutex};
-        
+
         let shared_data = Arc::new(Mutex::new(Vec::new()));
-        
+
         for i in 0..4 {
             let data_clone = Arc::clone(&shared_data);
             let mut data = data_clone.lock().expect("Failed to lock mutex");
             data.push(vec![i; 100]);
         }
-        
+
         let final_data = shared_data.lock().expect("Failed to lock mutex");
         assert_eq!(final_data.len(), 4);
         assert_eq!(final_data[0], vec![0; 100]);
@@ -209,7 +212,7 @@ mod macro_simulation_tests {
         // Verify all are still usable
         assert_eq!(wrapped_vector.as_ref().unwrap().len(), 3);
         assert_eq!(wrapped_string.as_ref().unwrap(), "test");
-        
+
         // Test unwrapping
         assert_eq!(wrapped_vector.unwrap().len(), 3);
         assert_eq!(wrapped_string.unwrap(), "test");
@@ -241,11 +244,11 @@ mod analysis_simulation_tests {
     fn test_memory_statistics_calculation() {
         // Test memory statistics calculation logic
         let allocations = vec![100, 200, 300, 400, 500];
-        
+
         let total_allocations = allocations.len() as u64;
         let total_allocated = allocations.iter().sum::<u64>();
         let average_allocation = total_allocated / total_allocations;
-        
+
         assert_eq!(total_allocations, 5);
         assert_eq!(total_allocated, 1500);
         assert_eq!(average_allocation, 300);
@@ -255,8 +258,8 @@ mod analysis_simulation_tests {
 #[cfg(test)]
 mod export_simulation_tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_json_export_simulation() {
@@ -268,10 +271,10 @@ mod export_simulation_tests {
         // Simulate JSON export by creating a simple JSON file
         let json_content = format!(r#"{{"data": {:?}, "length": {}}}"#, data, data.len());
         let write_result = fs::write(&json_path, json_content);
-        
+
         assert!(write_result.is_ok());
         assert!(json_path.exists());
-        
+
         // Verify content
         let content = fs::read_to_string(&json_path).expect("Failed to read file");
         assert!(content.contains("\"data\""));
@@ -287,10 +290,10 @@ mod export_simulation_tests {
 
         // Simulate binary export by writing raw bytes
         let write_result = fs::write(&binary_path, data.as_bytes());
-        
+
         assert!(write_result.is_ok());
         assert!(binary_path.exists());
-        
+
         // Verify content
         let content = fs::read(&binary_path).expect("Failed to read file");
         assert_eq!(content, data.as_bytes());
@@ -318,7 +321,7 @@ mod export_simulation_tests {
         // Test data serialization logic for export
         let data1 = vec![1, 2, 3];
         let data2 = String::from("export_test");
-        
+
         // Simulate serialization
         let serialized = format!(
             r#"{{"vec_data": {:?}, "string_data": "{}", "timestamp": {}}}"#,
@@ -329,7 +332,7 @@ mod export_simulation_tests {
                 .expect("Time went backwards")
                 .as_secs()
         );
-        
+
         assert!(serialized.contains("vec_data"));
         assert!(serialized.contains("string_data"));
         assert!(serialized.contains("timestamp"));
@@ -352,7 +355,7 @@ mod error_handling_simulation_tests {
         assert!(empty_string.is_empty());
         assert_eq!(empty_vec.len(), 0);
         assert_eq!(empty_string.len(), 0);
-        
+
         // Test that operations don't panic
         let _cloned_vec = empty_vec.clone();
         let _cloned_string = empty_string.clone();
@@ -369,7 +372,7 @@ mod error_handling_simulation_tests {
 
         // Should handle error gracefully
         assert!(result.is_err());
-        
+
         // Test with valid path
         let temp_dir = tempfile::TempDir::new().expect("Failed to create temp directory");
         let valid_path = temp_dir.path().join("test.json");
@@ -406,18 +409,18 @@ mod error_handling_simulation_tests {
         // Test memory calculation with edge cases
         let zero_size_data: Vec<i32> = Vec::new();
         let large_data: Vec<i32> = (0..10000).collect();
-        
+
         let zero_size = std::mem::size_of_val(&zero_size_data);
         let large_size = std::mem::size_of_val(&large_data);
-        
+
         assert!(zero_size > 0); // Vec itself has size even when empty
-        
+
         // Calculate actual memory usage including heap allocation
         let zero_heap_size = zero_size_data.capacity() * std::mem::size_of::<i32>();
         let large_heap_size = large_data.capacity() * std::mem::size_of::<i32>();
-        
+
         assert!(large_heap_size > zero_heap_size);
-        
+
         // Test overflow protection
         let max_safe_size = usize::MAX / 2;
         assert!(large_size < max_safe_size);

@@ -34,7 +34,7 @@ fn main() {
                 "run",
                 "--release",
                 "--example",
-                "realistic_usage_with_extensions",  // Use existing example
+                "realistic_usage_with_extensions", // Use existing example
             ])
             .output();
 
@@ -48,7 +48,10 @@ fn main() {
                 tracing::info!("✅ test data preparation completed");
             }
             Err(e) => {
-                tracing::warn!("⚠️ execute command failed: {}, continuing with existing data", e);
+                tracing::warn!(
+                    "⚠️ execute command failed: {}, continuing with existing data",
+                    e
+                );
             }
         }
     }
@@ -470,10 +473,10 @@ mod tests {
 
         let report_path = output_dir.path().join("core_performance_report.md");
         assert!(report_path.exists(), "Report file should be created");
-        
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
-        
+
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
+
         // Verify essential content is present
         assert!(report_content.contains("Core Performance Benchmark Report"));
         assert!(report_content.contains("50.0%"));
@@ -498,9 +501,9 @@ mod tests {
 
         let report_path = output_dir.path().join("core_performance_report.md");
         assert!(report_path.exists());
-        
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
+
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
         assert!(report_content.contains("0.0%"));
     }
 
@@ -521,9 +524,9 @@ mod tests {
 
         let report_path = output_dir.path().join("core_performance_report.md");
         assert!(report_path.exists());
-        
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
+
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
         assert!(report_content.contains("-100.0%"));
     }
 
@@ -547,7 +550,7 @@ mod tests {
 
         // Should complete without panic
         display_core_performance_results(&traditional_times, &fast_times, output_dir.path());
-        
+
         // Verify report file is created
         let report_path = output_dir.path().join("core_performance_report.md");
         assert!(report_path.exists());
@@ -561,7 +564,7 @@ mod tests {
         let output_dir = tempdir().expect("Failed to create temp directory");
 
         display_core_performance_results(&traditional_times, &fast_times, output_dir.path());
-        
+
         let report_path = output_dir.path().join("core_performance_report.md");
         assert!(report_path.exists());
     }
@@ -573,7 +576,7 @@ mod tests {
         let fast_avg = 100.0;
         let expected_improvement = ((traditional_avg - fast_avg) / traditional_avg) * 100.0;
         assert_eq!(expected_improvement, 50.0);
-        
+
         // Test zero traditional time
         let traditional_zero = 0.0;
         let fast_nonzero = 50.0;
@@ -601,8 +604,8 @@ mod tests {
         );
 
         let report_path = output_dir.path().join("core_performance_report.md");
-        let report_content = fs::read_to_string(report_path)
-            .expect("Should be able to read report file");
+        let report_content =
+            fs::read_to_string(report_path).expect("Should be able to read report file");
 
         // Verify report sections exist
         assert!(report_content.contains("## 📊 Core Algorithm Performance Comparison"));
@@ -610,7 +613,7 @@ mod tests {
         assert!(report_content.contains("## 🔍 Core Algorithm Analysis"));
         assert!(report_content.contains("## 🎯 Conclusion"));
         assert!(report_content.contains("## 🚀 Future Optimization Suggestions"));
-        
+
         // Verify data is included
         assert!(report_content.contains("run 1: 300ms"));
         assert!(report_content.contains("run 1: 150ms"));

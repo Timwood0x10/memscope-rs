@@ -1475,7 +1475,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_safety_analyzer_generate_unsafe_report() {
         let analyzer = SafetyAnalyzer::default();
