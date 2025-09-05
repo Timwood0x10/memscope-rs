@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_shared_allocation_collection_active_allocations() {
-        let mut active_info = create_test_allocation_info(0x1000, 512, "active_var");
+        let active_info = create_test_allocation_info(0x1000, 512, "active_var");
         let mut inactive_info = create_test_allocation_info(0x2000, 1024, "inactive_var");
         inactive_info.timestamp_dealloc = Some(2000); // Mark as deallocated
 

@@ -2,19 +2,9 @@
 //! This focuses on testing actual APIs and code paths that exist
 
 use memscope_rs::*;
-use std::sync::Once;
-
-static INIT: Once = Once::new();
-
-fn ensure_init() {
-    INIT.call_once(|| {
-        memscope_rs::init_for_testing();
-    });
-}
 
 #[cfg(test)]
 mod data_structure_tests {
-    use super::*;
     use std::rc::Rc;
     use std::sync::Arc;
 

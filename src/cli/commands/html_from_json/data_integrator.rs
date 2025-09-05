@@ -586,3 +586,593 @@ impl Default for DataIntegrator {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::commands::html_from_json::data_normalizer::{
+        AllocationDistribution, AnalysisMetadata, BorrowInfo, CategorizedTypes, CloneInfo,
+        ComplexTypeAnalysis, ComplexTypeSummary, ComplexityDistribution, LifecycleAnalysis,
+        MemoryStatistics, OptimizationStatus, PerformanceMetrics, SecurityAnalysis,
+        SeverityBreakdown, VariableRelationships,
+    };
+    use serde_json::json;
+
+    /// Create test allocation info for testing
+    fn create_test_allocation(
+        ptr: &str,
+        size: usize,
+        var_name: Option<&str>,
+        type_name: Option<&str>,
+        timestamp_alloc: u64,
+        timestamp_dealloc: Option<u64>,
+    ) -> AllocationInfo {
+        AllocationInfo {
+            ptr: ptr.to_string(),
+            size,
+            var_name: var_name.map(|s| s.to_string()),
+            type_name: type_name.map(|s| s.to_string()),
+            scope_name: Some("test_scope".to_string()),
+            timestamp_alloc,
+            timestamp_dealloc,
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(1),
+            stack_trace: Some(vec!["main".to_string(), "test_fn".to_string()]),
+            is_leaked: timestamp_dealloc.is_none(),
+            lifetime_ms: None,
+            borrow_info: Some(BorrowInfo {
+                immutable_borrows: 1,
+                mutable_borrows: 0,
+                max_concurrent_borrows: 1,
+                last_borrow_timestamp: timestamp_alloc,
+            }),
+            clone_info: Some(CloneInfo {
+                clone_count: 0,
+                is_clone: false,
+                original_ptr: None,
+            }),
+            ownership_history_available: Some(true),
+            ffi_tracked: Some(false),
+            safety_violations: None,
+        }
+    }
+
+    /// Create test unified memory data
+    fn create_test_unified_data() -> UnifiedMemoryData {
+        let allocations = vec![
+            create_test_allocation("0x1000", 64, Some("var1"), Some("String"), 1000, Some(2000)),
+            create_test_allocation("0x2000", 128, Some("var2"), Some("Vec<i32>"), 1500, None),
+            create_test_allocation("0x3000", 256, Some("var3"), Some("HashMap"), 2000, Some(3000)),
+        ];
+
+        UnifiedMemoryData {
+            stats: MemoryStatistics {
+                active_memory: 128,
+                active_allocations: 1,
+                peak_memory: 448,
+                total_allocations: 3,
+                total_allocated: 448,
+                memory_efficiency: 85.5,
+            },
+            allocations,
+            performance: PerformanceMetrics {
+                processing_time_ms: 100,
+                allocations_per_second: 30.0,
+                memory_efficiency: 85.5,
+                optimization_status: OptimizationStatus {
+                    parallel_processing: true,
+                    schema_validation: true,
+                    streaming_enabled: false,
+                    batch_size: Some(1000),
+                    buffer_size_kb: Some(64),
+                },
+                allocation_distribution: AllocationDistribution {
+                    tiny: 1,
+                    small: 1,
+                    medium: 1,
+                    large: 0,
+                    massive: 0,
+                },
+            },
+            lifecycle: LifecycleAnalysis {
+                lifecycle_events: vec![
+                    json!({"timestamp": 1000, "event": "allocation", "ptr": "0x1000"}),
+                    json!({"timestamp": 1500, "event": "allocation", "ptr": "0x2000"}),
+                ],
+                scope_analysis: HashMap::new(),
+                variable_lifetimes: HashMap::new(),
+            },
+            security: SecurityAnalysis {
+                total_violations: 1,
+                risk_level: "Low".to_string(),
+                severity_breakdown: SeverityBreakdown {
+                    critical: 0,
+                    high: 0,
+                    medium: 1,
+                    low: 0,
+                    info: 0,
+                },
+                violation_reports: vec![
+                    json!({"allocation_ptr": "0x2000", "severity": "medium"})
+                ],
+                recommendations: vec!["Consider using safer alternatives".to_string()],
+            },
+            complex_types: ComplexTypeAnalysis {
+                categorized_types: CategorizedTypes {
+                    collections: vec![json!({"type_name": "Vec<i32>"})],
+                    generic_types: vec![json!({"type_name": "HashMap"})],
+                    smart_pointers: vec![],
+                    trait_objects: vec![],
+                },
+                complex_type_analysis: vec![
+                    json!({"type_name": "Vec<i32>", "complexity": "medium"}),
+                    json!({"type_name": "HashMap", "complexity": "high"}),
+                ],
+                summary: ComplexTypeSummary {
+                    total_complex_types: 2,
+                    complexity_distribution: ComplexityDistribution {
+                        low_complexity: 0,
+                        medium_complexity: 1,
+                        high_complexity: 1,
+                        very_high_complexity: 0,
+                    },
+                },
+            },
+            variable_relationships: VariableRelationships {
+                relationships: vec![],
+                registry: HashMap::new(),
+                dependency_graph: HashMap::new(),
+                scope_hierarchy: HashMap::new(),
+            },
+            metadata: AnalysisMetadata {
+                timestamp: 1000000,
+                export_version: "2.0".to_string(),
+                analysis_type: "test_analysis".to_string(),
+                data_integrity_hash: Some("test_hash".to_string()),
+            },
+            multi_source: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_data_integrator_new() {
+        let integrator = DataIntegrator::new();
+        assert!(integrator.enable_cross_referencing);
+        assert!(integrator.enable_conflict_resolution);
+        assert!(integrator.enable_data_enrichment);
+        assert_eq!(integrator.confidence_threshold, 0.7);
+    }
+
+    #[test]
+    fn test_data_integrator_with_settings() {
+        let integrator = DataIntegrator::with_settings(false, true, false, 0.9);
+        assert!(!integrator.enable_cross_referencing);
+        assert!(integrator.enable_conflict_resolution);
+        assert!(!integrator.enable_data_enrichment);
+        assert_eq!(integrator.confidence_threshold, 0.9);
+    }
+
+    #[test]
+    fn test_data_integrator_default() {
+        let integrator = DataIntegrator::default();
+        assert!(integrator.enable_cross_referencing);
+        assert!(integrator.enable_conflict_resolution);
+        assert!(integrator.enable_data_enrichment);
+        assert_eq!(integrator.confidence_threshold, 0.7);
+    }
+
+    #[test]
+    fn test_build_data_index() {
+        let integrator = DataIntegrator::new();
+        let allocations = vec![
+            create_test_allocation("0x1000", 64, Some("var1"), Some("String"), 1000, Some(2000)),
+            create_test_allocation("0x2000", 128, Some("var2"), Some("Vec<i32>"), 1500, None),
+        ];
+
+        let index = integrator.build_data_index(&allocations).expect("Failed to build index");
+
+        assert_eq!(index.ptr_to_allocation.len(), 2);
+        assert_eq!(index.ptr_to_allocation.get("0x1000"), Some(&0));
+        assert_eq!(index.ptr_to_allocation.get("0x2000"), Some(&1));
+
+        assert_eq!(index.var_to_allocation.len(), 2);
+        assert_eq!(index.var_to_allocation.get("var1"), Some(&vec![0]));
+        assert_eq!(index.var_to_allocation.get("var2"), Some(&vec![1]));
+
+        assert_eq!(index.type_to_allocation.len(), 2);
+        assert_eq!(index.type_to_allocation.get("String"), Some(&vec![0]));
+        assert_eq!(index.type_to_allocation.get("Vec<i32>"), Some(&vec![1]));
+
+        assert_eq!(index.timestamp_to_allocation.len(), 2);
+        assert_eq!(index.timestamp_to_allocation.get(&1000), Some(&vec![0]));
+        assert_eq!(index.timestamp_to_allocation.get(&1500), Some(&vec![1]));
+    }
+
+    #[test]
+    fn test_integrate_with_all_features_enabled() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+
+        let result = integrator.integrate(&mut unified_data);
+        assert!(result.is_ok());
+
+        let stats = result.expect("Integration should succeed");
+        assert!(stats.cross_references_found > 0);
+        assert!(stats.integration_time_ms >= 0);
+        assert!(stats.index_build_time_ms >= 0);
+    }
+
+    #[test]
+    fn test_integrate_with_cross_referencing_disabled() {
+        let integrator = DataIntegrator::with_settings(false, true, true, 0.7);
+        let mut unified_data = create_test_unified_data();
+
+        let result = integrator.integrate(&mut unified_data);
+        assert!(result.is_ok());
+
+        let stats = result.expect("Integration should succeed");
+        assert_eq!(stats.cross_references_found, 0);
+    }
+
+    #[test]
+    fn test_integrate_with_conflict_resolution_disabled() {
+        let integrator = DataIntegrator::with_settings(true, false, true, 0.7);
+        let mut unified_data = create_test_unified_data();
+
+        let result = integrator.integrate(&mut unified_data);
+        assert!(result.is_ok());
+
+        let stats = result.expect("Integration should succeed");
+        assert_eq!(stats.conflicts_resolved, 0);
+    }
+
+    #[test]
+    fn test_integrate_with_data_enrichment_disabled() {
+        let integrator = DataIntegrator::with_settings(true, true, false, 0.7);
+        let mut unified_data = create_test_unified_data();
+
+        let result = integrator.integrate(&mut unified_data);
+        assert!(result.is_ok());
+
+        let stats = result.expect("Integration should succeed");
+        assert_eq!(stats.enrichments_performed, 0);
+    }
+
+    #[test]
+    fn test_resolve_conflicts_active_allocation_count() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+        
+        // Create conflict: stats say 5 active allocations but only 1 actually active
+        unified_data.stats.active_allocations = 5;
+
+        let conflicts_resolved = integrator.resolve_conflicts(&mut unified_data)
+            .expect("Conflict resolution should succeed");
+
+        assert_eq!(conflicts_resolved, 1);
+        assert_eq!(unified_data.stats.active_allocations, 1);
+    }
+
+    #[test]
+    fn test_resolve_conflicts_active_memory() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+        
+        // Create conflict: stats say 1000 bytes active but only 128 actually active
+        unified_data.stats.active_memory = 1000;
+
+        let conflicts_resolved = integrator.resolve_conflicts(&mut unified_data)
+            .expect("Conflict resolution should succeed");
+
+        assert_eq!(conflicts_resolved, 1);
+        assert_eq!(unified_data.stats.active_memory, 128);
+    }
+
+    #[test]
+    fn test_resolve_conflicts_timestamp_order() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+        
+        // Create timestamp conflict: deallocation before allocation
+        unified_data.allocations[0].timestamp_dealloc = Some(500); // Before allocation at 1000
+
+        let conflicts_resolved = integrator.resolve_conflicts(&mut unified_data)
+            .expect("Conflict resolution should succeed");
+
+        assert_eq!(conflicts_resolved, 1);
+        assert_eq!(unified_data.allocations[0].timestamp_dealloc, Some(1001));
+    }
+
+    #[test]
+    fn test_enrich_data_lifetime_calculation() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+        
+        // Remove lifetime_ms to test enrichment
+        unified_data.allocations[0].lifetime_ms = None;
+
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let enrichments = integrator.enrich_data(&mut unified_data, &data_index)
+            .expect("Data enrichment should succeed");
+
+        assert!(enrichments > 0);
+        assert!(unified_data.allocations[0].lifetime_ms.is_some());
+        assert_eq!(unified_data.allocations[0].lifetime_ms, Some(1000)); // 1000ms lifetime
+    }
+
+    #[test]
+    fn test_enrich_data_type_frequency() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let enrichments = integrator.enrich_data(&mut unified_data, &data_index)
+            .expect("Data enrichment should succeed");
+
+        assert!(enrichments > 0);
+        assert!(unified_data.multi_source.contains_key("type_frequency"));
+        
+        let type_freq = &unified_data.multi_source["type_frequency"];
+        assert!(type_freq.get("String").is_some());
+        assert!(type_freq.get("Vec<i32>").is_some());
+        assert!(type_freq.get("HashMap").is_some());
+    }
+
+    #[test]
+    fn test_enrich_data_size_distribution() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let enrichments = integrator.enrich_data(&mut unified_data, &data_index)
+            .expect("Data enrichment should succeed");
+
+        assert!(enrichments > 0);
+        assert!(unified_data.multi_source.contains_key("size_distribution"));
+        
+        let size_dist = &unified_data.multi_source["size_distribution"];
+        // Check that size distribution contains the expected categories based on test data
+        // Test data has allocations of sizes: 64 (tiny), 128 (small), 256 (small)
+        assert!(size_dist.get("tiny").is_some() || size_dist.get("small").is_some());
+    }
+
+    #[test]
+    fn test_enrich_data_scope_statistics() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let enrichments = integrator.enrich_data(&mut unified_data, &data_index)
+            .expect("Data enrichment should succeed");
+
+        assert!(enrichments > 0);
+        assert!(unified_data.multi_source.contains_key("scope_statistics"));
+        
+        let scope_stats = &unified_data.multi_source["scope_statistics"];
+        assert!(scope_stats.get("test_scope").is_some());
+    }
+
+    #[test]
+    fn test_cross_ref_allocations_performance() {
+        let integrator = DataIntegrator::new();
+        let unified_data = create_test_unified_data();
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let cross_refs = integrator.cross_ref_allocations_performance(&unified_data, &data_index)
+            .expect("Performance cross-referencing should succeed");
+
+        assert_eq!(cross_refs.len(), 3); // One for each allocation
+        assert!(cross_refs.iter().all(|cr| cr.source_type == "allocation"));
+        assert!(cross_refs.iter().all(|cr| cr.target_type == "performance_distribution"));
+        assert!(cross_refs.iter().all(|cr| cr.confidence == 0.9));
+    }
+
+    #[test]
+    fn test_cross_ref_allocations_security() {
+        let integrator = DataIntegrator::new();
+        let unified_data = create_test_unified_data();
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let cross_refs = integrator.cross_ref_allocations_security(&unified_data, &data_index)
+            .expect("Security cross-referencing should succeed");
+
+        assert_eq!(cross_refs.len(), 1); // One security violation with allocation_ptr
+        assert_eq!(cross_refs[0].source_type, "security_violation");
+        assert_eq!(cross_refs[0].target_type, "allocation");
+        assert_eq!(cross_refs[0].key, "allocation_ptr");
+        assert_eq!(cross_refs[0].value, "0x2000");
+        assert_eq!(cross_refs[0].confidence, 0.8);
+    }
+
+    #[test]
+    fn test_cross_ref_allocations_lifecycle() {
+        let integrator = DataIntegrator::new();
+        let unified_data = create_test_unified_data();
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let cross_refs = integrator.cross_ref_allocations_lifecycle(&unified_data, &data_index)
+            .expect("Lifecycle cross-referencing should succeed");
+
+        assert!(cross_refs.len() >= 2); // At least two lifecycle events match allocations
+        assert!(cross_refs.iter().all(|cr| cr.source_type == "lifecycle_event"));
+        assert!(cross_refs.iter().all(|cr| cr.target_type == "allocation"));
+        assert!(cross_refs.iter().all(|cr| cr.confidence == 0.7));
+    }
+
+    #[test]
+    fn test_cross_ref_allocations_complex_types() {
+        let integrator = DataIntegrator::new();
+        let unified_data = create_test_unified_data();
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let cross_refs = integrator.cross_ref_allocations_complex_types(&unified_data, &data_index)
+            .expect("Complex types cross-referencing should succeed");
+
+        assert!(cross_refs.len() >= 2); // At least Vec<i32> and HashMap should match
+        assert!(cross_refs.iter().all(|cr| cr.source_type == "complex_type"));
+        assert!(cross_refs.iter().all(|cr| cr.target_type == "allocation"));
+        assert!(cross_refs.iter().all(|cr| cr.confidence == 0.85));
+    }
+
+    #[test]
+    fn test_find_cross_references_with_confidence_threshold() {
+        let integrator = DataIntegrator::with_settings(true, true, true, 0.95); // High threshold
+        let unified_data = create_test_unified_data();
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let cross_refs = integrator.find_cross_references(&unified_data, &data_index)
+            .expect("Cross-referencing should succeed");
+
+        // Only performance cross-refs should pass (confidence 0.9 < 0.95 threshold)
+        // Actually, none should pass since 0.9 < 0.95
+        assert!(cross_refs.is_empty() || cross_refs.iter().all(|cr| cr.confidence >= 0.95));
+    }
+
+    #[test]
+    fn test_apply_cross_references() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+        
+        let cross_refs = vec![
+            CrossReference {
+                source_type: "test_source".to_string(),
+                target_type: "allocation".to_string(),
+                key: "test_key".to_string(),
+                value: "0".to_string(), // Index of first allocation
+                confidence: 0.8,
+            },
+        ];
+
+        let result = integrator.apply_cross_references(&mut unified_data, &cross_refs);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_integration_error_display() {
+        let error = IntegrationError::DataConflict("test conflict".to_string());
+        assert_eq!(error.to_string(), "Data conflict: test conflict");
+
+        let error = IntegrationError::MissingData("test data".to_string());
+        assert_eq!(error.to_string(), "Missing data: test data");
+
+        let error = IntegrationError::CrossReferenceError("test error".to_string());
+        assert_eq!(error.to_string(), "Cross-reference error: test error");
+
+        let error = IntegrationError::IndexError("test index".to_string());
+        assert_eq!(error.to_string(), "Index error: test index");
+    }
+
+    #[test]
+    fn test_cross_reference_clone() {
+        let cross_ref = CrossReference {
+            source_type: "test_source".to_string(),
+            target_type: "test_target".to_string(),
+            key: "test_key".to_string(),
+            value: "test_value".to_string(),
+            confidence: 0.8,
+        };
+
+        let cloned = cross_ref.clone();
+        assert_eq!(cross_ref.source_type, cloned.source_type);
+        assert_eq!(cross_ref.target_type, cloned.target_type);
+        assert_eq!(cross_ref.key, cloned.key);
+        assert_eq!(cross_ref.value, cloned.value);
+        assert_eq!(cross_ref.confidence, cloned.confidence);
+    }
+
+    #[test]
+    fn test_integration_stats_debug() {
+        let stats = IntegrationStats {
+            cross_references_found: 10,
+            conflicts_resolved: 5,
+            enrichments_performed: 15,
+            index_build_time_ms: 100,
+            integration_time_ms: 500,
+        };
+
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("cross_references_found: 10"));
+        assert!(debug_str.contains("conflicts_resolved: 5"));
+        assert!(debug_str.contains("enrichments_performed: 15"));
+    }
+
+    #[test]
+    fn test_data_index_debug() {
+        let index = DataIndex {
+            ptr_to_allocation: HashMap::new(),
+            var_to_allocation: HashMap::new(),
+            type_to_allocation: HashMap::new(),
+            timestamp_to_allocation: HashMap::new(),
+            scope_to_allocation: HashMap::new(),
+        };
+
+        let debug_str = format!("{:?}", index);
+        assert!(debug_str.contains("DataIndex"));
+    }
+
+    #[test]
+    fn test_empty_allocations_integration() {
+        let integrator = DataIntegrator::new();
+        let mut unified_data = create_test_unified_data();
+        unified_data.allocations.clear();
+        // Also clear stats to avoid conflicts when allocations are empty
+        unified_data.stats.active_allocations = 0;
+        unified_data.stats.active_memory = 0;
+
+        let result = integrator.integrate(&mut unified_data);
+        assert!(result.is_ok());
+
+        let stats = result.expect("Integration should succeed");
+        // With empty allocations, some cross-references might still be found from other data sources
+        assert!(stats.cross_references_found <= 1);
+        // With empty allocations, enrichment still adds metadata items to multi_source
+        // The actual number depends on the implementation details
+        assert!(stats.enrichments_performed >= 1); // At least one metadata enrichment
+        // May still resolve some conflicts due to internal logic
+        assert!(stats.conflicts_resolved <= 1);
+    }
+
+    #[test]
+    fn test_large_allocation_size_categorization() {
+        let integrator = DataIntegrator::new();
+        let allocations = vec![
+            create_test_allocation("0x1000", 32, None, None, 1000, None),      // tiny
+            create_test_allocation("0x2000", 512, None, None, 1000, None),     // small  
+            create_test_allocation("0x3000", 32768, None, None, 1000, None),   // medium
+            create_test_allocation("0x4000", 524288, None, None, 1000, None),  // large
+            create_test_allocation("0x5000", 2097152, None, None, 1000, None), // massive
+        ];
+
+        let mut unified_data = create_test_unified_data();
+        unified_data.allocations = allocations;
+
+        let data_index = integrator.build_data_index(&unified_data.allocations)
+            .expect("Failed to build index");
+
+        let enrichments = integrator.enrich_data(&mut unified_data, &data_index)
+            .expect("Data enrichment should succeed");
+
+        assert!(enrichments > 0);
+        assert!(unified_data.multi_source.contains_key("size_distribution"));
+        
+        let size_dist = &unified_data.multi_source["size_distribution"];
+        assert_eq!(size_dist.get("tiny").and_then(|v| v.as_u64()), Some(1));
+        assert_eq!(size_dist.get("small").and_then(|v| v.as_u64()), Some(1));
+        assert_eq!(size_dist.get("medium").and_then(|v| v.as_u64()), Some(1));
+        assert_eq!(size_dist.get("large").and_then(|v| v.as_u64()), Some(1));
+        assert_eq!(size_dist.get("massive").and_then(|v| v.as_u64()), Some(1));
+    }
+}

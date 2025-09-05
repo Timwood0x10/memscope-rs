@@ -21,12 +21,12 @@ analysis/generic_analysis.rs                                     324            
 analysis/lifecycle_analysis.rs                                  1133                48    95.76%          66                 4    93.94%         717                31    95.68%           0                 0         -
 analysis/memory_passport_tracker.rs                              642               141    78.04%          40                14    65.00%         476               134    71.85%           0                 0         -
 analysis/mod.rs                                                  548                 3    99.45%          38                 1    97.37%         327                 3    99.08%           0                 0         -
-analysis/safety_analyzer.rs                                     1332               149    88.81%          65                 7    89.23%        1067               123    88.47%           0                 0         -
+analysis/safety_analyzer.rs                                     1331               149    88.81%          65                 7    89.23%        1067               123    88.47%           0                 0         -
 analysis/security_violation_analyzer.rs                         1317                64    95.14%          65                 0   100.00%         957                33    96.55%           0                 0         -
 analysis/unknown_memory_regions.rs                               877                55    93.73%          67                 4    94.03%         596                35    94.13%           0                 0         -
 analysis/unsafe_ffi_tracker.rs                                  2331               625    73.19%          90                21    76.67%        1735               522    69.91%           0                 0         -
 analysis/variable_relationships.rs                              1172                70    94.03%          55                 1    98.18%         841                40    95.24%           0                 0         -
-bin/allocation_count_diagnostic.rs                               187               187     0.00%           5                 5     0.00%         129               129     0.00%           0                 0         -
+bin/allocation_count_diagnostic.rs                               358               190    46.93%          12                 5    58.33%         247               132    46.56%           0                 0         -
 bin/core_performance_test.rs                                     610               215    64.75%          20                 2    90.00%         437               144    67.05%           0                 0         -
 bin/establish_baseline.rs                                        243                31    87.24%           6                 1    83.33%         118                10    91.53%           0                 0         -
 bin/large_active_allocations.rs                                  214                81    62.15%           8                 2    75.00%         107                44    58.88%           0                 0         -
@@ -34,8 +34,8 @@ bin/lifecycle_analysis.rs                                        287            
 bin/performance_only_benchmark.rs                                570               244    57.19%          14                 2    85.71%         341               114    66.57%           0                 0         -
 bin/run_benchmark.rs                                             115                40    65.22%           7                 1    85.71%         100                19    81.00%           0                 0         -
 bin/simple_benchmark.rs                                          525               208    60.38%          14                 2    85.71%         309               101    67.31%           0                 0         -
-cli/commands/analyze.rs                                          540               540     0.00%          21                21     0.00%         355               355     0.00%           0                 0         -
-cli/commands/generate_report.rs                                  165               165     0.00%           5                 5     0.00%          99                99     0.00%           0                 0         -
+cli/commands/analyze.rs                                          962               468    51.35%          40                17    57.50%         553               298    46.11%           0                 0         -
+cli/commands/generate_report.rs                                  530               111    79.06%          19                 3    84.21%         288                59    79.51%           0                 0         -
 cli/commands/html_from_json/data_integrator.rs                   485               485     0.00%          22                22     0.00%         364               364     0.00%           0                 0         -
 cli/commands/html_from_json/data_normalizer.rs                   923               923     0.00%         107               107     0.00%         518               518     0.00%           0                 0         -
 cli/commands/html_from_json/debug_logger.rs                      536               205    61.75%          39                 9    76.92%         380               148    61.05%           0                 0         -
@@ -112,7 +112,7 @@ export/binary/html_export.rs                                    1009            
 export/binary/index.rs                                           345                17    95.07%          27                 2    92.59%         231                14    93.94%           0                 0         -
 export/binary/index_builder.rs                                   679               128    81.15%          29                 9    68.97%         442               109    75.34%           0                 0         -
 export/binary/integration_test_complex_types.rs                  264                 0   100.00%          12                 0   100.00%         163                 0   100.00%           0                 0         -
-export/binary/integration_test_ffi_safety.rs                     349                 2    99.43%          18                 0   100.00%         245                 0   100.00%           0                 0         -
+export/binary/integration_test_ffi_safety.rs                     349                 3    99.14%          18                 0   100.00%         245                 0   100.00%           0                 0         -
 export/binary/integration_test_template_resources.rs             364                 5    98.63%          10                 0   100.00%         233                 5    97.85%           0                 0         -
 export/binary/integration_test_variable_relationships.rs         708                 1    99.86%          41                 0   100.00%         577                 0   100.00%           0                 0         -
 export/binary/memory_layout_serialization.rs                     571               303    46.94%          29                18    37.93%         324               154    52.47%           0                 0         -
@@ -154,8 +154,11 @@ main.rs                                                          168            
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         737                76    89.69%           0                 0         -
 variable_registry.rs                                            1578               217    86.25%          78                19    75.64%         977               114    88.33%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                          96125             43916    54.31%        5205              2134    59.00%       67146             29452    56.14%           0                 0         -
-
+TOTAL                                                          97082             43794    54.89%        5245              2128    59.43%       67651             29358    56.60%           0                 0         -
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
 
 4.慎用global_tracker 尤其是在运行多个test case 的时候会导致死锁。必须想法子规避。
+
+
+/// 这是我的事情，和你没关系啊，。先不要管他。
+/// export svg 部分也是要修改的，因为导出的json 字段变换了，这部分也要进行相应的变化。

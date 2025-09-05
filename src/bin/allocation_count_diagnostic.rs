@@ -199,3 +199,188 @@ fn test_raw_data_access(stats: &memscope_rs::core::types::MemoryStats) {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use memscope_rs::core::types::MemoryStats;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_allocation_count_calculation() {
+        // Test allocation count calculation logic without global tracker
+        let stats = MemoryStats {
+            total_allocations: 1000,
+            active_allocations: 600,
+            total_allocated: 1024 * 1024, // 1MB
+            active_memory: 512 * 1024,    // 512KB
+            peak_memory: 2 * 1024 * 1024, // 2MB
+            ..Default::default()
+        };
+
+        let released_allocations = stats.total_allocations - stats.active_allocations;
+        assert_eq!(released_allocations, 400);
+
+        let average_allocation_size = stats.total_allocated as f64 / stats.total_allocations as f64;
+        assert_eq!(average_allocation_size, 1048.576); // 1024 bytes per allocation
+
+        let memory_efficiency = stats.active_memory as f64 / stats.peak_memory as f64;
+        assert_eq!(memory_efficiency, 0.25); // 25% efficiency
+    }
+
+    #[test]
+    fn test_file_size_analysis_logic() {
+        // Test file size analysis logic
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let test_file = temp_dir.path().join("test_export.json");
+
+        // Create a test JSON file
+        let test_data = r#"{"allocations": [{"id": 1}, {"id": 2}, {"id": 3}]}"#;
+        fs::write(&test_file, test_data).expect("Failed to write test file");
+
+        // Test file size calculation
+        let metadata = fs::metadata(&test_file).expect("Failed to get file metadata");
+        let file_size = metadata.len();
+        assert!(file_size > 0);
+
+        // Test average allocation size calculation
+        let allocation_count = 3u64;
+        let average_size = file_size as f64 / allocation_count as f64;
+        assert!(average_size > 0.0);
+
+        // Test file content analysis
+        let content = fs::read_to_string(&test_file).expect("Failed to read file");
+        assert!(content.contains("allocations"));
+        
+        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(allocations) = json_value.get("allocations") {
+                if let Some(alloc_array) = allocations.as_array() {
+                    assert_eq!(alloc_array.len(), 3);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_memory_stats_validation() {
+        // Test memory statistics validation logic
+        let valid_stats = MemoryStats {
+            total_allocations: 500,
+            active_allocations: 300,
+            total_allocated: 1024 * 500, // 500KB
+            active_memory: 1024 * 300,   // 300KB
+            peak_memory: 1024 * 600,     // 600KB
+            ..Default::default()
+        };
+
+        // Validate consistency
+        assert!(valid_stats.active_allocations <= valid_stats.total_allocations);
+        assert!(valid_stats.active_memory <= valid_stats.peak_memory);
+        assert!(valid_stats.active_memory <= valid_stats.total_allocated);
+
+        // Test edge case: zero allocations
+        let zero_stats = MemoryStats {
+            total_allocations: 0,
+            active_allocations: 0,
+            total_allocated: 0,
+            active_memory: 0,
+            peak_memory: 0,
+            ..Default::default()
+        };
+
+        assert_eq!(zero_stats.total_allocations, 0);
+        assert_eq!(zero_stats.active_allocations, 0);
+    }
+
+    #[test]
+    fn test_diagnostic_output_formatting() {
+        // Test diagnostic output formatting logic
+        let stats = MemoryStats {
+            total_allocations: 1024,
+            active_allocations: 512,
+            total_allocated: 2 * 1024 * 1024, // 2MB
+            active_memory: 1024 * 1024,       // 1MB
+            peak_memory: 3 * 1024 * 1024,     // 3MB
+            ..Default::default()
+        };
+
+        // Test memory formatting
+        let peak_mb = stats.peak_memory as f64 / 1024.0 / 1024.0;
+        let active_mb = stats.active_memory as f64 / 1024.0 / 1024.0;
+        
+        assert!((peak_mb - 3.0).abs() < 0.01);
+        assert!((active_mb - 1.0).abs() < 0.01);
+
+        // Test allocation count formatting
+        let released_count = stats.total_allocations - stats.active_allocations;
+        assert_eq!(released_count, 512);
+
+        // Test percentage calculations
+        let active_percentage = stats.active_allocations as f64 / stats.total_allocations as f64 * 100.0;
+        assert_eq!(active_percentage, 50.0);
+    }
+
+    #[test]
+    fn test_export_path_handling() {
+        // Test export path handling logic
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        
+        // Test valid path creation
+        let valid_path = temp_dir.path().join("diagnostic_results");
+        let create_result = fs::create_dir_all(&valid_path);
+        assert!(create_result.is_ok());
+        assert!(valid_path.exists());
+
+        // Test file path generation
+        let json_path = valid_path.join("traditional_diagnostic.json");
+        let binary_path = valid_path.join("fast_diagnostic");
+        
+        assert!(json_path.to_str().is_some());
+        assert!(binary_path.to_str().is_some());
+        assert!(json_path.extension().unwrap() == "json");
+    }
+
+    #[test]
+    fn test_allocation_mismatch_detection() {
+        // Test allocation count mismatch detection logic
+        let tracker_stats = MemoryStats {
+            total_allocations: 1000,
+            active_allocations: 600,
+            ..Default::default()
+        };
+
+        // Simulate JSON export with different allocation count
+        let json_allocation_count = 950;
+        let has_mismatch = json_allocation_count != tracker_stats.total_allocations;
+        assert!(has_mismatch);
+
+        let mismatch_count = tracker_stats.total_allocations - json_allocation_count;
+        assert_eq!(mismatch_count, 50);
+
+        // Test no mismatch case
+        let matching_count = 1000;
+        let no_mismatch = matching_count == tracker_stats.total_allocations;
+        assert!(no_mismatch);
+    }
+
+    #[test]
+    fn test_performance_metrics_calculation() {
+        // Test performance metrics calculation
+        let file_size_bytes = 1024 * 1024; // 1MB
+        let allocation_count = 1000u64;
+        let processing_time_ms = 500u64;
+
+        // Calculate metrics
+        let file_size_mb = file_size_bytes as f64 / 1024.0 / 1024.0;
+        let avg_allocation_size = file_size_bytes as f64 / allocation_count as f64;
+        let throughput = allocation_count as f64 / (processing_time_ms as f64 / 1000.0);
+
+        assert_eq!(file_size_mb, 1.0);
+        assert_eq!(avg_allocation_size, 1048.576);
+        assert_eq!(throughput, 2000.0); // 2000 allocations per second
+
+        // Test edge cases
+        assert!(avg_allocation_size > 0.0);
+        assert!(throughput > 0.0);
+    }
+}

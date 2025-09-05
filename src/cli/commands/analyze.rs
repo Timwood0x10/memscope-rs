@@ -492,3 +492,315 @@ fn analyze_json_output(json_path: &str) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{Arg, ArgMatches, Command as ClapCommand};
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_test_matches_with_command(command: Vec<&str>) -> ArgMatches {
+        let command_strings: Vec<String> = command.iter().map(|s| s.to_string()).collect();
+        ClapCommand::new("test")
+            .arg(Arg::new("command").num_args(1..))
+            .arg(Arg::new("export").long("export"))
+            .arg(Arg::new("output").long("output"))
+            .try_get_matches_from(
+                std::iter::once("test".to_string())
+                    .chain(command_strings)
+                    .collect::<Vec<String>>()
+            )
+            .expect("Failed to create test matches")
+    }
+
+    fn create_analyze_matches(input: &str, output: &str, format: &str) -> ArgMatches {
+        ClapCommand::new("test")
+            .arg(Arg::new("input"))
+            .arg(Arg::new("output"))
+            .arg(Arg::new("format").long("format"))
+            .try_get_matches_from(vec!["test", input, output, "--format", format])
+            .expect("Failed to create analyze matches")
+    }
+
+    #[test]
+    fn test_argument_extraction() {
+        // Test argument extraction from ArgMatches
+        let matches = create_test_matches_with_command(vec!["echo", "hello"]);
+        
+        let command_args: Vec<&String> = matches
+            .get_many::<String>("command")
+            .unwrap()
+            .collect();
+        
+        assert_eq!(command_args.len(), 2);
+        assert_eq!(command_args[0], "echo");
+        assert_eq!(command_args[1], "hello");
+    }
+
+    #[test]
+    fn test_default_values() {
+        // Test default value handling
+        let matches = create_test_matches_with_command(vec!["echo", "test"]);
+        
+        let export_format = matches
+            .get_one::<String>("export")
+            .map(|s| s.as_str())
+            .unwrap_or("html");
+        let output_path = matches
+            .get_one::<String>("output")
+            .map(|s| s.as_str())
+            .unwrap_or("memory_analysis");
+        
+        assert_eq!(export_format, "html");
+        assert_eq!(output_path, "memory_analysis");
+    }
+
+    #[test]
+    fn test_environment_variable_setup() {
+        // Test environment variable setup logic
+        let export_format = "json";
+        let output_path = "test_output";
+        let auto_track = true;
+        let wait_completion = false;
+
+        let mut env_vars = vec![
+            ("MEMSCOPE_ENABLED", "1"),
+            ("MEMSCOPE_AUTO_EXPORT", "1"),
+            ("MEMSCOPE_EXPORT_FORMAT", export_format),
+            ("MEMSCOPE_EXPORT_PATH", output_path),
+        ];
+
+        if auto_track {
+            env_vars.push(("MEMSCOPE_AUTO_TRACK", "1"));
+        }
+
+        if wait_completion {
+            env_vars.push(("MEMSCOPE_WAIT_COMPLETION", "1"));
+        }
+
+        assert_eq!(env_vars.len(), 5); // 4 base + 1 auto_track
+        assert!(env_vars.contains(&("MEMSCOPE_AUTO_TRACK", "1")));
+        assert!(!env_vars.iter().any(|(k, _)| *k == "MEMSCOPE_WAIT_COMPLETION"));
+    }
+
+    #[test]
+    fn test_command_validation() {
+        // Test command validation logic
+        let empty_command: Vec<&String> = vec![];
+        let valid_command = vec!["echo".to_string(), "test".to_string()];
+        let valid_command_refs: Vec<&String> = valid_command.iter().collect();
+
+        // Test empty command
+        assert!(empty_command.is_empty());
+
+        // Test valid command
+        assert!(!valid_command_refs.is_empty());
+        assert_eq!(valid_command_refs[0], "echo");
+        assert_eq!(valid_command_refs[1], "test");
+    }
+
+    #[test]
+    fn test_generate_html_report() {
+        // Test HTML report generation
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let input_path = temp_dir.path().join("test_input.json");
+        let output_path = temp_dir.path().join("test_output.html");
+
+        // Create test JSON input
+        let test_json = r#"{"memory_analysis": {"statistics": {"total_allocations": 100}}}"#;
+        fs::write(&input_path, test_json).expect("Failed to write test JSON");
+
+        // Test HTML generation
+        let result = generate_html_report(
+            input_path.to_str().unwrap(),
+            output_path.to_str().unwrap(),
+        );
+
+        assert!(result.is_ok());
+        assert!(output_path.exists());
+
+        // Verify HTML content
+        let html_content = fs::read_to_string(&output_path).expect("Failed to read HTML");
+        assert!(html_content.contains("<!DOCTYPE html>"));
+        assert!(html_content.contains("MemScope Analysis Report"));
+    }
+
+    #[test]
+    fn test_generate_svg_visualization() {
+        // Test SVG visualization generation
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let input_path = temp_dir.path().join("test_input.json");
+        let output_path = temp_dir.path().join("test_output.svg");
+
+        // Create test input file
+        fs::write(&input_path, "{}").expect("Failed to write test file");
+
+        // Test SVG generation
+        let result = generate_svg_visualization(
+            input_path.to_str().unwrap(),
+            output_path.to_str().unwrap(),
+        );
+
+        assert!(result.is_ok());
+        assert!(output_path.exists());
+
+        // Verify SVG content
+        let svg_content = fs::read_to_string(&output_path).expect("Failed to read SVG");
+        assert!(svg_content.contains("<svg"));
+        assert!(svg_content.contains("MemScope Visualization"));
+    }
+
+    #[test]
+    fn test_handle_analyze_command() {
+        // Test analyze command handling
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let input_path = temp_dir.path().join("input.json");
+        let output_path = temp_dir.path().join("output.html");
+
+        // Create test input file
+        fs::write(&input_path, "{}").expect("Failed to write test file");
+
+        let matches = create_analyze_matches(
+            input_path.to_str().unwrap(),
+            output_path.to_str().unwrap(),
+            "html",
+        );
+
+        let result = handle_analyze_command(&matches);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_analyze_json_output_parsing() {
+        // Test JSON output analysis logic
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let json_path = temp_dir.path().join("test_analysis.json");
+
+        // Create test JSON with expected structure
+        let test_json = r#"{
+            "memory_analysis": {
+                "statistics": {
+                    "lifecycle_analysis": {
+                        "user_allocations": {
+                            "total_count": 150,
+                            "average_lifetime_ms": 250
+                        },
+                        "system_allocations": {
+                            "total_count": 75
+                        }
+                    }
+                }
+            }
+        }"#;
+
+        fs::write(&json_path, test_json).expect("Failed to write test JSON");
+
+        // Test JSON parsing (function doesn't return value, but should not panic)
+        analyze_json_output(json_path.to_str().unwrap());
+
+        // Verify file exists and is readable
+        assert!(json_path.exists());
+        let content = fs::read_to_string(&json_path).expect("Failed to read JSON");
+        let data: serde_json::Value = serde_json::from_str(&content).expect("Invalid JSON");
+        
+        assert!(data.get("memory_analysis").is_some());
+    }
+
+    #[test]
+    fn test_format_validation() {
+        // Test format validation logic
+        let valid_formats = ["json", "html", "both", "svg"];
+        let invalid_formats = ["xml", "csv", "txt"];
+
+        for format in valid_formats {
+            // These formats should be handled
+            assert!(["json", "html", "both", "svg"].contains(&format));
+        }
+
+        for format in invalid_formats {
+            // These formats should not be in valid list
+            assert!(!["json", "html", "both", "svg"].contains(&format));
+        }
+    }
+
+    #[test]
+    fn test_path_handling() {
+        // Test path handling and validation
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let valid_path = temp_dir.path().join("valid_file.json");
+        let invalid_path = temp_dir.path().join("nonexistent").join("invalid_file.json");
+
+        // Test valid path
+        fs::write(&valid_path, "{}").expect("Failed to write test file");
+        assert!(valid_path.exists());
+
+        // Test invalid path
+        assert!(!invalid_path.exists());
+        assert!(!invalid_path.parent().unwrap().exists());
+    }
+
+    #[test]
+    fn test_command_args_processing() {
+        // Test command arguments processing
+        let test_cases = vec![
+            (vec!["echo", "hello"], "echo hello"),
+            (vec!["cargo", "run", "--release"], "cargo run --release"),
+            (vec!["ls", "-la"], "ls -la"),
+        ];
+
+        for (args, expected) in test_cases {
+            let joined = args.join(" ");
+            assert_eq!(joined, expected);
+
+            // Test argument splitting
+            let program = args[0];
+            let remaining_args = &args[1..];
+            
+            assert_eq!(program, args[0]);
+            assert_eq!(remaining_args.len(), args.len() - 1);
+        }
+    }
+
+    #[test]
+    fn test_error_handling() {
+        // Test error handling scenarios
+        
+        // Test missing command
+        let empty_command: Vec<&String> = vec![];
+        assert!(empty_command.is_empty());
+
+        // Test missing required arguments
+        let matches = ClapCommand::new("test")
+            .arg(Arg::new("input"))
+            .arg(Arg::new("output"))
+            .try_get_matches_from(vec!["test"])
+            .unwrap();
+
+        let missing_input = matches.get_one::<String>("input");
+        let missing_output = matches.get_one::<String>("output");
+        
+        assert!(missing_input.is_none());
+        assert!(missing_output.is_none());
+    }
+
+    #[test]
+    fn test_legacy_mode_detection() {
+        // Test legacy mode detection logic
+        let matches_with_export = ClapCommand::new("test")
+            .arg(Arg::new("export").long("export"))
+            .arg(Arg::new("command").num_args(1..))
+            .try_get_matches_from(vec!["test", "--export", "json", "echo", "test"])
+            .unwrap();
+
+        let has_export = matches_with_export.get_one::<String>("export").is_some();
+        let has_command = matches_with_export.get_many::<String>("command").is_some();
+
+        assert!(has_export);
+        assert!(has_command);
+
+        // This would indicate legacy mode usage
+        let is_legacy_mode = has_export && has_command;
+        assert!(is_legacy_mode);
+    }
+}

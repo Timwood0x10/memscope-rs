@@ -1461,7 +1461,7 @@ mod tests {
             (MemoryPressureLevel::Critical, 1.5),
         ];
 
-        for (pressure, expected_multiplier) in contexts {
+        for (pressure, _) in contexts {
             let context = MemoryContext {
                 total_allocated: 1024,
                 active_allocations: 1,
