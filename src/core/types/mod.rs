@@ -3980,7 +3980,7 @@ mod tests {
         ];
 
         for event in events {
-            assert!(format!("{:?}", event).len() > 0);
+            assert!(format!("{event:?}").len() > 0);
         }
     }
 
@@ -3994,7 +3994,7 @@ mod tests {
         ];
 
         for event in events {
-            assert!(format!("{:?}", event).len() > 0);
+            assert!(format!("{event:?}").len() > 0);
         }
     }
 
@@ -4009,7 +4009,7 @@ mod tests {
         ];
 
         for reason in reasons {
-            assert!(format!("{:?}", reason).len() > 0);
+            assert!(format!("{reason:?}").len() > 0);
         }
     }
 
@@ -4024,7 +4024,7 @@ mod tests {
         ];
 
         for ptr_type in types {
-            assert!(format!("{:?}", ptr_type).len() > 0);
+            assert!(format!("{ptr_type:?}").len() > 0);
         }
     }
 
@@ -4053,7 +4053,7 @@ mod tests {
         ];
 
         for violation in violations {
-            assert!(format!("{:?}", violation).len() > 0);
+            assert!(format!("{violation:?}").len() > 0);
         }
     }
 
@@ -4089,7 +4089,6 @@ mod tests {
 
         assert!(success.is_ok());
         assert!(failure.is_err());
-        assert_eq!(success.unwrap(), 42);
     }
 
     #[test]

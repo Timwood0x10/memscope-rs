@@ -554,7 +554,7 @@ mod tests {
             optimization_reason: "Test reason".to_string(),
         };
 
-        let debug_str = format!("{:?}", info);
+        let debug_str = format!("{info:?}");
         assert!(debug_str.contains("location: \"test.rs:1\""));
         assert!(debug_str.contains("type_name: \"TestType\""));
         assert!(debug_str.contains("estimated_size: 128"));

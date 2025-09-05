@@ -141,10 +141,10 @@ mod string_pool_tests {
 
         // All references to the same string should be identical
         for ref_a in &string_a_refs[1..] {
-            assert!(Arc::ptr_eq(&string_a_refs[0], ref_a));
+            assert!(Arc::ptr_eq(string_a_refs[0], ref_a));
         }
         for ref_b in &string_b_refs[1..] {
-            assert!(Arc::ptr_eq(&string_b_refs[0], ref_b));
+            assert!(Arc::ptr_eq(string_b_refs[0], ref_b));
         }
 
         let stats = pool.get_stats();
@@ -319,8 +319,7 @@ mod string_pool_tests {
             / total_string_bytes as f64;
         assert!(
             overhead_ratio < 2.0,
-            "Memory overhead too high: {:.2}x",
-            overhead_ratio
+            "Memory overhead too high: {overhead_ratio:.2}x"
         );
         assert!(
             overhead_ratio >= 1.0,

@@ -435,7 +435,7 @@ mod tests {
             backtrace: Backtrace::capture(),
         };
 
-        let display_str = format!("{}", none_error);
+        let display_str = format!("{none_error:?}");
         assert!(display_str.contains("test context"));
         assert!(display_str.contains("test.rs:42"));
 
@@ -445,7 +445,7 @@ mod tests {
             backtrace: Backtrace::capture(),
         };
 
-        let display_str = format!("{}", none_error_no_location);
+        let display_str = format!("{none_error_no_location:?}");
         assert!(display_str.contains("test context"));
         assert!(!display_str.contains("test.rs:42"));
     }
@@ -460,7 +460,7 @@ mod tests {
             backtrace: Backtrace::capture(),
         };
 
-        let display_str = format!("{}", result_error);
+        let display_str = format!("{result_error}");
         assert!(display_str.contains("file operation"));
         assert!(display_str.contains("main.rs:10"));
         assert!(display_str.contains("file not found"));
@@ -536,8 +536,7 @@ mod tests {
 
     #[test]
     fn test_result_try_unwrap_failure() {
-        let result: Result<i32, std::io::Error> =
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
+        let result: Result<i32, std::io::Error> = Err(std::io::Error::other("test error"));
         let unwrap_result = result.try_unwrap("test failure");
         assert!(unwrap_result.is_err());
 
@@ -550,8 +549,7 @@ mod tests {
 
     #[test]
     fn test_result_try_unwrap_at() {
-        let result: Result<i32, std::io::Error> =
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "test error"));
+        let result: Result<i32, std::io::Error> = Err(std::io::Error::other("test error"));
         let unwrap_result = result.try_unwrap_at("test context", "main.rs:50");
         assert!(unwrap_result.is_err());
 

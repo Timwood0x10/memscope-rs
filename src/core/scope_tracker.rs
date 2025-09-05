@@ -165,8 +165,7 @@ impl ScopeTracker {
                 // If we've exhausted our retries, log an error and drop the scope
                 // This is better than silently losing the scope
                 eprintln!(
-                    "Failed to add scope {} to completed_scopes after {} retries",
-                    scope_id, MAX_RETRIES
+                    "Failed to add scope {scope_id} to completed_scopes after {MAX_RETRIES} retries",
                 );
             }
         }
@@ -358,6 +357,39 @@ fn current_timestamp() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0)
+}
+
+
+/// Macro for tracking scopes with automatic cleanup
+#[macro_export]
+macro_rules! track_scope {
+    ($scope_name:expr) => {
+        let _scope_guard = $crate::scope_tracker::ScopeGuard::enter($scope_name)?;
+    };
+    ($scope_name:expr, $block:block) => {{
+        let _scope_guard = $crate::scope_tracker::ScopeGuard::enter($scope_name)?;
+        $block
+    }};
+}
+
+/// Enhanced track_var macro that also associates with current scope
+#[macro_export]
+macro_rules! track_var_with_scope {
+    ($var:ident) => {{
+        // Track the variable normally
+        let result = $crate::_track_var_impl(&$var, stringify!($var));
+
+        // Also associate with current scope
+        if result.is_ok() {
+            if let Some(size) = $crate::Trackable::get_heap_ptr(&$var) {
+                let scope_tracker = $crate::scope_tracker::get_global_scope_tracker();
+                let _ = scope_tracker
+                    .associate_variable(stringify!($var).to_string(), std::mem::size_of_val(&$var));
+            }
+        }
+
+        result
+    }};
 }
 
 #[cfg(test)]
@@ -642,36 +674,4 @@ mod tests {
             );
         }
     }
-}
-
-/// Macro for tracking scopes with automatic cleanup
-#[macro_export]
-macro_rules! track_scope {
-    ($scope_name:expr) => {
-        let _scope_guard = $crate::scope_tracker::ScopeGuard::enter($scope_name)?;
-    };
-    ($scope_name:expr, $block:block) => {{
-        let _scope_guard = $crate::scope_tracker::ScopeGuard::enter($scope_name)?;
-        $block
-    }};
-}
-
-/// Enhanced track_var macro that also associates with current scope
-#[macro_export]
-macro_rules! track_var_with_scope {
-    ($var:ident) => {{
-        // Track the variable normally
-        let result = $crate::_track_var_impl(&$var, stringify!($var));
-
-        // Also associate with current scope
-        if result.is_ok() {
-            if let Some(size) = $crate::Trackable::get_heap_ptr(&$var) {
-                let scope_tracker = $crate::scope_tracker::get_global_scope_tracker();
-                let _ = scope_tracker
-                    .associate_variable(stringify!($var).to_string(), std::mem::size_of_val(&$var));
-            }
-        }
-
-        result
-    }};
 }

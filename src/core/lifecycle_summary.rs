@@ -584,7 +584,7 @@ mod tests {
 
         let summary = history.get_summary(0x1000).unwrap();
         let score = generator.calculate_efficiency_score(&alloc, summary);
-        assert!(score >= 0.0 && score <= 1.0);
+        assert!((0.0..=1.0).contains(&score));
     }
 
     #[test]

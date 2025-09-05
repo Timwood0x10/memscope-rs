@@ -171,7 +171,6 @@ mod utility_function_tests {
 
 #[cfg(test)]
 mod macro_simulation_tests {
-    use super::*;
 
     #[test]
     fn test_variable_operations() {
@@ -221,8 +220,6 @@ mod macro_simulation_tests {
 
 #[cfg(test)]
 mod analysis_simulation_tests {
-    use super::*;
-
     #[test]
     fn test_memory_analysis_logic() {
         // Test memory analysis logic without global tracker
@@ -257,7 +254,6 @@ mod analysis_simulation_tests {
 
 #[cfg(test)]
 mod export_simulation_tests {
-    use super::*;
     use std::fs;
     use tempfile::TempDir;
 
@@ -342,7 +338,6 @@ mod export_simulation_tests {
 
 #[cfg(test)]
 mod error_handling_simulation_tests {
-    use super::*;
     use std::fs;
 
     #[test]
