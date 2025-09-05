@@ -1475,22 +1475,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_safety_analyzer_creation() {
-        let config = SafetyAnalysisConfig::default();
-        let analyzer = SafetyAnalyzer::new(config);
-
-        // Analyzer should be created successfully
-        assert!(true);
-    }
-
-    #[test]
-    fn test_safety_analyzer_default() {
-        let analyzer = SafetyAnalyzer::default();
-
-        // Default analyzer should be created successfully
-        assert!(true);
-    }
 
     #[test]
     fn test_safety_analyzer_generate_unsafe_report() {

@@ -137,3 +137,46 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_main_runs_without_panic() {
+        main();
+    }
+
+    #[test]
+    fn test_performance_benchmark_new() {
+        let config = BenchmarkConfig {
+            iterations: 1,
+            data_size: 1,
+            test_runs: 1,
+            output_dir: PathBuf::from("test_results"),
+            verbose: false,
+            verify_consistency: false,
+            generate_detailed_report: false,
+        };
+        let benchmark = PerformanceBenchmark::new(config);
+        assert!(benchmark.is_ok());
+    }
+
+    #[test]
+    fn test_performance_benchmark_run_full_benchmark() {
+        let config = BenchmarkConfig {
+            iterations: 1,
+            data_size: 1,
+            test_runs: 1,
+            output_dir: PathBuf::from("test_results"),
+            verbose: false,
+            verify_consistency: false,
+            generate_detailed_report: false,
+        };
+        let mut benchmark = PerformanceBenchmark::new(config).unwrap();
+        let result = benchmark.run_full_benchmark();
+        assert!(result.is_ok());
+        let comparison = result.unwrap();
+        assert_eq!(comparison.performance_improvement.avg_time_improvement_percent, 0.0);
+    }
+}

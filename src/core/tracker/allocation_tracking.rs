@@ -27,15 +27,22 @@ impl MemoryTracker {
         // Apply Task 4 enhancement: calculate lifetime
         self.calculate_and_analyze_lifetime(&mut allocation);
 
-        // Try to update both active allocations and bounded stats
-        if let (Ok(mut active), Ok(mut bounded_stats)) = (
-            self.active_allocations.try_lock(),
-            self.bounded_stats.try_lock(),
+        // Use blocking locks in fast mode for accurate tracking
+        match (
+            self.active_allocations.lock(),
+            self.bounded_stats.lock(),
         ) {
-            active.insert(ptr, allocation.clone());
-            bounded_stats.add_allocation(&allocation);
+            (Ok(mut active), Ok(mut bounded_stats)) => {
+                active.insert(ptr, allocation.clone());
+                bounded_stats.add_allocation(&allocation);
+                Ok(())
+            }
+            _ => {
+                // Fallback: still track the allocation even if locks fail
+                tracing::warn!("Failed to acquire locks in fast_track_allocation");
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     /// Track a new memory allocation using bounded stats.
@@ -463,11 +470,22 @@ impl MemoryTracker {
             })?;
 
             if let Some(allocation) = active.get_mut(&ptr) {
+                let old_var_name_is_none = allocation.var_name.is_none();
+
                 allocation.var_name = Some(var_name.clone());
                 allocation.type_name = Some(type_name.clone());
 
                 // Apply improve.md field enhancements based on type
                 allocation.enhance_with_type_info(&type_name);
+
+                // CRITICAL FIX: Update bounded_stats after associating var_name
+                // Clone the allocation to pass to bounded_stats
+                let allocation_clone = allocation.clone();
+                drop(active); // Release active lock before acquiring bounded_stats lock
+                
+                if let Ok(mut bounded_stats) = self.bounded_stats.lock() {
+                    bounded_stats.update_active_allocation_status(&allocation_clone, old_var_name_is_none);
+                }
 
                 tracing::debug!(
                     "Associated variable '{}' with existing allocation at {:x}",

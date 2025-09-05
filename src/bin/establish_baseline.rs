@@ -14,8 +14,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let output_dir = args.get(1).unwrap_or(&"baseline_data".to_string()).clone();
 
+    run_baseline_establishment(&output_dir)
+}
+
+fn run_baseline_establishment(output_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Create output directory
-    fs::create_dir_all(&output_dir)?;
+    fs::create_dir_all(output_dir)?;
 
     // Establish performance baseline
     println!("📊 Measuring performance baseline...");
@@ -76,6 +80,10 @@ fn create_baseline_summary(
     filename: &str,
     api_passed: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(parent) = std::path::Path::new(filename).parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     let mut content = String::new();
 
     content.push_str("# memscope-rs Baseline Summary\n\n");
@@ -131,4 +139,55 @@ fn create_baseline_summary(
     println!("📄 Baseline summary saved to {filename}");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_run_baseline_establishment() -> Result<(), Box<dyn std::error::Error>> {
+        let output_dir = tempdir()?.path().to_path_buf();
+        let output_dir_str = output_dir.to_str().unwrap();
+
+        let result = run_baseline_establishment(output_dir_str);
+        assert!(result.is_ok());
+
+        assert!(output_dir.exists());
+        assert!(output_dir.join("performance_baseline.json").exists());
+        assert!(output_dir.join("api_compatibility_report.md").exists());
+        assert!(output_dir.join("functional_baseline_report.md").exists());
+        assert!(output_dir.join("baseline_summary.md").exists());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_baseline_summary_api_passed() -> Result<(), Box<dyn std::error::Error>> {
+        let output_dir = tempdir()?.path().to_path_buf();
+        let summary_file = output_dir.join("summary_passed.md");
+
+        create_baseline_summary(summary_file.to_str().unwrap(), true)?;
+
+        let content = fs::read_to_string(&summary_file)?;
+        assert!(content.contains("✅ **All API compatibility tests passed**"));
+        assert!(!content.contains("⚠️ **Warning:**"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_baseline_summary_api_failed() -> Result<(), Box<dyn std::error::Error>> {
+        let output_dir = tempdir()?.path().to_path_buf();
+        let summary_file = output_dir.join("summary_failed.md");
+
+        create_baseline_summary(summary_file.to_str().unwrap(), false)?;
+
+        let content = fs::read_to_string(&summary_file)?;
+        assert!(content.contains("❌ **Some API compatibility tests failed**"));
+        assert!(content.contains("⚠️ **Warning:**"));
+
+        Ok(())
+    }
 }

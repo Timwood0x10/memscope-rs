@@ -2574,11 +2574,6 @@ mod tests {
         UnsafeFFITracker::new()
     }
 
-    /// Helper function to create test allocation info
-    fn create_test_allocation_info(ptr: usize, size: usize) -> AllocationInfo {
-        AllocationInfo::new(ptr, size)
-    }
-
     #[test]
     fn test_unsafe_ffi_tracker_creation() {
         let tracker = create_test_tracker();
