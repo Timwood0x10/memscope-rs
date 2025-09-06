@@ -82,14 +82,14 @@ core/targeted_optimizations.rs                                   236            
 core/test_optimized_locks.rs                                     106                 6    94.34%           6                 0   100.00%          58                 3    94.83%           0                 0         -
 core/threshold_batch_processor.rs                                270                76    71.85%          21                 4    80.95%         193                44    77.20%           0                 0         -
 core/tracker/allocation_tracking.rs                              752               532    29.26%          32                23    28.12%         569               413    27.42%           0                 0         -
-core/tracker/config.rs                                            22                22     0.00%           6                 6     0.00%          27                27     0.00%           0                 0         -
+core/tracker/config.rs                                           230                 5    97.83%          17                 0   100.00%         168                 0   100.00%           0                 0         -
 core/tracker/export_html.rs                                      341                41    87.98%          19                 4    78.95%         334                18    94.61%           0                 0         -
 core/tracker/export_json.rs                                     1111               800    27.99%          58                43    25.86%         798               566    29.07%           0                 0         -
 core/tracker/global_functions.rs                                  41                41     0.00%           6                 6     0.00%          23                23     0.00%           0                 0         -
 core/tracker/memory_analysis.rs                                 1303              1278     1.92%          55                54     1.82%        1125              1112     1.16%           0                 0         -
 core/tracker/memory_tracker.rs                                  1334               235    82.38%          90                20    77.78%         964               215    77.70%           0                 0         -
-core/tracker/tracking_manager.rs                                  80                80     0.00%          15                15     0.00%          73                73     0.00%           0                 0         -
-core/types/mod.rs                                                724               184    74.59%          48                 3    93.75%         617                70    88.65%           0                 0         -
+core/tracker/tracking_manager.rs                                 194                72    62.89%          22                11    50.00%         219                58    73.52%           0                 0         -
+core/types/mod.rs                                                724               183    74.72%          48                 3    93.75%         617                70    88.65%           0                 0         -
 core/unwrap_safe.rs                                              611               102    83.31%          63                11    82.54%         432                59    86.34%           0                 0         -
 enhanced_types.rs                                                670                10    98.51%          64                 0   100.00%         545                 0   100.00%           0                 0         -
 export/adaptive_performance.rs                                   423               423     0.00%          33                33     0.00%         359               359     0.00%           0                 0         -
@@ -114,7 +114,7 @@ export/binary/html_export.rs                                    1009            
 export/binary/index.rs                                           345                17    95.07%          27                 2    92.59%         231                14    93.94%           0                 0         -
 export/binary/index_builder.rs                                   679               128    81.15%          29                 9    68.97%         442               109    75.34%           0                 0         -
 export/binary/integration_test_complex_types.rs                  264                 0   100.00%          12                 0   100.00%         163                 0   100.00%           0                 0         -
-export/binary/integration_test_ffi_safety.rs                     349                 3    99.14%          18                 0   100.00%         245                 0   100.00%           0                 0         -
+export/binary/integration_test_ffi_safety.rs                     349                 2    99.43%          18                 0   100.00%         245                 0   100.00%           0                 0         -
 export/binary/integration_test_template_resources.rs             364                 5    98.63%          10                 0   100.00%         233                 5    97.85%           0                 0         -
 export/binary/integration_test_variable_relationships.rs         708                 1    99.86%          41                 0   100.00%         577                 0   100.00%           0                 0         -
 export/binary/memory_layout_serialization.rs                     571               303    46.94%          29                18    37.93%         324               154    52.47%           0                 0         -
@@ -156,11 +156,12 @@ main.rs                                                          168            
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         737                76    89.69%           0                 0         -
 variable_registry.rs                                            1578               217    86.25%          78                19    75.64%         977               114    88.33%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                         100760             41707    58.61%        5412              1985    63.32%       69678             27910    59.94%           0                 0         -
+TOTAL                                                         101082             41680    58.77%        5430              1975    63.63%       69965             27868    60.17%           0                 0         -
 
+                                                  Regions    Missed Regions     Cover   Functions  
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
 
-4.慎用global_tracker 尤其是在运行多个test case 的时候会导致死锁。必须想法子规避。
+4.慎用get_global_tracker()，以及 `TrackingManager::new()` 尤其是在运行多个test case 的时候会导致死锁。必须想法子规避。
 
 
 /// 这是我的事情，和你没关系啊，。先不要管他。
