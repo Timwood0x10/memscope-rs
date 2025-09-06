@@ -848,7 +848,7 @@ mod tests {
         // 🔧 Additional stress test: Multiple consecutive calls to ensure no deadlock
         for i in 3..=10 {
             let result = deduplicator.deduplicate_string(test_string)
-                .expect(&format!("Call {} should succeed without deadlock", i));
+                .unwrap_or_else(|_| panic!("Call {i} should succeed without deadlock"));
             assert_eq!(result.hash, result1.hash);
             assert_eq!(result.ref_count, i);
             assert_eq!(result.length, test_string.len());
@@ -1049,19 +1049,19 @@ mod tests {
         let _metadata_ref = deduplicator.deduplicate_metadata(&metadata).expect("Failed to deduplicate metadata");
         
         // Verify data exists
-        assert!(deduplicator.string_storage.len() > 0 || deduplicator.compressed_storage.len() > 0);
+        assert!(!deduplicator.string_storage.is_empty() || !deduplicator.compressed_storage.is_empty());
         
         // Clear all
         deduplicator.clear_all();
         
         // Verify all storages are empty
-        assert_eq!(deduplicator.string_storage.len(), 0);
-        assert_eq!(deduplicator.string_refs.len(), 0);
-        assert_eq!(deduplicator.stack_storage.len(), 0);
-        assert_eq!(deduplicator.stack_refs.len(), 0);
-        assert_eq!(deduplicator.metadata_storage.len(), 0);
-        assert_eq!(deduplicator.metadata_refs.len(), 0);
-        assert_eq!(deduplicator.compressed_storage.len(), 0);
+        assert!(deduplicator.string_storage.is_empty());
+        assert!(deduplicator.string_refs.is_empty());
+        assert!(deduplicator.stack_storage.is_empty());
+        assert!(deduplicator.stack_refs.is_empty());
+        assert!(deduplicator.metadata_storage.is_empty());
+        assert!(deduplicator.metadata_refs.is_empty());
+        assert!(deduplicator.compressed_storage.is_empty());
     }
 
     #[test]

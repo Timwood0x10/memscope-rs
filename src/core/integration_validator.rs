@@ -715,8 +715,8 @@ mod tests {
         
         // Test with very large stack
         let large_frames: Vec<StackFrame> = (0..1000).map(|i| StackFrame {
-            function_name: format!("function_{}", i),
-            file_name: Some(format!("file_{}.rs", i)),
+            function_name: format!("function_{i}"),
+            file_name: Some(format!("file_{i}.rs")),
             line_number: Some(i as u32),
             is_unsafe: i % 2 == 0,
         }).collect();
@@ -767,7 +767,7 @@ mod tests {
             memory_usage_ok: false,
         };
         
-        let debug_output = format!("{:?}", results);
+        let debug_output = format!("{results:?}");
         assert!(debug_output.contains("ValidationResults"));
         assert!(debug_output.contains("call_stack_normalizer_ok: true"));
         assert!(debug_output.contains("edge_case_handler_ok: false"));

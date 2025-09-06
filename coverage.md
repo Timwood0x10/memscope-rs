@@ -7,7 +7,6 @@
 2. 工作流程是先定位覆盖率低的模块，然后阅读模块中的代码，制定合适的test case，并且每编写一个模块就测试一次，测试通过之后，再进行下一个模块，并且test case 一定要有意义，且符合当前模块，不能写一些无意义的test case，禁止出现滥竽充数的test case，质量必须高且有意义。
 
 3.
-
 Filename                                                     Regions    Missed Regions     Cover   Functions  Missed Functions  Executed       Lines      Missed Lines     Cover    Branches   Missed Branches     Cover
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 advanced_trackable_macro.rs                                      419                 2    99.52%          21                 0   100.00%         257                 0   100.00%           0                 0         -
@@ -27,7 +26,7 @@ analysis/safety_analyzer.rs                                     1330            
 analysis/security_violation_analyzer.rs                         1313                64    95.13%          65                 0   100.00%         959                33    96.56%           0                 0         -
 analysis/unknown_memory_regions.rs                               877                55    93.73%          67                 4    94.03%         596                35    94.13%           0                 0         -
 analysis/unsafe_ffi_tracker.rs                                  2331               625    73.19%          90                21    76.67%        1735               522    69.91%           0                 0         -
-analysis/variable_relationships.rs                              1170                70    94.02%          55                 1    98.18%         840                40    95.24%           0                 0         -
+analysis/variable_relationships.rs                              1170                68    94.19%          55                 1    98.18%         840                39    95.36%           0                 0         -
 bin/allocation_count_diagnostic.rs                               358               190    46.93%          12                 5    58.33%         248               132    46.77%           0                 0         -
 bin/core_performance_test.rs                                     610               215    64.75%          20                 2    90.00%         438               145    66.89%           0                 0         -
 bin/establish_baseline.rs                                        243                31    87.24%           6                 1    83.33%         118                10    91.53%           0                 0         -
@@ -49,14 +48,14 @@ cli/commands/html_from_json/mod.rs                               871            
 cli/commands/test.rs                                             128               128     0.00%           5                 5     0.00%          71                71     0.00%           0                 0         -
 core/adaptive_hashmap.rs                                         299                70    76.59%          17                 4    76.47%         168                50    70.24%           0                 0         -
 core/allocation_adapter.rs                                       359               126    64.90%          66                34    48.48%         275               104    62.18%           0                 0         -
-core/allocator.rs                                                369                23    93.77%          33                 1    96.97%         243                 6    97.53%           0                 0         -
+core/allocator.rs                                                369                26    92.95%          33                 2    93.94%         243                 9    96.30%           0                 0         -
 core/atomic_stats.rs                                             661                10    98.49%          54                 0   100.00%         451                 3    99.33%           0                 0         -
 core/bounded_memory_stats.rs                                     426               127    70.19%          35                11    68.57%         410                99    75.85%           0                 0         -
 core/call_stack_normalizer.rs                                    558                95    82.97%          36                 9    75.00%         393                92    76.59%           0                 0         -
 core/clone_monitor.rs                                            171                14    91.81%          16                 0   100.00%         113                11    90.27%           0                 0         -
 core/clone_optimizer.rs                                          676                 0   100.00%          35                 0   100.00%         377                 0   100.00%           0                 0         -
 core/clone_utils.rs                                              288                 5    98.26%          19                 0   100.00%         169                 2    98.82%           0                 0         -
-core/comprehensive_data_deduplicator.rs                         1524               197    87.07%          62                 7    88.71%         900               117    87.00%           0                 0         -
+core/comprehensive_data_deduplicator.rs                         1524               198    87.01%          63                 8    87.30%         901               118    86.90%           0                 0         -
 core/edge_case_handler.rs                                        466               134    71.24%          37                13    64.86%         354               102    71.19%           0                 0         -
 core/enhanced_call_stack_normalizer.rs                           466               182    60.94%          35                16    54.29%         341               144    57.77%           0                 0         -
 core/enhanced_pointer_extractor.rs                               255                99    61.18%          25                12    52.00%         231               102    55.84%           0                 0         -
@@ -82,7 +81,7 @@ core/targeted_optimizations.rs                                   236            
 core/test_optimized_locks.rs                                     106                 6    94.34%           6                 0   100.00%          58                 3    94.83%           0                 0         -
 core/threshold_batch_processor.rs                                270                76    71.85%          21                 4    80.95%         193                44    77.20%           0                 0         -
 core/tracker/allocation_tracking.rs                              752               532    29.26%          32                23    28.12%         569               413    27.42%           0                 0         -
-core/tracker/config.rs                                           230                 5    97.83%          17                 0   100.00%         168                 0   100.00%           0                 0         -
+core/tracker/config.rs                                           242                 5    97.93%          17                 0   100.00%         168                 0   100.00%           0                 0         -
 core/tracker/export_html.rs                                      341                41    87.98%          19                 4    78.95%         334                18    94.61%           0                 0         -
 core/tracker/export_json.rs                                     1111               800    27.99%          58                43    25.86%         798               566    29.07%           0                 0         -
 core/tracker/global_functions.rs                                  41                41     0.00%           6                 6     0.00%          23                23     0.00%           0                 0         -
@@ -114,7 +113,7 @@ export/binary/html_export.rs                                    1009            
 export/binary/index.rs                                           345                17    95.07%          27                 2    92.59%         231                14    93.94%           0                 0         -
 export/binary/index_builder.rs                                   679               128    81.15%          29                 9    68.97%         442               109    75.34%           0                 0         -
 export/binary/integration_test_complex_types.rs                  264                 0   100.00%          12                 0   100.00%         163                 0   100.00%           0                 0         -
-export/binary/integration_test_ffi_safety.rs                     349                 2    99.43%          18                 0   100.00%         245                 0   100.00%           0                 0         -
+export/binary/integration_test_ffi_safety.rs                     349                 3    99.14%          18                 0   100.00%         245                 0   100.00%           0                 0         -
 export/binary/integration_test_template_resources.rs             364                 5    98.63%          10                 0   100.00%         233                 5    97.85%           0                 0         -
 export/binary/integration_test_variable_relationships.rs         708                 1    99.86%          41                 0   100.00%         577                 0   100.00%           0                 0         -
 export/binary/memory_layout_serialization.rs                     571               303    46.94%          29                18    37.93%         324               154    52.47%           0                 0         -
@@ -156,9 +155,9 @@ main.rs                                                          168            
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         737                76    89.69%           0                 0         -
 variable_registry.rs                                            1578               217    86.25%          78                19    75.64%         977               114    88.33%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                         101082             41680    58.77%        5430              1975    63.63%       69965             27868    60.17%           0                 0         -
+TOTAL                                                         101094             41683    58.77%        5431              1977    63.60%       69966             27871    60.16%           0                 0         -
 
-                                                  Regions    Missed Regions     Cover   Functions  
+
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
 
 4.慎用get_global_tracker()，以及 `TrackingManager::new()` 尤其是在运行多个test case 的时候会导致死锁。必须想法子规避。

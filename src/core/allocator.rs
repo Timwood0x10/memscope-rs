@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_default_implementation() {
-        let allocator = TrackingAllocator::default();
+        let allocator = TrackingAllocator::new();
         assert_eq!(
             std::mem::size_of_val(&allocator),
             std::mem::size_of::<TrackingAllocator>()

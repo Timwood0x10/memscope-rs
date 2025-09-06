@@ -133,17 +133,17 @@ mod tests {
         
         // Test include_system_allocations
         options = options.include_system_allocations(true);
-        assert_eq!(options.include_system_allocations, true);
+        assert!(options.include_system_allocations);
         
         options = options.include_system_allocations(false);
-        assert_eq!(options.include_system_allocations, false);
+        assert!(!options.include_system_allocations);
         
         // Test verbose_logging
         options = options.verbose_logging(true);
-        assert_eq!(options.verbose_logging, true);
+        assert!(options.verbose_logging);
         
         options = options.verbose_logging(false);
-        assert_eq!(options.verbose_logging, false);
+        assert!(!options.verbose_logging);
         
         // Test buffer_size
         options = options.buffer_size(1024);
@@ -154,10 +154,10 @@ mod tests {
         
         // Test compress_output
         options = options.compress_output(true);
-        assert_eq!(options.compress_output, true);
+        assert!(options.compress_output);
         
         options = options.compress_output(false);
-        assert_eq!(options.compress_output, false);
+        assert!(!options.compress_output);
     }
 
     #[test]
@@ -172,16 +172,16 @@ mod tests {
             .compress_output(true);
         
         // Original options1 should be unchanged (methods consume self)
-        assert_eq!(options1.include_system_allocations, true);
-        assert_eq!(options1.verbose_logging, true);
+        assert!(options1.include_system_allocations);
+        assert!(options1.verbose_logging);
         assert_eq!(options1.buffer_size, 64 * 1024); // Still default
-        assert_eq!(options1.compress_output, false); // Still default
+        assert!(!options1.compress_output); // Still default
         
         // options2 should have all changes
-        assert_eq!(options2.include_system_allocations, true);
-        assert_eq!(options2.verbose_logging, true);
+        assert!(options2.include_system_allocations);
+        assert!(options2.verbose_logging);
         assert_eq!(options2.buffer_size, 32 * 1024);
-        assert_eq!(options2.compress_output, true);
+        assert!(options2.compress_output);
     }
 
     #[test]
@@ -208,7 +208,7 @@ mod tests {
             .buffer_size(32 * 1024)
             .compress_output(true);
         
-        let debug_str = format!("{:?}", options);
+        let debug_str = format!("{options:?}");
         
         // Should contain all field values
         assert!(debug_str.contains("include_system_allocations: true"));
@@ -224,8 +224,8 @@ mod tests {
         let complete = ExportMode::Complete;
         
         // Test Debug trait
-        let debug_user = format!("{:?}", user_focused);
-        let debug_complete = format!("{:?}", complete);
+        let debug_user = format!("{user_focused:?}");
+        let debug_complete = format!("{complete:?}");
         
         assert_eq!(debug_user, "UserFocused");
         assert_eq!(debug_complete, "Complete");

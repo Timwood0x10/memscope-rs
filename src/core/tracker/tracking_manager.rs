@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn test_comprehensive_tracking_report_structure() {
         // Test the ComprehensiveTrackingReport structure
-        use crate::core::types::{MemoryStats, ScopeAnalysis, FragmentationAnalysis, ScopeLifecycleMetrics, SystemLibraryStats, ConcurrencyAnalysis, ScopeInfo, ScopeHierarchy};
+        use crate::core::types::{MemoryStats, ScopeAnalysis, FragmentationAnalysis, ScopeLifecycleMetrics, SystemLibraryStats, ConcurrencyAnalysis, ScopeHierarchy};
         
         let report = ComprehensiveTrackingReport {
             memory_stats: MemoryStats {
@@ -302,7 +302,7 @@ mod tests {
             analysis_timestamp: 1111111111,
         };
         
-        let debug_str = format!("{:?}", report);
+        let debug_str = format!("{report:?}");
         
         // Should contain key information
         assert!(debug_str.contains("ComprehensiveTrackingReport"));
