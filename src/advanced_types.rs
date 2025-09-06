@@ -1346,7 +1346,7 @@ mod tests {
         ];
 
         for category in categories {
-            assert!(format!("{:?}", category).len() > 0);
+            assert!(!format!("{category:?}").is_empty());
         }
     }
 
@@ -1360,7 +1360,7 @@ mod tests {
         ];
 
         for severity in severities {
-            assert!(format!("{:?}", severity).len() > 0);
+            assert!(!format!("{severity:?}").is_empty());
         }
     }
 
@@ -1375,7 +1375,7 @@ mod tests {
         ];
 
         for category in categories {
-            assert!(format!("{:?}", category).len() > 0);
+            assert!(!format!("{category:?}").is_empty());
         }
     }
 

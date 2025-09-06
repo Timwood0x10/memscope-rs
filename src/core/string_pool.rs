@@ -287,8 +287,7 @@ mod string_pool_tests {
         // Should be very fast since it's just hash lookups after first insert
         assert!(
             duration.as_millis() < 100,
-            "String pool lookup too slow: {:?}",
-            duration
+            "String pool lookup too slow: {duration:?}",
         );
 
         let stats = pool.get_stats();

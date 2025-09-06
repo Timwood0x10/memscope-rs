@@ -154,43 +154,6 @@ impl Default for OptimizedMemoryTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::AllocationInfo;
-    
-    /// Helper function to create test AllocationInfo
-    fn create_test_allocation(ptr: usize, size: usize, var_name: &str) -> AllocationInfo {
-        AllocationInfo {
-            ptr,
-            size,
-            var_name: Some(var_name.to_string()),
-            type_name: Some("TestType".to_string()),
-            scope_name: None,
-            timestamp_alloc: 1000000,
-            timestamp_dealloc: None,
-            thread_id: "test_thread".to_string(),
-            borrow_count: 0,
-            stack_trace: None,
-            is_leaked: false,
-            lifetime_ms: None,
-            borrow_info: None,
-            clone_info: None,
-            ownership_history_available: false,
-            smart_pointer_info: None,
-            memory_layout: None,
-            generic_info: None,
-            dynamic_type_info: None,
-            runtime_state: None,
-            stack_allocation: None,
-            temporary_object: None,
-            fragmentation_analysis: None,
-            generic_instantiation: None,
-            type_relationships: None,
-            type_usage: None,
-            function_call_tracking: None,
-            lifecycle_tracking: None,
-            access_tracking: None,
-            drop_chain_analysis: None,
-        }
-    }
     
     #[test]
     fn test_new_optimized_tracker() {

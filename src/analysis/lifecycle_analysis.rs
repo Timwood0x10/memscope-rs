@@ -1299,7 +1299,7 @@ mod tests {
         ];
 
         for resource_type in resource_types {
-            assert!(format!("{:?}", resource_type).len() > 0);
+            assert!(!format!("{resource_type:?}").is_empty());
         }
 
         let acquisition_methods = vec![
@@ -1311,7 +1311,7 @@ mod tests {
         ];
 
         for method in acquisition_methods {
-            assert!(format!("{:?}", method).len() > 0);
+            assert!(!format!("{method:?}").is_empty());
         }
 
         let release_methods = vec![
@@ -1322,7 +1322,7 @@ mod tests {
         ];
 
         for method in release_methods {
-            assert!(format!("{:?}", method).len() > 0);
+            assert!(!format!("{method:?}").is_empty());
         }
 
         let scope_types = vec![
@@ -1335,13 +1335,13 @@ mod tests {
         ];
 
         for scope_type in scope_types {
-            assert!(format!("{:?}", scope_type).len() > 0);
+            assert!(!format!("{scope_type:?}").is_empty());
         }
 
         let borrow_types = vec![BorrowType::Immutable, BorrowType::Mutable];
 
         for borrow_type in borrow_types {
-            assert!(format!("{:?}", borrow_type).len() > 0);
+            assert!(!format!("{borrow_type:?}").is_empty());
         }
 
         let capture_modes = vec![
@@ -1351,7 +1351,7 @@ mod tests {
         ];
 
         for mode in capture_modes {
-            assert!(format!("{:?}", mode).len() > 0);
+            assert!(!format!("{mode:?}").is_empty());
         }
     }
 

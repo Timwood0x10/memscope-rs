@@ -1133,7 +1133,7 @@ mod tests {
             integration_time_ms: 500,
         };
 
-        let debug_str = format!("{:?}", stats);
+        let debug_str = format!("{stats:?}");
         assert!(debug_str.contains("cross_references_found: 10"));
         assert!(debug_str.contains("conflicts_resolved: 5"));
         assert!(debug_str.contains("enrichments_performed: 15"));
@@ -1149,7 +1149,7 @@ mod tests {
             scope_to_allocation: HashMap::new(),
         };
 
-        let debug_str = format!("{:?}", index);
+        let debug_str = format!("{index:?}");
         assert!(debug_str.contains("DataIndex"));
     }
 

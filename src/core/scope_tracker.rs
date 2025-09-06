@@ -649,8 +649,7 @@ mod tests {
         // Verify all expected scopes are in the tracker
         assert_eq!(
             expected_names, tracker_scope_names,
-            "Expected scopes in tracker: {:?}, but found: {:?}",
-            expected_names, tracker_scope_names
+            "Expected scopes in tracker: {expected_names:?}, but found: {tracker_scope_names:?}",
         );
 
         // Verify all scopes in the tracker have proper end times and are not active

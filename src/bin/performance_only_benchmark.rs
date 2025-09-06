@@ -341,8 +341,8 @@ mod tests {
     #[test]
     fn test_performance_calculation_logic() {
         // Test performance improvement calculation without running actual benchmarks
-        let traditional_times = vec![200, 220, 240, 180, 260];
-        let fast_times = vec![100, 110, 120, 90, 130];
+        let traditional_times = [200, 220, 240, 180, 260];
+        let fast_times = [100, 110, 120, 90, 130];
 
         // Calculate averages
         let avg_traditional =
@@ -366,8 +366,8 @@ mod tests {
     #[test]
     fn test_time_range_calculations() {
         // Test time range calculations for stability analysis
-        let times1 = vec![100, 105, 110, 95, 115];
-        let times2 = vec![50, 80, 60, 70, 90];
+        let times1 = [100, 105, 110, 95, 115];
+        let times2 = [50, 80, 60, 70, 90];
 
         let range1 = times1.iter().max().unwrap() - times1.iter().min().unwrap();
         let range2 = times2.iter().max().unwrap() - times2.iter().min().unwrap();
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn test_report_data_formatting() {
         // Test the data formatting logic for reports
-        let times = vec![100, 110, 120];
+        let times = [100, 110, 120];
         let formatted: Vec<String> = times
             .iter()
             .enumerate()

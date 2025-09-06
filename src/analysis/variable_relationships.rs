@@ -1303,9 +1303,6 @@ mod tests {
             }
         }
 
-        // Debug output to help diagnose test failures
-        println!("Found categories: {:?}", categories);
-
         // We should have at least one category
         assert!(
             !categories.is_empty(),

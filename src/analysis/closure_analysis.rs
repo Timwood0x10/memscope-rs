@@ -1262,7 +1262,7 @@ mod tests {
         // Create closure with many captures
         let many_captures: Vec<CaptureInfo> = (0..8)
             .map(|i| CaptureInfo {
-                var_name: format!("var_{}", i),
+                var_name: format!("var_{i}"),
                 var_ptr: 0x1000 + i * 8,
                 mode: CaptureMode::ByValue,
                 var_type: "i32".to_string(),
@@ -1292,7 +1292,7 @@ mod tests {
         ];
 
         for mode in modes {
-            assert!(format!("{:?}", mode).len() > 0);
+            assert!(!format!("{mode:?}").is_empty());
         }
     }
 
@@ -1306,7 +1306,7 @@ mod tests {
         ];
 
         for level in levels {
-            assert!(format!("{:?}", level).len() > 0);
+            assert!(!format!("{level:?}").is_empty());
         }
     }
 
@@ -1320,7 +1320,7 @@ mod tests {
         ];
 
         for closure_type in types {
-            assert!(format!("{:?}", closure_type).len() > 0);
+            assert!(!format!("{closure_type:?}").is_empty());
         }
     }
 
@@ -1335,7 +1335,7 @@ mod tests {
         ];
 
         for impact in impacts {
-            assert!(format!("{:?}", impact).len() > 0);
+            assert!(!format!("{impact:?}").is_empty());
         }
     }
 
@@ -1360,7 +1360,7 @@ mod tests {
         ];
 
         for category in categories {
-            assert!(format!("{:?}", category).len() > 0);
+            assert!(!format!("{category:?}").is_empty());
         }
     }
 
@@ -1374,7 +1374,7 @@ mod tests {
         ];
 
         for priority in priorities {
-            assert!(format!("{:?}", priority).len() > 0);
+            assert!(!format!("{priority:?}").is_empty());
         }
     }
 
@@ -1387,7 +1387,7 @@ mod tests {
         ];
 
         for rel_type in types {
-            assert!(format!("{:?}", rel_type).len() > 0);
+            assert!(!format!("{rel_type:?}").is_empty());
         }
     }
 
@@ -1409,7 +1409,7 @@ mod tests {
         ];
 
         for issue_type in types {
-            assert!(format!("{:?}", issue_type).len() > 0);
+            assert!(!format!("{issue_type:?}").is_empty());
         }
     }
 
@@ -1423,7 +1423,7 @@ mod tests {
         ];
 
         for severity in severities {
-            assert!(format!("{:?}", severity).len() > 0);
+            assert!(!format!("{severity:?}").is_empty());
         }
     }
 
@@ -1436,7 +1436,7 @@ mod tests {
         ];
 
         for pattern_type in types {
-            assert!(format!("{:?}", pattern_type).len() > 0);
+            assert!(!format!("{pattern_type:?}").is_empty());
         }
     }
 
@@ -1449,7 +1449,7 @@ mod tests {
         ];
 
         for impact in impacts {
-            assert!(format!("{:?}", impact).len() > 0);
+            assert!(!format!("{impact:?}").is_empty());
         }
     }
 
@@ -1458,7 +1458,7 @@ mod tests {
         let types = vec![CaptureEventType::Captured, CaptureEventType::Released];
 
         for event_type in types {
-            assert!(format!("{:?}", event_type).len() > 0);
+            assert!(!format!("{event_type:?}").is_empty());
         }
     }
 
@@ -1544,7 +1544,7 @@ mod tests {
             let analyzer_clone = analyzer.clone();
             let handle = thread::spawn(move || {
                 let captures = vec![CaptureInfo {
-                    var_name: format!("var_{}", i),
+                    var_name: format!("var_{i}"),
                     var_ptr: 0x1000 + i * 8,
                     mode: CaptureMode::ByValue,
                     var_type: "i32".to_string(),

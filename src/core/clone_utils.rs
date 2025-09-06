@@ -88,7 +88,7 @@ mod tests {
         AllocationInfo {
             ptr,
             size,
-            var_name: Some(format!("test_var_{}", ptr)),
+            var_name: Some(format!("test_var_{ptr}")),
             type_name: Some("TestType".to_string()),
             scope_name: None,
             timestamp_alloc: 1000000,

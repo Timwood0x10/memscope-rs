@@ -526,33 +526,6 @@ mod tests {
     }
 
     #[test]
-    fn test_comprehensive_analysis_report_fields() {
-        let allocations = vec![AllocationInfo::new(0x1000, 512)];
-        let stats = MemoryStats::new();
-        let manager = AnalysisManager::new();
-
-        let report = manager.perform_comprehensive_analysis(&allocations, &stats);
-
-        // Test that all required fields are present and have expected types
-        let _frag: FragmentationAnalysis = report.fragmentation_analysis;
-        let _sys: SystemLibraryStats = report.system_library_stats;
-        let _conc: ConcurrencyAnalysis = report.concurrency_analysis;
-        let _unsafe_stats = report.unsafe_ffi_stats;
-        let _circ = report.circular_reference_analysis;
-        let _adv = report.advanced_type_analysis;
-        let _borrow = report.borrow_analysis;
-        let _generic = report.generic_analysis;
-        let _async_analysis = report.async_analysis;
-        let _closure = report.closure_analysis;
-        let _lifecycle = report.lifecycle_analysis;
-        let _mem_stats: MemoryStats = report.memory_stats;
-        let _timestamp: u64 = report.analysis_timestamp;
-
-        // If we reach here, all fields are accessible and have correct types
-        assert!(true);
-    }
-
-    #[test]
     fn test_empty_allocations_analysis() {
         let manager = AnalysisManager::new();
         let empty_allocations: Vec<AllocationInfo> = vec![];

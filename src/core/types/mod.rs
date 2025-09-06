@@ -3980,7 +3980,7 @@ mod tests {
         ];
 
         for event in events {
-            assert!(format!("{event:?}").len() > 0);
+            assert!(!format!("{event:?}").is_empty());
         }
     }
 
@@ -3994,7 +3994,7 @@ mod tests {
         ];
 
         for event in events {
-            assert!(format!("{event:?}").len() > 0);
+            assert!(!format!("{event:?}").is_empty());
         }
     }
 
@@ -4009,7 +4009,7 @@ mod tests {
         ];
 
         for reason in reasons {
-            assert!(format!("{reason:?}").len() > 0);
+            assert!(!format!("{reason:?}").is_empty());
         }
     }
 
@@ -4024,7 +4024,7 @@ mod tests {
         ];
 
         for ptr_type in types {
-            assert!(format!("{ptr_type:?}").len() > 0);
+            assert!(!format!("{ptr_type:?}").is_empty());
         }
     }
 
@@ -4053,7 +4053,7 @@ mod tests {
         ];
 
         for violation in violations {
-            assert!(format!("{violation:?}").len() > 0);
+            assert!(!format!("{violation:?}").is_empty());
         }
     }
 

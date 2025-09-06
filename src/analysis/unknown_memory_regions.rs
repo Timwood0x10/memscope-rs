@@ -745,14 +745,14 @@ mod tests {
                 Some("lib_var".to_string()),
             ),
             // FFI allocation (no type/var names)
-            create_test_allocation(0x600000000000, 1024, 4000, None, None),
+            create_test_allocation(0x6000_0000_0000, 1024, 4000, None, None),
             // System allocation (very high address)
             create_test_allocation(0x7fff_ffff_0000, 256, 5000, None, None),
             // Pre-tracking allocation (early timestamp)
-            create_test_allocation(0x400000000000, 2048, 100, Some("Early".to_string()), None),
+            create_test_allocation(0x4000_0000_0000, 2048, 100, Some("Early".to_string()), None),
             // Regular heap allocation (should not be unknown)
             create_test_allocation(
-                0x55555555_0000,
+                0x5555_5555_0000,
                 128,
                 6000,
                 Some("HeapData".to_string()),
@@ -935,7 +935,7 @@ mod tests {
         assert!(analyzer.is_likely_system_allocation(&low_addr_alloc));
 
         // Test normal address (not system allocation)
-        let normal_alloc = create_test_allocation(0x55555555_0000, 256, 5000, None, None);
+        let normal_alloc = create_test_allocation(0x5555_5555_0000, 256, 5000, None, None);
         assert!(!analyzer.is_likely_system_allocation(&normal_alloc));
     }
 
@@ -945,36 +945,36 @@ mod tests {
 
         // Test early timestamp (pre-tracking)
         let early_alloc =
-            create_test_allocation(0x400000000000, 2048, 100, Some("Early".to_string()), None);
+            create_test_allocation(0x4000_0000_0000, 2048, 100, Some("Early".to_string()), None);
         assert!(analyzer.is_likely_pre_tracking_allocation(&early_alloc));
 
         // Test normal timestamp (not pre-tracking)
         let normal_alloc =
-            create_test_allocation(0x400000000000, 2048, 5000, Some("Normal".to_string()), None);
+            create_test_allocation(0x4000_0000_0000, 2048, 5000, Some("Normal".to_string()), None);
         assert!(!analyzer.is_likely_pre_tracking_allocation(&normal_alloc));
     }
 
     #[test]
     fn test_library_mapping_info() {
         let lib_info = LibraryMappingInfo {
-            start_address: 0x7f8000000000,
-            end_address: 0x7f8000010000,
+            start_address: 0x7f80_0000_0000,
+            end_address: 0x7f80_0001_0000,
             permissions: "r-x".to_string(),
             file_path: "/lib/x86_64-linux-gnu/libc.so.6".to_string(),
         };
 
         // Test address containment
-        assert!(lib_info.contains_address(0x7f8000005000));
-        assert!(!lib_info.contains_address(0x7f8000015000));
-        assert!(!lib_info.contains_address(0x7f7000000000));
+        assert!(lib_info.contains_address(0x7f80_0000_5000));
+        assert!(!lib_info.contains_address(0x7f80_0001_5000));
+        assert!(!lib_info.contains_address(0x7f70_0000_0000));
     }
 
     #[test]
     fn test_unknown_memory_example_creation() {
         let analyzer = UnknownMemoryAnalyzer::new();
         let allocations = vec![
-            create_test_allocation(0x7f0000000000, 8192, 1000, None, None),
-            create_test_allocation(0x7f0000002000, 4096, 1100, None, None),
+            create_test_allocation(0x7f00_0000_0000, 8192, 1000, None, None),
+            create_test_allocation(0x7f00_0000_2000, 4096, 1100, None, None),
         ];
         let alloc_refs: Vec<&AllocationInfo> = allocations.iter().collect();
 

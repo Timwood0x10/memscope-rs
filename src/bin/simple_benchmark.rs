@@ -302,8 +302,8 @@ mod tests {
     #[test]
     fn test_benchmark_calculation_logic() {
         // Test benchmark calculation without running actual performance tests
-        let traditional_times = vec![150, 160, 170, 140, 180];
-        let fast_times = vec![75, 80, 85, 70, 90];
+        let traditional_times = [150, 160, 170, 140, 180];
+        let fast_times = [75, 80, 85, 70, 90];
 
         // Calculate averages
         let avg_traditional =
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn test_time_data_formatting() {
         // Test the time data formatting logic
-        let times = vec![150, 160, 170];
+        let times = [150, 160, 170];
         let formatted: Vec<String> = times
             .iter()
             .enumerate()
@@ -455,7 +455,7 @@ mod tests {
         assert_eq!(*empty_times.iter().max().unwrap_or(&0), 0);
 
         // Test with non-empty vectors
-        let non_empty_times = vec![100, 200, 300];
+        let non_empty_times = [100, 200, 300];
         assert_eq!(*non_empty_times.iter().min().unwrap_or(&0), 100);
         assert_eq!(*non_empty_times.iter().max().unwrap_or(&0), 300);
     }

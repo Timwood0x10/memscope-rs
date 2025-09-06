@@ -1751,7 +1751,7 @@ mod tests {
         ];
 
         for direction in directions {
-            assert!(!format!("{:?}", direction).is_empty());
+            assert!(!format!("{direction:?}").is_empty());
         }
     }
 
@@ -1782,7 +1782,7 @@ mod tests {
         ];
 
         for block_type in types {
-            assert!(!format!("{:?}", block_type).is_empty());
+            assert!(!format!("{block_type:?}").is_empty());
         }
     }
 
@@ -1806,7 +1806,7 @@ mod tests {
         ];
 
         for ref_type in types {
-            assert!(!format!("{:?}", ref_type).is_empty());
+            assert!(!format!("{ref_type:?}").is_empty());
         }
     }
 
@@ -1819,7 +1819,7 @@ mod tests {
         ];
 
         for strength in strengths {
-            assert!(!format!("{:?}", strength).is_empty());
+            assert!(!format!("{strength:?}").is_empty());
         }
     }
 
@@ -1836,7 +1836,7 @@ mod tests {
         ];
 
         for impl_type in types {
-            assert!(!format!("{:?}", impl_type).is_empty());
+            assert!(!format!("{impl_type:?}").is_empty());
         }
     }
 
@@ -1850,7 +1850,7 @@ mod tests {
         ];
 
         for severity in severities {
-            assert!(!format!("{:?}", severity).is_empty());
+            assert!(!format!("{severity:?}").is_empty());
         }
     }
 
@@ -1877,7 +1877,7 @@ mod tests {
         ];
 
         for severity in severities {
-            assert!(!format!("{:?}", severity).is_empty());
+            assert!(!format!("{severity:?}").is_empty());
         }
     }
 
@@ -1892,7 +1892,7 @@ mod tests {
         ];
 
         for level in levels {
-            assert!(!format!("{:?}", level).is_empty());
+            assert!(!format!("{level:?}").is_empty());
         }
     }
 
@@ -1917,7 +1917,7 @@ mod tests {
         ];
 
         for waste_type in types {
-            assert!(!format!("{:?}", waste_type).is_empty());
+            assert!(!format!("{waste_type:?}").is_empty());
         }
     }
 
@@ -1941,7 +1941,7 @@ mod tests {
         ];
 
         for reason in reasons {
-            assert!(!format!("{:?}", reason).is_empty());
+            assert!(!format!("{reason:?}").is_empty());
         }
     }
 
@@ -2001,7 +2001,7 @@ mod tests {
         ];
 
         for impact in impacts {
-            assert!(format!("{:?}", impact).len() > 0);
+            assert!(!format!("{:?}", impact).is_empty());
         }
     }
 
@@ -2015,7 +2015,7 @@ mod tests {
         ];
 
         for strategy in strategies {
-            assert!(format!("{:?}", strategy).len() > 0);
+            assert!(!format!("{strategy:?}").is_empty());
         }
     }
 

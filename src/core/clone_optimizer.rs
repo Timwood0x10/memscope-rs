@@ -538,7 +538,7 @@ mod tests {
             performance_improvement: 0.667,
         };
 
-        let debug_str = format!("{:?}", stats);
+        let debug_str = format!("{stats:?}");
         assert!(debug_str.contains("total_clones: 5"));
         assert!(debug_str.contains("optimizable_clones: 3"));
         assert!(debug_str.contains("optimized_clones: 2"));

@@ -587,7 +587,7 @@ mod tests {
     fn test_command_validation() {
         // Test command validation logic
         let empty_command: Vec<&String> = vec![];
-        let valid_command = vec!["echo".to_string(), "test".to_string()];
+        let valid_command = ["echo".to_string(), "test".to_string()];
         let valid_command_refs: Vec<&String> = valid_command.iter().collect();
 
         // Test empty command

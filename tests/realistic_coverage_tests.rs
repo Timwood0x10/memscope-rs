@@ -363,7 +363,7 @@ mod error_handling_simulation_tests {
 
         // Test export to invalid path
         let invalid_path = "/invalid/path/that/does/not/exist/test.json";
-        let result = fs::write(invalid_path, format!("{:?}", data));
+        let result = fs::write(invalid_path, format!("{data:?}"));
 
         // Should handle error gracefully
         assert!(result.is_err());
@@ -371,7 +371,7 @@ mod error_handling_simulation_tests {
         // Test with valid path
         let temp_dir = tempfile::TempDir::new().expect("Failed to create temp directory");
         let valid_path = temp_dir.path().join("test.json");
-        let valid_result = fs::write(&valid_path, format!("{:?}", data));
+        let valid_result = fs::write(&valid_path, format!("{data:?}"));
         assert!(valid_result.is_ok());
     }
 
@@ -386,8 +386,8 @@ mod error_handling_simulation_tests {
         // Add some data
         let data1 = vec![1, 2, 3];
         let data2 = String::from("consistency_test");
-        data_log.push(format!("Vec: {:?}", data1));
-        data_log.push(format!("String: {}", data2));
+        data_log.push(format!("Vec: {data1:?}"));
+        data_log.push(format!("String: {data2:?}"));
 
         // Check final state
         let final_count = data_log.len();
@@ -395,8 +395,8 @@ mod error_handling_simulation_tests {
         // Consistency check
         assert!(final_count >= initial_count);
         assert_eq!(final_count, initial_count + 2);
-        assert!(data_log.contains(&"Vec: [1, 2, 3]".to_string()));
-        assert!(data_log.contains(&"String: consistency_test".to_string()));
+        assert!(data_log.contains(&format!("Vec: {data1:?}")));
+        assert!(data_log.contains(&format!("String: {data2:?}")));
     }
 
     #[test]

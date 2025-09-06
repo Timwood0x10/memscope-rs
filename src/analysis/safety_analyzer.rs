@@ -1656,7 +1656,7 @@ mod tests {
         // Generate more reports than the limit
         for i in 0..5 {
             let source = UnsafeSource::RawPointer {
-                operation: format!("operation_{}", i),
+                operation: format!("operation_{i}"),
                 location: format!("test.rs:{}", i * 10),
             };
             let _ = analyzer.generate_unsafe_report(source, &[], &[]);
@@ -1671,7 +1671,7 @@ mod tests {
         let analyzer = SafetyAnalyzer::default();
 
         // Test different event sequences
-        let events_sequences = vec![
+        let events_sequences = [
             // Normal Rust allocation and deallocation
             vec![PassportEventType::AllocatedInRust],
             // Handover to FFI without return

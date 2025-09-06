@@ -816,7 +816,7 @@ mod tests {
 
     #[test]
     fn test_allocation_relationship_variants() {
-        let relationships = vec![
+        let relationships = [
             AllocationRelationship::SameRegion,
             AllocationRelationship::Adjacent,
             AllocationRelationship::SameType,
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn test_memory_pressure_level_variants() {
-        let levels = vec![
+        let levels = [
             MemoryPressureLevel::Low,
             MemoryPressureLevel::Medium,
             MemoryPressureLevel::High,

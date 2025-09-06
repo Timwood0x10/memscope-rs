@@ -571,7 +571,7 @@ mod tests {
         assert_eq!(result, 42);
 
         let err_result: Result<i32, std::io::Error> =
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+            Err(std::io::Error::other("error"));
         let result = err_result.unwrap_or_default_safe(99, "test default");
         assert_eq!(result, 99);
     }
@@ -583,7 +583,7 @@ mod tests {
         assert_eq!(result, 42);
 
         let err_result: Result<i32, std::io::Error> =
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+            Err(std::io::Error::other("error"));
         let result = err_result.unwrap_or_else_safe(|| 99, "test else");
         assert_eq!(result, 99);
     }
@@ -711,8 +711,7 @@ mod tests {
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), 42);
 
-            let err_result: Result<i32, std::io::Error> =
-                Err(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+            let err_result: Result<i32, std::io::Error> = Err(std::io::Error::other("error"));
             let result = err_result.try_unwrap_safe("test");
             assert!(result.is_err());
         }
