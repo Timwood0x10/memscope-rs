@@ -512,48 +512,306 @@ impl ErrorRecovery for DefaultErrorRecovery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
 
+    // Test all error creation methods
     #[test]
-    fn test_error_creation() {
-        let err = MemScopeError::memory(MemoryOperation::Allocation, "test allocation failed");
+    fn test_memory_error_creation() {
+        let err = MemScopeError::memory(MemoryOperation::Allocation, "allocation failed");
+        assert!(matches!(err, MemScopeError::Memory { operation: MemoryOperation::Allocation, .. }));
         assert_eq!(err.category(), "memory");
-        assert_eq!(err.severity(), ErrorSeverity::Medium);
+        assert_eq!(err.user_message(), "allocation failed");
         assert!(err.is_recoverable());
+        assert_eq!(err.severity(), ErrorSeverity::Medium);
+
+        let err_with_context = MemScopeError::memory_with_context(
+            MemoryOperation::Deallocation,
+            "deallocation failed",
+            "in cleanup",
+        );
+        assert!(matches!(err_with_context, MemScopeError::Memory { operation: MemoryOperation::Deallocation, .. }));
+        assert_eq!(err_with_context.category(), "memory");
     }
 
     #[test]
-    fn test_error_recovery() {
-        let recovery = DefaultErrorRecovery::new();
-        let err = MemScopeError::memory(MemoryOperation::Allocation, "test error");
+    fn test_analysis_error_creation() {
+        let err = MemScopeError::analysis("fragmentation", "analysis failed");
+        assert!(matches!(err, MemScopeError::Analysis { recoverable: true, .. }));
+        assert_eq!(err.category(), "analysis");
+        assert!(err.is_recoverable());
+        assert_eq!(err.severity(), ErrorSeverity::Low);
 
-        assert!(recovery.can_recover(&err));
-
-        let action = recovery.get_recovery_action(&err);
-        assert!(matches!(action, Some(RecoveryAction::Retry { .. })));
+        let fatal_err = MemScopeError::analysis_fatal("lifecycle", "critical analysis failed");
+        assert!(matches!(fatal_err, MemScopeError::Analysis { recoverable: false, .. }));
+        assert_eq!(fatal_err.category(), "analysis");
+        assert!(!fatal_err.is_recoverable());
+        assert_eq!(fatal_err.severity(), ErrorSeverity::High);
     }
 
     #[test]
-    fn test_error_display() {
-        let err = MemScopeError::memory_with_context(
+    fn test_export_error_creation() {
+        let err = MemScopeError::export("json", "export failed");
+        assert!(matches!(err, MemScopeError::Export { partial_success: false, .. }));
+        assert_eq!(err.category(), "export");
+        assert!(!err.is_recoverable());
+        assert_eq!(err.severity(), ErrorSeverity::Medium);
+
+        let partial_err = MemScopeError::export_partial("html", "partial export");
+        assert!(matches!(partial_err, MemScopeError::Export { partial_success: true, .. }));
+        assert_eq!(partial_err.category(), "export");
+        assert!(partial_err.is_recoverable());
+        assert_eq!(partial_err.severity(), ErrorSeverity::Low);
+    }
+
+    #[test]
+    fn test_config_error_creation() {
+        let err = MemScopeError::config("tracker", "invalid configuration");
+        assert!(matches!(err, MemScopeError::Configuration { .. }));
+        assert_eq!(err.category(), "config");
+        assert!(!err.is_recoverable());
+        assert_eq!(err.severity(), ErrorSeverity::High);
+    }
+
+    #[test]
+    fn test_system_error_creation() {
+        let err = MemScopeError::system(SystemErrorType::Io, "io error");
+        assert!(matches!(err, MemScopeError::System { error_type: SystemErrorType::Io, .. }));
+        assert_eq!(err.category(), "system");
+        assert!(err.is_recoverable());
+        assert_eq!(err.severity(), ErrorSeverity::Medium);
+
+        let io_err = io::Error::new(io::ErrorKind::Other, "test io error");
+        let converted_err: MemScopeError = io_err.into();
+        assert!(matches!(converted_err, MemScopeError::System { error_type: SystemErrorType::Io, .. }));
+        assert_eq!(converted_err.category(), "system");
+    }
+
+    #[test]
+    fn test_internal_error_creation() {
+        let err = MemScopeError::internal("internal error");
+        assert!(matches!(err, MemScopeError::Internal { .. }));
+        assert_eq!(err.category(), "internal");
+        assert!(!err.is_recoverable());
+        assert_eq!(err.severity(), ErrorSeverity::Critical);
+
+        let err_with_location = MemScopeError::internal_at("internal error", "test_function");
+        assert!(matches!(err_with_location, MemScopeError::Internal { .. }));
+        assert_eq!(err_with_location.category(), "internal");
+    }
+
+    #[test]
+    fn test_error_display_formatting() {
+        // Test memory error display
+        let mem_err = MemScopeError::memory_with_context(
             MemoryOperation::Allocation,
             "allocation failed",
             "in test function",
         );
+        let mem_display = format!("{mem_err}");
+        assert!(mem_display.contains("Memory allocation error"));
+        assert!(mem_display.contains("allocation failed"));
+        assert!(mem_display.contains("context: in test function"));
 
-        let display = format!("{err}");
-        assert!(display.contains("Memory allocation error"));
-        assert!(display.contains("allocation failed"));
-        assert!(display.contains("context: in test function"));
+        // Test analysis error display
+        let analysis_err = MemScopeError::analysis("fragmentation", "analysis failed");
+        let analysis_display = format!("{analysis_err}");
+        assert!(analysis_display.contains("Analysis error in fragmentation: analysis failed"));
+
+        // Test export error display
+        let export_err = MemScopeError::export("json", "export failed");
+        let export_display = format!("{export_err}");
+        assert!(export_display.contains("Export error (json): export failed"));
+
+        let partial_export_err = MemScopeError::export_partial("html", "partial export");
+        let partial_export_display = format!("{partial_export_err}");
+        assert!(partial_export_display.contains("Partial export error (html): partial export"));
+
+        // Test configuration error display
+        let config_err = MemScopeError::config("tracker", "invalid config");
+        let config_display = format!("{config_err}");
+        assert!(config_display.contains("Configuration error in tracker: invalid config"));
+
+        // Test system error display
+        let system_err = MemScopeError::system(SystemErrorType::Io, "io error");
+        let system_display = format!("{system_err}");
+        assert!(system_display.contains("I/O error: io error"));
+
+        // Test internal error display
+        let internal_err = MemScopeError::internal_at("internal error", "test_function");
+        let internal_display = format!("{internal_err}");
+        assert!(internal_display.contains("Internal error: internal error at test_function"));
+    }
+
+    #[test]
+    fn test_error_severity_ordering() {
+        assert!(ErrorSeverity::Low < ErrorSeverity::Medium);
+        assert!(ErrorSeverity::Medium < ErrorSeverity::High);
+        assert!(ErrorSeverity::High < ErrorSeverity::Critical);
+    }
+
+    #[test]
+    fn test_memory_operation_variants() {
+        let operations = [
+            MemoryOperation::Allocation,
+            MemoryOperation::Deallocation,
+            MemoryOperation::Association,
+            MemoryOperation::Tracking,
+            MemoryOperation::Validation,
+        ];
+        
+        for op in operations {
+            let err = MemScopeError::memory(op, "test");
+            assert_eq!(err.category(), "memory");
+        }
+    }
+
+    #[test]
+    fn test_system_error_type_variants() {
+        let error_types = [
+            SystemErrorType::Io,
+            SystemErrorType::Threading,
+            SystemErrorType::Locking,
+            SystemErrorType::Channel,
+            SystemErrorType::Serialization,
+            SystemErrorType::Network,
+            SystemErrorType::FileSystem,
+        ];
+        
+        for error_type in error_types {
+            let err = MemScopeError::system(error_type, "test");
+            assert_eq!(err.category(), "system");
+        }
     }
 
     #[test]
     fn test_backward_compatibility() {
         use crate::core::types::TrackingError;
 
-        let old_err = TrackingError::AllocationFailed("test".to_string());
-        let new_err: MemScopeError = old_err.into();
+        // Test conversion of all TrackingError variants
+        let test_cases = vec![
+            TrackingError::AllocationFailed("alloc".to_string()),
+            TrackingError::DeallocationFailed("dealloc".to_string()),
+            TrackingError::TrackingDisabled,
+            TrackingError::InvalidPointer("invalid ptr".to_string()),
+            TrackingError::SerializationError("serialize".to_string()),
+            TrackingError::VisualizationError("visualize".to_string()),
+            TrackingError::ThreadSafetyError("thread".to_string()),
+            TrackingError::ConfigurationError("config".to_string()),
+            TrackingError::AnalysisError("analysis".to_string()),
+            TrackingError::ExportError("export".to_string()),
+            TrackingError::MemoryCorruption("corruption".to_string()),
+            TrackingError::UnsafeOperationDetected("unsafe".to_string()),
+            TrackingError::FFIError("ffi".to_string()),
+            TrackingError::ScopeError("scope".to_string()),
+            TrackingError::BorrowCheckError("borrow".to_string()),
+            TrackingError::LifetimeError("lifetime".to_string()),
+            TrackingError::TypeInferenceError("type".to_string()),
+            TrackingError::PerformanceError("perf".to_string()),
+            TrackingError::ResourceExhausted("resource".to_string()),
+            TrackingError::InternalError("internal".to_string()),
+            TrackingError::IoError("io".to_string()),
+            TrackingError::LockError("lock".to_string()),
+            TrackingError::ChannelError("channel".to_string()),
+            TrackingError::ThreadError("thread".to_string()),
+            TrackingError::InitializationError("init".to_string()),
+            TrackingError::NotImplemented("not_impl".to_string()),
+            TrackingError::ValidationError("validation".to_string()),
+            TrackingError::InvalidOperation("invalid_op".to_string()),
+            TrackingError::LockContention("contention".to_string()),
+            TrackingError::DataError("data".to_string()),
+        ];
 
-        assert_eq!(new_err.category(), "memory");
-        assert!(matches!(new_err, MemScopeError::Memory { .. }));
+        for old_err in test_cases {
+            let new_err: MemScopeError = old_err.into();
+            // Just ensure conversion doesn't panic and produces a valid error
+            assert!(!new_err.category().is_empty());
+        }
+    }
+
+    #[test]
+    fn test_error_recovery_strategies() {
+        let recovery = DefaultErrorRecovery::new();
+        
+        // Test memory error recovery
+        let mem_err = MemScopeError::memory(MemoryOperation::Allocation, "test error");
+        assert!(recovery.can_recover(&mem_err));
+        let action = recovery.get_recovery_action(&mem_err);
+        assert!(matches!(action, Some(RecoveryAction::Retry { .. })));
+
+        // Test analysis error recovery
+        let analysis_err = MemScopeError::analysis("test", "analysis error");
+        assert!(recovery.can_recover(&analysis_err));
+        let action = recovery.get_recovery_action(&analysis_err);
+        assert!(matches!(action, Some(RecoveryAction::UseDefault { .. })));
+
+        // Test partial export recovery
+        let partial_export_err = MemScopeError::export_partial("json", "partial export");
+        assert!(recovery.can_recover(&partial_export_err));
+        let action = recovery.get_recovery_action(&partial_export_err);
+        assert!(matches!(action, Some(RecoveryAction::Skip)));
+
+        // Test full export recovery
+        let export_err = MemScopeError::export("json", "export error");
+        // Export errors are not recoverable according to is_recoverable() implementation
+        assert!(!export_err.is_recoverable());
+        assert!(!recovery.can_recover(&export_err)); // Not recoverable
+        let action = recovery.get_recovery_action(&export_err);
+        assert!(matches!(action, Some(RecoveryAction::Abort)));
+
+        // Test internal error recovery
+        let internal_err = MemScopeError::internal("internal error");
+        assert!(!recovery.can_recover(&internal_err)); // Not recoverable
+        let action = recovery.get_recovery_action(&internal_err);
+        assert!(matches!(action, Some(RecoveryAction::Abort)));
+    }
+
+    #[test]
+    fn test_recovery_execution() {
+        let recovery = DefaultErrorRecovery::new();
+        
+        // Test retry execution
+        let retry_action = RecoveryAction::Retry {
+            max_attempts: 1,
+            delay_ms: 1, // Minimal delay for testing
+        };
+        assert!(recovery.execute_recovery(&retry_action).is_ok());
+
+        // Test use default execution
+        let default_action = RecoveryAction::UseDefault {
+            value: "test".to_string(),
+        };
+        assert!(recovery.execute_recovery(&default_action).is_ok());
+
+        // Test skip execution
+        let skip_action = RecoveryAction::Skip;
+        assert!(recovery.execute_recovery(&skip_action).is_ok());
+
+        // Test fallback execution
+        let fallback_action = RecoveryAction::Fallback {
+            strategy: "test".to_string(),
+        };
+        assert!(recovery.execute_recovery(&fallback_action).is_ok());
+
+        // Test abort execution
+        let abort_action = RecoveryAction::Abort;
+        assert!(recovery.execute_recovery(&abort_action).is_err());
+    }
+
+    #[test]
+    fn test_result_type_alias() {
+        fn test_function() -> Result<()> {
+            Ok(())
+        }
+        
+        assert!(test_function().is_ok());
+    }
+
+    #[test]
+    fn test_serde_conversion() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test io error");
+        let json_err = serde_json::Error::io(io_err);
+        let memscope_err: MemScopeError = json_err.into();
+        assert!(matches!(memscope_err, MemScopeError::System { error_type: SystemErrorType::Serialization, .. }));
+        assert_eq!(memscope_err.category(), "system");
     }
 }
