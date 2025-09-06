@@ -49,7 +49,7 @@ pub enum AllocationSource {
 }
 
 /// Stack frame information for call stack tracking
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct StackFrame {
     /// Name of the function in this stack frame
     pub function_name: String,
