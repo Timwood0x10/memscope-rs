@@ -1139,8 +1139,8 @@ fn generate_safety_risk_data_from_json(
                     if size > 1024 * 1024 {
                         // > 1MB
                         safety_risks.push(serde_json::json!({
-                            "location": format!("{}::{}", 
-                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                            "location": format!("{}::{}",
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"),
                                 allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
                             "operation": "Large Memory Allocation",
                             "risk_level": "Medium",
@@ -1153,8 +1153,8 @@ fn generate_safety_risk_data_from_json(
                 if let Some(is_leaked) = allocation.get("is_leaked").and_then(|l| l.as_bool()) {
                     if is_leaked {
                         safety_risks.push(serde_json::json!({
-                            "location": format!("{}::{}", 
-                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                            "location": format!("{}::{}",
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"),
                                 allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
                             "operation": "Memory Leak",
                             "risk_level": "High",
@@ -1168,8 +1168,8 @@ fn generate_safety_risk_data_from_json(
                 {
                     if borrow_count > 10 {
                         safety_risks.push(serde_json::json!({
-                            "location": format!("{}::{}", 
-                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                            "location": format!("{}::{}",
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"),
                                 allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
                             "operation": "High Borrow Count",
                             "risk_level": "Medium",
@@ -1182,8 +1182,8 @@ fn generate_safety_risk_data_from_json(
                 if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
                     if type_name.contains("*mut") || type_name.contains("*const") {
                         safety_risks.push(serde_json::json!({
-                            "location": format!("{}::{}", 
-                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                            "location": format!("{}::{}",
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"),
                                 allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
                             "operation": "Raw Pointer Usage",
                             "risk_level": "High",
@@ -1198,8 +1198,8 @@ fn generate_safety_risk_data_from_json(
                         || type_name.contains("extern")
                     {
                         safety_risks.push(serde_json::json!({
-                            "location": format!("{}::{}", 
-                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                            "location": format!("{}::{}",
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"),
                                 allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
                             "operation": "FFI Boundary Crossing",
                             "risk_level": "Medium",
@@ -1213,8 +1213,8 @@ fn generate_safety_risk_data_from_json(
                     if lifetime_ms < 1 {
                         // Less than 1ms
                         safety_risks.push(serde_json::json!({
-                            "location": format!("{}::{}", 
-                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"), 
+                            "location": format!("{}::{}",
+                                allocation.get("scope_name").and_then(|s| s.as_str()).unwrap_or("unknown"),
                                 allocation.get("var_name").and_then(|s| s.as_str()).unwrap_or("unnamed")),
                             "operation": "Short-lived Allocation",
                             "risk_level": "Low",
@@ -1348,4 +1348,400 @@ fn inject_safety_risk_data_into_html(
     tracing::info!("📊 Safety risk data and function injected into HTML template");
 
     Ok(html)
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::Path;
+
+    #[test]
+    fn test_generate_direct_html_with_empty_data() {
+        let json_data = HashMap::new();
+        let result = generate_direct_html(&json_data);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "No JSON data provided for HTML generation"
+        );
+    }
+
+    #[test]
+    fn test_transform_json_data_structure_with_empty_input() {
+        let json_data = HashMap::new();
+        let result = transform_json_data_structure(&json_data);
+        assert!(result.is_ok());
+        
+        let transformed = result.unwrap();
+        assert!(transformed.contains_key("memory_analysis"));
+        assert!(transformed.contains_key("lifetime"));
+        assert!(transformed.contains_key("complex_types"));
+        assert!(transformed.contains_key("performance"));
+        assert!(transformed.contains_key("unsafe_ffi"));
+        assert!(transformed.contains_key("security_violations"));
+    }
+
+    #[test]
+    fn test_transform_json_data_structure_with_memory_analysis() {
+        let mut json_data = HashMap::new();
+        json_data.insert(
+            "test_memory_analysis".to_string(),
+            serde_json::json!({
+                "allocations": [],
+                "stats": {
+                    "total_allocations": 0,
+                    "active_allocations": 0,
+                    "total_memory": 0,
+                    "active_memory": 0
+                }
+            })
+        );
+        
+        let result = transform_json_data_structure(&json_data);
+        assert!(result.is_ok());
+        
+        let transformed = result.unwrap();
+        assert!(transformed.contains_key("memory_analysis"));
+    }
+
+    #[test]
+    fn test_transform_json_data_structure_with_lifetime_data() {
+        let mut json_data = HashMap::new();
+        json_data.insert(
+            "test_lifetime".to_string(),
+            serde_json::json!({
+                "lifecycle_events": []
+            })
+        );
+        
+        let result = transform_json_data_structure(&json_data);
+        assert!(result.is_ok());
+        
+        let transformed = result.unwrap();
+        assert!(transformed.contains_key("lifetime"));
+    }
+
+    #[test]
+    fn test_transform_json_data_structure_with_complex_types() {
+        let mut json_data = HashMap::new();
+        json_data.insert(
+            "test_complex_types".to_string(),
+            serde_json::json!({
+                "categorized_types": {
+                    "generic_types": [],
+                    "collections": [],
+                    "smart_pointers": [],
+                    "trait_objects": []
+                },
+                "summary": {
+                    "total_complex_types": 0,
+                    "generic_type_count": 0
+                }
+            })
+        );
+        
+        let result = transform_json_data_structure(&json_data);
+        assert!(result.is_ok());
+        
+        let transformed = result.unwrap();
+        assert!(transformed.contains_key("complex_types"));
+    }
+
+    #[test]
+    fn test_transform_json_data_structure_with_performance_data() {
+        let mut json_data = HashMap::new();
+        json_data.insert(
+            "test_performance".to_string(),
+            serde_json::json!({
+                "memory_performance": {
+                    "active_memory": 0,
+                    "peak_memory": 0,
+                    "total_allocated": 0
+                },
+                "allocation_distribution": {
+                    "tiny": 0,
+                    "small": 0,
+                    "medium": 0,
+                    "large": 0,
+                    "massive": 0
+                }
+            })
+        );
+        
+        let result = transform_json_data_structure(&json_data);
+        assert!(result.is_ok());
+        
+        let transformed = result.unwrap();
+        assert!(transformed.contains_key("performance"));
+    }
+
+    #[test]
+    fn test_transform_json_data_structure_with_ffi_data() {
+        let mut json_data = HashMap::new();
+        json_data.insert(
+            "test_unsafe_ffi".to_string(),
+            serde_json::json!({
+                "summary": {
+                    "total_risk_items": 0,
+                    "unsafe_count": 0,
+                    "ffi_count": 0,
+                    "safety_violations": 0
+                },
+                "enhanced_ffi_data": [],
+                "safety_violations": []
+            })
+        );
+        
+        let result = transform_json_data_structure(&json_data);
+        assert!(result.is_ok());
+        
+        let transformed = result.unwrap();
+        assert!(transformed.contains_key("unsafe_ffi"));
+    }
+
+    #[test]
+    fn test_transform_json_data_structure_with_security_violations() {
+        let mut json_data = HashMap::new();
+        json_data.insert(
+            "test_security_violations".to_string(),
+            serde_json::json!({
+                "metadata": {
+                    "total_violations": 0
+                },
+                "violation_reports": [],
+                "security_summary": {
+                    "security_analysis_summary": {
+                        "total_violations": 0,
+                        "severity_breakdown": {
+                            "critical": 0,
+                            "high": 0,
+                            "medium": 0,
+                            "low": 0,
+                            "info": 0
+                        }
+                    }
+                }
+            })
+        );
+        
+        let result = transform_json_data_structure(&json_data);
+        assert!(result.is_ok());
+        
+        let transformed = result.unwrap();
+        assert!(transformed.contains_key("security_violations"));
+    }
+
+    #[test]
+    fn test_enhance_memory_analysis_data() {
+        let data = serde_json::json!({
+            "allocations": []
+        });
+        
+        let result = enhance_memory_analysis_data(&data);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_enhance_lifetime_data() {
+        let data = serde_json::json!({
+            "lifecycle_events": []
+        });
+        
+        let result = enhance_lifetime_data(&data);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_enhance_ffi_data() {
+        let data = serde_json::json!({
+            "allocations": [],
+            "boundary_events": []
+        });
+        
+        let result = enhance_ffi_data(&data);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_analyze_memory_fragmentation() {
+        let allocations = vec![];
+        let result = analyze_memory_fragmentation(&allocations);
+        assert_eq!(result["total_blocks"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_analyze_memory_growth_trends() {
+        let allocations = vec![];
+        let result = analyze_memory_growth_trends(&allocations);
+        assert_eq!(result["peak_memory"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_calculate_ffi_statistics_from_allocations() {
+        let allocations = vec![];
+        let boundary_events = vec![];
+        let result = calculate_ffi_statistics_from_allocations(&allocations, &boundary_events);
+        assert_eq!(result["total_allocations"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_analyze_language_interactions() {
+        let boundary_events = vec![];
+        let result = analyze_language_interactions(&boundary_events);
+        assert_eq!(result, serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_analyze_safety_metrics_from_allocations() {
+        let allocations = vec![];
+        let result = analyze_safety_metrics_from_allocations(&allocations);
+        assert_eq!(result["total_operations"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_get_progress_color() {
+        let color = get_progress_color(0);
+        assert_eq!(color, "#ff6b6b");
+        
+        let color = get_progress_color(10);
+        assert_eq!(color, "#ff6b6b"); // Should wrap around
+    }
+
+    #[test]
+    fn test_get_fragmentation_analysis() {
+        let analysis = get_fragmentation_analysis(5);
+        assert_eq!(analysis, "Excellent memory layout with minimal fragmentation.");
+        
+        let analysis = get_fragmentation_analysis(15);
+        assert_eq!(analysis, "Good memory layout with low fragmentation.");
+        
+        let analysis = get_fragmentation_analysis(35);
+        assert_eq!(analysis, "Moderate fragmentation detected. Consider memory pool allocation.");
+        
+        let analysis = get_fragmentation_analysis(60);
+        assert_eq!(analysis, "High fragmentation detected. Memory layout optimization recommended.");
+    }
+
+    #[test]
+    fn test_get_trend_analysis() {
+        let analysis = get_trend_analysis(-5);
+        assert_eq!(analysis, "Memory usage is decreasing - good memory management.");
+        
+        let analysis = get_trend_analysis(5);
+        assert_eq!(analysis, "Stable memory usage with minimal growth.");
+        
+        let analysis = get_trend_analysis(25);
+        assert_eq!(analysis, "Moderate memory growth - monitor for potential leaks.");
+        
+        let analysis = get_trend_analysis(75);
+        assert_eq!(analysis, "High memory growth detected - investigate for memory leaks.");
+    }
+
+    #[test]
+    fn test_format_memory_size() {
+        let formatted = format_memory_size(1023);
+        assert_eq!(formatted, "1023 B");
+        
+        let formatted = format_memory_size(1024);
+        assert_eq!(formatted, "1.0 KB");
+        
+        let formatted = format_memory_size(1024 * 1024);
+        assert_eq!(formatted, "1.0 MB");
+        
+        let formatted = format_memory_size(1024 * 1024 * 1024);
+        assert_eq!(formatted, "1.0 GB");
+    }
+
+    #[test]
+    fn test_calculate_risk_level() {
+        let risk = calculate_risk_level(100, true, false);
+        assert_eq!(risk, "HIGH");
+        
+        let risk = calculate_risk_level(1024 * 1024 + 1, false, true);
+        assert_eq!(risk, "MEDIUM");
+        
+        let risk = calculate_risk_level(100, false, true);
+        assert_eq!(risk, "LOW");
+        
+        let risk = calculate_risk_level(100, false, false);
+        assert_eq!(risk, "SAFE");
+    }
+
+    #[test]
+    fn test_create_ffi_dashboard_metrics() {
+        let allocations = vec![];
+        let boundary_events = vec![];
+        let result = create_ffi_dashboard_metrics(&allocations, &boundary_events);
+        assert_eq!(result["total_allocations"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_analyze_smart_pointer_types() {
+        let allocations = vec![];
+        let result = analyze_smart_pointer_types(&allocations);
+        assert_eq!(result, serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_analyze_borrow_checker_metrics() {
+        let allocations = vec![];
+        let result = analyze_borrow_checker_metrics(&allocations);
+        assert_eq!(result["max_concurrent_borrows"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_analyze_memory_hotspots() {
+        let allocations = vec![];
+        let result = analyze_memory_hotspots(&allocations);
+        assert_eq!(result, serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_analyze_cross_language_memory_flow() {
+        let allocations = vec![];
+        let boundary_events = vec![];
+        let result = analyze_cross_language_memory_flow(&allocations, &boundary_events);
+        assert_eq!(result["rust_allocations"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_create_ffi_risk_assessment() {
+        let allocations = vec![];
+        let result = create_ffi_risk_assessment(&allocations);
+        assert_eq!(result["summary"]["total_risks"], serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_get_violation_severity() {
+        let severity = get_violation_severity("double free detected");
+        assert_eq!(severity, "critical");
+        
+        let severity = get_violation_severity("invalid free operation");
+        assert_eq!(severity, "high");
+        
+        let severity = get_violation_severity("memory leak detected");
+        assert_eq!(severity, "medium");
+        
+        let severity = get_violation_severity("unknown issue");
+        assert_eq!(severity, "low");
+    }
+
+    #[test]
+    fn test_generate_safety_risk_data_from_json() {
+        let transformed_data = serde_json::Map::new();
+        let result = generate_safety_risk_data_from_json(&transformed_data);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_inject_safety_risk_data_into_html() {
+        let html = "<script>window.safetyRisks = [];</script>".to_string();
+        let safety_risk_data = "[]";
+        let result = inject_safety_risk_data_into_html(html, safety_risk_data);
+        assert!(result.is_ok());
+    }
 }

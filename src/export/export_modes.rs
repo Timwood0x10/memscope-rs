@@ -181,3 +181,183 @@ impl ExportCoordinator {
         &self.mode_manager
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::export::error_handling::ValidationType;
+
+    #[test]
+    fn test_export_outcome_debug() {
+        let stats = create_test_stats();
+        let outcome = ExportOutcome::Fast(stats.clone());
+        let debug_str = format!("{:?}", outcome);
+        assert!(debug_str.contains("Fast"));
+
+        let validation = create_test_validation_result();
+        let outcome = ExportOutcome::WithValidation(stats, validation);
+        let debug_str = format!("{:?}", outcome);
+        assert!(debug_str.contains("WithValidation"));
+    }
+
+    #[test]
+    fn test_fast_export_result_type() {
+        let _result: FastExportResult = Ok(create_test_stats());
+        // Just testing that the type is correctly defined
+    }
+
+    #[test]
+    fn test_normal_export_result_type() {
+        let _result: NormalExportResult = Ok((create_test_stats(), create_test_validation_result()));
+        // Just testing that the type is correctly defined
+    }
+
+    #[test]
+    fn test_export_coordinator_new() {
+        let config = ExportConfig::fast();
+        let coordinator = ExportCoordinator::new(config.clone());
+        
+        assert_eq!(coordinator.config().mode, config.mode);
+        assert_eq!(coordinator.config().validation_timing, config.validation_timing);
+    }
+
+    #[test]
+    fn test_export_coordinator_new_fast() {
+        let coordinator = ExportCoordinator::new_fast();
+        
+        assert_eq!(coordinator.config().mode, ExportMode::Fast);
+        assert_eq!(coordinator.config().validation_timing, ValidationTiming::Deferred);
+    }
+
+    #[test]
+    fn test_export_coordinator_new_slow() {
+        let coordinator = ExportCoordinator::new_slow();
+        
+        assert_eq!(coordinator.config().mode, ExportMode::Slow);
+        assert_eq!(coordinator.config().validation_timing, ValidationTiming::Inline);
+    }
+
+    #[test]
+    fn test_export_coordinator_new_auto() {
+        let coordinator = ExportCoordinator::new_auto();
+        
+        assert_eq!(coordinator.config().mode, ExportMode::Auto);
+        assert_eq!(coordinator.config().validation_timing, ValidationTiming::Deferred);
+    }
+
+    #[test]
+    fn test_export_coordinator_new_auto_sized() {
+        let coordinator = ExportCoordinator::new_auto_sized(1000);
+        
+        // The mode should be determined based on data size
+        // Since the default mode manager uses Fast as default mode, it will always return Fast
+        assert_eq!(coordinator.config().mode, ExportMode::Fast);
+    }
+
+    #[test]
+    fn test_export_coordinator_update_config() {
+        let mut coordinator = ExportCoordinator::new_fast();
+        let _old_config = coordinator.config().clone();
+        
+        let new_config = ExportConfig::slow();
+        let warnings = coordinator.update_config(new_config.clone(), None);
+        
+        assert_eq!(coordinator.config().mode, new_config.mode);
+        assert_eq!(coordinator.config().validation_timing, new_config.validation_timing);
+        // Should have no warnings for valid config
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_export_coordinator_update_config_with_optimization() {
+        let mut coordinator = ExportCoordinator::new_fast();
+        
+        let new_config = ExportConfig::slow();
+        let _warnings = coordinator.update_config(new_config.clone(), Some(1000000)); // Large data size
+        
+        assert_eq!(coordinator.config().mode, new_config.mode);
+        assert_eq!(coordinator.config().validation_timing, new_config.validation_timing);
+        // May have optimization warnings
+        // Just check that the function works without panicking
+    }
+
+    #[test]
+    fn test_export_coordinator_mode_manager() {
+        let coordinator = ExportCoordinator::new_fast();
+        let mode_manager = coordinator.mode_manager();
+        
+        // Just check that we can get the mode manager
+        let (mode, threshold, _perf_threshold) = mode_manager.get_settings();
+        assert_eq!(mode, ExportMode::Fast);
+        assert!(threshold > 0);
+    }
+
+    // Helper functions for creating test data
+    fn create_test_stats() -> CompleteExportStats {
+        use crate::export::data_localizer::DataGatheringStats;
+        use crate::export::parallel_shard_processor::ParallelProcessingStats;
+        use crate::export::high_speed_buffered_writer::WritePerformanceStats;
+        
+        CompleteExportStats {
+            data_gathering: DataGatheringStats {
+                total_time_ms: 50,
+                basic_data_time_ms: 30,
+                ffi_data_time_ms: 10,
+                scope_data_time_ms: 10,
+                allocation_count: 100,
+                ffi_allocation_count: 10,
+                scope_count: 50,
+            },
+            parallel_processing: ParallelProcessingStats {
+                total_allocations: 100,
+                shard_count: 4,
+                threads_used: 2,
+                total_processing_time_ms: 100,
+                avg_shard_processing_time_ms: 25.0,
+                parallel_efficiency: 1.8,
+                throughput_allocations_per_sec: 1000.0,
+                used_parallel_processing: true,
+                total_output_size_bytes: 10240,
+            },
+            write_performance: WritePerformanceStats {
+                total_bytes_written: 10240,
+                shards_written: 4,
+                total_write_time_ms: 50,
+                avg_write_speed_bps: 204800.0,
+                flush_count: 2,
+                preallocation_effective: true,
+                buffer_utilization: 0.8,
+            },
+            total_export_time_ms: 200,
+            total_allocations_processed: 100,
+            total_output_size_bytes: 10240,
+            overall_throughput_allocations_per_sec: 500.0,
+            overall_write_speed_mbps: 0.05,
+            data_gathering_percentage: 25.0,
+            processing_percentage: 50.0,
+            writing_percentage: 25.0,
+            estimated_traditional_time_ms: 1000,
+            performance_improvement_factor: 5.0,
+        }
+    }
+
+    fn create_test_validation_result() -> ValidationResult {
+        use crate::export::quality_validator::{ValidationIssue, IssueType, IssueSeverity};
+        
+        ValidationResult {
+            is_valid: true,
+            validation_type: ValidationType::DataIntegrity,
+            message: "Test validation".to_string(),
+            issues: vec![ValidationIssue {
+                issue_type: IssueType::InconsistentData,
+                description: "Test issue".to_string(),
+                severity: IssueSeverity::Medium,
+                affected_data: "test_data".to_string(),
+                suggested_fix: Some("Fix the data".to_string()),
+                auto_fixable: false,
+            }],
+            validation_time_ms: 10,
+            data_size: 10240,
+        }
+    }
+}
