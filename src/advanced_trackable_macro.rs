@@ -209,7 +209,7 @@ mod tests {
         let info = advanced_info.unwrap();
         // The analyzer should categorize this as a generic type
         assert!(format!("{:?}", info.category).len() > 0);
-        assert!(info.potential_issues.len() >= 0); // May or may not have issues
+        // May or may not have issues - length is always >= 0 for Vec
         assert!(info.performance_info.overhead_factor >= 1.0);
     }
 
@@ -402,7 +402,7 @@ mod tests {
 
         // Check performance info is reasonable
         assert!(advanced_info.performance_info.overhead_factor >= 1.0);
-        assert!(advanced_info.performance_info.memory_overhead >= 0);
+        // Memory overhead is always >= 0 for usize
 
         // Verify category and behavior are set
         assert!(format!("{:?}", advanced_info.category).len() > 0);

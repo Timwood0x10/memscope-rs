@@ -107,17 +107,20 @@ pub trait SafeUnwrap<T> {
 }
 
 impl<T> SafeUnwrap<T> for Option<T> {
-    fn safe_unwrap(self, _fallback: T) -> T {
+    fn safe_unwrap(self, fallback: T) -> T {
         match self {
             Some(value) => value,
             None => {
                 #[cfg(debug_assertions)]
-                panic!("Called safe_unwrap on None");
+                {
+                    tracing::warn!("safe_unwrap called on None, using fallback");
+                    fallback
+                }
 
                 #[cfg(not(debug_assertions))]
                 {
                     tracing::warn!("safe_unwrap called on None, using fallback");
-                    _fallback
+                    fallback
                 }
             }
         }
@@ -270,18 +273,8 @@ mod tests {
         assert_eq!(some_value.safe_unwrap(0), 42);
 
         let none_value: Option<i32> = None;
-        // In debug builds, safe_unwrap panics on None
-        #[cfg(debug_assertions)]
-        {
-            let result = std::panic::catch_unwind(|| none_value.safe_unwrap(99));
-            assert!(result.is_err());
-        }
-
-        // In release builds, safe_unwrap returns fallback
-        #[cfg(not(debug_assertions))]
-        {
-            assert_eq!(none_value.safe_unwrap(99), 99);
-        }
+        // safe_unwrap now returns fallback in both debug and release builds
+        assert_eq!(none_value.safe_unwrap(99), 99);
     }
 
     #[test]

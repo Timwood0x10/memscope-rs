@@ -805,8 +805,7 @@ mod tests {
 
         let stats = result.expect("Integration should succeed");
         assert!(stats.cross_references_found > 0);
-        assert!(stats.integration_time_ms >= 0);
-        assert!(stats.index_build_time_ms >= 0);
+        // Integration and index build times are always >= 0 for u64
     }
 
     #[test]

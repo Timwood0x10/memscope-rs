@@ -644,7 +644,7 @@ mod tests {
     #[test]
     fn test_global_unwrap_stats() {
         let stats = get_unwrap_stats();
-        assert!(stats.total_operations() >= 0);
+        // Total operations is always >= 0 for usize
     }
 
     #[test]

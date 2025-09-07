@@ -484,15 +484,16 @@ mod tests {
 
     #[test]
     fn test_string_pool_stats() {
-        // Test basic functionality without relying on exact counts
-        // due to potential interference from other tests
-        let initial_stats = get_string_pool_stats();
+        // Use a local pool to avoid interference from other tests
+        let pool = StringPool::new();
 
-        let s1 = intern_string("unique_test_string_1");
-        let s2 = intern_string("unique_test_string_1"); // Should be cache hit
-        let s3 = intern_string("unique_test_string_2");
+        let initial_stats = pool.get_stats();
 
-        let stats = get_string_pool_stats();
+        let s1 = pool.intern("unique_test_string_1");
+        let s2 = pool.intern("unique_test_string_1"); // Should be cache hit
+        let s3 = pool.intern("unique_test_string_2");
+
+        let stats = pool.get_stats();
 
         // Verify that operations increased
         assert!(stats.intern_operations >= initial_stats.intern_operations + 3);
