@@ -2,6 +2,8 @@
 
 当前项目中的测试覆盖率太低了，提升一下 
 
+提升测试覆盖率还有一个目的，就是通过测试，来验证代码的正确性，以及发现并且修复潜在的逻辑bug。
+
 1. 对于缺少test的模块，以test mod的形式进行添加到文件内，编码风格参考./aim/requirement.md。禁止创建任何的rs file
 
 2. 工作流程是先定位覆盖率低的模块，然后阅读模块中的代码，制定合适的test case，并且每编写一个模块就测试一次，测试通过之后，再进行下一个模块，并且test case 一定要有意义，且符合当前模块，不能写一些无意义的test case，禁止出现滥竽充数的test case，质量必须高且有意义。
@@ -43,7 +45,7 @@ cli/commands/generate_report.rs                                  530            
 cli/commands/html_from_json/data_integrator.rs                  1291                42    96.75%          68                 1    98.53%         846                17    97.99%           0                 0         -
 cli/commands/html_from_json/data_normalizer.rs                  1140               236    79.30%         115                61    46.96%         633               101    84.04%           0                 0         -
 cli/commands/html_from_json/debug_logger.rs                      536               205    61.75%          39                 9    76.92%         380               148    61.05%           0                 0         -
-cli/commands/html_from_json/direct_json_template.rs             1768              1768     0.00%         136               136     0.00%        1124              1124     0.00%           0                 0         -
+cli/commands/html_from_json/direct_json_template.rs             2253               997    55.75%         166               107    35.54%        1391               559    59.81%           0                 0         -
 cli/commands/html_from_json/error_handler.rs                     899               752    16.35%          34                21    38.24%         566               435    23.14%           0                 0         -
 cli/commands/html_from_json/json_file_discovery.rs               297                95    68.01%          17                 3    82.35%         201                51    74.63%           0                 0         -
 cli/commands/html_from_json/large_file_optimizer.rs              433               177    59.12%          20                 5    75.00%         295               117    60.34%           0                 0         -
@@ -68,7 +70,7 @@ core/error_adapter.rs                                            262            
 core/fast_data_deduplicator.rs                                   339                10    97.05%          21                 2    90.48%         183                 7    96.17%           0                 0         -
 core/integration_validator.rs                                    814               208    74.45%          29                 3    89.66%         485               118    75.67%           0                 0         -
 core/lifecycle_summary.rs                                        554                30    94.58%          33                 0   100.00%         449                14    96.88%           0                 0         -
-core/optimized_locks.rs                                          637                42    93.41%          50                 4    92.00%         413                31    92.49%           0                 0         -
+core/optimized_locks.rs                                          637                29    95.45%          50                 4    92.00%         413                22    94.67%           0                 0         -
 core/optimized_tracker.rs                                        366                 8    97.81%          24                 0   100.00%         217                16    92.63%           0                 0         -
 core/optimized_types.rs                                          567               193    65.96%          50                13    74.00%         347                89    74.35%           0                 0         -
 core/ownership_history.rs                                        432                29    93.29%          26                 2    92.31%         355                34    90.42%           0                 0         -
@@ -91,7 +93,7 @@ core/tracker/global_functions.rs                                 166            
 core/tracker/memory_analysis.rs                                 2000               481    75.95%          75                 8    89.33%        1474               412    72.05%           0                 0         -
 core/tracker/memory_tracker.rs                                  1334               235    82.38%          90                20    77.78%         964               215    77.70%           0                 0         -
 core/tracker/tracking_manager.rs                                 194                72    62.89%          22                11    50.00%         219                58    73.52%           0                 0         -
-core/types/mod.rs                                                724               181    75.00%          48                 2    95.83%         617                67    89.14%           0                 0         -
+core/types/mod.rs                                                724               180    75.14%          48                 2    95.83%         617                67    89.14%           0                 0         -
 core/unwrap_safe.rs                                              609               102    83.25%          63                11    82.54%         431                59    86.31%           0                 0         -
 enhanced_types.rs                                                670                10    98.51%          64                 0   100.00%         545                 0   100.00%           0                 0         -
 export/adaptive_performance.rs                                   848                68    91.98%          56                 2    96.43%         582                50    91.41%           0                 0         -
@@ -133,32 +135,32 @@ export/binary/string_table.rs                                    559            
 export/binary/template_resource_manager.rs                       645                65    89.92%          32                 7    78.12%         376                38    89.89%           0                 0         -
 export/binary/variable_relationship_analyzer.rs                 1001                56    94.41%          54                 4    92.59%         852                26    96.95%           0                 0         -
 export/binary/writer.rs                                         1098               324    70.49%          41                 8    80.49%         619               123    80.13%           0                 0         -
-export/complex_type_export.rs                                    360               360     0.00%          22                22     0.00%         240               240     0.00%           0                 0         -
-export/config_optimizer.rs                                        66                66     0.00%           6                 6     0.00%          67                67     0.00%           0                 0         -
+export/complex_type_export.rs                                    740               225    69.59%          41                 8    80.49%         687               145    78.89%           0                 0         -
+export/config_optimizer.rs                                       304                11    96.38%          19                 1    94.74%         200                 7    96.50%           0                 0         -
 export/data_localizer.rs                                         391               252    35.55%          30                18    40.00%         310               206    33.55%           0                 0         -
 export/enhanced_json_exporter.rs                                 337               221    34.42%          19                11    42.11%         283               174    38.52%           0                 0         -
 export/error_handling.rs                                         523               279    46.65%          33                12    63.64%         463               241    47.95%           0                 0         -
 export/error_recovery.rs                                         551               242    56.08%          29                10    65.52%         563               259    54.00%           0                 0         -
 export/export_enhanced.rs                                       3949              3119    21.02%          59                46    22.03%        2433              1889    22.36%           0                 0         -
-export/export_modes.rs                                           129               129     0.00%          14                14     0.00%          90                90     0.00%           0                 0         -
-export/fast_export_coordinator.rs                               1022               848    17.03%          57                39    31.58%         817               670    17.99%           0                 0         -
+export/export_modes.rs                                           283                80    71.73%          27                 6    77.78%         214                49    77.10%           0                 0         -
+export/fast_export_coordinator.rs                               1022               844    17.42%          57                38    33.33%         817               666    18.48%           0                 0         -
 export/high_speed_buffered_writer.rs                             515                52    89.90%          27                 5    81.48%         308                28    90.91%           0                 0         -
 export/html_export.rs                                            489               211    56.85%          20                12    40.00%         423               110    74.00%           0                 0         -
 export/lifecycle_exporter.rs                                     165               165     0.00%          10                10     0.00%         112               112     0.00%           0                 0         -
 export/optimized_json_export.rs                                 2453              2453     0.00%          88                88     0.00%        1669              1669     0.00%           0                 0         -
 export/parallel_shard_processor.rs                               425                43    89.88%          25                 3    88.00%         299                26    91.30%           0                 0         -
 export/progress_monitor.rs                                       445               104    76.63%          35                 8    77.14%         318                68    78.62%           0                 0         -
-export/quality_validator.rs                                     1903              1879     1.26%         114               108     5.26%        1637              1587     3.05%           0                 0         -
+export/quality_validator.rs                                     1903              1816     4.57%         114                98    14.04%        1637              1517     7.33%           0                 0         -
 export/schema_validator.rs                                       772               221    71.37%          41                10    75.61%         558               156    72.04%           0                 0         -
 export/streaming_json_writer.rs                                  548               451    17.70%          32                20    37.50%         327               226    30.89%           0                 0         -
-export/system_optimizer.rs                                       644               644     0.00%          27                27     0.00%         469               469     0.00%           0                 0         -
+export/system_optimizer.rs                                       644               322    50.00%          27                11    59.26%         469               237    49.47%           0                 0         -
 export/visualization.rs                                         2504              2204    11.98%          55                45    18.18%        1425              1247    12.49%           0                 0         -
 lib.rs                                                          1749               790    54.83%         141                55    60.99%        1105               584    47.15%           0                 0         -
 main.rs                                                          448               175    60.94%          20                 5    75.00%         277               152    45.13%           0                 0         -
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         737                76    89.69%           0                 0         -
-variable_registry.rs                                            1611               238    85.23%          78                19    75.64%         997               122    87.76%           0                 0         -
+variable_registry.rs                                            1663               244    85.33%          82                19    76.83%        1021               126    87.66%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                         105032             39476    62.42%        5594              1807    67.70%       72225             26035    63.95%           0                 0         -
+TOTAL                                                         106341             38069    64.20%        5673              1724    69.61%       73220             24963    65.91%           0                 0         -
 
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
 
