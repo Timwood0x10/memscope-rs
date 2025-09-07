@@ -1031,3 +1031,603 @@ impl Default for BatchProcessor {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::unsafe_ffi_tracker::{
+        AllocationSource, BoundaryEvent, BoundaryEventType, EnhancedAllocationInfo,
+        LibCHookInfo, HookMethod, RiskAssessment, RiskLevel, RiskFactor, RiskFactorType,
+        AllocationMetadata, MemoryProtectionFlags,
+    };
+    use crate::analysis::ffi_function_resolver::ResolvedFfiFunction;
+    use crate::analysis::FfiFunctionCategory;
+    use crate::core::types::AllocationInfo;
+    use crate::core::CallStackRef;
+    use std::time::SystemTime;
+
+    fn create_test_allocation_info(ptr: usize, size: usize, type_name: &str) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name: Some("test_var".to_string()),
+            type_name: Some(type_name.to_string()),
+            scope_name: Some("test_scope".to_string()),
+            timestamp_alloc: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+            timestamp_dealloc: None,
+            thread_id: "test_thread".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    fn create_test_unsafe_allocation(ptr: usize, size: usize) -> EnhancedAllocationInfo {
+        let call_stack = CallStackRef::new(0, Some(1));
+        EnhancedAllocationInfo {
+            base: create_test_allocation_info(ptr, size, "TestType"),
+            source: AllocationSource::UnsafeRust {
+                unsafe_block_location: "test.rs:42".to_string(),
+                call_stack: call_stack.clone(),
+                risk_assessment: RiskAssessment {
+                    risk_level: RiskLevel::Medium,
+                    risk_factors: vec![RiskFactor {
+                        factor_type: RiskFactorType::RawPointerDeref,
+                        severity: 5.0,
+                        description: "Raw pointer usage".to_string(),
+                        source_location: Some("test.rs:42".to_string()),
+                    }],
+                    mitigation_suggestions: vec!["Add bounds checking".to_string()],
+                    confidence_score: 0.8,
+                    assessment_timestamp: SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos(),
+                },
+            },
+            call_stack,
+            cross_boundary_events: Vec::new(),
+            safety_violations: Vec::new(),
+            ffi_tracked: false,
+            memory_passport: None,
+            ownership_history: None,
+        }
+    }
+
+    fn create_test_ffi_allocation(ptr: usize, size: usize) -> EnhancedAllocationInfo {
+        let call_stack = CallStackRef::new(0, Some(1));
+        EnhancedAllocationInfo {
+            base: create_test_allocation_info(ptr, size, "CType"),
+            source: AllocationSource::FfiC {
+                resolved_function: ResolvedFfiFunction {
+                    library_name: "libc".to_string(),
+                    function_name: "malloc".to_string(),
+                    signature: None,
+                    category: FfiFunctionCategory::MemoryManagement,
+                    risk_level: crate::analysis::FfiRiskLevel::Medium,
+                    metadata: std::collections::HashMap::new(),
+                },
+                call_stack: call_stack.clone(),
+                libc_hook_info: LibCHookInfo {
+                    hook_method: HookMethod::DynamicLinker,
+                    original_function: "malloc".to_string(),
+                    hook_timestamp: SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos(),
+                    allocation_metadata: AllocationMetadata {
+                        requested_size: size,
+                        actual_size: size,
+                        alignment: 8,
+                        allocator_info: "libc".to_string(),
+                        protection_flags: Some(MemoryProtectionFlags {
+                            readable: true,
+                            writable: true,
+                            executable: false,
+                            shared: false,
+                        }),
+                    },
+                    hook_overhead_ns: Some(100),
+                },
+            },
+            call_stack,
+            cross_boundary_events: Vec::new(),
+            safety_violations: Vec::new(),
+            ffi_tracked: true,
+            memory_passport: None,
+            ownership_history: None,
+        }
+    }
+
+    fn create_test_allocation_with_boundary_events(ptr: usize, size: usize) -> EnhancedAllocationInfo {
+        let mut allocation = create_test_unsafe_allocation(ptr, size);
+        let call_stack = CallStackRef::new(0, Some(1));
+        allocation.cross_boundary_events = vec![
+            BoundaryEvent {
+                event_type: BoundaryEventType::RustToFfi,
+                timestamp: 1000,
+                from_context: "Rust".to_string(),
+                to_context: "FFI".to_string(),
+                stack: call_stack.clone(),
+            },
+            BoundaryEvent {
+                event_type: BoundaryEventType::FfiToRust,
+                timestamp: 2000,
+                from_context: "FFI".to_string(),
+                to_context: "Rust".to_string(),
+                stack: call_stack,
+            },
+        ];
+        allocation
+    }
+
+    #[test]
+    fn test_batch_processor_config_default() {
+        let config = BatchProcessorConfig::default();
+        assert_eq!(config.batch_size, 1000);
+        assert_eq!(config.parallel_threshold, 5000);
+        assert!(config.max_threads.is_none());
+        assert!(config.enable_monitoring);
+        assert_eq!(config.memory_limit_per_batch, Some(64 * 1024 * 1024));
+    }
+
+    #[test]
+    fn test_batch_processor_creation() {
+        let processor = BatchProcessor::new();
+        assert!(processor.config.enable_monitoring);
+        assert_eq!(processor.config.batch_size, 1000);
+    }
+
+    #[test]
+    fn test_batch_processor_with_custom_config() {
+        let config = BatchProcessorConfig {
+            batch_size: 500,
+            parallel_threshold: 2000,
+            max_threads: Some(4),
+            enable_monitoring: false,
+            memory_limit_per_batch: Some(32 * 1024 * 1024),
+        };
+        
+        let processor = BatchProcessor::with_config(config.clone());
+        assert_eq!(processor.config.batch_size, 500);
+        assert_eq!(processor.config.parallel_threshold, 2000);
+        assert_eq!(processor.config.max_threads, Some(4));
+        assert!(!processor.config.enable_monitoring);
+    }
+
+    #[test]
+    fn test_process_unsafe_allocations_empty() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![];
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_allocations, 0);
+        assert_eq!(processed.total_memory, 0);
+        assert_eq!(processed.allocations.len(), 0);
+        assert_eq!(processed.risk_distribution.low_risk, 0);
+    }
+
+    #[test]
+    fn test_process_unsafe_allocations_single() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![create_test_unsafe_allocation(0x1000, 64)];
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_allocations, 1);
+        assert_eq!(processed.total_memory, 64);
+        assert_eq!(processed.allocations.len(), 1);
+        assert_eq!(processed.risk_distribution.medium_risk, 1);
+        
+        let allocation = &processed.allocations[0];
+        assert_eq!(allocation.ptr, "0x1000");
+        assert_eq!(allocation.size, 64);
+        assert_eq!(allocation.unsafe_block_location, "test.rs:42");
+    }
+
+    #[test]
+    fn test_process_unsafe_allocations_multiple() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![
+            create_test_unsafe_allocation(0x1000, 64),
+            create_test_unsafe_allocation(0x2000, 128),
+            create_test_unsafe_allocation(0x3000, 256),
+        ];
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_allocations, 3);
+        assert_eq!(processed.total_memory, 448); // 64 + 128 + 256
+        assert_eq!(processed.allocations.len(), 3);
+        assert_eq!(processed.risk_distribution.medium_risk, 3);
+    }
+
+    #[test]
+    fn test_process_ffi_allocations_empty() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![];
+        
+        let result = processor.process_ffi_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_allocations, 0);
+        assert_eq!(processed.total_memory, 0);
+        assert_eq!(processed.allocations.len(), 0);
+        assert_eq!(processed.libraries_involved.len(), 0);
+    }
+
+    #[test]
+    fn test_process_ffi_allocations_single() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![create_test_ffi_allocation(0x4000, 512)];
+        
+        let result = processor.process_ffi_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_allocations, 1);
+        assert_eq!(processed.total_memory, 512);
+        assert_eq!(processed.allocations.len(), 1);
+        assert_eq!(processed.libraries_involved.len(), 1);
+        
+        let allocation = &processed.allocations[0];
+        assert_eq!(allocation.ptr, "0x4000");
+        assert_eq!(allocation.size, 512);
+        assert_eq!(allocation.library_name, "libc");
+        assert_eq!(allocation.function_name, "malloc");
+        
+        let library = &processed.libraries_involved[0];
+        assert_eq!(library.name, "libc");
+        assert_eq!(library.allocation_count, 1);
+        assert_eq!(library.total_memory, 512);
+    }
+
+    #[test]
+    fn test_process_ffi_allocations_multiple_libraries() {
+        let processor = BatchProcessor::new();
+        let mut alloc1 = create_test_ffi_allocation(0x4000, 512);
+        let mut alloc2 = create_test_ffi_allocation(0x5000, 256);
+        
+        // Change second allocation to different library
+        if let AllocationSource::FfiC { resolved_function, .. } = &mut alloc2.source {
+            resolved_function.library_name = "libssl".to_string();
+            resolved_function.function_name = "OPENSSL_malloc".to_string();
+        }
+        
+        let allocations = vec![alloc1, alloc2];
+        
+        let result = processor.process_ffi_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_allocations, 2);
+        assert_eq!(processed.total_memory, 768); // 512 + 256
+        assert_eq!(processed.allocations.len(), 2);
+        assert_eq!(processed.libraries_involved.len(), 2);
+        
+        let library_names: Vec<&String> = processed.libraries_involved.iter().map(|l| &l.name).collect();
+        assert!(library_names.contains(&&"libc".to_string()));
+        assert!(library_names.contains(&&"libssl".to_string()));
+    }
+
+    #[test]
+    fn test_process_boundary_events_empty() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![];
+        
+        let result = processor.process_boundary_events(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_crossings, 0);
+        assert_eq!(processed.events.len(), 0);
+        assert_eq!(processed.transfer_patterns.avg_transfer_size, 0);
+    }
+
+    #[test]
+    fn test_process_boundary_events_with_events() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![
+            create_test_allocation_with_boundary_events(0x6000, 128),
+            create_test_allocation_with_boundary_events(0x7000, 256),
+        ];
+        
+        let result = processor.process_boundary_events(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_crossings, 4); // 2 allocations * 2 events each
+        assert_eq!(processed.events.len(), 4);
+        assert!(processed.transfer_patterns.avg_transfer_size > 0);
+        assert!(processed.risk_analysis.overall_risk_score >= 0.0);
+        
+        // Check that events are properly processed
+        let event = &processed.events[0];
+        assert!(event.event_id.contains("boundary_"));
+        assert!(!event.event_type.is_empty());
+        assert!(event.timestamp > 0);
+    }
+
+    #[test]
+    fn test_risk_distribution_calculation() {
+        let processor = BatchProcessor::new();
+        
+        // Create allocations with different risk levels
+        let mut low_risk_alloc = create_test_unsafe_allocation(0x1000, 64);
+        let mut high_risk_alloc = create_test_unsafe_allocation(0x2000, 128);
+        let mut critical_risk_alloc = create_test_unsafe_allocation(0x3000, 256);
+        
+        // Modify risk levels
+        if let AllocationSource::UnsafeRust { risk_assessment, .. } = &mut low_risk_alloc.source {
+            risk_assessment.risk_level = RiskLevel::Low;
+        }
+        if let AllocationSource::UnsafeRust { risk_assessment, .. } = &mut high_risk_alloc.source {
+            risk_assessment.risk_level = RiskLevel::High;
+        }
+        if let AllocationSource::UnsafeRust { risk_assessment, .. } = &mut critical_risk_alloc.source {
+            risk_assessment.risk_level = RiskLevel::Critical;
+        }
+        
+        let allocations = vec![low_risk_alloc, high_risk_alloc, critical_risk_alloc];
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.risk_distribution.low_risk, 1);
+        assert_eq!(processed.risk_distribution.medium_risk, 0);
+        assert_eq!(processed.risk_distribution.high_risk, 1);
+        assert_eq!(processed.risk_distribution.critical_risk, 1);
+        assert!(processed.risk_distribution.overall_risk_score > 0.0);
+    }
+
+    #[test]
+    fn test_unsafe_blocks_analysis() {
+        let processor = BatchProcessor::new();
+        
+        let mut alloc1 = create_test_unsafe_allocation(0x1000, 64);
+        let mut alloc2 = create_test_unsafe_allocation(0x2000, 128);
+        let mut alloc3 = create_test_unsafe_allocation(0x3000, 256);
+        
+        // Set different unsafe block locations
+        if let AllocationSource::UnsafeRust { unsafe_block_location, .. } = &mut alloc1.source {
+            *unsafe_block_location = "test.rs:10".to_string();
+        }
+        if let AllocationSource::UnsafeRust { unsafe_block_location, .. } = &mut alloc2.source {
+            *unsafe_block_location = "test.rs:10".to_string(); // Same block
+        }
+        if let AllocationSource::UnsafeRust { unsafe_block_location, .. } = &mut alloc3.source {
+            *unsafe_block_location = "test.rs:20".to_string(); // Different block
+        }
+        
+        let allocations = vec![alloc1, alloc2, alloc3];
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.unsafe_blocks.len(), 2); // Two different blocks
+        
+        // Find the block with 2 allocations
+        let block_with_two = processed.unsafe_blocks.iter()
+            .find(|b| b.allocation_count == 2)
+            .expect("Should find block with 2 allocations");
+        
+        assert_eq!(block_with_two.location, "test.rs:10");
+        assert_eq!(block_with_two.total_memory, 192); // 64 + 128
+    }
+
+    #[test]
+    fn test_hook_statistics_calculation() {
+        let processor = BatchProcessor::new();
+        
+        let alloc1 = create_test_ffi_allocation(0x4000, 512);
+        let mut alloc2 = create_test_ffi_allocation(0x5000, 256);
+        
+        // Modify hook info
+        let mut alloc1 = alloc1;
+        if let AllocationSource::FfiC { libc_hook_info, .. } = &mut alloc1.source {
+            libc_hook_info.hook_overhead_ns = Some(150);
+        }
+        if let AllocationSource::FfiC { libc_hook_info, .. } = &mut alloc2.source {
+            libc_hook_info.hook_overhead_ns = Some(200);
+            libc_hook_info.hook_method = HookMethod::LdPreload;
+        }
+        
+        let allocations = vec![alloc1, alloc2];
+        
+        let result = processor.process_ffi_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.hook_statistics.total_hooks, 2);
+        assert!(processed.hook_statistics.avg_overhead_ns > 0.0);
+        assert_eq!(processed.hook_statistics.methods_used.len(), 2);
+    }
+
+    #[test]
+    fn test_transfer_patterns_analysis() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![
+            create_test_allocation_with_boundary_events(0x6000, 128),
+            create_test_allocation_with_boundary_events(0x7000, 256),
+        ];
+        
+        let result = processor.process_boundary_events(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        let patterns = &processed.transfer_patterns;
+        
+        assert!(!patterns.dominant_direction.is_empty());
+        assert!(patterns.frequency_by_type.len() > 0);
+        assert!(patterns.avg_transfer_size > 0);
+    }
+
+    #[test]
+    fn test_metrics_tracking() {
+        let processor = BatchProcessor::new();
+        
+        // Initial metrics should be empty
+        let initial_metrics = processor.get_metrics().unwrap();
+        assert_eq!(initial_metrics.total_items, 0);
+        assert_eq!(initial_metrics.batch_count, 0);
+        
+        // Process some allocations
+        let allocations = vec![
+            create_test_unsafe_allocation(0x1000, 64),
+            create_test_unsafe_allocation(0x2000, 128),
+        ];
+        
+        let _result = processor.process_unsafe_allocations(&allocations);
+        
+        // Check updated metrics
+        let updated_metrics = processor.get_metrics().unwrap();
+        assert_eq!(updated_metrics.total_items, 2);
+        assert!(updated_metrics.throughput_items_per_sec > 0.0);
+    }
+
+    #[test]
+    fn test_metrics_reset() {
+        let processor = BatchProcessor::new();
+        
+        // Process some allocations to generate metrics
+        let allocations = vec![create_test_unsafe_allocation(0x1000, 64)];
+        let _result = processor.process_unsafe_allocations(&allocations);
+        
+        // Verify metrics are not empty
+        let metrics_before = processor.get_metrics().unwrap();
+        assert!(metrics_before.total_items > 0);
+        
+        // Reset metrics
+        let reset_result = processor.reset_metrics();
+        assert!(reset_result.is_ok());
+        
+        // Verify metrics are reset
+        let metrics_after = processor.get_metrics().unwrap();
+        assert_eq!(metrics_after.total_items, 0);
+        assert_eq!(metrics_after.total_processing_time_ms, 0);
+    }
+
+    #[test]
+    fn test_parallel_processing_threshold() {
+        let config = BatchProcessorConfig {
+            batch_size: 10,
+            parallel_threshold: 5, // Low threshold for testing
+            max_threads: Some(2),
+            enable_monitoring: true,
+            memory_limit_per_batch: None,
+        };
+        
+        let processor = BatchProcessor::with_config(config);
+        
+        // Create enough allocations to trigger parallel processing
+        let allocations: Vec<_> = (0..10)
+            .map(|i| create_test_unsafe_allocation(0x1000 + i * 0x100, 64))
+            .collect();
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert_eq!(processed.total_allocations, 10);
+        
+        // Check that parallel processing was used
+        let metrics = processor.get_metrics().unwrap();
+        assert!(metrics.parallel_processing_used);
+        assert!(metrics.threads_used > 1);
+    }
+
+    #[test]
+    fn test_memory_usage_estimation() {
+        let processor = BatchProcessor::new();
+        
+        // Test the private method through public interface
+        let allocations = vec![
+            create_test_unsafe_allocation(0x1000, 64),
+            create_test_unsafe_allocation(0x2000, 128),
+        ];
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        assert!(processed.performance_metrics.memory_usage_bytes > 0);
+        // Should be roughly 2 * 1024 bytes for 2 items
+        assert!(processed.performance_metrics.memory_usage_bytes >= 2048);
+    }
+
+    #[test]
+    fn test_boundary_risk_analysis() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![create_test_allocation_with_boundary_events(0x6000, 128)];
+        
+        let result = processor.process_boundary_events(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        let risk_analysis = &processed.risk_analysis;
+        
+        assert!(risk_analysis.overall_risk_score >= 0.0);
+        assert!(risk_analysis.overall_risk_score <= 10.0);
+        assert!(risk_analysis.common_risk_patterns.len() > 0);
+        assert!(risk_analysis.mitigation_recommendations.len() > 0);
+    }
+
+    #[test]
+    fn test_performance_metrics_structure() {
+        let processor = BatchProcessor::new();
+        let allocations = vec![create_test_unsafe_allocation(0x1000, 64)];
+        
+        let result = processor.process_unsafe_allocations(&allocations);
+        assert!(result.is_ok());
+        
+        let processed = result.unwrap();
+        let metrics = &processed.performance_metrics;
+        
+        assert!(metrics.memory_usage_bytes > 0);
+        assert_eq!(metrics.risk_assessments_performed, 1);
+        assert!(metrics.avg_risk_assessment_time_ns > 0.0);
+    }
+
+    #[test]
+    fn test_default_implementation() {
+        let processor1 = BatchProcessor::default();
+        let processor2 = BatchProcessor::new();
+        
+        // Both should have the same configuration
+        assert_eq!(processor1.config.batch_size, processor2.config.batch_size);
+        assert_eq!(processor1.config.parallel_threshold, processor2.config.parallel_threshold);
+        assert_eq!(processor1.config.enable_monitoring, processor2.config.enable_monitoring);
+    }
+}
