@@ -1553,34 +1553,19 @@ fn install_exit_hook() {
         // Install panic hook
         let original_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
-            // Skip error logging in test mode
-            if std::env::var("MEMSCOPE_TEST_MODE").is_err() && !cfg!(test) {
-                tracing::error!("🚨 Program panicked, attempting to export memory data...");
-                let _ = export_final_snapshot("memscope_panic_snapshot");
-            }
+            // Skip any complex operations in panic hook to avoid double panics
+            // Don't access global state or thread locals during panic handling
             original_hook(panic_info);
         }));
 
         // Use libc atexit for reliable program exit handling
         extern "C" fn exit_handler() {
-            // Skip export in test mode to avoid global tracker issues
-            if std::env::var("MEMSCOPE_TEST_MODE").is_ok() || cfg!(test) {
-                return;
-            }
+            // Always skip export in exit handler to avoid shutdown issues
+            // The exit handler runs after thread local data may be destroyed
+            // which can cause panics when accessing global state
             
-            // Check if we're in a panic or shutdown state
-            if std::thread::panicking() {
-                return;
-            }
-            
-            if std::env::var("MEMSCOPE_AUTO_EXPORT").is_ok() {
-                // Use a safer approach that doesn't access global tracker during shutdown
-                let export_path = std::env::var("MEMSCOPE_EXPORT_PATH")
-                    .unwrap_or_else(|_| "memscope_final_snapshot".to_string());
-                
-                // Just log the intent, don't actually export to avoid shutdown issues
-                eprintln!("📋 Would export final snapshot to: {}.json", export_path);
-            }
+            // Don't access any global state, thread locals, or complex operations
+            // Just silently return to avoid any potential issues during shutdown
         }
 
         unsafe {

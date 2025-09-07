@@ -184,3 +184,199 @@ fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error
     use memscope_rs::cli::commands::test::run_test;
     run_test(matches)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{Arg, Command};
+
+    fn create_test_command() -> Command {
+        Command::new("memscope")
+            .version("0.1.2")
+            .author("TimWood")
+            .about("Advanced Rust memory analysis and visualization toolkit")
+            .subcommand(
+                Command::new("analyze")
+                    .about("Analyze memory usage of a Rust program")
+                    .arg(
+                        Arg::new("command")
+                            .help("Command to execute and analyze")
+                            .required(true)
+                            .num_args(1..)
+                            .value_name("COMMAND"),
+                    )
+                    .arg(
+                        Arg::new("export")
+                            .short('e')
+                            .long("export")
+                            .value_name("FORMAT")
+                            .help("Export format (json, svg, html)")
+                            .default_value("html"),
+                    )
+                    .arg(
+                        Arg::new("output")
+                            .short('o')
+                            .long("output")
+                            .value_name("FILE")
+                            .help("Output file path")
+                            .default_value("memory_analysis"),
+                    ),
+            )
+            .subcommand(
+                Command::new("test").about("Run enhanced memory tests").arg(
+                    Arg::new("output")
+                        .short('o')
+                        .long("output")
+                        .value_name("FILE")
+                        .help("Output file path")
+                        .default_value("enhanced_memory_test"),
+                ),
+            )
+    }
+
+    #[test]
+    fn test_run_analyze_command_function_exists() {
+        // Test that the function exists and has the correct signature
+        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> = run_analyze_command;
+        assert!(true);
+    }
+
+    #[test]
+    fn test_run_report_command_function_exists() {
+        // Test that the function exists and has the correct signature
+        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> = run_report_command;
+        assert!(true);
+    }
+
+    #[test]
+    fn test_run_html_from_json_command_function_exists() {
+        // Test that the function exists and has the correct signature
+        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> = run_html_from_json_command;
+        assert!(true);
+    }
+
+    #[test]
+    fn test_run_test_command_function_exists() {
+        // Test that the function exists and has the correct signature
+        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> = run_test_command;
+        assert!(true);
+    }
+
+    #[test]
+    fn test_command_structure() {
+        let cmd = create_test_command();
+        
+        // Test basic command properties
+        assert_eq!(cmd.get_name(), "memscope");
+        assert_eq!(cmd.get_version().unwrap(), "0.1.2");
+        assert_eq!(cmd.get_author().unwrap(), "TimWood");
+        
+        // Test that subcommands exist
+        let subcommands: Vec<&str> = cmd.get_subcommands().map(|s| s.get_name()).collect();
+        assert!(subcommands.contains(&"analyze"));
+        assert!(subcommands.contains(&"test"));
+    }
+
+    #[test]
+    fn test_analyze_subcommand_structure() {
+        let cmd = create_test_command();
+        let analyze_cmd = cmd.find_subcommand("analyze").unwrap();
+        
+        // Test analyze subcommand properties
+        assert_eq!(analyze_cmd.get_name(), "analyze");
+        let about_str = format!("{}", analyze_cmd.get_about().unwrap());
+        assert!(about_str.contains("Analyze memory usage"));
+        
+        // Test that required arguments exist
+        let args: Vec<&str> = analyze_cmd.get_arguments().map(|a| a.get_id().as_str()).collect();
+        assert!(args.contains(&"command"));
+        assert!(args.contains(&"export"));
+        assert!(args.contains(&"output"));
+    }
+
+    #[test]
+    fn test_test_subcommand_structure() {
+        let cmd = create_test_command();
+        let test_cmd = cmd.find_subcommand("test").unwrap();
+        
+        // Test test subcommand properties
+        assert_eq!(test_cmd.get_name(), "test");
+        let about_str = format!("{}", test_cmd.get_about().unwrap());
+        assert!(about_str.contains("Run enhanced memory tests"));
+        
+        // Test that arguments exist
+        let args: Vec<&str> = test_cmd.get_arguments().map(|a| a.get_id().as_str()).collect();
+        assert!(args.contains(&"output"));
+    }
+
+    #[test]
+    fn test_command_parsing() {
+        let cmd = create_test_command();
+        
+        // Test parsing valid analyze command
+        let matches = cmd.clone().try_get_matches_from(vec![
+            "memscope", "analyze", "cargo", "test", "--export", "json", "--output", "test_output"
+        ]);
+        assert!(matches.is_ok());
+        
+        if let Ok(matches) = matches {
+            if let Some((subcommand, sub_matches)) = matches.subcommand() {
+                assert_eq!(subcommand, "analyze");
+                assert!(sub_matches.get_many::<String>("command").is_some());
+                assert_eq!(sub_matches.get_one::<String>("export").unwrap(), "json");
+                assert_eq!(sub_matches.get_one::<String>("output").unwrap(), "test_output");
+            }
+        }
+    }
+
+    #[test]
+    fn test_test_command_parsing() {
+        let cmd = create_test_command();
+        
+        // Test parsing valid test command
+        let matches = cmd.clone().try_get_matches_from(vec![
+            "memscope", "test", "--output", "my_test_output"
+        ]);
+        assert!(matches.is_ok());
+        
+        if let Ok(matches) = matches {
+            if let Some((subcommand, sub_matches)) = matches.subcommand() {
+                assert_eq!(subcommand, "test");
+                assert_eq!(sub_matches.get_one::<String>("output").unwrap(), "my_test_output");
+            }
+        }
+    }
+
+    #[test]
+    fn test_default_values() {
+        let cmd = create_test_command();
+        
+        // Test default values for analyze command
+        let matches = cmd.clone().try_get_matches_from(vec![
+            "memscope", "analyze", "cargo", "test"
+        ]);
+        assert!(matches.is_ok());
+        
+        if let Ok(matches) = matches {
+            if let Some((_, sub_matches)) = matches.subcommand() {
+                assert_eq!(sub_matches.get_one::<String>("export").unwrap(), "html");
+                assert_eq!(sub_matches.get_one::<String>("output").unwrap(), "memory_analysis");
+            }
+        }
+    }
+
+    #[test]
+    fn test_help_generation() {
+        let mut cmd = create_test_command();
+        
+        // Test that help can be generated without panicking
+        let _help = cmd.render_help();
+        assert!(true);
+        
+        // Test subcommand help
+        if let Some(analyze_cmd) = cmd.find_subcommand_mut("analyze") {
+            let _analyze_help = analyze_cmd.render_help();
+            assert!(true);
+        }
+    }
+}

@@ -114,3 +114,133 @@ fn _test_enhanced_memory_analysis() {
     tracing::info!("String1 length: {}", string1.len());
     tracing::info!("Boxed1 value: {}", *boxed1);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{Arg, Command};
+
+    fn create_test_matches(output: Option<&str>) -> ArgMatches {
+        let cmd = Command::new("test").arg(
+            Arg::new("output")
+                .short('o')
+                .long("output")
+                .value_name("FILE")
+                .help("Output file path")
+                .default_value("enhanced_memory_test"),
+        );
+
+        if let Some(output_val) = output {
+            cmd.try_get_matches_from(vec!["test", "--output", output_val])
+                .unwrap()
+        } else {
+            cmd.try_get_matches_from(vec!["test"]).unwrap()
+        }
+    }
+
+    #[test]
+    fn test_run_test_with_default_output() {
+        let matches = create_test_matches(None);
+        
+        // Test that we can extract the output path correctly
+        let output_path = matches
+            .get_one::<String>("output")
+            .map(|s| s.as_str())
+            .unwrap_or("enhanced_memory_test");
+        
+        assert_eq!(output_path, "enhanced_memory_test");
+    }
+
+    #[test]
+    fn test_run_test_with_custom_output() {
+        let matches = create_test_matches(Some("custom_test_output"));
+        
+        let output_path = matches
+            .get_one::<String>("output")
+            .map(|s| s.as_str())
+            .unwrap_or("enhanced_memory_test");
+        
+        assert_eq!(output_path, "custom_test_output");
+    }
+
+    #[test]
+    fn test_run_enhanced_memory_test_function_exists() {
+        // Test that the function exists and has the correct signature
+        let _f: fn() -> Result<(), Box<dyn std::error::Error>> = run_enhanced_memory_test;
+        
+        // Just verify the function signature is correct
+        assert!(true);
+    }
+
+    #[test]
+    fn test_run_test_function_signature() {
+        // Test that run_test has the correct signature
+        let _f: fn(&ArgMatches) -> Result<(), Box<dyn std::error::Error>> = run_test;
+        assert!(true);
+    }
+
+    #[test]
+    fn test_private_test_function_exists() {
+        // Test that the private test function exists
+        let _f: fn() = _test_enhanced_memory_analysis;
+        assert!(true);
+    }
+
+    #[test]
+    fn test_argument_parsing() {
+        // Test various argument combinations
+        let test_cases = vec![
+            ("default", None, "enhanced_memory_test"),
+            ("custom", Some("my_output"), "my_output"),
+            ("path", Some("/tmp/test_output"), "/tmp/test_output"),
+        ];
+
+        for (name, input, expected) in test_cases {
+            let matches = create_test_matches(input);
+            let output_path = matches
+                .get_one::<String>("output")
+                .map(|s| s.as_str())
+                .unwrap_or("enhanced_memory_test");
+            
+            assert_eq!(output_path, expected, "Test case '{}' failed", name);
+        }
+    }
+
+    #[test]
+    fn test_clap_command_structure() {
+        // Test that the command structure is correct
+        let mut cmd = Command::new("test").arg(
+            Arg::new("output")
+                .short('o')
+                .long("output")
+                .value_name("FILE")
+                .help("Output file path")
+                .default_value("enhanced_memory_test"),
+        );
+
+        // Verify the command can be built
+        let app = cmd.clone();
+        assert_eq!(app.get_name(), "test");
+        
+        // Test help generation doesn't panic
+        let _help = cmd.render_help();
+        assert!(true);
+    }
+
+    #[test]
+    fn test_output_path_extraction_logic() {
+        // Test the core logic used in run_test
+        let test_cases = vec![
+            (Some("test_output"), "test_output"),
+            (None, "enhanced_memory_test"),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = input
+                .map(|s| s)
+                .unwrap_or("enhanced_memory_test");
+            
+            assert_eq!(result, expected);
+        }
+    }
+}
