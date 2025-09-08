@@ -2445,7 +2445,7 @@ mod tests {
 
         match result.unwrap_err() {
             BinaryExportError::Io(_) => {} // Expected
-            other => panic!("Expected IO error, got: {:?}", other),
+            other => panic!("Expected IO error, got: {other:?}"),
         }
     }
 

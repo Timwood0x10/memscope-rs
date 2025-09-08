@@ -622,7 +622,7 @@ mod tests {
         assert!(err.is_recoverable());
         assert_eq!(err.severity(), ErrorSeverity::Medium);
 
-        let io_err = io::Error::new(io::ErrorKind::Other, "test io error");
+        let io_err = io::Error::other("test io error");
         let converted_err: MemScopeError = io_err.into();
         assert!(matches!(
             converted_err,
@@ -856,7 +856,7 @@ mod tests {
 
     #[test]
     fn test_serde_conversion() {
-        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test io error");
+        let io_err = std::io::Error::other("test io error");
         let json_err = serde_json::Error::io(io_err);
         let memscope_err: MemScopeError = json_err.into();
         assert!(matches!(

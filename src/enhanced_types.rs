@@ -1955,7 +1955,7 @@ mod tests {
         ];
 
         for region_type in types {
-            assert!(!format!("{:?}", region_type).is_empty());
+            assert!(!format!("{region_type:?}").is_empty());
         }
     }
 
@@ -2001,7 +2001,7 @@ mod tests {
         ];
 
         for impact in impacts {
-            assert!(!format!("{:?}", impact).is_empty());
+            assert!(!format!("{impact:?}").is_empty());
         }
     }
 

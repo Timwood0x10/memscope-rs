@@ -1433,7 +1433,7 @@ mod tests {
                 for i in 0..calls_per_thread {
                     let result = dedup_clone
                         .deduplicate_string(&test_str)
-                        .expect(&format!("Thread {} call {} should succeed", thread_id, i));
+                        .expect(&format!("Thread {thread_id} call {i} should succeed"));
                     results.push(result);
                 }
                 results

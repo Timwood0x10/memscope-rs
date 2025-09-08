@@ -26,10 +26,10 @@ mod tests {
     #[test]
     fn test_complex_type_export_config_default() {
         let config = ComplexTypeExportConfig::default();
-        assert_eq!(config.separate_complex_types, true);
-        assert_eq!(config.compress_data, false);
+        assert!(config.separate_complex_types);
+        assert!(!config.compress_data);
         assert_eq!(config.chunk_size, 1000);
-        assert_eq!(config.pretty_format, false);
+        assert!(!config.pretty_format);
     }
 
     #[test]
@@ -260,7 +260,7 @@ mod tests {
             analysis_timestamp: 0,
         };
         // With empty data, should not export
-        assert_eq!(should_export_async_analysis(&analysis), false);
+        assert!(!should_export_async_analysis(&analysis));
 
         // Create analysis with some data
         let analysis = AsyncPatternAnalysis {
@@ -269,7 +269,7 @@ mod tests {
             analysis_timestamp: 0,
         };
         // With data, should export
-        assert_eq!(should_export_async_analysis(&analysis), true);
+        assert!(should_export_async_analysis(&analysis));
     }
 
     #[test]
@@ -282,7 +282,7 @@ mod tests {
             optimization_suggestions: vec![],
         };
         // With empty data, should not export
-        assert_eq!(should_export_closure_analysis(&analysis), false);
+        assert!(!should_export_closure_analysis(&analysis));
 
         // Create analysis with some data
         let analysis = ClosureAnalysisReport {
@@ -305,7 +305,7 @@ mod tests {
             optimization_suggestions: vec![],
         };
         // With data, should export
-        assert_eq!(should_export_closure_analysis(&analysis), true);
+        assert!(should_export_closure_analysis(&analysis));
     }
 
     #[test]
@@ -318,7 +318,7 @@ mod tests {
             raii_patterns: vec![],
         };
         // With empty data, should not export
-        assert_eq!(should_export_lifecycle_analysis(&analysis), false);
+        assert!(!should_export_lifecycle_analysis(&analysis));
 
         // Create analysis with some data
         let analysis = LifecycleAnalysisReport {
@@ -336,7 +336,7 @@ mod tests {
             raii_patterns: vec![],
         };
         // With data, should export
-        assert_eq!(should_export_lifecycle_analysis(&analysis), true);
+        assert!(should_export_lifecycle_analysis(&analysis));
     }
 
     #[test]
