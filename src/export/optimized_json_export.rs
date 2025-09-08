@@ -2780,4 +2780,542 @@ mod tests {
         let large_cache = OptimizedExportOptions::default().max_cache_size(5000);
         assert_eq!(large_cache.max_cache_size, 5000);
     }
+
+    #[test]
+    fn test_streaming_json_writer() {
+        let mut buffer = Vec::new();
+        let mut writer = StreamingJsonWriter::new(&mut buffer);
+
+        let test_data = serde_json::json!({
+            "test": "value",
+            "number": 42,
+            "array": [1, 2, 3]
+        });
+
+        let result = writer.write_complete_json(&test_data);
+        assert!(result.is_ok());
+
+        let result = writer.finalize();
+        assert!(result.is_ok());
+
+        // Verify the JSON was written correctly
+        let written_json: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+        assert_eq!(written_json["test"].as_str().unwrap(), "value");
+        assert_eq!(written_json["number"].as_u64().unwrap(), 42);
+        assert_eq!(written_json["array"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_streaming_json_writer_pretty() {
+        let mut buffer = Vec::new();
+        let mut writer = StreamingJsonWriter::new(&mut buffer);
+
+        let test_data = serde_json::json!({
+            "test": "pretty",
+            "formatted": true
+        });
+
+        let result = writer.write_pretty_json(&test_data);
+        assert!(result.is_ok());
+
+        let result = writer.finalize();
+        assert!(result.is_ok());
+
+        // Verify the JSON was written and is valid
+        let written_json: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+        assert_eq!(written_json["test"].as_str().unwrap(), "pretty");
+        assert!(written_json["formatted"].as_bool().unwrap());
+
+        // Check that it's pretty formatted (contains newlines and spaces)
+        let json_string = String::from_utf8(buffer).unwrap();
+        assert!(json_string.contains('\n'));
+        assert!(json_string.contains("  ")); // Indentation
+    }
+
+    #[test]
+    fn test_type_cache_operations() {
+        // Clear cache first
+        clear_type_cache();
+
+        // Test cache miss and population
+        let type_info1 = get_or_compute_type_info("Vec<String>", 128);
+        assert_eq!(type_info1, "Vec<T>");
+
+        // Test cache hit (should return same result)
+        let type_info2 = get_or_compute_type_info("Vec<String>", 128);
+        assert_eq!(type_info2, "Vec<T>");
+        assert_eq!(type_info1, type_info2);
+
+        // Test different type
+        let type_info3 = get_or_compute_type_info("HashMap<String, i32>", 256);
+        assert_eq!(type_info3, "HashMap<K,V>");
+
+        // Clear cache and verify
+        clear_type_cache();
+        let type_info4 = get_or_compute_type_info("Vec<String>", 128);
+        assert_eq!(type_info4, "Vec<T>"); // Should still work after cache clear
+    }
+
+    #[test]
+    fn test_compute_enhanced_type_info() {
+        // Test Vec types
+        assert_eq!(compute_enhanced_type_info("Vec<String>", 100), "Vec<T>");
+        assert_eq!(compute_enhanced_type_info("Vec<i32>", 200), "Vec<T>");
+
+        // Test HashMap types
+        assert_eq!(compute_enhanced_type_info("HashMap<String, i32>", 300), "HashMap<K,V>");
+        assert_eq!(compute_enhanced_type_info("HashMap<u64, String>", 400), "HashMap<K,V>");
+
+        // Test String types
+        assert_eq!(compute_enhanced_type_info("String", 50), "String");
+        assert_eq!(compute_enhanced_type_info("std::string::String", 60), "String");
+
+        // Test size-based categorization
+        assert_eq!(compute_enhanced_type_info("Unknown", 4), "Primitive");
+        assert_eq!(compute_enhanced_type_info("Unknown", 16), "SmallStruct");
+        assert_eq!(compute_enhanced_type_info("Unknown", 64), "MediumStruct");
+        assert_eq!(compute_enhanced_type_info("Unknown", 512), "LargeStruct");
+        assert_eq!(compute_enhanced_type_info("Unknown", 2048), "Buffer");
+    }
+
+    #[test]
+    fn test_estimate_json_size() {
+        // Test simple object
+        let simple_obj = serde_json::json!({
+            "key": "value"
+        });
+        let size1 = estimate_json_size(&simple_obj);
+        assert!(size1 > 0);
+
+        // Test array
+        let array = serde_json::json!([1, 2, 3, 4, 5]);
+        let size2 = estimate_json_size(&array);
+        assert!(size2 > 0);
+
+        // Test complex nested structure
+        let complex = serde_json::json!({
+            "data": {
+                "items": [
+                    {"id": 1, "name": "item1"},
+                    {"id": 2, "name": "item2"}
+                ],
+                "metadata": {
+                    "count": 2,
+                    "description": "test data"
+                }
+            }
+        });
+        let size3 = estimate_json_size(&complex);
+        assert!(size3 > size1);
+        assert!(size3 > size2);
+
+        // Test string
+        let string_val = serde_json::json!("This is a test string");
+        let size4 = estimate_json_size(&string_val);
+        assert!(size4 > 20); // String length + overhead
+
+        // Test primitive
+        let number = serde_json::json!(42);
+        let size5 = estimate_json_size(&number);
+        assert_eq!(size5, 20); // Default primitive size
+    }
+
+    #[test]
+    fn test_process_allocation_batch_enhanced() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("test_var".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("test_vec".to_string()),
+            ),
+        ];
+
+        let options = OptimizedExportOptions::default();
+        let result = process_allocation_batch_enhanced(&allocations, &options);
+        assert!(result.is_ok());
+
+        let processed = result.unwrap();
+        assert_eq!(processed.len(), 2);
+
+        // Check first allocation
+        let first = &processed[0];
+        assert_eq!(first["ptr"].as_str().unwrap(), "0x1000");
+        assert_eq!(first["size"].as_u64().unwrap(), 64);
+        assert_eq!(first["type_name"].as_str().unwrap(), "String");
+        assert_eq!(first["var_name"].as_str().unwrap(), "test_var");
+        assert_eq!(first["is_active"].as_bool().unwrap(), true);
+
+        // Check second allocation
+        let second = &processed[1];
+        assert_eq!(second["ptr"].as_str().unwrap(), "0x2000");
+        assert_eq!(second["size"].as_u64().unwrap(), 128);
+        assert_eq!(second["type_name"].as_str().unwrap(), "Vec<T>");
+        assert_eq!(second["var_name"].as_str().unwrap(), "test_vec");
+    }
+
+    #[test]
+    fn test_process_allocation_batch_enhanced_with_disabled_features() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("*mut u8".to_string()),
+                Some("raw_ptr".to_string()),
+            ),
+        ];
+
+        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low); // Disables enhanced features
+
+        let result = process_allocation_batch_enhanced(&allocations, &options);
+        assert!(result.is_ok());
+
+        let processed = result.unwrap();
+        assert_eq!(processed.len(), 1);
+
+        let allocation = &processed[0];
+        // Should not have enhanced FFI analysis when disabled
+        assert!(allocation.get("ffi_analysis").is_none());
+        assert!(allocation.get("boundary_events").is_none());
+        assert!(allocation.get("memory_passport").is_none());
+    }
+
+    #[test]
+    fn test_analyze_ffi_allocation() {
+        // Test raw pointer detection
+        let raw_ptr_alloc = create_test_allocation(
+            0x1000,
+            64,
+            Some("*mut u8".to_string()),
+            Some("raw_ptr".to_string()),
+        );
+        let ffi_info = analyze_ffi_allocation(&raw_ptr_alloc);
+        assert!(ffi_info.is_some());
+        let info = ffi_info.unwrap();
+        assert!(info["is_ffi_related"].as_bool().unwrap());
+        assert_eq!(info["ffi_type"].as_str().unwrap(), "raw_pointer");
+        assert_eq!(info["risk_level"].as_str().unwrap(), "high");
+
+        // Test const pointer detection
+        let const_ptr_alloc = create_test_allocation(
+            0x2000,
+            32,
+            Some("*const i32".to_string()),
+            Some("const_ptr".to_string()),
+        );
+        let ffi_info = analyze_ffi_allocation(&const_ptr_alloc);
+        assert!(ffi_info.is_some());
+        let info = ffi_info.unwrap();
+        assert_eq!(info["ffi_type"].as_str().unwrap(), "raw_pointer");
+        assert_eq!(info["risk_level"].as_str().unwrap(), "medium"); // *const is medium risk, not high
+
+        // Test extern type detection
+        let extern_alloc = create_test_allocation(
+            0x3000,
+            128,
+            Some("extern \"C\" fn()".to_string()),
+            Some("extern_fn".to_string()),
+        );
+        let ffi_info = analyze_ffi_allocation(&extern_alloc);
+        assert!(ffi_info.is_some());
+        let info = ffi_info.unwrap();
+        assert_eq!(info["ffi_type"].as_str().unwrap(), "external_library");
+        assert_eq!(info["risk_level"].as_str().unwrap(), "medium");
+
+        // Test libc type detection
+        let libc_alloc = create_test_allocation(
+            0x4000,
+            64,
+            Some("libc::c_void".to_string()),
+            Some("libc_ptr".to_string()),
+        );
+        let ffi_info = analyze_ffi_allocation(&libc_alloc);
+        assert!(ffi_info.is_some());
+        let info = ffi_info.unwrap();
+        assert_eq!(info["ffi_type"].as_str().unwrap(), "external_library");
+
+        // Test FFI variable name detection
+        let ffi_var_alloc = create_test_allocation(
+            0x5000,
+            32,
+            Some("i32".to_string()),
+            Some("ffi_buffer".to_string()),
+        );
+        let ffi_info = analyze_ffi_allocation(&ffi_var_alloc);
+        assert!(ffi_info.is_some());
+        let info = ffi_info.unwrap();
+        assert_eq!(info["ffi_type"].as_str().unwrap(), "ffi_variable");
+        assert_eq!(info["detected_from"].as_str().unwrap(), "variable_name");
+
+        // Test non-FFI allocation
+        let normal_alloc = create_test_allocation(
+            0x6000,
+            64,
+            Some("String".to_string()),
+            Some("normal_var".to_string()),
+        );
+        let ffi_info = analyze_ffi_allocation(&normal_alloc);
+        assert!(ffi_info.is_none());
+    }
+
+    #[test]
+    fn test_normalize_type_name() {
+        // Test generic type normalization
+        assert_eq!(normalize_type_name("Vec<String>"), "Vec<T>");
+        assert_eq!(normalize_type_name("HashMap<String, i32>"), "HashMap<T>");
+        assert_eq!(normalize_type_name("Option<Result<String, Error>>"), "Option<T>");
+
+        // Test non-generic types
+        assert_eq!(normalize_type_name("String"), "String");
+        assert_eq!(normalize_type_name("i32"), "i32");
+        assert_eq!(normalize_type_name("MyStruct"), "MyStruct");
+
+        // Test edge cases
+        assert_eq!(normalize_type_name(""), "");
+        assert_eq!(normalize_type_name("Vec"), "Vec");
+        assert_eq!(normalize_type_name("Vec<>"), "Vec<T>");
+    }
+
+    #[test]
+    fn test_categorize_complex_type() {
+        // Test trait objects
+        assert_eq!(categorize_complex_type("dyn Display"), "TraitObject");
+        assert_eq!(categorize_complex_type("dyn Debug + Send"), "TraitObject");
+
+        // Test smart pointers
+        assert_eq!(categorize_complex_type("Box<String>"), "SmartPointer");
+        assert_eq!(categorize_complex_type("Rc<RefCell<i32>>"), "SmartPointer");
+        assert_eq!(categorize_complex_type("Arc<Mutex<Vec<u8>>>"), "SmartPointer");
+        assert_eq!(categorize_complex_type("RefCell<HashMap<String, i32>>"), "SmartPointer");
+
+        // Test collections
+        assert_eq!(categorize_complex_type("Vec<String>"), "Collection");
+        assert_eq!(categorize_complex_type("HashMap<String, i32>"), "Collection");
+        assert_eq!(categorize_complex_type("BTreeMap<u64, String>"), "Collection");
+        assert_eq!(categorize_complex_type("HashSet<String>"), "Collection");
+
+        // Test generic types
+        assert_eq!(categorize_complex_type("Option<String>"), "Generic");
+        assert_eq!(categorize_complex_type("Result<i32, Error>"), "Generic");
+        assert_eq!(categorize_complex_type("MyStruct<T, U>"), "Generic");
+
+        // Test module paths
+        assert_eq!(categorize_complex_type("std::collections::HashMap"), "ModulePath");
+        assert_eq!(categorize_complex_type("crate::my_module::MyType"), "ModulePath");
+
+        // Test simple types
+        assert_eq!(categorize_complex_type("String"), "Simple");
+        assert_eq!(categorize_complex_type("i32"), "Simple");
+        assert_eq!(categorize_complex_type("MyStruct"), "Simple");
+    }
+
+    #[test]
+    fn test_calculate_type_complexity() {
+        // Test simple types
+        assert_eq!(calculate_type_complexity("i32"), 1);
+        assert_eq!(calculate_type_complexity("String"), 1);
+
+        // Test generic types: base(1) + matches('<')(2) + nesting_level(3)
+        assert_eq!(calculate_type_complexity("Vec<String>"), 6); // 1 + 1*2 + 1*3
+        assert_eq!(calculate_type_complexity("HashMap<String, i32>"), 6); // 1 + 1*2 + 1*3
+
+        // Test nested generics: base(1) + matches('<')(2*2) + nesting_level(2*3)
+        assert_eq!(calculate_type_complexity("Vec<Option<String>>"), 11); // 1 + 2*2 + 2*3
+
+        // Test trait objects: base(1) + dyn(5)
+        assert_eq!(calculate_type_complexity("dyn Display"), 6); // 1 + 5
+        assert_eq!(calculate_type_complexity("dyn Debug + Send"), 6); // 1 + 5
+
+        // Test impl types: base(1) + impl(4)
+        assert_eq!(calculate_type_complexity("impl Iterator"), 5); // 1 + 4
+
+        // Test async types: base(1) + async(3)
+        assert_eq!(calculate_type_complexity("async fn()"), 4); // 1 + 3
+        // Future<Output = i32>: base(1) + matches('<')(1*2) + nesting_level(1*3) + Future(3)
+        assert_eq!(calculate_type_complexity("Future<Output = i32>"), 9); // 1 + 2 + 3 + 3
+
+        // Test smart pointers
+        // Box<String>: base(1) + matches('<')(1*2) + nesting_level(1*3) + Box(2)
+        assert_eq!(calculate_type_complexity("Box<String>"), 8); // 1 + 2 + 3 + 2
+        // Rc<RefCell<i32>>: base(1) + matches('<')(2*2) + nesting_level(2*3) + Rc(3) + RefCell(3)
+        assert_eq!(calculate_type_complexity("Rc<RefCell<i32>>"), 17); // 1 + 4 + 6 + 3 + 3
+        // Arc<Mutex<Vec<String>>>: base(1) + matches('<')(3*2) + nesting_level(3*3) + Arc(4)
+        assert_eq!(calculate_type_complexity("Arc<Mutex<Vec<String>>>"), 20); // 1 + 6 + 9 + 4
+    }
+
+    #[test]
+    fn test_calculate_memory_efficiency() {
+        // Test Vec efficiency
+        assert_eq!(calculate_memory_efficiency("Vec<String>", 32, 1), 60); // Small Vec
+        assert_eq!(calculate_memory_efficiency("Vec<i32>", 128, 1), 85); // Larger Vec
+
+        // Test HashMap efficiency
+        assert_eq!(calculate_memory_efficiency("HashMap<String, i32>", 64, 1), 50); // Small HashMap
+        assert_eq!(calculate_memory_efficiency("HashMap<u64, String>", 256, 1), 75); // Larger HashMap
+
+        // Test Box efficiency
+        assert_eq!(calculate_memory_efficiency("Box<String>", 100, 1), 90);
+
+        // Test reference counting
+        assert_eq!(calculate_memory_efficiency("Arc<String>", 100, 1), 80);
+        assert_eq!(calculate_memory_efficiency("Rc<i32>", 50, 1), 80);
+
+        // Test default efficiency
+        assert_eq!(calculate_memory_efficiency("MyStruct", 100, 1), 85);
+
+        // Test zero count edge case
+        assert_eq!(calculate_memory_efficiency("Vec<String>", 1000, 0), 100);
+    }
+
+    #[test]
+    fn test_generate_optimization_suggestions() {
+        let mut info = ComplexTypeInfo::new();
+
+        // Test high allocation count suggestions
+        info.allocation_count = 150;
+        info.total_size = 1000;
+        info.complexity_score = 5;
+        let suggestions = generate_optimization_suggestions("String", &info);
+        assert!(suggestions.iter().any(|s| s.contains("object pooling")));
+
+        // Test large Vec suggestions
+        info.allocation_count = 10;
+        info.total_size = 2 * 1024 * 1024; // 2MB
+        info.complexity_score = 3;
+        let suggestions = generate_optimization_suggestions("Vec<String>", &info);
+        assert!(suggestions.iter().any(|s| s.contains("pre-allocating Vec capacity")));
+
+        // Test HashMap suggestions
+        info.allocation_count = 60;
+        info.total_size = 100000;
+        info.complexity_score = 4;
+        let suggestions = generate_optimization_suggestions("HashMap<String, i32>", &info);
+        assert!(suggestions.iter().any(|s| s.contains("FxHashMap")));
+
+        // Test Box suggestions
+        info.allocation_count = 250;
+        info.total_size = 50000;
+        info.complexity_score = 2;
+        let suggestions = generate_optimization_suggestions("Box<i32>", &info);
+        assert!(suggestions.iter().any(|s| s.contains("arena allocation")));
+
+        // Test high complexity suggestions
+        info.allocation_count = 10;
+        info.total_size = 1000;
+        info.complexity_score = 15;
+        let suggestions = generate_optimization_suggestions("ComplexType<T, U, V>", &info);
+        assert!(suggestions.iter().any(|s| s.contains("High complexity type")));
+    }
+
+    #[test]
+    fn test_calculate_complexity_distribution() {
+        let type_analysis = vec![
+            serde_json::json!({"complexity_score": 2}),
+            serde_json::json!({"complexity_score": 5}),
+            serde_json::json!({"complexity_score": 10}),
+            serde_json::json!({"complexity_score": 20}),
+            serde_json::json!({"complexity_score": 1}),
+            serde_json::json!({"complexity_score": 7}),
+        ];
+
+        let distribution = calculate_complexity_distribution(&type_analysis);
+
+        assert_eq!(distribution["low_complexity"].as_u64().unwrap(), 2); // scores 1, 2
+        assert_eq!(distribution["medium_complexity"].as_u64().unwrap(), 2); // scores 5, 7
+        assert_eq!(distribution["high_complexity"].as_u64().unwrap(), 1); // score 10
+        assert_eq!(distribution["very_high_complexity"].as_u64().unwrap(), 1); // score 20
+    }
+
+    #[test]
+    fn test_generate_global_optimization_recommendations() {
+        // Test with many high-complexity types (need more than 5 high allocation count items)
+        let high_complexity_analysis = vec![
+            serde_json::json!({"complexity_score": 15, "allocation_count": 150}),
+            serde_json::json!({"complexity_score": 12, "allocation_count": 130}),
+            serde_json::json!({"complexity_score": 18, "allocation_count": 120}),
+            serde_json::json!({"complexity_score": 20, "allocation_count": 200}),
+            serde_json::json!({"complexity_score": 11, "allocation_count": 110}),
+            serde_json::json!({"complexity_score": 14, "allocation_count": 140}),
+        ];
+
+        let recommendations = generate_global_optimization_recommendations(&high_complexity_analysis);
+        assert!(recommendations.iter().any(|r| r.contains("refactoring high-complexity types")));
+        assert!(recommendations.iter().any(|r| r.contains("object pooling")));
+        assert!(recommendations.iter().any(|r| r.contains("cargo clippy")));
+        assert!(recommendations.iter().any(|r| r.contains("perf")));
+
+        // Test with low-complexity types
+        let low_complexity_analysis = vec![
+            serde_json::json!({"complexity_score": 2, "allocation_count": 10}),
+            serde_json::json!({"complexity_score": 3, "allocation_count": 5}),
+        ];
+
+        let recommendations = generate_global_optimization_recommendations(&low_complexity_analysis);
+        // Should not suggest refactoring for low complexity
+        assert!(!recommendations.iter().any(|r| r.contains("refactoring high-complexity types")));
+        // Should not suggest object pooling for low allocation counts
+        assert!(!recommendations.iter().any(|r| r.contains("object pooling")));
+        // But should still have general recommendations
+        assert!(recommendations.iter().any(|r| r.contains("cargo clippy")));
+    }
+
+    #[test]
+    fn test_complex_type_info_merge() {
+        let mut info1 = ComplexTypeInfo {
+            category: "Generic".to_string(),
+            total_size: 1000,
+            allocation_count: 10,
+            max_size: 200,
+            complexity_score: 5,
+        };
+
+        let info2 = ComplexTypeInfo {
+            category: "".to_string(), // Empty category
+            total_size: 500,
+            allocation_count: 5,
+            max_size: 150,
+            complexity_score: 3,
+        };
+
+        info1.merge(info2);
+
+        assert_eq!(info1.category, "Generic"); // Should keep original category
+        assert_eq!(info1.total_size, 1500); // 1000 + 500
+        assert_eq!(info1.allocation_count, 15); // 10 + 5
+        assert_eq!(info1.max_size, 200); // max(200, 150)
+        assert_eq!(info1.complexity_score, 5); // max(5, 3)
+    }
+
+    #[test]
+    fn test_complex_type_info_merge_empty_category() {
+        let mut info1 = ComplexTypeInfo {
+            category: "".to_string(), // Empty category
+            total_size: 100,
+            allocation_count: 1,
+            max_size: 100,
+            complexity_score: 2,
+        };
+
+        let info2 = ComplexTypeInfo {
+            category: "Collection".to_string(),
+            total_size: 200,
+            allocation_count: 2,
+            max_size: 150,
+            complexity_score: 4,
+        };
+
+        info1.merge(info2);
+
+        assert_eq!(info1.category, "Collection"); // Should take non-empty category
+        assert_eq!(info1.total_size, 300);
+        assert_eq!(info1.allocation_count, 3);
+        assert_eq!(info1.max_size, 150);
+        assert_eq!(info1.complexity_score, 4);
+    }
 }

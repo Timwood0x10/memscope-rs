@@ -644,7 +644,7 @@ validate: ci run-basic run-lifecycle html
 
 
 # Testing targets
-.PHONY: test-all quick-test test-lib test-integration test-doc test-examples
+.PHONY: test-all quick-test test-lib test-integration-coverage test-doc test-examples
 test-all:
 	@echo "$(BLUE)🧪 Running all tests with coverage...$(NC)"
 	@mkdir -p coverage-report
@@ -663,7 +663,7 @@ test-lib:
 	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
 
 
-test-integration:
+test-integration-coverage:
 	@echo "$(BLUE)🧪 Running integration tests with coverage...$(NC)"
 	@mkdir -p coverage-report
 	@cargo tarpaulin --out Html --output-dir coverage-report --tests
