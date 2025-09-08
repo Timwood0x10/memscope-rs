@@ -133,7 +133,8 @@ impl AnalysisManager {
 
     /// Analyze generic type usage and constraints
     pub fn analyze_generic_types(&self, _allocations: &[AllocationInfo]) -> GenericStatistics {
-        let analyzer = get_global_generic_analyzer();
+        // Create a new analyzer instance to avoid global state pollution in tests
+        let analyzer = GenericAnalyzer::new();
         analyzer.get_generic_statistics()
     }
 

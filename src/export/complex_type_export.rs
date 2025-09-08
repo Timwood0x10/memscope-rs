@@ -237,6 +237,7 @@ mod tests {
             total_instantiations: 0,
             constraint_violations: 0,
             most_used_types: vec![],
+            type_aliases_count: 0,
         };
         // With zero instances, should not export
         assert!(!should_export_generic_analysis(&analysis));
@@ -247,6 +248,7 @@ mod tests {
             total_instantiations: 10,
             constraint_violations: 1,
             most_used_types: vec![("Vec".to_string(), 3)],
+            type_aliases_count: 0,
         };
         // With instances, should export
         assert!(should_export_generic_analysis(&analysis));
