@@ -359,7 +359,6 @@ fn current_timestamp() -> u128 {
         .unwrap_or(0)
 }
 
-
 /// Macro for tracking scopes with automatic cleanup
 #[macro_export]
 macro_rules! track_scope {

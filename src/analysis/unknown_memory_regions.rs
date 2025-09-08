@@ -949,8 +949,13 @@ mod tests {
         assert!(analyzer.is_likely_pre_tracking_allocation(&early_alloc));
 
         // Test normal timestamp (not pre-tracking)
-        let normal_alloc =
-            create_test_allocation(0x4000_0000_0000, 2048, 5000, Some("Normal".to_string()), None);
+        let normal_alloc = create_test_allocation(
+            0x4000_0000_0000,
+            2048,
+            5000,
+            Some("Normal".to_string()),
+            None,
+        );
         assert!(!analyzer.is_likely_pre_tracking_allocation(&normal_alloc));
     }
 

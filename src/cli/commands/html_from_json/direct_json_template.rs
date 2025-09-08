@@ -1350,14 +1350,10 @@ fn inject_safety_risk_data_into_html(
     Ok(html)
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use std::fs;
-    use std::path::Path;
 
     #[test]
     fn test_generate_direct_html_with_empty_data() {
@@ -1375,7 +1371,7 @@ mod tests {
         let json_data = HashMap::new();
         let result = transform_json_data_structure(&json_data);
         assert!(result.is_ok());
-        
+
         let transformed = result.unwrap();
         assert!(transformed.contains_key("memory_analysis"));
         assert!(transformed.contains_key("lifetime"));
@@ -1398,12 +1394,12 @@ mod tests {
                     "total_memory": 0,
                     "active_memory": 0
                 }
-            })
+            }),
         );
-        
+
         let result = transform_json_data_structure(&json_data);
         assert!(result.is_ok());
-        
+
         let transformed = result.unwrap();
         assert!(transformed.contains_key("memory_analysis"));
     }
@@ -1415,12 +1411,12 @@ mod tests {
             "test_lifetime".to_string(),
             serde_json::json!({
                 "lifecycle_events": []
-            })
+            }),
         );
-        
+
         let result = transform_json_data_structure(&json_data);
         assert!(result.is_ok());
-        
+
         let transformed = result.unwrap();
         assert!(transformed.contains_key("lifetime"));
     }
@@ -1441,12 +1437,12 @@ mod tests {
                     "total_complex_types": 0,
                     "generic_type_count": 0
                 }
-            })
+            }),
         );
-        
+
         let result = transform_json_data_structure(&json_data);
         assert!(result.is_ok());
-        
+
         let transformed = result.unwrap();
         assert!(transformed.contains_key("complex_types"));
     }
@@ -1469,12 +1465,12 @@ mod tests {
                     "large": 0,
                     "massive": 0
                 }
-            })
+            }),
         );
-        
+
         let result = transform_json_data_structure(&json_data);
         assert!(result.is_ok());
-        
+
         let transformed = result.unwrap();
         assert!(transformed.contains_key("performance"));
     }
@@ -1493,12 +1489,12 @@ mod tests {
                 },
                 "enhanced_ffi_data": [],
                 "safety_violations": []
-            })
+            }),
         );
-        
+
         let result = transform_json_data_structure(&json_data);
         assert!(result.is_ok());
-        
+
         let transformed = result.unwrap();
         assert!(transformed.contains_key("unsafe_ffi"));
     }
@@ -1525,12 +1521,12 @@ mod tests {
                         }
                     }
                 }
-            })
+            }),
         );
-        
+
         let result = transform_json_data_structure(&json_data);
         assert!(result.is_ok());
-        
+
         let transformed = result.unwrap();
         assert!(transformed.contains_key("security_violations"));
     }
@@ -1540,7 +1536,7 @@ mod tests {
         let data = serde_json::json!({
             "allocations": []
         });
-        
+
         let result = enhance_memory_analysis_data(&data);
         assert!(result.is_ok());
     }
@@ -1550,7 +1546,7 @@ mod tests {
         let data = serde_json::json!({
             "lifecycle_events": []
         });
-        
+
         let result = enhance_lifetime_data(&data);
         assert!(result.is_ok());
     }
@@ -1561,7 +1557,7 @@ mod tests {
             "allocations": [],
             "boundary_events": []
         });
-        
+
         let result = enhance_ffi_data(&data);
         assert!(result.is_ok());
     }
@@ -1606,7 +1602,7 @@ mod tests {
     fn test_get_progress_color() {
         let color = get_progress_color(0);
         assert_eq!(color, "#ff6b6b");
-        
+
         let color = get_progress_color(10);
         assert_eq!(color, "#ff6b6b"); // Should wrap around
     }
@@ -1614,44 +1610,62 @@ mod tests {
     #[test]
     fn test_get_fragmentation_analysis() {
         let analysis = get_fragmentation_analysis(5);
-        assert_eq!(analysis, "Excellent memory layout with minimal fragmentation.");
-        
+        assert_eq!(
+            analysis,
+            "Excellent memory layout with minimal fragmentation."
+        );
+
         let analysis = get_fragmentation_analysis(15);
         assert_eq!(analysis, "Good memory layout with low fragmentation.");
-        
+
         let analysis = get_fragmentation_analysis(35);
-        assert_eq!(analysis, "Moderate fragmentation detected. Consider memory pool allocation.");
-        
+        assert_eq!(
+            analysis,
+            "Moderate fragmentation detected. Consider memory pool allocation."
+        );
+
         let analysis = get_fragmentation_analysis(60);
-        assert_eq!(analysis, "High fragmentation detected. Memory layout optimization recommended.");
+        assert_eq!(
+            analysis,
+            "High fragmentation detected. Memory layout optimization recommended."
+        );
     }
 
     #[test]
     fn test_get_trend_analysis() {
         let analysis = get_trend_analysis(-5);
-        assert_eq!(analysis, "Memory usage is decreasing - good memory management.");
-        
+        assert_eq!(
+            analysis,
+            "Memory usage is decreasing - good memory management."
+        );
+
         let analysis = get_trend_analysis(5);
         assert_eq!(analysis, "Stable memory usage with minimal growth.");
-        
+
         let analysis = get_trend_analysis(25);
-        assert_eq!(analysis, "Moderate memory growth - monitor for potential leaks.");
-        
+        assert_eq!(
+            analysis,
+            "Moderate memory growth - monitor for potential leaks."
+        );
+
         let analysis = get_trend_analysis(75);
-        assert_eq!(analysis, "High memory growth detected - investigate for memory leaks.");
+        assert_eq!(
+            analysis,
+            "High memory growth detected - investigate for memory leaks."
+        );
     }
 
     #[test]
     fn test_format_memory_size() {
         let formatted = format_memory_size(1023);
         assert_eq!(formatted, "1023 B");
-        
+
         let formatted = format_memory_size(1024);
         assert_eq!(formatted, "1.0 KB");
-        
+
         let formatted = format_memory_size(1024 * 1024);
         assert_eq!(formatted, "1.0 MB");
-        
+
         let formatted = format_memory_size(1024 * 1024 * 1024);
         assert_eq!(formatted, "1.0 GB");
     }
@@ -1660,13 +1674,13 @@ mod tests {
     fn test_calculate_risk_level() {
         let risk = calculate_risk_level(100, true, false);
         assert_eq!(risk, "HIGH");
-        
+
         let risk = calculate_risk_level(1024 * 1024 + 1, false, true);
         assert_eq!(risk, "MEDIUM");
-        
+
         let risk = calculate_risk_level(100, false, true);
         assert_eq!(risk, "LOW");
-        
+
         let risk = calculate_risk_level(100, false, false);
         assert_eq!(risk, "SAFE");
     }
@@ -1719,13 +1733,13 @@ mod tests {
     fn test_get_violation_severity() {
         let severity = get_violation_severity("double free detected");
         assert_eq!(severity, "critical");
-        
+
         let severity = get_violation_severity("invalid free operation");
         assert_eq!(severity, "high");
-        
+
         let severity = get_violation_severity("memory leak detected");
         assert_eq!(severity, "medium");
-        
+
         let severity = get_violation_severity("unknown issue");
         assert_eq!(severity, "low");
     }

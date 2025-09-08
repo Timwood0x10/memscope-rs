@@ -149,11 +149,11 @@ mod tests {
     fn test_tracking_manager_creation() {
         // Test that TrackingManager can be created
         let manager = TrackingManager::new();
-        
+
         // Verify it has the expected components
         let _memory_tracker = manager.memory_tracker();
         let _scope_tracker = manager.scope_tracker();
-        
+
         // If we get here without panicking, creation was successful
         assert!(true, "TrackingManager created successfully");
     }
@@ -162,19 +162,22 @@ mod tests {
     fn test_tracking_manager_default() {
         // Test that Default trait works
         let manager = TrackingManager::default();
-        
+
         // Should be equivalent to new()
         let _memory_tracker = manager.memory_tracker();
         let _scope_tracker = manager.scope_tracker();
-        
+
         assert!(true, "TrackingManager default creation successful");
     }
 
     #[test]
     fn test_comprehensive_tracking_report_structure() {
         // Test the ComprehensiveTrackingReport structure
-        use crate::core::types::{MemoryStats, ScopeAnalysis, FragmentationAnalysis, ScopeLifecycleMetrics, SystemLibraryStats, ConcurrencyAnalysis, ScopeHierarchy};
-        
+        use crate::core::types::{
+            ConcurrencyAnalysis, FragmentationAnalysis, MemoryStats, ScopeAnalysis, ScopeHierarchy,
+            ScopeLifecycleMetrics, SystemLibraryStats,
+        };
+
         let report = ComprehensiveTrackingReport {
             memory_stats: MemoryStats {
                 total_allocations: 10,
@@ -208,7 +211,7 @@ mod tests {
             scope_metrics: vec![],
             analysis_timestamp: 1234567890,
         };
-        
+
         // Test that the report can be created and accessed
         assert_eq!(report.memory_stats.total_allocations, 10);
         assert_eq!(report.memory_stats.active_allocations, 5);
@@ -219,8 +222,11 @@ mod tests {
     #[test]
     fn test_comprehensive_tracking_report_clone() {
         // Test that ComprehensiveTrackingReport can be cloned
-        use crate::core::types::{MemoryStats, ScopeAnalysis, FragmentationAnalysis, ScopeLifecycleMetrics, SystemLibraryStats, ConcurrencyAnalysis, ScopeHierarchy};
-        
+        use crate::core::types::{
+            ConcurrencyAnalysis, FragmentationAnalysis, MemoryStats, ScopeAnalysis, ScopeHierarchy,
+            ScopeLifecycleMetrics, SystemLibraryStats,
+        };
+
         let original = ComprehensiveTrackingReport {
             memory_stats: MemoryStats {
                 total_allocations: 5,
@@ -254,20 +260,29 @@ mod tests {
             scope_metrics: vec![],
             analysis_timestamp: 9876543210,
         };
-        
+
         let cloned = original.clone();
-        
+
         // Verify clone has same values
-        assert_eq!(original.memory_stats.total_allocations, cloned.memory_stats.total_allocations);
-        assert_eq!(original.scope_analysis.total_scopes, cloned.scope_analysis.total_scopes);
+        assert_eq!(
+            original.memory_stats.total_allocations,
+            cloned.memory_stats.total_allocations
+        );
+        assert_eq!(
+            original.scope_analysis.total_scopes,
+            cloned.scope_analysis.total_scopes
+        );
         assert_eq!(original.analysis_timestamp, cloned.analysis_timestamp);
     }
 
     #[test]
     fn test_comprehensive_tracking_report_debug() {
         // Test that ComprehensiveTrackingReport implements Debug
-        use crate::core::types::{MemoryStats, ScopeAnalysis, FragmentationAnalysis, ScopeLifecycleMetrics, SystemLibraryStats, ConcurrencyAnalysis, ScopeHierarchy};
-        
+        use crate::core::types::{
+            ConcurrencyAnalysis, FragmentationAnalysis, MemoryStats, ScopeAnalysis, ScopeHierarchy,
+            ScopeLifecycleMetrics, SystemLibraryStats,
+        };
+
         let report = ComprehensiveTrackingReport {
             memory_stats: MemoryStats {
                 total_allocations: 1,
@@ -301,9 +316,9 @@ mod tests {
             scope_metrics: vec![],
             analysis_timestamp: 1111111111,
         };
-        
+
         let debug_str = format!("{report:?}");
-        
+
         // Should contain key information
         assert!(debug_str.contains("ComprehensiveTrackingReport"));
         assert!(debug_str.contains("memory_stats"));
@@ -315,16 +330,17 @@ mod tests {
     fn test_tracking_manager_method_signatures() {
         // Test that all TrackingManager methods have correct signatures
         let manager = TrackingManager::new();
-        
+
         // Test memory_tracker method
         let _memory_tracker: &Arc<MemoryTracker> = manager.memory_tracker();
-        
+
         // Test scope_tracker method
-        let _scope_tracker: &Arc<crate::core::scope_tracker::ScopeTracker> = manager.scope_tracker();
-        
+        let _scope_tracker: &Arc<crate::core::scope_tracker::ScopeTracker> =
+            manager.scope_tracker();
+
         // Test method signatures without actually calling them (to avoid global state issues)
         // We just verify the methods exist and have correct types
-        
+
         // These would normally be tested, but we avoid calling them due to global state:
         // let _: TrackingResult<()> = manager.track_allocation(0x1000, 1024);
         // let _: TrackingResult<()> = manager.track_deallocation(0x1000);
@@ -337,7 +353,7 @@ mod tests {
         // let _: TrackingResult<Vec<AllocationInfo>> = manager.get_allocation_history();
         // let _: TrackingResult<ScopeAnalysis> = manager.get_scope_analysis();
         // let _: TrackingResult<ComprehensiveTrackingReport> = manager.perform_comprehensive_analysis();
-        
+
         assert!(true, "All method signatures are correct");
     }
 
@@ -345,21 +361,21 @@ mod tests {
     fn test_tracking_manager_component_access() {
         // Test that we can access the internal components
         let manager = TrackingManager::new();
-        
+
         // Access memory tracker
         let memory_tracker = manager.memory_tracker();
         // Arc is always valid, so we just check we can access it
         let _ = memory_tracker;
-        
+
         // Access scope tracker
         let scope_tracker = manager.scope_tracker();
         // Arc is always valid, so we just check we can access it
         let _ = scope_tracker;
-        
+
         // Test that we can access them multiple times
         let _memory_tracker2 = manager.memory_tracker();
         let _scope_tracker2 = manager.scope_tracker();
-        
+
         assert!(true, "Component access works correctly");
     }
 }

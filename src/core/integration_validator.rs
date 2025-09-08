@@ -159,9 +159,13 @@ impl IntegrationValidator {
         tracing::info!("🧪 Testing comprehensive data deduplicator");
 
         // 🔧 FIX: Use local instance instead of global to avoid state conflicts
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false; // Disable stats to avoid lock contention
-        let deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
+        let deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
 
         // Test string deduplication
         let test_string = "test string for deduplication";
@@ -296,11 +300,16 @@ impl IntegrationValidator {
         let normalizer = get_global_enhanced_call_stack_normalizer();
 
         // 🔧 FIX: Reduce iterations to avoid timeout and use local deduplicator
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false; // Disable stats to avoid lock contention
-        let local_deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
-        
-        for i in 0..100 { // Reduced from 1000 to 100
+        let local_deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
+
+        for i in 0..100 {
+            // Reduced from 1000 to 100
             let frames = vec![StackFrame {
                 function_name: format!("perf_test_function_{}", i % 10),
                 file_name: Some("perf_test.rs".to_string()),
@@ -330,21 +339,27 @@ impl IntegrationValidator {
         tracing::info!("🧪 Testing memory usage characteristics");
 
         // 🔧 FIX: Use local instance with stats enabled for this specific test
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = true; // Enable stats for this test only
-        let deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
+        let deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
 
         let test_string = "This is a test string that should be deduplicated to save memory";
 
         // Create many references to the same string
-        for _ in 0..50 { // Reduced from 100 to 50 to avoid timeout
+        for _ in 0..50 {
+            // Reduced from 100 to 50 to avoid timeout
             let _dedup_ref = deduplicator.deduplicate_string(test_string)?;
         }
 
         let stats = deduplicator.get_stats()?;
 
         // Should have high deduplication rate
-        if stats.cache_hit_rate < 0.8 { // Reduced threshold from 0.9 to 0.8
+        if stats.cache_hit_rate < 0.8 {
+            // Reduced threshold from 0.9 to 0.8
             tracing::error!(
                 "Memory usage test failed: low cache hit rate ({})",
                 stats.cache_hit_rate
@@ -396,7 +411,7 @@ mod tests {
     fn test_call_stack_normalizer_validation() {
         // 🔧 FIX: Test call stack normalizer functionality directly to avoid global state issues
         let normalizer = get_global_enhanced_call_stack_normalizer();
-        
+
         // Test basic normalization with simple frames
         let frames = vec![StackFrame {
             function_name: "validation_test_function".to_string(),
@@ -408,22 +423,26 @@ mod tests {
         // Test that normalization works
         let result1 = normalizer.normalize_call_stack(&frames);
         assert!(result1.is_ok(), "First normalization should succeed");
-        
+
         let id1 = result1.expect("Should get valid ID");
         assert!(id1 > 0, "ID should be positive");
-        
+
         // Test that same frames get same ID (deduplication)
         let result2 = normalizer.normalize_call_stack(&frames);
         assert!(result2.is_ok(), "Second normalization should succeed");
-        
+
         let id2 = result2.expect("Should get valid ID");
         assert_eq!(id1, id2, "Same frames should get same ID");
-        
+
         // Test retrieval - this is where the original test was failing
         let retrieved_result = normalizer.get_call_stack(id1);
         if retrieved_result.is_ok() {
             let retrieved = retrieved_result.expect("Should retrieve frames");
-            assert_eq!(retrieved.len(), 1, "Should retrieve correct number of frames");
+            assert_eq!(
+                retrieved.len(),
+                1,
+                "Should retrieve correct number of frames"
+            );
             assert_eq!(retrieved[0].function_name, "validation_test_function");
         } else {
             // If retrieval fails, that's a known issue with the call stack normalizer
@@ -436,7 +455,7 @@ mod tests {
     fn test_edge_case_handler_validation() {
         let result = IntegrationValidator::test_edge_case_handler();
         assert!(result.is_ok());
-        
+
         let is_valid = result.expect("Edge case handler test should succeed");
         assert!(is_valid);
     }
@@ -444,15 +463,19 @@ mod tests {
     #[test]
     fn test_data_deduplicator_validation() {
         // Use local instance instead of global to avoid deadlock
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false; // Disable stats to avoid lock contention
-        let deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
-        
+        let deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
+
         // Test basic functionality
         let test_string = "validation_test";
         let result = deduplicator.deduplicate_string(test_string);
         assert!(result.is_ok());
-        
+
         let dedup_ref = result.expect("Should deduplicate string");
         assert_eq!(dedup_ref.length, test_string.len());
     }
@@ -461,7 +484,7 @@ mod tests {
     fn test_ffi_resolver_validation() {
         let result = IntegrationValidator::test_ffi_resolver();
         assert!(result.is_ok());
-        
+
         let is_valid = result.expect("FFI resolver test should succeed");
         assert!(is_valid);
     }
@@ -470,7 +493,7 @@ mod tests {
     fn test_component_integration_validation() {
         let result = IntegrationValidator::test_component_integration();
         assert!(result.is_ok());
-        
+
         let is_valid = result.expect("Component integration test should succeed");
         assert!(is_valid);
     }
@@ -479,7 +502,7 @@ mod tests {
     fn test_performance_validation() {
         let result = IntegrationValidator::test_performance();
         assert!(result.is_ok());
-        
+
         let is_valid = result.expect("Performance test should succeed");
         assert!(is_valid);
     }
@@ -487,18 +510,22 @@ mod tests {
     #[test]
     fn test_memory_usage_validation() {
         // Test memory usage validation without global state
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false;
-        let deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
-        
+        let deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
+
         // Test that memory operations work
         let test_string = "memory_test";
         let result = deduplicator.deduplicate_string(test_string);
         assert!(result.is_ok());
-        
+
         // Clear to test memory cleanup
         deduplicator.clear_all();
-        
+
         // Test that we can still use the deduplicator after clearing
         let result2 = deduplicator.deduplicate_string("after_clear");
         assert!(result2.is_ok());
@@ -510,7 +537,7 @@ mod tests {
         let call_stack_ok = IntegrationValidator::test_call_stack_normalizer().is_ok();
         let edge_case_ok = IntegrationValidator::test_edge_case_handler().is_ok();
         let ffi_ok = IntegrationValidator::test_ffi_resolver().is_ok();
-        
+
         // Create mock validation results
         let validation_results = ValidationResults {
             call_stack_normalizer_ok: call_stack_ok,
@@ -521,10 +548,15 @@ mod tests {
             performance_ok: true,
             memory_usage_ok: true,
         };
-        
+
         // Test that results structure works
-        assert!(validation_results.call_stack_normalizer_ok || !validation_results.call_stack_normalizer_ok);
-        assert!(validation_results.edge_case_handler_ok || !validation_results.edge_case_handler_ok);
+        assert!(
+            validation_results.call_stack_normalizer_ok
+                || !validation_results.call_stack_normalizer_ok
+        );
+        assert!(
+            validation_results.edge_case_handler_ok || !validation_results.edge_case_handler_ok
+        );
         assert!(validation_results.data_deduplicator_ok);
     }
 
@@ -554,7 +586,7 @@ mod tests {
     #[test]
     fn test_validation_with_different_stack_frames() {
         let normalizer = get_global_enhanced_call_stack_normalizer();
-        
+
         // Test with different stack frames
         let frames1 = vec![StackFrame {
             function_name: "function_a".to_string(),
@@ -570,37 +602,47 @@ mod tests {
             is_unsafe: true,
         }];
 
-        let id1 = normalizer.normalize_call_stack(&frames1).expect("Should normalize frames1");
-        let id2 = normalizer.normalize_call_stack(&frames2).expect("Should normalize frames2");
+        let id1 = normalizer
+            .normalize_call_stack(&frames1)
+            .expect("Should normalize frames1");
+        let id2 = normalizer
+            .normalize_call_stack(&frames2)
+            .expect("Should normalize frames2");
 
         // Different frames should get different IDs
         assert_ne!(id1, id2);
 
         // But same frames should get same ID
-        let id1_again = normalizer.normalize_call_stack(&frames1).expect("Should normalize frames1 again");
+        let id1_again = normalizer
+            .normalize_call_stack(&frames1)
+            .expect("Should normalize frames1 again");
         assert_eq!(id1, id1_again);
     }
 
     #[test]
     fn test_validation_with_edge_cases() {
         let handler = get_global_edge_case_handler();
-        
+
         // Test different edge case types
         let context1 = HashMap::new();
-        let case_id1 = handler.handle_edge_case(
-            EdgeCaseType::NullPointerAccess,
-            EdgeCaseSeverity::High,
-            "Test null pointer".to_string(),
-            context1,
-        ).expect("Should handle null pointer case");
+        let case_id1 = handler
+            .handle_edge_case(
+                EdgeCaseType::NullPointerAccess,
+                EdgeCaseSeverity::High,
+                "Test null pointer".to_string(),
+                context1,
+            )
+            .expect("Should handle null pointer case");
 
         let context2 = HashMap::new();
-        let case_id2 = handler.handle_edge_case(
-            EdgeCaseType::IntegerOverflow,
-            EdgeCaseSeverity::Medium,
-            "Test integer overflow".to_string(),
-            context2,
-        ).expect("Should handle integer overflow case");
+        let case_id2 = handler
+            .handle_edge_case(
+                EdgeCaseType::IntegerOverflow,
+                EdgeCaseSeverity::Medium,
+                "Test integer overflow".to_string(),
+                context2,
+            )
+            .expect("Should handle integer overflow case");
 
         // Different cases should get different IDs
         assert_ne!(case_id1, case_id2);
@@ -608,8 +650,12 @@ mod tests {
         assert!(case_id2 > 0);
 
         // Should be able to retrieve both cases
-        let retrieved1 = handler.get_edge_case(case_id1).expect("Should retrieve case 1");
-        let retrieved2 = handler.get_edge_case(case_id2).expect("Should retrieve case 2");
+        let retrieved1 = handler
+            .get_edge_case(case_id1)
+            .expect("Should retrieve case 1");
+        let retrieved2 = handler
+            .get_edge_case(case_id2)
+            .expect("Should retrieve case 2");
 
         assert_eq!(retrieved1.case_type, EdgeCaseType::NullPointerAccess);
         assert_eq!(retrieved2.case_type, EdgeCaseType::IntegerOverflow);
@@ -619,10 +665,14 @@ mod tests {
     #[test]
     fn test_validation_with_string_deduplication() {
         // Use local instance to avoid global state issues
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false;
-        let deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
-        
+        let deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
+
         // Test multiple string deduplications
         let strings = vec![
             "test_string_1",
@@ -632,7 +682,9 @@ mod tests {
 
         let mut refs = Vec::new();
         for s in &strings {
-            let dedup_ref = deduplicator.deduplicate_string(s).expect("Should deduplicate string");
+            let dedup_ref = deduplicator
+                .deduplicate_string(s)
+                .expect("Should deduplicate string");
             refs.push(dedup_ref);
         }
 
@@ -644,7 +696,9 @@ mod tests {
 
         // Should be able to retrieve all strings
         for (i, dedup_ref) in refs.iter().enumerate() {
-            let retrieved = deduplicator.get_string(dedup_ref).expect("Should retrieve string");
+            let retrieved = deduplicator
+                .get_string(dedup_ref)
+                .expect("Should retrieve string");
             assert_eq!(*retrieved, strings[i]);
         }
     }
@@ -654,43 +708,59 @@ mod tests {
     fn test_validation_performance_characteristics() {
         // Test that validation operations are reasonably fast
         let start_time = std::time::Instant::now();
-        
+
         // 🔧 FIX: Test components individually to avoid global state conflicts
         // Test data deduplicator with local instance
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false;
-        let deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
-        
+        let deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
+
         let test_string = "performance_test_string";
         let result = deduplicator.deduplicate_string(test_string);
         let deduplicator_ok = result.is_ok();
-        
+
         // Test basic functionality without relying on global state
         let elapsed = start_time.elapsed();
-        
+
         // Should complete quickly (less than 5 seconds)
-        assert!(elapsed.as_secs() < 5, "Validation took too long: {:?}", elapsed);
+        assert!(
+            elapsed.as_secs() < 5,
+            "Validation took too long: {:?}",
+            elapsed
+        );
         assert!(deduplicator_ok, "Deduplicator test should succeed");
     }
 
-    /// timeout 
+    /// timeout
     #[test]
     fn test_validation_memory_efficiency() {
         // Use local instance to avoid global state issues
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false;
-        let deduplicator = crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config);
-        
+        let deduplicator =
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            );
+
         // Test memory efficiency with repeated strings
         let test_string = "repeated_string_for_memory_test";
-        
+
         // Create a few references to the same string
         for _ in 0..5 {
-            let _dedup_ref = deduplicator.deduplicate_string(test_string).expect("Should deduplicate");
+            let _dedup_ref = deduplicator
+                .deduplicate_string(test_string)
+                .expect("Should deduplicate");
         }
-        
+
         // Test that basic functionality works
-        let final_ref = deduplicator.deduplicate_string(test_string).expect("Should deduplicate");
+        let final_ref = deduplicator
+            .deduplicate_string(test_string)
+            .expect("Should deduplicate");
         assert_eq!(final_ref.length, test_string.len());
     }
 
@@ -698,11 +768,11 @@ mod tests {
     fn test_validation_error_handling() {
         // Test that validation handles edge cases gracefully
         let normalizer = get_global_enhanced_call_stack_normalizer();
-        
+
         // Test with empty stack frames
         let empty_frames = vec![];
         let result = normalizer.normalize_call_stack(&empty_frames);
-        
+
         // Should either succeed with empty stack or return an error gracefully
         match result {
             Ok(_) => {
@@ -712,15 +782,17 @@ mod tests {
                 // If it fails, that's also acceptable for empty frames
             }
         }
-        
+
         // Test with very large stack
-        let large_frames: Vec<StackFrame> = (0..1000).map(|i| StackFrame {
-            function_name: format!("function_{i}"),
-            file_name: Some(format!("file_{i}.rs")),
-            line_number: Some(i as u32),
-            is_unsafe: i % 2 == 0,
-        }).collect();
-        
+        let large_frames: Vec<StackFrame> = (0..1000)
+            .map(|i| StackFrame {
+                function_name: format!("function_{i}"),
+                file_name: Some(format!("file_{i}.rs")),
+                line_number: Some(i as u32),
+                is_unsafe: i % 2 == 0,
+            })
+            .collect();
+
         let result = normalizer.normalize_call_stack(&large_frames);
         // Should handle large stacks without crashing
         assert!(result.is_ok() || result.is_err()); // Either outcome is acceptable
@@ -730,23 +802,30 @@ mod tests {
     #[test]
     fn test_validation_concurrent_access() {
         // Test that validation works with concurrent access patterns
-        use std::thread;
         use std::sync::Arc;
-        
+        use std::thread;
+
         // Create a local deduplicator instance to avoid global state
-        let mut config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
+        let mut config =
+            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
         config.enable_stats = false;
-        let deduplicator = Arc::new(crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(config));
-        
+        let deduplicator = Arc::new(
+            crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
+                config,
+            ),
+        );
+
         // Test concurrent string deduplication
-        let handles: Vec<_> = (0..3).map(|i| {
-            let dedup = Arc::clone(&deduplicator);
-            thread::spawn(move || {
-                let test_string = format!("concurrent_test_string_{}", i % 2); // Some duplicates
-                dedup.deduplicate_string(&test_string)
+        let handles: Vec<_> = (0..3)
+            .map(|i| {
+                let dedup = Arc::clone(&deduplicator);
+                thread::spawn(move || {
+                    let test_string = format!("concurrent_test_string_{}", i % 2); // Some duplicates
+                    dedup.deduplicate_string(&test_string)
+                })
             })
-        }).collect();
-        
+            .collect();
+
         // All threads should complete successfully
         for handle in handles {
             let result = handle.join().expect("Thread should complete");
@@ -766,7 +845,7 @@ mod tests {
             performance_ok: true,
             memory_usage_ok: false,
         };
-        
+
         let debug_output = format!("{results:?}");
         assert!(debug_output.contains("ValidationResults"));
         assert!(debug_output.contains("call_stack_normalizer_ok: true"));

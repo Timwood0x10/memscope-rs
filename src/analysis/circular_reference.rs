@@ -393,7 +393,7 @@ fn generate_statistics(circular_references: &[CircularReference]) -> CircularRef
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::{SmartPointerInfo, SmartPointerType, RefCountSnapshot};
+    use crate::core::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
 
     #[test]
     fn test_circular_reference_node_creation() {
@@ -458,7 +458,7 @@ mod tests {
             CircularReferenceSeverity::High,
             CircularReferenceSeverity::Critical,
         ];
-        
+
         // Just ensure all variants can be created and compared
         assert_eq!(severities[0], CircularReferenceSeverity::Low);
         assert_eq!(severities[1], CircularReferenceSeverity::Medium);
@@ -474,7 +474,7 @@ mod tests {
             CircularReferenceType::SelfReference,
             CircularReferenceType::Nested,
         ];
-        
+
         // Just ensure all variants can be created and compared
         assert_eq!(types[0], CircularReferenceType::Simple);
         assert_eq!(types[1], CircularReferenceType::Complex);
@@ -493,20 +493,18 @@ mod tests {
         assert!(stats.by_severity.is_empty());
         assert!(stats.by_type.is_empty());
         assert!(stats.by_pointer_type.is_empty());
-        
+
         // Test with some cycles
         let cycles = vec![
             CircularReference {
-                cycle_path: vec![
-                    CircularReferenceNode {
-                        ptr: 0x1000,
-                        data_ptr: 0x2000,
-                        var_name: Some("node_a".to_string()),
-                        type_name: Some("Rc<Node>".to_string()),
-                        pointer_type: SmartPointerType::Rc,
-                        ref_count: 2,
-                    }
-                ],
+                cycle_path: vec![CircularReferenceNode {
+                    ptr: 0x1000,
+                    data_ptr: 0x2000,
+                    var_name: Some("node_a".to_string()),
+                    type_name: Some("Rc<Node>".to_string()),
+                    pointer_type: SmartPointerType::Rc,
+                    ref_count: 2,
+                }],
                 suggested_weak_positions: vec![0],
                 estimated_leaked_memory: 1024,
                 severity: CircularReferenceSeverity::Low,
@@ -529,23 +527,23 @@ mod tests {
                         type_name: Some("Arc<Node>".to_string()),
                         pointer_type: SmartPointerType::Arc,
                         ref_count: 1,
-                    }
+                    },
                 ],
                 suggested_weak_positions: vec![0],
                 estimated_leaked_memory: 2048,
                 severity: CircularReferenceSeverity::Medium,
                 cycle_type: CircularReferenceType::Simple,
-            }
+            },
         ];
-        
+
         let stats = generate_statistics(&cycles);
-        
+
         assert_eq!(stats.average_cycle_length, 1.5); // (1 + 2) / 2
         assert_eq!(stats.largest_cycle_size, 2);
         assert!(!stats.by_severity.is_empty());
         assert!(!stats.by_type.is_empty());
         assert!(!stats.by_pointer_type.is_empty());
-        
+
         // Check specific counts
         assert_eq!(*stats.by_severity.get("Low").unwrap_or(&0), 1);
         assert_eq!(*stats.by_severity.get("Medium").unwrap_or(&0), 1);
@@ -561,21 +559,19 @@ mod tests {
         let empty_nodes = vec![];
         let positions = suggest_weak_positions(&empty_nodes);
         assert_eq!(positions, vec![0]); // Should fallback to position 0
-        
+
         // Test with single node
-        let single_node = vec![
-            CircularReferenceNode {
-                ptr: 0x1000,
-                data_ptr: 0x2000,
-                var_name: Some("node".to_string()),
-                type_name: Some("Rc<Node>".to_string()),
-                pointer_type: SmartPointerType::Rc,
-                ref_count: 1,
-            }
-        ];
+        let single_node = vec![CircularReferenceNode {
+            ptr: 0x1000,
+            data_ptr: 0x2000,
+            var_name: Some("node".to_string()),
+            type_name: Some("Rc<Node>".to_string()),
+            pointer_type: SmartPointerType::Rc,
+            ref_count: 1,
+        }];
         let positions = suggest_weak_positions(&single_node);
         assert_eq!(positions, vec![0]);
-        
+
         // Test with multiple nodes, different ref counts
         let multiple_nodes = vec![
             CircularReferenceNode {
@@ -601,7 +597,7 @@ mod tests {
                 type_name: Some("Rc<Node>".to_string()),
                 pointer_type: SmartPointerType::Rc,
                 ref_count: 2,
-            }
+            },
         ];
         let positions = suggest_weak_positions(&multiple_nodes);
         assert_eq!(positions, vec![1]); // Should suggest position with highest ref count
@@ -616,7 +612,7 @@ mod tests {
             smart_pointers: HashMap::new(),
             allocations: HashMap::new(),
         };
-        
+
         // Add mock data to the graph
         let smart_info_a = SmartPointerInfo {
             data_ptr: 0x2000,
@@ -624,24 +620,32 @@ mod tests {
             is_weak_reference: false,
             clones: vec![],
             cloned_from: None,
-            ref_count_history: vec![RefCountSnapshot { strong_count: 1, weak_count: 0, timestamp: 0 }],
+            ref_count_history: vec![RefCountSnapshot {
+                strong_count: 1,
+                weak_count: 0,
+                timestamp: 0,
+            }],
             weak_count: None,
             is_data_owner: true,
             is_implicitly_deallocated: false,
         };
-        
+
         let smart_info_b = SmartPointerInfo {
             data_ptr: 0x1000,
             pointer_type: SmartPointerType::Rc,
             is_weak_reference: false,
             clones: vec![],
             cloned_from: None,
-            ref_count_history: vec![RefCountSnapshot { strong_count: 1, weak_count: 0, timestamp: 0 }],
+            ref_count_history: vec![RefCountSnapshot {
+                strong_count: 1,
+                weak_count: 0,
+                timestamp: 0,
+            }],
             weak_count: None,
             is_data_owner: true,
             is_implicitly_deallocated: false,
         };
-        
+
         let allocation_a = AllocationInfo {
             ptr: 0x1000,
             size: 1024,
@@ -674,7 +678,7 @@ mod tests {
             access_tracking: None,
             drop_chain_analysis: None,
         };
-        
+
         let allocation_b = AllocationInfo {
             ptr: 0x2000,
             size: 2048,
@@ -707,16 +711,16 @@ mod tests {
             access_tracking: None,
             drop_chain_analysis: None,
         };
-        
+
         graph.smart_pointers.insert(0x1000, smart_info_a);
         graph.smart_pointers.insert(0x2000, smart_info_b);
         graph.allocations.insert(0x1000, allocation_a);
         graph.allocations.insert(0x2000, allocation_b);
-        
+
         // Test analyzing a simple cycle
         let cycle_path = vec![0x1000, 0x2000];
         let circular_ref = analyze_cycle(&cycle_path, &graph);
-        
+
         assert_eq!(circular_ref.cycle_path.len(), 2);
         assert_eq!(circular_ref.estimated_leaked_memory, 3072); // 1024 + 2048
         assert_eq!(circular_ref.cycle_type, CircularReferenceType::Simple);
@@ -729,54 +733,52 @@ mod tests {
         // Test with empty allocations
         let empty_allocations = vec![];
         let graph = ReferenceGraph::new(&empty_allocations);
-        
+
         assert!(graph.adjacency.is_empty());
         assert!(graph.reverse_refs.is_empty());
         assert!(graph.smart_pointers.is_empty());
         assert!(graph.allocations.is_empty());
-        
+
         // Test with allocations without smart pointer info
-        let allocations_without_smart = vec![
-            AllocationInfo {
-                ptr: 0x1000,
-                size: 1024,
-                scope_name: None,
-                timestamp_alloc: 0,
-                timestamp_dealloc: None,
-                thread_id: "main".to_string(),
-                borrow_count: 0,
-                stack_trace: None,
-                is_leaked: false,
-                lifetime_ms: None,
-                var_name: None,
-                type_name: None,
-                borrow_info: None,
-                clone_info: None,
-                ownership_history_available: false,
-                smart_pointer_info: None,
-                memory_layout: None,
-                generic_info: None,
-                dynamic_type_info: None,
-                runtime_state: None,
-                stack_allocation: None,
-                temporary_object: None,
-                fragmentation_analysis: None,
-                generic_instantiation: None,
-                type_relationships: None,
-                type_usage: None,
-                function_call_tracking: None,
-                lifecycle_tracking: None,
-                access_tracking: None,
-                drop_chain_analysis: None,
-            }
-        ];
+        let allocations_without_smart = vec![AllocationInfo {
+            ptr: 0x1000,
+            size: 1024,
+            scope_name: None,
+            timestamp_alloc: 0,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            var_name: None,
+            type_name: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }];
         let graph = ReferenceGraph::new(&allocations_without_smart);
-        
+
         assert!(graph.adjacency.is_empty());
         assert!(graph.reverse_refs.is_empty());
         assert!(graph.smart_pointers.is_empty());
         assert!(graph.allocations.is_empty());
-        
+
         // Test with smart pointer allocations
         let smart_info = SmartPointerInfo {
             data_ptr: 0x2000,
@@ -784,54 +786,56 @@ mod tests {
             is_weak_reference: false,
             clones: vec![],
             cloned_from: None,
-            ref_count_history: vec![RefCountSnapshot { strong_count: 1, weak_count: 0, timestamp: 0 }],
+            ref_count_history: vec![RefCountSnapshot {
+                strong_count: 1,
+                weak_count: 0,
+                timestamp: 0,
+            }],
             weak_count: None,
             is_data_owner: true,
             is_implicitly_deallocated: false,
         };
-        
-        let allocations_with_smart = vec![
-            AllocationInfo {
-                ptr: 0x1000,
-                size: 1024,
-                var_name: None,
-                type_name: None,
-                scope_name: None,
-                timestamp_alloc: 0,
-                timestamp_dealloc: None,
-                thread_id: "main".to_string(),
-                borrow_count: 0,
-                stack_trace: None,
-                is_leaked: false,
-                lifetime_ms: None,
-                borrow_info: None,
-                clone_info: None,
-                ownership_history_available: false,
-                smart_pointer_info: Some(smart_info.clone()),
-                memory_layout: None,
-                generic_info: None,
-                dynamic_type_info: None,
-                runtime_state: None,
-                stack_allocation: None,
-                temporary_object: None,
-                fragmentation_analysis: None,
-                generic_instantiation: None,
-                type_relationships: None,
-                type_usage: None,
-                function_call_tracking: None,
-                lifecycle_tracking: None,
-                access_tracking: None,
-                drop_chain_analysis: None,
-            }
-        ];
-        
+
+        let allocations_with_smart = vec![AllocationInfo {
+            ptr: 0x1000,
+            size: 1024,
+            var_name: None,
+            type_name: None,
+            scope_name: None,
+            timestamp_alloc: 0,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: Some(smart_info.clone()),
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }];
+
         let graph = ReferenceGraph::new(&allocations_with_smart);
-        
+
         assert!(!graph.adjacency.is_empty());
         assert!(!graph.reverse_refs.is_empty());
         assert!(!graph.smart_pointers.is_empty());
         assert!(!graph.allocations.is_empty());
-        
+
         assert!(graph.adjacency.contains_key(&0x1000));
         assert!(graph.reverse_refs.contains_key(&0x2000));
         assert!(graph.smart_pointers.contains_key(&0x1000));
@@ -847,49 +851,51 @@ mod tests {
             is_weak_reference: true, // This is a weak reference
             clones: vec![],
             cloned_from: None,
-            ref_count_history: vec![RefCountSnapshot { strong_count: 1, weak_count: 1, timestamp: 0 }],
+            ref_count_history: vec![RefCountSnapshot {
+                strong_count: 1,
+                weak_count: 1,
+                timestamp: 0,
+            }],
             weak_count: Some(1),
             is_data_owner: false,
             is_implicitly_deallocated: false,
         };
-        
-        let allocations_with_weak = vec![
-            AllocationInfo {
-                ptr: 0x1000,
-                size: 1024,
-                var_name: None,
-                type_name: None,
-                scope_name: None,
-                timestamp_alloc: 0,
-                timestamp_dealloc: None,
-                thread_id: "main".to_string(),
-                borrow_count: 0,
-                stack_trace: None,
-                is_leaked: false,
-                lifetime_ms: None,
-                borrow_info: None,
-                clone_info: None,
-                ownership_history_available: false,
-                smart_pointer_info: Some(weak_smart_info),
-                memory_layout: None,
-                generic_info: None,
-                dynamic_type_info: None,
-                runtime_state: None,
-                stack_allocation: None,
-                temporary_object: None,
-                fragmentation_analysis: None,
-                generic_instantiation: None,
-                type_relationships: None,
-                type_usage: None,
-                function_call_tracking: None,
-                lifecycle_tracking: None,
-                access_tracking: None,
-                drop_chain_analysis: None,
-            }
-        ];
-        
+
+        let allocations_with_weak = vec![AllocationInfo {
+            ptr: 0x1000,
+            size: 1024,
+            var_name: None,
+            type_name: None,
+            scope_name: None,
+            timestamp_alloc: 0,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: Some(weak_smart_info),
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }];
+
         let graph = ReferenceGraph::new(&allocations_with_weak);
-        
+
         // Weak references should be skipped, so graph should be empty
         assert!(graph.adjacency.is_empty());
         assert!(graph.reverse_refs.is_empty());
@@ -901,12 +907,12 @@ mod tests {
     fn test_detect_circular_references_empty() {
         let empty_allocations = vec![];
         let analysis = detect_circular_references(&empty_allocations);
-        
+
         assert_eq!(analysis.circular_references.len(), 0);
         assert_eq!(analysis.total_smart_pointers, 0);
         assert_eq!(analysis.pointers_in_cycles, 0);
         assert_eq!(analysis.total_leaked_memory, 0);
-        
+
         // Check statistics
         assert_eq!(analysis.statistics.average_cycle_length, 0.0);
         assert_eq!(analysis.statistics.largest_cycle_size, 0);
@@ -927,7 +933,7 @@ mod tests {
                 largest_cycle_size: 0,
             },
         };
-        
+
         assert_eq!(analysis.total_smart_pointers, 10);
         assert_eq!(analysis.pointers_in_cycles, 5);
         assert_eq!(analysis.total_leaked_memory, 10240);
@@ -946,7 +952,7 @@ mod tests {
             CircularReferenceSeverity::Low
         };
         assert_eq!(low_severity, CircularReferenceSeverity::Low);
-        
+
         // Test medium severity
         let medium_severity = if 5000 > 1024 * 1024 {
             CircularReferenceSeverity::Critical
@@ -958,7 +964,7 @@ mod tests {
             CircularReferenceSeverity::Low
         };
         assert_eq!(medium_severity, CircularReferenceSeverity::Medium);
-        
+
         // Test high severity
         let high_severity = if 70000 > 1024 * 1024 {
             CircularReferenceSeverity::Critical
@@ -970,7 +976,7 @@ mod tests {
             CircularReferenceSeverity::Low
         };
         assert_eq!(high_severity, CircularReferenceSeverity::High);
-        
+
         // Test critical severity
         let critical_severity = if 2000000 > 1024 * 1024 {
             CircularReferenceSeverity::Critical
@@ -995,7 +1001,7 @@ mod tests {
             CircularReferenceType::Complex
         };
         assert_eq!(self_ref_type, CircularReferenceType::SelfReference);
-        
+
         // Test simple cycle
         let simple_type = if 2 == 1 {
             CircularReferenceType::SelfReference
@@ -1005,7 +1011,7 @@ mod tests {
             CircularReferenceType::Complex
         };
         assert_eq!(simple_type, CircularReferenceType::Simple);
-        
+
         // Test complex cycle
         let complex_type = if 5 == 1 {
             CircularReferenceType::SelfReference

@@ -208,7 +208,8 @@ mod tests {
 
     #[test]
     fn test_normal_export_result_type() {
-        let _result: NormalExportResult = Ok((create_test_stats(), create_test_validation_result()));
+        let _result: NormalExportResult =
+            Ok((create_test_stats(), create_test_validation_result()));
         // Just testing that the type is correctly defined
     }
 
@@ -216,39 +217,51 @@ mod tests {
     fn test_export_coordinator_new() {
         let config = ExportConfig::fast();
         let coordinator = ExportCoordinator::new(config.clone());
-        
+
         assert_eq!(coordinator.config().mode, config.mode);
-        assert_eq!(coordinator.config().validation_timing, config.validation_timing);
+        assert_eq!(
+            coordinator.config().validation_timing,
+            config.validation_timing
+        );
     }
 
     #[test]
     fn test_export_coordinator_new_fast() {
         let coordinator = ExportCoordinator::new_fast();
-        
+
         assert_eq!(coordinator.config().mode, ExportMode::Fast);
-        assert_eq!(coordinator.config().validation_timing, ValidationTiming::Deferred);
+        assert_eq!(
+            coordinator.config().validation_timing,
+            ValidationTiming::Deferred
+        );
     }
 
     #[test]
     fn test_export_coordinator_new_slow() {
         let coordinator = ExportCoordinator::new_slow();
-        
+
         assert_eq!(coordinator.config().mode, ExportMode::Slow);
-        assert_eq!(coordinator.config().validation_timing, ValidationTiming::Inline);
+        assert_eq!(
+            coordinator.config().validation_timing,
+            ValidationTiming::Inline
+        );
     }
 
     #[test]
     fn test_export_coordinator_new_auto() {
         let coordinator = ExportCoordinator::new_auto();
-        
+
         assert_eq!(coordinator.config().mode, ExportMode::Auto);
-        assert_eq!(coordinator.config().validation_timing, ValidationTiming::Deferred);
+        assert_eq!(
+            coordinator.config().validation_timing,
+            ValidationTiming::Deferred
+        );
     }
 
     #[test]
     fn test_export_coordinator_new_auto_sized() {
         let coordinator = ExportCoordinator::new_auto_sized(1000);
-        
+
         // The mode should be determined based on data size
         // Since the default mode manager uses Fast as default mode, it will always return Fast
         assert_eq!(coordinator.config().mode, ExportMode::Fast);
@@ -258,12 +271,15 @@ mod tests {
     fn test_export_coordinator_update_config() {
         let mut coordinator = ExportCoordinator::new_fast();
         let _old_config = coordinator.config().clone();
-        
+
         let new_config = ExportConfig::slow();
         let warnings = coordinator.update_config(new_config.clone(), None);
-        
+
         assert_eq!(coordinator.config().mode, new_config.mode);
-        assert_eq!(coordinator.config().validation_timing, new_config.validation_timing);
+        assert_eq!(
+            coordinator.config().validation_timing,
+            new_config.validation_timing
+        );
         // Should have no warnings for valid config
         assert!(warnings.is_empty());
     }
@@ -271,12 +287,15 @@ mod tests {
     #[test]
     fn test_export_coordinator_update_config_with_optimization() {
         let mut coordinator = ExportCoordinator::new_fast();
-        
+
         let new_config = ExportConfig::slow();
         let _warnings = coordinator.update_config(new_config.clone(), Some(1000000)); // Large data size
-        
+
         assert_eq!(coordinator.config().mode, new_config.mode);
-        assert_eq!(coordinator.config().validation_timing, new_config.validation_timing);
+        assert_eq!(
+            coordinator.config().validation_timing,
+            new_config.validation_timing
+        );
         // May have optimization warnings
         // Just check that the function works without panicking
     }
@@ -285,7 +304,7 @@ mod tests {
     fn test_export_coordinator_mode_manager() {
         let coordinator = ExportCoordinator::new_fast();
         let mode_manager = coordinator.mode_manager();
-        
+
         // Just check that we can get the mode manager
         let (mode, threshold, _perf_threshold) = mode_manager.get_settings();
         assert_eq!(mode, ExportMode::Fast);
@@ -295,9 +314,9 @@ mod tests {
     // Helper functions for creating test data
     fn create_test_stats() -> CompleteExportStats {
         use crate::export::data_localizer::DataGatheringStats;
-        use crate::export::parallel_shard_processor::ParallelProcessingStats;
         use crate::export::high_speed_buffered_writer::WritePerformanceStats;
-        
+        use crate::export::parallel_shard_processor::ParallelProcessingStats;
+
         CompleteExportStats {
             data_gathering: DataGatheringStats {
                 total_time_ms: 50,
@@ -342,8 +361,8 @@ mod tests {
     }
 
     fn create_test_validation_result() -> ValidationResult {
-        use crate::export::quality_validator::{ValidationIssue, IssueType, IssueSeverity};
-        
+        use crate::export::quality_validator::{IssueSeverity, IssueType, ValidationIssue};
+
         ValidationResult {
             is_valid: true,
             validation_type: ValidationType::DataIntegrity,

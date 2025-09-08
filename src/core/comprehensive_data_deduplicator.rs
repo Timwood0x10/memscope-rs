@@ -167,7 +167,7 @@ impl ComprehensiveDataDeduplicator {
                     }
                 };
                 entry.insert(updated_ref);
-                
+
                 self.update_stats_string_dedup();
                 tracing::debug!("🔄 String deduplicated: hash={}", hash);
                 // 🔧 FIX: Return the updated_ref directly instead of calling entry.get() again
@@ -183,7 +183,8 @@ impl ComprehensiveDataDeduplicator {
                 };
 
                 // Store the actual string data
-                if self.config.enable_compression && input.len() > self.config.compression_threshold {
+                if self.config.enable_compression && input.len() > self.config.compression_threshold
+                {
                     let compressed = self.compress_data(input.as_bytes())?;
                     self.compressed_storage.insert(hash, Arc::new(compressed));
                 } else {
@@ -258,7 +259,7 @@ impl ComprehensiveDataDeduplicator {
                     }
                 };
                 entry.insert(updated_ref);
-                
+
                 self.update_stats_stack_dedup();
                 tracing::debug!("🔄 Stack trace deduplicated: hash={}", hash);
                 // 🔧 FIX: Return the updated_ref directly instead of calling entry.get() again
@@ -275,7 +276,9 @@ impl ComprehensiveDataDeduplicator {
 
                 // Store the actual stack trace data
                 let serialized_size = std::mem::size_of_val(frames);
-                if self.config.enable_compression && serialized_size > self.config.compression_threshold {
+                if self.config.enable_compression
+                    && serialized_size > self.config.compression_threshold
+                {
                     let serialized = self.serialize_stack_frames(frames)?;
                     let compressed = self.compress_data(&serialized)?;
                     self.compressed_storage.insert(hash, Arc::new(compressed));
@@ -350,7 +353,7 @@ impl ComprehensiveDataDeduplicator {
                     }
                 };
                 entry.insert(updated_ref);
-                
+
                 self.update_stats_metadata_dedup();
                 tracing::debug!("🔄 Metadata deduplicated: hash={}", hash);
                 // 🔧 FIX: Return the updated_ref directly instead of calling entry.get() again
@@ -371,7 +374,9 @@ impl ComprehensiveDataDeduplicator {
                     .map(|(k, v)| k.len() + v.len())
                     .sum::<usize>();
 
-                if self.config.enable_compression && serialized_size > self.config.compression_threshold {
+                if self.config.enable_compression
+                    && serialized_size > self.config.compression_threshold
+                {
                     let serialized = self.serialize_metadata(metadata)?;
                     let compressed = self.compress_data(&serialized)?;
                     self.compressed_storage.insert(hash, Arc::new(compressed));
@@ -751,7 +756,7 @@ mod tests {
     #[test]
     fn test_deduplication_config_default() {
         let config = DeduplicationConfig::default();
-        
+
         assert!(config.enable_string_dedup);
         assert!(config.enable_stack_dedup);
         assert!(config.enable_metadata_dedup);
@@ -774,7 +779,7 @@ mod tests {
             enable_stats: false,
             cleanup_threshold: 0.5,
         };
-        
+
         assert!(!config.enable_string_dedup);
         assert!(config.enable_stack_dedup);
         assert!(!config.enable_metadata_dedup);
@@ -788,7 +793,7 @@ mod tests {
     #[test]
     fn test_deduplication_stats_default() {
         let stats = DeduplicationStats::default();
-        
+
         assert_eq!(stats.strings_deduplicated, 0);
         assert_eq!(stats.stack_traces_deduplicated, 0);
         assert_eq!(stats.metadata_deduplicated, 0);
@@ -803,7 +808,7 @@ mod tests {
     fn test_comprehensive_data_deduplicator_new() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         // Test that storages are initialized
         assert_eq!(deduplicator.string_storage.len(), 0);
         assert_eq!(deduplicator.string_refs.len(), 0);
@@ -819,62 +824,74 @@ mod tests {
         config.enable_stats = false;
         config.enable_compression = false; // Disable compression to simplify
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let test_string = "Hello, World!";
-        
+
         // First deduplication - should create new entry
-        let result1 = deduplicator.deduplicate_string(test_string).expect("Failed to deduplicate string");
+        let result1 = deduplicator
+            .deduplicate_string(test_string)
+            .expect("Failed to deduplicate string");
         assert_eq!(result1.length, test_string.len());
         assert_eq!(result1.ref_count, 1);
-        
+
         // Verify storage state after first call
         assert_eq!(deduplicator.string_storage.len(), 1);
         assert_eq!(deduplicator.string_refs.len(), 1);
-        
+
         // Test retrieval with first result
-        let retrieved1 = deduplicator.get_string(&result1).expect("Failed to get string with result1");
+        let retrieved1 = deduplicator
+            .get_string(&result1)
+            .expect("Failed to get string with result1");
         assert_eq!(*retrieved1, test_string);
-        
+
         // Second deduplication of same string - should increment ref count
         // 🔧 This is the critical test that used to deadlock before the fix
-        let result2 = deduplicator.deduplicate_string(test_string).expect("Failed to deduplicate string");
+        let result2 = deduplicator
+            .deduplicate_string(test_string)
+            .expect("Failed to deduplicate string");
         assert_eq!(result2.hash, result1.hash);
         assert_eq!(result2.ref_count, 2);
-        
+
         // Verify string can be retrieved using either reference
-        let retrieved2 = deduplicator.get_string(&result2).expect("Failed to get string with result2");
+        let retrieved2 = deduplicator
+            .get_string(&result2)
+            .expect("Failed to get string with result2");
         assert_eq!(*retrieved2, test_string);
-        
+
         // 🔧 Additional stress test: Multiple consecutive calls to ensure no deadlock
         for i in 3..=10 {
-            let result = deduplicator.deduplicate_string(test_string)
+            let result = deduplicator
+                .deduplicate_string(test_string)
                 .unwrap_or_else(|_| panic!("Call {i} should succeed without deadlock"));
             assert_eq!(result.hash, result1.hash);
             assert_eq!(result.ref_count, i);
             assert_eq!(result.length, test_string.len());
         }
-        
+
         // Verify final state
         assert_eq!(deduplicator.string_storage.len(), 1);
         assert_eq!(deduplicator.string_refs.len(), 1);
     }
 
-    
     #[test]
     fn test_string_deduplication_disabled() {
         let mut config = DeduplicationConfig::default();
         config.enable_string_dedup = false;
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let test_string = "Hello, World!";
-        
+
         // First deduplication
-        let result1 = deduplicator.deduplicate_string(test_string).expect("Failed to deduplicate string");
+        let result1 = deduplicator
+            .deduplicate_string(test_string)
+            .expect("Failed to deduplicate string");
         assert_eq!(result1.length, test_string.len());
         assert_eq!(result1.ref_count, 1);
-        
+
         // Second deduplication should not increment ref count
-        let result2 = deduplicator.deduplicate_string(test_string).expect("Failed to deduplicate string");
+        let result2 = deduplicator
+            .deduplicate_string(test_string)
+            .expect("Failed to deduplicate string");
         assert_eq!(result2.hash, result1.hash);
         assert_eq!(result2.ref_count, 1); // Should remain 1 when disabled
     }
@@ -884,14 +901,18 @@ mod tests {
         let mut config = DeduplicationConfig::default();
         config.compression_threshold = 10; // Low threshold to trigger compression
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let large_string = "This is a large string that should be compressed".repeat(10);
-        
-        let result = deduplicator.deduplicate_string(&large_string).expect("Failed to deduplicate string");
+
+        let result = deduplicator
+            .deduplicate_string(&large_string)
+            .expect("Failed to deduplicate string");
         assert_eq!(result.length, large_string.len());
-        
+
         // Verify string can be retrieved from compressed storage
-        let retrieved = deduplicator.get_string(&result).expect("Failed to get compressed string");
+        let retrieved = deduplicator
+            .get_string(&result)
+            .expect("Failed to get compressed string");
         assert_eq!(*retrieved, large_string);
     }
     #[test]
@@ -900,33 +921,41 @@ mod tests {
         config.enable_stats = false;
         config.enable_compression = false; // Disable compression to simplify
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let frames = vec![
             create_test_stack_frame("main", "main.rs", 10),
             create_test_stack_frame("foo", "lib.rs", 20),
             create_test_stack_frame("bar", "lib.rs", 30),
         ];
-        
+
         // First deduplication - should create new entry
-        let result1 = deduplicator.deduplicate_stack_trace(&frames).expect("Failed to deduplicate stack trace");
+        let result1 = deduplicator
+            .deduplicate_stack_trace(&frames)
+            .expect("Failed to deduplicate stack trace");
         assert_eq!(result1.frame_count, frames.len());
         assert_eq!(result1.ref_count, 1);
-        
+
         // Verify storage state after first call
         assert_eq!(deduplicator.stack_storage.len(), 1);
         assert_eq!(deduplicator.stack_refs.len(), 1);
-        
+
         // Test retrieval with first result
-        let retrieved1 = deduplicator.get_stack_trace(&result1).expect("Failed to get stack trace with result1");
+        let retrieved1 = deduplicator
+            .get_stack_trace(&result1)
+            .expect("Failed to get stack trace with result1");
         assert_eq!(retrieved1.len(), frames.len());
-        
+
         // Second deduplication of same stack trace - should increment ref count
-        let result2 = deduplicator.deduplicate_stack_trace(&frames).expect("Failed to deduplicate stack trace");
+        let result2 = deduplicator
+            .deduplicate_stack_trace(&frames)
+            .expect("Failed to deduplicate stack trace");
         assert_eq!(result2.hash, result1.hash);
         assert_eq!(result2.ref_count, 2);
-        
+
         // Verify stack trace can be retrieved using either reference
-        let retrieved2 = deduplicator.get_stack_trace(&result2).expect("Failed to get stack trace with result2");
+        let retrieved2 = deduplicator
+            .get_stack_trace(&result2)
+            .expect("Failed to get stack trace with result2");
         assert_eq!(retrieved2.len(), frames.len());
     }
 
@@ -935,19 +964,23 @@ mod tests {
         let mut config = DeduplicationConfig::default();
         config.enable_stack_dedup = false;
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let frames = vec![
             create_test_stack_frame("main", "main.rs", 10),
             create_test_stack_frame("foo", "lib.rs", 20),
         ];
-        
+
         // First deduplication
-        let result1 = deduplicator.deduplicate_stack_trace(&frames).expect("Failed to deduplicate stack trace");
+        let result1 = deduplicator
+            .deduplicate_stack_trace(&frames)
+            .expect("Failed to deduplicate stack trace");
         assert_eq!(result1.frame_count, frames.len());
         assert_eq!(result1.ref_count, 1);
-        
+
         // Second deduplication should not increment ref count
-        let result2 = deduplicator.deduplicate_stack_trace(&frames).expect("Failed to deduplicate stack trace");
+        let result2 = deduplicator
+            .deduplicate_stack_trace(&frames)
+            .expect("Failed to deduplicate stack trace");
         assert_eq!(result2.hash, result1.hash);
         assert_eq!(result2.ref_count, 1); // Should remain 1 when disabled
     }
@@ -957,29 +990,37 @@ mod tests {
         config.enable_stats = false;
         config.enable_compression = false; // Disable compression to simplify
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let metadata = create_test_metadata();
-        
+
         // First deduplication - should create new entry
-        let result1 = deduplicator.deduplicate_metadata(&metadata).expect("Failed to deduplicate metadata");
+        let result1 = deduplicator
+            .deduplicate_metadata(&metadata)
+            .expect("Failed to deduplicate metadata");
         assert_eq!(result1.entry_count, metadata.len());
         assert_eq!(result1.ref_count, 1);
-        
+
         // Verify storage state after first call
         assert_eq!(deduplicator.metadata_storage.len(), 1);
         assert_eq!(deduplicator.metadata_refs.len(), 1);
-        
+
         // Test retrieval with first result
-        let retrieved1 = deduplicator.get_metadata(&result1).expect("Failed to get metadata with result1");
+        let retrieved1 = deduplicator
+            .get_metadata(&result1)
+            .expect("Failed to get metadata with result1");
         assert_eq!(retrieved1.len(), metadata.len());
-        
+
         // Second deduplication of same metadata - should increment ref count
-        let result2 = deduplicator.deduplicate_metadata(&metadata).expect("Failed to deduplicate metadata");
+        let result2 = deduplicator
+            .deduplicate_metadata(&metadata)
+            .expect("Failed to deduplicate metadata");
         assert_eq!(result2.hash, result1.hash);
         assert_eq!(result2.ref_count, 2);
-        
+
         // Verify metadata can be retrieved using either reference
-        let retrieved2 = deduplicator.get_metadata(&result2).expect("Failed to get metadata with result2");
+        let retrieved2 = deduplicator
+            .get_metadata(&result2)
+            .expect("Failed to get metadata with result2");
         assert_eq!(retrieved2.len(), metadata.len());
     }
 
@@ -988,16 +1029,20 @@ mod tests {
         let mut config = DeduplicationConfig::default();
         config.enable_metadata_dedup = false;
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let metadata = create_test_metadata();
-        
+
         // First deduplication
-        let result1 = deduplicator.deduplicate_metadata(&metadata).expect("Failed to deduplicate metadata");
+        let result1 = deduplicator
+            .deduplicate_metadata(&metadata)
+            .expect("Failed to deduplicate metadata");
         assert_eq!(result1.entry_count, metadata.len());
         assert_eq!(result1.ref_count, 1);
-        
+
         // Second deduplication should not increment ref count
-        let result2 = deduplicator.deduplicate_metadata(&metadata).expect("Failed to deduplicate metadata");
+        let result2 = deduplicator
+            .deduplicate_metadata(&metadata)
+            .expect("Failed to deduplicate metadata");
         assert_eq!(result2.hash, result1.hash);
         assert_eq!(result2.ref_count, 1); // Should remain 1 when disabled
     }
@@ -1007,17 +1052,21 @@ mod tests {
         let mut config = DeduplicationConfig::default();
         config.compression_threshold = 10; // Low threshold to trigger compression
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let mut large_metadata = HashMap::new();
         for i in 0..100 {
             large_metadata.insert(format!("key_{i}"), format!("value_{i}"));
         }
-        
-        let result = deduplicator.deduplicate_metadata(&large_metadata).expect("Failed to deduplicate metadata");
+
+        let result = deduplicator
+            .deduplicate_metadata(&large_metadata)
+            .expect("Failed to deduplicate metadata");
         assert_eq!(result.entry_count, large_metadata.len());
-        
+
         // Verify metadata can be retrieved from compressed storage
-        let retrieved = deduplicator.get_metadata(&result).expect("Failed to get compressed metadata");
+        let retrieved = deduplicator
+            .get_metadata(&result)
+            .expect("Failed to get compressed metadata");
         // Note: Due to simulation, retrieved will be empty, but this tests the flow
         assert!(retrieved.is_empty()); // Expected due to simulation
     }
@@ -1026,7 +1075,7 @@ mod tests {
     fn test_get_stats() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let stats = deduplicator.get_stats().expect("Failed to get stats");
         assert_eq!(stats.strings_deduplicated, 0);
         assert_eq!(stats.stack_traces_deduplicated, 0);
@@ -1038,22 +1087,30 @@ mod tests {
     fn test_clear_all() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         // Add some data
         let test_string = "test";
         let frames = vec![create_test_stack_frame("main", "main.rs", 10)];
         let metadata = create_test_metadata();
-        
-        let _string_ref = deduplicator.deduplicate_string(test_string).expect("Failed to deduplicate string");
-        let _stack_ref = deduplicator.deduplicate_stack_trace(&frames).expect("Failed to deduplicate stack trace");
-        let _metadata_ref = deduplicator.deduplicate_metadata(&metadata).expect("Failed to deduplicate metadata");
-        
+
+        let _string_ref = deduplicator
+            .deduplicate_string(test_string)
+            .expect("Failed to deduplicate string");
+        let _stack_ref = deduplicator
+            .deduplicate_stack_trace(&frames)
+            .expect("Failed to deduplicate stack trace");
+        let _metadata_ref = deduplicator
+            .deduplicate_metadata(&metadata)
+            .expect("Failed to deduplicate metadata");
+
         // Verify data exists
-        assert!(!deduplicator.string_storage.is_empty() || !deduplicator.compressed_storage.is_empty());
-        
+        assert!(
+            !deduplicator.string_storage.is_empty() || !deduplicator.compressed_storage.is_empty()
+        );
+
         // Clear all
         deduplicator.clear_all();
-        
+
         // Verify all storages are empty
         assert!(deduplicator.string_storage.is_empty());
         assert!(deduplicator.string_refs.is_empty());
@@ -1068,17 +1125,17 @@ mod tests {
     fn test_hash_calculation_consistency() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let test_string = "consistent_hash_test";
         let hash1 = deduplicator.calculate_string_hash(test_string);
         let hash2 = deduplicator.calculate_string_hash(test_string);
         assert_eq!(hash1, hash2);
-        
+
         let frames = vec![create_test_stack_frame("main", "main.rs", 10)];
         let stack_hash1 = deduplicator.calculate_stack_hash(&frames);
         let stack_hash2 = deduplicator.calculate_stack_hash(&frames);
         assert_eq!(stack_hash1, stack_hash2);
-        
+
         let metadata = create_test_metadata();
         let meta_hash1 = deduplicator.calculate_metadata_hash(&metadata);
         let meta_hash2 = deduplicator.calculate_metadata_hash(&metadata);
@@ -1089,13 +1146,17 @@ mod tests {
     fn test_compression_decompression() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let test_data = b"Hello, World! This is test data for compression.";
-        
-        let compressed = deduplicator.compress_data(test_data).expect("Failed to compress data");
+
+        let compressed = deduplicator
+            .compress_data(test_data)
+            .expect("Failed to compress data");
         assert!(compressed.len() > test_data.len()); // Due to prefix in simulation
-        
-        let decompressed = deduplicator.decompress_data(&compressed).expect("Failed to decompress data");
+
+        let decompressed = deduplicator
+            .decompress_data(&compressed)
+            .expect("Failed to decompress data");
         assert_eq!(decompressed, test_data);
     }
 
@@ -1103,7 +1164,7 @@ mod tests {
     fn test_compression_invalid_format() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let invalid_data = b"INVALID_FORMAT:data";
         let result = deduplicator.decompress_data(invalid_data);
         assert!(result.is_err());
@@ -1113,24 +1174,32 @@ mod tests {
     fn test_serialization_deserialization() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let frames = vec![
             create_test_stack_frame("main", "main.rs", 10),
             create_test_stack_frame("foo", "lib.rs", 20),
         ];
-        
-        let serialized = deduplicator.serialize_stack_frames(&frames).expect("Failed to serialize frames");
+
+        let serialized = deduplicator
+            .serialize_stack_frames(&frames)
+            .expect("Failed to serialize frames");
         assert!(!serialized.is_empty());
-        
-        let deserialized = deduplicator.deserialize_stack_frames(&serialized).expect("Failed to deserialize frames");
+
+        let deserialized = deduplicator
+            .deserialize_stack_frames(&serialized)
+            .expect("Failed to deserialize frames");
         // Note: Due to simulation, deserialized will be empty
         assert!(deserialized.is_empty());
-        
+
         let metadata = create_test_metadata();
-        let serialized_meta = deduplicator.serialize_metadata(&metadata).expect("Failed to serialize metadata");
+        let serialized_meta = deduplicator
+            .serialize_metadata(&metadata)
+            .expect("Failed to serialize metadata");
         assert!(!serialized_meta.is_empty());
-        
-        let deserialized_meta = deduplicator.deserialize_metadata(&serialized_meta).expect("Failed to deserialize metadata");
+
+        let deserialized_meta = deduplicator
+            .deserialize_metadata(&serialized_meta)
+            .expect("Failed to deserialize metadata");
         // Note: Due to simulation, deserialized will be empty
         assert!(deserialized_meta.is_empty());
     }
@@ -1139,7 +1208,7 @@ mod tests {
     fn test_get_nonexistent_data() {
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         let fake_string_ref = DeduplicatedString {
             hash: 12345,
             length: 10,
@@ -1147,7 +1216,7 @@ mod tests {
         };
         let result = deduplicator.get_string(&fake_string_ref);
         assert!(result.is_err());
-        
+
         let fake_stack_ref = DeduplicatedStackTrace {
             hash: 67890,
             frame_count: 5,
@@ -1155,7 +1224,7 @@ mod tests {
         };
         let result = deduplicator.get_stack_trace(&fake_stack_ref);
         assert!(result.is_err());
-        
+
         let fake_metadata_ref = DeduplicatedMetadata {
             hash: 11111,
             entry_count: 3,
@@ -1182,10 +1251,10 @@ mod tests {
             length: 10,
             ref_count: 1,
         };
-        
+
         assert_ne!(string_ref1, string_ref2); // Different ref count
         assert_eq!(string_ref1, string_ref3); // Same values
-        
+
         let stack_ref1 = DeduplicatedStackTrace {
             hash: 456,
             frame_count: 5,
@@ -1197,7 +1266,7 @@ mod tests {
             ref_count: 1,
         };
         assert_eq!(stack_ref1, stack_ref2);
-        
+
         let meta_ref1 = DeduplicatedMetadata {
             hash: 789,
             entry_count: 3,
@@ -1216,12 +1285,14 @@ mod tests {
         // Create a separate instance to avoid global state conflicts
         let config = DeduplicationConfig::default();
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
-        
+
         // Test basic functionality
         let test_string = "global_test";
-        let result = deduplicator.deduplicate_string(test_string).expect("Failed to deduplicate string");
+        let result = deduplicator
+            .deduplicate_string(test_string)
+            .expect("Failed to deduplicate string");
         assert_eq!(result.length, test_string.len());
-        
+
         // Test that global function works (but don't use the result in tests)
         let _global = get_global_data_deduplicator();
     }
@@ -1238,10 +1309,10 @@ mod tests {
             enable_stats: false,
             cleanup_threshold: 0.5,
         };
-        
+
         // Create a local instance instead of global to avoid conflicts
         let deduplicator = ComprehensiveDataDeduplicator::new(custom_config);
-        
+
         // Test that the instance has the custom config
         assert!(!deduplicator.config.enable_string_dedup);
         assert!(deduplicator.config.enable_stack_dedup);
@@ -1261,10 +1332,11 @@ mod tests {
             total_operations: 20,
             cleanup_operations: 2,
         };
-        
+
         let serialized = serde_json::to_string(&stats).expect("Failed to serialize stats");
-        let deserialized: DeduplicationStats = serde_json::from_str(&serialized).expect("Failed to deserialize stats");
-        
+        let deserialized: DeduplicationStats =
+            serde_json::from_str(&serialized).expect("Failed to deserialize stats");
+
         assert_eq!(deserialized.strings_deduplicated, 10);
         assert_eq!(deserialized.stack_traces_deduplicated, 5);
         assert_eq!(deserialized.metadata_deduplicated, 3);
@@ -1282,10 +1354,12 @@ mod tests {
             length: 42,
             ref_count: 5,
         };
-        
-        let serialized = serde_json::to_string(&string_ref).expect("Failed to serialize string ref");
-        let deserialized: DeduplicatedString = serde_json::from_str(&serialized).expect("Failed to deserialize string ref");
-        
+
+        let serialized =
+            serde_json::to_string(&string_ref).expect("Failed to serialize string ref");
+        let deserialized: DeduplicatedString =
+            serde_json::from_str(&serialized).expect("Failed to deserialize string ref");
+
         assert_eq!(deserialized.hash, 123456789);
         assert_eq!(deserialized.length, 42);
         assert_eq!(deserialized.ref_count, 5);
@@ -1305,20 +1379,23 @@ mod tests {
         let test_string = "deadlock_test_string";
 
         // First call - should create new entry
-        let result1 = deduplicator.deduplicate_string(test_string)
+        let result1 = deduplicator
+            .deduplicate_string(test_string)
             .expect("First call should succeed");
         assert_eq!(result1.ref_count, 1);
         assert_eq!(result1.length, test_string.len());
 
         // Second call - this used to deadlock, now should work
-        let result2 = deduplicator.deduplicate_string(test_string)
+        let result2 = deduplicator
+            .deduplicate_string(test_string)
             .expect("Second call should succeed without deadlock");
         assert_eq!(result2.ref_count, 2);
         assert_eq!(result2.hash, result1.hash);
         assert_eq!(result2.length, result1.length);
 
         // Third call - verify it continues to work
-        let result3 = deduplicator.deduplicate_string(test_string)
+        let result3 = deduplicator
+            .deduplicate_string(test_string)
             .expect("Third call should succeed");
         assert_eq!(result3.ref_count, 3);
         assert_eq!(result3.hash, result1.hash);
@@ -1350,11 +1427,12 @@ mod tests {
         for thread_id in 0..num_threads {
             let dedup_clone = Arc::clone(&deduplicator);
             let test_str = test_string.to_string();
-            
+
             let handle = thread::spawn(move || {
                 let mut results = vec![];
                 for i in 0..calls_per_thread {
-                    let result = dedup_clone.deduplicate_string(&test_str)
+                    let result = dedup_clone
+                        .deduplicate_string(&test_str)
                         .expect(&format!("Thread {} call {} should succeed", thread_id, i));
                     results.push(result);
                 }
@@ -1379,7 +1457,8 @@ mod tests {
         }
 
         // The final ref_count should be the total number of calls
-        let final_result = deduplicator.deduplicate_string(test_string)
+        let final_result = deduplicator
+            .deduplicate_string(test_string)
             .expect("Final call should succeed");
         let expected_final_count = (num_threads * calls_per_thread) + 1;
         assert_eq!(final_result.ref_count, expected_final_count);

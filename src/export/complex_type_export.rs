@@ -12,7 +12,9 @@ use std::path::Path;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::advanced_types::{AdvancedTypeAnalysisReport, AdvancedTypeStatistics, LatencyCategory, PerformanceSummary};
+    use crate::advanced_types::{
+        AdvancedTypeAnalysisReport, AdvancedTypeStatistics, LatencyCategory, PerformanceSummary,
+    };
     use crate::analysis::{
         AsyncPatternAnalysis, BorrowPatternAnalysis, ClosureAnalysisReport, GenericStatistics,
         LifecycleAnalysisReport,
@@ -281,7 +283,7 @@ mod tests {
         };
         // With empty data, should not export
         assert_eq!(should_export_closure_analysis(&analysis), false);
-        
+
         // Create analysis with some data
         let analysis = ClosureAnalysisReport {
             capture_statistics: Default::default(),
@@ -317,7 +319,7 @@ mod tests {
         };
         // With empty data, should not export
         assert_eq!(should_export_lifecycle_analysis(&analysis), false);
-        
+
         // Create analysis with some data
         let analysis = LifecycleAnalysisReport {
             borrow_analysis: Default::default(),
@@ -490,7 +492,10 @@ mod tests {
     #[test]
     fn test_categorize_simple_type() {
         assert_eq!(categorize_simple_type("Vec<i32>"), "Collections");
-        assert_eq!(categorize_simple_type("HashMap<String, i32>"), "Collections");
+        assert_eq!(
+            categorize_simple_type("HashMap<String, i32>"),
+            "Collections"
+        );
         assert_eq!(categorize_simple_type("String"), "Strings");
         assert_eq!(categorize_simple_type("&str"), "Strings");
         assert_eq!(categorize_simple_type("i32"), "Primitives");

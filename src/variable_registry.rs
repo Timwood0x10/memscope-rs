@@ -943,7 +943,7 @@ mod tests {
     fn test_variable_registry_register_and_get() {
         // Clear registry to avoid interference from other tests
         let _ = VariableRegistry::clear_registry();
-        
+
         let address = 0x10000; // Use unique address range
         let var_name = "test_var".to_string();
         let type_name = "String".to_string();
@@ -978,7 +978,7 @@ mod tests {
     fn test_get_all_variables() {
         // Clear registry to avoid interference from other tests
         let _ = VariableRegistry::clear_registry();
-        
+
         let address1 = 0x30000; // Use unique address range
         let address2 = 0x40000;
 
@@ -1003,7 +1003,7 @@ mod tests {
         // 1. Allocation with explicit var_name/type_name (should always be "user")
         // 2. Allocation without any info (should always be "system")
         // 3. Registry lookup (may fail in concurrent tests, so we make it optional)
-        
+
         // First, test allocations with explicit info - these should always work
         let explicit_alloc = create_test_allocation(
             0x60000,
@@ -1011,43 +1011,51 @@ mod tests {
             Some("explicit_var".to_string()),
             Some("i64".to_string()),
         );
-        
+
         // System allocation without any info
         let system_alloc = create_test_allocation(0x70000, 200, None, None);
-        
+
         let allocations = vec![explicit_alloc, system_alloc];
         let enhanced = VariableRegistry::enhance_allocations_with_registry(&allocations);
-        
+
         assert_eq!(enhanced.len(), 2);
-        
+
         // Check that we have one user and one system allocation
-        let user_count = enhanced.iter().filter(|a| a["allocation_source"] == "user").count();
-        let system_count = enhanced.iter().filter(|a| a["allocation_source"] == "system").count();
-        
+        let user_count = enhanced
+            .iter()
+            .filter(|a| a["allocation_source"] == "user")
+            .count();
+        let system_count = enhanced
+            .iter()
+            .filter(|a| a["allocation_source"] == "system")
+            .count();
+
         assert_eq!(user_count, 1, "Should have exactly one user allocation");
         assert_eq!(system_count, 1, "Should have exactly one system allocation");
-        
+
         // Find and verify the explicit allocation (should always be "user")
-        let explicit_result = enhanced.iter()
+        let explicit_result = enhanced
+            .iter()
             .find(|a| a["ptr"].as_u64().unwrap() as usize == 0x60000)
             .expect("Should find explicit allocation");
-        
+
         assert_eq!(explicit_result["allocation_source"], "user");
         assert_eq!(explicit_result["variable_name"], "explicit_var");
         assert_eq!(explicit_result["type_name"], "i64");
         assert_eq!(explicit_result["tracking_method"], "explicit_tracking");
-        
+
         // Find and verify the system allocation
-        let system_result = enhanced.iter()
+        let system_result = enhanced
+            .iter()
             .find(|a| a["ptr"].as_u64().unwrap() as usize == 0x70000)
             .expect("Should find system allocation");
-        
+
         assert_eq!(system_result["allocation_source"], "system");
         assert_eq!(system_result["tracking_method"], "automatic_inference");
         // System allocations should have inferred names
-        assert!(system_result["variable_name"].as_str().unwrap().len() > 0);
-        assert!(system_result["type_name"].as_str().unwrap().len() > 0);
-        
+        assert!(!system_result["variable_name"].as_str().unwrap().is_empty());
+        assert!(!system_result["type_name"].as_str().unwrap().is_empty());
+
         // Optional: Test registry functionality if we can get the lock
         // This part may fail in concurrent tests, so we make it non-critical
         let test_addr = 0x50000;
@@ -1057,11 +1065,14 @@ mod tests {
                 "tracked_var".to_string(),
                 "Vec<u8>".to_string(),
                 100,
-            ).is_ok() {
+            )
+            .is_ok()
+            {
                 // Only test registry lookup if registration succeeded
                 let registry_alloc = create_test_allocation(test_addr, 100, None, None);
-                let enhanced_with_registry = VariableRegistry::enhance_allocations_with_registry(&[registry_alloc]);
-                
+                let enhanced_with_registry =
+                    VariableRegistry::enhance_allocations_with_registry(&[registry_alloc]);
+
                 if enhanced_with_registry.len() == 1 {
                     let result = &enhanced_with_registry[0];
                     // If registry lookup worked, it should be classified as "user"
@@ -1081,40 +1092,57 @@ mod tests {
     fn test_extract_scope_from_var_name() {
         // Clear registry to avoid interference from other tests
         let _ = VariableRegistry::clear_registry();
-        
+
         // Test scope extraction - the function prioritizes scope tracker over pattern matching
         // In test environment, it typically returns "user_code_scope" from backtrace inference
         let result1 = VariableRegistry::extract_scope_from_var_name("scope::variable");
         // The function should return a valid scope name
         assert!(!result1.is_empty(), "Scope name should not be empty");
         assert!(
-            result1 == "scope" || result1 == "user_code_scope" || result1 == "user_scope" || 
-            result1.starts_with("function_") || result1 == "main_function" || result1 == "test_function",
-            "Expected a valid scope name, but got: '{}'", result1
+            result1 == "scope"
+                || result1 == "user_code_scope"
+                || result1 == "user_scope"
+                || result1.starts_with("function_")
+                || result1 == "main_function"
+                || result1 == "test_function",
+            "Expected a valid scope name, but got: '{}'",
+            result1
         );
 
         let result2 = VariableRegistry::extract_scope_from_var_name("my_vec");
         assert!(!result2.is_empty(), "Scope name should not be empty");
         assert!(
-            result2 == "user_scope" || result2 == "user_code_scope" || 
-            result2.starts_with("function_") || result2 == "main_function" || result2 == "test_function",
-            "Expected a valid scope name, but got: '{}'", result2
+            result2 == "user_scope"
+                || result2 == "user_code_scope"
+                || result2.starts_with("function_")
+                || result2 == "main_function"
+                || result2 == "test_function",
+            "Expected a valid scope name, but got: '{}'",
+            result2
         );
 
         let result3 = VariableRegistry::extract_scope_from_var_name("main_variable");
         assert!(!result3.is_empty(), "Scope name should not be empty");
         assert!(
-            result3 == "main_function" || result3 == "user_code_scope" || result3 == "user_scope" ||
-            result3.starts_with("function_") || result3 == "test_function",
-            "Expected a valid scope name, but got: '{}'", result3
+            result3 == "main_function"
+                || result3 == "user_code_scope"
+                || result3 == "user_scope"
+                || result3.starts_with("function_")
+                || result3 == "test_function",
+            "Expected a valid scope name, but got: '{}'",
+            result3
         );
 
         let result4 = VariableRegistry::extract_scope_from_var_name("test_variable");
         assert!(!result4.is_empty(), "Scope name should not be empty");
         assert!(
-            result4 == "test_function" || result4 == "user_code_scope" || result4 == "user_scope" ||
-            result4.starts_with("function_") || result4 == "main_function",
-            "Expected a valid scope name, but got: '{}'", result4
+            result4 == "test_function"
+                || result4 == "user_code_scope"
+                || result4 == "user_scope"
+                || result4.starts_with("function_")
+                || result4 == "main_function",
+            "Expected a valid scope name, but got: '{}'",
+            result4
         );
     }
 

@@ -2122,19 +2122,26 @@ mod tests {
         }
     }
 
-    fn create_test_binary_file(temp_dir: &TempDir, allocations: &[AllocationInfo]) -> std::path::PathBuf {
+    fn create_test_binary_file(
+        temp_dir: &TempDir,
+        allocations: &[AllocationInfo],
+    ) -> std::path::PathBuf {
         use crate::export::binary::BinaryWriter;
-        
+
         let binary_path = temp_dir.path().join("test.bin");
         let mut writer = BinaryWriter::new(&binary_path).expect("Failed to create binary writer");
-        
+
         // Write header first
-        writer.write_header(allocations.len() as u32).expect("Failed to write header");
-        
+        writer
+            .write_header(allocations.len() as u32)
+            .expect("Failed to write header");
+
         for allocation in allocations {
-            writer.write_allocation(allocation).expect("Failed to write allocation");
+            writer
+                .write_allocation(allocation)
+                .expect("Failed to write allocation");
         }
-        
+
         writer.finish().expect("Failed to finish binary file");
         binary_path
     }
@@ -2150,11 +2157,11 @@ mod tests {
         let mut buffer = String::new();
         BinaryParser::append_number_to_string(&mut buffer, 12345);
         assert_eq!(buffer, "12345");
-        
+
         buffer.clear();
         BinaryParser::append_number_to_string(&mut buffer, 0);
         assert_eq!(buffer, "0");
-        
+
         buffer.clear();
         BinaryParser::append_number_to_string(&mut buffer, u64::MAX);
         assert_eq!(buffer, u64::MAX.to_string());
@@ -2165,11 +2172,11 @@ mod tests {
         let mut buffer = String::new();
         BinaryParser::append_hex_to_string(&mut buffer, 0x1000);
         assert_eq!(buffer, "1000");
-        
+
         buffer.clear();
         BinaryParser::append_hex_to_string(&mut buffer, 0);
         assert_eq!(buffer, "0");
-        
+
         buffer.clear();
         BinaryParser::append_hex_to_string(&mut buffer, 0xDEADBEEF);
         assert_eq!(buffer, "deadbeef");
@@ -2183,10 +2190,10 @@ mod tests {
             Some("String".to_string()),
             Some("test_var".to_string()),
         );
-        
+
         let mut buffer = String::new();
         BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
-        
+
         // Verify the JSON structure contains expected fields
         assert!(buffer.contains("\"ptr\":\"0x1000\""));
         assert!(buffer.contains("\"size\":64"));
@@ -2199,10 +2206,10 @@ mod tests {
     #[test]
     fn test_append_memory_record_with_null_fields() {
         let allocation = create_test_allocation(0x2000, 128, None, None);
-        
+
         let mut buffer = String::new();
         BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
-        
+
         assert!(buffer.contains("\"ptr\":\"0x2000\""));
         assert!(buffer.contains("\"size\":128"));
         assert!(buffer.contains("\"var_name\":null"));
@@ -2217,10 +2224,10 @@ mod tests {
             Some("Vec<i32>".to_string()),
             Some("my_vec".to_string()),
         );
-        
+
         let mut buffer = String::new();
         BinaryParser::append_lifetime_record_compatible(&mut buffer, &allocation);
-        
+
         assert!(buffer.contains("\"ptr\":\"0x3000\""));
         assert!(buffer.contains("\"size\":256"));
         assert!(buffer.contains("\"var_name\":\"my_vec\""));
@@ -2238,10 +2245,10 @@ mod tests {
             Some("HashMap".to_string()),
             Some("my_map".to_string()),
         );
-        
+
         let mut buffer = String::new();
         BinaryParser::append_performance_record_compatible(&mut buffer, &allocation);
-        
+
         assert!(buffer.contains("\"ptr\":\"0x4000\""));
         assert!(buffer.contains("\"size\":512"));
         assert!(buffer.contains("\"var_name\":\"my_map\""));
@@ -2260,10 +2267,10 @@ mod tests {
             Some("CString".to_string()),
             Some("c_str".to_string()),
         );
-        
+
         let mut buffer = String::new();
         BinaryParser::append_ffi_record_compatible(&mut buffer, &allocation);
-        
+
         assert!(buffer.contains("\"base\":{\"ptr\":20480"));
         assert!(buffer.contains("\"size\":1024"));
         assert!(buffer.contains("\"var_name\":\"c_str\""));
@@ -2281,10 +2288,10 @@ mod tests {
             Some("Box<dyn Trait>".to_string()),
             Some("boxed_trait".to_string()),
         );
-        
+
         let mut buffer = String::new();
         BinaryParser::append_complex_record_compatible(&mut buffer, &allocation);
-        
+
         assert!(buffer.contains("\"ptr\":\"0x6000\""));
         assert!(buffer.contains("\"size\":2048"));
         assert!(buffer.contains("\"var_name\":\"boxed_trait\""));
@@ -2299,16 +2306,26 @@ mod tests {
     fn test_to_json_conversion() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
-            create_test_allocation(0x2000, 128, Some("Vec<i32>".to_string()), Some("var2".to_string())),
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("var1".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("var2".to_string()),
+            ),
         ];
-        
+
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let json_path = temp_dir.path().join("output.json");
-        
+
         let result = BinaryParser::to_json(&binary_path, &json_path);
         assert!(result.is_ok());
-        
+
         // Verify JSON file was created and contains expected content
         assert!(json_path.exists());
         let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
@@ -2321,16 +2338,19 @@ mod tests {
     #[test]
     fn test_to_html_conversion() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
-        ];
-        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        )];
+
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let html_path = temp_dir.path().join("output.html");
-        
+
         let result = BinaryParser::to_html(&binary_path, &html_path);
         assert!(result.is_ok());
-        
+
         // Verify HTML file was created and contains expected content
         assert!(html_path.exists());
         let html_content = fs::read_to_string(&html_path).expect("Failed to read HTML file");
@@ -2344,10 +2364,10 @@ mod tests {
     fn test_load_allocations_empty_file() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let allocations = vec![];
-        
+
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let result = BinaryParser::load_allocations(&binary_path);
-        
+
         assert!(result.is_ok());
         let loaded_allocations = result.unwrap();
         assert_eq!(loaded_allocations.len(), 0);
@@ -2356,13 +2376,16 @@ mod tests {
     #[test]
     fn test_load_allocations_single_allocation() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
-        ];
-        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        )];
+
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let result = BinaryParser::load_allocations(&binary_path);
-        
+
         assert!(result.is_ok());
         let loaded_allocations = result.unwrap();
         assert_eq!(loaded_allocations.len(), 1);
@@ -2376,18 +2399,33 @@ mod tests {
     fn test_load_allocations_multiple_allocations() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
-            create_test_allocation(0x2000, 128, Some("Vec<i32>".to_string()), Some("var2".to_string())),
-            create_test_allocation(0x3000, 256, Some("HashMap".to_string()), Some("var3".to_string())),
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("var1".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("var2".to_string()),
+            ),
+            create_test_allocation(
+                0x3000,
+                256,
+                Some("HashMap".to_string()),
+                Some("var3".to_string()),
+            ),
         ];
-        
+
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let result = BinaryParser::load_allocations(&binary_path);
-        
+
         assert!(result.is_ok());
         let loaded_allocations = result.unwrap();
         assert_eq!(loaded_allocations.len(), 3);
-        
+
         // Verify each allocation
         for (i, allocation) in loaded_allocations.iter().enumerate() {
             assert_eq!(allocation.ptr, allocations[i].ptr);
@@ -2401,12 +2439,12 @@ mod tests {
     fn test_load_allocations_nonexistent_file() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let nonexistent_path = temp_dir.path().join("nonexistent.bin");
-        
+
         let result = BinaryParser::load_allocations(&nonexistent_path);
         assert!(result.is_err());
-        
+
         match result.unwrap_err() {
-            BinaryExportError::Io(_) => {}, // Expected
+            BinaryExportError::Io(_) => {} // Expected
             other => panic!("Expected IO error, got: {:?}", other),
         }
     }
@@ -2419,10 +2457,10 @@ mod tests {
             Some("String with \"quotes\" and \\backslashes\\".to_string()),
             Some("var_with_special_chars".to_string()),
         );
-        
+
         let mut buffer = String::new();
         BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
-        
+
         // The function should handle special characters properly
         assert!(buffer.contains("var_with_special_chars"));
         // Note: The current implementation doesn't escape JSON strings properly,
@@ -2433,19 +2471,19 @@ mod tests {
     #[test]
     fn test_hex_formatting_edge_cases() {
         let mut buffer = String::new();
-        
+
         // Test zero
         BinaryParser::append_hex_to_string(&mut buffer, 0);
         assert_eq!(buffer, "0");
-        
+
         buffer.clear();
-        
+
         // Test maximum value
         BinaryParser::append_hex_to_string(&mut buffer, usize::MAX);
         assert_eq!(buffer, format!("{:x}", usize::MAX));
-        
+
         buffer.clear();
-        
+
         // Test specific hex values
         BinaryParser::append_hex_to_string(&mut buffer, 0xABCDEF);
         assert_eq!(buffer, "abcdef");
@@ -2454,19 +2492,19 @@ mod tests {
     #[test]
     fn test_number_formatting_edge_cases() {
         let mut buffer = String::new();
-        
+
         // Test zero
         BinaryParser::append_number_to_string(&mut buffer, 0);
         assert_eq!(buffer, "0");
-        
+
         buffer.clear();
-        
+
         // Test maximum value
         BinaryParser::append_number_to_string(&mut buffer, u64::MAX);
         assert_eq!(buffer, u64::MAX.to_string());
-        
+
         buffer.clear();
-        
+
         // Test large number
         BinaryParser::append_number_to_string(&mut buffer, 1_000_000_000);
         assert_eq!(buffer, "1000000000");
@@ -2480,25 +2518,25 @@ mod tests {
             Some("TestType".to_string()),
             Some("test_var".to_string()),
         );
-        
+
         // Test that all record types can be generated without panicking
         let mut buffer = String::new();
-        
+
         BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
         assert!(!buffer.is_empty());
-        
+
         buffer.clear();
         BinaryParser::append_lifetime_record_compatible(&mut buffer, &allocation);
         assert!(!buffer.is_empty());
-        
+
         buffer.clear();
         BinaryParser::append_performance_record_compatible(&mut buffer, &allocation);
         assert!(!buffer.is_empty());
-        
+
         buffer.clear();
         BinaryParser::append_ffi_record_compatible(&mut buffer, &allocation);
         assert!(!buffer.is_empty());
-        
+
         buffer.clear();
         BinaryParser::append_complex_record_compatible(&mut buffer, &allocation);
         assert!(!buffer.is_empty());

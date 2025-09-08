@@ -2444,18 +2444,24 @@ mod tests {
 
     #[test]
     fn test_json_file_type_file_suffix() {
-        assert_eq!(JsonFileType::MemoryAnalysis.file_suffix(), "memory_analysis");
+        assert_eq!(
+            JsonFileType::MemoryAnalysis.file_suffix(),
+            "memory_analysis"
+        );
         assert_eq!(JsonFileType::Lifetime.file_suffix(), "lifetime");
         assert_eq!(JsonFileType::UnsafeFfi.file_suffix(), "unsafe_ffi");
         assert_eq!(JsonFileType::Performance.file_suffix(), "performance");
         assert_eq!(JsonFileType::ComplexTypes.file_suffix(), "complex_types");
-        assert_eq!(JsonFileType::SecurityViolations.file_suffix(), "security_violations");
+        assert_eq!(
+            JsonFileType::SecurityViolations.file_suffix(),
+            "security_violations"
+        );
     }
 
     #[test]
     fn test_optimized_export_options_default() {
         let options = OptimizedExportOptions::default();
-        
+
         assert!(options.parallel_processing);
         assert_eq!(options.buffer_size, 256 * 1024);
         assert!(options.use_compact_format.is_none());
@@ -2481,7 +2487,7 @@ mod tests {
     #[test]
     fn test_optimization_level_low() {
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low);
-        
+
         assert!(!options.parallel_processing);
         assert!(!options.use_streaming_writer);
         assert!(!options.enable_schema_validation);
@@ -2496,7 +2502,7 @@ mod tests {
     #[test]
     fn test_optimization_level_medium() {
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Medium);
-        
+
         assert!(options.parallel_processing);
         assert!(!options.use_streaming_writer);
         assert!(options.enable_schema_validation);
@@ -2509,7 +2515,7 @@ mod tests {
     #[test]
     fn test_optimization_level_high() {
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::High);
-        
+
         // High level should use default settings (all features enabled)
         assert!(options.parallel_processing);
         assert!(options.use_streaming_writer);
@@ -2523,7 +2529,7 @@ mod tests {
     #[test]
     fn test_optimization_level_maximum() {
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum);
-        
+
         assert_eq!(options.buffer_size, 512 * 1024); // 512KB buffer
         assert_eq!(options.batch_size, 2000);
         assert_eq!(options.optimization_level, OptimizationLevel::Maximum);
@@ -2564,55 +2570,102 @@ mod tests {
     #[test]
     fn test_create_performance_metrics() {
         let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
-            create_test_allocation(0x2000, 128, Some("Vec<i32>".to_string()), Some("var2".to_string())),
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("var1".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("var2".to_string()),
+            ),
         ];
-        
+
         let start_time = Instant::now();
         std::thread::sleep(std::time::Duration::from_millis(1)); // Ensure some time passes
-        
+
         let result = create_performance_metrics(&allocations, start_time);
         assert!(result.is_ok());
-        
+
         let metrics = result.unwrap();
         assert!(metrics["metadata"]["metrics_type"].as_str().unwrap() == "performance_optimized");
-        assert!(metrics["performance"]["allocations_processed"].as_u64().unwrap() == 2);
-        assert!(metrics["performance"]["total_processing_time_ms"].as_u64().unwrap() > 0);
-        assert!(metrics["performance"]["processing_rate"]["allocations_per_second"].as_f64().is_some());
-        assert!(metrics["optimization_status"]["type_caching"].as_str().unwrap() == "enabled");
+        assert!(
+            metrics["performance"]["allocations_processed"]
+                .as_u64()
+                .unwrap()
+                == 2
+        );
+        assert!(
+            metrics["performance"]["total_processing_time_ms"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert!(
+            metrics["performance"]["processing_rate"]["allocations_per_second"]
+                .as_f64()
+                .is_some()
+        );
+        assert!(
+            metrics["optimization_status"]["type_caching"]
+                .as_str()
+                .unwrap()
+                == "enabled"
+        );
     }
 
     #[test]
     fn test_create_security_violation_analysis_disabled() {
-        let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
-        ];
-        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        )];
+
         let options = OptimizedExportOptions::default().security_analysis(false);
-        
+
         let result = create_security_violation_analysis(&allocations, &options);
         assert!(result.is_ok());
-        
+
         let analysis = result.unwrap();
-        assert_eq!(analysis["metadata"]["analysis_type"].as_str().unwrap(), "security_violations");
+        assert_eq!(
+            analysis["metadata"]["analysis_type"].as_str().unwrap(),
+            "security_violations"
+        );
         assert_eq!(analysis["metadata"]["status"].as_str().unwrap(), "disabled");
-        assert!(analysis["metadata"]["message"].as_str().unwrap().contains("disabled"));
+        assert!(analysis["metadata"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("disabled"));
     }
 
     #[test]
     fn test_create_security_violation_analysis_enabled() {
-        let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
-        ];
-        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        )];
+
         let options = OptimizedExportOptions::default().security_analysis(true);
-        
+
         let result = create_security_violation_analysis(&allocations, &options);
         assert!(result.is_ok());
-        
+
         let analysis = result.unwrap();
-        assert_eq!(analysis["metadata"]["analysis_type"].as_str().unwrap(), "security_violations");
-        assert_eq!(analysis["metadata"]["export_version"].as_str().unwrap(), "2.0");
+        assert_eq!(
+            analysis["metadata"]["analysis_type"].as_str().unwrap(),
+            "security_violations"
+        );
+        assert_eq!(
+            analysis["metadata"]["export_version"].as_str().unwrap(),
+            "2.0"
+        );
         assert!(analysis["metadata"]["analysis_enabled"].as_bool().unwrap());
         assert!(analysis["violation_reports"].is_array());
         assert!(analysis["security_summary"].is_object());
@@ -2626,7 +2679,7 @@ mod tests {
         assert_eq!(OptimizationLevel::Medium, OptimizationLevel::Medium);
         assert_eq!(OptimizationLevel::High, OptimizationLevel::High);
         assert_eq!(OptimizationLevel::Maximum, OptimizationLevel::Maximum);
-        
+
         assert_ne!(OptimizationLevel::Low, OptimizationLevel::High);
         assert_ne!(OptimizationLevel::Medium, OptimizationLevel::Maximum);
     }
@@ -2638,8 +2691,11 @@ mod tests {
         assert_eq!(JsonFileType::UnsafeFfi, JsonFileType::UnsafeFfi);
         assert_eq!(JsonFileType::Performance, JsonFileType::Performance);
         assert_eq!(JsonFileType::ComplexTypes, JsonFileType::ComplexTypes);
-        assert_eq!(JsonFileType::SecurityViolations, JsonFileType::SecurityViolations);
-        
+        assert_eq!(
+            JsonFileType::SecurityViolations,
+            JsonFileType::SecurityViolations
+        );
+
         assert_ne!(JsonFileType::MemoryAnalysis, JsonFileType::Lifetime);
         assert_ne!(JsonFileType::UnsafeFfi, JsonFileType::Performance);
     }
@@ -2649,9 +2705,9 @@ mod tests {
         let original = OptimizedExportOptions::default()
             .parallel_processing(false)
             .buffer_size(512 * 1024);
-        
+
         let cloned = original.clone();
-        
+
         assert_eq!(original.parallel_processing, cloned.parallel_processing);
         assert_eq!(original.buffer_size, cloned.buffer_size);
         assert_eq!(original.batch_size, cloned.batch_size);
@@ -2663,14 +2719,14 @@ mod tests {
         let options_with_low_severity = OptimizedExportOptions::default()
             .include_low_severity(true)
             .integrity_hashes(true);
-        
+
         let options_without_low_severity = OptimizedExportOptions::default()
             .include_low_severity(false)
             .integrity_hashes(false);
-        
+
         assert!(options_with_low_severity.include_low_severity_violations);
         assert!(options_with_low_severity.generate_integrity_hashes);
-        
+
         assert!(!options_without_low_severity.include_low_severity_violations);
         assert!(!options_without_low_severity.generate_integrity_hashes);
     }
@@ -2680,13 +2736,12 @@ mod tests {
         let options = OptimizedExportOptions::default()
             .fast_export_mode(true)
             .auto_fast_export_threshold(Some(1000));
-        
+
         assert!(options.enable_fast_export_mode);
         assert_eq!(options.auto_fast_export_threshold, Some(1000));
-        
-        let options_no_auto = OptimizedExportOptions::default()
-            .auto_fast_export_threshold(None);
-        
+
+        let options_no_auto = OptimizedExportOptions::default().auto_fast_export_threshold(None);
+
         assert!(options_no_auto.auto_fast_export_threshold.is_none());
     }
 
@@ -2694,42 +2749,35 @@ mod tests {
     fn test_thread_count_configuration() {
         let options_auto = OptimizedExportOptions::default();
         assert!(options_auto.thread_count.is_none()); // Auto-detect
-        
-        let options_manual = OptimizedExportOptions::default()
-            .thread_count(Some(8));
+
+        let options_manual = OptimizedExportOptions::default().thread_count(Some(8));
         assert_eq!(options_manual.thread_count, Some(8));
     }
 
     #[test]
     fn test_buffer_size_validation() {
-        let small_buffer = OptimizedExportOptions::default()
-            .buffer_size(1024); // 1KB
+        let small_buffer = OptimizedExportOptions::default().buffer_size(1024); // 1KB
         assert_eq!(small_buffer.buffer_size, 1024);
-        
-        let large_buffer = OptimizedExportOptions::default()
-            .buffer_size(1024 * 1024); // 1MB
+
+        let large_buffer = OptimizedExportOptions::default().buffer_size(1024 * 1024); // 1MB
         assert_eq!(large_buffer.buffer_size, 1024 * 1024);
     }
 
     #[test]
     fn test_batch_size_validation() {
-        let small_batch = OptimizedExportOptions::default()
-            .batch_size(100);
+        let small_batch = OptimizedExportOptions::default().batch_size(100);
         assert_eq!(small_batch.batch_size, 100);
-        
-        let large_batch = OptimizedExportOptions::default()
-            .batch_size(10000);
+
+        let large_batch = OptimizedExportOptions::default().batch_size(10000);
         assert_eq!(large_batch.batch_size, 10000);
     }
 
     #[test]
     fn test_cache_size_validation() {
-        let small_cache = OptimizedExportOptions::default()
-            .max_cache_size(500);
+        let small_cache = OptimizedExportOptions::default().max_cache_size(500);
         assert_eq!(small_cache.max_cache_size, 500);
-        
-        let large_cache = OptimizedExportOptions::default()
-            .max_cache_size(5000);
+
+        let large_cache = OptimizedExportOptions::default().max_cache_size(5000);
         assert_eq!(large_cache.max_cache_size, 5000);
     }
 }

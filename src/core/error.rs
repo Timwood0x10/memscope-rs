@@ -518,7 +518,13 @@ mod tests {
     #[test]
     fn test_memory_error_creation() {
         let err = MemScopeError::memory(MemoryOperation::Allocation, "allocation failed");
-        assert!(matches!(err, MemScopeError::Memory { operation: MemoryOperation::Allocation, .. }));
+        assert!(matches!(
+            err,
+            MemScopeError::Memory {
+                operation: MemoryOperation::Allocation,
+                ..
+            }
+        ));
         assert_eq!(err.category(), "memory");
         assert_eq!(err.user_message(), "allocation failed");
         assert!(err.is_recoverable());
@@ -529,20 +535,38 @@ mod tests {
             "deallocation failed",
             "in cleanup",
         );
-        assert!(matches!(err_with_context, MemScopeError::Memory { operation: MemoryOperation::Deallocation, .. }));
+        assert!(matches!(
+            err_with_context,
+            MemScopeError::Memory {
+                operation: MemoryOperation::Deallocation,
+                ..
+            }
+        ));
         assert_eq!(err_with_context.category(), "memory");
     }
 
     #[test]
     fn test_analysis_error_creation() {
         let err = MemScopeError::analysis("fragmentation", "analysis failed");
-        assert!(matches!(err, MemScopeError::Analysis { recoverable: true, .. }));
+        assert!(matches!(
+            err,
+            MemScopeError::Analysis {
+                recoverable: true,
+                ..
+            }
+        ));
         assert_eq!(err.category(), "analysis");
         assert!(err.is_recoverable());
         assert_eq!(err.severity(), ErrorSeverity::Low);
 
         let fatal_err = MemScopeError::analysis_fatal("lifecycle", "critical analysis failed");
-        assert!(matches!(fatal_err, MemScopeError::Analysis { recoverable: false, .. }));
+        assert!(matches!(
+            fatal_err,
+            MemScopeError::Analysis {
+                recoverable: false,
+                ..
+            }
+        ));
         assert_eq!(fatal_err.category(), "analysis");
         assert!(!fatal_err.is_recoverable());
         assert_eq!(fatal_err.severity(), ErrorSeverity::High);
@@ -551,13 +575,25 @@ mod tests {
     #[test]
     fn test_export_error_creation() {
         let err = MemScopeError::export("json", "export failed");
-        assert!(matches!(err, MemScopeError::Export { partial_success: false, .. }));
+        assert!(matches!(
+            err,
+            MemScopeError::Export {
+                partial_success: false,
+                ..
+            }
+        ));
         assert_eq!(err.category(), "export");
         assert!(!err.is_recoverable());
         assert_eq!(err.severity(), ErrorSeverity::Medium);
 
         let partial_err = MemScopeError::export_partial("html", "partial export");
-        assert!(matches!(partial_err, MemScopeError::Export { partial_success: true, .. }));
+        assert!(matches!(
+            partial_err,
+            MemScopeError::Export {
+                partial_success: true,
+                ..
+            }
+        ));
         assert_eq!(partial_err.category(), "export");
         assert!(partial_err.is_recoverable());
         assert_eq!(partial_err.severity(), ErrorSeverity::Low);
@@ -575,14 +611,26 @@ mod tests {
     #[test]
     fn test_system_error_creation() {
         let err = MemScopeError::system(SystemErrorType::Io, "io error");
-        assert!(matches!(err, MemScopeError::System { error_type: SystemErrorType::Io, .. }));
+        assert!(matches!(
+            err,
+            MemScopeError::System {
+                error_type: SystemErrorType::Io,
+                ..
+            }
+        ));
         assert_eq!(err.category(), "system");
         assert!(err.is_recoverable());
         assert_eq!(err.severity(), ErrorSeverity::Medium);
 
         let io_err = io::Error::new(io::ErrorKind::Other, "test io error");
         let converted_err: MemScopeError = io_err.into();
-        assert!(matches!(converted_err, MemScopeError::System { error_type: SystemErrorType::Io, .. }));
+        assert!(matches!(
+            converted_err,
+            MemScopeError::System {
+                error_type: SystemErrorType::Io,
+                ..
+            }
+        ));
         assert_eq!(converted_err.category(), "system");
     }
 
@@ -658,7 +706,7 @@ mod tests {
             MemoryOperation::Tracking,
             MemoryOperation::Validation,
         ];
-        
+
         for op in operations {
             let err = MemScopeError::memory(op, "test");
             assert_eq!(err.category(), "memory");
@@ -676,7 +724,7 @@ mod tests {
             SystemErrorType::Network,
             SystemErrorType::FileSystem,
         ];
-        
+
         for error_type in error_types {
             let err = MemScopeError::system(error_type, "test");
             assert_eq!(err.category(), "system");
@@ -731,7 +779,7 @@ mod tests {
     #[test]
     fn test_error_recovery_strategies() {
         let recovery = DefaultErrorRecovery::new();
-        
+
         // Test memory error recovery
         let mem_err = MemScopeError::memory(MemoryOperation::Allocation, "test error");
         assert!(recovery.can_recover(&mem_err));
@@ -768,7 +816,7 @@ mod tests {
     #[test]
     fn test_recovery_execution() {
         let recovery = DefaultErrorRecovery::new();
-        
+
         // Test retry execution
         let retry_action = RecoveryAction::Retry {
             max_attempts: 1,
@@ -802,7 +850,7 @@ mod tests {
         fn test_function() -> Result<()> {
             Ok(())
         }
-        
+
         assert!(test_function().is_ok());
     }
 
@@ -811,7 +859,13 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test io error");
         let json_err = serde_json::Error::io(io_err);
         let memscope_err: MemScopeError = json_err.into();
-        assert!(matches!(memscope_err, MemScopeError::System { error_type: SystemErrorType::Serialization, .. }));
+        assert!(matches!(
+            memscope_err,
+            MemScopeError::System {
+                error_type: SystemErrorType::Serialization,
+                ..
+            }
+        ));
         assert_eq!(memscope_err.category(), "system");
     }
 }

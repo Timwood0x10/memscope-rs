@@ -570,8 +570,7 @@ mod tests {
         let result = ok_result.unwrap_or_default_safe(99, "test default");
         assert_eq!(result, 42);
 
-        let err_result: Result<i32, std::io::Error> =
-            Err(std::io::Error::other("error"));
+        let err_result: Result<i32, std::io::Error> = Err(std::io::Error::other("error"));
         let result = err_result.unwrap_or_default_safe(99, "test default");
         assert_eq!(result, 99);
     }
@@ -582,8 +581,7 @@ mod tests {
         let result = ok_result.unwrap_or_else_safe(|| 99, "test else");
         assert_eq!(result, 42);
 
-        let err_result: Result<i32, std::io::Error> =
-            Err(std::io::Error::other("error"));
+        let err_result: Result<i32, std::io::Error> = Err(std::io::Error::other("error"));
         let result = err_result.unwrap_or_else_safe(|| 99, "test else");
         assert_eq!(result, 99);
     }
@@ -639,12 +637,6 @@ mod tests {
 
         let expected_rate = 3.0 / 4.0;
         assert!((stats.success_rate() - expected_rate).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_global_unwrap_stats() {
-        let stats = get_unwrap_stats();
-        // Total operations is always >= 0 for usize
     }
 
     #[test]

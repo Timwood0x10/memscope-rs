@@ -690,7 +690,7 @@ mod tests {
     #[test]
     fn test_batch_controller_performance_recording() {
         let mut controller = AdaptiveBatchController::new(1000);
-        
+
         let metrics = PerformanceMetrics {
             processing_time_ms: 5, // Fast processing
             memory_usage_mb: 100,
@@ -699,10 +699,10 @@ mod tests {
             batch_efficiency: 0.9,
             timestamp: Instant::now(),
         };
-        
+
         let initial_size = controller.get_optimal_batch_size();
         controller.record_performance(metrics);
-        
+
         // Fast processing should potentially increase batch size
         let new_size = controller.get_optimal_batch_size();
         assert!(new_size >= initial_size);
@@ -711,7 +711,7 @@ mod tests {
     #[test]
     fn test_batch_controller_slow_processing_adjustment() {
         let mut controller = AdaptiveBatchController::new(1000);
-        
+
         let slow_metrics = PerformanceMetrics {
             processing_time_ms: 50, // Slow processing (target is 10ms)
             memory_usage_mb: 100,
@@ -720,10 +720,10 @@ mod tests {
             batch_efficiency: 0.7,
             timestamp: Instant::now(),
         };
-        
+
         let initial_size = controller.get_optimal_batch_size();
         controller.record_performance(slow_metrics);
-        
+
         // Slow processing should reduce batch size
         let new_size = controller.get_optimal_batch_size();
         assert!(new_size < initial_size);
@@ -732,19 +732,19 @@ mod tests {
     #[test]
     fn test_batch_controller_memory_pressure_adjustment() {
         let mut controller = AdaptiveBatchController::new(1000);
-        
+
         let high_memory_metrics = PerformanceMetrics {
             processing_time_ms: 5, // Fast processing
-            memory_usage_mb: 600, // High memory usage (>500MB threshold)
+            memory_usage_mb: 600,  // High memory usage (>500MB threshold)
             allocations_per_second: 1000.0,
             cache_hit_ratio: 0.8,
             batch_efficiency: 0.9,
             timestamp: Instant::now(),
         };
-        
+
         let initial_size = controller.get_optimal_batch_size();
         controller.record_performance(high_memory_metrics);
-        
+
         // High memory usage should reduce batch size despite fast processing
         let new_size = controller.get_optimal_batch_size();
         assert!(new_size < initial_size);
@@ -753,10 +753,10 @@ mod tests {
     #[test]
     fn test_batch_controller_performance_trend() {
         let mut controller = AdaptiveBatchController::new(1000);
-        
+
         // Add insufficient data first
         assert!(controller.get_performance_trend().is_none());
-        
+
         // Add enough metrics for trend analysis
         for i in 0..10 {
             let metrics = PerformanceMetrics {
@@ -770,7 +770,7 @@ mod tests {
             controller.record_performance(metrics);
             thread::sleep(Duration::from_millis(1)); // Small delay for timestamp differences
         }
-        
+
         let trend = controller.get_performance_trend();
         assert!(trend.is_some());
         let trend_str = trend.unwrap();
@@ -791,20 +791,20 @@ mod tests {
         let cache = TypeInfoCache::new(100);
         let type_name = "TestType".to_string();
         let test_info = serde_json::json!({"name": "TestType", "size": 64});
-        
+
         // Initially should be a cache miss
         assert!(cache.get(&type_name).is_none());
         let (_, misses, _) = cache.get_stats();
         assert_eq!(misses, 1);
-        
+
         // Store the information
         cache.store(type_name.clone(), test_info.clone());
-        
+
         // Now should be a cache hit
         let retrieved = cache.get(&type_name);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap(), test_info);
-        
+
         let (hits, _, hit_ratio) = cache.get_stats();
         assert_eq!(hits, 1);
         assert!(hit_ratio > 0.0);
@@ -814,13 +814,13 @@ mod tests {
     fn test_type_info_cache_clear() {
         let cache = TypeInfoCache::new(100);
         let test_info = serde_json::json!({"name": "TestType"});
-        
+
         cache.store("TestType".to_string(), test_info);
         assert!(cache.get("TestType").is_some());
-        
+
         cache.clear();
         assert!(cache.get("TestType").is_none());
-        
+
         let (hits, misses, hit_ratio) = cache.get_stats();
         assert_eq!(hits, 0);
         assert_eq!(misses, 1); // The get after clear is a miss
@@ -837,19 +837,19 @@ mod tests {
     #[test]
     fn test_memory_usage_monitor_pressure_levels() {
         let mut monitor = MemoryUsageMonitor::new();
-        
+
         // Test low pressure
         monitor.update_usage(100);
         assert_eq!(monitor.get_memory_pressure(), MemoryPressureLevel::Low);
-        
+
         // Test medium pressure
         monitor.update_usage(600); // Between 512 (warning/2) and 1024 (warning)
         assert_eq!(monitor.get_memory_pressure(), MemoryPressureLevel::Medium);
-        
+
         // Test high pressure
         monitor.update_usage(1500); // Between 1024 (warning) and 2048 (critical)
         assert_eq!(monitor.get_memory_pressure(), MemoryPressureLevel::High);
-        
+
         // Test critical pressure
         monitor.update_usage(3000); // Above 2048 (critical)
         assert_eq!(monitor.get_memory_pressure(), MemoryPressureLevel::Critical);
@@ -858,19 +858,19 @@ mod tests {
     #[test]
     fn test_memory_usage_monitor_trend() {
         let mut monitor = MemoryUsageMonitor::new();
-        
+
         // Add insufficient data first
         for i in 0..5 {
             monitor.update_usage(100 + i * 10);
         }
         assert!(monitor.get_usage_trend().is_none());
-        
+
         // Add enough data for trend analysis - increasing trend
         for i in 5..15 {
             monitor.update_usage(100 + i * 20); // Increasing usage
             thread::sleep(Duration::from_millis(1));
         }
-        
+
         let trend = monitor.get_usage_trend();
         assert!(trend.is_some());
         assert_eq!(trend.unwrap(), MemoryTrend::Increasing);
@@ -905,14 +905,9 @@ mod tests {
     #[test]
     fn test_optimizer_batch_performance_recording() {
         let mut optimizer = AdaptivePerformanceOptimizer::new(1000, 100);
-        
-        optimizer.record_batch_performance(
-            500,
-            Duration::from_millis(5),
-            100,
-            450,
-        );
-        
+
+        optimizer.record_batch_performance(500, Duration::from_millis(5), 100, 450);
+
         // Should not panic and should update internal state
         assert!(optimizer.get_optimal_batch_size() > 0);
     }
@@ -920,7 +915,7 @@ mod tests {
     #[test]
     fn test_optimizer_memory_pressure_adjustment() {
         let mut optimizer = AdaptivePerformanceOptimizer::new(1000, 100);
-        
+
         // Simulate high memory pressure
         optimizer.record_batch_performance(
             1000,
@@ -928,7 +923,7 @@ mod tests {
             1500, // High memory usage
             900,
         );
-        
+
         // Should reduce batch size due to memory pressure
         let batch_size = optimizer.get_optimal_batch_size();
         assert!(batch_size < 1000);
@@ -939,13 +934,13 @@ mod tests {
         let optimizer = AdaptivePerformanceOptimizer::new(1000, 100);
         let type_name = "TestType";
         let test_info = serde_json::json!({"name": "TestType", "size": 64});
-        
+
         // Initially should be cache miss
         assert!(optimizer.get_cached_type_info(type_name).is_none());
-        
+
         // Cache the information
         optimizer.cache_type_info(type_name.to_string(), test_info.clone());
-        
+
         // Should now be cache hit
         let cached = optimizer.get_cached_type_info(type_name);
         assert!(cached.is_some());
@@ -956,7 +951,7 @@ mod tests {
     fn test_optimizer_performance_report() {
         let optimizer = AdaptivePerformanceOptimizer::new(1000, 100);
         let report = optimizer.get_performance_report();
-        
+
         assert!(report.is_object());
         let adaptive_opt = &report["adaptive_optimization"];
         assert!(adaptive_opt["enabled"].as_bool().unwrap());
@@ -968,18 +963,18 @@ mod tests {
     #[test]
     fn test_optimizer_enable_disable() {
         let mut optimizer = AdaptivePerformanceOptimizer::new(1000, 100);
-        
+
         assert!(optimizer.optimization_enabled);
-        
+
         optimizer.set_optimization_enabled(false);
         assert!(!optimizer.optimization_enabled);
-        
+
         // When disabled, should return default batch size
         assert_eq!(optimizer.get_optimal_batch_size(), 1000);
-        
+
         // Caching should not work when disabled
         assert!(optimizer.get_cached_type_info("TestType").is_none());
-        
+
         optimizer.set_optimization_enabled(true);
         assert!(optimizer.optimization_enabled);
     }
@@ -987,17 +982,17 @@ mod tests {
     #[test]
     fn test_optimizer_reset() {
         let mut optimizer = AdaptivePerformanceOptimizer::new(1000, 100);
-        
+
         // Add some data
         optimizer.cache_type_info("TestType".to_string(), serde_json::json!({"test": true}));
         optimizer.record_batch_performance(500, Duration::from_millis(10), 200, 450);
-        
+
         // Reset should clear everything
         optimizer.reset();
-        
+
         // Cache should be empty
         assert!(optimizer.get_cached_type_info("TestType").is_none());
-        
+
         // Should still be functional
         assert!(optimizer.get_optimal_batch_size() > 0);
     }
@@ -1005,21 +1000,21 @@ mod tests {
     #[test]
     fn test_cache_eviction() {
         let cache = TypeInfoCache::new(2); // Very small cache for testing eviction
-        
+
         // Fill cache to capacity
         cache.store("Type1".to_string(), serde_json::json!({"id": 1}));
         cache.store("Type2".to_string(), serde_json::json!({"id": 2}));
-        
+
         // Both should be retrievable
         assert!(cache.get("Type1").is_some());
         assert!(cache.get("Type2").is_some());
-        
+
         // Add a third item, should evict the least recently used
         cache.store("Type3".to_string(), serde_json::json!({"id": 3}));
-        
+
         // Type3 should be available
         assert!(cache.get("Type3").is_some());
-        
+
         // At least one of the original types should still be available
         let type1_available = cache.get("Type1").is_some();
         let type2_available = cache.get("Type2").is_some();

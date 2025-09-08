@@ -141,25 +141,25 @@ mod tests {
     #[test]
     fn test_run_test_with_default_output() {
         let matches = create_test_matches(None);
-        
+
         // Test that we can extract the output path correctly
         let output_path = matches
             .get_one::<String>("output")
             .map(|s| s.as_str())
             .unwrap_or("enhanced_memory_test");
-        
+
         assert_eq!(output_path, "enhanced_memory_test");
     }
 
     #[test]
     fn test_run_test_with_custom_output() {
         let matches = create_test_matches(Some("custom_test_output"));
-        
+
         let output_path = matches
             .get_one::<String>("output")
             .map(|s| s.as_str())
             .unwrap_or("enhanced_memory_test");
-        
+
         assert_eq!(output_path, "custom_test_output");
     }
 
@@ -167,7 +167,7 @@ mod tests {
     fn test_run_enhanced_memory_test_function_exists() {
         // Test that the function exists and has the correct signature
         let _f: fn() -> Result<(), Box<dyn std::error::Error>> = run_enhanced_memory_test;
-        
+
         // Just verify the function signature is correct
         assert!(true);
     }
@@ -201,7 +201,7 @@ mod tests {
                 .get_one::<String>("output")
                 .map(|s| s.as_str())
                 .unwrap_or("enhanced_memory_test");
-            
+
             assert_eq!(output_path, expected, "Test case '{}' failed", name);
         }
     }
@@ -221,7 +221,7 @@ mod tests {
         // Verify the command can be built
         let app = cmd.clone();
         assert_eq!(app.get_name(), "test");
-        
+
         // Test help generation doesn't panic
         let _help = cmd.render_help();
         assert!(true);
@@ -236,10 +236,8 @@ mod tests {
         ];
 
         for (input, expected) in test_cases {
-            let result = input
-                .map(|s| s)
-                .unwrap_or("enhanced_memory_test");
-            
+            let result = input.map(|s| s).unwrap_or("enhanced_memory_test");
+
             assert_eq!(result, expected);
         }
     }

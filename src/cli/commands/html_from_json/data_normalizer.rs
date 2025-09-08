@@ -859,64 +859,76 @@ mod tests {
 
     fn create_test_allocations() -> HashMap<String, serde_json::Value> {
         let mut data = HashMap::new();
-        data.insert("memory_analysis".to_string(), json!({
-            "allocations": [
-                {
-                    "ptr": "0x1000",
-                    "size": 1024,
-                    "var_name": "test_var",
-                    "type_name": "TestType",
-                    "timestamp_alloc": 1000,
-                    "timestamp_dealloc": 0,
-                    "scope_name": "test_scope"
-                },
-                {
-                    "ptr": "0x2000",
-                    "size": 2048,
-                    "var_name": "test_var2",
-                    "type_name": "TestType2",
-                    "timestamp_alloc": 2000,
-                    "timestamp_dealloc": 3000,
-                    "scope_name": "test_scope2"
-                }
-            ]
-        }));
+        data.insert(
+            "memory_analysis".to_string(),
+            json!({
+                "allocations": [
+                    {
+                        "ptr": "0x1000",
+                        "size": 1024,
+                        "var_name": "test_var",
+                        "type_name": "TestType",
+                        "timestamp_alloc": 1000,
+                        "timestamp_dealloc": 0,
+                        "scope_name": "test_scope"
+                    },
+                    {
+                        "ptr": "0x2000",
+                        "size": 2048,
+                        "var_name": "test_var2",
+                        "type_name": "TestType2",
+                        "timestamp_alloc": 2000,
+                        "timestamp_dealloc": 3000,
+                        "scope_name": "test_scope2"
+                    }
+                ]
+            }),
+        );
         data
     }
 
     fn create_test_data() -> HashMap<String, serde_json::Value> {
         let mut data = create_test_allocations();
-        
+
         // Add memory stats under memory_analysis
-        if let Some(memory_analysis) = data.get_mut("memory_analysis").and_then(|v| v.as_object_mut()) {
-            memory_analysis.insert("memory_stats".to_string(), json!({
-                "active_memory": 0,  // Will be calculated from allocations
-                "active_allocations": 0,  // Will be calculated from allocations
-                "peak_memory": 3072,
-                "total_allocations": 2,
-                "total_allocated": 3072,
-                "memory_efficiency": 0.95
-            }));
+        if let Some(memory_analysis) = data
+            .get_mut("memory_analysis")
+            .and_then(|v| v.as_object_mut())
+        {
+            memory_analysis.insert(
+                "memory_stats".to_string(),
+                json!({
+                    "active_memory": 0,  // Will be calculated from allocations
+                    "active_allocations": 0,  // Will be calculated from allocations
+                    "peak_memory": 3072,
+                    "total_allocations": 2,
+                    "total_allocated": 3072,
+                    "memory_efficiency": 0.95
+                }),
+            );
         }
-        
+
         // Add performance metrics
-        data.insert("performance_metrics".to_string(), json!({
-            "average_allocation_size": 256.5,
-            "allocation_rate": 10.5,
-            "deallocation_rate": 9.5,
-            "average_lifetime": 1000.0,
-            "optimization_status": {
-                "enabled": true,
-                "optimized_allocations": 5,
-                "total_allocations": 10
-            },
-            "allocation_distribution": {
-                "small_allocations": 5,
-                "medium_allocations": 3,
-                "large_allocations": 2
-            }
-        }));
-        
+        data.insert(
+            "performance_metrics".to_string(),
+            json!({
+                "average_allocation_size": 256.5,
+                "allocation_rate": 10.5,
+                "deallocation_rate": 9.5,
+                "average_lifetime": 1000.0,
+                "optimization_status": {
+                    "enabled": true,
+                    "optimized_allocations": 5,
+                    "total_allocations": 10
+                },
+                "allocation_distribution": {
+                    "small_allocations": 5,
+                    "medium_allocations": 3,
+                    "large_allocations": 2
+                }
+            }),
+        );
+
         data
     }
 
@@ -935,10 +947,10 @@ mod tests {
     fn test_normalize_empty_data() {
         let normalizer = DataNormalizer::without_validation();
         let empty_data = HashMap::new();
-        
+
         let result = normalizer.normalize(&empty_data);
         assert!(result.is_ok());
-        
+
         let unified = result.unwrap();
         assert_eq!(unified.allocations.len(), 0);
     }
@@ -947,25 +959,25 @@ mod tests {
     fn test_normalize_with_allocations() {
         let normalizer = DataNormalizer::without_validation();
         let test_data = create_test_data();
-        
+
         let result = normalizer.normalize(&test_data);
         assert!(result.is_ok());
-        
+
         let unified = result.unwrap();
         // We have 2 allocations in total
         assert_eq!(unified.allocations.len(), 2);
-        
+
         // Only the first allocation is active (timestamp_dealloc is 0)
         let _expected_active_allocations = 1;
         let _expected_active_memory = 1024; // Only the first allocation is active
-        
+
         // The test is currently checking the actual behavior, not the expected one
         // We'll update the test to check the actual behavior
         println!("Active allocations: {}", unified.stats.active_allocations);
         println!("Active memory: {}", unified.stats.active_memory);
-        
+
         // For now, just verify we have some allocations and the first one is as expected
-        
+
         // Verify first allocation
         let alloc1 = &unified.allocations[0];
         assert_eq!(alloc1.ptr, "0x1000");
@@ -975,7 +987,7 @@ mod tests {
         assert_eq!(alloc1.timestamp_alloc, 1000);
         // The code sets timestamp_dealloc to 0 for active allocations
         assert_eq!(alloc1.timestamp_dealloc, Some(0));
-        
+
         // Verify second allocation
         let alloc2 = &unified.allocations[1];
         assert_eq!(alloc2.ptr, "0x2000");
@@ -994,11 +1006,20 @@ mod tests {
             "array_field": ["a", "b", "c"],
             "nested": {"field": "value"}
         });
-        
+
         // Test all extraction methods
-        assert_eq!(normalizer.extract_usize(Some(&test_data), "int_field"), Some(42));
-        assert_eq!(normalizer.extract_f64(Some(&test_data), "float_field"), Some(std::f64::consts::PI));
-        assert_eq!(normalizer.extract_bool(Some(&test_data), "bool_field"), Some(true));
+        assert_eq!(
+            normalizer.extract_usize(Some(&test_data), "int_field"),
+            Some(42)
+        );
+        assert_eq!(
+            normalizer.extract_f64(Some(&test_data), "float_field"),
+            Some(std::f64::consts::PI)
+        );
+        assert_eq!(
+            normalizer.extract_bool(Some(&test_data), "bool_field"),
+            Some(true)
+        );
         assert_eq!(
             normalizer.extract_string(Some(&test_data), "string_field"),
             Some("test".to_string())
@@ -1007,7 +1028,7 @@ mod tests {
             normalizer.extract_string_array(Some(&test_data), "array_field"),
             Some(vec!["a".to_string(), "b".to_string(), "c".to_string()])
         );
-        
+
         // Test missing fields
         assert_eq!(normalizer.extract_usize(Some(&test_data), "missing"), None);
         assert_eq!(normalizer.extract_string(Some(&test_data), "missing"), None);
@@ -1018,10 +1039,10 @@ mod tests {
         // Test with empty data (should pass as no validation is enforced)
         let normalizer = DataNormalizer::default();
         let test_data = HashMap::new();
-        
+
         let result = normalizer.normalize(&test_data);
         assert!(result.is_ok(), "Should pass with empty data");
-        
+
         // Test with some data (should also pass)
         let test_data = create_test_data();
         let result = normalizer.normalize(&test_data);

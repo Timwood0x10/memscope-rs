@@ -1483,7 +1483,6 @@ impl MemoryTracker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::core::tracker::memory_tracker::MemoryTracker;
     use crate::core::types::*;
 
@@ -1494,7 +1493,7 @@ mod tests {
     #[test]
     fn test_estimate_alignment() {
         let tracker = create_test_tracker();
-        
+
         // Test primitive type alignments
         assert_eq!(tracker.estimate_alignment("u64", 8), 8);
         assert_eq!(tracker.estimate_alignment("i64", 8), 8);
@@ -1507,12 +1506,21 @@ mod tests {
         assert_eq!(tracker.estimate_alignment("u8", 1), 1);
         assert_eq!(tracker.estimate_alignment("i8", 1), 1);
         assert_eq!(tracker.estimate_alignment("bool", 1), 1);
-        
+
         // Test pointer types
-        assert_eq!(tracker.estimate_alignment("usize", 8), std::mem::size_of::<usize>());
-        assert_eq!(tracker.estimate_alignment("isize", 8), std::mem::size_of::<usize>());
-        assert_eq!(tracker.estimate_alignment("*const T", 8), std::mem::size_of::<usize>());
-        
+        assert_eq!(
+            tracker.estimate_alignment("usize", 8),
+            std::mem::size_of::<usize>()
+        );
+        assert_eq!(
+            tracker.estimate_alignment("isize", 8),
+            std::mem::size_of::<usize>()
+        );
+        assert_eq!(
+            tracker.estimate_alignment("*const T", 8),
+            std::mem::size_of::<usize>()
+        );
+
         // Test composite types with size heuristics
         assert_eq!(tracker.estimate_alignment("SomeStruct", 1), 1);
         assert_eq!(tracker.estimate_alignment("SomeStruct", 3), 2);
@@ -1523,7 +1531,7 @@ mod tests {
     #[test]
     fn test_estimate_type_size() {
         let tracker = create_test_tracker();
-        
+
         // Test primitive types
         assert_eq!(tracker.estimate_type_size("u8"), 1);
         assert_eq!(tracker.estimate_type_size("i8"), 1);
@@ -1536,15 +1544,24 @@ mod tests {
         assert_eq!(tracker.estimate_type_size("u64"), 8);
         assert_eq!(tracker.estimate_type_size("i64"), 8);
         assert_eq!(tracker.estimate_type_size("f64"), 8);
-        assert_eq!(tracker.estimate_type_size("usize"), std::mem::size_of::<usize>());
-        assert_eq!(tracker.estimate_type_size("isize"), std::mem::size_of::<usize>());
-        
+        assert_eq!(
+            tracker.estimate_type_size("usize"),
+            std::mem::size_of::<usize>()
+        );
+        assert_eq!(
+            tracker.estimate_type_size("isize"),
+            std::mem::size_of::<usize>()
+        );
+
         // Test container types
         assert_eq!(tracker.estimate_type_size("String"), 24);
         assert_eq!(tracker.estimate_type_size("Vec<i32>"), 24);
         assert_eq!(tracker.estimate_type_size("HashMap<String, i32>"), 48);
-        assert_eq!(tracker.estimate_type_size("Box<i32>"), std::mem::size_of::<usize>());
-        
+        assert_eq!(
+            tracker.estimate_type_size("Box<i32>"),
+            std::mem::size_of::<usize>()
+        );
+
         // Test unknown types
         assert_eq!(tracker.estimate_type_size("UnknownType"), 8);
     }
@@ -1552,7 +1569,7 @@ mod tests {
     #[test]
     fn test_analyze_memory_layout() {
         let tracker = create_test_tracker();
-        
+
         // Test Vec layout analysis
         let vec_layout = tracker.analyze_memory_layout("Vec<i32>", 24);
         assert!(vec_layout.is_some());
@@ -1561,14 +1578,14 @@ mod tests {
         assert_eq!(layout.alignment, 4); // Vec<i32> alignment should be 4 for i32
         assert_eq!(layout.field_layout.len(), 4); // ptr, capacity, len, efficiency_analysis
         assert!(layout.container_analysis.is_some());
-        
+
         // Test String layout analysis
         let string_layout = tracker.analyze_memory_layout("String", 24);
         assert!(string_layout.is_some());
         let layout = string_layout.unwrap();
         assert_eq!(layout.total_size, 24);
         assert_eq!(layout.field_layout.len(), 5); // ptr, capacity, len + 2 string fields
-        
+
         // Test unknown type layout
         let unknown_layout = tracker.analyze_memory_layout("UnknownType", 16);
         assert!(unknown_layout.is_some());
@@ -1580,22 +1597,28 @@ mod tests {
     #[test]
     fn test_analyze_memory_fragmentation() {
         let tracker = create_test_tracker();
-        
+
         let fragmentation = tracker.analyze_memory_fragmentation();
-        
+
         // Test basic structure
         // Heap sizes are always >= 0 for usize types
         assert_eq!(fragmentation.free_block_count, 0); // Placeholder value
         assert!(fragmentation.free_block_distribution.is_empty()); // Placeholder
-        
+
         // Test fragmentation metrics
         assert!(fragmentation.fragmentation_metrics.external_fragmentation >= 0.0);
         assert!(fragmentation.fragmentation_metrics.external_fragmentation <= 1.0);
-        assert_eq!(fragmentation.fragmentation_metrics.internal_fragmentation, 0.0); // Placeholder
-        
+        assert_eq!(
+            fragmentation.fragmentation_metrics.internal_fragmentation,
+            0.0
+        ); // Placeholder
+
         // Test severity assessment
         match fragmentation.fragmentation_metrics.severity_level {
-            FragmentationSeverity::Low | FragmentationSeverity::Moderate | FragmentationSeverity::High | FragmentationSeverity::Critical => {
+            FragmentationSeverity::Low
+            | FragmentationSeverity::Moderate
+            | FragmentationSeverity::High
+            | FragmentationSeverity::Critical => {
                 // All valid severity levels
             }
         }
@@ -1604,21 +1627,29 @@ mod tests {
     #[test]
     fn test_classify_container_type() {
         let tracker = create_test_tracker();
-        
+
         // Test Vec classification
         let vec_type = tracker.classify_container_type("Vec<i32>");
         match vec_type {
-            ContainerType::Vec { element_type, element_size } => {
+            ContainerType::Vec {
+                element_type,
+                element_size,
+            } => {
                 assert_eq!(element_type, "T");
                 assert_eq!(element_size, 8);
             }
             _ => panic!("Expected Vec container type"),
         }
-        
+
         // Test HashMap classification
         let hashmap_type = tracker.classify_container_type("HashMap<String, i32>");
         match hashmap_type {
-            ContainerType::HashMap { key_type, value_type, key_size, value_size } => {
+            ContainerType::HashMap {
+                key_type,
+                value_type,
+                key_size,
+                value_size,
+            } => {
                 assert_eq!(key_type, "K");
                 assert_eq!(value_type, "V");
                 assert_eq!(key_size, 8);
@@ -1626,17 +1657,20 @@ mod tests {
             }
             _ => panic!("Expected HashMap container type"),
         }
-        
+
         // Test Box classification
         let box_type = tracker.classify_container_type("Box<String>");
         match box_type {
-            ContainerType::Box { boxed_type, boxed_size } => {
+            ContainerType::Box {
+                boxed_type,
+                boxed_size,
+            } => {
                 assert_eq!(boxed_type, "T");
                 assert_eq!(boxed_size, 8);
             }
             _ => panic!("Expected Box container type"),
         }
-        
+
         // Test String classification
         let string_type = tracker.classify_container_type("String");
         match string_type {
@@ -1645,7 +1679,7 @@ mod tests {
             }
             _ => panic!("Expected String container type"),
         }
-        
+
         // Test unknown type classification
         let other_type = tracker.classify_container_type("CustomStruct");
         match other_type {
@@ -1659,29 +1693,29 @@ mod tests {
     #[test]
     fn test_analyze_capacity_utilization() {
         let tracker = create_test_tracker();
-        
+
         // Test Vec capacity utilization
         let vec_type = ContainerType::Vec {
             element_type: "i32".to_string(),
             element_size: 4,
         };
         let utilization = tracker.analyze_capacity_utilization(&vec_type, 100);
-        
+
         assert!(utilization.current_capacity > 0);
         assert_eq!(utilization.current_length, 100);
         assert!(utilization.utilization_ratio > 0.0);
         assert!(utilization.utilization_ratio <= 1.0);
         // Wasted space is always >= 0 for usize
-        
+
         match utilization.efficiency_assessment {
-            UtilizationEfficiency::Excellent | 
-            UtilizationEfficiency::Good | 
-            UtilizationEfficiency::Fair | 
-            UtilizationEfficiency::Poor { .. } => {
+            UtilizationEfficiency::Excellent
+            | UtilizationEfficiency::Good
+            | UtilizationEfficiency::Fair
+            | UtilizationEfficiency::Poor { .. } => {
                 // All valid efficiency levels
             }
         }
-        
+
         // Test Box capacity utilization (should be 100%)
         let box_type = ContainerType::Box {
             boxed_type: "i32".to_string(),
@@ -1694,33 +1728,33 @@ mod tests {
     #[test]
     fn test_detect_reallocation_patterns() {
         let tracker = create_test_tracker();
-        
+
         // Test Vec reallocation patterns
         let vec_type = ContainerType::Vec {
             element_type: "i32".to_string(),
             element_size: 4,
         };
         let patterns = tracker.detect_reallocation_patterns(&vec_type, 100);
-        
+
         match patterns.frequency_assessment {
-            ReallocationFrequency::None | 
-            ReallocationFrequency::Low | 
-            ReallocationFrequency::Moderate | 
-            ReallocationFrequency::High { .. } => {
+            ReallocationFrequency::None
+            | ReallocationFrequency::Low
+            | ReallocationFrequency::Moderate
+            | ReallocationFrequency::High { .. } => {
                 // All valid frequency levels
             }
         }
-        
+
         match patterns.growth_pattern {
             GrowthPattern::Exponential => {
                 // Expected for Vec
             }
             _ => panic!("Expected exponential growth pattern for Vec"),
         }
-        
+
         // Estimated reallocations is always >= 0 for usize
         assert!(!patterns.optimization_suggestions.is_empty());
-        
+
         // Test Box reallocation patterns (should be None)
         let box_type = ContainerType::Box {
             boxed_type: "i32".to_string(),
@@ -1738,7 +1772,7 @@ mod tests {
     #[test]
     fn test_calculate_container_efficiency_metrics() {
         let tracker = create_test_tracker();
-        
+
         let vec_type = ContainerType::Vec {
             element_type: "i32".to_string(),
             element_size: 4,
@@ -1756,21 +1790,21 @@ mod tests {
             estimated_reallocations: 2,
             optimization_suggestions: vec!["test".to_string()],
         };
-        
+
         let metrics = tracker.calculate_container_efficiency_metrics(
             &vec_type,
             100,
             &capacity_util,
             &realloc_patterns,
         );
-        
+
         assert!(metrics.memory_overhead >= 0.0);
         assert!(metrics.memory_overhead <= 1.0);
         assert!(metrics.cache_efficiency >= 0.0);
         assert!(metrics.cache_efficiency <= 100.0);
         assert!(metrics.health_score >= 0.0);
         assert!(metrics.health_score <= 100.0);
-        
+
         match metrics.access_efficiency {
             AccessEfficiency::Sequential => {
                 // Expected placeholder value
@@ -1784,7 +1818,7 @@ mod tests {
     #[test]
     fn test_analyze_generic_type() {
         let tracker = create_test_tracker();
-        
+
         // Test generic type analysis
         let generic_info = tracker.analyze_generic_type("Vec<String>", 24);
         assert!(generic_info.is_some());
@@ -1792,11 +1826,11 @@ mod tests {
         assert_eq!(info.base_type, "Vec");
         assert!(!info.type_parameters.is_empty());
         assert!(!info.constraints.is_empty());
-        
+
         // Test non-generic type
         let non_generic = tracker.analyze_generic_type("String", 24);
         assert!(non_generic.is_none());
-        
+
         // Test complex generic type
         let complex_generic = tracker.analyze_generic_type("HashMap<String, Vec<i32>>", 48);
         assert!(complex_generic.is_some());
@@ -1808,7 +1842,7 @@ mod tests {
     #[test]
     fn test_analyze_dynamic_type() {
         let tracker = create_test_tracker();
-        
+
         // Test trait object analysis
         let dyn_info = tracker.analyze_dynamic_type("Box<dyn Display>", 16);
         assert!(dyn_info.is_some());
@@ -1816,7 +1850,7 @@ mod tests {
         assert!(!info.trait_name.is_empty());
         assert!(info.vtable_info.method_count > 0);
         assert!(info.dispatch_overhead.indirect_call_overhead_ns > 0.0);
-        
+
         // Test non-dynamic type
         let non_dyn = tracker.analyze_dynamic_type("String", 24);
         assert!(non_dyn.is_none());
@@ -1825,29 +1859,29 @@ mod tests {
     #[test]
     fn test_collect_runtime_state() {
         let tracker = create_test_tracker();
-        
+
         let runtime_state = tracker.collect_runtime_state();
-        
+
         // Test CPU usage info
         assert!(runtime_state.cpu_usage.current_usage_percent >= 0.0);
         assert!(runtime_state.cpu_usage.current_usage_percent <= 100.0);
         assert!(runtime_state.cpu_usage.average_usage_percent >= 0.0);
         assert!(runtime_state.cpu_usage.peak_usage_percent >= 0.0);
         // Intensive operations count is always >= 0 for u64
-        
+
         // Test memory pressure info
         match runtime_state.memory_pressure.pressure_level {
-            MemoryPressureLevel::Low | 
-            MemoryPressureLevel::Moderate | 
-            MemoryPressureLevel::High | 
-            MemoryPressureLevel::Critical => {
+            MemoryPressureLevel::Low
+            | MemoryPressureLevel::Moderate
+            | MemoryPressureLevel::High
+            | MemoryPressureLevel::Critical => {
                 // All valid pressure levels
             }
         }
         assert!(runtime_state.memory_pressure.available_memory_percent >= 0.0);
         assert!(runtime_state.memory_pressure.available_memory_percent <= 100.0);
         // Allocation failures is always >= 0 for u64
-        
+
         // Test cache performance info
         assert!(runtime_state.cache_performance.l1_hit_rate >= 0.0);
         assert!(runtime_state.cache_performance.l1_hit_rate <= 1.0);
@@ -1856,14 +1890,14 @@ mod tests {
         assert!(runtime_state.cache_performance.l3_hit_rate >= 0.0);
         assert!(runtime_state.cache_performance.l3_hit_rate <= 1.0);
         assert!(runtime_state.cache_performance.cache_miss_penalty_ns >= 0.0);
-        
+
         // Test allocator state
         assert!(!runtime_state.allocator_state.allocator_type.is_empty());
         assert!(runtime_state.allocator_state.heap_size > 0);
         // Allocator state values are always >= 0 for usize types
         assert!(runtime_state.allocator_state.efficiency_score >= 0.0);
         assert!(runtime_state.allocator_state.efficiency_score <= 1.0);
-        
+
         // Test GC info (should be None for Rust)
         assert!(runtime_state.gc_info.is_none());
     }
@@ -1871,7 +1905,7 @@ mod tests {
     #[test]
     fn test_analyze_type_relationships() {
         let tracker = create_test_tracker();
-        
+
         let relationships = tracker.analyze_type_relationships("Vec<String>");
         assert!(relationships.is_some());
         let rel = relationships.unwrap();
@@ -1884,39 +1918,40 @@ mod tests {
     #[test]
     fn test_calculate_type_complexity() {
         let tracker = create_test_tracker();
-        
+
         // Test simple type
         let simple_complexity = tracker.calculate_type_complexity("String");
         assert_eq!(simple_complexity, 1);
-        
+
         // Test generic type
         let generic_complexity = tracker.calculate_type_complexity("Vec<String>");
         assert!(generic_complexity > 1);
-        
+
         // Test trait object
         let trait_complexity = tracker.calculate_type_complexity("Box<dyn Display>");
         assert!(trait_complexity > 2);
-        
+
         // Test impl trait
         let impl_complexity = tracker.calculate_type_complexity("impl Iterator<Item = String>");
         assert!(impl_complexity > 2);
-        
+
         // Test complex generic with multiple parameters
-        let complex_complexity = tracker.calculate_type_complexity("HashMap<String, Vec<i32>, RandomState>");
+        let complex_complexity =
+            tracker.calculate_type_complexity("HashMap<String, Vec<i32>, RandomState>");
         assert!(complex_complexity > 3);
     }
 
     #[test]
     fn test_track_type_usage() {
         let tracker = create_test_tracker();
-        
+
         // Test type usage tracking
         let usage_info = tracker.track_type_usage("String");
         assert!(usage_info.is_some());
         let info = usage_info.unwrap();
         assert_eq!(info.type_name, "String");
         assert!(info.total_usage_count >= 1);
-        
+
         // Performance impact should have reasonable values
         assert!(info.performance_impact.performance_score >= 0.0);
         assert!(info.performance_impact.performance_score <= 100.0);
@@ -1926,13 +1961,16 @@ mod tests {
         assert!(info.performance_impact.cpu_efficiency_score <= 100.0);
         assert!(info.performance_impact.cache_efficiency_score >= 0.0);
         assert!(info.performance_impact.cache_efficiency_score <= 100.0);
-        assert!(!info.performance_impact.optimization_recommendations.is_empty());
+        assert!(!info
+            .performance_impact
+            .optimization_recommendations
+            .is_empty());
     }
 
     #[test]
     fn test_analyze_stack_allocation() {
         let tracker = create_test_tracker();
-        
+
         // Test with stack-like pointer
         let stack_ptr = 0x7fff_8000_0000;
         let stack_info = tracker.analyze_stack_allocation("i32", stack_ptr);
@@ -1944,14 +1982,14 @@ mod tests {
         assert_eq!(info.size, 4); // i32 size
         assert_eq!(info.function_name, "unknown_function");
         // Stack depth is always >= 0 for usize
-        
+
         match info.scope_info.scope_type {
             ScopeType::Function => {
                 // Expected scope type
             }
             _ => panic!("Expected function scope type"),
         }
-        
+
         // Test with non-stack pointer
         let heap_ptr = 0x1000_0000;
         let non_stack_info = tracker.analyze_stack_allocation("i32", heap_ptr);
@@ -1961,19 +1999,19 @@ mod tests {
     #[test]
     fn test_estimate_stack_depth() {
         let tracker = create_test_tracker();
-        
+
         let stack_start = 0x7fff_0000_0000;
-        
+
         // Test various stack depths
         let depth1 = tracker.estimate_stack_depth(stack_start);
         assert_eq!(depth1, 0);
-        
+
         let depth2 = tracker.estimate_stack_depth(stack_start + 4096);
         assert_eq!(depth2, 1);
-        
+
         let depth3 = tracker.estimate_stack_depth(stack_start + 8192);
         assert_eq!(depth3, 2);
-        
+
         // Test non-stack pointer
         let non_stack_depth = tracker.estimate_stack_depth(0x1000_0000);
         assert_eq!(non_stack_depth, 0);
@@ -1982,7 +2020,7 @@ mod tests {
     #[test]
     fn test_extract_base_type() {
         let tracker = create_test_tracker();
-        
+
         assert_eq!(tracker.extract_base_type("Vec<String>"), "Vec");
         assert_eq!(tracker.extract_base_type("HashMap<K, V>"), "HashMap");
         assert_eq!(tracker.extract_base_type("String"), "String");
@@ -1992,7 +2030,7 @@ mod tests {
     #[test]
     fn test_extract_trait_name() {
         let tracker = create_test_tracker();
-        
+
         assert_eq!(tracker.extract_trait_name("Box<dyn Display>"), "Display");
         assert_eq!(tracker.extract_trait_name("dyn Iterator"), "Iterator");
         assert_eq!(tracker.extract_trait_name("String"), "Unknown");
@@ -2001,21 +2039,21 @@ mod tests {
     #[test]
     fn test_estimate_cache_miss_rate() {
         let tracker = create_test_tracker();
-        
+
         // Test small objects (should have low miss rate)
         let small_miss_rate = tracker.estimate_cache_miss_rate("i32", 32.0);
         assert!(small_miss_rate <= 0.1);
-        
+
         // Test medium objects
         let medium_miss_rate = tracker.estimate_cache_miss_rate("SomeStruct", 128.0);
         assert!(medium_miss_rate > 0.1);
         assert!(medium_miss_rate <= 0.2);
-        
+
         // Test large containers
         let large_container_miss_rate = tracker.estimate_cache_miss_rate("Vec<i32>", 1024.0);
         assert!(large_container_miss_rate > 0.2);
         assert!(large_container_miss_rate <= 0.3);
-        
+
         // Test very large objects
         let very_large_miss_rate = tracker.estimate_cache_miss_rate("LargeStruct", 4096.0);
         assert!(very_large_miss_rate > 0.3);
