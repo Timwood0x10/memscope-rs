@@ -856,8 +856,11 @@ mod tests {
             batch_size: 500,
         };
         let engine = StandardAnalysisEngine::with_config(config);
-        
-        assert_eq!(engine.get_config().optimization_level, OptimizationLevel::Low);
+
+        assert_eq!(
+            engine.get_config().optimization_level,
+            OptimizationLevel::Low
+        );
         assert!(!engine.get_config().parallel_processing);
         assert!(!engine.get_config().enhanced_ffi_analysis);
         assert!(engine.get_config().security_analysis);
@@ -868,16 +871,25 @@ mod tests {
     fn test_standard_analysis_engine_default() {
         let engine1 = StandardAnalysisEngine::new();
         let engine2 = StandardAnalysisEngine::default();
-        
-        assert_eq!(engine1.get_config().optimization_level, engine2.get_config().optimization_level);
-        assert_eq!(engine1.get_config().parallel_processing, engine2.get_config().parallel_processing);
-        assert_eq!(engine1.get_config().batch_size, engine2.get_config().batch_size);
+
+        assert_eq!(
+            engine1.get_config().optimization_level,
+            engine2.get_config().optimization_level
+        );
+        assert_eq!(
+            engine1.get_config().parallel_processing,
+            engine2.get_config().parallel_processing
+        );
+        assert_eq!(
+            engine1.get_config().batch_size,
+            engine2.get_config().batch_size
+        );
     }
 
     #[test]
     fn test_analysis_config_default() {
         let config = AnalysisConfig::default();
-        
+
         assert_eq!(config.optimization_level, OptimizationLevel::High);
         assert!(config.parallel_processing);
         assert!(config.enhanced_ffi_analysis);
@@ -894,9 +906,12 @@ mod tests {
         assert!(result.is_ok());
 
         let analysis_data = result.unwrap();
-        assert_eq!(analysis_data.metadata.analysis_type, "integrated_lifetime_analysis");
+        assert_eq!(
+            analysis_data.metadata.analysis_type,
+            "integrated_lifetime_analysis"
+        );
         assert_eq!(analysis_data.metadata.total_allocations, 1);
-        
+
         // Check that the data contains expected fields
         let data = &analysis_data.data;
         assert!(data.get("lifecycle_events").is_some());
@@ -913,9 +928,12 @@ mod tests {
         assert!(result.is_ok());
 
         let analysis_data = result.unwrap();
-        assert_eq!(analysis_data.metadata.analysis_type, "integrated_performance_analysis");
+        assert_eq!(
+            analysis_data.metadata.analysis_type,
+            "integrated_performance_analysis"
+        );
         assert_eq!(analysis_data.metadata.total_allocations, 1);
-        
+
         // Check that the data contains expected fields
         let data = &analysis_data.data;
         assert!(data.get("allocations").is_some());
@@ -932,9 +950,12 @@ mod tests {
         assert!(result.is_ok());
 
         let analysis_data = result.unwrap();
-        assert_eq!(analysis_data.metadata.analysis_type, "integrated_complex_types_analysis");
+        assert_eq!(
+            analysis_data.metadata.analysis_type,
+            "integrated_complex_types_analysis"
+        );
         assert_eq!(analysis_data.metadata.total_allocations, 1);
-        
+
         // Check that the data contains expected fields
         let data = &analysis_data.data;
         assert!(data.get("categorized_types").is_some());
@@ -1006,7 +1027,7 @@ mod tests {
             AllocationInfo {
                 ptr: 0x2000,
                 size: 512,
-                var_name: None, // Test inference
+                var_name: None,  // Test inference
                 type_name: None, // Test inference
                 scope_name: Some("function".to_string()),
                 timestamp_alloc: 1234567900,
@@ -1080,10 +1101,13 @@ mod tests {
         assert!(memory_result.is_ok());
         let memory_data = memory_result.unwrap();
         assert_eq!(memory_data.metadata.total_allocations, 3);
-        
+
         // Check summary calculations
         let summary = memory_data.data.get("summary").unwrap();
-        assert_eq!(summary.get("total_allocations").unwrap().as_u64().unwrap(), 3);
+        assert_eq!(
+            summary.get("total_allocations").unwrap().as_u64().unwrap(),
+            3
+        );
         assert_eq!(summary.get("total_memory").unwrap().as_u64().unwrap(), 1544); // 1024 + 512 + 8
         assert_eq!(summary.get("leaked_count").unwrap().as_u64().unwrap(), 1);
         assert_eq!(summary.get("max_size").unwrap().as_u64().unwrap(), 1024);
@@ -1098,13 +1122,23 @@ mod tests {
         let result = engine.create_lifetime_analysis(&allocations);
         assert!(result.is_ok());
         let analysis_data = result.unwrap();
-        
+
         // Check lifecycle events
-        let events = analysis_data.data.get("lifecycle_events").unwrap().as_array().unwrap();
+        let events = analysis_data
+            .data
+            .get("lifecycle_events")
+            .unwrap()
+            .as_array()
+            .unwrap();
         assert_eq!(events.len(), 5); // 3 allocations + 2 deallocations
-        
+
         // Check scope analysis
-        let scope_analysis = analysis_data.data.get("scope_analysis").unwrap().as_object().unwrap();
+        let scope_analysis = analysis_data
+            .data
+            .get("scope_analysis")
+            .unwrap()
+            .as_object()
+            .unwrap();
         assert!(scope_analysis.contains_key("main"));
         assert!(scope_analysis.contains_key("function"));
         assert!(scope_analysis.contains_key("global"));
@@ -1118,21 +1152,46 @@ mod tests {
         let result = engine.create_performance_analysis(&allocations);
         assert!(result.is_ok());
         let analysis_data = result.unwrap();
-        
+
         // Check thread analysis
-        let thread_analysis = analysis_data.data.get("thread_analysis").unwrap().as_object().unwrap();
+        let thread_analysis = analysis_data
+            .data
+            .get("thread_analysis")
+            .unwrap()
+            .as_object()
+            .unwrap();
         assert!(thread_analysis.contains_key("main"));
         assert!(thread_analysis.contains_key("worker"));
-        
+
         // Check main thread stats
         let main_stats = thread_analysis.get("main").unwrap();
-        assert_eq!(main_stats.get("allocation_count").unwrap().as_u64().unwrap(), 2);
-        assert_eq!(main_stats.get("total_size").unwrap().as_u64().unwrap(), 1032); // 1024 + 8
-        
+        assert_eq!(
+            main_stats
+                .get("allocation_count")
+                .unwrap()
+                .as_u64()
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            main_stats.get("total_size").unwrap().as_u64().unwrap(),
+            1032
+        ); // 1024 + 8
+
         // Check worker thread stats
         let worker_stats = thread_analysis.get("worker").unwrap();
-        assert_eq!(worker_stats.get("allocation_count").unwrap().as_u64().unwrap(), 1);
-        assert_eq!(worker_stats.get("total_size").unwrap().as_u64().unwrap(), 512);
+        assert_eq!(
+            worker_stats
+                .get("allocation_count")
+                .unwrap()
+                .as_u64()
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            worker_stats.get("total_size").unwrap().as_u64().unwrap(),
+            512
+        );
     }
 
     #[test]
@@ -1143,14 +1202,24 @@ mod tests {
         let result = engine.create_complex_types_analysis(&allocations);
         assert!(result.is_ok());
         let analysis_data = result.unwrap();
-        
+
         // Check categorized types
-        let categorized = analysis_data.data.get("categorized_types").unwrap().as_object().unwrap();
+        let categorized = analysis_data
+            .data
+            .get("categorized_types")
+            .unwrap()
+            .as_object()
+            .unwrap();
         assert!(categorized.contains_key("generic")); // Vec<u8> and HashMap<String, i32>
         assert!(categorized.contains_key("primitive")); // Inferred type for size 512
-        
+
         // Check generic types analysis
-        let generic_types = analysis_data.data.get("generic_types").unwrap().as_object().unwrap();
+        let generic_types = analysis_data
+            .data
+            .get("generic_types")
+            .unwrap()
+            .as_object()
+            .unwrap();
         assert!(generic_types.contains_key("Vec<u8>"));
         assert!(generic_types.contains_key("HashMap<String, i32>"));
     }
@@ -1158,7 +1227,7 @@ mod tests {
     #[test]
     fn test_type_name_inference() {
         let engine = StandardAnalysisEngine::new();
-        
+
         // Test different size patterns
         let test_cases = vec![
             (0, "ZeroSizedType"),
@@ -1171,9 +1240,9 @@ mod tests {
             (32, "HashMap_or_BTreeMap_header"),
             (1024, "LargeAllocation_1024bytes"),
             (48, "AlignedStruct_48bytes"), // 48 % 8 == 0
-            (33, "CustomType_33bytes"), // 33 % 8 != 0
+            (33, "CustomType_33bytes"),    // 33 % 8 != 0
         ];
-        
+
         for (size, expected_prefix) in test_cases {
             let alloc = AllocationInfo {
                 ptr: 0x1000,
@@ -1207,7 +1276,7 @@ mod tests {
                 access_tracking: None,
                 drop_chain_analysis: None,
             };
-            
+
             let inferred_type = engine.infer_type_name(&alloc);
             assert_eq!(inferred_type, expected_prefix);
         }
@@ -1216,7 +1285,7 @@ mod tests {
     #[test]
     fn test_var_name_inference() {
         let engine = StandardAnalysisEngine::new();
-        
+
         let test_cases = vec![
             (0, "zero_sized_var"),
             (4, "primitive_var"),
@@ -1225,7 +1294,7 @@ mod tests {
             (512, "large_struct_var"),
             (2048, "heap_allocated_var"),
         ];
-        
+
         for (size, expected_prefix) in test_cases {
             let alloc = AllocationInfo {
                 ptr: 0x1234,
@@ -1259,7 +1328,7 @@ mod tests {
                 access_tracking: None,
                 drop_chain_analysis: None,
             };
-            
+
             let inferred_var = engine.infer_var_name(&alloc);
             assert!(inferred_var.starts_with(expected_prefix));
             assert!(inferred_var.contains("1234")); // Should contain pointer address
@@ -1275,7 +1344,7 @@ mod tests {
             OptimizationLevel::High,
             OptimizationLevel::Maximum,
         ];
-        
+
         for level in levels {
             let config = AnalysisConfig {
                 optimization_level: level.clone(),
@@ -1284,22 +1353,25 @@ mod tests {
                 security_analysis: false,
                 batch_size: 1000,
             };
-            
+
             let engine = StandardAnalysisEngine::with_config(config);
             let allocations = create_test_allocations();
-            
+
             // Test that all analysis methods work with different optimization levels
             let memory_result = engine.create_memory_analysis(&allocations);
             assert!(memory_result.is_ok());
             let memory_data = memory_result.unwrap();
-            assert_eq!(memory_data.metadata.optimization_level, format!("{:?}", level));
-            
+            assert_eq!(
+                memory_data.metadata.optimization_level,
+                format!("{:?}", level)
+            );
+
             let lifetime_result = engine.create_lifetime_analysis(&allocations);
             assert!(lifetime_result.is_ok());
-            
+
             let performance_result = engine.create_performance_analysis(&allocations);
             assert!(performance_result.is_ok());
-            
+
             let complex_types_result = engine.create_complex_types_analysis(&allocations);
             assert!(complex_types_result.is_ok());
         }
@@ -1308,13 +1380,23 @@ mod tests {
     #[test]
     fn test_analysis_error_display() {
         let processing_error = AnalysisError::ProcessingError("Test processing error".to_string());
-        assert_eq!(processing_error.to_string(), "Processing error: Test processing error");
-        
-        let serialization_error = AnalysisError::SerializationError("Test serialization error".to_string());
-        assert_eq!(serialization_error.to_string(), "Serialization error: Test serialization error");
-        
+        assert_eq!(
+            processing_error.to_string(),
+            "Processing error: Test processing error"
+        );
+
+        let serialization_error =
+            AnalysisError::SerializationError("Test serialization error".to_string());
+        assert_eq!(
+            serialization_error.to_string(),
+            "Serialization error: Test serialization error"
+        );
+
         let invalid_data_error = AnalysisError::InvalidData("Test invalid data".to_string());
-        assert_eq!(invalid_data_error.to_string(), "Invalid data: Test invalid data");
+        assert_eq!(
+            invalid_data_error.to_string(),
+            "Invalid data: Test invalid data"
+        );
     }
 
     #[test]
@@ -1333,22 +1415,28 @@ mod tests {
             total_allocations: 10,
             optimization_level: "High".to_string(),
         };
-        
+
         let data = AnalysisData {
             data: serde_json::json!({"test": "value"}),
             metadata: metadata.clone(),
         };
-        
+
         // Test Debug implementation
         let debug_str = format!("{:?}", data);
         assert!(debug_str.contains("AnalysisData"));
         assert!(debug_str.contains("test_analysis"));
-        
+
         // Test Clone implementation
         let cloned_data = data.clone();
-        assert_eq!(cloned_data.metadata.analysis_type, data.metadata.analysis_type);
+        assert_eq!(
+            cloned_data.metadata.analysis_type,
+            data.metadata.analysis_type
+        );
         assert_eq!(cloned_data.metadata.timestamp, data.metadata.timestamp);
-        assert_eq!(cloned_data.metadata.total_allocations, data.metadata.total_allocations);
+        assert_eq!(
+            cloned_data.metadata.total_allocations,
+            data.metadata.total_allocations
+        );
     }
 
     #[test]
@@ -1359,19 +1447,25 @@ mod tests {
             total_allocations: 42,
             optimization_level: "Maximum".to_string(),
         };
-        
+
         // Test Debug implementation
         let debug_str = format!("{:?}", metadata);
         assert!(debug_str.contains("AnalysisMetadata"));
         assert!(debug_str.contains("test_metadata"));
         assert!(debug_str.contains("42"));
-        
+
         // Test Clone implementation
         let cloned_metadata = metadata.clone();
         assert_eq!(cloned_metadata.analysis_type, metadata.analysis_type);
         assert_eq!(cloned_metadata.timestamp, metadata.timestamp);
-        assert_eq!(cloned_metadata.total_allocations, metadata.total_allocations);
-        assert_eq!(cloned_metadata.optimization_level, metadata.optimization_level);
+        assert_eq!(
+            cloned_metadata.total_allocations,
+            metadata.total_allocations
+        );
+        assert_eq!(
+            cloned_metadata.optimization_level,
+            metadata.optimization_level
+        );
     }
 
     #[test]
@@ -1383,18 +1477,24 @@ mod tests {
             security_analysis: true,
             batch_size: 2000,
         };
-        
+
         // Test Debug implementation
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("AnalysisConfig"));
         assert!(debug_str.contains("Medium"));
         assert!(debug_str.contains("2000"));
-        
+
         // Test Clone implementation
         let cloned_config = config.clone();
         assert_eq!(cloned_config.optimization_level, config.optimization_level);
-        assert_eq!(cloned_config.parallel_processing, config.parallel_processing);
-        assert_eq!(cloned_config.enhanced_ffi_analysis, config.enhanced_ffi_analysis);
+        assert_eq!(
+            cloned_config.parallel_processing,
+            config.parallel_processing
+        );
+        assert_eq!(
+            cloned_config.enhanced_ffi_analysis,
+            config.enhanced_ffi_analysis
+        );
         assert_eq!(cloned_config.security_analysis, config.security_analysis);
         assert_eq!(cloned_config.batch_size, config.batch_size);
     }
@@ -1405,7 +1505,7 @@ mod tests {
         assert_eq!(OptimizationLevel::Medium, OptimizationLevel::Medium);
         assert_eq!(OptimizationLevel::High, OptimizationLevel::High);
         assert_eq!(OptimizationLevel::Maximum, OptimizationLevel::Maximum);
-        
+
         assert_ne!(OptimizationLevel::Low, OptimizationLevel::Medium);
         assert_ne!(OptimizationLevel::Medium, OptimizationLevel::High);
         assert_ne!(OptimizationLevel::High, OptimizationLevel::Maximum);
@@ -1415,7 +1515,7 @@ mod tests {
     fn test_convert_to_export_options() {
         let engine = StandardAnalysisEngine::new();
         let export_options = engine.convert_to_export_options();
-        
+
         // This tests the conversion function exists and works
         // The actual values depend on the implementation
         assert_eq!(export_options.batch_size, 1000);

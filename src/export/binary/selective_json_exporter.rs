@@ -1020,9 +1020,18 @@ mod tests {
             .performance_monitoring(false)
             .build();
 
-        assert_eq!(config.json_writer_config.buffer_size, json_writer_config.buffer_size);
-        assert_eq!(config.batch_processor_config.batch_size, batch_processor_config.batch_size);
-        assert_eq!(config.index_cache_config.max_entries, index_cache_config.max_entries);
+        assert_eq!(
+            config.json_writer_config.buffer_size,
+            json_writer_config.buffer_size
+        );
+        assert_eq!(
+            config.batch_processor_config.batch_size,
+            batch_processor_config.batch_size
+        );
+        assert_eq!(
+            config.index_cache_config.max_entries,
+            index_cache_config.max_entries
+        );
         assert!(config.enable_parallel_processing);
         assert_eq!(config.max_concurrent_exports, 8);
         assert!(config.enable_error_recovery);
@@ -1033,19 +1042,25 @@ mod tests {
     fn test_config_builder_default() {
         let builder1 = SelectiveJsonExportConfigBuilder::new();
         let builder2 = SelectiveJsonExportConfigBuilder::default();
-        
+
         let config1 = builder1.build();
         let config2 = builder2.build();
-        
-        assert_eq!(config1.enable_parallel_processing, config2.enable_parallel_processing);
-        assert_eq!(config1.max_concurrent_exports, config2.max_concurrent_exports);
+
+        assert_eq!(
+            config1.enable_parallel_processing,
+            config2.enable_parallel_processing
+        );
+        assert_eq!(
+            config1.max_concurrent_exports,
+            config2.max_concurrent_exports
+        );
         assert_eq!(config1.enable_error_recovery, config2.enable_error_recovery);
     }
 
     #[test]
     fn test_selective_json_export_config_default() {
         let config = SelectiveJsonExportConfig::default();
-        
+
         assert!(config.enable_parallel_processing);
         assert_eq!(config.max_concurrent_exports, 4);
         assert!(config.enable_error_recovery);
@@ -1056,17 +1071,23 @@ mod tests {
     fn test_optimization_levels() {
         assert_eq!(OptimizationLevel::Minimal, OptimizationLevel::Minimal);
         assert_eq!(OptimizationLevel::Balanced, OptimizationLevel::Balanced);
-        assert_eq!(OptimizationLevel::Comprehensive, OptimizationLevel::Comprehensive);
-        
+        assert_eq!(
+            OptimizationLevel::Comprehensive,
+            OptimizationLevel::Comprehensive
+        );
+
         assert_ne!(OptimizationLevel::Minimal, OptimizationLevel::Balanced);
-        assert_ne!(OptimizationLevel::Balanced, OptimizationLevel::Comprehensive);
+        assert_ne!(
+            OptimizationLevel::Balanced,
+            OptimizationLevel::Comprehensive
+        );
         assert_ne!(OptimizationLevel::Minimal, OptimizationLevel::Comprehensive);
     }
 
     #[test]
     fn test_export_stats_default() {
         let stats = SelectiveJsonExportStats::default();
-        
+
         assert_eq!(stats.total_export_time_us, 0);
         assert_eq!(stats.files_processed, 0);
         assert_eq!(stats.total_allocations_exported, 0);
@@ -1099,11 +1120,11 @@ mod tests {
     fn test_export_stats_edge_cases() {
         // Test with zero values
         let stats = SelectiveJsonExportStats::default();
-        
+
         assert_eq!(stats.cache_hit_rate(), 0.0);
         assert_eq!(stats.export_efficiency(), 0.0);
         assert_eq!(stats.compression_ratio(), 0.0);
-        
+
         // Test with only cache misses
         let stats = SelectiveJsonExportStats {
             index_cache_hits: 0,
@@ -1114,11 +1135,11 @@ mod tests {
             total_bytes_written: 5000,
             ..Default::default()
         };
-        
+
         assert_eq!(stats.cache_hit_rate(), 0.0);
         assert_eq!(stats.export_efficiency(), 1.0);
         assert!(stats.compression_ratio() > 0.0);
-        
+
         // Test with only cache hits
         let stats = SelectiveJsonExportStats {
             index_cache_hits: 10,
@@ -1129,7 +1150,7 @@ mod tests {
             total_bytes_written: 5000,
             ..Default::default()
         };
-        
+
         assert_eq!(stats.cache_hit_rate(), 100.0);
     }
 
@@ -1162,19 +1183,19 @@ mod tests {
     #[test]
     fn test_stats_reset() {
         let mut exporter = create_test_exporter();
-        
+
         // Manually set some stats
         exporter.stats.files_processed = 5;
         exporter.stats.total_allocations_exported = 1000;
         exporter.stats.total_bytes_written = 50000;
-        
+
         // Verify stats are set
         assert_eq!(exporter.get_stats().files_processed, 5);
         assert_eq!(exporter.get_stats().total_allocations_exported, 1000);
-        
+
         // Reset stats
         exporter.reset_stats();
-        
+
         // Verify stats are reset
         assert_eq!(exporter.get_stats().files_processed, 0);
         assert_eq!(exporter.get_stats().total_allocations_exported, 0);
@@ -1187,10 +1208,10 @@ mod tests {
         let binary_files: Vec<(&str, &str)> = vec![];
         let fields = HashSet::new();
         let filters = vec![];
-        
+
         let result = exporter.export_multiple_json_types(&binary_files, &fields, &filters);
         assert!(result.is_ok());
-        
+
         let results = result.unwrap();
         assert_eq!(results.len(), 0);
     }
@@ -1198,19 +1219,19 @@ mod tests {
     #[test]
     fn test_export_multiple_json_types_single_file() {
         let mut exporter = create_test_exporter();
-        
+
         // Create temporary files for testing
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let binary_path = temp_dir.path().join("test.bin");
         let json_path = temp_dir.path().join("test.json");
-        
+
         // Create a dummy binary file
         std::fs::write(&binary_path, b"dummy binary data").expect("Failed to write test file");
-        
+
         let binary_files = vec![(&binary_path, &json_path)];
         let fields = HashSet::new();
         let filters = vec![];
-        
+
         // This will likely fail due to invalid binary format, but we test the code path
         let result = exporter.export_multiple_json_types(&binary_files, &fields, &filters);
         // We expect this to fail with invalid binary format
@@ -1220,13 +1241,13 @@ mod tests {
     #[test]
     fn test_analyze_optimal_fields() {
         let exporter = create_test_exporter();
-        
+
         // Create a dummy index for testing
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let dummy_path = temp_dir.path().join("dummy.bin");
         let header = crate::export::binary::format::FileHeader::new_legacy(0);
         let index = crate::export::binary::index::BinaryIndex::new(dummy_path, 0, 0, header);
-        
+
         // Test minimal optimization
         let fields = exporter.analyze_optimal_fields(&index, OptimizationLevel::Minimal);
         assert!(fields.is_ok());
@@ -1234,7 +1255,7 @@ mod tests {
         assert!(fields.contains(&AllocationField::Ptr));
         assert!(fields.contains(&AllocationField::Size));
         assert!(fields.contains(&AllocationField::TimestampAlloc));
-        
+
         // Test balanced optimization
         let fields = exporter.analyze_optimal_fields(&index, OptimizationLevel::Balanced);
         assert!(fields.is_ok());
@@ -1242,7 +1263,7 @@ mod tests {
         assert!(fields.contains(&AllocationField::Ptr));
         assert!(fields.contains(&AllocationField::VarName));
         assert!(fields.contains(&AllocationField::TypeName));
-        
+
         // Test comprehensive optimization
         let fields = exporter.analyze_optimal_fields(&index, OptimizationLevel::Comprehensive);
         assert!(fields.is_ok());
@@ -1253,19 +1274,19 @@ mod tests {
     #[test]
     fn test_analyze_optimal_filters() {
         let exporter = create_test_exporter();
-        
+
         // Create a dummy index for testing
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let dummy_path = temp_dir.path().join("dummy.bin");
         let header = crate::export::binary::format::FileHeader::new_legacy(0);
         let index = crate::export::binary::index::BinaryIndex::new(dummy_path, 0, 0, header);
-        
+
         // Test minimal optimization
         let filters = exporter.analyze_optimal_filters(&index, OptimizationLevel::Minimal);
         assert!(filters.is_ok());
         let filters = filters.unwrap();
         assert_eq!(filters.len(), 0);
-        
+
         // Test balanced optimization
         let filters = exporter.analyze_optimal_filters(&index, OptimizationLevel::Balanced);
         assert!(filters.is_ok());
@@ -1277,7 +1298,7 @@ mod tests {
         } else {
             panic!("Expected SizeRange filter");
         }
-        
+
         // Test comprehensive optimization
         let filters = exporter.analyze_optimal_filters(&index, OptimizationLevel::Comprehensive);
         assert!(filters.is_ok());
@@ -1294,16 +1315,16 @@ mod tests {
     #[test]
     fn test_analyze_available_fields() {
         let exporter = create_test_exporter();
-        
+
         // Create a dummy index for testing
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let dummy_path = temp_dir.path().join("dummy.bin");
         let header = crate::export::binary::format::FileHeader::new_legacy(0);
         let index = crate::export::binary::index::BinaryIndex::new(dummy_path, 0, 0, header);
-        
+
         let available_fields = exporter.analyze_available_fields(&index);
         assert!(available_fields.is_ok());
-        
+
         let fields = available_fields.unwrap();
         assert!(!fields.is_empty());
         // Should contain all fields for now
@@ -1314,26 +1335,26 @@ mod tests {
     #[test]
     fn test_update_derived_stats() {
         let mut exporter = create_test_exporter();
-        
+
         // Set some base stats
         exporter.stats.total_export_time_us = 1_000_000; // 1 second
         exporter.stats.total_allocations_exported = 1000;
         exporter.stats.total_bytes_written = 50000;
-        
+
         // Update derived stats
         exporter.update_derived_stats();
-        
+
         // Check that derived stats are calculated
         assert!(exporter.stats.avg_export_throughput > 0.0);
         assert!(exporter.stats.memory_efficiency > 0.0);
-        
+
         // Test with zero time - the method only updates if time > 0
         let original_throughput = exporter.stats.avg_export_throughput;
         exporter.stats.total_export_time_us = 0;
         exporter.update_derived_stats();
         // The throughput should remain unchanged when time is 0
         assert_eq!(exporter.stats.avg_export_throughput, original_throughput);
-        
+
         // Test with zero allocations - the method only updates if allocations > 0
         let original_efficiency = exporter.stats.memory_efficiency;
         exporter.stats.total_export_time_us = 1_000_000;
@@ -1350,18 +1371,18 @@ mod tests {
             total_bytes_written: 25000, // 250 bytes per allocation
             ..Default::default()
         };
-        
+
         let ratio = stats.compression_ratio();
         // Expected: (25000 / (100 * 500)) * 100 = 50%
         assert_eq!(ratio, 50.0);
-        
+
         // Test with zero allocations
         let stats = SelectiveJsonExportStats {
             total_allocations_exported: 0,
             total_bytes_written: 1000,
             ..Default::default()
         };
-        
+
         let ratio = stats.compression_ratio();
         assert_eq!(ratio, 0.0);
     }
@@ -1373,18 +1394,18 @@ mod tests {
             files_processed: 10,
             ..Default::default()
         };
-        
+
         let efficiency = stats.export_efficiency();
         // Expected: (10 * 1_000_000) / 2_000_000 = 5.0 files per second
         assert_eq!(efficiency, 5.0);
-        
+
         // Test with zero time
         let stats = SelectiveJsonExportStats {
             total_export_time_us: 0,
             files_processed: 10,
             ..Default::default()
         };
-        
+
         let efficiency = stats.export_efficiency();
         assert_eq!(efficiency, 0.0);
     }
@@ -1397,27 +1418,27 @@ mod tests {
             index_cache_misses: 25,
             ..Default::default()
         };
-        
+
         let hit_rate = stats.cache_hit_rate();
         assert_eq!(hit_rate, 75.0);
-        
+
         // Test with no requests
         let stats = SelectiveJsonExportStats {
             index_cache_hits: 0,
             index_cache_misses: 0,
             ..Default::default()
         };
-        
+
         let hit_rate = stats.cache_hit_rate();
         assert_eq!(hit_rate, 0.0);
-        
+
         // Test with perfect hit rate
         let stats = SelectiveJsonExportStats {
             index_cache_hits: 100,
             index_cache_misses: 0,
             ..Default::default()
         };
-        
+
         let hit_rate = stats.cache_hit_rate();
         assert_eq!(hit_rate, 100.0);
     }
@@ -1427,11 +1448,11 @@ mod tests {
         let config = SelectiveJsonExportConfig::default();
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("SelectiveJsonExportConfig"));
-        
+
         let stats = SelectiveJsonExportStats::default();
         let debug_str = format!("{:?}", stats);
         assert!(debug_str.contains("SelectiveJsonExportStats"));
-        
+
         let optimization_level = OptimizationLevel::Balanced;
         let debug_str = format!("{:?}", optimization_level);
         assert!(debug_str.contains("Balanced"));
@@ -1441,14 +1462,23 @@ mod tests {
     fn test_clone_implementations() {
         let config = SelectiveJsonExportConfig::default();
         let cloned_config = config.clone();
-        assert_eq!(config.enable_parallel_processing, cloned_config.enable_parallel_processing);
-        assert_eq!(config.max_concurrent_exports, cloned_config.max_concurrent_exports);
-        
+        assert_eq!(
+            config.enable_parallel_processing,
+            cloned_config.enable_parallel_processing
+        );
+        assert_eq!(
+            config.max_concurrent_exports,
+            cloned_config.max_concurrent_exports
+        );
+
         let stats = SelectiveJsonExportStats::default();
         let cloned_stats = stats.clone();
         assert_eq!(stats.files_processed, cloned_stats.files_processed);
-        assert_eq!(stats.total_allocations_exported, cloned_stats.total_allocations_exported);
-        
+        assert_eq!(
+            stats.total_allocations_exported,
+            cloned_stats.total_allocations_exported
+        );
+
         let optimization_level = OptimizationLevel::Comprehensive;
         let cloned_level = optimization_level;
         assert_eq!(optimization_level, cloned_level);

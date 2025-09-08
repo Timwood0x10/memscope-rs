@@ -1464,7 +1464,7 @@ mod tests {
     #[test]
     fn test_binary_template_engine_config_default() {
         let config = BinaryTemplateEngineConfig::default();
-        
+
         assert!(config.enable_cache);
         assert!(config.enable_precompilation);
         assert!(!config.enable_data_compression);
@@ -1481,20 +1481,29 @@ mod tests {
             max_cache_size_mb: 20,
             processing_timeout_secs: 60,
         };
-        
+
         // Test Debug trait
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("BinaryTemplateEngineConfig"));
         assert!(debug_str.contains("enable_cache"));
         assert!(debug_str.contains("false")); // enable_cache is false
-        
+
         // Test Clone trait
         let cloned_config = config.clone();
         assert_eq!(cloned_config.enable_cache, config.enable_cache);
-        assert_eq!(cloned_config.enable_precompilation, config.enable_precompilation);
-        assert_eq!(cloned_config.enable_data_compression, config.enable_data_compression);
+        assert_eq!(
+            cloned_config.enable_precompilation,
+            config.enable_precompilation
+        );
+        assert_eq!(
+            cloned_config.enable_data_compression,
+            config.enable_data_compression
+        );
         assert_eq!(cloned_config.max_cache_size_mb, config.max_cache_size_mb);
-        assert_eq!(cloned_config.processing_timeout_secs, config.processing_timeout_secs);
+        assert_eq!(
+            cloned_config.processing_timeout_secs,
+            config.processing_timeout_secs
+        );
     }
 
     #[test]
@@ -1506,13 +1515,13 @@ mod tests {
             cache_hit_rate: 70.0,
             cached_templates: 5,
         };
-        
+
         // Test Debug trait
         let debug_str = format!("{:?}", stats);
         assert!(debug_str.contains("BinaryTemplateEngineStats"));
         assert!(debug_str.contains("templates_processed"));
         assert!(debug_str.contains("10"));
-        
+
         // Test Clone trait
         let cloned_stats = stats.clone();
         assert_eq!(cloned_stats.templates_processed, stats.templates_processed);
@@ -1531,42 +1540,66 @@ mod tests {
             max_cache_size_mb: 50,
             processing_timeout_secs: 120,
         };
-        
+
         let engine = BinaryTemplateEngine::with_config(custom_config.clone());
         assert!(engine.is_ok());
-        
+
         let engine = engine.unwrap();
         assert_eq!(engine.config.enable_cache, custom_config.enable_cache);
-        assert_eq!(engine.config.enable_precompilation, custom_config.enable_precompilation);
-        assert_eq!(engine.config.enable_data_compression, custom_config.enable_data_compression);
-        assert_eq!(engine.config.max_cache_size_mb, custom_config.max_cache_size_mb);
-        assert_eq!(engine.config.processing_timeout_secs, custom_config.processing_timeout_secs);
+        assert_eq!(
+            engine.config.enable_precompilation,
+            custom_config.enable_precompilation
+        );
+        assert_eq!(
+            engine.config.enable_data_compression,
+            custom_config.enable_data_compression
+        );
+        assert_eq!(
+            engine.config.max_cache_size_mb,
+            custom_config.max_cache_size_mb
+        );
+        assert_eq!(
+            engine.config.processing_timeout_secs,
+            custom_config.processing_timeout_secs
+        );
     }
 
     #[test]
     fn test_binary_template_engine_default_trait() {
         let engine1 = BinaryTemplateEngine::new().unwrap();
         let engine2 = BinaryTemplateEngine::default();
-        
+
         // Both should have the same configuration
         assert_eq!(engine1.config.enable_cache, engine2.config.enable_cache);
-        assert_eq!(engine1.config.enable_precompilation, engine2.config.enable_precompilation);
-        assert_eq!(engine1.config.enable_data_compression, engine2.config.enable_data_compression);
-        assert_eq!(engine1.config.max_cache_size_mb, engine2.config.max_cache_size_mb);
-        assert_eq!(engine1.config.processing_timeout_secs, engine2.config.processing_timeout_secs);
+        assert_eq!(
+            engine1.config.enable_precompilation,
+            engine2.config.enable_precompilation
+        );
+        assert_eq!(
+            engine1.config.enable_data_compression,
+            engine2.config.enable_data_compression
+        );
+        assert_eq!(
+            engine1.config.max_cache_size_mb,
+            engine2.config.max_cache_size_mb
+        );
+        assert_eq!(
+            engine1.config.processing_timeout_secs,
+            engine2.config.processing_timeout_secs
+        );
     }
 
     #[test]
     fn test_render_binary_template_full_workflow() {
         let mut engine = BinaryTemplateEngine::new().unwrap();
         let template_data = create_test_template_data();
-        
+
         let result = engine.render_binary_template(&template_data);
         assert!(result.is_ok());
-        
+
         let html_content = result.unwrap();
         assert!(!html_content.is_empty());
-        
+
         // Verify stats were updated
         let stats = engine.get_stats();
         assert_eq!(stats.templates_processed, 1);
@@ -1576,7 +1609,7 @@ mod tests {
     #[test]
     fn test_render_binary_template_with_large_dataset() {
         let mut engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Create a large dataset to test optimization
         let mut large_allocations = Vec::new();
         for i in 0..1000 {
@@ -1585,7 +1618,7 @@ mod tests {
                 "test_field".to_string(),
                 BinaryFieldValue::String(format!("test_value_{}", i)),
             );
-            
+
             large_allocations.push(BinaryAllocationData {
                 id: i as u64,
                 size: 1024 + i as usize,
@@ -1602,7 +1635,7 @@ mod tests {
                 optional_fields,
             });
         }
-        
+
         let large_template_data = BinaryTemplateData {
             project_name: "large_test_project".to_string(),
             allocations: large_allocations,
@@ -1615,26 +1648,29 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let result = engine.render_binary_template(&large_template_data);
         assert!(result.is_ok());
-        
+
         let html_content = result.unwrap();
         assert!(!html_content.is_empty());
-        
+
         // Verify the template was processed successfully
         // The project name might be embedded in different ways in the template
         assert!(!html_content.is_empty());
-        
+
         // Verify that the HTML contains some expected structure
-        assert!(html_content.contains("html") || html_content.contains("HTML") || 
-                html_content.len() > 1000); // Should be a substantial HTML document
+        assert!(
+            html_content.contains("html")
+                || html_content.contains("HTML")
+                || html_content.len() > 1000
+        ); // Should be a substantial HTML document
     }
 
     #[test]
     fn test_optimize_template_data_for_size() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Create data with more than 200 allocations
         let mut many_allocations = Vec::new();
         for i in 0..500 {
@@ -1654,7 +1690,7 @@ mod tests {
                 optional_fields: HashMap::new(),
             });
         }
-        
+
         let large_data = BinaryTemplateData {
             project_name: "test_project".to_string(),
             allocations: many_allocations,
@@ -1667,25 +1703,28 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let result = engine.optimize_template_data_for_size(&large_data);
         assert!(result.is_ok());
-        
+
         let optimized_data = result.unwrap();
         assert_eq!(optimized_data.allocations.len(), 200); // Should be truncated to MAX_ALLOCATIONS_ULTRA_FAST
         assert_eq!(optimized_data.project_name, large_data.project_name);
-        assert_eq!(optimized_data.total_memory_usage, large_data.total_memory_usage);
+        assert_eq!(
+            optimized_data.total_memory_usage,
+            large_data.total_memory_usage
+        );
     }
 
     #[test]
     fn test_generate_fast_timeline_data() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Test with empty allocations
         let empty_allocations = vec![];
         let timeline = engine.generate_fast_timeline_data(&empty_allocations);
         assert!(timeline.is_empty());
-        
+
         // Test with some allocations
         let allocations = vec![
             BinaryAllocationData {
@@ -1719,10 +1758,10 @@ mod tests {
                 optional_fields: HashMap::new(),
             },
         ];
-        
+
         let timeline = engine.generate_fast_timeline_data(&allocations);
         assert_eq!(timeline.len(), 5); // Should generate 5 data points
-        
+
         // Verify timeline structure
         assert!(timeline[0]["timestamp"].as_u64().unwrap() == 0);
         assert!(timeline[4]["timestamp"].as_u64().unwrap() == 1000000);
@@ -1733,12 +1772,12 @@ mod tests {
     #[test]
     fn test_generate_fast_size_distribution() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Test with empty allocations
         let empty_allocations = vec![];
         let distribution = engine.generate_fast_size_distribution(&empty_allocations);
         assert!(distribution.is_empty());
-        
+
         // Test with various sized allocations
         let allocations = vec![
             BinaryAllocationData {
@@ -1802,12 +1841,13 @@ mod tests {
                 optional_fields: HashMap::new(),
             },
         ];
-        
+
         let distribution = engine.generate_fast_size_distribution(&allocations);
         assert_eq!(distribution.len(), 4); // Should have 4 size ranges
-        
+
         // Verify distribution structure
-        let size_ranges: Vec<&str> = distribution.iter()
+        let size_ranges: Vec<&str> = distribution
+            .iter()
             .map(|item| item["size_range"].as_str().unwrap())
             .collect();
         assert!(size_ranges.contains(&"0-1KB"));
@@ -1819,7 +1859,7 @@ mod tests {
     #[test]
     fn test_generate_fast_lifecycle_events() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Create many allocations to test step_by sampling
         let mut many_allocations = Vec::new();
         for i in 0..1000 {
@@ -1839,10 +1879,10 @@ mod tests {
                 optional_fields: HashMap::new(),
             });
         }
-        
+
         let lifecycle_events = engine.generate_fast_lifecycle_events(&many_allocations);
         assert!(lifecycle_events.len() <= 20); // Should be limited to 20 events
-        
+
         // Verify event structure
         if !lifecycle_events.is_empty() {
             let first_event = &lifecycle_events[0];
@@ -1850,7 +1890,7 @@ mod tests {
             assert!(first_event.get("event_type").is_some());
             assert!(first_event.get("timestamp").is_some());
             assert!(first_event.get("size").is_some());
-            
+
             let event_type = first_event["event_type"].as_str().unwrap();
             assert!(event_type == "Allocation" || event_type == "Deallocation");
         }
@@ -1859,7 +1899,7 @@ mod tests {
     #[test]
     fn test_count_unique_scopes() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         let allocations = vec![
             BinaryAllocationData {
                 id: 1,
@@ -1907,7 +1947,7 @@ mod tests {
                 optional_fields: HashMap::new(),
             },
         ];
-        
+
         let unique_scopes = engine.count_unique_scopes(&allocations);
         assert_eq!(unique_scopes, 2); // scope1 and scope2
     }
@@ -1915,12 +1955,12 @@ mod tests {
     #[test]
     fn test_calculate_average_scope_lifetime() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Test with empty allocations
         let empty_allocations = vec![];
         let avg_lifetime = engine.calculate_average_scope_lifetime(&empty_allocations);
         assert_eq!(avg_lifetime, 0.0);
-        
+
         // Test with allocations having lifetime_ms
         let allocations = vec![
             BinaryAllocationData {
@@ -1969,7 +2009,7 @@ mod tests {
                 optional_fields: HashMap::new(),
             },
         ];
-        
+
         let avg_lifetime = engine.calculate_average_scope_lifetime(&allocations);
         assert_eq!(avg_lifetime, 1500.0); // (1000 + 2000) / 2
     }
@@ -1977,7 +2017,7 @@ mod tests {
     #[test]
     fn test_calculate_memory_efficiency() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Test with zero peak memory
         let zero_peak_data = BinaryTemplateData {
             project_name: "test".to_string(),
@@ -1991,10 +2031,10 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let efficiency = engine.calculate_memory_efficiency(&zero_peak_data);
         assert_eq!(efficiency, 0.0);
-        
+
         // Test with normal data
         let normal_data = BinaryTemplateData {
             project_name: "test".to_string(),
@@ -2008,7 +2048,7 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let efficiency = engine.calculate_memory_efficiency(&normal_data);
         assert_eq!(efficiency, 80.0); // (800 / 1000) * 100
     }
@@ -2016,7 +2056,7 @@ mod tests {
     #[test]
     fn test_calculate_processing_speed() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Test with zero processing time
         let zero_time_data = BinaryTemplateData {
             project_name: "test".to_string(),
@@ -2030,10 +2070,10 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let speed = engine.calculate_processing_speed(&zero_time_data);
         assert_eq!(speed, 0.0);
-        
+
         // Test with normal data
         let normal_data = BinaryTemplateData {
             project_name: "test".to_string(),
@@ -2047,7 +2087,7 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let speed = engine.calculate_processing_speed(&normal_data);
         assert_eq!(speed, 2.0); // 2MB / 1s = 2 MB/s
     }
@@ -2055,10 +2095,10 @@ mod tests {
     #[test]
     fn test_load_svg_images() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         let svg_result = engine.load_svg_images();
         assert!(svg_result.is_ok());
-        
+
         let svg_content = svg_result.unwrap();
         assert!(!svg_content.is_empty());
         assert!(svg_content.contains("window.svgImages"));
@@ -2070,7 +2110,7 @@ mod tests {
     #[test]
     fn test_get_stats_and_last_render_time() {
         let mut engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Initial stats
         let initial_stats = engine.get_stats();
         assert_eq!(initial_stats.templates_processed, 0);
@@ -2078,15 +2118,15 @@ mod tests {
         assert_eq!(initial_stats.cache_hits, 0);
         assert_eq!(initial_stats.cache_hit_rate, 0.0);
         assert_eq!(initial_stats.cached_templates, 0);
-        
+
         // Initial render time
         assert_eq!(engine.last_render_time(), 0);
-        
+
         // Process a template
         let template_data = create_test_template_data();
         let result = engine.render_binary_template(&template_data);
         assert!(result.is_ok());
-        
+
         // Updated stats
         let updated_stats = engine.get_stats();
         assert_eq!(updated_stats.templates_processed, 1);
@@ -2098,7 +2138,7 @@ mod tests {
     #[test]
     fn test_throughput_calculation_edge_cases() {
         let engine = BinaryTemplateEngine::new().unwrap();
-        
+
         // Test with zero processing time
         let zero_time_data = BinaryTemplateData {
             project_name: "test".to_string(),
@@ -2112,10 +2152,10 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let throughput = engine.calculate_throughput(&zero_time_data);
         assert_eq!(throughput, 0.0);
-        
+
         // Test with normal data
         let normal_data = BinaryTemplateData {
             project_name: "test".to_string(),
@@ -2132,7 +2172,7 @@ mod tests {
             unsafe_ffi: None,
             variable_relationships: None,
         };
-        
+
         let throughput = engine.calculate_throughput(&normal_data);
         assert_eq!(throughput, 4.0); // 2 allocations / 500ms * 1000 = 4 allocs/sec
     }

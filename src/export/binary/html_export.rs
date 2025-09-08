@@ -1153,7 +1153,10 @@ mod tests {
         // Test PartialEq trait
         assert_eq!(BinaryOutputFormat::Json, BinaryOutputFormat::Json);
         assert_eq!(BinaryOutputFormat::Html, BinaryOutputFormat::Html);
-        assert_eq!(BinaryOutputFormat::HtmlSystem, BinaryOutputFormat::HtmlSystem);
+        assert_eq!(
+            BinaryOutputFormat::HtmlSystem,
+            BinaryOutputFormat::HtmlSystem
+        );
         assert_eq!(BinaryOutputFormat::HtmlBoth, BinaryOutputFormat::HtmlBoth);
         assert_eq!(BinaryOutputFormat::Both, BinaryOutputFormat::Both);
 
@@ -1166,7 +1169,7 @@ mod tests {
     #[test]
     fn test_binary_export_config_default() {
         let config = BinaryExportConfig::default();
-        
+
         assert!(config.enable_parallel_processing);
         assert_eq!(config.buffer_size, 256 * 1024);
         assert_eq!(config.batch_size, 2000);
@@ -1178,8 +1181,11 @@ mod tests {
     fn test_binary_export_config_new() {
         let config1 = BinaryExportConfig::new();
         let config2 = BinaryExportConfig::default();
-        
-        assert_eq!(config1.enable_parallel_processing, config2.enable_parallel_processing);
+
+        assert_eq!(
+            config1.enable_parallel_processing,
+            config2.enable_parallel_processing
+        );
         assert_eq!(config1.buffer_size, config2.buffer_size);
         assert_eq!(config1.batch_size, config2.batch_size);
         assert_eq!(config1.enable_streaming, config2.enable_streaming);
@@ -1189,7 +1195,7 @@ mod tests {
     #[test]
     fn test_binary_export_config_fast() {
         let config = BinaryExportConfig::fast();
-        
+
         assert!(config.enable_parallel_processing);
         assert_eq!(config.buffer_size, 512 * 1024);
         assert_eq!(config.batch_size, 3000);
@@ -1200,7 +1206,7 @@ mod tests {
     #[test]
     fn test_binary_export_config_large_files() {
         let config = BinaryExportConfig::large_files();
-        
+
         assert!(config.enable_parallel_processing);
         assert_eq!(config.buffer_size, 1024 * 1024);
         assert_eq!(config.batch_size, 5000);
@@ -1216,7 +1222,7 @@ mod tests {
             .batch_size(1000)
             .streaming(false)
             .thread_count(Some(4));
-        
+
         assert!(!config.enable_parallel_processing);
         assert_eq!(config.buffer_size, 128 * 1024);
         assert_eq!(config.batch_size, 1000);
@@ -1227,16 +1233,19 @@ mod tests {
     #[test]
     fn test_binary_export_config_debug_clone() {
         let config = BinaryExportConfig::default();
-        
+
         // Test Debug trait
         let debug_str = format!("{config:?}");
         assert!(debug_str.contains("BinaryExportConfig"));
         assert!(debug_str.contains("enable_parallel_processing"));
         assert!(debug_str.contains("buffer_size"));
-        
+
         // Test Clone trait
         let cloned_config = config.clone();
-        assert_eq!(cloned_config.enable_parallel_processing, config.enable_parallel_processing);
+        assert_eq!(
+            cloned_config.enable_parallel_processing,
+            config.enable_parallel_processing
+        );
         assert_eq!(cloned_config.buffer_size, config.buffer_size);
         assert_eq!(cloned_config.batch_size, config.batch_size);
         assert_eq!(cloned_config.enable_streaming, config.enable_streaming);
@@ -1279,7 +1288,7 @@ mod tests {
         };
 
         let allocation_data = AllocationData::from(allocation_info);
-        
+
         assert_eq!(allocation_data.id, 0x1000);
         assert_eq!(allocation_data.size, 64);
         assert_eq!(allocation_data.type_name, "String");
@@ -1294,7 +1303,7 @@ mod tests {
             ptr: 0x2000,
             size: 128,
             var_name: None,
-            type_name: None, // Should default to "Unknown"
+            type_name: None,  // Should default to "Unknown"
             scope_name: None, // Should default to "Unknown"
             timestamp_alloc: 1234567900,
             timestamp_dealloc: Some(1234567950), // Should make status "Freed"
@@ -1324,7 +1333,7 @@ mod tests {
         };
 
         let allocation_data = AllocationData::from(allocation_info);
-        
+
         assert_eq!(allocation_data.id, 0x2000);
         assert_eq!(allocation_data.size, 128);
         assert_eq!(allocation_data.type_name, "Unknown");
@@ -1342,19 +1351,19 @@ mod tests {
     #[test]
     fn test_provide_performance_feedback() {
         let config = BinaryExportConfig::default();
-        
+
         // Test excellent performance (< 1000ms)
         let excellent_time = std::time::Duration::from_millis(500);
         provide_performance_feedback(BinaryOutputFormat::Json, &config, excellent_time);
-        
+
         // Test good performance (1000-5000ms)
         let good_time = std::time::Duration::from_millis(2000);
         provide_performance_feedback(BinaryOutputFormat::Html, &config, good_time);
-        
+
         // Test slow performance (> 5000ms)
         let slow_time = std::time::Duration::from_millis(8000);
         provide_performance_feedback(BinaryOutputFormat::Both, &config, slow_time);
-        
+
         // Test with different configurations
         let slow_config = BinaryExportConfig::default()
             .parallel_processing(false)
@@ -1399,7 +1408,7 @@ mod tests {
 
         let result = convert_allocation_to_binary_data(&allocation, 0);
         assert!(result.is_ok());
-        
+
         let binary_data = result.unwrap();
         assert_eq!(binary_data.id, 0x1000);
         assert_eq!(binary_data.size, 64);
@@ -1422,7 +1431,7 @@ mod tests {
             ptr: 0x2000,
             size: 128,
             var_name: None,
-            type_name: None, // Should default to "unknown_type"
+            type_name: None,  // Should default to "unknown_type"
             scope_name: None, // Should default to "global"
             timestamp_alloc: 1234567900,
             timestamp_dealloc: Some(1234567950),
@@ -1453,7 +1462,7 @@ mod tests {
 
         let result = convert_allocation_to_binary_data(&allocation, 1);
         assert!(result.is_ok());
-        
+
         let binary_data = result.unwrap();
         assert_eq!(binary_data.id, 0x2000);
         assert_eq!(binary_data.size, 128);

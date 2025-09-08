@@ -2863,12 +2863,21 @@ mod tests {
         assert_eq!(compute_enhanced_type_info("Vec<i32>", 200), "Vec<T>");
 
         // Test HashMap types
-        assert_eq!(compute_enhanced_type_info("HashMap<String, i32>", 300), "HashMap<K,V>");
-        assert_eq!(compute_enhanced_type_info("HashMap<u64, String>", 400), "HashMap<K,V>");
+        assert_eq!(
+            compute_enhanced_type_info("HashMap<String, i32>", 300),
+            "HashMap<K,V>"
+        );
+        assert_eq!(
+            compute_enhanced_type_info("HashMap<u64, String>", 400),
+            "HashMap<K,V>"
+        );
 
         // Test String types
         assert_eq!(compute_enhanced_type_info("String", 50), "String");
-        assert_eq!(compute_enhanced_type_info("std::string::String", 60), "String");
+        assert_eq!(
+            compute_enhanced_type_info("std::string::String", 60),
+            "String"
+        );
 
         // Test size-based categorization
         assert_eq!(compute_enhanced_type_info("Unknown", 4), "Primitive");
@@ -2962,14 +2971,12 @@ mod tests {
 
     #[test]
     fn test_process_allocation_batch_enhanced_with_disabled_features() {
-        let allocations = vec![
-            create_test_allocation(
-                0x1000,
-                64,
-                Some("*mut u8".to_string()),
-                Some("raw_ptr".to_string()),
-            ),
-        ];
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("*mut u8".to_string()),
+            Some("raw_ptr".to_string()),
+        )];
 
         let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low); // Disables enhanced features
 
@@ -3069,7 +3076,10 @@ mod tests {
         // Test generic type normalization
         assert_eq!(normalize_type_name("Vec<String>"), "Vec<T>");
         assert_eq!(normalize_type_name("HashMap<String, i32>"), "HashMap<T>");
-        assert_eq!(normalize_type_name("Option<Result<String, Error>>"), "Option<T>");
+        assert_eq!(
+            normalize_type_name("Option<Result<String, Error>>"),
+            "Option<T>"
+        );
 
         // Test non-generic types
         assert_eq!(normalize_type_name("String"), "String");
@@ -3091,13 +3101,25 @@ mod tests {
         // Test smart pointers
         assert_eq!(categorize_complex_type("Box<String>"), "SmartPointer");
         assert_eq!(categorize_complex_type("Rc<RefCell<i32>>"), "SmartPointer");
-        assert_eq!(categorize_complex_type("Arc<Mutex<Vec<u8>>>"), "SmartPointer");
-        assert_eq!(categorize_complex_type("RefCell<HashMap<String, i32>>"), "SmartPointer");
+        assert_eq!(
+            categorize_complex_type("Arc<Mutex<Vec<u8>>>"),
+            "SmartPointer"
+        );
+        assert_eq!(
+            categorize_complex_type("RefCell<HashMap<String, i32>>"),
+            "SmartPointer"
+        );
 
         // Test collections
         assert_eq!(categorize_complex_type("Vec<String>"), "Collection");
-        assert_eq!(categorize_complex_type("HashMap<String, i32>"), "Collection");
-        assert_eq!(categorize_complex_type("BTreeMap<u64, String>"), "Collection");
+        assert_eq!(
+            categorize_complex_type("HashMap<String, i32>"),
+            "Collection"
+        );
+        assert_eq!(
+            categorize_complex_type("BTreeMap<u64, String>"),
+            "Collection"
+        );
         assert_eq!(categorize_complex_type("HashSet<String>"), "Collection");
 
         // Test generic types
@@ -3106,8 +3128,14 @@ mod tests {
         assert_eq!(categorize_complex_type("MyStruct<T, U>"), "Generic");
 
         // Test module paths
-        assert_eq!(categorize_complex_type("std::collections::HashMap"), "ModulePath");
-        assert_eq!(categorize_complex_type("crate::my_module::MyType"), "ModulePath");
+        assert_eq!(
+            categorize_complex_type("std::collections::HashMap"),
+            "ModulePath"
+        );
+        assert_eq!(
+            categorize_complex_type("crate::my_module::MyType"),
+            "ModulePath"
+        );
 
         // Test simple types
         assert_eq!(categorize_complex_type("String"), "Simple");
@@ -3137,15 +3165,15 @@ mod tests {
 
         // Test async types: base(1) + async(3)
         assert_eq!(calculate_type_complexity("async fn()"), 4); // 1 + 3
-        // Future<Output = i32>: base(1) + matches('<')(1*2) + nesting_level(1*3) + Future(3)
+                                                                // Future<Output = i32>: base(1) + matches('<')(1*2) + nesting_level(1*3) + Future(3)
         assert_eq!(calculate_type_complexity("Future<Output = i32>"), 9); // 1 + 2 + 3 + 3
 
         // Test smart pointers
         // Box<String>: base(1) + matches('<')(1*2) + nesting_level(1*3) + Box(2)
         assert_eq!(calculate_type_complexity("Box<String>"), 8); // 1 + 2 + 3 + 2
-        // Rc<RefCell<i32>>: base(1) + matches('<')(2*2) + nesting_level(2*3) + Rc(3) + RefCell(3)
+                                                                 // Rc<RefCell<i32>>: base(1) + matches('<')(2*2) + nesting_level(2*3) + Rc(3) + RefCell(3)
         assert_eq!(calculate_type_complexity("Rc<RefCell<i32>>"), 17); // 1 + 4 + 6 + 3 + 3
-        // Arc<Mutex<Vec<String>>>: base(1) + matches('<')(3*2) + nesting_level(3*3) + Arc(4)
+                                                                       // Arc<Mutex<Vec<String>>>: base(1) + matches('<')(3*2) + nesting_level(3*3) + Arc(4)
         assert_eq!(calculate_type_complexity("Arc<Mutex<Vec<String>>>"), 20); // 1 + 6 + 9 + 4
     }
 
@@ -3156,8 +3184,14 @@ mod tests {
         assert_eq!(calculate_memory_efficiency("Vec<i32>", 128, 1), 85); // Larger Vec
 
         // Test HashMap efficiency
-        assert_eq!(calculate_memory_efficiency("HashMap<String, i32>", 64, 1), 50); // Small HashMap
-        assert_eq!(calculate_memory_efficiency("HashMap<u64, String>", 256, 1), 75); // Larger HashMap
+        assert_eq!(
+            calculate_memory_efficiency("HashMap<String, i32>", 64, 1),
+            50
+        ); // Small HashMap
+        assert_eq!(
+            calculate_memory_efficiency("HashMap<u64, String>", 256, 1),
+            75
+        ); // Larger HashMap
 
         // Test Box efficiency
         assert_eq!(calculate_memory_efficiency("Box<String>", 100, 1), 90);
@@ -3189,7 +3223,9 @@ mod tests {
         info.total_size = 2 * 1024 * 1024; // 2MB
         info.complexity_score = 3;
         let suggestions = generate_optimization_suggestions("Vec<String>", &info);
-        assert!(suggestions.iter().any(|s| s.contains("pre-allocating Vec capacity")));
+        assert!(suggestions
+            .iter()
+            .any(|s| s.contains("pre-allocating Vec capacity")));
 
         // Test HashMap suggestions
         info.allocation_count = 60;
@@ -3210,7 +3246,9 @@ mod tests {
         info.total_size = 1000;
         info.complexity_score = 15;
         let suggestions = generate_optimization_suggestions("ComplexType<T, U, V>", &info);
-        assert!(suggestions.iter().any(|s| s.contains("High complexity type")));
+        assert!(suggestions
+            .iter()
+            .any(|s| s.contains("High complexity type")));
     }
 
     #[test]
@@ -3244,8 +3282,11 @@ mod tests {
             serde_json::json!({"complexity_score": 14, "allocation_count": 140}),
         ];
 
-        let recommendations = generate_global_optimization_recommendations(&high_complexity_analysis);
-        assert!(recommendations.iter().any(|r| r.contains("refactoring high-complexity types")));
+        let recommendations =
+            generate_global_optimization_recommendations(&high_complexity_analysis);
+        assert!(recommendations
+            .iter()
+            .any(|r| r.contains("refactoring high-complexity types")));
         assert!(recommendations.iter().any(|r| r.contains("object pooling")));
         assert!(recommendations.iter().any(|r| r.contains("cargo clippy")));
         assert!(recommendations.iter().any(|r| r.contains("perf")));
@@ -3256,9 +3297,12 @@ mod tests {
             serde_json::json!({"complexity_score": 3, "allocation_count": 5}),
         ];
 
-        let recommendations = generate_global_optimization_recommendations(&low_complexity_analysis);
+        let recommendations =
+            generate_global_optimization_recommendations(&low_complexity_analysis);
         // Should not suggest refactoring for low complexity
-        assert!(!recommendations.iter().any(|r| r.contains("refactoring high-complexity types")));
+        assert!(!recommendations
+            .iter()
+            .any(|r| r.contains("refactoring high-complexity types")));
         // Should not suggest object pooling for low allocation counts
         assert!(!recommendations.iter().any(|r| r.contains("object pooling")));
         // But should still have general recommendations

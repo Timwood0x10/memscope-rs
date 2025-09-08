@@ -1300,7 +1300,6 @@ mod tests {
         FastExportCoordinator::new(config)
     }
 
-
     #[test]
     fn test_fast_export_coordinator_creation() {
         let config = FastExportConfig::default();
@@ -1325,7 +1324,7 @@ mod tests {
     fn test_fast_export_coordinator_fast_mode() {
         let coordinator = FastExportCoordinator::new_fast_mode();
         let config = coordinator.get_config();
-        
+
         assert!(!config.validation_config.enable_json_validation);
         assert!(!config.validation_config.enable_encoding_validation);
         assert!(!config.validation_config.enable_integrity_validation);
@@ -1336,7 +1335,7 @@ mod tests {
     fn test_fast_export_coordinator_normal_mode() {
         let coordinator = FastExportCoordinator::new_normal_mode();
         let config = coordinator.get_config();
-        
+
         assert!(config.validation_config.enable_json_validation);
         assert!(config.validation_config.enable_encoding_validation);
         assert!(config.validation_config.enable_integrity_validation);
@@ -1347,7 +1346,7 @@ mod tests {
     fn test_fast_export_coordinator_with_export_config() {
         let export_config = ExportConfig::fast();
         let coordinator = FastExportCoordinator::new_with_export_config(export_config.clone());
-        
+
         assert_eq!(coordinator.get_export_config().mode, export_config.mode);
         assert!(!coordinator.get_config().verbose_logging); // Fast mode should have verbose_logging = false
     }
@@ -1356,7 +1355,7 @@ mod tests {
     fn test_fast_export_coordinator_with_slow_export_config() {
         let export_config = ExportConfig::slow();
         let coordinator = FastExportCoordinator::new_with_export_config(export_config.clone());
-        
+
         assert_eq!(coordinator.get_export_config().mode, export_config.mode);
         assert!(coordinator.get_config().verbose_logging); // Slow mode should have verbose_logging = true
     }
@@ -1364,7 +1363,7 @@ mod tests {
     #[test]
     fn test_fast_export_config_default() {
         let config = FastExportConfig::default();
-        
+
         assert!(config.enable_data_localization);
         assert_eq!(config.data_cache_ttl_ms, 100);
         assert!(config.enable_performance_monitoring);
@@ -1485,13 +1484,19 @@ mod tests {
     fn test_config_builder_default() {
         let builder1 = FastExportConfigBuilder::new();
         let builder2 = FastExportConfigBuilder::default();
-        
+
         let config1 = builder1.build();
         let config2 = builder2.build();
-        
-        assert_eq!(config1.enable_data_localization, config2.enable_data_localization);
+
+        assert_eq!(
+            config1.enable_data_localization,
+            config2.enable_data_localization
+        );
         assert_eq!(config1.data_cache_ttl_ms, config2.data_cache_ttl_ms);
-        assert_eq!(config1.enable_performance_monitoring, config2.enable_performance_monitoring);
+        assert_eq!(
+            config1.enable_performance_monitoring,
+            config2.enable_performance_monitoring
+        );
     }
 
     #[test]
@@ -1519,11 +1524,16 @@ mod tests {
 
         let new_export_config = ExportConfig::slow();
         coordinator.update_export_config(new_export_config.clone());
-        
+
         assert_eq!(coordinator.get_export_config().mode, new_export_config.mode);
         assert_ne!(coordinator.get_export_config().mode, original_mode);
-        assert_eq!(coordinator.get_config().validation_config.enable_json_validation, 
-                   new_export_config.validation_config.enable_json_validation);
+        assert_eq!(
+            coordinator
+                .get_config()
+                .validation_config
+                .enable_json_validation,
+            new_export_config.validation_config.enable_json_validation
+        );
     }
 
     #[test]
@@ -1536,7 +1546,7 @@ mod tests {
 
         // Test clear cache
         coordinator.clear_cache(); // Should not panic
-        
+
         // Test cache stats after clear
         let cache_stats_after = coordinator.get_cache_stats();
         assert!(!cache_stats_after.is_cached);
@@ -1548,7 +1558,7 @@ mod tests {
     #[test]
     fn test_calculate_complete_stats() {
         let coordinator = create_test_coordinator();
-        
+
         let data_stats = crate::export::data_localizer::DataGatheringStats {
             total_time_ms: 100,
             basic_data_time_ms: 40,
@@ -1558,7 +1568,7 @@ mod tests {
             ffi_allocation_count: 5,
             scope_count: 3,
         };
-        
+
         let processing_stats = crate::export::parallel_shard_processor::ParallelProcessingStats {
             total_processing_time_ms: 200,
             total_allocations: 50,
@@ -1570,7 +1580,7 @@ mod tests {
             throughput_allocations_per_sec: 250.0,
             total_output_size_bytes: 10000,
         };
-        
+
         let write_stats = crate::export::high_speed_buffered_writer::WritePerformanceStats {
             total_write_time_ms: 150,
             total_bytes_written: 10000,
@@ -1580,16 +1590,16 @@ mod tests {
             avg_write_speed_bps: 66670.0,
             shards_written: 4,
         };
-        
+
         let total_time_ms = 500;
-        
+
         let complete_stats = coordinator.calculate_complete_stats(
             data_stats,
             processing_stats,
             write_stats,
             total_time_ms,
         );
-        
+
         assert_eq!(complete_stats.total_export_time_ms, 500);
         assert_eq!(complete_stats.total_allocations_processed, 50);
         assert_eq!(complete_stats.total_output_size_bytes, 10000);
@@ -1605,7 +1615,7 @@ mod tests {
     #[test]
     fn test_calculate_complete_stats_zero_time() {
         let coordinator = create_test_coordinator();
-        
+
         let data_stats = crate::export::data_localizer::DataGatheringStats {
             total_time_ms: 0,
             basic_data_time_ms: 0,
@@ -1635,14 +1645,14 @@ mod tests {
             preallocation_effective: false,
             buffer_utilization: 0.0,
         };
-        
+
         let complete_stats = coordinator.calculate_complete_stats(
             data_stats,
             processing_stats,
             write_stats,
             0, // Zero time
         );
-        
+
         assert_eq!(complete_stats.total_export_time_ms, 0);
         assert_eq!(complete_stats.overall_throughput_allocations_per_sec, 0.0);
         assert_eq!(complete_stats.overall_write_speed_mbps, 0.0);
@@ -1655,7 +1665,7 @@ mod tests {
     #[test]
     fn test_print_complete_stats() {
         let coordinator = create_test_coordinator();
-        
+
         let stats = CompleteExportStats {
             data_gathering: crate::export::data_localizer::DataGatheringStats {
                 total_time_ms: 200,
@@ -1697,7 +1707,7 @@ mod tests {
             estimated_traditional_time_ms: 3000,
             performance_improvement_factor: 3.0,
         };
-        
+
         // This should not panic
         coordinator.print_complete_stats(&stats);
     }
@@ -1707,7 +1717,7 @@ mod tests {
         let config = FastExportConfig::default();
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("FastExportConfig"));
-        
+
         let stats = CompleteExportStats {
             data_gathering: crate::export::data_localizer::DataGatheringStats {
                 total_time_ms: 100,
@@ -1757,10 +1767,16 @@ mod tests {
     fn test_clone_implementations() {
         let config = FastExportConfig::default();
         let cloned_config = config.clone();
-        assert_eq!(config.enable_data_localization, cloned_config.enable_data_localization);
+        assert_eq!(
+            config.enable_data_localization,
+            cloned_config.enable_data_localization
+        );
         assert_eq!(config.data_cache_ttl_ms, cloned_config.data_cache_ttl_ms);
-        assert_eq!(config.enable_performance_monitoring, cloned_config.enable_performance_monitoring);
-        
+        assert_eq!(
+            config.enable_performance_monitoring,
+            cloned_config.enable_performance_monitoring
+        );
+
         let stats = CompleteExportStats {
             data_gathering: crate::export::data_localizer::DataGatheringStats {
                 total_time_ms: 100,
@@ -1803,9 +1819,18 @@ mod tests {
             performance_improvement_factor: 3.0,
         };
         let cloned_stats = stats.clone();
-        assert_eq!(stats.total_export_time_ms, cloned_stats.total_export_time_ms);
-        assert_eq!(stats.total_allocations_processed, cloned_stats.total_allocations_processed);
-        assert_eq!(stats.performance_improvement_factor, cloned_stats.performance_improvement_factor);
+        assert_eq!(
+            stats.total_export_time_ms,
+            cloned_stats.total_export_time_ms
+        );
+        assert_eq!(
+            stats.total_allocations_processed,
+            cloned_stats.total_allocations_processed
+        );
+        assert_eq!(
+            stats.performance_improvement_factor,
+            cloned_stats.performance_improvement_factor
+        );
     }
 
     // Note: Removed export_fast_with_progress test as it also causes timeouts
