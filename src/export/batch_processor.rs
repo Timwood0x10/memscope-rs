@@ -1523,7 +1523,7 @@ mod tests {
         let patterns = &processed.transfer_patterns;
 
         assert!(!patterns.dominant_direction.is_empty());
-        assert!(patterns.frequency_by_type.len() > 0);
+        assert!(!patterns.frequency_by_type.is_empty());
         assert!(patterns.avg_transfer_size > 0);
     }
 
@@ -1633,8 +1633,8 @@ mod tests {
 
         assert!(risk_analysis.overall_risk_score >= 0.0);
         assert!(risk_analysis.overall_risk_score <= 10.0);
-        assert!(risk_analysis.common_risk_patterns.len() > 0);
-        assert!(risk_analysis.mitigation_recommendations.len() > 0);
+        assert!(!risk_analysis.common_risk_patterns.is_empty());
+        assert!(!risk_analysis.mitigation_recommendations.is_empty());
     }
 
     #[test]

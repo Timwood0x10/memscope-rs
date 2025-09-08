@@ -346,10 +346,9 @@ mod tests {
     fn test_get_unsafe_ffi_tracker() {
         let manager = AnalysisManager::new();
 
-        let tracker = manager.get_unsafe_ffi_tracker();
+        let _tracker = manager.get_unsafe_ffi_tracker();
 
         // Test that tracker is returned successfully
-        assert!(tracker.as_ref() as *const _ != std::ptr::null());
     }
 
     #[test]
@@ -514,8 +513,7 @@ mod tests {
         let conc_result = analyze_concurrency_safety(&allocations);
         assert_eq!(conc_result.thread_safety_allocations, 0);
 
-        let tracker = get_global_unsafe_ffi_tracker();
-        assert!(tracker.as_ref() as *const _ != std::ptr::null());
+        let _tracker = get_global_unsafe_ffi_tracker();
 
         let stats = get_unsafe_ffi_stats();
         assert_eq!(stats.total_operations, 0);

@@ -565,63 +565,6 @@ impl ComprehensiveDataDeduplicator {
         Ok(HashMap::new())
     }
 
-    /// Maybe trigger cleanup based on thresholds
-    fn maybe_cleanup(&self) {
-        let total_items =
-            self.string_storage.len() + self.stack_storage.len() + self.metadata_storage.len();
-        let threshold =
-            (self.config.max_cache_size as f64 * self.config.cleanup_threshold) as usize;
-
-        if total_items > threshold {
-            self.cleanup_least_used();
-        }
-    }
-
-    /// Cleanup items using simple strategy (no frequency tracking for performance)
-    fn cleanup_least_used(&self) {
-        let target_size = self.config.max_cache_size / 2; // Clean to 50% capacity
-
-        // Collect all hashes from different storages
-        let mut all_hashes = std::collections::HashSet::new();
-
-        // Collect hashes from all storage types
-        for entry in self.string_storage.iter() {
-            all_hashes.insert(*entry.key());
-        }
-        for entry in self.stack_storage.iter() {
-            all_hashes.insert(*entry.key());
-        }
-        for entry in self.metadata_storage.iter() {
-            all_hashes.insert(*entry.key());
-        }
-        for entry in self.compressed_storage.iter() {
-            all_hashes.insert(*entry.key());
-        }
-
-        // Convert to vector and take first N items for simple cleanup
-        let hashes_to_remove: Vec<u64> = all_hashes.into_iter().take(target_size).collect();
-
-        let mut removed_count = 0;
-        for hash in hashes_to_remove {
-            // Remove from all storages
-            self.string_storage.remove(&hash);
-            self.string_refs.remove(&hash);
-            self.stack_storage.remove(&hash);
-            self.stack_refs.remove(&hash);
-            self.metadata_storage.remove(&hash);
-            self.metadata_refs.remove(&hash);
-            self.compressed_storage.remove(&hash);
-
-            removed_count += 1;
-        }
-
-        self.update_stats_cleanup(removed_count);
-        tracing::info!(
-            "🔄 Cleaned up {} items using simple strategy",
-            removed_count
-        );
-    }
-
     // Statistics update methods
     fn update_stats_string_dedup(&self) {
         if !self.config.enable_stats {
@@ -685,22 +628,9 @@ impl ComprehensiveDataDeduplicator {
             }
         }
     }
-
-    fn update_stats_cleanup(&self, removed_count: usize) {
-        if !self.config.enable_stats {
-            return;
-        }
-
-        match self.stats.safe_lock() {
-            Ok(mut stats) => {
-                stats.cleanup_operations += removed_count as u64;
-            }
-            Err(e) => {
-                tracing::warn!("Failed to update cleanup stats: {}", e);
-            }
-        }
-    }
 }
+
+// Other methods...
 
 /// Global comprehensive data deduplicator instance
 static GLOBAL_DATA_DEDUPLICATOR: std::sync::OnceLock<Arc<ComprehensiveDataDeduplicator>> =
@@ -820,9 +750,11 @@ mod tests {
     }
     #[test]
     fn test_string_deduplication_enabled() {
-        let mut config = DeduplicationConfig::default();
-        config.enable_stats = false;
-        config.enable_compression = false; // Disable compression to simplify
+        let config = DeduplicationConfig {
+            enable_stats: false,
+            enable_compression: false,
+            ..Default::default()
+        }; // Disable compression to simplify
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let test_string = "Hello, World!";
@@ -875,8 +807,10 @@ mod tests {
 
     #[test]
     fn test_string_deduplication_disabled() {
-        let mut config = DeduplicationConfig::default();
-        config.enable_string_dedup = false;
+        let config = DeduplicationConfig {
+            enable_string_dedup: false,
+            ..Default::default()
+        };
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let test_string = "Hello, World!";
@@ -898,8 +832,10 @@ mod tests {
 
     #[test]
     fn test_string_compression() {
-        let mut config = DeduplicationConfig::default();
-        config.compression_threshold = 10; // Low threshold to trigger compression
+        let config = DeduplicationConfig {
+            compression_threshold: 10,
+            ..Default::default()
+        }; // Low threshold to trigger compression
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let large_string = "This is a large string that should be compressed".repeat(10);
@@ -917,9 +853,11 @@ mod tests {
     }
     #[test]
     fn test_stack_trace_deduplication_enabled() {
-        let mut config = DeduplicationConfig::default();
-        config.enable_stats = false;
-        config.enable_compression = false; // Disable compression to simplify
+        let config = DeduplicationConfig {
+            enable_stats: false,
+            enable_compression: false,
+            ..Default::default()
+        }; // Disable compression to simplify
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let frames = vec![
@@ -961,8 +899,10 @@ mod tests {
 
     #[test]
     fn test_stack_trace_deduplication_disabled() {
-        let mut config = DeduplicationConfig::default();
-        config.enable_stack_dedup = false;
+        let config = DeduplicationConfig {
+            enable_stack_dedup: false,
+            ..Default::default()
+        };
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let frames = vec![
@@ -986,9 +926,11 @@ mod tests {
     }
     #[test]
     fn test_metadata_deduplication_enabled() {
-        let mut config = DeduplicationConfig::default();
-        config.enable_stats = false;
-        config.enable_compression = false; // Disable compression to simplify
+        let config = DeduplicationConfig {
+            enable_stats: false,
+            enable_compression: false,
+            ..Default::default()
+        }; // Disable compression to simplify
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let metadata = create_test_metadata();
@@ -1026,8 +968,10 @@ mod tests {
 
     #[test]
     fn test_metadata_deduplication_disabled() {
-        let mut config = DeduplicationConfig::default();
-        config.enable_metadata_dedup = false;
+        let config = DeduplicationConfig {
+            enable_metadata_dedup: false,
+            ..Default::default()
+        };
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let metadata = create_test_metadata();
@@ -1049,8 +993,10 @@ mod tests {
 
     #[test]
     fn test_metadata_compression() {
-        let mut config = DeduplicationConfig::default();
-        config.compression_threshold = 10; // Low threshold to trigger compression
+        let config = DeduplicationConfig {
+            compression_threshold: 10,
+            ..Default::default()
+        }; // Low threshold to trigger compression
         let deduplicator = ComprehensiveDataDeduplicator::new(config);
 
         let mut large_metadata = HashMap::new();
@@ -1433,7 +1379,7 @@ mod tests {
                 for i in 0..calls_per_thread {
                     let result = dedup_clone
                         .deduplicate_string(&test_str)
-                        .expect(&format!("Thread {thread_id} call {i} should succeed"));
+                        .unwrap_or_else(|_| panic!("Thread {thread_id} call {i} should succeed"));
                     results.push(result);
                 }
                 results

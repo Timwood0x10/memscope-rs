@@ -1866,7 +1866,6 @@ mod tests {
 
         let report = analyzer.analyze_comprehensive(&allocations);
 
-        assert!(report.analysis_duration_ms >= 0);
         assert!(report.timestamp > 0);
         assert!(!report.overall_recommendations.is_empty());
     }
@@ -1987,7 +1986,6 @@ mod tests {
         ];
 
         let report = analyze_memory_with_enhanced_features_detailed(&allocations);
-        assert!(report.analysis_duration_ms >= 0);
         assert!(report.timestamp > 0);
     }
 
@@ -2000,7 +1998,6 @@ mod tests {
 
         let report = analyze_memory_with_enhanced_features_detailed(&allocations);
 
-        assert!(report.analysis_duration_ms >= 0);
         assert!(report.timestamp > 0);
         assert!(!report.overall_recommendations.is_empty());
     }

@@ -1,5 +1,9 @@
-//! Comprehensive tests for core functionality modules
-//! This test file focuses on improving coverage for core modules
+//! Comprehensive core functionality tests
+//!
+//! This module contains extensive tests for all core functionality.
+#![allow(clippy::unnecessary_literal_unwrap)]
+#![allow(clippy::unwrap_or_default)]
+#![allow(clippy::useless_vec)]
 
 use std::collections::HashMap;
 

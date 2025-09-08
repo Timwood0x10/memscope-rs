@@ -143,11 +143,13 @@ mod tests {
 
     // Test struct for generic macro variant
     struct TestGenericStruct<T> {
+        #[allow(dead_code)]
         data: T,
     }
 
     // Test struct for non-generic macro variant
     struct TestSimpleStruct {
+        #[allow(dead_code)]
         value: i32,
     }
 
@@ -208,7 +210,7 @@ mod tests {
 
         let info = advanced_info.unwrap();
         // The analyzer should categorize this as a generic type
-        assert!(format!("{:?}", info.category).len() > 0);
+        assert!(!format!("{:?}", info.category).is_empty());
         // May or may not have issues - length is always >= 0 for Vec
         assert!(info.performance_info.overhead_factor >= 1.0);
     }
@@ -222,8 +224,8 @@ mod tests {
         let simple_ptr = simple_struct.get_heap_ptr().unwrap();
 
         // Ensure different offsets produce different pointer ranges
-        assert!(generic_ptr >= 0x1000_0000 && generic_ptr < 0x1000_0000 + 0x0FFF_FFFF);
-        assert!(simple_ptr >= 0x2000_0000 && simple_ptr < 0x2000_0000 + 0x0FFF_FFFF);
+        assert!((0x1000_0000..0x1000_0000 + 0x0FFF_FFFF).contains(&generic_ptr));
+        assert!((0x2000_0000..0x2000_0000 + 0x0FFF_FFFF).contains(&simple_ptr));
 
         // The base ranges should be different
         assert!((generic_ptr & 0xF000_0000) != (simple_ptr & 0xF000_0000));
@@ -246,13 +248,14 @@ mod tests {
         // Check that timestamp is reasonable (not zero)
         // We can't check exact value but ensure it's recent
         let type_name = test_struct.get_type_name();
-        assert!(type_name.len() > 0);
+        assert!(!type_name.is_empty());
     }
 
     #[test]
     fn test_macro_with_interior_mutability_types() {
         // Test with RefCell
         struct RefCellStruct {
+            #[allow(dead_code)]
             data: RefCell<i32>,
         }
         impl_advanced_trackable!(RefCellStruct, 0x3000_0000, no_generics);
@@ -272,6 +275,7 @@ mod tests {
     fn test_macro_with_sync_types() {
         // Test with Mutex
         struct MutexStruct {
+            #[allow(dead_code)]
             data: Mutex<String>,
         }
         impl_advanced_trackable!(MutexStruct, 0x4000_0000, no_generics);
@@ -334,9 +338,9 @@ mod tests {
         let string_ptr = string_struct.get_heap_ptr().unwrap();
         let vec_ptr = vec_struct.get_heap_ptr().unwrap();
 
-        assert!(int_ptr >= 0x1000_0000 && int_ptr < 0x1000_0000 + 0x0FFF_FFFF);
-        assert!(string_ptr >= 0x1000_0000 && string_ptr < 0x1000_0000 + 0x0FFF_FFFF);
-        assert!(vec_ptr >= 0x1000_0000 && vec_ptr < 0x1000_0000 + 0x0FFF_FFFF);
+        assert!((0x1000_0000..0x1000_0000 + 0x0FFF_FFFF).contains(&int_ptr));
+        assert!((0x1000_0000..0x1000_0000 + 0x0FFF_FFFF).contains(&string_ptr));
+        assert!((0x1000_0000..0x1000_0000 + 0x0FFF_FFFF).contains(&vec_ptr));
     }
 
     #[test]
@@ -405,7 +409,7 @@ mod tests {
         // Memory overhead is always >= 0 for usize
 
         // Verify category and behavior are set
-        assert!(format!("{:?}", advanced_info.category).len() > 0);
-        assert!(format!("{:?}", advanced_info.behavior).len() > 0);
+        assert!(!format!("{:?}", advanced_info.category).is_empty());
+        assert!(!format!("{:?}", advanced_info.behavior).is_empty());
     }
 }

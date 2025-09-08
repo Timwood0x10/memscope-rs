@@ -191,12 +191,12 @@ mod tests {
     fn test_export_outcome_debug() {
         let stats = create_test_stats();
         let outcome = ExportOutcome::Fast(stats.clone());
-        let debug_str = format!("{:?}", outcome);
+        let debug_str = format!("{outcome:?}");
         assert!(debug_str.contains("Fast"));
 
         let validation = create_test_validation_result();
         let outcome = ExportOutcome::WithValidation(stats, validation);
-        let debug_str = format!("{:?}", outcome);
+        let debug_str = format!("{outcome:?}");
         assert!(debug_str.contains("WithValidation"));
     }
 

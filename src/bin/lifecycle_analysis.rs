@@ -206,7 +206,7 @@ mod tests {
         for i in 0..10 {
             // Create short-lived allocations (simulated by immediate drop)
             for j in 0..10 {
-                let _temp = vec![j; 50];
+                let _temp = [j; 50];
                 let _temp_string = format!("temp_{i}_{j}");
             }
 

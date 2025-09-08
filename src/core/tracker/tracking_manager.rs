@@ -155,7 +155,6 @@ mod tests {
         let _scope_tracker = manager.scope_tracker();
 
         // If we get here without panicking, creation was successful
-        assert!(true, "TrackingManager created successfully");
     }
 
     #[test]
@@ -166,8 +165,6 @@ mod tests {
         // Should be equivalent to new()
         let _memory_tracker = manager.memory_tracker();
         let _scope_tracker = manager.scope_tracker();
-
-        assert!(true, "TrackingManager default creation successful");
     }
 
     #[test]
@@ -353,8 +350,6 @@ mod tests {
         // let _: TrackingResult<Vec<AllocationInfo>> = manager.get_allocation_history();
         // let _: TrackingResult<ScopeAnalysis> = manager.get_scope_analysis();
         // let _: TrackingResult<ComprehensiveTrackingReport> = manager.perform_comprehensive_analysis();
-
-        assert!(true, "All method signatures are correct");
     }
 
     #[test]
@@ -375,7 +370,5 @@ mod tests {
         // Test that we can access them multiple times
         let _memory_tracker2 = manager.memory_tracker();
         let _scope_tracker2 = manager.scope_tracker();
-
-        assert!(true, "Component access works correctly");
     }
 }

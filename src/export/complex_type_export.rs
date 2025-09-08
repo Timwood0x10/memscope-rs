@@ -158,7 +158,7 @@ mod tests {
         assert_eq!(metadata.export_timestamp, 1234567890);
         assert_eq!(metadata.export_version, "1.0.0");
         assert_eq!(metadata.data_format_version, "v1");
-        assert_eq!(metadata.performance_optimized, true);
+        assert!(metadata.performance_optimized);
     }
 
     #[test]
@@ -181,7 +181,7 @@ mod tests {
             },
         };
         // With empty data, should not export
-        assert_eq!(should_export_complex_types(&report), false);
+        assert!(!should_export_complex_types(&report));
 
         // Create a report with some data
         let mut by_category = HashMap::new();
@@ -206,7 +206,7 @@ mod tests {
             },
         };
         // With data, should export
-        assert_eq!(should_export_complex_types(&report), true);
+        assert!(should_export_complex_types(&report));
     }
 
     #[test]
@@ -217,7 +217,7 @@ mod tests {
             analysis_timestamp: 0,
         };
         // With empty data, should not export
-        assert_eq!(should_export_borrow_analysis(&analysis), false);
+        assert!(!should_export_borrow_analysis(&analysis));
 
         // Create analysis with some data
         let analysis = BorrowPatternAnalysis {
@@ -226,7 +226,7 @@ mod tests {
             analysis_timestamp: 0,
         };
         // With events, should export
-        assert_eq!(should_export_borrow_analysis(&analysis), true);
+        assert!(should_export_borrow_analysis(&analysis));
     }
 
     #[test]
@@ -239,7 +239,7 @@ mod tests {
             most_used_types: vec![],
         };
         // With zero instances, should not export
-        assert_eq!(should_export_generic_analysis(&analysis), false);
+        assert!(!should_export_generic_analysis(&analysis));
 
         let analysis = GenericStatistics {
             total_instances: 5,
@@ -249,7 +249,7 @@ mod tests {
             most_used_types: vec![("Vec".to_string(), 3)],
         };
         // With instances, should export
-        assert_eq!(should_export_generic_analysis(&analysis), true);
+        assert!(should_export_generic_analysis(&analysis));
     }
 
     #[test]

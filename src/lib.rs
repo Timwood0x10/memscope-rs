@@ -1576,30 +1576,6 @@ fn install_exit_hook() {
     });
 }
 
-/// Export final memory snapshot with complete lifecycle data
-fn export_final_snapshot(base_path: &str) -> TrackingResult<()> {
-    let tracker = get_global_tracker();
-
-    // Force a final garbage collection attempt to capture any remaining deallocations
-    // Skip sleep in production to avoid blocking
-    if cfg!(test) {
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
-
-    let json_path = format!("{base_path}.json");
-    tracker.export_to_json(&json_path)?;
-
-    // Also export HTML if requested
-    let export_format =
-        std::env::var("MEMSCOPE_EXPORT_FORMAT").unwrap_or_else(|_| "json".to_string());
-    if export_format == "html" || export_format == "both" {
-        let html_path = format!("{base_path}.html");
-        let _ = tracker.export_interactive_dashboard(&html_path);
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

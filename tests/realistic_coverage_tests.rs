@@ -1,5 +1,9 @@
-//! Realistic tests to improve coverage for existing functionality
-//! This focuses on testing actual APIs and code paths that exist
+//! Realistic coverage tests
+//!
+//! This module contains tests that simulate realistic usage scenarios.
+#![allow(clippy::unnecessary_literal_unwrap)]
+#![allow(clippy::unwrap_or_default)]
+#![allow(clippy::useless_vec)]
 
 use memscope_rs::*;
 

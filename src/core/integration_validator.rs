@@ -159,9 +159,10 @@ impl IntegrationValidator {
         tracing::info!("🧪 Testing comprehensive data deduplicator");
 
         // 🔧 FIX: Use local instance instead of global to avoid state conflicts
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false; // Disable stats to avoid lock contention
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        }; // Disable stats to avoid lock contention
         let deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -300,9 +301,10 @@ impl IntegrationValidator {
         let normalizer = get_global_enhanced_call_stack_normalizer();
 
         // 🔧 FIX: Reduce iterations to avoid timeout and use local deduplicator
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false; // Disable stats to avoid lock contention
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        }; // Disable stats to avoid lock contention
         let local_deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -339,9 +341,10 @@ impl IntegrationValidator {
         tracing::info!("🧪 Testing memory usage characteristics");
 
         // 🔧 FIX: Use local instance with stats enabled for this specific test
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = true; // Enable stats for this test only
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: true,
+            ..Default::default()
+        }; // Enable stats for this test only
         let deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -463,9 +466,10 @@ mod tests {
     #[test]
     fn test_data_deduplicator_validation() {
         // Use local instance instead of global to avoid deadlock
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false; // Disable stats to avoid lock contention
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        }; // Disable stats to avoid lock contention
         let deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -510,9 +514,10 @@ mod tests {
     #[test]
     fn test_memory_usage_validation() {
         // Test memory usage validation without global state
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false;
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        };
         let deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -550,13 +555,6 @@ mod tests {
         };
 
         // Test that results structure works
-        assert!(
-            validation_results.call_stack_normalizer_ok
-                || !validation_results.call_stack_normalizer_ok
-        );
-        assert!(
-            validation_results.edge_case_handler_ok || !validation_results.edge_case_handler_ok
-        );
         assert!(validation_results.data_deduplicator_ok);
     }
 
@@ -665,9 +663,10 @@ mod tests {
     #[test]
     fn test_validation_with_string_deduplication() {
         // Use local instance to avoid global state issues
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false;
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        };
         let deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -711,9 +710,10 @@ mod tests {
 
         // 🔧 FIX: Test components individually to avoid global state conflicts
         // Test data deduplicator with local instance
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false;
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        };
         let deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -729,8 +729,7 @@ mod tests {
         // Should complete quickly (less than 5 seconds)
         assert!(
             elapsed.as_secs() < 5,
-            "Validation took too long: {:?}",
-            elapsed
+            "Validation took too long: {elapsed:?}"
         );
         assert!(deduplicator_ok, "Deduplicator test should succeed");
     }
@@ -739,9 +738,10 @@ mod tests {
     #[test]
     fn test_validation_memory_efficiency() {
         // Use local instance to avoid global state issues
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false;
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        };
         let deduplicator =
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,
@@ -806,9 +806,10 @@ mod tests {
         use std::thread;
 
         // Create a local deduplicator instance to avoid global state
-        let mut config =
-            crate::core::comprehensive_data_deduplicator::DeduplicationConfig::default();
-        config.enable_stats = false;
+        let config = crate::core::comprehensive_data_deduplicator::DeduplicationConfig {
+            enable_stats: false,
+            ..Default::default()
+        };
         let deduplicator = Arc::new(
             crate::core::comprehensive_data_deduplicator::ComprehensiveDataDeduplicator::new(
                 config,

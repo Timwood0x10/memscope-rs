@@ -2465,7 +2465,7 @@ mod tests {
         assert!(buffer.contains("var_with_special_chars"));
         // Note: The current implementation doesn't escape JSON strings properly,
         // but we test what it currently does
-        assert!(buffer.len() > 0);
+        assert!(!buffer.is_empty());
     }
 
     #[test]

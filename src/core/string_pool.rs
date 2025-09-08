@@ -161,7 +161,6 @@ mod string_pool_tests {
         let stats = pool.get_stats();
 
         // Should track memory usage accurately
-        assert!(stats.memory_saved_bytes >= 0);
         assert_eq!(stats.unique_strings, 2);
     }
 
@@ -197,7 +196,6 @@ mod string_pool_tests {
 
         let stats = pool.get_stats();
         assert_eq!(stats.unique_strings, 1);
-        assert!(stats.memory_saved_bytes >= 0);
     }
 
     #[test]

@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn test_export_mode_clone_copy() {
         let original = ExportMode::UserFocused;
-        let cloned = original.clone();
+        let cloned = original; // ExportMode implements Copy, so no clone needed
         let copied = original;
 
         // All should be equal (Copy trait)

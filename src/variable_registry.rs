@@ -1059,31 +1059,30 @@ mod tests {
         // Optional: Test registry functionality if we can get the lock
         // This part may fail in concurrent tests, so we make it non-critical
         let test_addr = 0x50000;
-        if VariableRegistry::clear_registry().is_ok() {
-            if VariableRegistry::register_variable(
+        if VariableRegistry::clear_registry().is_ok()
+            && VariableRegistry::register_variable(
                 test_addr,
                 "tracked_var".to_string(),
                 "Vec<u8>".to_string(),
                 100,
             )
             .is_ok()
-            {
-                // Only test registry lookup if registration succeeded
-                let registry_alloc = create_test_allocation(test_addr, 100, None, None);
-                let enhanced_with_registry =
-                    VariableRegistry::enhance_allocations_with_registry(&[registry_alloc]);
+        {
+            // Only test registry lookup if registration succeeded
+            let registry_alloc = create_test_allocation(test_addr, 100, None, None);
+            let enhanced_with_registry =
+                VariableRegistry::enhance_allocations_with_registry(&[registry_alloc]);
 
-                if enhanced_with_registry.len() == 1 {
-                    let result = &enhanced_with_registry[0];
-                    // If registry lookup worked, it should be classified as "user"
-                    if result["allocation_source"] == "user" {
-                        assert_eq!(result["variable_name"], "tracked_var");
-                        assert_eq!(result["type_name"], "Vec<u8>");
-                        assert_eq!(result["tracking_method"], "track_var_macro");
-                    }
-                    // If registry lookup failed (concurrent test), it should be "system"
-                    // This is also acceptable in concurrent testing
+            if enhanced_with_registry.len() == 1 {
+                let result = &enhanced_with_registry[0];
+                // If registry lookup worked, it should be classified as "user"
+                if result["allocation_source"] == "user" {
+                    assert_eq!(result["variable_name"], "tracked_var");
+                    assert_eq!(result["type_name"], "Vec<u8>");
+                    assert_eq!(result["tracking_method"], "track_var_macro");
                 }
+                // If registry lookup failed (concurrent test), it should be "system"
+                // This is also acceptable in concurrent testing
             }
         }
     }
@@ -1105,8 +1104,7 @@ mod tests {
                 || result1.starts_with("function_")
                 || result1 == "main_function"
                 || result1 == "test_function",
-            "Expected a valid scope name, but got: '{}'",
-            result1
+            "Expected a valid scope name, but got: '{result1}'"
         );
 
         let result2 = VariableRegistry::extract_scope_from_var_name("my_vec");
@@ -1117,8 +1115,7 @@ mod tests {
                 || result2.starts_with("function_")
                 || result2 == "main_function"
                 || result2 == "test_function",
-            "Expected a valid scope name, but got: '{}'",
-            result2
+            "Expected a valid scope name, but got: '{result2}'"
         );
 
         let result3 = VariableRegistry::extract_scope_from_var_name("main_variable");
@@ -1129,8 +1126,7 @@ mod tests {
                 || result3 == "user_scope"
                 || result3.starts_with("function_")
                 || result3 == "test_function",
-            "Expected a valid scope name, but got: '{}'",
-            result3
+            "Expected a valid scope name, but got: '{result3}'"
         );
 
         let result4 = VariableRegistry::extract_scope_from_var_name("test_variable");
@@ -1141,8 +1137,7 @@ mod tests {
                 || result4 == "user_scope"
                 || result4.starts_with("function_")
                 || result4 == "main_function",
-            "Expected a valid scope name, but got: '{}'",
-            result4
+            "Expected a valid scope name, but got: '{result4}'"
         );
     }
 

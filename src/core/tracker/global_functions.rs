@@ -63,56 +63,48 @@ mod tests {
         let _f6: fn(crate::core::scope_tracker::ScopeId) -> TrackingResult<()> = exit_scope;
 
         // If we get here, all functions exist with correct signatures
-        assert!(true);
     }
 
     #[test]
     fn test_get_tracking_manager_function_exists() {
         // Just test that the function exists, don't call it to avoid deadlocks
         let _f: fn() -> TrackingManager = get_tracking_manager;
-        assert!(true);
     }
 
     #[test]
     fn test_track_allocation_function_exists() {
         // Just test that the function exists, don't call it to avoid deadlocks
         let _f: fn(usize, usize) -> TrackingResult<()> = track_allocation;
-        assert!(true);
     }
 
     #[test]
     fn test_track_deallocation_function_exists() {
         // Just test that the function exists, don't call it to avoid deadlocks
         let _f: fn(usize) -> TrackingResult<()> = track_deallocation;
-        assert!(true);
     }
 
     #[test]
     fn test_associate_var_function_exists() {
         // Just test that the function exists, don't call it to avoid deadlocks
         let _f: fn(usize, String, String) -> TrackingResult<()> = associate_var;
-        assert!(true);
     }
 
     #[test]
     fn test_enter_scope_function_exists() {
         // Just test that the function exists, don't call it to avoid deadlocks
         let _f: fn(String) -> TrackingResult<crate::core::scope_tracker::ScopeId> = enter_scope;
-        assert!(true);
     }
 
     #[test]
     fn test_exit_scope_function_exists() {
         // Just test that the function exists, don't call it to avoid deadlocks
         let _f: fn(crate::core::scope_tracker::ScopeId) -> TrackingResult<()> = exit_scope;
-        assert!(true);
     }
 
     #[test]
     fn test_module_documentation() {
         // Test that the module is properly documented and accessible
         // This ensures the module can be imported and used
-        assert!(true, "Global functions module is accessible and documented");
     }
 
     #[test]
@@ -139,8 +131,6 @@ mod tests {
         let _scope_name: String = "test_scope".to_string();
         let _f4: fn(String) -> TrackingResult<crate::core::scope_tracker::ScopeId> = enter_scope;
         let _f5: fn(crate::core::scope_tracker::ScopeId) -> TrackingResult<()> = exit_scope;
-
-        assert!(true);
     }
 
     #[test]
@@ -158,7 +148,5 @@ mod tests {
 
         // Test that ScopeId is returned by enter_scope
         let _phantom: PhantomData<crate::core::scope_tracker::ScopeId> = PhantomData;
-
-        assert!(true);
     }
 }

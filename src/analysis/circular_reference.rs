@@ -941,48 +941,64 @@ mod tests {
 
     #[test]
     fn test_circular_reference_severity_determination() {
-        // Test low severity
-        let low_severity = if 1024 > 1024 * 1024 {
+        // Test low severity - memory size below all thresholds
+        let memory_size = 1024; // 1KB
+        let low_severity = if memory_size > 1024 * 1024 {
+            // 1MB
             CircularReferenceSeverity::Critical
-        } else if 1024 > 64 * 1024 {
+        } else if memory_size > 64 * 1024 {
+            // 64KB
             CircularReferenceSeverity::High
-        } else if 1024 > 4 * 1024 {
+        } else if memory_size > 4 * 1024 {
+            // 4KB
             CircularReferenceSeverity::Medium
         } else {
             CircularReferenceSeverity::Low
         };
         assert_eq!(low_severity, CircularReferenceSeverity::Low);
 
-        // Test medium severity
-        let medium_severity = if 5000 > 1024 * 1024 {
+        // Test medium severity - memory size between 4KB and 64KB
+        let memory_size = 5000; // ~5KB
+        let medium_severity = if memory_size > 1024 * 1024 {
+            // 1MB
             CircularReferenceSeverity::Critical
-        } else if 5000 > 64 * 1024 {
+        } else if memory_size > 64 * 1024 {
+            // 64KB
             CircularReferenceSeverity::High
-        } else if 5000 > 4 * 1024 {
+        } else if memory_size > 4 * 1024 {
+            // 4KB
             CircularReferenceSeverity::Medium
         } else {
             CircularReferenceSeverity::Low
         };
         assert_eq!(medium_severity, CircularReferenceSeverity::Medium);
 
-        // Test high severity
-        let high_severity = if 70000 > 1024 * 1024 {
+        // Test high severity - memory size between 64KB and 1MB
+        let memory_size = 70000; // ~68KB
+        let high_severity = if memory_size > 1024 * 1024 {
+            // 1MB
             CircularReferenceSeverity::Critical
-        } else if 70000 > 64 * 1024 {
+        } else if memory_size > 64 * 1024 {
+            // 64KB
             CircularReferenceSeverity::High
-        } else if 70000 > 4 * 1024 {
+        } else if memory_size > 4 * 1024 {
+            // 4KB
             CircularReferenceSeverity::Medium
         } else {
             CircularReferenceSeverity::Low
         };
         assert_eq!(high_severity, CircularReferenceSeverity::High);
 
-        // Test critical severity
-        let critical_severity = if 2000000 > 1024 * 1024 {
+        // Test critical severity - memory size above 1MB
+        let memory_size = 2000000; // ~2MB
+        let critical_severity = if memory_size > 1024 * 1024 {
+            // 1MB
             CircularReferenceSeverity::Critical
-        } else if 2000000 > 64 * 1024 {
+        } else if memory_size > 64 * 1024 {
+            // 64KB
             CircularReferenceSeverity::High
-        } else if 2000000 > 4 * 1024 {
+        } else if memory_size > 4 * 1024 {
+            // 4KB
             CircularReferenceSeverity::Medium
         } else {
             CircularReferenceSeverity::Low
@@ -992,30 +1008,33 @@ mod tests {
 
     #[test]
     fn test_circular_reference_type_determination() {
-        // Test self reference
-        let self_ref_type = if 1 == 1 {
+        // Test self reference - cycle length 1
+        let cycle_length = 1;
+        let self_ref_type = if cycle_length == 1 {
             CircularReferenceType::SelfReference
-        } else if 1 == 2 {
+        } else if cycle_length == 2 {
             CircularReferenceType::Simple
         } else {
             CircularReferenceType::Complex
         };
         assert_eq!(self_ref_type, CircularReferenceType::SelfReference);
 
-        // Test simple cycle
-        let simple_type = if 2 == 1 {
+        // Test simple cycle - cycle length 2
+        let cycle_length = 2;
+        let simple_type = if cycle_length == 1 {
             CircularReferenceType::SelfReference
-        } else if 2 == 2 {
+        } else if cycle_length == 2 {
             CircularReferenceType::Simple
         } else {
             CircularReferenceType::Complex
         };
         assert_eq!(simple_type, CircularReferenceType::Simple);
 
-        // Test complex cycle
-        let complex_type = if 5 == 1 {
+        // Test complex cycle - cycle length > 2
+        let cycle_length = 5;
+        let complex_type = if cycle_length == 1 {
             CircularReferenceType::SelfReference
-        } else if 5 == 2 {
+        } else if cycle_length == 2 {
             CircularReferenceType::Simple
         } else {
             CircularReferenceType::Complex

@@ -81,8 +81,8 @@ jobs:
       - name: Test examples
         run: |
           cargo run --example basic_usage
-          cargo run --example binary_export_demo
-          cargo run --example ownership_demo
+          cargo run --example simple_binary_test
+          cargo run --example unsafe_ffi_demo
         continue-on-error: ${{ matrix.experimental == true }}
 
   benchmarks:

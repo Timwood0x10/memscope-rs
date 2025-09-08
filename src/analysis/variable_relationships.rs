@@ -586,6 +586,7 @@ mod tests {
     }
 
     /// Helper function to create test allocation with smart pointer info
+    #[allow(clippy::too_many_arguments)]
     fn create_smart_pointer_allocation(
         ptr: usize,
         size: usize,
@@ -856,10 +857,7 @@ mod tests {
 
         // Check that relationships exist between clones
         let has_clone_rel = clone_relationships.iter().any(|rel| {
-            (rel.source == "0x1000" && rel.target == "0x2000")
-                || (rel.source == "0x1000" && rel.target == "0x3000")
-                || (rel.source == "0x1000" && rel.target == "0x2000")
-                || (rel.source == "0x1000" && rel.target == "0x3000")
+            rel.source == "0x1000" && (rel.target == "0x2000" || rel.target == "0x3000")
         });
 
         assert!(has_clone_rel);

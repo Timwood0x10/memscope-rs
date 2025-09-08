@@ -239,7 +239,6 @@ mod tests {
         // Test that the function exists and has the correct signature
         let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> =
             run_analyze_command;
-        assert!(true);
     }
 
     #[test]
@@ -247,7 +246,6 @@ mod tests {
         // Test that the function exists and has the correct signature
         let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> =
             run_report_command;
-        assert!(true);
     }
 
     #[test]
@@ -255,14 +253,12 @@ mod tests {
         // Test that the function exists and has the correct signature
         let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> =
             run_html_from_json_command;
-        assert!(true);
     }
 
     #[test]
     fn test_run_test_command_function_exists() {
         // Test that the function exists and has the correct signature
         let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> = run_test_command;
-        assert!(true);
     }
 
     #[test]
@@ -399,12 +395,10 @@ mod tests {
 
         // Test that help can be generated without panicking
         let _help = cmd.render_help();
-        assert!(true);
 
         // Test subcommand help
         if let Some(analyze_cmd) = cmd.find_subcommand_mut("analyze") {
             let _analyze_help = analyze_cmd.render_help();
-            assert!(true);
         }
     }
 }

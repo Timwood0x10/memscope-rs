@@ -3003,10 +3003,12 @@ mod tests {
 
     #[test]
     fn test_validation_config_conflicts_with_mode() {
-        let mut config = ValidationConfig::default();
-        config.enable_json_validation = true;
-        config.enable_encoding_validation = true;
-        config.max_data_loss_rate = 0.05;
+        let config = ValidationConfig {
+            enable_json_validation: true,
+            enable_encoding_validation: true,
+            max_data_loss_rate: 0.05,
+            ..ValidationConfig::default()
+        };
 
         let fast_conflicts = config.conflicts_with_mode(&ExportMode::Fast);
         assert_eq!(fast_conflicts.len(), 3);
@@ -3014,10 +3016,12 @@ mod tests {
         assert!(fast_conflicts[1].contains("Encoding validation enabled in fast mode"));
         assert!(fast_conflicts[2].contains("Strict data loss rate in fast mode"));
 
-        let mut slow_config = ValidationConfig::default();
-        slow_config.enable_json_validation = false;
-        slow_config.enable_integrity_validation = false;
-        slow_config.enable_encoding_validation = false;
+        let slow_config = ValidationConfig {
+            enable_json_validation: false,
+            enable_integrity_validation: false,
+            enable_encoding_validation: false,
+            ..ValidationConfig::default()
+        };
 
         let slow_conflicts = slow_config.conflicts_with_mode(&ExportMode::Slow);
         assert_eq!(slow_conflicts.len(), 3);
@@ -3031,10 +3035,12 @@ mod tests {
 
     #[test]
     fn test_validation_config_apply_safe_defaults() {
-        let mut config = ValidationConfig::default();
-        config.enable_json_validation = true;
-        config.enable_encoding_validation = true;
-        config.max_data_loss_rate = 0.05;
+        let mut config = ValidationConfig {
+            enable_json_validation: true,
+            enable_encoding_validation: true,
+            max_data_loss_rate: 0.05,
+            ..ValidationConfig::default()
+        };
 
         config.apply_safe_defaults_for_mode(&ExportMode::Fast);
         assert!(!config.enable_json_validation);
@@ -3043,9 +3049,11 @@ mod tests {
         assert!(config.max_data_loss_rate >= 0.5);
         assert!(!config.verbose_logging);
 
-        let mut slow_config = ValidationConfig::default();
-        slow_config.enable_json_validation = false;
-        slow_config.max_data_loss_rate = 0.5;
+        let mut slow_config = ValidationConfig {
+            enable_json_validation: false,
+            max_data_loss_rate: 0.5,
+            ..ValidationConfig::default()
+        };
 
         slow_config.apply_safe_defaults_for_mode(&ExportMode::Slow);
         assert!(slow_config.enable_json_validation);
@@ -3191,7 +3199,6 @@ mod tests {
         let result = validator.validate_processed_shards(&shards, 1).unwrap();
         assert!(result.is_valid);
         assert_eq!(result.validation_type, ValidationType::JsonStructure);
-        assert!(result.validation_time_ms >= 0); // Allow 0 for fast operations
     }
 
     #[test]
@@ -3275,8 +3282,10 @@ mod tests {
         // Create a very small file
         fs::write(&file_path, "{}").unwrap();
 
-        let mut config = ValidationConfig::default();
-        config.min_expected_file_size = 1000; // Require at least 1000 bytes
+        let config = ValidationConfig {
+            min_expected_file_size: 1000, // Require at least 1000 bytes
+            ..ValidationConfig::default()
+        };
         let mut validator = QualityValidator::new(config);
 
         let result = validator
@@ -3302,8 +3311,10 @@ mod tests {
         let large_content = "x".repeat(1000);
         fs::write(&file_path, large_content).unwrap();
 
-        let mut config = ValidationConfig::default();
-        config.max_expected_file_size = 500; // Limit to 500 bytes
+        let config = ValidationConfig {
+            max_expected_file_size: 500, // Limit to 500 bytes
+            ..ValidationConfig::default()
+        };
         let mut validator = QualityValidator::new(config);
 
         let result = validator
@@ -3328,8 +3339,10 @@ mod tests {
         // Create invalid JSON
         fs::write(&file_path, "{ invalid json }").unwrap();
 
-        let mut config = ValidationConfig::default();
-        config.enable_json_validation = true;
+        let config = ValidationConfig {
+            enable_json_validation: true,
+            ..ValidationConfig::default()
+        };
         let mut validator = QualityValidator::new(config);
 
         let result = validator
@@ -3355,8 +3368,10 @@ mod tests {
         let test_data = serde_json::json!({"other_field": "value"});
         fs::write(&file_path, serde_json::to_string(&test_data).unwrap()).unwrap();
 
-        let mut config = ValidationConfig::default();
-        config.enable_json_validation = true;
+        let config = ValidationConfig {
+            enable_json_validation: true,
+            ..ValidationConfig::default()
+        };
         let mut validator = QualityValidator::new(config);
 
         let result = validator
@@ -3385,8 +3400,10 @@ mod tests {
         let test_data = serde_json::json!({"allocations": "not_an_array"});
         fs::write(&file_path, serde_json::to_string(&test_data).unwrap()).unwrap();
 
-        let mut config = ValidationConfig::default();
-        config.enable_json_validation = true;
+        let config = ValidationConfig {
+            enable_json_validation: true,
+            ..ValidationConfig::default()
+        };
         let mut validator = QualityValidator::new(config);
 
         let result = validator
@@ -3417,9 +3434,11 @@ mod tests {
         });
         fs::write(&file_path, serde_json::to_string(&test_data).unwrap()).unwrap();
 
-        let mut config = ValidationConfig::default();
-        config.enable_json_validation = true;
-        config.max_data_loss_rate = 0.1; // 0.1% max loss rate
+        let config = ValidationConfig {
+            enable_json_validation: true,
+            max_data_loss_rate: 0.1, // 0.1% max loss rate
+            ..ValidationConfig::default()
+        };
         let mut validator = QualityValidator::new(config);
 
         // Expect 5 allocations but file only has 2 (60% loss rate)

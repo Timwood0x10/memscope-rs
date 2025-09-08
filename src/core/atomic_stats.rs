@@ -417,7 +417,7 @@ static GLOBAL_ATOMIC_STATS: std::sync::OnceLock<AtomicMemoryStats> = std::sync::
 
 /// Get global atomic memory statistics
 pub fn get_global_atomic_stats() -> &'static AtomicMemoryStats {
-    GLOBAL_ATOMIC_STATS.get_or_init(|| AtomicMemoryStats::new())
+    GLOBAL_ATOMIC_STATS.get_or_init(AtomicMemoryStats::new)
 }
 
 #[cfg(test)]
