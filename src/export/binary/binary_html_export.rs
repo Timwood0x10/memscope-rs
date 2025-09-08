@@ -569,4 +569,470 @@ mod tests {
         let strategy = ProcessingStrategy::Optimized;
         assert_eq!(format!("{strategy:?}"), "Optimized");
     }
+
+    #[test]
+    fn test_binary_html_export_config_default() {
+        let config = BinaryHtmlExportConfig::default();
+        
+        assert!(config.enable_auto_strategy);
+        assert_eq!(config.parallel_threshold, 5000);
+        assert_eq!(config.large_file_threshold, 100 * 1024 * 1024);
+        assert_eq!(config.batch_size, 1000);
+        assert!(!config.enable_progress_reporting);
+        assert_eq!(config.max_memory_usage, 64 * 1024 * 1024);
+        assert!(config.enable_optimizations);
+    }
+
+    #[test]
+    fn test_binary_html_export_config_debug_clone() {
+        let config = BinaryHtmlExportConfig::default();
+        
+        // Test Debug trait
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("BinaryHtmlExportConfig"));
+        assert!(debug_str.contains("enable_auto_strategy"));
+        assert!(debug_str.contains("parallel_threshold"));
+        
+        // Test Clone trait
+        let cloned_config = config.clone();
+        assert_eq!(cloned_config.enable_auto_strategy, config.enable_auto_strategy);
+        assert_eq!(cloned_config.parallel_threshold, config.parallel_threshold);
+        assert_eq!(cloned_config.large_file_threshold, config.large_file_threshold);
+        assert_eq!(cloned_config.batch_size, config.batch_size);
+        assert_eq!(cloned_config.enable_progress_reporting, config.enable_progress_reporting);
+        assert_eq!(cloned_config.max_memory_usage, config.max_memory_usage);
+        assert_eq!(cloned_config.enable_optimizations, config.enable_optimizations);
+    }
+
+    #[test]
+    fn test_binary_html_export_stats_debug_clone() {
+        let writer_stats = BinaryHtmlStats::default();
+        let stats = BinaryHtmlExportStats {
+            writer_stats,
+            total_export_time_ms: 1000,
+            binary_read_time_ms: 200,
+            html_generation_time_ms: 800,
+            file_size_bytes: 5 * 1024 * 1024,
+            strategy_used: ProcessingStrategy::Standard,
+            throughput_allocations_per_sec: 1000.0,
+            memory_efficiency: 50.0,
+        };
+        
+        // Test Debug trait
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("BinaryHtmlExportStats"));
+        assert!(debug_str.contains("total_export_time_ms"));
+        assert!(debug_str.contains("strategy_used"));
+        
+        // Test Clone trait
+        let cloned_stats = stats.clone();
+        assert_eq!(cloned_stats.total_export_time_ms, stats.total_export_time_ms);
+        assert_eq!(cloned_stats.binary_read_time_ms, stats.binary_read_time_ms);
+        assert_eq!(cloned_stats.html_generation_time_ms, stats.html_generation_time_ms);
+        assert_eq!(cloned_stats.file_size_bytes, stats.file_size_bytes);
+        assert_eq!(cloned_stats.strategy_used, stats.strategy_used);
+        assert_eq!(cloned_stats.throughput_allocations_per_sec, stats.throughput_allocations_per_sec);
+        assert_eq!(cloned_stats.memory_efficiency, stats.memory_efficiency);
+    }
+
+    #[test]
+    fn test_processing_strategy_debug_clone_partialeq() {
+        // Test Debug trait
+        let strategy = ProcessingStrategy::Parallel;
+        let debug_str = format!("{:?}", strategy);
+        assert_eq!(debug_str, "Parallel");
+        
+        // Test Clone trait
+        let strategy1 = ProcessingStrategy::Optimized;
+        let strategy2 = strategy1.clone();
+        assert_eq!(strategy1, strategy2);
+        
+        // Test PartialEq trait
+        assert_eq!(ProcessingStrategy::Standard, ProcessingStrategy::Standard);
+        assert_eq!(ProcessingStrategy::Optimized, ProcessingStrategy::Optimized);
+        assert_eq!(ProcessingStrategy::Parallel, ProcessingStrategy::Parallel);
+        
+        assert_ne!(ProcessingStrategy::Standard, ProcessingStrategy::Optimized);
+        assert_ne!(ProcessingStrategy::Optimized, ProcessingStrategy::Parallel);
+        assert_ne!(ProcessingStrategy::Standard, ProcessingStrategy::Parallel);
+    }
+
+    #[test]
+    fn test_binary_html_export_stats_processing_efficiency() {
+        // Test normal case
+        let writer_stats = BinaryHtmlStats {
+            allocations_processed: 2000,
+            ..Default::default()
+        };
+        let stats = BinaryHtmlExportStats {
+            writer_stats,
+            total_export_time_ms: 1000, // 1 second
+            throughput_allocations_per_sec: 0.0,
+            memory_efficiency: 0.0,
+            binary_read_time_ms: 0,
+            html_generation_time_ms: 0,
+            file_size_bytes: 0,
+            strategy_used: ProcessingStrategy::Standard,
+        };
+        
+        assert_eq!(stats.processing_efficiency(), 2000.0); // 2000 * 1000 / 1000
+        
+        // Test zero time case
+        let stats_zero_time = BinaryHtmlExportStats {
+            writer_stats: BinaryHtmlStats {
+                allocations_processed: 1000,
+                ..Default::default()
+            },
+            total_export_time_ms: 0,
+            throughput_allocations_per_sec: 0.0,
+            memory_efficiency: 0.0,
+            binary_read_time_ms: 0,
+            html_generation_time_ms: 0,
+            file_size_bytes: 0,
+            strategy_used: ProcessingStrategy::Standard,
+        };
+        
+        assert_eq!(stats_zero_time.processing_efficiency(), 0.0);
+    }
+
+    #[test]
+    fn test_binary_html_export_stats_performance_improvement() {
+        // Test faster than baseline (800ms)
+        let stats_fast = BinaryHtmlExportStats {
+            writer_stats: BinaryHtmlStats::default(),
+            total_export_time_ms: 400, // Faster than 800ms baseline
+            throughput_allocations_per_sec: 0.0,
+            memory_efficiency: 0.0,
+            binary_read_time_ms: 0,
+            html_generation_time_ms: 0,
+            file_size_bytes: 0,
+            strategy_used: ProcessingStrategy::Parallel,
+        };
+        
+        assert_eq!(stats_fast.performance_improvement(), 50.0); // (800 - 400) / 800 * 100
+        
+        // Test slower than baseline
+        let stats_slow = BinaryHtmlExportStats {
+            writer_stats: BinaryHtmlStats::default(),
+            total_export_time_ms: 1200, // Slower than 800ms baseline
+            throughput_allocations_per_sec: 0.0,
+            memory_efficiency: 0.0,
+            binary_read_time_ms: 0,
+            html_generation_time_ms: 0,
+            file_size_bytes: 0,
+            strategy_used: ProcessingStrategy::Standard,
+        };
+        
+        assert_eq!(stats_slow.performance_improvement(), -50.0); // (800 - 1200) / 800 * 100
+        
+        // Test zero time case
+        let stats_zero = BinaryHtmlExportStats {
+            writer_stats: BinaryHtmlStats::default(),
+            total_export_time_ms: 0,
+            throughput_allocations_per_sec: 0.0,
+            memory_efficiency: 0.0,
+            binary_read_time_ms: 0,
+            html_generation_time_ms: 0,
+            file_size_bytes: 0,
+            strategy_used: ProcessingStrategy::Standard,
+        };
+        
+        assert_eq!(stats_zero.performance_improvement(), 0.0);
+    }
+
+    #[test]
+    fn test_select_optimal_strategy_edge_cases() {
+        let config = BinaryHtmlExportConfig::default();
+        
+        // Test exactly at threshold (100MB == 100MB, so NOT > 100MB, but > 50MB)
+        let strategy = select_optimal_strategy(config.large_file_threshold, &config);
+        assert_eq!(strategy, ProcessingStrategy::Optimized);
+        
+        // Test above threshold
+        let strategy = select_optimal_strategy(config.large_file_threshold + 1, &config);
+        assert_eq!(strategy, ProcessingStrategy::Parallel);
+        
+        // Test exactly at half threshold
+        let half_threshold = config.large_file_threshold / 2;
+        let strategy = select_optimal_strategy(half_threshold, &config);
+        // Since 50MB > 50MB is false, this should be Standard
+        assert_eq!(strategy, ProcessingStrategy::Standard);
+        
+        // Test just above half threshold
+        let strategy = select_optimal_strategy(config.large_file_threshold / 2 + 1, &config);
+        // Since 50MB+1 > 50MB is true, this should be Optimized
+        assert_eq!(strategy, ProcessingStrategy::Optimized);
+        
+        // Test just below half threshold
+        let strategy = select_optimal_strategy(config.large_file_threshold / 2 - 1, &config);
+        assert_eq!(strategy, ProcessingStrategy::Standard);
+        
+        // Test zero size
+        let strategy = select_optimal_strategy(0, &config);
+        assert_eq!(strategy, ProcessingStrategy::Standard);
+        
+        // Test very large file
+        let strategy = select_optimal_strategy(u64::MAX, &config);
+        assert_eq!(strategy, ProcessingStrategy::Parallel);
+    }
+
+    #[test]
+    fn test_select_optimal_strategy_custom_config() {
+        let custom_config = BinaryHtmlExportConfig {
+            large_file_threshold: 50 * 1024 * 1024, // 50MB
+            ..Default::default()
+        };
+        
+        // Test with custom threshold
+        let strategy = select_optimal_strategy(30 * 1024 * 1024, &custom_config); // 30MB
+        assert_eq!(strategy, ProcessingStrategy::Optimized);
+        
+        let strategy = select_optimal_strategy(60 * 1024 * 1024, &custom_config); // 60MB
+        assert_eq!(strategy, ProcessingStrategy::Parallel);
+        
+        let strategy = select_optimal_strategy(10 * 1024 * 1024, &custom_config); // 10MB
+        assert_eq!(strategy, ProcessingStrategy::Standard);
+    }
+
+    #[test]
+    fn test_parse_binary_to_html_direct_dummy_stats() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test.memscope");
+        let html_path = temp_dir.path().join("test.html");
+        
+        // Create a dummy binary file
+        std::fs::write(&binary_path, b"dummy binary data").unwrap();
+        
+        // This will likely fail due to invalid binary format, but we test the function signature
+        let result = parse_binary_to_html_direct(&binary_path, &html_path, "test_project");
+        
+        // We expect this to fail with invalid binary format, but the function should be callable
+        // and return the correct error type
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_binary_to_html_auto_config() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test.memscope");
+        let html_path = temp_dir.path().join("test.html");
+        
+        // Create a dummy binary file
+        std::fs::write(&binary_path, b"dummy binary data").unwrap();
+        
+        // Test auto configuration
+        let result = parse_binary_to_html_auto(&binary_path, &html_path, "test_project");
+        
+        // We expect this to fail with invalid binary format, but the function should be callable
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_recommended_config_file_sizes() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Test small file config
+        let small_file = temp_dir.path().join("small.memscope");
+        let small_data = vec![0u8; 5 * 1024 * 1024]; // 5MB
+        std::fs::write(&small_file, small_data).unwrap();
+        
+        let config = get_recommended_config(&small_file).unwrap();
+        assert!(!config.enable_auto_strategy);
+        assert_eq!(config.batch_size, 500);
+        assert!(!config.enable_progress_reporting);
+        assert!(!config.enable_optimizations);
+        
+        // Test medium file config
+        let medium_file = temp_dir.path().join("medium.memscope");
+        let medium_data = vec![0u8; 50 * 1024 * 1024]; // 50MB
+        std::fs::write(&medium_file, medium_data).unwrap();
+        
+        let config = get_recommended_config(&medium_file).unwrap();
+        assert!(config.enable_auto_strategy);
+        assert_eq!(config.batch_size, 1500);
+        assert!(config.enable_progress_reporting);
+        assert!(config.enable_optimizations);
+        
+        // Test large file config
+        let large_file = temp_dir.path().join("large.memscope");
+        let large_data = vec![0u8; 150 * 1024 * 1024]; // 150MB
+        std::fs::write(&large_file, large_data).unwrap();
+        
+        let config = get_recommended_config(&large_file).unwrap();
+        assert!(config.enable_auto_strategy);
+        assert_eq!(config.batch_size, 2000);
+        assert_eq!(config.parallel_threshold, 3000);
+        assert!(config.enable_progress_reporting);
+        assert_eq!(config.max_memory_usage, 128 * 1024 * 1024);
+        assert!(config.enable_optimizations);
+    }
+
+    #[test]
+    fn test_get_recommended_config_nonexistent_file() {
+        let result = get_recommended_config("nonexistent_file.memscope");
+        assert!(result.is_err());
+        
+        // Verify it returns the correct error type
+        match result {
+            Err(BinaryExportError::Io(_)) => {
+                // Expected error type
+            }
+            _ => panic!("Expected BinaryExportError::Io"),
+        }
+    }
+
+    #[test]
+    fn test_parse_binary_to_html_with_config_file_not_found() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let nonexistent_binary = temp_dir.path().join("nonexistent.memscope");
+        let html_path = temp_dir.path().join("output.html");
+        let config = BinaryHtmlExportConfig::default();
+        
+        let result = parse_binary_to_html_with_config(
+            &nonexistent_binary,
+            &html_path,
+            "test_project",
+            &config,
+        );
+        
+        assert!(result.is_err());
+        match result {
+            Err(BinaryExportError::Io(_)) => {
+                // Expected error type for file not found
+            }
+            _ => panic!("Expected BinaryExportError::Io for file not found"),
+        }
+    }
+
+    #[test]
+    fn test_binary_html_export_stats_with_real_values() {
+        let writer_stats = BinaryHtmlStats {
+            allocations_processed: 5000,
+            total_html_size: 250000,
+            peak_memory_usage: 20 * 1024 * 1024, // 20MB
+            ..Default::default()
+        };
+        
+        let export_stats = BinaryHtmlExportStats {
+            writer_stats,
+            total_export_time_ms: 2000, // 2 seconds
+            binary_read_time_ms: 500,
+            html_generation_time_ms: 1500,
+            file_size_bytes: 10 * 1024 * 1024, // 10MB
+            strategy_used: ProcessingStrategy::Optimized,
+            throughput_allocations_per_sec: 2500.0, // 5000 / 2
+            memory_efficiency: 250.0, // 5000 / 20MB
+        };
+        
+        // Test processing efficiency
+        assert_eq!(export_stats.processing_efficiency(), 2500.0);
+        
+        // Test performance improvement (should be positive since 2000ms < 800ms baseline is false)
+        // Actually 2000ms > 800ms, so improvement should be negative
+        assert_eq!(export_stats.performance_improvement(), -150.0); // (800 - 2000) / 800 * 100
+        
+        // Verify all fields are set correctly
+        assert_eq!(export_stats.writer_stats.allocations_processed, 5000);
+        assert_eq!(export_stats.total_export_time_ms, 2000);
+        assert_eq!(export_stats.binary_read_time_ms, 500);
+        assert_eq!(export_stats.html_generation_time_ms, 1500);
+        assert_eq!(export_stats.file_size_bytes, 10 * 1024 * 1024);
+        assert_eq!(export_stats.strategy_used, ProcessingStrategy::Optimized);
+        assert_eq!(export_stats.throughput_allocations_per_sec, 2500.0);
+        assert_eq!(export_stats.memory_efficiency, 250.0);
+    }
+
+    #[test]
+    fn test_config_builder_pattern_simulation() {
+        // Simulate a builder pattern by creating configs with different settings
+        let base_config = BinaryHtmlExportConfig::default();
+        
+        let custom_config = BinaryHtmlExportConfig {
+            enable_auto_strategy: false,
+            parallel_threshold: 10000,
+            large_file_threshold: 200 * 1024 * 1024,
+            batch_size: 2000,
+            enable_progress_reporting: true,
+            max_memory_usage: 128 * 1024 * 1024,
+            enable_optimizations: false,
+        };
+        
+        // Verify the custom config differs from default
+        assert_ne!(custom_config.enable_auto_strategy, base_config.enable_auto_strategy);
+        assert_ne!(custom_config.parallel_threshold, base_config.parallel_threshold);
+        assert_ne!(custom_config.large_file_threshold, base_config.large_file_threshold);
+        assert_ne!(custom_config.batch_size, base_config.batch_size);
+        assert_ne!(custom_config.enable_progress_reporting, base_config.enable_progress_reporting);
+        assert_ne!(custom_config.max_memory_usage, base_config.max_memory_usage);
+        assert_ne!(custom_config.enable_optimizations, base_config.enable_optimizations);
+        
+        // Verify the custom config has expected values
+        assert!(!custom_config.enable_auto_strategy);
+        assert_eq!(custom_config.parallel_threshold, 10000);
+        assert_eq!(custom_config.large_file_threshold, 200 * 1024 * 1024);
+        assert_eq!(custom_config.batch_size, 2000);
+        assert!(custom_config.enable_progress_reporting);
+        assert_eq!(custom_config.max_memory_usage, 128 * 1024 * 1024);
+        assert!(!custom_config.enable_optimizations);
+    }
+
+    #[test]
+    fn test_strategy_selection_comprehensive() {
+        let configs = [
+            // Default config
+            BinaryHtmlExportConfig::default(),
+            // Custom small threshold config
+            BinaryHtmlExportConfig {
+                large_file_threshold: 10 * 1024 * 1024, // 10MB
+                ..Default::default()
+            },
+            // Custom large threshold config
+            BinaryHtmlExportConfig {
+                large_file_threshold: 500 * 1024 * 1024, // 500MB
+                ..Default::default()
+            },
+        ];
+        
+        let file_sizes = [
+            1024,                    // 1KB
+            1024 * 1024,            // 1MB
+            10 * 1024 * 1024,       // 10MB
+            50 * 1024 * 1024,       // 50MB
+            100 * 1024 * 1024,      // 100MB
+            200 * 1024 * 1024,      // 200MB
+            1024 * 1024 * 1024,     // 1GB
+        ];
+        
+        for config in &configs {
+            for &file_size in &file_sizes {
+                let strategy = select_optimal_strategy(file_size, config);
+                
+                // Verify strategy is one of the valid options
+                match strategy {
+                    ProcessingStrategy::Standard | 
+                    ProcessingStrategy::Optimized | 
+                    ProcessingStrategy::Parallel => {
+                        // Valid strategy
+                    }
+                }
+                
+                // Verify strategy logic
+                if file_size > config.large_file_threshold {
+                    assert_eq!(strategy, ProcessingStrategy::Parallel);
+                } else if file_size > config.large_file_threshold / 2 {
+                    assert_eq!(strategy, ProcessingStrategy::Optimized);
+                } else {
+                    assert_eq!(strategy, ProcessingStrategy::Standard);
+                }
+            }
+        }
+    }
 }

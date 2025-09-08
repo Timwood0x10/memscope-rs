@@ -1015,7 +1015,6 @@ mod tests {
         
         let stats = result.unwrap();
         assert!(stats.bytes_written > 0);
-        assert!(stats.total_write_time_ms >= 0);
         assert!(stats.flush_count > 0);
     }
 

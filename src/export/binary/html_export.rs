@@ -1133,3 +1133,339 @@ fn export_binary_to_html_progressive_impl<P: AsRef<Path>>(
 
     Ok(stats)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_binary_output_format_debug_clone_partialeq() {
+        // Test Debug trait
+        let format = BinaryOutputFormat::Json;
+        let debug_str = format!("{format:?}");
+        assert!(debug_str.contains("Json"));
+
+        // Test Clone trait
+        let format1 = BinaryOutputFormat::Html;
+        let format2 = format1;
+        assert_eq!(format1, format2);
+
+        // Test PartialEq trait
+        assert_eq!(BinaryOutputFormat::Json, BinaryOutputFormat::Json);
+        assert_eq!(BinaryOutputFormat::Html, BinaryOutputFormat::Html);
+        assert_eq!(BinaryOutputFormat::HtmlSystem, BinaryOutputFormat::HtmlSystem);
+        assert_eq!(BinaryOutputFormat::HtmlBoth, BinaryOutputFormat::HtmlBoth);
+        assert_eq!(BinaryOutputFormat::Both, BinaryOutputFormat::Both);
+
+        assert_ne!(BinaryOutputFormat::Json, BinaryOutputFormat::Html);
+        assert_ne!(BinaryOutputFormat::Html, BinaryOutputFormat::HtmlSystem);
+        assert_ne!(BinaryOutputFormat::HtmlSystem, BinaryOutputFormat::HtmlBoth);
+        assert_ne!(BinaryOutputFormat::HtmlBoth, BinaryOutputFormat::Both);
+    }
+
+    #[test]
+    fn test_binary_export_config_default() {
+        let config = BinaryExportConfig::default();
+        
+        assert!(config.enable_parallel_processing);
+        assert_eq!(config.buffer_size, 256 * 1024);
+        assert_eq!(config.batch_size, 2000);
+        assert!(config.enable_streaming);
+        assert!(config.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_binary_export_config_new() {
+        let config1 = BinaryExportConfig::new();
+        let config2 = BinaryExportConfig::default();
+        
+        assert_eq!(config1.enable_parallel_processing, config2.enable_parallel_processing);
+        assert_eq!(config1.buffer_size, config2.buffer_size);
+        assert_eq!(config1.batch_size, config2.batch_size);
+        assert_eq!(config1.enable_streaming, config2.enable_streaming);
+        assert_eq!(config1.thread_count, config2.thread_count);
+    }
+
+    #[test]
+    fn test_binary_export_config_fast() {
+        let config = BinaryExportConfig::fast();
+        
+        assert!(config.enable_parallel_processing);
+        assert_eq!(config.buffer_size, 512 * 1024);
+        assert_eq!(config.batch_size, 3000);
+        assert!(config.enable_streaming);
+        assert!(config.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_binary_export_config_large_files() {
+        let config = BinaryExportConfig::large_files();
+        
+        assert!(config.enable_parallel_processing);
+        assert_eq!(config.buffer_size, 1024 * 1024);
+        assert_eq!(config.batch_size, 5000);
+        assert!(config.enable_streaming);
+        assert!(config.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_binary_export_config_builder_methods() {
+        let config = BinaryExportConfig::new()
+            .parallel_processing(false)
+            .buffer_size(128 * 1024)
+            .batch_size(1000)
+            .streaming(false)
+            .thread_count(Some(4));
+        
+        assert!(!config.enable_parallel_processing);
+        assert_eq!(config.buffer_size, 128 * 1024);
+        assert_eq!(config.batch_size, 1000);
+        assert!(!config.enable_streaming);
+        assert_eq!(config.thread_count, Some(4));
+    }
+
+    #[test]
+    fn test_binary_export_config_debug_clone() {
+        let config = BinaryExportConfig::default();
+        
+        // Test Debug trait
+        let debug_str = format!("{config:?}");
+        assert!(debug_str.contains("BinaryExportConfig"));
+        assert!(debug_str.contains("enable_parallel_processing"));
+        assert!(debug_str.contains("buffer_size"));
+        
+        // Test Clone trait
+        let cloned_config = config.clone();
+        assert_eq!(cloned_config.enable_parallel_processing, config.enable_parallel_processing);
+        assert_eq!(cloned_config.buffer_size, config.buffer_size);
+        assert_eq!(cloned_config.batch_size, config.batch_size);
+        assert_eq!(cloned_config.enable_streaming, config.enable_streaming);
+        assert_eq!(cloned_config.thread_count, config.thread_count);
+    }
+
+    #[test]
+    fn test_allocation_data_from_allocation_info() {
+        let allocation_info = crate::core::types::AllocationInfo {
+            ptr: 0x1000,
+            size: 64,
+            var_name: Some("test_var".to_string()),
+            type_name: Some("String".to_string()),
+            scope_name: Some("main".to_string()),
+            timestamp_alloc: 1234567890,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: Some(100),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        };
+
+        let allocation_data = AllocationData::from(allocation_info);
+        
+        assert_eq!(allocation_data.id, 0x1000);
+        assert_eq!(allocation_data.size, 64);
+        assert_eq!(allocation_data.type_name, "String");
+        assert_eq!(allocation_data.location, "main");
+        assert_eq!(allocation_data.timestamp, 1234567890);
+        assert_eq!(allocation_data.status, "Active");
+    }
+
+    #[test]
+    fn test_allocation_data_from_allocation_info_with_defaults() {
+        let allocation_info = crate::core::types::AllocationInfo {
+            ptr: 0x2000,
+            size: 128,
+            var_name: None,
+            type_name: None, // Should default to "Unknown"
+            scope_name: None, // Should default to "Unknown"
+            timestamp_alloc: 1234567900,
+            timestamp_dealloc: Some(1234567950), // Should make status "Freed"
+            thread_id: "worker".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: Some(50),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        };
+
+        let allocation_data = AllocationData::from(allocation_info);
+        
+        assert_eq!(allocation_data.id, 0x2000);
+        assert_eq!(allocation_data.size, 128);
+        assert_eq!(allocation_data.type_name, "Unknown");
+        assert_eq!(allocation_data.location, "Unknown");
+        assert_eq!(allocation_data.timestamp, 1234567900);
+        assert_eq!(allocation_data.status, "Freed");
+    }
+
+    #[test]
+    fn test_show_export_options() {
+        // This function just prints information, so we test that it doesn't panic
+        show_export_options();
+    }
+
+    #[test]
+    fn test_provide_performance_feedback() {
+        let config = BinaryExportConfig::default();
+        
+        // Test excellent performance (< 1000ms)
+        let excellent_time = std::time::Duration::from_millis(500);
+        provide_performance_feedback(BinaryOutputFormat::Json, &config, excellent_time);
+        
+        // Test good performance (1000-5000ms)
+        let good_time = std::time::Duration::from_millis(2000);
+        provide_performance_feedback(BinaryOutputFormat::Html, &config, good_time);
+        
+        // Test slow performance (> 5000ms)
+        let slow_time = std::time::Duration::from_millis(8000);
+        provide_performance_feedback(BinaryOutputFormat::Both, &config, slow_time);
+        
+        // Test with different configurations
+        let slow_config = BinaryExportConfig::default()
+            .parallel_processing(false)
+            .batch_size(500);
+        provide_performance_feedback(BinaryOutputFormat::Both, &slow_config, slow_time);
+    }
+
+    #[test]
+    fn test_convert_allocation_to_binary_data() {
+        let allocation = crate::core::types::AllocationInfo {
+            ptr: 0x1000,
+            size: 64,
+            var_name: Some("test_var".to_string()),
+            type_name: Some("String".to_string()),
+            scope_name: Some("main".to_string()),
+            timestamp_alloc: 1234567890,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 2,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: Some(100),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        };
+
+        let result = convert_allocation_to_binary_data(&allocation, 0);
+        assert!(result.is_ok());
+        
+        let binary_data = result.unwrap();
+        assert_eq!(binary_data.id, 0x1000);
+        assert_eq!(binary_data.size, 64);
+        assert_eq!(binary_data.type_name, "String");
+        assert_eq!(binary_data.scope_name, "main");
+        assert_eq!(binary_data.timestamp_alloc, 1234567890);
+        assert!(binary_data.is_active);
+        assert_eq!(binary_data.ptr, 0x1000);
+        assert_eq!(binary_data.thread_id, "main");
+        assert_eq!(binary_data.var_name, Some("test_var".to_string()));
+        assert_eq!(binary_data.borrow_count, 2);
+        assert!(!binary_data.is_leaked);
+        assert_eq!(binary_data.lifetime_ms, Some(100));
+        assert!(binary_data.optional_fields.is_empty());
+    }
+
+    #[test]
+    fn test_convert_allocation_to_binary_data_with_defaults() {
+        let allocation = crate::core::types::AllocationInfo {
+            ptr: 0x2000,
+            size: 128,
+            var_name: None,
+            type_name: None, // Should default to "unknown_type"
+            scope_name: None, // Should default to "global"
+            timestamp_alloc: 1234567900,
+            timestamp_dealloc: Some(1234567950),
+            thread_id: "worker".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: true,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        };
+
+        let result = convert_allocation_to_binary_data(&allocation, 1);
+        assert!(result.is_ok());
+        
+        let binary_data = result.unwrap();
+        assert_eq!(binary_data.id, 0x2000);
+        assert_eq!(binary_data.size, 128);
+        assert_eq!(binary_data.type_name, "unknown_type");
+        assert_eq!(binary_data.scope_name, "global");
+        assert_eq!(binary_data.timestamp_alloc, 1234567900);
+        assert!(!binary_data.is_active); // Should be false due to timestamp_dealloc
+        assert_eq!(binary_data.ptr, 0x2000);
+        assert_eq!(binary_data.thread_id, "worker");
+        assert_eq!(binary_data.var_name, None);
+        assert_eq!(binary_data.borrow_count, 0);
+        assert!(binary_data.is_leaked);
+        assert_eq!(binary_data.lifetime_ms, None);
+    }
+}

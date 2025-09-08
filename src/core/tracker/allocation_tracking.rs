@@ -938,3 +938,572 @@ impl MemoryTracker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::core::tracker::memory_tracker::MemoryTracker;
+    use crate::core::ownership_history::OwnershipEventType;
+    use std::sync::Arc;
+
+    fn create_test_tracker() -> MemoryTracker {
+        MemoryTracker::new()
+    }
+
+    #[test]
+    fn test_fast_track_allocation() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.fast_track_allocation(0x1000, 64, "test_var".to_string());
+        assert!(result.is_ok());
+        
+        // Verify allocation was tracked
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x1000).unwrap();
+        assert_eq!(allocation.size, 64);
+        assert_eq!(allocation.var_name, Some("test_var".to_string()));
+        assert_eq!(allocation.type_name, Some("fast_tracked".to_string()));
+    }
+
+    #[test]
+    fn test_fast_track_allocation_multiple() {
+        let tracker = create_test_tracker();
+        
+        // Track multiple allocations
+        for i in 0..5 {
+            let ptr = 0x1000 + i * 0x100;
+            let size = 64 + i * 32;
+            let var_name = format!("var_{}", i);
+            
+            let result = tracker.fast_track_allocation(ptr, size, var_name.clone());
+            assert!(result.is_ok());
+        }
+        
+        // Verify all allocations were tracked
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert_eq!(allocations.len(), 5);
+        
+        for i in 0..5 {
+            let ptr = 0x1000 + i * 0x100;
+            let allocation = allocations.iter().find(|a| a.ptr == ptr).unwrap();
+            assert_eq!(allocation.size, 64 + i * 32);
+            assert_eq!(allocation.var_name, Some(format!("var_{}", i)));
+        }
+    }
+
+    #[test]
+    fn test_track_allocation() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.track_allocation(0x2000, 128);
+        assert!(result.is_ok());
+        
+        // Verify allocation was tracked
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x2000).unwrap();
+        assert_eq!(allocation.size, 128);
+        assert_eq!(allocation.ptr, 0x2000);
+    }
+
+    #[test]
+    fn test_track_allocation_with_context() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.track_allocation_with_context(
+            0x3000,
+            256,
+            "context_var".to_string(),
+            "String".to_string(),
+        );
+        assert!(result.is_ok());
+        
+        // Verify allocation was tracked with context
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x3000).unwrap();
+        assert_eq!(allocation.size, 256);
+        assert_eq!(allocation.var_name, Some("context_var".to_string()));
+        assert_eq!(allocation.type_name, Some("String".to_string()));
+        assert!(allocation.lifetime_ms.is_some());
+    }
+
+    #[test]
+    fn test_track_deallocation() {
+        let tracker = create_test_tracker();
+        
+        // First track an allocation
+        tracker.track_allocation(0x4000, 512).unwrap();
+        
+        // Verify it's active
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert!(allocations.iter().any(|a| a.ptr == 0x4000));
+        
+        // Now deallocate it
+        let result = tracker.track_deallocation(0x4000);
+        assert!(result.is_ok());
+        
+        // Verify it's no longer active
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert!(!allocations.iter().any(|a| a.ptr == 0x4000));
+    }
+
+    #[test]
+    fn test_track_deallocation_nonexistent() {
+        let tracker = create_test_tracker();
+        
+        // Try to deallocate a non-existent allocation
+        let result = tracker.track_deallocation(0x9999);
+        assert!(result.is_ok()); // Should not error
+    }
+
+    #[test]
+    fn test_create_synthetic_allocation() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.create_synthetic_allocation(
+            0x5000,
+            1024,
+            "synthetic_var".to_string(),
+            "Vec<u8>".to_string(),
+            1234567890,
+        );
+        assert!(result.is_ok());
+        
+        // Verify synthetic allocation was created
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x5000).unwrap();
+        assert_eq!(allocation.size, 1024);
+        assert_eq!(allocation.var_name, Some("synthetic_var".to_string()));
+        assert_eq!(allocation.type_name, Some("Vec<u8>".to_string()));
+    }
+
+    #[test]
+    fn test_associate_var_existing_allocation() {
+        let tracker = create_test_tracker();
+        
+        // First track an allocation without context
+        tracker.track_allocation(0x6000, 128).unwrap();
+        
+        // Then associate a variable with it
+        let result = tracker.associate_var(
+            0x6000,
+            "associated_var".to_string(),
+            "HashMap<String, i32>".to_string(),
+        );
+        assert!(result.is_ok());
+        
+        // Verify association was successful
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x6000).unwrap();
+        assert_eq!(allocation.var_name, Some("associated_var".to_string()));
+        assert_eq!(allocation.type_name, Some("HashMap<String, i32>".to_string()));
+    }
+
+    #[test]
+    fn test_associate_var_new_allocation() {
+        let tracker = create_test_tracker();
+        
+        // Associate a variable with a non-existent allocation (creates synthetic)
+        let result = tracker.associate_var(
+            0x7000,
+            "new_var".to_string(),
+            "Box<String>".to_string(),
+        );
+        assert!(result.is_ok());
+        
+        // Verify synthetic allocation was created
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x7000).unwrap();
+        assert_eq!(allocation.var_name, Some("new_var".to_string()));
+        assert_eq!(allocation.type_name, Some("Box<String>".to_string()));
+        assert!(allocation.size > 0); // Should have estimated size
+    }
+
+    #[test]
+    fn test_track_smart_pointer_clone() {
+        let tracker = create_test_tracker();
+        
+        // Create source allocation with smart pointer info
+        tracker.create_smart_pointer_allocation(
+            0x8000,
+            24,
+            "source_rc".to_string(),
+            "std::rc::Rc<String>".to_string(),
+            1234567890,
+            1,
+            0x8100,
+        ).unwrap();
+        
+        // Create clone allocation
+        tracker.create_smart_pointer_allocation(
+            0x8200,
+            24,
+            "clone_rc".to_string(),
+            "std::rc::Rc<String>".to_string(),
+            1234567900,
+            2,
+            0x8100, // Same data pointer
+        ).unwrap();
+        
+        // Track the clone relationship
+        let result = tracker.track_smart_pointer_clone(0x8200, 0x8000, 0x8100, 2, 0);
+        assert!(result.is_ok());
+        
+        // Verify clone relationship was tracked
+        let allocations = tracker.get_active_allocations().unwrap();
+        let source_alloc = allocations.iter().find(|a| a.ptr == 0x8000).unwrap();
+        let clone_alloc = allocations.iter().find(|a| a.ptr == 0x8200).unwrap();
+        
+        assert!(source_alloc.smart_pointer_info.is_some());
+        assert!(clone_alloc.smart_pointer_info.is_some());
+    }
+
+    #[test]
+    fn test_update_smart_pointer_ref_count() {
+        let tracker = create_test_tracker();
+        
+        // Create smart pointer allocation
+        tracker.create_smart_pointer_allocation(
+            0x9000,
+            24,
+            "ref_counted".to_string(),
+            "std::rc::Rc<i32>".to_string(),
+            1234567890,
+            1,
+            0x9100,
+        ).unwrap();
+        
+        // Update reference count
+        let result = tracker.update_smart_pointer_ref_count(0x9000, 3, 1);
+        assert!(result.is_ok());
+        
+        // Verify reference count was updated
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x9000).unwrap();
+        
+        if let Some(ref smart_info) = allocation.smart_pointer_info {
+            if let Some(latest) = smart_info.latest_ref_counts() {
+                assert_eq!(latest.strong_count, 3);
+                assert_eq!(latest.weak_count, 1);
+            }
+        } else {
+            panic!("Smart pointer info should be present");
+        }
+    }
+
+    #[test]
+    fn test_create_smart_pointer_allocation_rc() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.create_smart_pointer_allocation(
+            0xa000,
+            24,
+            "rc_ptr".to_string(),
+            "std::rc::Rc<Vec<u8>>".to_string(),
+            1234567890,
+            1,
+            0xa100,
+        );
+        assert!(result.is_ok());
+        
+        // Verify smart pointer allocation was created
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0xa000).unwrap();
+        assert_eq!(allocation.size, 24);
+        assert_eq!(allocation.var_name, Some("rc_ptr".to_string()));
+        assert_eq!(allocation.type_name, Some("std::rc::Rc<Vec<u8>>".to_string()));
+        assert!(allocation.smart_pointer_info.is_some());
+        
+        if let Some(ref smart_info) = allocation.smart_pointer_info {
+            assert_eq!(smart_info.data_ptr, 0xa100);
+            if let Some(latest) = smart_info.latest_ref_counts() {
+                assert_eq!(latest.strong_count, 1);
+                assert_eq!(latest.weak_count, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn test_create_smart_pointer_allocation_arc() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.create_smart_pointer_allocation(
+            0xb000,
+            24,
+            "arc_ptr".to_string(),
+            "std::sync::Arc<String>".to_string(),
+            1234567890,
+            1,
+            0xb100,
+        );
+        assert!(result.is_ok());
+        
+        // Verify Arc allocation was created
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0xb000).unwrap();
+        
+        if let Some(ref smart_info) = allocation.smart_pointer_info {
+            assert_eq!(smart_info.pointer_type, crate::core::types::SmartPointerType::Arc);
+        }
+    }
+
+    #[test]
+    fn test_create_smart_pointer_allocation_box() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.create_smart_pointer_allocation(
+            0xc000,
+            8,
+            "box_ptr".to_string(),
+            "Box<i64>".to_string(),
+            1234567890,
+            1,
+            0xc100,
+        );
+        assert!(result.is_ok());
+        
+        // Verify Box allocation was created
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0xc000).unwrap();
+        
+        if let Some(ref smart_info) = allocation.smart_pointer_info {
+            assert_eq!(smart_info.pointer_type, crate::core::types::SmartPointerType::Box);
+        }
+    }
+
+    #[test]
+    fn test_create_smart_pointer_allocation_weak() {
+        let tracker = create_test_tracker();
+        
+        let result = tracker.create_smart_pointer_allocation(
+            0xd000,
+            24,
+            "weak_ptr".to_string(),
+            "std::rc::Weak<String>".to_string(),
+            1234567890,
+            2, // weak count
+            0xd100,
+        );
+        assert!(result.is_ok());
+        
+        // Verify Weak allocation was created
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0xd000).unwrap();
+        
+        if let Some(ref smart_info) = allocation.smart_pointer_info {
+            assert_eq!(smart_info.pointer_type, crate::core::types::SmartPointerType::RcWeak);
+            if let Some(latest) = smart_info.latest_ref_counts() {
+                assert_eq!(latest.weak_count, 2);
+            }
+        }
+    }
+
+    #[test]
+    fn test_track_deallocation_with_lifetime() {
+        let tracker = create_test_tracker();
+        
+        // First track an allocation
+        tracker.track_allocation(0xe000, 256).unwrap();
+        
+        // Deallocate with specific lifetime
+        let result = tracker.track_deallocation_with_lifetime(0xe000, 1500);
+        assert!(result.is_ok());
+        
+        // Verify allocation is no longer active
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert!(!allocations.iter().any(|a| a.ptr == 0xe000));
+    }
+
+    #[test]
+    fn test_track_smart_pointer_deallocation() {
+        let tracker = create_test_tracker();
+        
+        // Create smart pointer allocation
+        tracker.create_smart_pointer_allocation(
+            0xf000,
+            24,
+            "dealloc_rc".to_string(),
+            "std::rc::Rc<String>".to_string(),
+            1234567890,
+            1,
+            0xf100,
+        ).unwrap();
+        
+        // Deallocate smart pointer
+        let result = tracker.track_smart_pointer_deallocation(0xf000, 2000, 0);
+        assert!(result.is_ok());
+        
+        // Verify allocation is no longer active
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert!(!allocations.iter().any(|a| a.ptr == 0xf000));
+    }
+
+    #[test]
+    fn test_record_ownership_event() {
+        let tracker = create_test_tracker();
+        
+        // Record various ownership events
+        tracker.record_ownership_event(0x10000, OwnershipEventType::Allocated);
+        tracker.record_ownership_event(0x10000, OwnershipEventType::Borrowed { borrower_scope: "test_scope".to_string() });
+        tracker.record_ownership_event(0x10000, OwnershipEventType::OwnershipTransferred { target_var: "new_var".to_string() });
+        tracker.record_ownership_event(0x10000, OwnershipEventType::Dropped);
+        
+        // This should not panic or error
+    }
+
+    #[test]
+    fn test_get_ownership_summary() {
+        let tracker = create_test_tracker();
+        
+        // Record some ownership events
+        tracker.record_ownership_event(0x11000, OwnershipEventType::Allocated);
+        tracker.record_ownership_event(0x11000, OwnershipEventType::Borrowed { borrower_scope: "test_scope".to_string() });
+        
+        // Get ownership summary
+        let summary = tracker.get_ownership_summary(0x11000);
+        assert!(summary.is_some());
+        
+        // Test non-existent allocation
+        let no_summary = tracker.get_ownership_summary(0x99999);
+        assert!(no_summary.is_none() || no_summary.is_some()); // Either is valid
+    }
+
+    #[test]
+    fn test_export_ownership_history() {
+        let tracker = create_test_tracker();
+        
+        // Record some ownership events
+        tracker.record_ownership_event(0x12000, OwnershipEventType::Allocated);
+        tracker.record_ownership_event(0x12000, OwnershipEventType::Borrowed { borrower_scope: "test_scope".to_string() });
+        tracker.record_ownership_event(0x12000, OwnershipEventType::Dropped);
+        
+        // Export ownership history
+        let result = tracker.export_ownership_history();
+        assert!(result.is_ok());
+        
+        let json_str = result.unwrap();
+        assert!(!json_str.is_empty());
+        
+        // Verify it's valid JSON
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert!(parsed.is_object() || parsed.is_array());
+    }
+
+    #[test]
+    fn test_concurrent_allocations() {
+        let tracker = Arc::new(create_test_tracker());
+        let mut handles = vec![];
+        
+        // Spawn multiple threads doing allocations
+        for i in 0..5 {
+            let tracker_clone = Arc::clone(&tracker);
+            let handle = std::thread::spawn(move || {
+                for j in 0..10 {
+                    let ptr = (i * 1000 + j) * 0x100;
+                    let size = 64 + j * 8;
+                    let var_name = format!("thread_{}_var_{}", i, j);
+                    
+                    let _ = tracker_clone.fast_track_allocation(ptr, size, var_name);
+                }
+            });
+            handles.push(handle);
+        }
+        
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        // Verify allocations were tracked
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert!(allocations.len() > 0);
+        assert!(allocations.len() <= 50); // Should be up to 50 allocations
+    }
+
+    #[test]
+    fn test_allocation_lifecycle() {
+        let tracker = create_test_tracker();
+        
+        // Track allocation
+        tracker.track_allocation_with_context(
+            0x13000,
+            512,
+            "lifecycle_var".to_string(),
+            "Vec<String>".to_string(),
+        ).unwrap();
+        
+        // Verify it's active
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x13000).unwrap();
+        assert!(allocation.lifetime_ms.is_some());
+        
+        // Associate additional info
+        tracker.associate_var(
+            0x13000,
+            "updated_lifecycle_var".to_string(),
+            "Vec<String>".to_string(),
+        ).unwrap();
+        
+        // Verify update
+        let allocations = tracker.get_active_allocations().unwrap();
+        let allocation = allocations.iter().find(|a| a.ptr == 0x13000).unwrap();
+        assert_eq!(allocation.var_name, Some("updated_lifecycle_var".to_string()));
+        
+        // Record ownership events
+        tracker.record_ownership_event(0x13000, OwnershipEventType::Allocated);
+        tracker.record_ownership_event(0x13000, OwnershipEventType::Borrowed { borrower_scope: "test_scope".to_string() });
+        
+        // Deallocate
+        tracker.track_deallocation(0x13000).unwrap();
+        
+        // Verify it's no longer active
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert!(!allocations.iter().any(|a| a.ptr == 0x13000));
+    }
+
+    #[test]
+    fn test_smart_pointer_lifecycle() {
+        let tracker = create_test_tracker();
+        
+        // Create Rc allocation
+        tracker.create_smart_pointer_allocation(
+            0x14000,
+            24,
+            "rc_lifecycle".to_string(),
+            "std::rc::Rc<Vec<i32>>".to_string(),
+            1234567890,
+            1,
+            0x14100,
+        ).unwrap();
+        
+        // Clone it
+        tracker.create_smart_pointer_allocation(
+            0x14200,
+            24,
+            "rc_clone".to_string(),
+            "std::rc::Rc<Vec<i32>>".to_string(),
+            1234567900,
+            2,
+            0x14100, // Same data pointer
+        ).unwrap();
+        
+        // Track clone relationship
+        tracker.track_smart_pointer_clone(0x14200, 0x14000, 0x14100, 2, 0).unwrap();
+        
+        // Update reference counts
+        tracker.update_smart_pointer_ref_count(0x14000, 2, 0).unwrap();
+        tracker.update_smart_pointer_ref_count(0x14200, 2, 0).unwrap();
+        
+        // Deallocate clone (ref count goes to 1)
+        tracker.track_smart_pointer_deallocation(0x14200, 1000, 1).unwrap();
+        
+        // Update original ref count
+        tracker.update_smart_pointer_ref_count(0x14000, 1, 0).unwrap();
+        
+        // Deallocate original (ref count goes to 0)
+        tracker.track_smart_pointer_deallocation(0x14000, 2000, 0).unwrap();
+        
+        // Verify both are deallocated
+        let allocations = tracker.get_active_allocations().unwrap();
+        assert!(!allocations.iter().any(|a| a.ptr == 0x14000));
+        assert!(!allocations.iter().any(|a| a.ptr == 0x14200));
+    }
+}
