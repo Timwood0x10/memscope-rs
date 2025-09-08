@@ -1176,3 +1176,751 @@ pub fn generate_optimization_recommendations(
 
     recommendations
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::{AllocationInfo, MemoryStats, TypeMemoryUsage};
+    use crate::analysis::unsafe_ffi_tracker::{UnsafeFFIStats, UnsafeOperation, UnsafeOperationType, RiskLevel};
+    use tempfile::TempDir;
+
+    fn create_test_allocation(ptr: usize, size: usize, type_name: Option<String>, var_name: Option<String>) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name,
+            type_name,
+            scope_name: Some("test_scope".to_string()),
+            timestamp_alloc: 1234567890,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: Some(100),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    fn create_test_memory_stats() -> MemoryStats {
+        MemoryStats {
+            total_allocations: 100,
+            total_allocated: 10240,
+            active_allocations: 50,
+            active_memory: 5120,
+            peak_allocations: 75,
+            peak_memory: 8192,
+            total_deallocations: 50,
+            total_deallocated: 5120,
+            leaked_allocations: 0,
+            leaked_memory: 0,
+            fragmentation_analysis: crate::core::types::FragmentationAnalysis::default(),
+            lifecycle_stats: crate::core::types::ScopeLifecycleMetrics::default(),
+            allocations: Vec::new(),
+            system_library_stats: crate::core::types::SystemLibraryStats::default(),
+            concurrency_analysis: crate::core::types::ConcurrencyAnalysis::default(),
+        }
+    }
+
+    fn create_test_unsafe_stats() -> UnsafeFFIStats {
+        UnsafeFFIStats {
+            total_operations: 5,
+            unsafe_blocks: 2,
+            ffi_calls: 10,
+            raw_pointer_operations: 3,
+            memory_violations: 2,
+            risk_score: 6.5,
+            operations: vec![
+                UnsafeOperation {
+                    operation_type: UnsafeOperationType::RawPointerDeref,
+                    location: "test.rs:10".to_string(),
+                    risk_level: RiskLevel::High,
+                    timestamp: 1234567890,
+                    description: "Raw pointer dereference".to_string(),
+                },
+                UnsafeOperation {
+                    operation_type: UnsafeOperationType::FfiCall,
+                    location: "test.rs:20".to_string(),
+                    risk_level: RiskLevel::Medium,
+                    timestamp: 1234567900,
+                    description: "FFI function call".to_string(),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_export_json_options_default() {
+        let options = ExportJsonOptions::default();
+        
+        assert!(options.parallel_processing);
+        assert_eq!(options.buffer_size, 256 * 1024);
+        assert!(options.use_compact_format.is_none());
+        assert!(options.enable_type_cache);
+        assert_eq!(options.batch_size, 1000);
+        assert!(options.streaming_writer);
+        assert!(!options.schema_validation);
+        assert!(options.adaptive_optimization);
+        assert_eq!(options.max_cache_size, 10_000);
+        assert!(!options.security_analysis);
+        assert!(!options.include_low_severity);
+        assert!(!options.integrity_hashes);
+        assert!(!options.fast_export_mode);
+        assert_eq!(options.auto_fast_export_threshold, Some(10_000));
+        assert!(options.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_export_json_options_with_optimization_levels() {
+        // Test Low optimization level
+        let low_options = ExportJsonOptions::with_optimization_level(OptimizationLevel::Low);
+        assert!(low_options.parallel_processing);
+        assert_eq!(low_options.buffer_size, 128 * 1024);
+        assert_eq!(low_options.use_compact_format, Some(true));
+        assert_eq!(low_options.batch_size, 2000);
+        assert!(!low_options.schema_validation);
+        assert!(!low_options.adaptive_optimization);
+        assert_eq!(low_options.max_cache_size, 5_000);
+        assert!(low_options.fast_export_mode);
+        assert_eq!(low_options.auto_fast_export_threshold, Some(5_000));
+
+        // Test Medium optimization level (should be same as default)
+        let medium_options = ExportJsonOptions::with_optimization_level(OptimizationLevel::Medium);
+        let default_options = ExportJsonOptions::default();
+        assert_eq!(medium_options.parallel_processing, default_options.parallel_processing);
+        assert_eq!(medium_options.buffer_size, default_options.buffer_size);
+        assert_eq!(medium_options.batch_size, default_options.batch_size);
+
+        // Test High optimization level
+        let high_options = ExportJsonOptions::with_optimization_level(OptimizationLevel::High);
+        assert!(high_options.parallel_processing);
+        assert_eq!(high_options.buffer_size, 512 * 1024);
+        assert_eq!(high_options.use_compact_format, Some(false));
+        assert_eq!(high_options.batch_size, 500);
+        assert!(high_options.schema_validation);
+        assert!(high_options.adaptive_optimization);
+        assert_eq!(high_options.max_cache_size, 50_000);
+        assert!(high_options.security_analysis);
+        assert!(high_options.include_low_severity);
+        assert!(high_options.integrity_hashes);
+        assert!(!high_options.fast_export_mode);
+        assert!(high_options.auto_fast_export_threshold.is_none());
+
+        // Test Maximum optimization level
+        let max_options = ExportJsonOptions::with_optimization_level(OptimizationLevel::Maximum);
+        assert!(max_options.parallel_processing);
+        assert_eq!(max_options.buffer_size, 1024 * 1024);
+        assert_eq!(max_options.use_compact_format, Some(true));
+        assert_eq!(max_options.batch_size, 1000);
+        assert!(max_options.schema_validation);
+        assert!(max_options.adaptive_optimization);
+        assert_eq!(max_options.max_cache_size, 100_000);
+        assert!(max_options.security_analysis);
+        assert!(max_options.include_low_severity);
+        assert!(max_options.integrity_hashes);
+        assert!(max_options.fast_export_mode);
+        assert_eq!(max_options.auto_fast_export_threshold, Some(10_000));
+    }
+
+    #[test]
+    fn test_export_json_options_builder_methods() {
+        let options = ExportJsonOptions::default()
+            .parallel_processing(false)
+            .buffer_size(512 * 1024)
+            .fast_export_mode(true)
+            .security_analysis(true)
+            .streaming_writer(false)
+            .schema_validation(true)
+            .integrity_hashes(true)
+            .batch_size(2000)
+            .adaptive_optimization(false)
+            .max_cache_size(20_000)
+            .include_low_severity(true)
+            .thread_count(Some(8));
+
+        assert!(!options.parallel_processing);
+        assert_eq!(options.buffer_size, 512 * 1024);
+        assert!(options.fast_export_mode);
+        assert!(options.security_analysis);
+        assert!(!options.streaming_writer);
+        assert!(options.schema_validation);
+        assert!(options.integrity_hashes);
+        assert_eq!(options.batch_size, 2000);
+        assert!(!options.adaptive_optimization);
+        assert_eq!(options.max_cache_size, 20_000);
+        assert!(options.include_low_severity);
+        assert_eq!(options.thread_count, Some(8));
+    }
+
+    #[test]
+    fn test_get_or_compute_type_info() {
+        // Clear cache first
+        clear_type_cache();
+
+        // Test cache miss and population
+        let type_info1 = get_or_compute_type_info("String", 64);
+        assert_eq!(type_info1, "string");
+
+        // Test cache hit (should return same result)
+        let type_info2 = get_or_compute_type_info("String", 64);
+        assert_eq!(type_info2, "string");
+        assert_eq!(type_info1, type_info2);
+
+        // Test different types
+        let vec_info = get_or_compute_type_info("Vec", 128);
+        assert_eq!(vec_info, "collection");
+
+        let map_info = get_or_compute_type_info("HashMap", 256);
+        assert_eq!(map_info, "map");
+
+        let set_info = get_or_compute_type_info("HashSet", 128);
+        assert_eq!(set_info, "set");
+
+        // Test large allocation
+        let large_info = get_or_compute_type_info("LargeStruct", 2048);
+        assert_eq!(large_info, "large");
+
+        // Test custom type
+        let custom_info = get_or_compute_type_info("MyStruct", 64);
+        assert_eq!(custom_info, "custom");
+
+        // Clear cache and verify
+        clear_type_cache();
+        let type_info3 = get_or_compute_type_info("String", 64);
+        assert_eq!(type_info3, "string"); // Should still work after cache clear
+    }
+
+    #[test]
+    fn test_compute_enhanced_type_info() {
+        // Test string types
+        assert_eq!(compute_enhanced_type_info("String", 100), "string");
+        assert_eq!(compute_enhanced_type_info("&str", 50), "string");
+
+        // Test collection types
+        assert_eq!(compute_enhanced_type_info("Vec", 200), "collection");
+        assert_eq!(compute_enhanced_type_info("VecDeque", 150), "collection");
+        assert_eq!(compute_enhanced_type_info("LinkedList", 300), "collection");
+
+        // Test map types
+        assert_eq!(compute_enhanced_type_info("HashMap", 400), "map");
+        assert_eq!(compute_enhanced_type_info("BTreeMap", 350), "map");
+
+        // Test set types
+        assert_eq!(compute_enhanced_type_info("HashSet", 250), "set");
+        assert_eq!(compute_enhanced_type_info("BTreeSet", 200), "set");
+
+        // Test large allocations
+        assert_eq!(compute_enhanced_type_info("LargeBuffer", 2048), "large");
+        assert_eq!(compute_enhanced_type_info("Unknown", 1500), "large");
+
+        // Test custom types
+        assert_eq!(compute_enhanced_type_info("MyStruct", 64), "custom");
+        assert_eq!(compute_enhanced_type_info("CustomType", 128), "custom");
+    }
+
+    #[test]
+    fn test_process_allocation_batch() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("test_var".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec".to_string()),
+                Some("test_vec".to_string()),
+            ),
+            create_test_allocation(
+                0x3000,
+                32,
+                None, // Test unknown type
+                None, // Test unknown var
+            ),
+        ];
+
+        let result = process_allocation_batch(&allocations);
+        assert!(result.is_ok());
+
+        let processed = result.unwrap();
+        assert_eq!(processed.len(), 3);
+
+        // Check first allocation
+        let first = &processed[0];
+        assert_eq!(first["address"].as_str().unwrap(), "0x1000");
+        assert_eq!(first["size"].as_u64().unwrap(), 64);
+        assert_eq!(first["type"].as_str().unwrap(), "string");
+        assert_eq!(first["timestamp"].as_u64().unwrap(), 1234567890);
+        assert_eq!(first["var_name"].as_str().unwrap(), "test_var");
+        assert_eq!(first["type_name"].as_str().unwrap(), "String");
+
+        // Check second allocation
+        let second = &processed[1];
+        assert_eq!(second["address"].as_str().unwrap(), "0x2000");
+        assert_eq!(second["size"].as_u64().unwrap(), 128);
+        assert_eq!(second["type"].as_str().unwrap(), "collection");
+        assert_eq!(second["var_name"].as_str().unwrap(), "test_vec");
+        assert_eq!(second["type_name"].as_str().unwrap(), "Vec");
+
+        // Check third allocation (unknown type/var)
+        let third = &processed[2];
+        assert_eq!(third["address"].as_str().unwrap(), "0x3000");
+        assert_eq!(third["size"].as_u64().unwrap(), 32);
+        assert_eq!(third["type"].as_str().unwrap(), "custom");
+        assert!(third.get("var_name").is_none());
+        assert!(third.get("type_name").is_none());
+    }
+
+    #[test]
+    fn test_process_allocation_batch_enhanced() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("test_var".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec".to_string()),
+                Some("test_vec".to_string()),
+            ),
+        ];
+
+        let options = ExportJsonOptions::default();
+        let result = process_allocation_batch_enhanced(&allocations, &options);
+        assert!(result.is_ok());
+
+        let processed = result.unwrap();
+        assert_eq!(processed.len(), 2);
+
+        // Verify the processed data structure
+        let first = &processed[0];
+        assert_eq!(first["address"].as_str().unwrap(), "0x1000");
+        assert_eq!(first["size"].as_u64().unwrap(), 64);
+        assert_eq!(first["type"].as_str().unwrap(), "string");
+    }
+
+    #[test]
+    fn test_process_allocation_batch_enhanced_parallel() {
+        // Create a large batch to trigger parallel processing
+        let mut allocations = Vec::new();
+        for i in 0..2000 {
+            allocations.push(create_test_allocation(
+                0x1000 + i * 0x100,
+                64 + i % 100,
+                Some(format!("Type{}", i % 10)),
+                Some(format!("var{}", i)),
+            ));
+        }
+
+        let options = ExportJsonOptions::default()
+            .parallel_processing(true)
+            .batch_size(1000); // Should trigger parallel processing
+
+        let result = process_allocation_batch_enhanced(&allocations, &options);
+        assert!(result.is_ok());
+
+        let processed = result.unwrap();
+        assert_eq!(processed.len(), 2000);
+
+        // Verify that we have the correct number of entries
+        // Note: Parallel processing may change order, so we just verify count and some basic properties
+        assert_eq!(processed.len(), 2000);
+        
+        // Verify that all entries have the expected structure
+        for entry in &processed {
+            assert!(entry.get("address").is_some());
+            assert!(entry.get("size").is_some());
+            assert!(entry.get("type").is_some());
+            
+            let size = entry["size"].as_u64().unwrap();
+            assert!(size >= 64 && size <= 163); // Size should be in expected range
+        }
+    }
+
+    #[test]
+    fn test_process_allocation_batch_enhanced_sequential() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("test_var".to_string()),
+            ),
+        ];
+
+        let options = ExportJsonOptions::default()
+            .parallel_processing(false); // Force sequential processing
+
+        let result = process_allocation_batch_enhanced(&allocations, &options);
+        assert!(result.is_ok());
+
+        let processed = result.unwrap();
+        assert_eq!(processed.len(), 1);
+    }
+
+    #[test]
+    fn test_estimate_json_size() {
+        // Test simple object
+        let simple_obj = serde_json::json!({
+            "key": "value"
+        });
+        let size1 = estimate_json_size(&simple_obj);
+        assert!(size1 > 0);
+
+        // Test array
+        let array = serde_json::json!([1, 2, 3, 4, 5]);
+        let size2 = estimate_json_size(&array);
+        assert!(size2 > 0);
+
+        // Test complex nested structure
+        let complex = serde_json::json!({
+            "data": {
+                "items": [
+                    {"id": 1, "name": "item1"},
+                    {"id": 2, "name": "item2"}
+                ],
+                "metadata": {
+                    "count": 2,
+                    "description": "test data"
+                }
+            }
+        });
+        let size3 = estimate_json_size(&complex);
+        assert!(size3 > size1);
+        assert!(size3 > size2);
+
+        // Test string
+        let string_val = serde_json::json!("This is a test string");
+        let size4 = estimate_json_size(&string_val);
+        assert!(size4 > 20); // String length + overhead
+
+        // Test primitive
+        let number = serde_json::json!(42);
+        let size5 = estimate_json_size(&number);
+        assert_eq!(size5, 20); // Default primitive size
+    }
+
+    #[test]
+    fn test_write_json_optimized() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_output.json");
+
+        let test_data = serde_json::json!({
+            "test": "value",
+            "number": 42,
+            "array": [1, 2, 3]
+        });
+
+        let options = ExportJsonOptions::default()
+            .schema_validation(false)
+            .streaming_writer(false); // Use traditional writer for small files
+
+        let result = write_json_optimized(&file_path, &test_data, &options);
+        assert!(result.is_ok());
+
+        // Verify file was created and contains valid JSON
+        assert!(file_path.exists());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["test"].as_str().unwrap(), "value");
+        assert_eq!(parsed["number"].as_u64().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_write_json_optimized_compact_format() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_compact.json");
+
+        let test_data = serde_json::json!({
+            "test": "compact",
+            "format": true
+        });
+
+        let mut options = ExportJsonOptions::default();
+        options.use_compact_format = Some(true);
+        options.schema_validation = false;
+        options.streaming_writer = false;
+
+        let result = write_json_optimized(&file_path, &test_data, &options);
+        assert!(result.is_ok());
+
+        // Verify file was created
+        assert!(file_path.exists());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        
+        // Compact format should not have extra whitespace
+        assert!(!content.contains("  ")); // No indentation
+        assert!(!content.contains('\n')); // No newlines
+    }
+
+    #[test]
+    fn test_write_json_optimized_pretty_format() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_pretty.json");
+
+        let test_data = serde_json::json!({
+            "test": "pretty",
+            "format": true
+        });
+
+        let mut options = ExportJsonOptions::default();
+        options.use_compact_format = Some(false);
+        options.schema_validation = false;
+        options.streaming_writer = false;
+
+        let result = write_json_optimized(&file_path, &test_data, &options);
+        assert!(result.is_ok());
+
+        // Verify file was created
+        assert!(file_path.exists());
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        
+        // Pretty format should have whitespace
+        assert!(content.contains("  ") || content.contains('\n')); // Has formatting
+    }
+
+    #[test]
+    fn test_build_unified_dashboard_structure() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("test_var".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("test_vec".to_string()),
+            ),
+        ];
+
+        let memory_by_type = vec![
+            TypeMemoryUsage {
+                type_name: "String".to_string(),
+                total_size: 64,
+                current_size: 64,
+                allocation_count: 1,
+                average_size: 64.0,
+                peak_size: 64,
+                efficiency_score: 0.8,
+            },
+            TypeMemoryUsage {
+                type_name: "Vec<i32>".to_string(),
+                total_size: 128,
+                current_size: 128,
+                allocation_count: 1,
+                average_size: 128.0,
+                peak_size: 128,
+                efficiency_score: 0.9,
+            },
+        ];
+
+        let stats = create_test_memory_stats();
+        let unsafe_stats = create_test_unsafe_stats();
+
+        let dashboard = build_unified_dashboard_structure(
+            &allocations,
+            &allocations, // Use same for history
+            &memory_by_type,
+            &stats,
+            &unsafe_stats,
+        );
+
+        // Verify structure
+        assert!(dashboard.get("metadata").is_some());
+        assert!(dashboard.get("performance_metrics").is_some());
+        assert!(dashboard.get("memory_statistics").is_some());
+        assert!(dashboard.get("allocation_details").is_some());
+        assert!(dashboard.get("type_usage").is_some());
+        assert!(dashboard.get("unsafe_operations").is_some());
+        assert!(dashboard.get("analysis_summary").is_some());
+
+        // Verify metadata
+        let metadata = dashboard.get("metadata").unwrap();
+        assert_eq!(metadata.get("total_allocations").unwrap().as_u64().unwrap(), 100);
+        assert_eq!(metadata.get("active_allocations").unwrap().as_u64().unwrap(), 50);
+
+        // Verify allocation details
+        let allocation_details = dashboard.get("allocation_details").unwrap().as_array().unwrap();
+        assert_eq!(allocation_details.len(), 2);
+
+        let first_alloc = &allocation_details[0];
+        assert_eq!(first_alloc.get("ptr").unwrap().as_str().unwrap(), "0x1000");
+        assert_eq!(first_alloc.get("size").unwrap().as_u64().unwrap(), 64);
+        assert_eq!(first_alloc.get("type_name").unwrap().as_str().unwrap(), "String");
+        assert_eq!(first_alloc.get("var_name").unwrap().as_str().unwrap(), "test_var");
+
+        // Verify extended fields are present
+        assert!(first_alloc.get("borrow_info").is_some());
+        assert!(first_alloc.get("clone_info").is_some());
+        assert!(first_alloc.get("ownership_history_available").is_some());
+        assert!(first_alloc.get("ownership_history").is_some());
+    }
+
+    #[test]
+    fn test_identify_memory_hotspots() {
+        let memory_by_type = vec![
+            TypeMemoryUsage {
+                type_name: "LargeType".to_string(),
+                total_size: 2 * 1024 * 1024, // 2MB
+                current_size: 2 * 1024 * 1024,
+                allocation_count: 10,
+                average_size: 204800.0,
+                peak_size: 512 * 1024,
+                efficiency_score: 0.7,
+            },
+            TypeMemoryUsage {
+                type_name: "MediumType".to_string(),
+                total_size: 128 * 1024, // 128KB
+                current_size: 128 * 1024,
+                allocation_count: 50,
+                average_size: 2560.0,
+                peak_size: 4096,
+                efficiency_score: 0.8,
+            },
+            TypeMemoryUsage {
+                type_name: "SmallType".to_string(),
+                total_size: 512, // 512B - should be filtered out
+                current_size: 512,
+                allocation_count: 100,
+                average_size: 5.12,
+                peak_size: 64,
+                efficiency_score: 0.9,
+            },
+        ];
+
+        let hotspots = identify_memory_hotspots(&memory_by_type);
+        
+        // Should only include types > 1KB
+        assert_eq!(hotspots.len(), 2);
+
+        // Should be sorted by total size descending
+        let first_hotspot = &hotspots[0];
+        assert_eq!(first_hotspot.get("type").unwrap().as_str().unwrap(), "LargeType");
+        assert_eq!(first_hotspot.get("total_size").unwrap().as_u64().unwrap(), 2 * 1024 * 1024);
+        assert_eq!(first_hotspot.get("severity").unwrap().as_str().unwrap(), "high");
+
+        let second_hotspot = &hotspots[1];
+        assert_eq!(second_hotspot.get("type").unwrap().as_str().unwrap(), "MediumType");
+        assert_eq!(second_hotspot.get("total_size").unwrap().as_u64().unwrap(), 128 * 1024);
+        assert_eq!(second_hotspot.get("severity").unwrap().as_str().unwrap(), "medium");
+    }
+
+    #[test]
+    fn test_generate_optimization_recommendations() {
+        // Test high fragmentation
+        let high_frag_stats = MemoryStats {
+            total_allocations: 100,
+            total_allocated: 10000,
+            active_allocations: 70,
+            active_memory: 3000, // Low active vs total allocated
+            peak_allocations: 90,
+            peak_memory: 8000,
+            total_deallocations: 30,
+            total_deallocated: 3000,
+            leaked_allocations: 0,
+            leaked_memory: 0,
+            fragmentation_analysis: crate::core::types::FragmentationAnalysis::default(),
+            lifecycle_stats: crate::core::types::ScopeLifecycleMetrics::default(),
+            allocations: Vec::new(),
+            system_library_stats: crate::core::types::SystemLibraryStats::default(),
+            concurrency_analysis: crate::core::types::ConcurrencyAnalysis::default(),
+        };
+
+        let memory_by_type = vec![
+            TypeMemoryUsage {
+                type_name: "LargeType".to_string(),
+                total_size: 2 * 1024 * 1024,
+                current_size: 2 * 1024 * 1024,
+                allocation_count: 1,
+                average_size: 2.0 * 1024.0 * 1024.0, // > 1MB average
+                peak_size: 2 * 1024 * 1024,
+                efficiency_score: 0.5,
+            },
+        ];
+
+        let recommendations = generate_optimization_recommendations(&high_frag_stats, &memory_by_type);
+        
+        assert!(!recommendations.is_empty());
+        assert!(recommendations.iter().any(|r| r.contains("fragmentation")));
+        assert!(recommendations.iter().any(|r| r.contains("efficiency")));
+        assert!(recommendations.iter().any(|r| r.contains("large average allocations")));
+        assert!(recommendations.iter().any(|r| r.contains("allocation-to-deallocation ratio")));
+
+        // Test healthy memory usage
+        let healthy_stats = MemoryStats {
+            total_allocations: 100,
+            total_allocated: 1000,
+            active_allocations: 10,
+            active_memory: 900, // High efficiency
+            peak_allocations: 20,
+            peak_memory: 1000,
+            total_deallocations: 90,
+            total_deallocated: 800,
+            leaked_allocations: 0,
+            leaked_memory: 0,
+            fragmentation_analysis: crate::core::types::FragmentationAnalysis::default(),
+            lifecycle_stats: crate::core::types::ScopeLifecycleMetrics::default(),
+            allocations: Vec::new(),
+            system_library_stats: crate::core::types::SystemLibraryStats::default(),
+            concurrency_analysis: crate::core::types::ConcurrencyAnalysis::default(),
+        };
+
+        let small_memory_by_type = vec![
+            TypeMemoryUsage {
+                type_name: "SmallType".to_string(),
+                total_size: 1024,
+                current_size: 1024,
+                allocation_count: 10,
+                average_size: 102.4, // Small average
+                peak_size: 256,
+                efficiency_score: 0.9,
+            },
+        ];
+
+        let healthy_recommendations = generate_optimization_recommendations(&healthy_stats, &small_memory_by_type);
+        assert!(healthy_recommendations.iter().any(|r| r.contains("healthy")));
+    }
+
+    #[test]
+    fn test_export_json_options_debug_clone() {
+        let options = ExportJsonOptions::default();
+        
+        // Test Debug implementation
+        let debug_str = format!("{:?}", options);
+        assert!(debug_str.contains("ExportJsonOptions"));
+        assert!(debug_str.contains("parallel_processing"));
+        assert!(debug_str.contains("buffer_size"));
+        
+        // Test Clone implementation
+        let cloned_options = options.clone();
+        assert_eq!(cloned_options.parallel_processing, options.parallel_processing);
+        assert_eq!(cloned_options.buffer_size, options.buffer_size);
+        assert_eq!(cloned_options.batch_size, options.batch_size);
+        assert_eq!(cloned_options.max_cache_size, options.max_cache_size);
+    }
+}

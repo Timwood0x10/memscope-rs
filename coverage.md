@@ -30,7 +30,7 @@ analysis/safety_analyzer.rs                                     1330            
 analysis/security_violation_analyzer.rs                         1313                62    95.28%          65                 0   100.00%         959                31    96.77%           0                 0         -
 analysis/unknown_memory_regions.rs                               877                55    93.73%          67                 4    94.03%         597                35    94.14%           0                 0         -
 analysis/unsafe_ffi_tracker.rs                                  2331               625    73.19%          90                21    76.67%        1735               522    69.91%           0                 0         -
-analysis/variable_relationships.rs                              1165                65    94.42%          55                 1    98.18%         837                37    95.58%           0                 0         -
+analysis/variable_relationships.rs                              1165                64    94.51%          55                 1    98.18%         837                37    95.58%           0                 0         -
 bin/allocation_count_diagnostic.rs                               358               190    46.93%          12                 5    58.33%         248               132    46.77%           0                 0         -
 bin/core_performance_test.rs                                     610               215    64.75%          20                 2    90.00%         438               145    66.89%           0                 0         -
 bin/establish_baseline.rs                                        243                31    87.24%           6                 1    83.33%         118                10    91.53%           0                 0         -
@@ -87,7 +87,7 @@ core/threshold_batch_processor.rs                                270            
 core/tracker/allocation_tracking.rs                              752               532    29.26%          32                23    28.12%         569               413    27.42%           0                 0         -
 core/tracker/config.rs                                           259                 5    98.07%          17                 0   100.00%         169                 0   100.00%           0                 0         -
 core/tracker/export_html.rs                                      341                41    87.98%          19                 4    78.95%         334                18    94.61%           0                 0         -
-core/tracker/export_json.rs                                     1111               800    27.99%          58                43    25.86%         798               566    29.07%           0                 0         -
+core/tracker/export_json.rs                                     1984               403    79.69%          83                18    78.31%        1346               256    80.98%           0                 0         -
 core/tracker/global_functions.rs                                 145                41    71.72%          16                 6    62.50%          70                23    67.14%           0                 0         -
 core/tracker/memory_analysis.rs                                 2000               481    75.95%          75                 8    89.33%        1489               412    72.33%           0                 0         -
 core/tracker/memory_tracker.rs                                  1334               235    82.38%          90                20    77.78%         964               215    77.70%           0                 0         -
@@ -103,7 +103,7 @@ export/binary/batch_processor.rs                                 632            
 export/binary/binary_html_export.rs                              389               306    21.34%          15                 6    60.00%         303               198    34.65%           0                 0         -
 export/binary/binary_html_writer.rs                              524               175    66.60%          35                14    60.00%         412               141    65.78%           0                 0         -
 export/binary/binary_template_engine.rs                         1141               171    85.01%          56                13    76.79%        1099               117    89.35%           0                 0         -
-export/binary/cache.rs                                           798                84    89.47%          47                 9    80.85%         502                45    91.04%           0                 0         -
+export/binary/cache.rs                                           798                80    89.97%          47                 9    80.85%         502                43    91.43%           0                 0         -
 export/binary/complex_type_analyzer.rs                           610                27    95.57%          28                 4    85.71%         412                13    96.84%           0                 0         -
 export/binary/config.rs                                          344               126    63.37%          46                22    52.17%         361               124    65.65%           0                 0         -
 export/binary/error.rs                                            67                32    52.24%           6                 2    66.67%          41                20    51.22%           0                 0         -
@@ -117,7 +117,7 @@ export/binary/html_export.rs                                    1009            
 export/binary/index.rs                                           345                17    95.07%          27                 2    92.59%         231                14    93.94%           0                 0         -
 export/binary/index_builder.rs                                   679               126    81.44%          29                 9    68.97%         442               109    75.34%           0                 0         -
 export/binary/integration_test_complex_types.rs                  264                 0   100.00%          12                 0   100.00%         163                 0   100.00%           0                 0         -
-export/binary/integration_test_ffi_safety.rs                     349                 2    99.43%          18                 0   100.00%         245                 0   100.00%           0                 0         -
+export/binary/integration_test_ffi_safety.rs                     349                 3    99.14%          18                 0   100.00%         245                 0   100.00%           0                 0         -
 export/binary/integration_test_template_resources.rs             364                 5    98.63%          10                 0   100.00%         233                 5    97.85%           0                 0         -
 export/binary/integration_test_variable_relationships.rs         708                 1    99.86%          41                 0   100.00%         577                 0   100.00%           0                 0         -
 export/binary/memory_layout_serialization.rs                     571               303    46.94%          29                18    37.93%         324               154    52.47%           0                 0         -
@@ -157,8 +157,9 @@ export/visualization.rs                                         3109            
 lib.rs                                                          1722               763    55.69%         139                53    61.87%        1113               568    48.97%           0                 0         -
 main.rs                                                          435               175    59.77%          20                 5    75.00%         292               151    48.29%           0                 0         -
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         737                76    89.69%           0                 0         -
-variable_registry.rs                                            1662               243    85.38%          82                19    76.83%        1043               134    87.15%           0                 0         -
+variable_registry.rs                                            1662               242    85.44%          82                19    76.83%        1043               134    87.15%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                         114173             33041    71.06%        6022              1490    75.26%       78323             21525    72.52%           0                 0         -
+TOTAL                                                         115046             32639    71.63%        6047              1465    75.77%       78871             21213    73.10%           0                 0         -
+
 
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
