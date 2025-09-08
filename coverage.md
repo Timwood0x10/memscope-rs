@@ -12,6 +12,7 @@
 
 
 3.
+
 Filename                                                     Regions    Missed Regions     Cover   Functions  Missed Functions  Executed       Lines      Missed Lines     Cover    Branches   Missed Branches     Cover
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 advanced_trackable_macro.rs                                      415                 2    99.52%          21                 0   100.00%         255                 0   100.00%           0                 0         -
@@ -28,7 +29,7 @@ analysis/lifecycle_analysis.rs                                  1133            
 analysis/memory_passport_tracker.rs                              642               141    78.04%          40                14    65.00%         476               134    71.85%           0                 0         -
 analysis/mod.rs                                                  501                 3    99.40%          37                 1    97.30%         307                 3    99.02%           0                 0         -
 analysis/safety_analyzer.rs                                     1330               149    88.80%          65                 7    89.23%        1075               123    88.56%           0                 0         -
-analysis/security_violation_analyzer.rs                         1313                64    95.13%          65                 0   100.00%         959                33    96.56%           0                 0         -
+analysis/security_violation_analyzer.rs                         1313                62    95.28%          65                 0   100.00%         959                31    96.77%           0                 0         -
 analysis/unknown_memory_regions.rs                               877                55    93.73%          67                 4    94.03%         596                35    94.13%           0                 0         -
 analysis/unsafe_ffi_tracker.rs                                  2331               625    73.19%          90                21    76.67%        1735               522    69.91%           0                 0         -
 analysis/variable_relationships.rs                              1170                70    94.02%          55                 1    98.18%         840                40    95.24%           0                 0         -
@@ -51,7 +52,7 @@ cli/commands/html_from_json/json_file_discovery.rs               297            
 cli/commands/html_from_json/large_file_optimizer.rs              433               177    59.12%          20                 5    75.00%         295               117    60.34%           0                 0         -
 cli/commands/html_from_json/mod.rs                               871               871     0.00%          23                23     0.00%         597               597     0.00%           0                 0         -
 cli/commands/test.rs                                             266               129    51.50%          17                 5    70.59%         151                71    52.98%           0                 0         -
-core/adaptive_hashmap.rs                                         299                70    76.59%          17                 4    76.47%         168                50    70.24%           0                 0         -
+core/adaptive_hashmap.rs                                         299                57    80.94%          17                 4    76.47%         168                43    74.40%           0                 0         -
 core/allocation_adapter.rs                                       359               126    64.90%          66                34    48.48%         275               104    62.18%           0                 0         -
 core/allocator.rs                                                369                34    90.79%          33                 3    90.91%         243                15    93.83%           0                 0         -
 core/atomic_stats.rs                                             661                10    98.49%          54                 0   100.00%         451                 3    99.33%           0                 0         -
@@ -123,8 +124,8 @@ export/binary/integration_test_template_resources.rs             364            
 export/binary/integration_test_variable_relationships.rs         708                 1    99.86%          41                 0   100.00%         577                 0   100.00%           0                 0         -
 export/binary/memory_layout_serialization.rs                     571               303    46.94%          29                18    37.93%         324               154    52.47%           0                 0         -
 export/binary/mod.rs                                             194               127    34.54%          13                 9    30.77%         129                89    31.01%           0                 0         -
-export/binary/parser.rs                                         3292              2759    16.19%          65                56    13.85%        1547              1318    14.80%           0                 0         -
-export/binary/reader.rs                                         1037               343    66.92%          30                 5    83.33%         573               162    71.73%           0                 0         -
+export/binary/parser.rs                                         3835              2371    38.17%          86                45    47.67%        1832              1110    39.41%           0                 0         -
+export/binary/reader.rs                                         1037               342    67.02%          30                 5    83.33%         573               162    71.73%           0                 0         -
 export/binary/selective_json_exporter.rs                         884               730    17.42%          49                29    40.82%         588               452    23.13%           0                 0         -
 export/binary/selective_reader.rs                               1576               374    76.27%          85                30    64.71%        1133               265    76.61%           0                 0         -
 export/binary/serializable.rs                                    741               524    29.28%          52                34    34.62%         370               251    32.16%           0                 0         -
@@ -146,8 +147,8 @@ export/export_modes.rs                                           283            
 export/fast_export_coordinator.rs                               1022               844    17.42%          57                38    33.33%         817               666    18.48%           0                 0         -
 export/high_speed_buffered_writer.rs                             515                52    89.90%          27                 5    81.48%         308                28    90.91%           0                 0         -
 export/html_export.rs                                            489               211    56.85%          20                12    40.00%         423               110    74.00%           0                 0         -
-export/lifecycle_exporter.rs                                     165               165     0.00%          10                10     0.00%         112               112     0.00%           0                 0         -
-export/optimized_json_export.rs                                 2453              2453     0.00%          88                88     0.00%        1669              1669     0.00%           0                 0         -
+export/lifecycle_exporter.rs                                     754                16    97.88%          29                 0   100.00%         412                 1    99.76%           0                 0         -
+export/optimized_json_export.rs                                 2918              2250    22.89%         110                67    39.09%        1945              1452    25.35%           0                 0         -
 export/parallel_shard_processor.rs                               425                43    89.88%          25                 3    88.00%         299                26    91.30%           0                 0         -
 export/progress_monitor.rs                                       445               104    76.63%          35                 8    77.14%         318                68    78.62%           0                 0         -
 export/quality_validator.rs                                     1903              1816     4.57%         114                98    14.04%        1637              1517     7.33%           0                 0         -
@@ -158,9 +159,10 @@ export/visualization.rs                                         2504            
 lib.rs                                                          1749               790    54.83%         141                55    60.99%        1105               584    47.15%           0                 0         -
 main.rs                                                          448               175    60.94%          20                 5    75.00%         277               152    45.13%           0                 0         -
 utils.rs                                                        1469               221    84.96%          53                 3    94.34%         737                76    89.69%           0                 0         -
-variable_registry.rs                                            1663               244    85.33%          82                19    76.83%        1021               126    87.66%           0                 0         -
+variable_registry.rs                                            1663               247    85.15%          82                19    76.83%        1021               128    87.46%           0                 0         -
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                         106341             38069    64.20%        5673              1724    69.61%       73220             24963    65.91%           0                 0         -
+TOTAL                                                         107938             37316    65.43%        5735              1682    70.67%       74081             24420    67.04%           0                 0         -
+
 
 这是 cargo llvm-cov 运行之后的覆盖率的结果，建议你按照覆盖率低的模块进行优化， 步骤则是，先定位模块，然后仔细阅读模块的源码和设计的理念，之后按照你的理解，编写合适的 test mod 并且保证test mod 可以全部通过（当个文件，以及多个文件混合，都要通过）全部通过之后，转移到下一个模块，直到完成覆盖率优化。
 

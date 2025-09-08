@@ -274,3 +274,485 @@ pub fn export_lifecycle_data<P: AsRef<Path>>(
     let exporter = LifecycleExporter::new(config);
     exporter.export_lifecycle_data(allocations, output_path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::AllocationInfo;
+    use std::fs;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn create_test_allocation(
+        ptr: usize,
+        size: usize,
+        type_name: Option<String>,
+        var_name: Option<String>,
+        timestamp_alloc: u64,
+        timestamp_dealloc: Option<u64>,
+    ) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name,
+            type_name,
+            scope_name: None,
+            timestamp_alloc,
+            timestamp_dealloc,
+            thread_id: "test_thread".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: timestamp_dealloc.is_none(),
+            lifetime_ms: timestamp_dealloc.map(|dealloc| dealloc.saturating_sub(timestamp_alloc)),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    fn create_temp_file_path(temp_dir: &TempDir, filename: &str) -> PathBuf {
+        temp_dir.path().join(filename)
+    }
+
+    #[test]
+    fn test_lifecycle_exporter_creation() {
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        // Verify initial state
+        assert_eq!(exporter.next_stack_id.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn test_default_config() {
+        let config = LifecycleExportConfig::default();
+        
+        assert!(!config.include_system_allocations);
+        assert!(config.pretty_print);
+        assert_eq!(config.batch_size, 1000);
+    }
+
+    #[test]
+    fn test_export_empty_allocations() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "empty_lifecycle.json");
+        
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![];
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        
+        assert!(result.is_ok());
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 0);
+        assert!(stats.output_size > 0); // Should still have metadata
+        
+        // Verify file content
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        assert!(content.contains("\"objects\":[]"));
+        assert!(content.contains("\"metadata\""));
+    }
+
+    #[test]
+    fn test_export_single_allocation() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "single_lifecycle.json");
+        
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test_var".to_string()),
+            1000,
+            Some(2000),
+        )];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        
+        assert!(result.is_ok());
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 1);
+        
+        // Verify file content
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        assert!(content.contains("\"allocation_ptr\": 4096"));
+        assert!(content.contains("\"size_bytes\": 64"));
+        assert!(content.contains("\"type_name\": \"String\""));
+        assert!(content.contains("\"var_name\": \"test_var\""));
+    }
+
+    #[test]
+    fn test_export_multiple_allocations() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "multiple_lifecycle.json");
+        
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("var1".to_string()),
+                1000,
+                Some(2000),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("var2".to_string()),
+                1500,
+                None,
+            ),
+        ];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        
+        assert!(result.is_ok());
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 2);
+        
+        // Verify file content contains both allocations
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        assert!(content.contains("\"allocation_ptr\": 4096"));
+        assert!(content.contains("\"allocation_ptr\": 8192"));
+        assert!(content.contains("\"var1\""));
+        assert!(content.contains("\"var2\""));
+    }
+
+    #[test]
+    fn test_system_allocations_filtering() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "filtered_lifecycle.json");
+        
+        let config = LifecycleExportConfig {
+            include_system_allocations: false,
+            pretty_print: true,
+            batch_size: 1000,
+        };
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![
+            // User allocation (should be included)
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("user_var".to_string()),
+                1000,
+                Some(2000),
+            ),
+            // System allocation (should be excluded)
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("SystemAlloc".to_string()),
+                None, // No var_name indicates system allocation
+                1500,
+                None,
+            ),
+        ];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        
+        assert!(result.is_ok());
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 1); // Only user allocation
+        
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        assert!(content.contains("\"user_var\""));
+        assert!(!content.contains("\"SystemAlloc\""));
+    }
+
+    #[test]
+    fn test_include_system_allocations() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "with_system_lifecycle.json");
+        
+        let config = LifecycleExportConfig {
+            include_system_allocations: true,
+            pretty_print: true,
+            batch_size: 1000,
+        };
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("user_var".to_string()),
+                1000,
+                Some(2000),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("SystemAlloc".to_string()),
+                None,
+                1500,
+                None,
+            ),
+        ];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        
+        assert!(result.is_ok());
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 2); // Both allocations
+    }
+
+    #[test]
+    fn test_ownership_event_types() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "events_lifecycle.json");
+        
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test_var".to_string()),
+            1000,
+            Some(2000),
+        )];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        assert!(result.is_ok());
+        
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        
+        // Should contain allocation and deallocation events
+        assert!(content.contains("\"Allocated\""));
+        assert!(content.contains("\"Dropped\""));
+        assert!(content.contains("\"ownership_history\""));
+    }
+
+    #[test]
+    fn test_shutdown_status_determination() {
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        // Test reclaimed status (has deallocation timestamp)
+        let reclaimed_alloc = create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+            1000,
+            Some(2000),
+        );
+        let status = exporter.determine_shutdown_status(&reclaimed_alloc);
+        assert!(matches!(status, ShutdownStatus::Reclaimed));
+        
+        // Test leaked status (no deallocation timestamp)
+        let leaked_alloc = create_test_allocation(
+            0x2000,
+            128,
+            Some("Vec<i32>".to_string()),
+            Some("var2".to_string()),
+            1500,
+            None,
+        );
+        let status = exporter.determine_shutdown_status(&leaked_alloc);
+        assert!(matches!(status, ShutdownStatus::Leaked));
+    }
+
+    #[test]
+    fn test_batch_processing() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "batch_lifecycle.json");
+        
+        let config = LifecycleExportConfig {
+            include_system_allocations: true,
+            pretty_print: false,
+            batch_size: 2, // Small batch size for testing
+        };
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string()), 1000, Some(2000)),
+            create_test_allocation(0x2000, 128, Some("Vec<i32>".to_string()), Some("var2".to_string()), 1500, None),
+            create_test_allocation(0x3000, 256, Some("HashMap".to_string()), Some("var3".to_string()), 2000, Some(3000)),
+        ];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        
+        assert!(result.is_ok());
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 3);
+    }
+
+    #[test]
+    fn test_compact_output_format() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "compact_lifecycle.json");
+        
+        let config = LifecycleExportConfig {
+            include_system_allocations: true,
+            pretty_print: false, // Compact format
+            batch_size: 1000,
+        };
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test_var".to_string()),
+            1000,
+            Some(2000),
+        )];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        assert!(result.is_ok());
+        
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        
+        // Compact format should not have extra whitespace
+        assert!(!content.contains("  ")); // No double spaces
+        assert!(!content.contains("\n  ")); // No indented newlines
+    }
+
+    #[test]
+    fn test_convenience_function() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "convenience_lifecycle.json");
+        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test_var".to_string()),
+            1000,
+            Some(2000),
+        )];
+        
+        // Test with custom config
+        let config = LifecycleExportConfig {
+            include_system_allocations: true,
+            pretty_print: false,
+            batch_size: 500,
+        };
+        
+        let result = export_lifecycle_data(&allocations, &output_path, Some(config));
+        assert!(result.is_ok());
+        
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 1);
+        assert!(stats.output_size > 0);
+    }
+
+    #[test]
+    fn test_convenience_function_default_config() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "convenience_default_lifecycle.json");
+        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test_var".to_string()),
+            1000,
+            Some(2000),
+        )];
+        
+        // Test with default config (None)
+        let result = export_lifecycle_data(&allocations, &output_path, None);
+        assert!(result.is_ok());
+        
+        let stats = result.unwrap();
+        assert_eq!(stats.objects_exported, 1);
+    }
+
+    #[test]
+    fn test_stack_id_generation() {
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        let id1 = exporter.next_stack_id();
+        let id2 = exporter.next_stack_id();
+        let id3 = exporter.next_stack_id();
+        
+        assert_eq!(id1, 1);
+        assert_eq!(id2, 2);
+        assert_eq!(id3, 3);
+    }
+
+    #[test]
+    fn test_metadata_generation() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "metadata_lifecycle.json");
+        
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test_var".to_string()),
+            1000,
+            Some(2000),
+        )];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        assert!(result.is_ok());
+        
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        
+        // Verify metadata fields
+        assert!(content.contains("\"metadata\""));
+        assert!(content.contains("\"timestamp\""));
+        assert!(content.contains("\"version\""));
+        assert!(content.contains("\"total_objects\": 1"));
+        assert!(content.contains("\"export_duration_ms\""));
+    }
+
+    #[test]
+    fn test_unknown_type_handling() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let output_path = create_temp_file_path(&temp_dir, "unknown_type_lifecycle.json");
+        
+        let config = LifecycleExportConfig::default();
+        let exporter = LifecycleExporter::new(config);
+        
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            None, // No type name
+            Some("test_var".to_string()),
+            1000,
+            Some(2000),
+        )];
+        
+        let result = exporter.export_lifecycle_data(&allocations, &output_path);
+        assert!(result.is_ok());
+        
+        let content = fs::read_to_string(&output_path).expect("Failed to read output file");
+        assert!(content.contains("\"type_name\": \"unknown\""));
+    }
+}
