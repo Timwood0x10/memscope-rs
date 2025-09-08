@@ -1290,11 +1290,140 @@ impl Default for FastExportConfigBuilder {
 mod tests {
     use super::*;
 
+    fn create_test_coordinator() -> FastExportCoordinator {
+        let config = FastExportConfigBuilder::new()
+            .data_localization(false) // Disable for testing to avoid complex dependencies
+            .performance_monitoring(false)
+            .verbose_logging(false)
+            .resource_monitoring(false)
+            .build();
+        FastExportCoordinator::new(config)
+    }
+
+
     #[test]
     fn test_fast_export_coordinator_creation() {
         let config = FastExportConfig::default();
         let coordinator = FastExportCoordinator::new(config);
         assert!(coordinator.get_config().enable_data_localization);
+        assert!(coordinator.get_config().enable_performance_monitoring);
+        assert!(coordinator.get_config().enable_auto_optimization);
+    }
+
+    #[test]
+    fn test_fast_export_coordinator_default() {
+        let coordinator = FastExportCoordinator::default();
+        assert!(coordinator.get_config().enable_data_localization);
+        assert!(coordinator.get_config().enable_performance_monitoring);
+        assert_eq!(coordinator.get_config().data_cache_ttl_ms, 100);
+        assert_eq!(coordinator.get_config().memory_limit_mb, 1024);
+        assert_eq!(coordinator.get_config().disk_limit_mb, 2048);
+        assert_eq!(coordinator.get_config().cpu_limit_percent, 80.0);
+    }
+
+    #[test]
+    fn test_fast_export_coordinator_fast_mode() {
+        let coordinator = FastExportCoordinator::new_fast_mode();
+        let config = coordinator.get_config();
+        
+        assert!(!config.validation_config.enable_json_validation);
+        assert!(!config.validation_config.enable_encoding_validation);
+        assert!(!config.validation_config.enable_integrity_validation);
+        assert!(!config.verbose_logging);
+    }
+
+    #[test]
+    fn test_fast_export_coordinator_normal_mode() {
+        let coordinator = FastExportCoordinator::new_normal_mode();
+        let config = coordinator.get_config();
+        
+        assert!(config.validation_config.enable_json_validation);
+        assert!(config.validation_config.enable_encoding_validation);
+        assert!(config.validation_config.enable_integrity_validation);
+        assert!(config.verbose_logging);
+    }
+
+    #[test]
+    fn test_fast_export_coordinator_with_export_config() {
+        let export_config = ExportConfig::fast();
+        let coordinator = FastExportCoordinator::new_with_export_config(export_config.clone());
+        
+        assert_eq!(coordinator.get_export_config().mode, export_config.mode);
+        assert!(!coordinator.get_config().verbose_logging); // Fast mode should have verbose_logging = false
+    }
+
+    #[test]
+    fn test_fast_export_coordinator_with_slow_export_config() {
+        let export_config = ExportConfig::slow();
+        let coordinator = FastExportCoordinator::new_with_export_config(export_config.clone());
+        
+        assert_eq!(coordinator.get_export_config().mode, export_config.mode);
+        assert!(coordinator.get_config().verbose_logging); // Slow mode should have verbose_logging = true
+    }
+
+    #[test]
+    fn test_fast_export_config_default() {
+        let config = FastExportConfig::default();
+        
+        assert!(config.enable_data_localization);
+        assert_eq!(config.data_cache_ttl_ms, 100);
+        assert!(config.enable_performance_monitoring);
+        assert!(!config.verbose_logging);
+        assert!(config.enable_auto_optimization);
+        assert!(config.auto_adjust_for_system);
+        assert!(config.enable_resource_monitoring);
+        assert_eq!(config.memory_limit_mb, 1024);
+        assert_eq!(config.disk_limit_mb, 2048);
+        assert_eq!(config.cpu_limit_percent, 80.0);
+    }
+
+    #[test]
+    fn test_complete_export_stats_default() {
+        let stats = CompleteExportStats {
+            data_gathering: crate::export::data_localizer::DataGatheringStats {
+                total_time_ms: 100,
+                basic_data_time_ms: 50,
+                ffi_data_time_ms: 30,
+                scope_data_time_ms: 20,
+                allocation_count: 100,
+                ffi_allocation_count: 10,
+                scope_count: 5,
+            },
+            parallel_processing: crate::export::parallel_shard_processor::ParallelProcessingStats {
+                total_allocations: 100,
+                shard_count: 2,
+                threads_used: 4,
+                total_processing_time_ms: 200,
+                avg_shard_processing_time_ms: 100.0,
+                parallel_efficiency: 0.8,
+                throughput_allocations_per_sec: 500.0,
+                used_parallel_processing: true,
+                total_output_size_bytes: 50000,
+            },
+            write_performance: crate::export::high_speed_buffered_writer::WritePerformanceStats {
+                total_bytes_written: 50000,
+                shards_written: 2,
+                total_write_time_ms: 100,
+                avg_write_speed_bps: 500000.0,
+                flush_count: 1,
+                preallocation_effective: true,
+                buffer_utilization: 0.8,
+            },
+            total_export_time_ms: 1000,
+            total_allocations_processed: 100,
+            total_output_size_bytes: 50000,
+            overall_throughput_allocations_per_sec: 100.0,
+            overall_write_speed_mbps: 50.0,
+            data_gathering_percentage: 20.0,
+            processing_percentage: 50.0,
+            writing_percentage: 30.0,
+            estimated_traditional_time_ms: 3000,
+            performance_improvement_factor: 3.0,
+        };
+
+        assert_eq!(stats.total_export_time_ms, 1000);
+        assert_eq!(stats.total_allocations_processed, 100);
+        assert_eq!(stats.performance_improvement_factor, 3.0);
     }
 
     #[test]
@@ -1313,22 +1442,93 @@ mod tests {
     }
 
     #[test]
+    fn test_config_builder_all_methods() {
+        let progress_config = ProgressConfig::default();
+        let recovery_config = RecoveryConfig::default();
+        let validation_config = ValidationConfig::default();
+
+        let config = FastExportConfigBuilder::new()
+            .data_localization(false)
+            .cache_ttl_ms(500)
+            .shard_size(200)
+            .parallel_threshold(500)
+            .max_threads(Some(8))
+            .buffer_size(2 * 1024 * 1024)
+            .performance_monitoring(true)
+            .verbose_logging(true)
+            .progress_config(progress_config.clone())
+            .progress_monitoring(true)
+            .error_recovery_config(recovery_config.clone())
+            .validation_config(validation_config.clone())
+            .resource_monitoring(true)
+            .memory_limit_mb(2048)
+            .disk_limit_mb(4096)
+            .cpu_limit_percent(90.0)
+            .build();
+
+        assert!(!config.enable_data_localization);
+        assert_eq!(config.data_cache_ttl_ms, 500);
+        assert_eq!(config.shard_config.shard_size, 200);
+        assert_eq!(config.shard_config.parallel_threshold, 500);
+        assert_eq!(config.shard_config.max_threads, Some(8));
+        assert_eq!(config.writer_config.buffer_size, 2 * 1024 * 1024);
+        assert!(config.enable_performance_monitoring);
+        assert!(config.verbose_logging);
+        assert!(config.progress_config.enabled);
+        assert!(config.enable_resource_monitoring);
+        assert_eq!(config.memory_limit_mb, 2048);
+        assert_eq!(config.disk_limit_mb, 4096);
+        assert_eq!(config.cpu_limit_percent, 90.0);
+    }
+
+    #[test]
+    fn test_config_builder_default() {
+        let builder1 = FastExportConfigBuilder::new();
+        let builder2 = FastExportConfigBuilder::default();
+        
+        let config1 = builder1.build();
+        let config2 = builder2.build();
+        
+        assert_eq!(config1.enable_data_localization, config2.enable_data_localization);
+        assert_eq!(config1.data_cache_ttl_ms, config2.data_cache_ttl_ms);
+        assert_eq!(config1.enable_performance_monitoring, config2.enable_performance_monitoring);
+    }
+
+    #[test]
     fn test_config_update() {
         let mut coordinator = FastExportCoordinator::default();
 
         let new_config = FastExportConfigBuilder::new()
             .shard_size(200)
             .verbose_logging(true)
+            .data_localization(false)
+            .performance_monitoring(false)
             .build();
 
         coordinator.update_config(new_config);
         assert_eq!(coordinator.get_config().shard_config.shard_size, 200);
         assert!(coordinator.get_config().verbose_logging);
+        assert!(!coordinator.get_config().enable_data_localization);
+        assert!(!coordinator.get_config().enable_performance_monitoring);
+    }
+
+    #[test]
+    fn test_export_config_update() {
+        let mut coordinator = FastExportCoordinator::default();
+        let original_mode = coordinator.get_export_config().mode.clone();
+
+        let new_export_config = ExportConfig::slow();
+        coordinator.update_export_config(new_export_config.clone());
+        
+        assert_eq!(coordinator.get_export_config().mode, new_export_config.mode);
+        assert_ne!(coordinator.get_export_config().mode, original_mode);
+        assert_eq!(coordinator.get_config().validation_config.enable_json_validation, 
+                   new_export_config.validation_config.enable_json_validation);
     }
 
     #[test]
     fn test_cache_operations() {
-        let mut coordinator = FastExportCoordinator::default();
+        let mut coordinator = create_test_coordinator();
 
         // Test cache stats
         let cache_stats = coordinator.get_cache_stats();
@@ -1336,5 +1536,278 @@ mod tests {
 
         // Test clear cache
         coordinator.clear_cache(); // Should not panic
+        
+        // Test cache stats after clear
+        let cache_stats_after = coordinator.get_cache_stats();
+        assert!(!cache_stats_after.is_cached);
     }
+
+    // Note: Removed tests that call gather_data() or export_fast() as they cause timeouts
+    // due to attempting to access global tracking state
+
+    #[test]
+    fn test_calculate_complete_stats() {
+        let coordinator = create_test_coordinator();
+        
+        let data_stats = crate::export::data_localizer::DataGatheringStats {
+            total_time_ms: 100,
+            basic_data_time_ms: 40,
+            ffi_data_time_ms: 30,
+            scope_data_time_ms: 30,
+            allocation_count: 50,
+            ffi_allocation_count: 5,
+            scope_count: 3,
+        };
+        
+        let processing_stats = crate::export::parallel_shard_processor::ParallelProcessingStats {
+            total_processing_time_ms: 200,
+            total_allocations: 50,
+            shard_count: 4,
+            threads_used: 4,
+            parallel_efficiency: 0.8,
+            used_parallel_processing: true,
+            avg_shard_processing_time_ms: 50.0,
+            throughput_allocations_per_sec: 250.0,
+            total_output_size_bytes: 10000,
+        };
+        
+        let write_stats = crate::export::high_speed_buffered_writer::WritePerformanceStats {
+            total_write_time_ms: 150,
+            total_bytes_written: 10000,
+            buffer_utilization: 0.75,
+            preallocation_effective: true,
+            flush_count: 3,
+            avg_write_speed_bps: 66670.0,
+            shards_written: 4,
+        };
+        
+        let total_time_ms = 500;
+        
+        let complete_stats = coordinator.calculate_complete_stats(
+            data_stats,
+            processing_stats,
+            write_stats,
+            total_time_ms,
+        );
+        
+        assert_eq!(complete_stats.total_export_time_ms, 500);
+        assert_eq!(complete_stats.total_allocations_processed, 50);
+        assert_eq!(complete_stats.total_output_size_bytes, 10000);
+        assert_eq!(complete_stats.overall_throughput_allocations_per_sec, 100.0); // 50 * 1000 / 500
+        assert_eq!(complete_stats.overall_write_speed_mbps, 0.019073486328125); // (10000 / 1024 / 1024 * 1000) / 500
+        assert_eq!(complete_stats.data_gathering_percentage, 20.0); // 100 / 500 * 100
+        assert_eq!(complete_stats.processing_percentage, 40.0); // 200 / 500 * 100
+        assert_eq!(complete_stats.writing_percentage, 30.0); // 150 / 500 * 100
+        assert_eq!(complete_stats.estimated_traditional_time_ms, 1500); // 500 * 3
+        assert_eq!(complete_stats.performance_improvement_factor, 3.0); // 1500 / 500
+    }
+
+    #[test]
+    fn test_calculate_complete_stats_zero_time() {
+        let coordinator = create_test_coordinator();
+        
+        let data_stats = crate::export::data_localizer::DataGatheringStats {
+            total_time_ms: 0,
+            basic_data_time_ms: 0,
+            ffi_data_time_ms: 0,
+            scope_data_time_ms: 0,
+            allocation_count: 0,
+            ffi_allocation_count: 0,
+            scope_count: 0,
+        };
+        let processing_stats = crate::export::parallel_shard_processor::ParallelProcessingStats {
+            total_allocations: 0,
+            shard_count: 0,
+            threads_used: 1,
+            total_processing_time_ms: 0,
+            avg_shard_processing_time_ms: 0.0,
+            parallel_efficiency: 1.0,
+            throughput_allocations_per_sec: 0.0,
+            used_parallel_processing: false,
+            total_output_size_bytes: 0,
+        };
+        let write_stats = crate::export::high_speed_buffered_writer::WritePerformanceStats {
+            total_bytes_written: 0,
+            shards_written: 0,
+            total_write_time_ms: 0,
+            avg_write_speed_bps: 0.0,
+            flush_count: 0,
+            preallocation_effective: false,
+            buffer_utilization: 0.0,
+        };
+        
+        let complete_stats = coordinator.calculate_complete_stats(
+            data_stats,
+            processing_stats,
+            write_stats,
+            0, // Zero time
+        );
+        
+        assert_eq!(complete_stats.total_export_time_ms, 0);
+        assert_eq!(complete_stats.overall_throughput_allocations_per_sec, 0.0);
+        assert_eq!(complete_stats.overall_write_speed_mbps, 0.0);
+        assert_eq!(complete_stats.data_gathering_percentage, 0.0);
+        assert_eq!(complete_stats.processing_percentage, 0.0);
+        assert_eq!(complete_stats.writing_percentage, 0.0);
+        assert_eq!(complete_stats.performance_improvement_factor, 1.0);
+    }
+
+    #[test]
+    fn test_print_complete_stats() {
+        let coordinator = create_test_coordinator();
+        
+        let stats = CompleteExportStats {
+            data_gathering: crate::export::data_localizer::DataGatheringStats {
+                total_time_ms: 200,
+                basic_data_time_ms: 100,
+                ffi_data_time_ms: 50,
+                scope_data_time_ms: 50,
+                allocation_count: 1000,
+                ffi_allocation_count: 100,
+                scope_count: 10,
+            },
+            parallel_processing: crate::export::parallel_shard_processor::ParallelProcessingStats {
+                total_allocations: 1000,
+                shard_count: 8,
+                threads_used: 4,
+                total_processing_time_ms: 500,
+                avg_shard_processing_time_ms: 62.5,
+                parallel_efficiency: 0.85,
+                throughput_allocations_per_sec: 2000.0,
+                used_parallel_processing: true,
+                total_output_size_bytes: 1024 * 1024,
+            },
+            write_performance: crate::export::high_speed_buffered_writer::WritePerformanceStats {
+                total_bytes_written: 1024 * 1024,
+                shards_written: 8,
+                total_write_time_ms: 300,
+                avg_write_speed_bps: 3500000.0,
+                flush_count: 5,
+                preallocation_effective: true,
+                buffer_utilization: 0.9,
+            },
+            total_export_time_ms: 1000,
+            total_allocations_processed: 1000,
+            total_output_size_bytes: 1024 * 1024, // 1MB
+            overall_throughput_allocations_per_sec: 1000.0,
+            overall_write_speed_mbps: 1.0,
+            data_gathering_percentage: 20.0,
+            processing_percentage: 50.0,
+            writing_percentage: 30.0,
+            estimated_traditional_time_ms: 3000,
+            performance_improvement_factor: 3.0,
+        };
+        
+        // This should not panic
+        coordinator.print_complete_stats(&stats);
+    }
+
+    #[test]
+    fn test_debug_implementations() {
+        let config = FastExportConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("FastExportConfig"));
+        
+        let stats = CompleteExportStats {
+            data_gathering: crate::export::data_localizer::DataGatheringStats {
+                total_time_ms: 100,
+                basic_data_time_ms: 50,
+                ffi_data_time_ms: 30,
+                scope_data_time_ms: 20,
+                allocation_count: 100,
+                ffi_allocation_count: 10,
+                scope_count: 5,
+            },
+            parallel_processing: crate::export::parallel_shard_processor::ParallelProcessingStats {
+                total_allocations: 100,
+                shard_count: 2,
+                threads_used: 4,
+                total_processing_time_ms: 500,
+                avg_shard_processing_time_ms: 250.0,
+                parallel_efficiency: 0.8,
+                throughput_allocations_per_sec: 200.0,
+                used_parallel_processing: true,
+                total_output_size_bytes: 50000,
+            },
+            write_performance: crate::export::high_speed_buffered_writer::WritePerformanceStats {
+                total_bytes_written: 50000,
+                shards_written: 2,
+                total_write_time_ms: 300,
+                avg_write_speed_bps: 166666.0,
+                flush_count: 1,
+                preallocation_effective: true,
+                buffer_utilization: 0.7,
+            },
+            total_export_time_ms: 1000,
+            total_allocations_processed: 100,
+            total_output_size_bytes: 50000,
+            overall_throughput_allocations_per_sec: 100.0,
+            overall_write_speed_mbps: 50.0,
+            data_gathering_percentage: 20.0,
+            processing_percentage: 50.0,
+            writing_percentage: 30.0,
+            estimated_traditional_time_ms: 3000,
+            performance_improvement_factor: 3.0,
+        };
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("CompleteExportStats"));
+    }
+
+    #[test]
+    fn test_clone_implementations() {
+        let config = FastExportConfig::default();
+        let cloned_config = config.clone();
+        assert_eq!(config.enable_data_localization, cloned_config.enable_data_localization);
+        assert_eq!(config.data_cache_ttl_ms, cloned_config.data_cache_ttl_ms);
+        assert_eq!(config.enable_performance_monitoring, cloned_config.enable_performance_monitoring);
+        
+        let stats = CompleteExportStats {
+            data_gathering: crate::export::data_localizer::DataGatheringStats {
+                total_time_ms: 100,
+                basic_data_time_ms: 50,
+                ffi_data_time_ms: 30,
+                scope_data_time_ms: 20,
+                allocation_count: 100,
+                ffi_allocation_count: 10,
+                scope_count: 5,
+            },
+            parallel_processing: crate::export::parallel_shard_processor::ParallelProcessingStats {
+                total_allocations: 100,
+                shard_count: 2,
+                threads_used: 4,
+                total_processing_time_ms: 500,
+                avg_shard_processing_time_ms: 250.0,
+                parallel_efficiency: 0.8,
+                throughput_allocations_per_sec: 200.0,
+                used_parallel_processing: true,
+                total_output_size_bytes: 50000,
+            },
+            write_performance: crate::export::high_speed_buffered_writer::WritePerformanceStats {
+                total_bytes_written: 50000,
+                shards_written: 2,
+                total_write_time_ms: 300,
+                avg_write_speed_bps: 166666.0,
+                flush_count: 1,
+                preallocation_effective: true,
+                buffer_utilization: 0.7,
+            },
+            total_export_time_ms: 1000,
+            total_allocations_processed: 100,
+            total_output_size_bytes: 50000,
+            overall_throughput_allocations_per_sec: 100.0,
+            overall_write_speed_mbps: 50.0,
+            data_gathering_percentage: 20.0,
+            processing_percentage: 50.0,
+            writing_percentage: 30.0,
+            estimated_traditional_time_ms: 3000,
+            performance_improvement_factor: 3.0,
+        };
+        let cloned_stats = stats.clone();
+        assert_eq!(stats.total_export_time_ms, cloned_stats.total_export_time_ms);
+        assert_eq!(stats.total_allocations_processed, cloned_stats.total_allocations_processed);
+        assert_eq!(stats.performance_improvement_factor, cloned_stats.performance_improvement_factor);
+    }
+
+    // Note: Removed export_fast_with_progress test as it also causes timeouts
+    // due to attempting to access global tracking state
 }

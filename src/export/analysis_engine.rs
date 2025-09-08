@@ -845,4 +845,580 @@ mod tests {
         );
         assert_eq!(analysis_data.metadata.total_allocations, 1);
     }
+
+    #[test]
+    fn test_standard_analysis_engine_with_config() {
+        let config = AnalysisConfig {
+            optimization_level: OptimizationLevel::Low,
+            parallel_processing: false,
+            enhanced_ffi_analysis: false,
+            security_analysis: true,
+            batch_size: 500,
+        };
+        let engine = StandardAnalysisEngine::with_config(config);
+        
+        assert_eq!(engine.get_config().optimization_level, OptimizationLevel::Low);
+        assert!(!engine.get_config().parallel_processing);
+        assert!(!engine.get_config().enhanced_ffi_analysis);
+        assert!(engine.get_config().security_analysis);
+        assert_eq!(engine.get_config().batch_size, 500);
+    }
+
+    #[test]
+    fn test_standard_analysis_engine_default() {
+        let engine1 = StandardAnalysisEngine::new();
+        let engine2 = StandardAnalysisEngine::default();
+        
+        assert_eq!(engine1.get_config().optimization_level, engine2.get_config().optimization_level);
+        assert_eq!(engine1.get_config().parallel_processing, engine2.get_config().parallel_processing);
+        assert_eq!(engine1.get_config().batch_size, engine2.get_config().batch_size);
+    }
+
+    #[test]
+    fn test_analysis_config_default() {
+        let config = AnalysisConfig::default();
+        
+        assert_eq!(config.optimization_level, OptimizationLevel::High);
+        assert!(config.parallel_processing);
+        assert!(config.enhanced_ffi_analysis);
+        assert!(!config.security_analysis);
+        assert_eq!(config.batch_size, 1000);
+    }
+
+    #[test]
+    fn test_lifetime_analysis() {
+        let engine = StandardAnalysisEngine::new();
+        let allocations = create_test_allocations();
+
+        let result = engine.create_lifetime_analysis(&allocations);
+        assert!(result.is_ok());
+
+        let analysis_data = result.unwrap();
+        assert_eq!(analysis_data.metadata.analysis_type, "integrated_lifetime_analysis");
+        assert_eq!(analysis_data.metadata.total_allocations, 1);
+        
+        // Check that the data contains expected fields
+        let data = &analysis_data.data;
+        assert!(data.get("lifecycle_events").is_some());
+        assert!(data.get("scope_analysis").is_some());
+        assert!(data.get("summary").is_some());
+    }
+
+    #[test]
+    fn test_performance_analysis() {
+        let engine = StandardAnalysisEngine::new();
+        let allocations = create_test_allocations();
+
+        let result = engine.create_performance_analysis(&allocations);
+        assert!(result.is_ok());
+
+        let analysis_data = result.unwrap();
+        assert_eq!(analysis_data.metadata.analysis_type, "integrated_performance_analysis");
+        assert_eq!(analysis_data.metadata.total_allocations, 1);
+        
+        // Check that the data contains expected fields
+        let data = &analysis_data.data;
+        assert!(data.get("allocations").is_some());
+        assert!(data.get("thread_analysis").is_some());
+        assert!(data.get("summary").is_some());
+    }
+
+    #[test]
+    fn test_complex_types_analysis() {
+        let engine = StandardAnalysisEngine::new();
+        let allocations = create_test_allocations();
+
+        let result = engine.create_complex_types_analysis(&allocations);
+        assert!(result.is_ok());
+
+        let analysis_data = result.unwrap();
+        assert_eq!(analysis_data.metadata.analysis_type, "integrated_complex_types_analysis");
+        assert_eq!(analysis_data.metadata.total_allocations, 1);
+        
+        // Check that the data contains expected fields
+        let data = &analysis_data.data;
+        assert!(data.get("categorized_types").is_some());
+        assert!(data.get("generic_types").is_some());
+        assert!(data.get("summary").is_some());
+    }
+
+    #[test]
+    fn test_empty_allocations() {
+        let engine = StandardAnalysisEngine::new();
+        let empty_allocations = vec![];
+
+        // Test all analysis methods with empty data
+        let memory_result = engine.create_memory_analysis(&empty_allocations);
+        assert!(memory_result.is_ok());
+        let memory_data = memory_result.unwrap();
+        assert_eq!(memory_data.metadata.total_allocations, 0);
+
+        let lifetime_result = engine.create_lifetime_analysis(&empty_allocations);
+        assert!(lifetime_result.is_ok());
+        let lifetime_data = lifetime_result.unwrap();
+        assert_eq!(lifetime_data.metadata.total_allocations, 0);
+
+        let performance_result = engine.create_performance_analysis(&empty_allocations);
+        assert!(performance_result.is_ok());
+        let performance_data = performance_result.unwrap();
+        assert_eq!(performance_data.metadata.total_allocations, 0);
+
+        let complex_types_result = engine.create_complex_types_analysis(&empty_allocations);
+        assert!(complex_types_result.is_ok());
+        let complex_types_data = complex_types_result.unwrap();
+        assert_eq!(complex_types_data.metadata.total_allocations, 0);
+    }
+
+    fn create_multiple_test_allocations() -> Vec<AllocationInfo> {
+        vec![
+            AllocationInfo {
+                ptr: 0x1000,
+                size: 1024,
+                var_name: Some("buffer".to_string()),
+                type_name: Some("Vec<u8>".to_string()),
+                scope_name: Some("main".to_string()),
+                timestamp_alloc: 1234567890,
+                timestamp_dealloc: Some(1234567990),
+                thread_id: "main".to_string(),
+                borrow_count: 0,
+                stack_trace: Some(vec!["main".to_string(), "allocate".to_string()]),
+                is_leaked: false,
+                lifetime_ms: Some(100),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: false,
+                smart_pointer_info: None,
+                memory_layout: None,
+                generic_info: None,
+                dynamic_type_info: None,
+                runtime_state: None,
+                stack_allocation: None,
+                temporary_object: None,
+                fragmentation_analysis: None,
+                generic_instantiation: None,
+                type_relationships: None,
+                type_usage: None,
+                function_call_tracking: None,
+                lifecycle_tracking: None,
+                access_tracking: None,
+                drop_chain_analysis: None,
+            },
+            AllocationInfo {
+                ptr: 0x2000,
+                size: 512,
+                var_name: None, // Test inference
+                type_name: None, // Test inference
+                scope_name: Some("function".to_string()),
+                timestamp_alloc: 1234567900,
+                timestamp_dealloc: None,
+                thread_id: "worker".to_string(),
+                borrow_count: 2,
+                stack_trace: None,
+                is_leaked: true,
+                lifetime_ms: None,
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: false,
+                smart_pointer_info: None,
+                memory_layout: None,
+                generic_info: None,
+                dynamic_type_info: None,
+                runtime_state: None,
+                stack_allocation: None,
+                temporary_object: None,
+                fragmentation_analysis: None,
+                generic_instantiation: None,
+                type_relationships: None,
+                type_usage: None,
+                function_call_tracking: None,
+                lifecycle_tracking: None,
+                access_tracking: None,
+                drop_chain_analysis: None,
+            },
+            AllocationInfo {
+                ptr: 0x3000,
+                size: 8,
+                var_name: Some("counter".to_string()),
+                type_name: Some("HashMap<String, i32>".to_string()),
+                scope_name: None, // Test global scope
+                timestamp_alloc: 1234567910,
+                timestamp_dealloc: Some(1234567950),
+                thread_id: "main".to_string(),
+                borrow_count: 1,
+                stack_trace: Some(vec!["main".to_string()]),
+                is_leaked: false,
+                lifetime_ms: Some(40),
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: false,
+                smart_pointer_info: None,
+                memory_layout: None,
+                generic_info: None,
+                dynamic_type_info: None,
+                runtime_state: None,
+                stack_allocation: None,
+                temporary_object: None,
+                fragmentation_analysis: None,
+                generic_instantiation: None,
+                type_relationships: None,
+                type_usage: None,
+                function_call_tracking: None,
+                lifecycle_tracking: None,
+                access_tracking: None,
+                drop_chain_analysis: None,
+            },
+        ]
+    }
+
+    #[test]
+    fn test_multiple_allocations_analysis() {
+        let engine = StandardAnalysisEngine::new();
+        let allocations = create_multiple_test_allocations();
+
+        // Test memory analysis with multiple allocations
+        let memory_result = engine.create_memory_analysis(&allocations);
+        assert!(memory_result.is_ok());
+        let memory_data = memory_result.unwrap();
+        assert_eq!(memory_data.metadata.total_allocations, 3);
+        
+        // Check summary calculations
+        let summary = memory_data.data.get("summary").unwrap();
+        assert_eq!(summary.get("total_allocations").unwrap().as_u64().unwrap(), 3);
+        assert_eq!(summary.get("total_memory").unwrap().as_u64().unwrap(), 1544); // 1024 + 512 + 8
+        assert_eq!(summary.get("leaked_count").unwrap().as_u64().unwrap(), 1);
+        assert_eq!(summary.get("max_size").unwrap().as_u64().unwrap(), 1024);
+        assert_eq!(summary.get("min_size").unwrap().as_u64().unwrap(), 8);
+    }
+
+    #[test]
+    fn test_lifetime_analysis_with_multiple_allocations() {
+        let engine = StandardAnalysisEngine::new();
+        let allocations = create_multiple_test_allocations();
+
+        let result = engine.create_lifetime_analysis(&allocations);
+        assert!(result.is_ok());
+        let analysis_data = result.unwrap();
+        
+        // Check lifecycle events
+        let events = analysis_data.data.get("lifecycle_events").unwrap().as_array().unwrap();
+        assert_eq!(events.len(), 5); // 3 allocations + 2 deallocations
+        
+        // Check scope analysis
+        let scope_analysis = analysis_data.data.get("scope_analysis").unwrap().as_object().unwrap();
+        assert!(scope_analysis.contains_key("main"));
+        assert!(scope_analysis.contains_key("function"));
+        assert!(scope_analysis.contains_key("global"));
+    }
+
+    #[test]
+    fn test_performance_analysis_with_multiple_threads() {
+        let engine = StandardAnalysisEngine::new();
+        let allocations = create_multiple_test_allocations();
+
+        let result = engine.create_performance_analysis(&allocations);
+        assert!(result.is_ok());
+        let analysis_data = result.unwrap();
+        
+        // Check thread analysis
+        let thread_analysis = analysis_data.data.get("thread_analysis").unwrap().as_object().unwrap();
+        assert!(thread_analysis.contains_key("main"));
+        assert!(thread_analysis.contains_key("worker"));
+        
+        // Check main thread stats
+        let main_stats = thread_analysis.get("main").unwrap();
+        assert_eq!(main_stats.get("allocation_count").unwrap().as_u64().unwrap(), 2);
+        assert_eq!(main_stats.get("total_size").unwrap().as_u64().unwrap(), 1032); // 1024 + 8
+        
+        // Check worker thread stats
+        let worker_stats = thread_analysis.get("worker").unwrap();
+        assert_eq!(worker_stats.get("allocation_count").unwrap().as_u64().unwrap(), 1);
+        assert_eq!(worker_stats.get("total_size").unwrap().as_u64().unwrap(), 512);
+    }
+
+    #[test]
+    fn test_complex_types_categorization() {
+        let engine = StandardAnalysisEngine::new();
+        let allocations = create_multiple_test_allocations();
+
+        let result = engine.create_complex_types_analysis(&allocations);
+        assert!(result.is_ok());
+        let analysis_data = result.unwrap();
+        
+        // Check categorized types
+        let categorized = analysis_data.data.get("categorized_types").unwrap().as_object().unwrap();
+        assert!(categorized.contains_key("generic")); // Vec<u8> and HashMap<String, i32>
+        assert!(categorized.contains_key("primitive")); // Inferred type for size 512
+        
+        // Check generic types analysis
+        let generic_types = analysis_data.data.get("generic_types").unwrap().as_object().unwrap();
+        assert!(generic_types.contains_key("Vec<u8>"));
+        assert!(generic_types.contains_key("HashMap<String, i32>"));
+    }
+
+    #[test]
+    fn test_type_name_inference() {
+        let engine = StandardAnalysisEngine::new();
+        
+        // Test different size patterns
+        let test_cases = vec![
+            (0, "ZeroSizedType"),
+            (1, "u8_or_bool"),
+            (2, "u16_or_char"),
+            (4, "u32_or_f32_or_i32"),
+            (8, "u64_or_f64_or_i64_or_usize"),
+            (16, "u128_or_i128_or_complex_struct"),
+            (24, "Vec_or_String_header"),
+            (32, "HashMap_or_BTreeMap_header"),
+            (1024, "LargeAllocation_1024bytes"),
+            (48, "AlignedStruct_48bytes"), // 48 % 8 == 0
+            (33, "CustomType_33bytes"), // 33 % 8 != 0
+        ];
+        
+        for (size, expected_prefix) in test_cases {
+            let alloc = AllocationInfo {
+                ptr: 0x1000,
+                size,
+                var_name: None,
+                type_name: None, // Force inference
+                scope_name: None,
+                timestamp_alloc: 0,
+                timestamp_dealloc: None,
+                thread_id: "test".to_string(),
+                borrow_count: 0,
+                stack_trace: None,
+                is_leaked: false,
+                lifetime_ms: None,
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: false,
+                smart_pointer_info: None,
+                memory_layout: None,
+                generic_info: None,
+                dynamic_type_info: None,
+                runtime_state: None,
+                stack_allocation: None,
+                temporary_object: None,
+                fragmentation_analysis: None,
+                generic_instantiation: None,
+                type_relationships: None,
+                type_usage: None,
+                function_call_tracking: None,
+                lifecycle_tracking: None,
+                access_tracking: None,
+                drop_chain_analysis: None,
+            };
+            
+            let inferred_type = engine.infer_type_name(&alloc);
+            assert_eq!(inferred_type, expected_prefix);
+        }
+    }
+
+    #[test]
+    fn test_var_name_inference() {
+        let engine = StandardAnalysisEngine::new();
+        
+        let test_cases = vec![
+            (0, "zero_sized_var"),
+            (4, "primitive_var"),
+            (16, "small_struct_var"),
+            (128, "medium_struct_var"),
+            (512, "large_struct_var"),
+            (2048, "heap_allocated_var"),
+        ];
+        
+        for (size, expected_prefix) in test_cases {
+            let alloc = AllocationInfo {
+                ptr: 0x1234,
+                size,
+                var_name: None, // Force inference
+                type_name: Some("TestType".to_string()),
+                scope_name: None,
+                timestamp_alloc: 0,
+                timestamp_dealloc: None,
+                thread_id: "test".to_string(),
+                borrow_count: 0,
+                stack_trace: None,
+                is_leaked: false,
+                lifetime_ms: None,
+                borrow_info: None,
+                clone_info: None,
+                ownership_history_available: false,
+                smart_pointer_info: None,
+                memory_layout: None,
+                generic_info: None,
+                dynamic_type_info: None,
+                runtime_state: None,
+                stack_allocation: None,
+                temporary_object: None,
+                fragmentation_analysis: None,
+                generic_instantiation: None,
+                type_relationships: None,
+                type_usage: None,
+                function_call_tracking: None,
+                lifecycle_tracking: None,
+                access_tracking: None,
+                drop_chain_analysis: None,
+            };
+            
+            let inferred_var = engine.infer_var_name(&alloc);
+            assert!(inferred_var.starts_with(expected_prefix));
+            assert!(inferred_var.contains("1234")); // Should contain pointer address
+        }
+    }
+
+    #[test]
+    fn test_optimization_levels() {
+        // Test all optimization levels
+        let levels = vec![
+            OptimizationLevel::Low,
+            OptimizationLevel::Medium,
+            OptimizationLevel::High,
+            OptimizationLevel::Maximum,
+        ];
+        
+        for level in levels {
+            let config = AnalysisConfig {
+                optimization_level: level.clone(),
+                parallel_processing: true,
+                enhanced_ffi_analysis: true,
+                security_analysis: false,
+                batch_size: 1000,
+            };
+            
+            let engine = StandardAnalysisEngine::with_config(config);
+            let allocations = create_test_allocations();
+            
+            // Test that all analysis methods work with different optimization levels
+            let memory_result = engine.create_memory_analysis(&allocations);
+            assert!(memory_result.is_ok());
+            let memory_data = memory_result.unwrap();
+            assert_eq!(memory_data.metadata.optimization_level, format!("{:?}", level));
+            
+            let lifetime_result = engine.create_lifetime_analysis(&allocations);
+            assert!(lifetime_result.is_ok());
+            
+            let performance_result = engine.create_performance_analysis(&allocations);
+            assert!(performance_result.is_ok());
+            
+            let complex_types_result = engine.create_complex_types_analysis(&allocations);
+            assert!(complex_types_result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_analysis_error_display() {
+        let processing_error = AnalysisError::ProcessingError("Test processing error".to_string());
+        assert_eq!(processing_error.to_string(), "Processing error: Test processing error");
+        
+        let serialization_error = AnalysisError::SerializationError("Test serialization error".to_string());
+        assert_eq!(serialization_error.to_string(), "Serialization error: Test serialization error");
+        
+        let invalid_data_error = AnalysisError::InvalidData("Test invalid data".to_string());
+        assert_eq!(invalid_data_error.to_string(), "Invalid data: Test invalid data");
+    }
+
+    #[test]
+    fn test_analysis_error_debug() {
+        let error = AnalysisError::ProcessingError("Debug test".to_string());
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("ProcessingError"));
+        assert!(debug_str.contains("Debug test"));
+    }
+
+    #[test]
+    fn test_analysis_data_debug_and_clone() {
+        let metadata = AnalysisMetadata {
+            analysis_type: "test_analysis".to_string(),
+            timestamp: 1234567890,
+            total_allocations: 10,
+            optimization_level: "High".to_string(),
+        };
+        
+        let data = AnalysisData {
+            data: serde_json::json!({"test": "value"}),
+            metadata: metadata.clone(),
+        };
+        
+        // Test Debug implementation
+        let debug_str = format!("{:?}", data);
+        assert!(debug_str.contains("AnalysisData"));
+        assert!(debug_str.contains("test_analysis"));
+        
+        // Test Clone implementation
+        let cloned_data = data.clone();
+        assert_eq!(cloned_data.metadata.analysis_type, data.metadata.analysis_type);
+        assert_eq!(cloned_data.metadata.timestamp, data.metadata.timestamp);
+        assert_eq!(cloned_data.metadata.total_allocations, data.metadata.total_allocations);
+    }
+
+    #[test]
+    fn test_analysis_metadata_debug_and_clone() {
+        let metadata = AnalysisMetadata {
+            analysis_type: "test_metadata".to_string(),
+            timestamp: 9876543210,
+            total_allocations: 42,
+            optimization_level: "Maximum".to_string(),
+        };
+        
+        // Test Debug implementation
+        let debug_str = format!("{:?}", metadata);
+        assert!(debug_str.contains("AnalysisMetadata"));
+        assert!(debug_str.contains("test_metadata"));
+        assert!(debug_str.contains("42"));
+        
+        // Test Clone implementation
+        let cloned_metadata = metadata.clone();
+        assert_eq!(cloned_metadata.analysis_type, metadata.analysis_type);
+        assert_eq!(cloned_metadata.timestamp, metadata.timestamp);
+        assert_eq!(cloned_metadata.total_allocations, metadata.total_allocations);
+        assert_eq!(cloned_metadata.optimization_level, metadata.optimization_level);
+    }
+
+    #[test]
+    fn test_analysis_config_debug_and_clone() {
+        let config = AnalysisConfig {
+            optimization_level: OptimizationLevel::Medium,
+            parallel_processing: false,
+            enhanced_ffi_analysis: true,
+            security_analysis: true,
+            batch_size: 2000,
+        };
+        
+        // Test Debug implementation
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("AnalysisConfig"));
+        assert!(debug_str.contains("Medium"));
+        assert!(debug_str.contains("2000"));
+        
+        // Test Clone implementation
+        let cloned_config = config.clone();
+        assert_eq!(cloned_config.optimization_level, config.optimization_level);
+        assert_eq!(cloned_config.parallel_processing, config.parallel_processing);
+        assert_eq!(cloned_config.enhanced_ffi_analysis, config.enhanced_ffi_analysis);
+        assert_eq!(cloned_config.security_analysis, config.security_analysis);
+        assert_eq!(cloned_config.batch_size, config.batch_size);
+    }
+
+    #[test]
+    fn test_optimization_level_equality() {
+        assert_eq!(OptimizationLevel::Low, OptimizationLevel::Low);
+        assert_eq!(OptimizationLevel::Medium, OptimizationLevel::Medium);
+        assert_eq!(OptimizationLevel::High, OptimizationLevel::High);
+        assert_eq!(OptimizationLevel::Maximum, OptimizationLevel::Maximum);
+        
+        assert_ne!(OptimizationLevel::Low, OptimizationLevel::Medium);
+        assert_ne!(OptimizationLevel::Medium, OptimizationLevel::High);
+        assert_ne!(OptimizationLevel::High, OptimizationLevel::Maximum);
+    }
+
+    #[test]
+    fn test_convert_to_export_options() {
+        let engine = StandardAnalysisEngine::new();
+        let export_options = engine.convert_to_export_options();
+        
+        // This tests the conversion function exists and works
+        // The actual values depend on the implementation
+        assert_eq!(export_options.batch_size, 1000);
+        assert!(export_options.parallel_processing);
+    }
 }
