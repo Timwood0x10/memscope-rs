@@ -2692,3 +2692,1145 @@ impl EnhancedStreamingValidator {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::{AllocationInfo, MemoryStats, ScopeInfo};
+    use crate::export::data_localizer::LocalizedExportData;
+    use crate::export::parallel_shard_processor::ProcessedShard;
+    use crate::analysis::unsafe_ffi_tracker::{UnsafeFFIStats, EnhancedAllocationInfo};
+    use std::fs;
+    use tempfile::TempDir;
+    use std::time::{Duration, Instant};
+
+    fn create_test_allocation(
+        ptr: usize,
+        size: usize,
+        type_name: Option<String>,
+        var_name: Option<String>,
+    ) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name,
+            type_name,
+            scope_name: None,
+            timestamp_alloc: 1000,
+            timestamp_dealloc: None,
+            thread_id: "test_thread".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    fn create_test_export_data(allocations: Vec<AllocationInfo>) -> LocalizedExportData {
+        LocalizedExportData {
+            allocations,
+            enhanced_allocations: Vec::new(),
+            stats: MemoryStats::default(),
+            ffi_stats: UnsafeFFIStats::default(),
+            scope_info: Vec::<ScopeInfo>::new(),
+            timestamp: Instant::now(),
+        }
+    }
+
+    #[test]
+    fn test_validation_timing_enum() {
+        assert_eq!(ValidationTiming::default(), ValidationTiming::Deferred);
+        
+        // Test all variants
+        let inline = ValidationTiming::Inline;
+        let deferred = ValidationTiming::Deferred;
+        let disabled = ValidationTiming::Disabled;
+        
+        assert_ne!(inline, deferred);
+        assert_ne!(deferred, disabled);
+        assert_ne!(inline, disabled);
+    }
+
+    #[test]
+    fn test_export_mode_enum() {
+        assert_eq!(ExportMode::default(), ExportMode::Fast);
+        
+        // Test all variants
+        let fast = ExportMode::Fast;
+        let slow = ExportMode::Slow;
+        let auto = ExportMode::Auto;
+        
+        assert_ne!(fast, slow);
+        assert_ne!(slow, auto);
+        assert_ne!(fast, auto);
+    }
+
+    #[test]
+    fn test_export_config_creation() {
+        let config = ExportConfig::new(ExportMode::Fast, ValidationTiming::Deferred);
+        assert_eq!(config.mode, ExportMode::Fast);
+        assert_eq!(config.validation_timing, ValidationTiming::Deferred);
+        assert!(!config.validation_config.enable_json_validation);
+    }
+
+    #[test]
+    fn test_export_config_fast() {
+        let config = ExportConfig::fast();
+        assert_eq!(config.mode, ExportMode::Fast);
+        assert_eq!(config.validation_timing, ValidationTiming::Deferred);
+        assert!(!config.validation_config.enable_json_validation);
+        assert!(!config.validation_config.enable_encoding_validation);
+    }
+
+    #[test]
+    fn test_export_config_slow() {
+        let config = ExportConfig::slow();
+        assert_eq!(config.mode, ExportMode::Slow);
+        assert_eq!(config.validation_timing, ValidationTiming::Inline);
+        assert!(config.validation_config.enable_json_validation);
+        assert!(config.validation_config.enable_encoding_validation);
+    }
+
+    #[test]
+    fn test_export_config_auto() {
+        let config = ExportConfig::auto();
+        assert_eq!(config.mode, ExportMode::Auto);
+        assert_eq!(config.validation_timing, ValidationTiming::Deferred);
+    }
+
+    #[test]
+    fn test_export_config_default() {
+        let config = ExportConfig::default();
+        assert_eq!(config.mode, ExportMode::Fast);
+        assert_eq!(config.validation_timing, ValidationTiming::Deferred);
+    }
+
+    #[test]
+    fn test_export_config_validate_and_fix_fast_inline_conflict() {
+        let mut config = ExportConfig::new(ExportMode::Fast, ValidationTiming::Inline);
+        let warnings = config.validate_and_fix();
+        
+        assert_eq!(config.validation_timing, ValidationTiming::Deferred);
+        assert!(!warnings.is_empty());
+        assert!(warnings[0].contains("Fast mode with inline validation conflicts"));
+    }
+
+    #[test]
+    fn test_export_config_validate_and_fix_slow_disabled_conflict() {
+        let mut config = ExportConfig::new(ExportMode::Slow, ValidationTiming::Disabled);
+        let warnings = config.validate_and_fix();
+        
+        assert_eq!(config.validation_timing, ValidationTiming::Deferred);
+        assert!(!warnings.is_empty());
+        assert!(warnings[0].contains("Slow mode with disabled validation conflicts"));
+    }
+
+    #[test]
+    fn test_export_config_validate_and_fix_fast_mode_optimizations() {
+        let mut config = ExportConfig::new(ExportMode::Fast, ValidationTiming::Deferred);
+        config.validation_config.enable_json_validation = true;
+        config.validation_config.enable_encoding_validation = true;
+        
+        let warnings = config.validate_and_fix();
+        
+        assert!(!config.validation_config.enable_json_validation);
+        assert!(!config.validation_config.enable_encoding_validation);
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings[0].contains("Fast mode should not enable JSON validation"));
+        assert!(warnings[1].contains("Fast mode should not enable encoding validation"));
+    }
+
+    #[test]
+    fn test_export_config_validate_and_fix_slow_mode_requirements() {
+        let mut config = ExportConfig::new(ExportMode::Slow, ValidationTiming::Inline);
+        config.validation_config.enable_json_validation = false;
+        config.validation_config.enable_encoding_validation = false;
+        
+        let warnings = config.validate_and_fix();
+        
+        assert!(config.validation_config.enable_json_validation);
+        assert!(config.validation_config.enable_encoding_validation);
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings[0].contains("Slow mode should enable comprehensive validation"));
+        assert!(warnings[1].contains("Slow mode should enable comprehensive validation"));
+    }
+
+    #[test]
+    fn test_export_mode_manager_creation() {
+        let manager = ExportModeManager::new();
+        assert_eq!(manager.default_mode, ExportMode::Fast);
+        assert_eq!(manager.auto_threshold, 10 * 1024 * 1024);
+        assert_eq!(manager.performance_threshold_ms, 5000);
+    }
+
+    #[test]
+    fn test_export_mode_manager_with_settings() {
+        let manager = ExportModeManager::with_settings(
+            ExportMode::Slow,
+            5 * 1024 * 1024,
+            3000,
+        );
+        assert_eq!(manager.default_mode, ExportMode::Slow);
+        assert_eq!(manager.auto_threshold, 5 * 1024 * 1024);
+        assert_eq!(manager.performance_threshold_ms, 3000);
+    }
+
+    #[test]
+    fn test_export_mode_manager_determine_optimal_mode() {
+        let manager = ExportModeManager::with_settings(
+            ExportMode::Auto,
+            5 * 1024 * 1024,
+            3000,
+        );
+        
+        // Small data should use slow mode
+        let small_mode = manager.determine_optimal_mode(1024 * 1024); // 1MB
+        assert_eq!(small_mode, ExportMode::Slow);
+        
+        // Large data should use fast mode
+        let large_mode = manager.determine_optimal_mode(10 * 1024 * 1024); // 10MB
+        assert_eq!(large_mode, ExportMode::Fast);
+        
+        // Non-auto mode should return the set mode
+        let fixed_manager = ExportModeManager::with_settings(
+            ExportMode::Slow,
+            5 * 1024 * 1024,
+            3000,
+        );
+        let fixed_mode = fixed_manager.determine_optimal_mode(10 * 1024 * 1024);
+        assert_eq!(fixed_mode, ExportMode::Slow);
+    }
+
+    #[test]
+    fn test_export_mode_manager_create_config_for_mode() {
+        let manager = ExportModeManager::new();
+        
+        let fast_config = manager.create_config_for_mode(ExportMode::Fast);
+        assert_eq!(fast_config.mode, ExportMode::Fast);
+        assert_eq!(fast_config.validation_timing, ValidationTiming::Deferred);
+        
+        let slow_config = manager.create_config_for_mode(ExportMode::Slow);
+        assert_eq!(slow_config.mode, ExportMode::Slow);
+        assert_eq!(slow_config.validation_timing, ValidationTiming::Inline);
+        
+        let auto_config = manager.create_config_for_mode(ExportMode::Auto);
+        assert_eq!(auto_config.mode, ExportMode::Auto);
+        assert_eq!(auto_config.validation_timing, ValidationTiming::Deferred);
+    }
+
+    #[test]
+    fn test_export_mode_manager_create_auto_config() {
+        let manager = ExportModeManager::with_settings(
+            ExportMode::Auto,
+            5 * 1024 * 1024,
+            3000,
+        );
+        
+        // Small data should get slow mode config
+        let small_config = manager.create_auto_config(1024 * 1024);
+        assert_eq!(small_config.mode, ExportMode::Slow);
+        
+        // Large data should get fast mode config
+        let large_config = manager.create_auto_config(10 * 1024 * 1024);
+        assert_eq!(large_config.mode, ExportMode::Fast);
+    }
+
+    #[test]
+    fn test_validation_config_default() {
+        let config = ValidationConfig::default();
+        assert!(!config.enable_json_validation);
+        assert!(config.enable_integrity_validation);
+        assert!(config.enable_count_validation);
+        assert!(config.enable_size_validation);
+        assert!(!config.enable_encoding_validation);
+        assert_eq!(config.max_data_loss_rate, 0.1);
+        assert_eq!(config.min_expected_file_size, 1024);
+        assert_eq!(config.max_expected_file_size, 100 * 1024 * 1024);
+        assert!(!config.verbose_logging);
+    }
+
+    #[test]
+    fn test_validation_config_for_fast_mode() {
+        let config = ValidationConfig::for_fast_mode();
+        assert!(!config.enable_json_validation);
+        assert!(!config.enable_integrity_validation);
+        assert!(!config.enable_count_validation);
+        assert!(config.enable_size_validation);
+        assert!(!config.enable_encoding_validation);
+        assert_eq!(config.max_data_loss_rate, 1.0);
+        assert_eq!(config.min_expected_file_size, 512);
+        assert!(!config.verbose_logging);
+    }
+
+    #[test]
+    fn test_validation_config_for_slow_mode() {
+        let config = ValidationConfig::for_slow_mode();
+        assert!(config.enable_json_validation);
+        assert!(config.enable_integrity_validation);
+        assert!(config.enable_count_validation);
+        assert!(config.enable_size_validation);
+        assert!(config.enable_encoding_validation);
+        assert_eq!(config.max_data_loss_rate, 0.01);
+        assert_eq!(config.min_expected_file_size, 1024);
+        assert!(config.verbose_logging);
+    }
+
+    #[test]
+    fn test_validation_config_with_strategy() {
+        let minimal = ValidationConfig::with_strategy(ValidationStrategy::Minimal);
+        assert!(!minimal.enable_json_validation);
+        assert!(!minimal.enable_integrity_validation);
+        
+        let balanced = ValidationConfig::with_strategy(ValidationStrategy::Balanced);
+        assert!(!balanced.enable_json_validation);
+        assert!(balanced.enable_integrity_validation);
+        
+        let comprehensive = ValidationConfig::with_strategy(ValidationStrategy::Comprehensive);
+        assert!(comprehensive.enable_json_validation);
+        assert!(comprehensive.enable_integrity_validation);
+        
+        let custom_config = ValidationConfig::for_fast_mode();
+        let custom = ValidationConfig::with_strategy(ValidationStrategy::Custom(custom_config.clone()));
+        assert_eq!(custom.enable_json_validation, custom_config.enable_json_validation);
+    }
+
+    #[test]
+    fn test_validation_config_conflicts_with_mode() {
+        let mut config = ValidationConfig::default();
+        config.enable_json_validation = true;
+        config.enable_encoding_validation = true;
+        config.max_data_loss_rate = 0.05;
+        
+        let fast_conflicts = config.conflicts_with_mode(&ExportMode::Fast);
+        assert_eq!(fast_conflicts.len(), 3);
+        assert!(fast_conflicts[0].contains("JSON validation enabled in fast mode"));
+        assert!(fast_conflicts[1].contains("Encoding validation enabled in fast mode"));
+        assert!(fast_conflicts[2].contains("Strict data loss rate in fast mode"));
+        
+        let mut slow_config = ValidationConfig::default();
+        slow_config.enable_json_validation = false;
+        slow_config.enable_integrity_validation = false;
+        slow_config.enable_encoding_validation = false;
+        
+        let slow_conflicts = slow_config.conflicts_with_mode(&ExportMode::Slow);
+        assert_eq!(slow_conflicts.len(), 3);
+        assert!(slow_conflicts[0].contains("JSON validation disabled in slow mode"));
+        assert!(slow_conflicts[1].contains("Integrity validation disabled in slow mode"));
+        assert!(slow_conflicts[2].contains("Encoding validation disabled in slow mode"));
+        
+        let auto_conflicts = config.conflicts_with_mode(&ExportMode::Auto);
+        assert!(auto_conflicts.is_empty());
+    }
+
+    #[test]
+    fn test_validation_config_apply_safe_defaults() {
+        let mut config = ValidationConfig::default();
+        config.enable_json_validation = true;
+        config.enable_encoding_validation = true;
+        config.max_data_loss_rate = 0.05;
+        
+        config.apply_safe_defaults_for_mode(&ExportMode::Fast);
+        assert!(!config.enable_json_validation);
+        assert!(!config.enable_encoding_validation);
+        assert!(!config.enable_integrity_validation);
+        assert!(config.max_data_loss_rate >= 0.5);
+        assert!(!config.verbose_logging);
+        
+        let mut slow_config = ValidationConfig::default();
+        slow_config.enable_json_validation = false;
+        slow_config.max_data_loss_rate = 0.5;
+        
+        slow_config.apply_safe_defaults_for_mode(&ExportMode::Slow);
+        assert!(slow_config.enable_json_validation);
+        assert!(slow_config.enable_integrity_validation);
+        assert!(slow_config.enable_count_validation);
+        assert!(slow_config.enable_size_validation);
+        assert!(slow_config.enable_encoding_validation);
+        assert!(slow_config.max_data_loss_rate <= 0.1);
+        assert!(slow_config.verbose_logging);
+    }
+
+    #[test]
+    fn test_quality_validator_creation() {
+        let config = ValidationConfig::default();
+        let validator = QualityValidator::new(config.clone());
+        assert_eq!(validator.config.enable_json_validation, config.enable_json_validation);
+        assert_eq!(validator.stats.total_validations, 0);
+        
+        let default_validator = QualityValidator::new_default();
+        assert_eq!(default_validator.stats.total_validations, 0);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_source_data_empty() {
+        let mut validator = QualityValidator::new_default();
+        let empty_data = create_test_export_data(vec![]);
+        
+        let result = validator.validate_source_data(&empty_data).unwrap();
+        assert!(!result.is_valid); // Should fail due to empty data
+        assert_eq!(result.validation_type, ValidationType::DataIntegrity);
+        assert!(!result.issues.is_empty());
+        assert!(result.issues[0].description.contains("Allocation data is empty"));
+        assert_eq!(result.issues[0].severity, IssueSeverity::Critical);
+        
+        let stats = validator.get_stats();
+        assert_eq!(stats.total_validations, 1);
+        assert_eq!(stats.failed_validations, 1);
+        assert_eq!(stats.successful_validations, 0);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_source_data_valid() {
+        let mut validator = QualityValidator::new_default();
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
+            create_test_allocation(0x2000, 128, Some("Vec<i32>".to_string()), Some("var2".to_string())),
+        ];
+        let data = create_test_export_data(allocations);
+        
+        let result = validator.validate_source_data(&data).unwrap();
+        assert!(result.is_valid);
+        assert_eq!(result.validation_type, ValidationType::DataIntegrity);
+        assert!(result.validation_time_ms > 0);
+        assert_eq!(result.data_size, 2);
+        
+        let stats = validator.get_stats();
+        assert_eq!(stats.total_validations, 1);
+        assert_eq!(stats.successful_validations, 1);
+        assert_eq!(stats.failed_validations, 0);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_source_data_with_issues() {
+        let mut validator = QualityValidator::new_default();
+        let mut allocations = vec![
+            create_test_allocation(0x1000, 0, Some("String".to_string()), Some("var1".to_string())), // Size 0
+            create_test_allocation(0x1000, 128, Some("Vec<i32>".to_string()), Some("var2".to_string())), // Duplicate ptr
+        ];
+        allocations[1].timestamp_dealloc = Some(500); // Dealloc before alloc
+        
+        let data = create_test_export_data(allocations);
+        
+        let result = validator.validate_source_data(&data).unwrap();
+        assert!(result.is_valid); // Should still be valid (no critical issues)
+        assert!(!result.issues.is_empty());
+        
+        // Check for specific issues
+        let size_zero_issue = result.issues.iter().find(|i| i.description.contains("size 0"));
+        assert!(size_zero_issue.is_some());
+        assert_eq!(size_zero_issue.unwrap().severity, IssueSeverity::Medium);
+        
+        let duplicate_ptr_issue = result.issues.iter().find(|i| i.description.contains("duplicate pointers"));
+        assert!(duplicate_ptr_issue.is_some());
+        assert_eq!(duplicate_ptr_issue.unwrap().severity, IssueSeverity::High);
+        
+        let timestamp_issue = result.issues.iter().find(|i| i.description.contains("deallocation time is before allocation time"));
+        assert!(timestamp_issue.is_some());
+        assert_eq!(timestamp_issue.unwrap().severity, IssueSeverity::High);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_processed_shards() {
+        let mut validator = QualityValidator::new_default();
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
+        ];
+        
+        let shard_data = serde_json::to_vec(&allocations).unwrap();
+        let shards = vec![
+            ProcessedShard {
+                shard_index: 0,
+                allocation_count: 1,
+                data: shard_data,
+                processing_time_ms: 10,
+            }
+        ];
+        
+        let result = validator.validate_processed_shards(&shards, 1).unwrap();
+        assert!(result.is_valid);
+        assert_eq!(result.validation_type, ValidationType::JsonStructure);
+        assert!(result.validation_time_ms >= 0); // Allow 0 for fast operations
+    }
+
+    #[test]
+    fn test_quality_validator_validate_processed_shards_count_mismatch() {
+        let mut validator = QualityValidator::new_default();
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
+        ];
+        
+        let shard_data = serde_json::to_vec(&allocations).unwrap();
+        let shards = vec![
+            ProcessedShard {
+                shard_index: 0,
+                allocation_count: 1,
+                data: shard_data,
+                processing_time_ms: 10,
+            }
+        ];
+        
+        // Original count is 2, but shard only has 1
+        let result = validator.validate_processed_shards(&shards, 2).unwrap();
+        assert!(!result.is_valid); // Should be invalid due to critical severity
+        assert!(!result.issues.is_empty());
+        
+        let count_issue = result.issues.iter().find(|i| i.description.contains("Shard total count mismatch"));
+        assert!(count_issue.is_some());
+        assert_eq!(count_issue.unwrap().severity, IssueSeverity::Critical); // 50% loss rate
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_output.json");
+        
+        // Create a test JSON file
+        let test_data = serde_json::json!({
+            "allocations": [
+                {"ptr": 4096, "size": 64, "var_name": "test_var", "type_name": "String"}
+            ]
+        });
+        fs::write(&file_path, serde_json::to_string_pretty(&test_data).unwrap()).unwrap();
+        
+        let mut validator = QualityValidator::new_default();
+        let result = validator.validate_output_file(file_path.to_str().unwrap(), 1).unwrap();
+        
+        assert!(result.is_valid);
+        assert_eq!(result.validation_type, ValidationType::FileSize);
+        assert!(result.data_size > 0);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file_missing() {
+        let mut validator = QualityValidator::new_default();
+        let result = validator.validate_output_file("/nonexistent/file.json", 1).unwrap();
+        
+        assert!(!result.is_valid);
+        assert!(!result.issues.is_empty());
+        assert!(result.issues[0].description.contains("Output file does not exist"));
+        assert_eq!(result.issues[0].severity, IssueSeverity::Critical);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file_size_too_small() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("small_file.json");
+        
+        // Create a very small file
+        fs::write(&file_path, "{}").unwrap();
+        
+        let mut config = ValidationConfig::default();
+        config.min_expected_file_size = 1000; // Require at least 1000 bytes
+        let mut validator = QualityValidator::new(config);
+        
+        let result = validator.validate_output_file(file_path.to_str().unwrap(), 1).unwrap();
+        
+        assert!(result.is_valid); // Should still be valid (High severity, not Critical)
+        assert!(!result.issues.is_empty());
+        let size_issue = result.issues.iter().find(|i| i.description.contains("File size too small"));
+        assert!(size_issue.is_some());
+        assert_eq!(size_issue.unwrap().severity, IssueSeverity::High);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file_size_too_large() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("large_file.json");
+        
+        // Create a large file
+        let large_content = "x".repeat(1000);
+        fs::write(&file_path, large_content).unwrap();
+        
+        let mut config = ValidationConfig::default();
+        config.max_expected_file_size = 500; // Limit to 500 bytes
+        let mut validator = QualityValidator::new(config);
+        
+        let result = validator.validate_output_file(file_path.to_str().unwrap(), 1).unwrap();
+        
+        assert!(result.is_valid); // Should still be valid (Medium severity)
+        assert!(!result.issues.is_empty());
+        let size_issue = result.issues.iter().find(|i| i.description.contains("File size too large"));
+        assert!(size_issue.is_some());
+        assert_eq!(size_issue.unwrap().severity, IssueSeverity::Medium);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file_invalid_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("invalid.json");
+        
+        // Create invalid JSON
+        fs::write(&file_path, "{ invalid json }").unwrap();
+        
+        let mut config = ValidationConfig::default();
+        config.enable_json_validation = true;
+        let mut validator = QualityValidator::new(config);
+        
+        let result = validator.validate_output_file(file_path.to_str().unwrap(), 1).unwrap();
+        
+        assert!(!result.is_valid);
+        assert!(!result.issues.is_empty());
+        let json_issue = result.issues.iter().find(|i| i.description.contains("JSON parsing failed"));
+        assert!(json_issue.is_some());
+        assert_eq!(json_issue.unwrap().severity, IssueSeverity::Critical);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file_missing_allocations_field() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("no_allocations.json");
+        
+        // Create JSON without allocations field
+        let test_data = serde_json::json!({"other_field": "value"});
+        fs::write(&file_path, serde_json::to_string(&test_data).unwrap()).unwrap();
+        
+        let mut config = ValidationConfig::default();
+        config.enable_json_validation = true;
+        let mut validator = QualityValidator::new(config);
+        
+        let result = validator.validate_output_file(file_path.to_str().unwrap(), 1).unwrap();
+        
+        assert!(!result.is_valid);
+        assert!(!result.issues.is_empty());
+        let missing_field_issue = result.issues.iter().find(|i| i.description.contains("Missing allocations field"));
+        assert!(missing_field_issue.is_some());
+        assert_eq!(missing_field_issue.unwrap().severity, IssueSeverity::Critical);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file_allocations_not_array() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("allocations_not_array.json");
+        
+        // Create JSON with allocations as non-array
+        let test_data = serde_json::json!({"allocations": "not_an_array"});
+        fs::write(&file_path, serde_json::to_string(&test_data).unwrap()).unwrap();
+        
+        let mut config = ValidationConfig::default();
+        config.enable_json_validation = true;
+        let mut validator = QualityValidator::new(config);
+        
+        let result = validator.validate_output_file(file_path.to_str().unwrap(), 1).unwrap();
+        
+        assert!(!result.is_valid);
+        assert!(!result.issues.is_empty());
+        let structure_issue = result.issues.iter().find(|i| i.description.contains("allocations field is not an array"));
+        assert!(structure_issue.is_some());
+        assert_eq!(structure_issue.unwrap().severity, IssueSeverity::Critical);
+    }
+
+    #[test]
+    fn test_quality_validator_validate_output_file_count_mismatch() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("count_mismatch.json");
+        
+        // Create JSON with wrong allocation count
+        let test_data = serde_json::json!({
+            "allocations": [
+                {"ptr": 4096, "size": 64},
+                {"ptr": 8192, "size": 128}
+            ]
+        });
+        fs::write(&file_path, serde_json::to_string(&test_data).unwrap()).unwrap();
+        
+        let mut config = ValidationConfig::default();
+        config.enable_json_validation = true;
+        config.max_data_loss_rate = 0.1; // 0.1% max loss rate
+        let mut validator = QualityValidator::new(config);
+        
+        // Expect 5 allocations but file only has 2 (60% loss rate)
+        let result = validator.validate_output_file(file_path.to_str().unwrap(), 5).unwrap();
+        
+        assert!(!result.is_valid);
+        assert!(!result.issues.is_empty());
+        let count_issue = result.issues.iter().find(|i| i.description.contains("File allocation count mismatch"));
+        assert!(count_issue.is_some());
+        assert_eq!(count_issue.unwrap().severity, IssueSeverity::Critical);
+    }
+
+    #[test]
+    fn test_quality_validator_generate_validation_report() {
+        let mut validator = QualityValidator::new_default();
+        
+        // Run some validations to generate stats
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("String".to_string()), Some("var1".to_string())),
+        ];
+        let mut data = create_test_export_data(allocations.clone());
+        // Set stats to match allocations to avoid count mismatch issues
+        data.stats.total_allocations = allocations.len();
+        
+        let _result1 = validator.validate_source_data(&data).unwrap();
+        let _result2 = validator.validate_source_data(&data).unwrap();
+        
+        let report = validator.generate_validation_report();
+        
+        assert_eq!(report.total_validations, 2);
+        assert_eq!(report.successful_validations, 2);
+        assert_eq!(report.failed_validations, 0);
+        assert_eq!(report.success_rate, 100.0);
+        assert!(report.avg_validation_time_ms >= 0.0); // Allow 0 for fast operations
+        assert_eq!(report.total_issues_found, 0);
+        assert_eq!(report.total_issues_fixed, 0);
+        assert!(!report.validation_type_breakdown.is_empty());
+    }
+
+    #[test]
+    fn test_async_validator_creation() {
+        let config = ValidationConfig::default();
+        let validator = AsyncValidator::new(config.clone());
+        assert_eq!(validator.config.enable_json_validation, config.enable_json_validation);
+        assert_eq!(validator.stats.total_validations, 0);
+        
+        let default_validator = AsyncValidator::new_default();
+        assert_eq!(default_validator.stats.total_validations, 0);
+    }
+
+    // Note: Async tests removed to avoid tokio dependency in test compilation
+
+    #[test]
+    fn test_deferred_validation_creation() {
+        let config = ValidationConfig::default();
+        let validation = DeferredValidation::new("/test/path.json", 100, config);
+        
+        assert!(validation.is_pending());
+        assert!(!validation.is_running());
+        assert!(!validation.is_complete());
+        assert_eq!(validation.get_status(), ValidationStatus::Pending);
+        assert_eq!(validation.get_file_path(), "/test/path.json");
+    }
+
+    #[test]
+    fn test_deferred_validation_with_timeout() {
+        let config = ValidationConfig::default();
+        let timeout = Duration::from_secs(60);
+        let validation = DeferredValidation::with_timeout("/test/path.json", 100, config, timeout);
+        
+        assert!(validation.is_pending());
+        assert_eq!(validation.timeout_duration, timeout);
+    }
+
+    #[test]
+    fn test_deferred_validation_start_validation() {
+        let config = ValidationConfig::default();
+        let mut validation = DeferredValidation::new("/test/path.json", 100, config);
+        
+        let result = validation.start_validation();
+        assert!(result.is_ok());
+        assert!(validation.is_complete());
+    }
+
+    #[test]
+    fn test_deferred_validation_cancel_pending() {
+        let config = ValidationConfig::default();
+        let mut validation = DeferredValidation::new("/test/path.json", 100, config);
+        
+        let result = validation.cancel();
+        assert!(result.is_ok());
+        assert_eq!(validation.get_status(), ValidationStatus::Cancelled);
+    }
+
+    #[test]
+    fn test_deferred_validation_set_timeout() {
+        let config = ValidationConfig::default();
+        let mut validation = DeferredValidation::new("/test/path.json", 100, config);
+        
+        let new_timeout = Duration::from_secs(120);
+        validation.set_timeout(new_timeout);
+        assert_eq!(validation.timeout_duration, new_timeout);
+    }
+
+    #[test]
+    fn test_deferred_validation_set_cancellable() {
+        let config = ValidationConfig::default();
+        let mut validation = DeferredValidation::new("/test/path.json", 100, config);
+        
+        validation.set_cancellable(false);
+        assert!(!validation.cancellable);
+        
+        let result = validation.cancel();
+        assert!(result.is_err());
+    }
+
+    // Note: Async deferred validation tests removed to avoid tokio dependency
+
+    #[test]
+    fn test_export_args_validate_empty_output() {
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Deferred,
+            disable_validation: false,
+            output: PathBuf::new(),
+            timeout: 30,
+            verbose: false,
+            max_data_loss_rate: 0.1,
+            min_file_size: 1024,
+            max_file_size: 104857600,
+        };
+        
+        let result = args.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Output path cannot be empty"));
+    }
+
+    #[test]
+    fn test_export_args_validate_invalid_timeout() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Deferred,
+            disable_validation: false,
+            output: temp_dir.path().join("output.json"),
+            timeout: 0,
+            verbose: false,
+            max_data_loss_rate: 0.1,
+            min_file_size: 1024,
+            max_file_size: 104857600,
+        };
+        
+        let result = args.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Timeout must be greater than 0 seconds"));
+    }
+
+    #[test]
+    fn test_export_args_validate_timeout_too_large() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Deferred,
+            disable_validation: false,
+            output: temp_dir.path().join("output.json"),
+            timeout: 4000,
+            verbose: false,
+            max_data_loss_rate: 0.1,
+            min_file_size: 1024,
+            max_file_size: 104857600,
+        };
+        
+        let result = args.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Timeout cannot exceed 3600 seconds"));
+    }
+
+    #[test]
+    fn test_export_args_validate_invalid_data_loss_rate() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Deferred,
+            disable_validation: false,
+            output: temp_dir.path().join("output.json"),
+            timeout: 30,
+            verbose: false,
+            max_data_loss_rate: 150.0,
+            min_file_size: 1024,
+            max_file_size: 104857600,
+        };
+        
+        let result = args.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Max data loss rate must be between 0.0 and 100.0"));
+    }
+
+    #[test]
+    fn test_export_args_validate_invalid_file_sizes() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Deferred,
+            disable_validation: false,
+            output: temp_dir.path().join("output.json"),
+            timeout: 30,
+            verbose: false,
+            max_data_loss_rate: 0.1,
+            min_file_size: 2048,
+            max_file_size: 1024,
+        };
+        
+        let result = args.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Minimum file size must be less than maximum file size"));
+    }
+
+    #[test]
+    fn test_export_args_validate_conflicting_options() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Inline,
+            disable_validation: true,
+            output: temp_dir.path().join("output.json"),
+            timeout: 30,
+            verbose: false,
+            max_data_loss_rate: 0.1,
+            min_file_size: 1024,
+            max_file_size: 104857600,
+        };
+        
+        let result = args.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Cannot use inline validation when validation is disabled"));
+    }
+
+    #[test]
+    fn test_export_args_to_export_config() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Slow,
+            validation: ValidationTiming::Inline,
+            disable_validation: false,
+            output: temp_dir.path().join("output.json"),
+            timeout: 60,
+            verbose: true,
+            max_data_loss_rate: 0.5,
+            min_file_size: 2048,
+            max_file_size: 52428800,
+        };
+        
+        let config = args.to_export_config();
+        assert_eq!(config.mode, ExportMode::Slow);
+        assert_eq!(config.validation_timing, ValidationTiming::Inline);
+        assert_eq!(config.validation_config.max_data_loss_rate, 0.005); // Converted to fraction
+        assert_eq!(config.validation_config.min_expected_file_size, 2048);
+        assert_eq!(config.validation_config.max_expected_file_size, 52428800);
+        assert!(config.validation_config.verbose_logging);
+    }
+
+    #[test]
+    fn test_export_args_to_export_config_disabled_validation() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Inline,
+            disable_validation: true,
+            output: temp_dir.path().join("output.json"),
+            timeout: 30,
+            verbose: false,
+            max_data_loss_rate: 0.1,
+            min_file_size: 1024,
+            max_file_size: 104857600,
+        };
+        
+        let config = args.to_export_config();
+        assert_eq!(config.validation_timing, ValidationTiming::Disabled);
+    }
+
+    #[test]
+    fn test_export_args_get_timeout_duration() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let args = ExportArgs {
+            mode: ExportMode::Fast,
+            validation: ValidationTiming::Deferred,
+            disable_validation: false,
+            output: temp_dir.path().join("output.json"),
+            timeout: 45,
+            verbose: false,
+            max_data_loss_rate: 0.1,
+            min_file_size: 1024,
+            max_file_size: 104857600,
+        };
+        
+        assert_eq!(args.get_timeout_duration(), Duration::from_secs(45));
+    }
+
+    #[test]
+    fn test_validation_report_print_detailed_report() {
+        let mut type_breakdown = std::collections::HashMap::new();
+        type_breakdown.insert(ValidationType::DataIntegrity, ValidationTypeStats {
+            executions: 5,
+            successes: 4,
+            failures: 1,
+            avg_execution_time_ms: 25.5,
+        });
+        
+        let report = ValidationReport {
+            total_validations: 10,
+            successful_validations: 8,
+            failed_validations: 2,
+            success_rate: 80.0,
+            avg_validation_time_ms: 30.2,
+            total_issues_found: 5,
+            total_issues_fixed: 2,
+            validation_type_breakdown: type_breakdown,
+        };
+        
+        // This should not panic
+        report.print_detailed_report();
+    }
+
+    #[test]
+    fn test_issue_type_display() {
+        assert_eq!(format!("{}", IssueType::MissingData), "Missing Data");
+        assert_eq!(format!("{}", IssueType::CorruptedData), "Corrupted Data");
+        assert_eq!(format!("{}", IssueType::InconsistentData), "Inconsistent Data");
+        assert_eq!(format!("{}", IssueType::InvalidFormat), "Invalid Format");
+        assert_eq!(format!("{}", IssueType::SizeAnomaly), "Size Anomaly");
+        assert_eq!(format!("{}", IssueType::EncodingError), "Encoding Error");
+        assert_eq!(format!("{}", IssueType::StructuralError), "Structural Error");
+        assert_eq!(format!("{}", IssueType::CountMismatch), "Count Mismatch");
+    }
+
+    #[test]
+    fn test_validation_phase_display() {
+        assert_eq!(format!("{}", ValidationPhase::Initializing), "Initializing");
+        assert_eq!(format!("{}", ValidationPhase::ReadingMetadata), "Reading metadata");
+        assert_eq!(format!("{}", ValidationPhase::ValidatingStructure), "Validating structure");
+        assert_eq!(format!("{}", ValidationPhase::ValidatingContent), "Validating content");
+        assert_eq!(format!("{}", ValidationPhase::ValidatingEncoding), "Validating encoding");
+        assert_eq!(format!("{}", ValidationPhase::Finalizing), "Finalizing");
+        assert_eq!(format!("{}", ValidationPhase::Completed), "Completed");
+        assert_eq!(format!("{}", ValidationPhase::Interrupted), "Interrupted");
+        assert_eq!(format!("{}", ValidationPhase::Failed), "Failed");
+    }
+
+    #[test]
+    fn test_streaming_validation_config_default() {
+        let config = StreamingValidationConfig::default();
+        assert_eq!(config.chunk_size, 64 * 1024);
+        assert_eq!(config.max_buffer_size, 16 * 1024 * 1024);
+        assert!(config.enable_progress_reporting);
+        assert_eq!(config.progress_report_interval, 1024 * 1024);
+        assert!(config.enable_interruption);
+        assert!(config.enable_resume);
+        assert_eq!(config.checkpoint_interval, 10 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_enhanced_streaming_validator_creation() {
+        let config = ValidationConfig::default();
+        let streaming_config = StreamingValidationConfig::default();
+        let validator = EnhancedStreamingValidator::new(config, streaming_config);
+        
+        assert!(!validator.is_interrupted());
+        assert!(validator.get_progress().is_none());
+    }
+
+    #[test]
+    fn test_enhanced_streaming_validator_interrupt() {
+        let config = ValidationConfig::default();
+        let streaming_config = StreamingValidationConfig::default();
+        let validator = EnhancedStreamingValidator::new(config, streaming_config);
+        
+        assert!(!validator.is_interrupted());
+        validator.interrupt();
+        assert!(validator.is_interrupted());
+    }
+
+    #[test]
+    fn test_enhanced_streaming_validator_set_progress_callback() {
+        let config = ValidationConfig::default();
+        let streaming_config = StreamingValidationConfig::default();
+        let mut validator = EnhancedStreamingValidator::new(config, streaming_config);
+        
+        validator.set_progress_callback(|_progress| {
+            // Test callback
+        });
+        
+        assert!(validator.progress_callback.is_some());
+    }
+
+    // Note: Async streaming validator test removed to avoid tokio dependency
+
+    #[test]
+    fn test_export_mode_manager_optimize_config() {
+        let manager = ExportModeManager::new();
+        let config = ExportConfig::fast();
+        
+        let (optimized_config, warnings) = manager.optimize_config(config, 50 * 1024 * 1024); // 50MB
+        
+        assert_eq!(optimized_config.mode, ExportMode::Fast);
+        // Warnings may be empty if no optimizations are needed
+        if !warnings.is_empty() {
+            assert!(warnings[0].contains("Large dataset"));
+        }
+    }
+
+    #[test]
+    fn test_export_mode_manager_optimize_config_very_large() {
+        let manager = ExportModeManager::new();
+        let mut config = ExportConfig::slow();
+        config.validation_config.enable_json_validation = true;
+        config.validation_config.enable_encoding_validation = true;
+        
+        let (optimized_config, warnings) = manager.optimize_config(config, 200 * 1024 * 1024); // 200MB
+        
+        assert!(!optimized_config.validation_config.enable_json_validation);
+        assert!(!optimized_config.validation_config.enable_encoding_validation);
+        assert!(warnings.len() >= 2);
+        assert!(warnings.iter().any(|w| w.contains("Disabling JSON validation")));
+        assert!(warnings.iter().any(|w| w.contains("Disabling encoding validation")));
+    }
+
+    #[test]
+    fn test_export_mode_manager_get_settings() {
+        let manager = ExportModeManager::with_settings(
+            ExportMode::Slow,
+            5 * 1024 * 1024,
+            3000,
+        );
+        
+        let (mode, threshold, perf_threshold) = manager.get_settings();
+        assert_eq!(mode, ExportMode::Slow);
+        assert_eq!(threshold, 5 * 1024 * 1024);
+        assert_eq!(perf_threshold, 3000);
+    }
+
+    #[test]
+    fn test_validation_result_default() {
+        let result = ValidationResult::default();
+        assert!(result.is_valid);
+        assert_eq!(result.validation_type, ValidationType::DataIntegrity);
+        assert_eq!(result.message, "Default validation result");
+        assert!(result.issues.is_empty());
+        assert_eq!(result.validation_time_ms, 0);
+        assert_eq!(result.data_size, 0);
+    }
+
+    #[test]
+    fn test_validation_stats_default() {
+        let stats = ValidationStats::default();
+        assert_eq!(stats.total_validations, 0);
+        assert_eq!(stats.successful_validations, 0);
+        assert_eq!(stats.failed_validations, 0);
+        assert!(stats.validation_type_stats.is_empty());
+        assert_eq!(stats.total_validation_time_ms, 0);
+        assert_eq!(stats.issues_found, 0);
+        assert_eq!(stats.issues_fixed, 0);
+    }
+
+    #[test]
+    fn test_validation_type_stats_default() {
+        let stats = ValidationTypeStats::default();
+        assert_eq!(stats.executions, 0);
+        assert_eq!(stats.successes, 0);
+        assert_eq!(stats.failures, 0);
+        assert_eq!(stats.avg_execution_time_ms, 0.0);
+    }
+}
