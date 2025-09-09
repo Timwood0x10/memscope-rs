@@ -272,6 +272,476 @@ mod tests {
             primitives::read_option(&mut cursor).expect("Test operation failed");
         assert!(read_value.is_none());
     }
+
+    #[test]
+    fn test_all_primitive_types() {
+        let mut buffer = Vec::new();
+
+        // Test u8
+        primitives::write_u8(&mut buffer, 255).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_u8(&mut cursor).unwrap(), 255);
+
+        // Test u16
+        buffer.clear();
+        primitives::write_u16(&mut buffer, 0xABCD).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_u16(&mut cursor).unwrap(), 0xABCD);
+
+        // Test u64
+        buffer.clear();
+        primitives::write_u64(&mut buffer, 0x123456789ABCDEF0).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_u64(&mut cursor).unwrap(), 0x123456789ABCDEF0);
+
+        // Test usize
+        buffer.clear();
+        primitives::write_usize(&mut buffer, 12345).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_usize(&mut cursor).unwrap(), 12345);
+
+        // Test f32
+        buffer.clear();
+        primitives::write_f32(&mut buffer, 3.14159).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        let read_f32 = primitives::read_f32(&mut cursor).unwrap();
+        assert!((read_f32 - 3.14159).abs() < 0.0001);
+
+        // Test f64
+        buffer.clear();
+        primitives::write_f64(&mut buffer, 2.718281828459045).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        let read_f64 = primitives::read_f64(&mut cursor).unwrap();
+        assert!((read_f64 - 2.718281828459045).abs() < 0.000000000001);
+    }
+
+    #[test]
+    fn test_string_serialization() {
+        let mut buffer = Vec::new();
+
+        // Test empty string
+        primitives::write_string(&mut buffer, "").unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_string(&mut cursor).unwrap(), "");
+
+        // Test unicode string
+        buffer.clear();
+        let unicode_str = "Hello 世界 🦀";
+        primitives::write_string(&mut buffer, unicode_str).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_string(&mut cursor).unwrap(), unicode_str);
+
+        // Test long string
+        buffer.clear();
+        let long_str = "a".repeat(1000);
+        primitives::write_string(&mut buffer, &long_str).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_string(&mut cursor).unwrap(), long_str);
+    }
+
+    #[test]
+    fn test_string_option_serialization() {
+        let mut buffer = Vec::new();
+
+        // Test Some string
+        let some_str = Some("test string".to_string());
+        primitives::write_string_option(&mut buffer, &some_str).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_string_option(&mut cursor).unwrap(), some_str);
+
+        // Test None string
+        buffer.clear();
+        let none_str: Option<String> = None;
+        primitives::write_string_option(&mut buffer, &none_str).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        assert_eq!(primitives::read_string_option(&mut cursor).unwrap(), none_str);
+    }
+
+    #[test]
+    fn test_vec_serialization() {
+        struct TestItem(u32);
+
+        impl BinarySerializable for TestItem {
+            fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
+                primitives::write_u32(writer, self.0)
+            }
+
+            fn read_binary<R: Read>(reader: &mut R) -> Result<Self, BinaryExportError> {
+                Ok(TestItem(primitives::read_u32(reader)?))
+            }
+
+            fn binary_size(&self) -> usize {
+                4
+            }
+        }
+
+        let mut buffer = Vec::new();
+
+        // Test empty vector
+        let empty_vec: Vec<TestItem> = vec![];
+        primitives::write_vec(&mut buffer, &empty_vec).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        let read_vec: Vec<TestItem> = primitives::read_vec(&mut cursor).unwrap();
+        assert_eq!(read_vec.len(), 0);
+
+        // Test vector with items
+        buffer.clear();
+        let test_vec = vec![TestItem(1), TestItem(2), TestItem(3)];
+        primitives::write_vec(&mut buffer, &test_vec).unwrap();
+        let mut cursor = Cursor::new(&buffer);
+        let read_vec: Vec<TestItem> = primitives::read_vec(&mut cursor).unwrap();
+        assert_eq!(read_vec.len(), 3);
+        assert_eq!(read_vec[0].0, 1);
+        assert_eq!(read_vec[1].0, 2);
+        assert_eq!(read_vec[2].0, 3);
+    }
+
+    #[test]
+    fn test_binary_unsafe_report() {
+        let report = BinaryUnsafeReport {
+            report_id: "test_report_123".to_string(),
+            source_type: 1,
+            source_details: "FFI function call".to_string(),
+            risk_level: 2,
+            risk_score: 7.5,
+            confidence_score: 0.85,
+            generated_at: 1234567890,
+            dynamic_violations_count: 3,
+            risk_factors_count: 5,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = report.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, report.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_report = BinaryUnsafeReport::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_report.report_id, report.report_id);
+        assert_eq!(read_report.source_type, report.source_type);
+        assert_eq!(read_report.source_details, report.source_details);
+        assert_eq!(read_report.risk_level, report.risk_level);
+        assert!((read_report.risk_score - report.risk_score).abs() < 0.001);
+        assert!((read_report.confidence_score - report.confidence_score).abs() < 0.001);
+        assert_eq!(read_report.generated_at, report.generated_at);
+        assert_eq!(read_report.dynamic_violations_count, report.dynamic_violations_count);
+        assert_eq!(read_report.risk_factors_count, report.risk_factors_count);
+    }
+
+    #[test]
+    fn test_binary_memory_passport() {
+        let passport = BinaryMemoryPassport {
+            passport_id: "passport_456".to_string(),
+            memory_address: 0x7fff12345678,
+            size_bytes: 1024,
+            status_at_shutdown: 2,
+            created_at: 1000000000,
+            updated_at: 1000000100,
+            lifecycle_events_count: 7,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = passport.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, passport.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_passport = BinaryMemoryPassport::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_passport.passport_id, passport.passport_id);
+        assert_eq!(read_passport.memory_address, passport.memory_address);
+        assert_eq!(read_passport.size_bytes, passport.size_bytes);
+        assert_eq!(read_passport.status_at_shutdown, passport.status_at_shutdown);
+        assert_eq!(read_passport.created_at, passport.created_at);
+        assert_eq!(read_passport.updated_at, passport.updated_at);
+        assert_eq!(read_passport.lifecycle_events_count, passport.lifecycle_events_count);
+    }
+
+    #[test]
+    fn test_binary_call_stack_ref() {
+        let call_stack = BinaryCallStackRef {
+            id: 12345,
+            depth: 42,
+            created_at: 9876543210,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = call_stack.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, call_stack.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_call_stack = BinaryCallStackRef::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_call_stack.id, call_stack.id);
+        assert_eq!(read_call_stack.depth, call_stack.depth);
+        assert_eq!(read_call_stack.created_at, call_stack.created_at);
+    }
+
+    #[test]
+    fn test_binary_borrow_info() {
+        // Test with timestamp
+        let borrow_info_with_timestamp = BinaryBorrowInfo {
+            immutable_borrows: 5,
+            mutable_borrows: 2,
+            max_concurrent_borrows: 7,
+            last_borrow_timestamp: Some(1234567890),
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = borrow_info_with_timestamp.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, borrow_info_with_timestamp.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_borrow_info = BinaryBorrowInfo::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_borrow_info.immutable_borrows, borrow_info_with_timestamp.immutable_borrows);
+        assert_eq!(read_borrow_info.mutable_borrows, borrow_info_with_timestamp.mutable_borrows);
+        assert_eq!(read_borrow_info.max_concurrent_borrows, borrow_info_with_timestamp.max_concurrent_borrows);
+        assert_eq!(read_borrow_info.last_borrow_timestamp, borrow_info_with_timestamp.last_borrow_timestamp);
+
+        // Test without timestamp
+        buffer.clear();
+        let borrow_info_no_timestamp = BinaryBorrowInfo {
+            immutable_borrows: 3,
+            mutable_borrows: 1,
+            max_concurrent_borrows: 4,
+            last_borrow_timestamp: None,
+        };
+
+        let written_size = borrow_info_no_timestamp.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, borrow_info_no_timestamp.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_borrow_info = BinaryBorrowInfo::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_borrow_info.immutable_borrows, borrow_info_no_timestamp.immutable_borrows);
+        assert_eq!(read_borrow_info.mutable_borrows, borrow_info_no_timestamp.mutable_borrows);
+        assert_eq!(read_borrow_info.max_concurrent_borrows, borrow_info_no_timestamp.max_concurrent_borrows);
+        assert_eq!(read_borrow_info.last_borrow_timestamp, borrow_info_no_timestamp.last_borrow_timestamp);
+    }
+
+    #[test]
+    fn test_binary_clone_info() {
+        // Test with original pointer
+        let clone_info_with_ptr = BinaryCloneInfo {
+            clone_count: 3,
+            is_clone: true,
+            original_ptr: Some(0x7fff87654321),
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = clone_info_with_ptr.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, clone_info_with_ptr.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_clone_info = BinaryCloneInfo::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_clone_info.clone_count, clone_info_with_ptr.clone_count);
+        assert_eq!(read_clone_info.is_clone, clone_info_with_ptr.is_clone);
+        assert_eq!(read_clone_info.original_ptr, clone_info_with_ptr.original_ptr);
+
+        // Test without original pointer
+        buffer.clear();
+        let clone_info_no_ptr = BinaryCloneInfo {
+            clone_count: 1,
+            is_clone: false,
+            original_ptr: None,
+        };
+
+        let written_size = clone_info_no_ptr.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, clone_info_no_ptr.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_clone_info = BinaryCloneInfo::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_clone_info.clone_count, clone_info_no_ptr.clone_count);
+        assert_eq!(read_clone_info.is_clone, clone_info_no_ptr.is_clone);
+        assert_eq!(read_clone_info.original_ptr, clone_info_no_ptr.original_ptr);
+    }
+
+    #[test]
+    fn test_binary_ownership_event() {
+        // Test with all optional fields
+        let event_full = BinaryOwnershipEvent {
+            timestamp: 1234567890,
+            event_type: 3,
+            source_stack_id: 42,
+            clone_source_ptr: Some(0x7fff11111111),
+            transfer_target_var: Some("target_variable".to_string()),
+            borrower_scope: Some("function_scope".to_string()),
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = event_full.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, event_full.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_event = BinaryOwnershipEvent::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_event.timestamp, event_full.timestamp);
+        assert_eq!(read_event.event_type, event_full.event_type);
+        assert_eq!(read_event.source_stack_id, event_full.source_stack_id);
+        assert_eq!(read_event.clone_source_ptr, event_full.clone_source_ptr);
+        assert_eq!(read_event.transfer_target_var, event_full.transfer_target_var);
+        assert_eq!(read_event.borrower_scope, event_full.borrower_scope);
+
+        // Test with no optional fields
+        buffer.clear();
+        let event_minimal = BinaryOwnershipEvent {
+            timestamp: 9876543210,
+            event_type: 0,
+            source_stack_id: 1,
+            clone_source_ptr: None,
+            transfer_target_var: None,
+            borrower_scope: None,
+        };
+
+        let written_size = event_minimal.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, event_minimal.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_event = BinaryOwnershipEvent::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_event.timestamp, event_minimal.timestamp);
+        assert_eq!(read_event.event_type, event_minimal.event_type);
+        assert_eq!(read_event.source_stack_id, event_minimal.source_stack_id);
+        assert_eq!(read_event.clone_source_ptr, event_minimal.clone_source_ptr);
+        assert_eq!(read_event.transfer_target_var, event_minimal.transfer_target_var);
+        assert_eq!(read_event.borrower_scope, event_minimal.borrower_scope);
+    }
+
+    #[test]
+    fn test_binary_resolved_ffi_function() {
+        // Test with signature
+        let ffi_func_with_sig = BinaryResolvedFfiFunction {
+            library_name: "libc.so.6".to_string(),
+            function_name: "malloc".to_string(),
+            signature: Some("fn(size: usize) -> *mut c_void".to_string()),
+            category: 1,
+            risk_level: 2,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = ffi_func_with_sig.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, ffi_func_with_sig.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_ffi_func = BinaryResolvedFfiFunction::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_ffi_func.library_name, ffi_func_with_sig.library_name);
+        assert_eq!(read_ffi_func.function_name, ffi_func_with_sig.function_name);
+        assert_eq!(read_ffi_func.signature, ffi_func_with_sig.signature);
+        assert_eq!(read_ffi_func.category, ffi_func_with_sig.category);
+        assert_eq!(read_ffi_func.risk_level, ffi_func_with_sig.risk_level);
+
+        // Test without signature
+        buffer.clear();
+        let ffi_func_no_sig = BinaryResolvedFfiFunction {
+            library_name: "unknown".to_string(),
+            function_name: "unknown_func".to_string(),
+            signature: None,
+            category: 0,
+            risk_level: 3,
+        };
+
+        let written_size = ffi_func_no_sig.write_binary(&mut buffer).unwrap();
+        assert_eq!(written_size, ffi_func_no_sig.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_ffi_func = BinaryResolvedFfiFunction::read_binary(&mut cursor).unwrap();
+
+        assert_eq!(read_ffi_func.library_name, ffi_func_no_sig.library_name);
+        assert_eq!(read_ffi_func.function_name, ffi_func_no_sig.function_name);
+        assert_eq!(read_ffi_func.signature, ffi_func_no_sig.signature);
+        assert_eq!(read_ffi_func.category, ffi_func_no_sig.category);
+        assert_eq!(read_ffi_func.risk_level, ffi_func_no_sig.risk_level);
+    }
+
+    #[test]
+    fn test_binary_size_calculations() {
+        // Test that binary_size() matches actual written size for all types
+        let unsafe_report = BinaryUnsafeReport {
+            report_id: "test".to_string(),
+            source_type: 1,
+            source_details: "details".to_string(),
+            risk_level: 2,
+            risk_score: 5.0,
+            confidence_score: 0.8,
+            generated_at: 123456,
+            dynamic_violations_count: 1,
+            risk_factors_count: 2,
+        };
+
+        let mut buffer = Vec::new();
+        let written = unsafe_report.write_binary(&mut buffer).unwrap();
+        assert_eq!(written, unsafe_report.binary_size());
+        assert_eq!(buffer.len(), unsafe_report.binary_size());
+
+        // Test other types similarly
+        let memory_passport = BinaryMemoryPassport {
+            passport_id: "passport".to_string(),
+            memory_address: 0x1000,
+            size_bytes: 64,
+            status_at_shutdown: 1,
+            created_at: 100,
+            updated_at: 200,
+            lifecycle_events_count: 3,
+        };
+
+        buffer.clear();
+        let written = memory_passport.write_binary(&mut buffer).unwrap();
+        assert_eq!(written, memory_passport.binary_size());
+        assert_eq!(buffer.len(), memory_passport.binary_size());
+    }
+
+    #[test]
+    fn test_error_handling_corrupted_data() {
+        // Test reading from empty buffer
+        let mut empty_cursor = Cursor::new(Vec::<u8>::new());
+        assert!(primitives::read_u32(&mut empty_cursor).is_err());
+        assert!(primitives::read_string(&mut empty_cursor).is_err());
+
+        // Test reading string with invalid UTF-8
+        let mut buffer = Vec::new();
+        primitives::write_u32(&mut buffer, 4).unwrap(); // length = 4
+        buffer.extend_from_slice(&[0xFF, 0xFE, 0xFD, 0xFC]); // invalid UTF-8
+
+        let mut cursor = Cursor::new(&buffer);
+        let result = primitives::read_string(&mut cursor);
+        assert!(result.is_err());
+        if let Err(BinaryExportError::CorruptedData(msg)) = result {
+            assert!(msg.contains("Invalid UTF-8"));
+        } else {
+            panic!("Expected CorruptedData error");
+        }
+    }
+
+    #[test]
+    fn test_roundtrip_consistency() {
+        // Test that write -> read -> write produces identical results
+        let original_event = BinaryOwnershipEvent {
+            timestamp: 1234567890,
+            event_type: 2,
+            source_stack_id: 99,
+            clone_source_ptr: Some(0x7fff99999999),
+            transfer_target_var: Some("test_var".to_string()),
+            borrower_scope: None,
+        };
+
+        // First serialization
+        let mut buffer1 = Vec::new();
+        original_event.write_binary(&mut buffer1).unwrap();
+
+        // Deserialize
+        let mut cursor = Cursor::new(&buffer1);
+        let deserialized_event = BinaryOwnershipEvent::read_binary(&mut cursor).unwrap();
+
+        // Second serialization
+        let mut buffer2 = Vec::new();
+        deserialized_event.write_binary(&mut buffer2).unwrap();
+
+        // Buffers should be identical
+        assert_eq!(buffer1, buffer2);
+    }
 }
 
 /// Binary serializable wrapper for UnsafeReport

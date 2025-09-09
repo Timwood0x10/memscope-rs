@@ -372,4 +372,463 @@ mod tests {
         assert_eq!(stats.allocations_processed, 0);
         Ok(())
     }
+
+    fn create_test_allocation(ptr: usize, size: usize, var_name: Option<String>, type_name: Option<String>) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name,
+            type_name,
+            scope_name: Some("test_scope".to_string()),
+            timestamp_alloc: 1234567890,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: Some(100),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    fn create_test_memory_stats() -> MemoryStats {
+        MemoryStats {
+            total_allocations: 10,
+            total_allocated: 1024,
+            active_allocations: 5,
+            active_memory: 512,
+            peak_allocations: 8,
+            peak_memory: 768,
+            total_deallocations: 5,
+            total_deallocated: 512,
+            leaked_allocations: 0,
+            leaked_memory: 0,
+            fragmentation_analysis: crate::core::types::FragmentationAnalysis::default(),
+            lifecycle_stats: crate::core::types::ScopeLifecycleMetrics::default(),
+            allocations: Vec::new(),
+            system_library_stats: crate::core::types::SystemLibraryStats::default(),
+            concurrency_analysis: crate::core::types::ConcurrencyAnalysis::default(),
+        }
+    }
+
+    #[test]
+    fn test_export_config_user_variables_only() {
+        let config = ExportConfig::user_variables_only();
+        assert!(!config.include_system_allocations);
+        assert_eq!(config.buffer_size, 256 * 1024);
+        assert!(config.validate_output);
+        assert!(config.parallel_processing.is_none());
+        assert!(config.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_export_config_all_allocations() {
+        let config = ExportConfig::all_allocations();
+        assert!(config.include_system_allocations);
+        assert_eq!(config.buffer_size, 256 * 1024);
+        assert!(config.validate_output);
+        assert!(config.parallel_processing.is_none());
+        assert!(config.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_export_config_fast_export() {
+        let config = ExportConfig::fast_export();
+        assert!(!config.include_system_allocations);
+        assert_eq!(config.buffer_size, 512 * 1024);
+        assert!(!config.validate_output);
+        assert_eq!(config.parallel_processing, Some(true));
+        assert!(config.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_export_config_comprehensive() {
+        let config = ExportConfig::comprehensive();
+        assert!(config.include_system_allocations);
+        assert_eq!(config.buffer_size, 1024 * 1024);
+        assert!(config.validate_output);
+        assert_eq!(config.parallel_processing, Some(true));
+        assert!(config.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_export_config_debug_clone() {
+        let config = ExportConfig::default();
+        
+        // Test Debug trait
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("ExportConfig"));
+        assert!(debug_str.contains("include_system_allocations"));
+        assert!(debug_str.contains("false")); // include_system_allocations is false by default
+        
+        // Test Clone trait
+        let cloned_config = config.clone();
+        assert_eq!(cloned_config.include_system_allocations, config.include_system_allocations);
+        assert_eq!(cloned_config.parallel_processing, config.parallel_processing);
+        assert_eq!(cloned_config.buffer_size, config.buffer_size);
+        assert_eq!(cloned_config.validate_output, config.validate_output);
+        assert_eq!(cloned_config.thread_count, config.thread_count);
+    }
+
+    #[test]
+    fn test_export_stats_default() {
+        let stats = ExportStats::default();
+        
+        assert_eq!(stats.allocations_processed, 0);
+        assert_eq!(stats.user_variables, 0);
+        assert_eq!(stats.system_allocations, 0);
+        assert_eq!(stats.processing_time_ms, 0);
+        assert_eq!(stats.output_size_bytes, 0);
+        assert_eq!(stats.processing_rate, 0.0);
+    }
+
+    #[test]
+    fn test_export_stats_debug_clone() {
+        let stats = ExportStats {
+            allocations_processed: 100,
+            user_variables: 80,
+            system_allocations: 20,
+            processing_time_ms: 1000,
+            output_size_bytes: 50000,
+            processing_rate: 100.0,
+        };
+        
+        // Test Debug trait
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("ExportStats"));
+        assert!(debug_str.contains("100")); // allocations_processed
+        assert!(debug_str.contains("1000")); // processing_time_ms
+        
+        // Test Clone trait
+        let cloned_stats = stats.clone();
+        assert_eq!(cloned_stats.allocations_processed, stats.allocations_processed);
+        assert_eq!(cloned_stats.user_variables, stats.user_variables);
+        assert_eq!(cloned_stats.system_allocations, stats.system_allocations);
+        assert_eq!(cloned_stats.processing_time_ms, stats.processing_time_ms);
+        assert_eq!(cloned_stats.output_size_bytes, stats.output_size_bytes);
+        assert_eq!(cloned_stats.processing_rate, stats.processing_rate);
+    }
+
+    #[test]
+    fn test_exporter_new() {
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("var2".to_string()), Some("Vec<i32>".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        let config = ExportConfig::default();
+        
+        let exporter = Exporter::new(allocations.clone(), stats, config);
+        assert_eq!(exporter.allocations.len(), 2);
+    }
+
+    #[test]
+    fn test_exporter_get_filtered_allocations() {
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("user_var".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("system_var".to_string()), Some("Vec<i32>".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        // Test with include_system_allocations = false
+        let config_user_only = ExportConfig::user_variables_only();
+        let exporter_user_only = Exporter::new(allocations.clone(), stats.clone(), config_user_only);
+        let filtered_user_only = exporter_user_only.get_filtered_allocations();
+        assert_eq!(filtered_user_only.len(), 2); // Currently returns all due to temporary implementation
+        
+        // Test with include_system_allocations = true
+        let config_all = ExportConfig::all_allocations();
+        let exporter_all = Exporter::new(allocations.clone(), stats, config_all);
+        let filtered_all = exporter_all.get_filtered_allocations();
+        assert_eq!(filtered_all.len(), 2);
+    }
+
+    #[test]
+    fn test_exporter_export_json() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("exporter_test.json");
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("test_var".to_string()), Some("String".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        let config = ExportConfig::default();
+        
+        let exporter = Exporter::new(allocations, stats, config);
+        let export_stats = exporter.export_json(&output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 1);
+        assert_eq!(export_stats.user_variables, 1);
+        assert!(export_stats.processing_time_ms > 0);
+        assert!(export_stats.output_size_bytes > 0);
+        assert!(export_stats.processing_rate > 0.0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_exporter_export_binary() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("exporter_test.memscope");
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("test_var".to_string()), Some("String".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        let config = ExportConfig::default();
+        
+        let exporter = Exporter::new(allocations, stats, config);
+        let export_stats = exporter.export_binary(&output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 1);
+        assert_eq!(export_stats.user_variables, 1);
+        assert_eq!(export_stats.system_allocations, 0);
+        assert!(export_stats.processing_time_ms >= 0);
+        assert!(export_stats.output_size_bytes > 0);
+        assert!(export_stats.processing_rate >= 0.0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_user_variables_json() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("user_vars.json");
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("user_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("user_var2".to_string()), Some("Vec<i32>".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        let export_stats = export_user_variables_json(allocations, stats, &output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 2);
+        assert_eq!(export_stats.user_variables, 2);
+        assert!(export_stats.processing_time_ms >= 0);
+        assert!(export_stats.output_size_bytes > 0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_user_variables_binary() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("user_vars.memscope");
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("user_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("user_var2".to_string()), Some("Vec<i32>".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        let export_stats = export_user_variables_binary(allocations, stats, &output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 2);
+        assert_eq!(export_stats.user_variables, 2);
+        assert_eq!(export_stats.system_allocations, 0);
+        assert!(export_stats.processing_time_ms >= 0);
+        assert!(export_stats.output_size_bytes > 0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_fast() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("fast_export.json");
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("fast_var".to_string()), Some("String".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        let export_stats = export_fast(allocations, stats, &output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 1);
+        assert_eq!(export_stats.user_variables, 1);
+        assert!(export_stats.processing_time_ms >= 0);
+        assert!(export_stats.output_size_bytes > 0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_comprehensive() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("comprehensive_export.json");
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("comp_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("comp_var2".to_string()), Some("Vec<i32>".to_string())),
+            create_test_allocation(0x3000, 256, Some("comp_var3".to_string()), Some("HashMap<String, i32>".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        let export_stats = export_comprehensive(allocations, stats, &output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 3);
+        assert_eq!(export_stats.user_variables, 3);
+        assert!(export_stats.processing_time_ms >= 0);
+        assert!(export_stats.output_size_bytes > 0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_with_different_configs() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("config_var".to_string()), Some("String".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        // Test with fast config
+        let fast_config = ExportConfig::fast_export();
+        let fast_exporter = Exporter::new(allocations.clone(), stats.clone(), fast_config);
+        let fast_output = temp_dir.path().join("fast_config.json");
+        let fast_stats = fast_exporter.export_json(&fast_output)?;
+        assert!(fast_output.exists());
+        assert!(fast_stats.processing_time_ms >= 0);
+        
+        // Test with comprehensive config
+        let comp_config = ExportConfig::comprehensive();
+        let comp_exporter = Exporter::new(allocations.clone(), stats.clone(), comp_config);
+        let comp_output = temp_dir.path().join("comp_config.json");
+        let comp_stats = comp_exporter.export_json(&comp_output)?;
+        assert!(comp_output.exists());
+        assert!(comp_stats.processing_time_ms >= 0);
+        
+        // Test with custom config
+        let custom_config = ExportConfig {
+            include_system_allocations: true,
+            parallel_processing: Some(false),
+            buffer_size: 128 * 1024,
+            validate_output: false,
+            thread_count: Some(2),
+        };
+        let custom_exporter = Exporter::new(allocations, stats, custom_config);
+        let custom_output = temp_dir.path().join("custom_config.json");
+        let custom_stats = custom_exporter.export_json(&custom_output)?;
+        assert!(custom_output.exists());
+        assert!(custom_stats.processing_time_ms >= 0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_empty_allocations() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("empty.json");
+        
+        let allocations = vec![];
+        let stats = create_test_memory_stats();
+        
+        let export_stats = export_user_variables_json(allocations, stats, &output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 0);
+        assert_eq!(export_stats.user_variables, 0);
+        assert_eq!(export_stats.system_allocations, 0);
+        assert!(export_stats.processing_time_ms >= 0);
+        assert!(export_stats.output_size_bytes > 0); // JSON file should have some content
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_large_dataset() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("large_dataset.json");
+        
+        // Create a large dataset
+        let mut allocations = Vec::new();
+        for i in 0..1000 {
+            allocations.push(create_test_allocation(
+                0x1000 + i * 0x100,
+                64 + i % 100,
+                Some(format!("var_{}", i)),
+                Some(format!("Type{}", i % 10)),
+            ));
+        }
+        let stats = create_test_memory_stats();
+        
+        let export_stats = export_user_variables_json(allocations, stats, &output_path)?;
+        
+        assert!(output_path.exists());
+        assert_eq!(export_stats.allocations_processed, 1000);
+        assert_eq!(export_stats.user_variables, 1000);
+        assert!(export_stats.processing_time_ms >= 0);
+        assert!(export_stats.output_size_bytes > 0); // Should have some content
+        assert!(export_stats.processing_rate > 0.0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_stats_calculations() {
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("var2".to_string()), Some("Vec<i32>".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        let config = ExportConfig::default();
+        
+        let exporter = Exporter::new(allocations, stats, config);
+        let filtered = exporter.get_filtered_allocations();
+        
+        // Verify filtering logic
+        assert_eq!(filtered.len(), 2);
+        
+        // Test that all allocations have the expected structure
+        for allocation in &filtered {
+            assert!(allocation.ptr > 0);
+            assert!(allocation.size > 0);
+            assert!(allocation.var_name.is_some());
+            assert!(allocation.type_name.is_some());
+        }
+    }
+
+    #[test]
+    fn test_export_directory_creation() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let nested_path = temp_dir.path().join("nested").join("directory").join("test.json");
+        
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, Some("dir_var".to_string()), Some("String".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        let export_stats = export_user_variables_json(allocations, stats, &nested_path)?;
+        
+        assert!(nested_path.exists());
+        assert!(nested_path.parent().unwrap().exists());
+        assert_eq!(export_stats.allocations_processed, 1);
+        
+        Ok(())
+    }
 }

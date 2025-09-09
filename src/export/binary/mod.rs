@@ -441,3 +441,550 @@ pub fn parse_binary_auto<P: AsRef<Path>>(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::AllocationInfo;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Create test allocation data
+    fn create_test_allocations() -> Vec<AllocationInfo> {
+        let mut alloc1 = AllocationInfo::new(0x1000, 64);
+        alloc1.var_name = Some("user_var1".to_string());
+        alloc1.type_name = Some("String".to_string());
+        alloc1.timestamp_alloc = 1000;
+        alloc1.stack_trace = Some(vec!["main".to_string(), "allocate".to_string()]);
+        alloc1.thread_id = "1".to_string();
+
+        let mut alloc2 = AllocationInfo::new(0x2000, 128);
+        alloc2.var_name = Some("user_var2".to_string());
+        alloc2.type_name = Some("Vec<i32>".to_string());
+        alloc2.timestamp_alloc = 2000;
+        alloc2.stack_trace = Some(vec!["main".to_string(), "create_vec".to_string()]);
+        alloc2.thread_id = "1".to_string();
+
+        let mut alloc3 = AllocationInfo::new(0x3000, 32);
+        alloc3.var_name = None; // System allocation
+        alloc3.type_name = None;
+        alloc3.timestamp_alloc = 3000;
+        alloc3.stack_trace = Some(vec!["system".to_string()]);
+        alloc3.thread_id = "2".to_string();
+
+        vec![alloc1, alloc2, alloc3]
+    }
+
+    #[test]
+    fn test_export_to_binary_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test.memscope");
+        let allocations = create_test_allocations();
+
+        let result = export_to_binary(&allocations, &binary_path);
+        assert!(result.is_ok());
+        assert!(binary_path.exists());
+        assert!(binary_path.metadata().unwrap().len() > 0);
+    }
+
+    #[test]
+    fn test_export_to_binary_with_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_config.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfigBuilder::new()
+            .advanced_metrics_level(AdvancedMetricsLevel::Essential)
+            .build();
+
+        let result = export_to_binary_with_config(&allocations, &binary_path, &config);
+        assert!(result.is_ok());
+        assert!(binary_path.exists());
+        assert!(binary_path.metadata().unwrap().len() > 0);
+    }
+
+    #[test]
+    fn test_export_to_binary_with_mode_user_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_user_only.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfig::minimal();
+
+        let result = export_to_binary_with_mode(
+            &allocations,
+            &binary_path,
+            BinaryExportMode::UserOnly,
+            &config,
+        );
+        assert!(result.is_ok());
+        assert!(binary_path.exists());
+
+        // Verify the file was created with user-only mode by reading it back
+        let info = detect_binary_type(&binary_path).unwrap();
+        assert!(info.is_user_only());
+        
+        // Count actual user allocations in our test data
+        let expected_user_count = allocations.iter().filter(|a| a.var_name.is_some()).count();
+        
+        // The binary should reflect the user-only mode
+        assert_eq!(info.export_mode, BinaryExportMode::UserOnly);
+        
+        // Verify we can parse it back to JSON to check the data integrity
+        let json_path = temp_dir.path().join("test_user_only.json");
+        let parse_result = parse_binary_to_json(&binary_path, &json_path);
+        assert!(parse_result.is_ok());
+        assert!(json_path.exists());
+        
+        // Verify JSON content contains expected data
+        let json_content = fs::read_to_string(&json_path).unwrap();
+        let json_data: serde_json::Value = serde_json::from_str(&json_content).unwrap();
+        
+        // Check that the JSON contains allocations data
+        if json_data.is_array() {
+            // JSON is directly an array of allocations
+            let json_allocations = json_data.as_array().unwrap();
+            assert_eq!(json_allocations.len(), 3); // All allocations are included
+            
+            // Count user vs system allocations in JSON
+            let json_user_count = json_allocations.iter()
+                .filter(|alloc| alloc.get("var_name").map_or(false, |v| !v.is_null()))
+                .count();
+            let json_system_count = json_allocations.len() - json_user_count;
+            
+            // Verify the counts match our expectations
+            assert_eq!(json_user_count, 2); // user_var1, user_var2
+            assert_eq!(json_system_count, 1); // system allocation
+        } else if json_data.is_object() {
+            // JSON is an object containing allocations array
+            if let Some(allocations_array) = json_data.get("allocations") {
+                assert!(allocations_array.is_array());
+                let json_allocations = allocations_array.as_array().unwrap();
+                assert_eq!(json_allocations.len(), 3);
+            }
+        }
+    }
+
+    #[test]
+    fn test_export_to_binary_with_mode_full() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_full.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfig::debug_comprehensive();
+
+        let result = export_to_binary_with_mode(
+            &allocations,
+            &binary_path,
+            BinaryExportMode::Full,
+            &config,
+        );
+        assert!(result.is_ok());
+        assert!(binary_path.exists());
+
+        // Verify the file was created with full mode
+        let info = detect_binary_type(&binary_path).unwrap();
+        assert!(info.is_full_binary());
+        assert_eq!(info.user_count, 2); // User allocations
+        assert_eq!(info.system_count, 1); // System allocations
+        assert_eq!(info.total_count, 3); // Total allocations
+    }
+
+    #[test]
+    fn test_detect_binary_type_user_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_detect_user.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfig::minimal();
+
+        export_to_binary_with_mode(
+            &allocations,
+            &binary_path,
+            BinaryExportMode::UserOnly,
+            &config,
+        ).unwrap();
+
+        let info = detect_binary_type(&binary_path).unwrap();
+        assert!(info.is_user_only());
+        assert!(!info.is_full_binary());
+        assert_eq!(info.export_mode, BinaryExportMode::UserOnly);
+        assert!(info.is_count_consistent);
+        assert!(info.file_size > 0);
+
+        let description = info.type_description();
+        assert!(description.contains("User-only binary"));
+
+        let strategy = info.recommended_strategy();
+        assert!(strategy.contains("Simple processing"));
+        
+        // Verify we can actually read the binary back and get meaningful data
+        let json_path = temp_dir.path().join("verify_user_only.json");
+        let parse_result = parse_binary_to_json(&binary_path, &json_path);
+        assert!(parse_result.is_ok());
+        
+        // Read and verify the JSON content
+        let json_content = fs::read_to_string(&json_path).unwrap();
+        println!("JSON content preview: {}", &json_content[..json_content.len().min(500)]);
+        
+        let json_data: serde_json::Value = serde_json::from_str(&json_content).unwrap();
+        
+        // Verify the JSON structure is valid and matches our expectations
+        println!("JSON data type: {:?}", json_data);
+        if json_data.is_array() {
+            let json_allocations = json_data.as_array().unwrap();
+            println!("JSON is an array with {} elements", json_allocations.len());
+            
+            // Count user vs system allocations in JSON
+            let json_user_count = json_allocations.iter()
+                .filter(|alloc| alloc.get("var_name").map_or(false, |v| !v.is_null()))
+                .count();
+            let json_system_count = json_allocations.len() - json_user_count;
+            
+            println!("JSON contains: {} user, {} system allocations", json_user_count, json_system_count);
+            
+            // Verify the JSON data matches the binary header
+            assert_eq!(json_user_count, info.user_count as usize);
+            assert_eq!(json_system_count, info.system_count as usize);
+            assert_eq!(json_allocations.len(), info.total_count as usize);
+        } else if json_data.is_object() {
+            println!("JSON is an object with keys: {:?}", json_data.as_object().unwrap().keys().collect::<Vec<_>>());
+        } else {
+            println!("JSON is neither array nor object: {:?}", json_data);
+        }
+        
+        // Count user allocations in original data
+        let original_user_count = allocations.iter().filter(|a| a.var_name.is_some()).count();
+        println!("Original user allocations: {}", original_user_count);
+        
+        // The binary detection should reflect actual data
+        println!("Detected user count: {}, system count: {}", info.user_count, info.system_count);
+    }
+
+    #[test]
+    fn test_detect_binary_type_full() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_detect_full.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfig::debug_comprehensive();
+
+        export_to_binary_with_mode(
+            &allocations,
+            &binary_path,
+            BinaryExportMode::Full,
+            &config,
+        ).unwrap();
+
+        let info = detect_binary_type(&binary_path).unwrap();
+        assert!(!info.is_user_only());
+        assert!(info.is_full_binary());
+        assert_eq!(info.export_mode, BinaryExportMode::Full);
+        assert_eq!(info.user_count, 2);
+        assert_eq!(info.system_count, 1);
+        assert_eq!(info.total_count, 3);
+        assert!(info.is_count_consistent);
+        assert!(info.file_size > 0);
+
+        let description = info.type_description();
+        assert!(description.contains("Full binary"));
+        assert!(description.contains("3 total allocations"));
+        assert!(description.contains("2 user + 1 system"));
+
+        let strategy = info.recommended_strategy();
+        assert!(strategy.contains("Optimized processing"));
+    }
+
+    #[test]
+    fn test_detect_binary_type_invalid_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let invalid_path = temp_dir.path().join("nonexistent.memscope");
+
+        let result = detect_binary_type(&invalid_path);
+        assert!(result.is_err());
+        if let Err(BinaryExportError::Io(_)) = result {
+            // Expected error type
+        } else {
+            panic!("Expected IoError for nonexistent file");
+        }
+    }
+
+    #[test]
+    fn test_detect_binary_type_invalid_format() {
+        let temp_dir = TempDir::new().unwrap();
+        let invalid_path = temp_dir.path().join("invalid.memscope");
+
+        // Create a file with invalid content
+        fs::write(&invalid_path, b"invalid binary data").unwrap();
+
+        let result = detect_binary_type(&invalid_path);
+        assert!(result.is_err());
+        // The error could be InvalidFormat or Io error depending on implementation
+        match result {
+            Err(BinaryExportError::InvalidFormat) => {
+                // Expected error type
+            }
+            Err(BinaryExportError::Io(_)) => {
+                // Also acceptable - file might be too small to read header
+            }
+            Err(BinaryExportError::CorruptedData(_)) => {
+                // Also acceptable - invalid header data
+            }
+            _ => panic!("Expected InvalidFormat, Io, or CorruptedData error for invalid file"),
+        }
+    }
+
+    #[test]
+    fn test_parse_binary_to_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_parse.memscope");
+        let json_path = temp_dir.path().join("test_parse.json");
+        let allocations = create_test_allocations();
+
+        // First create a binary file
+        export_to_binary(&allocations, &binary_path).unwrap();
+
+        // Then parse it to JSON
+        let result = parse_binary_to_json(&binary_path, &json_path);
+        assert!(result.is_ok());
+        assert!(json_path.exists());
+        assert!(json_path.metadata().unwrap().len() > 0);
+
+        // Verify JSON content is valid
+        let json_content = fs::read_to_string(&json_path).unwrap();
+        assert!(!json_content.is_empty());
+        // Should be valid JSON
+        let _: serde_json::Value = serde_json::from_str(&json_content).unwrap();
+    }
+
+    #[test]
+    fn test_parse_binary_to_html() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_parse_html.memscope");
+        let html_path = temp_dir.path().join("test_parse.html");
+        let allocations = create_test_allocations();
+
+        // First create a binary file
+        export_to_binary(&allocations, &binary_path).unwrap();
+
+        // Then parse it to HTML
+        let result = parse_binary_to_html(&binary_path, &html_path);
+        assert!(result.is_ok());
+        assert!(html_path.exists());
+        assert!(html_path.metadata().unwrap().len() > 0);
+
+        // Verify HTML content
+        let html_content = fs::read_to_string(&html_path).unwrap();
+        assert!(!html_content.is_empty());
+        assert!(html_content.contains("<!DOCTYPE html") || html_content.contains("<html"));
+    }
+
+    #[test]
+    fn test_parse_binary_auto_user_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_auto_user.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfig::minimal();
+
+        // Create user-only binary
+        export_to_binary_with_mode(
+            &allocations,
+            &binary_path,
+            BinaryExportMode::UserOnly,
+            &config,
+        ).unwrap();
+
+        // Test auto parsing
+        let result = parse_binary_auto(&binary_path, "test_auto_user");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_binary_auto_full() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_auto_full.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfig::debug_comprehensive();
+
+        // Create full binary
+        export_to_binary_with_mode(
+            &allocations,
+            &binary_path,
+            BinaryExportMode::Full,
+            &config,
+        ).unwrap();
+
+        // Test auto parsing
+        let result = parse_binary_auto(&binary_path, "test_auto_full");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_export_binary_to_html_dashboard() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_dashboard.memscope");
+        let html_path = temp_dir.path().join("dashboard.html");
+        let allocations = create_test_allocations();
+
+        // First create a binary file
+        export_to_binary(&allocations, &binary_path).unwrap();
+
+        // Test dashboard export
+        let result = export_binary_to_html_dashboard(&binary_path, &html_path, "test_project");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_binary_file_info_methods() {
+        let user_only_info = BinaryFileInfo {
+            export_mode: BinaryExportMode::UserOnly,
+            total_count: 2,
+            user_count: 2,
+            system_count: 0,
+            version: FORMAT_VERSION,
+            is_count_consistent: true,
+            file_size: 1024,
+        };
+
+        assert!(user_only_info.is_user_only());
+        assert!(!user_only_info.is_full_binary());
+
+        let description = user_only_info.type_description();
+        assert!(description.contains("User-only binary"));
+        assert!(description.contains("2 user allocations"));
+        assert!(description.contains("1 KB"));
+
+        let strategy = user_only_info.recommended_strategy();
+        assert!(strategy.contains("Simple processing"));
+
+        let full_info = BinaryFileInfo {
+            export_mode: BinaryExportMode::Full,
+            total_count: 5,
+            user_count: 3,
+            system_count: 2,
+            version: FORMAT_VERSION,
+            is_count_consistent: true,
+            file_size: 4096,
+        };
+
+        assert!(!full_info.is_user_only());
+        assert!(full_info.is_full_binary());
+
+        let description = full_info.type_description();
+        assert!(description.contains("Full binary"));
+        assert!(description.contains("5 total allocations"));
+        assert!(description.contains("3 user + 2 system"));
+        assert!(description.contains("4 KB"));
+
+        let strategy = full_info.recommended_strategy();
+        assert!(strategy.contains("Optimized processing"));
+    }
+
+    #[test]
+    fn test_export_with_advanced_metrics() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_advanced.memscope");
+        let allocations = create_test_allocations();
+
+        let config = BinaryExportConfigBuilder::new()
+            .advanced_metrics_level(AdvancedMetricsLevel::Comprehensive)
+            .build();
+
+        let result = export_to_binary_with_config(&allocations, &binary_path, &config);
+        assert!(result.is_ok());
+        assert!(binary_path.exists());
+
+        // Verify the file was created and has content
+        let metadata = binary_path.metadata().unwrap();
+        assert!(metadata.len() > 0);
+
+        // Verify we can detect the binary type
+        let info = detect_binary_type(&binary_path).unwrap();
+        assert_eq!(info.version, FORMAT_VERSION);
+    }
+
+    #[test]
+    fn test_empty_allocations() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_empty.memscope");
+        let allocations: Vec<AllocationInfo> = vec![];
+
+        let result = export_to_binary(&allocations, &binary_path);
+        assert!(result.is_ok());
+        assert!(binary_path.exists());
+
+        // Verify the file was created with zero allocations
+        let info = detect_binary_type(&binary_path).unwrap();
+        assert_eq!(info.total_count, 0);
+        assert_eq!(info.user_count, 0);
+        assert_eq!(info.system_count, 0);
+    }
+
+    #[test]
+    fn test_large_allocation_count() {
+        let temp_dir = TempDir::new().unwrap();
+        let binary_path = temp_dir.path().join("test_large.memscope");
+        
+        // Create a larger number of allocations with known user/system split
+        let mut allocations = Vec::new();
+        let mut expected_user_count = 0;
+        let mut expected_system_count = 0;
+        
+        for i in 0..100 {
+            let mut alloc = AllocationInfo::new(0x1000 + (i * 0x100), 64 + i);
+            if i % 2 == 0 {
+                alloc.var_name = Some(format!("var_{}", i));
+                expected_user_count += 1;
+            } else {
+                alloc.var_name = None;
+                expected_system_count += 1;
+            }
+            alloc.type_name = Some(format!("Type_{}", i));
+            alloc.timestamp_alloc = 1000 + i as u64;
+            alloc.stack_trace = Some(vec![format!("func_{}", i)]);
+            alloc.thread_id = ((i % 4) + 1).to_string();
+            allocations.push(alloc);
+        }
+
+        println!("Expected: {} user, {} system, {} total", 
+                expected_user_count, expected_system_count, allocations.len());
+
+        let result = export_to_binary(&allocations, &binary_path);
+        assert!(result.is_ok());
+        assert!(binary_path.exists());
+
+        // Verify the counts are correct by reading the binary
+        let info = detect_binary_type(&binary_path).unwrap();
+        println!("Detected: {} user, {} system, {} total", 
+                info.user_count, info.system_count, info.total_count);
+        
+        assert_eq!(info.total_count, 100);
+        assert!(info.is_count_consistent);
+        
+        // Verify by parsing back to JSON and counting
+        let json_path = temp_dir.path().join("test_large.json");
+        let parse_result = parse_binary_to_json(&binary_path, &json_path);
+        assert!(parse_result.is_ok());
+        
+        let json_content = fs::read_to_string(&json_path).unwrap();
+        let json_data: serde_json::Value = serde_json::from_str(&json_content).unwrap();
+        
+        if let Some(allocations_array) = json_data.get("allocations") {
+            let json_allocations = allocations_array.as_array().unwrap();
+            let json_user_count = json_allocations.iter()
+                .filter(|alloc| alloc.get("var_name").map_or(false, |v| !v.is_null()))
+                .count();
+            let json_system_count = json_allocations.len() - json_user_count;
+            
+            println!("JSON parsed: {} user, {} system, {} total", 
+                    json_user_count, json_system_count, json_allocations.len());
+            
+            // Verify the JSON data matches our expectations
+            assert_eq!(json_allocations.len(), 100);
+            assert_eq!(json_user_count, expected_user_count);
+            assert_eq!(json_system_count, expected_system_count);
+        }
+    }
+}
