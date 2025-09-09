@@ -933,7 +933,6 @@ mod tests {
     #[test]
     fn test_export_unsafe_ffi_analysis() -> TrackingResult<()> {
         use tempfile::TempDir;
-        use crate::analysis::unsafe_ffi_tracker::MemoryPassport;
         
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let exporter = EnhancedJsonExporter::default();
