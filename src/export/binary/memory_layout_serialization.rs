@@ -454,4 +454,533 @@ mod tests {
             assert_eq!(original_potential, read_potential);
         }
     }
+
+    #[test]
+    fn test_memory_layout_serialization() {
+        let layout = MemoryLayoutInfo {
+            total_size: 64,
+            alignment: 8,
+            field_layout: vec![
+                FieldLayoutInfo {
+                    field_name: "field1".to_string(),
+                    field_type: "u32".to_string(),
+                    offset: 0,
+                    size: 4,
+                    alignment: 4,
+                    is_padding: false,
+                },
+                FieldLayoutInfo {
+                    field_name: "padding".to_string(),
+                    field_type: "padding".to_string(),
+                    offset: 4,
+                    size: 4,
+                    alignment: 1,
+                    is_padding: true,
+                },
+                FieldLayoutInfo {
+                    field_name: "field2".to_string(),
+                    field_type: "u64".to_string(),
+                    offset: 8,
+                    size: 8,
+                    alignment: 8,
+                    is_padding: false,
+                },
+            ],
+            padding_info: PaddingAnalysis {
+                total_padding_bytes: 4,
+                padding_locations: vec![
+                    PaddingLocation {
+                        start_offset: 4,
+                        size: 4,
+                        reason: PaddingReason::FieldAlignment,
+                    },
+                ],
+                padding_ratio: 0.25,
+                optimization_suggestions: vec!["Reorder fields".to_string()],
+            },
+            layout_efficiency: LayoutEfficiency {
+                memory_utilization: 0.75,
+                cache_friendliness: 85.0,
+                alignment_waste: 4,
+                optimization_potential: OptimizationPotential::Minor {
+                    potential_savings: 4,
+                },
+            },
+            container_analysis: None,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = layout
+            .write_binary(&mut buffer)
+            .expect("Failed to write memory layout");
+
+        // Verify size calculation
+        assert_eq!(written_size, layout.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read memory layout");
+
+        assert_eq!(layout, read_layout);
+    }
+
+    #[test]
+    fn test_padding_location_serialization() {
+        let padding_locations = vec![
+            PaddingLocation {
+                start_offset: 0,
+                size: 4,
+                reason: PaddingReason::FieldAlignment,
+            },
+            PaddingLocation {
+                start_offset: 8,
+                size: 8,
+                reason: PaddingReason::StructAlignment,
+            },
+            PaddingLocation {
+                start_offset: 16,
+                size: 1,
+                reason: PaddingReason::EnumDiscriminant,
+            },
+            PaddingLocation {
+                start_offset: 24,
+                size: 16,
+                reason: PaddingReason::Other("custom alignment".to_string()),
+            },
+        ];
+
+        for original_location in padding_locations {
+            let mut buffer = Vec::new();
+            let written_size = original_location
+                .write_binary(&mut buffer)
+                .expect("Failed to write padding location");
+
+            // Verify size calculation
+            assert_eq!(written_size, original_location.binary_size());
+
+            let mut cursor = Cursor::new(&buffer);
+            let read_location = PaddingLocation::read_binary(&mut cursor).expect("Failed to read padding location");
+
+            assert_eq!(original_location, read_location);
+        }
+    }
+
+    #[test]
+    fn test_empty_memory_layout_serialization() {
+        let layout = MemoryLayoutInfo {
+            total_size: 0,
+            alignment: 1,
+            field_layout: vec![],
+            padding_info: PaddingAnalysis {
+                total_padding_bytes: 0,
+                padding_locations: vec![],
+                padding_ratio: 0.0,
+                optimization_suggestions: vec![],
+            },
+            layout_efficiency: LayoutEfficiency {
+                memory_utilization: 1.0,
+                cache_friendliness: 100.0,
+                alignment_waste: 0,
+                optimization_potential: OptimizationPotential::None,
+            },
+            container_analysis: None,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = layout
+            .write_binary(&mut buffer)
+            .expect("Failed to write empty memory layout");
+
+        assert_eq!(written_size, layout.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read empty memory layout");
+
+        assert_eq!(layout, read_layout);
+    }
+
+    #[test]
+    fn test_large_memory_layout_serialization() {
+        // Test with many fields
+        let mut fields = Vec::new();
+        let mut padding_info = Vec::new();
+
+        for i in 0..100 {
+            fields.push(FieldLayoutInfo {
+                field_name: format!("field_{}", i),
+                field_type: format!("Type{}", i),
+                offset: i * 8,
+                size: 8,
+                alignment: 8,
+                is_padding: i % 10 == 0, // Every 10th field is padding
+            });
+
+            if i % 5 == 0 {
+                padding_info.push(PaddingLocation {
+                    start_offset: i * 8 + 8,
+                    size: 4,
+                    reason: PaddingReason::FieldAlignment,
+                });
+            }
+        }
+
+        let layout = MemoryLayoutInfo {
+            total_size: 800,
+            alignment: 8,
+            field_layout: fields,
+            padding_info: PaddingAnalysis {
+                total_padding_bytes: 80,
+                padding_locations: padding_info,
+                padding_ratio: 0.1,
+                optimization_suggestions: vec![
+                    "Reorder fields by size".to_string(),
+                    "Use packed struct".to_string(),
+                ],
+            },
+            layout_efficiency: LayoutEfficiency {
+                memory_utilization: 0.9,
+                cache_friendliness: 60.0,
+                alignment_waste: 80,
+                optimization_potential: OptimizationPotential::Major {
+                    potential_savings: 200,
+                    suggestions: vec![
+                        "Reorder fields by size".to_string(),
+                        "Use packed struct".to_string(),
+                        "Consider smaller types".to_string(),
+                    ],
+                },
+            },
+            container_analysis: None,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = layout
+            .write_binary(&mut buffer)
+            .expect("Failed to write large memory layout");
+
+        assert_eq!(written_size, layout.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read large memory layout");
+
+        assert_eq!(layout, read_layout);
+    }
+
+    #[test]
+    fn test_binary_size_calculations() {
+        // Test PaddingReason binary size
+        assert_eq!(PaddingReason::FieldAlignment.binary_size(), 1);
+        assert_eq!(PaddingReason::StructAlignment.binary_size(), 1);
+        assert_eq!(PaddingReason::EnumDiscriminant.binary_size(), 1);
+        
+        let custom_reason = PaddingReason::Other("test".to_string());
+        assert_eq!(custom_reason.binary_size(), 1 + 4 + 4); // tag + length + content
+
+        // Test FieldLayoutInfo binary size
+        let field = FieldLayoutInfo {
+            field_name: "test".to_string(),
+            field_type: "u32".to_string(),
+            offset: 0,
+            size: 4,
+            alignment: 4,
+            is_padding: false,
+        };
+        let expected_size = 4 + 4 + 4 + 3 + 8 + 8 + 8 + 1; // field_name_len + field_name + field_type_len + field_type + offset + size + alignment + is_padding
+        assert_eq!(field.binary_size(), expected_size);
+
+        // Test PaddingLocation binary size
+        let padding = PaddingLocation {
+            start_offset: 0,
+            size: 4,
+            reason: PaddingReason::FieldAlignment,
+        };
+        let expected_size = 8 + 8 + 1; // start_offset + size + reason
+        assert_eq!(padding.binary_size(), expected_size);
+
+        // Test OptimizationPotential binary size
+        assert_eq!(OptimizationPotential::None.binary_size(), 1);
+        
+        let minor = OptimizationPotential::Minor { potential_savings: 100 };
+        assert_eq!(minor.binary_size(), 1 + 8); // tag + savings
+
+        let moderate = OptimizationPotential::Moderate {
+            potential_savings: 500,
+            suggestions: vec!["test".to_string()],
+        };
+        let expected_size = 1 + 8 + 4 + (4 + 4); // tag + savings + vec_len + (str_len + str_content)
+        assert_eq!(moderate.binary_size(), expected_size);
+    }
+
+    #[test]
+    fn test_field_layout_with_special_characters() {
+        let field = FieldLayoutInfo {
+            field_name: "field_with_unicode_🦀".to_string(),
+            field_type: "Type<'a, T: Clone + Send>".to_string(),
+            offset: 16,
+            size: 32,
+            alignment: 8,
+            is_padding: false,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = field
+            .write_binary(&mut buffer)
+            .expect("Failed to write field with special characters");
+
+        assert_eq!(written_size, field.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_field = FieldLayoutInfo::read_binary(&mut cursor)
+            .expect("Failed to read field with special characters");
+
+        assert_eq!(field, read_field);
+    }
+
+    #[test]
+    fn test_optimization_potential_edge_cases() {
+        // Test with empty suggestions
+        let moderate_empty = OptimizationPotential::Moderate {
+            potential_savings: 0,
+            suggestions: vec![],
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = moderate_empty
+            .write_binary(&mut buffer)
+            .expect("Failed to write moderate with empty suggestions");
+
+        assert_eq!(written_size, moderate_empty.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_potential = OptimizationPotential::read_binary(&mut cursor)
+            .expect("Failed to read moderate with empty suggestions");
+
+        assert_eq!(moderate_empty, read_potential);
+
+        // Test with many suggestions
+        let major_many = OptimizationPotential::Major {
+            potential_savings: usize::MAX,
+            suggestions: (0..50).map(|i| format!("suggestion_{}", i)).collect(),
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = major_many
+            .write_binary(&mut buffer)
+            .expect("Failed to write major with many suggestions");
+
+        assert_eq!(written_size, major_many.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_potential = OptimizationPotential::read_binary(&mut cursor)
+            .expect("Failed to read major with many suggestions");
+
+        assert_eq!(major_many, read_potential);
+    }
+
+    #[test]
+    fn test_padding_reason_other_edge_cases() {
+        // Test with empty string
+        let empty_other = PaddingReason::Other(String::new());
+        let mut buffer = Vec::new();
+        let written_size = empty_other
+            .write_binary(&mut buffer)
+            .expect("Failed to write empty other reason");
+
+        assert_eq!(written_size, empty_other.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_reason = PaddingReason::read_binary(&mut cursor)
+            .expect("Failed to read empty other reason");
+
+        assert_eq!(empty_other, read_reason);
+
+        // Test with very long string
+        let long_string = "a".repeat(10000);
+        let long_other = PaddingReason::Other(long_string.clone());
+        
+        let mut buffer = Vec::new();
+        let written_size = long_other
+            .write_binary(&mut buffer)
+            .expect("Failed to write long other reason");
+
+        assert_eq!(written_size, long_other.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_reason = PaddingReason::read_binary(&mut cursor)
+            .expect("Failed to read long other reason");
+
+        assert_eq!(long_other, read_reason);
+    }
+
+    #[test]
+    fn test_memory_layout_with_mixed_field_types() {
+        let layout = MemoryLayoutInfo {
+            total_size: 128,
+            alignment: 16,
+            field_layout: vec![
+                FieldLayoutInfo {
+                    field_name: "bool_field".to_string(),
+                    field_type: "bool".to_string(),
+                    offset: 0,
+                    size: 1,
+                    alignment: 1,
+                    is_padding: false,
+                },
+                FieldLayoutInfo {
+                    field_name: "padding1".to_string(),
+                    field_type: "padding".to_string(),
+                    offset: 1,
+                    size: 7,
+                    alignment: 1,
+                    is_padding: true,
+                },
+                FieldLayoutInfo {
+                    field_name: "u64_field".to_string(),
+                    field_type: "u64".to_string(),
+                    offset: 8,
+                    size: 8,
+                    alignment: 8,
+                    is_padding: false,
+                },
+                FieldLayoutInfo {
+                    field_name: "array_field".to_string(),
+                    field_type: "[u32; 10]".to_string(),
+                    offset: 16,
+                    size: 40,
+                    alignment: 4,
+                    is_padding: false,
+                },
+                FieldLayoutInfo {
+                    field_name: "padding2".to_string(),
+                    field_type: "padding".to_string(),
+                    offset: 56,
+                    size: 8,
+                    alignment: 1,
+                    is_padding: true,
+                },
+                FieldLayoutInfo {
+                    field_name: "ptr_field".to_string(),
+                    field_type: "*const u8".to_string(),
+                    offset: 64,
+                    size: 8,
+                    alignment: 8,
+                    is_padding: false,
+                },
+            ],
+            padding_info: PaddingAnalysis {
+                total_padding_bytes: 15,
+                padding_locations: vec![
+                    PaddingLocation {
+                        start_offset: 1,
+                        size: 7,
+                        reason: PaddingReason::FieldAlignment,
+                    },
+                    PaddingLocation {
+                        start_offset: 56,
+                        size: 8,
+                        reason: PaddingReason::StructAlignment,
+                    },
+                ],
+                padding_ratio: 15.0 / 128.0,
+                optimization_suggestions: vec![
+                    "Move bool field to end".to_string(),
+                    "Pack struct with #[repr(packed)]".to_string(),
+                ],
+            },
+            layout_efficiency: LayoutEfficiency {
+                memory_utilization: 113.0 / 128.0,
+                cache_friendliness: 70.0,
+                alignment_waste: 15,
+                optimization_potential: OptimizationPotential::Moderate {
+                    potential_savings: 15,
+                    suggestions: vec![
+                        "Move bool field to end".to_string(),
+                        "Pack struct with #[repr(packed)]".to_string(),
+                    ],
+                },
+            },
+            container_analysis: None,
+        };
+
+        let mut buffer = Vec::new();
+        let written_size = layout
+            .write_binary(&mut buffer)
+            .expect("Failed to write mixed field layout");
+
+        assert_eq!(written_size, layout.binary_size());
+
+        let mut cursor = Cursor::new(&buffer);
+        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor)
+            .expect("Failed to read mixed field layout");
+
+        assert_eq!(layout, read_layout);
+    }
+
+    #[test]
+    fn test_serialization_roundtrip_consistency() {
+        // Create a complex layout and ensure multiple roundtrips are consistent
+        let original_layout = MemoryLayoutInfo {
+            total_size: 256,
+            alignment: 32,
+            field_layout: vec![
+                FieldLayoutInfo {
+                    field_name: "complex_field".to_string(),
+                    field_type: "Option<Box<dyn Trait>>".to_string(),
+                    offset: 0,
+                    size: 16,
+                    alignment: 8,
+                    is_padding: false,
+                },
+            ],
+            padding_info: PaddingAnalysis {
+                total_padding_bytes: 16,
+                padding_locations: vec![
+                    PaddingLocation {
+                        start_offset: 16,
+                        size: 16,
+                        reason: PaddingReason::Other("custom alignment requirement".to_string()),
+                    },
+                ],
+                padding_ratio: 16.0 / 256.0,
+                optimization_suggestions: vec![
+                    "Consider using a different data structure".to_string(),
+                    "Reduce alignment requirements".to_string(),
+                ],
+            },
+            layout_efficiency: LayoutEfficiency {
+                memory_utilization: 240.0 / 256.0,
+                cache_friendliness: 50.0,
+                alignment_waste: 16,
+                optimization_potential: OptimizationPotential::Major {
+                    potential_savings: 128,
+                    suggestions: vec![
+                        "Consider using a different data structure".to_string(),
+                        "Reduce alignment requirements".to_string(),
+                    ],
+                },
+            },
+            container_analysis: None,
+        };
+
+        // First roundtrip
+        let mut buffer1 = Vec::new();
+        original_layout.write_binary(&mut buffer1).expect("First write failed");
+        
+        let mut cursor1 = Cursor::new(&buffer1);
+        let layout1 = MemoryLayoutInfo::read_binary(&mut cursor1).expect("First read failed");
+        
+        assert_eq!(original_layout, layout1);
+
+        // Second roundtrip
+        let mut buffer2 = Vec::new();
+        layout1.write_binary(&mut buffer2).expect("Second write failed");
+        
+        let mut cursor2 = Cursor::new(&buffer2);
+        let layout2 = MemoryLayoutInfo::read_binary(&mut cursor2).expect("Second read failed");
+        
+        assert_eq!(layout1, layout2);
+        assert_eq!(original_layout, layout2);
+
+        // Verify binary data is identical
+        assert_eq!(buffer1, buffer2);
+    }
 }

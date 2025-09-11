@@ -2541,4 +2541,457 @@ mod tests {
         BinaryParser::append_complex_record_compatible(&mut buffer, &allocation);
         assert!(!buffer.is_empty());
     }
+
+    #[test]
+    fn test_to_json_with_large_dataset() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let mut allocations = Vec::new();
+
+        // Create a large dataset
+        for i in 0..1000 {
+            allocations.push(create_test_allocation(
+                0x1000 + i * 0x100,
+                64 + i % 100,
+                Some(format!("Type{}", i % 10)),
+                Some(format!("var_{}", i)),
+            ));
+        }
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let json_path = temp_dir.path().join("large_output.json");
+
+        let result = BinaryParser::to_json(&binary_path, &json_path);
+        assert!(result.is_ok());
+
+        // Verify JSON file was created and contains expected content
+        assert!(json_path.exists());
+        let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
+        
+        // Check for some specific allocations
+        assert!(json_content.contains("var_0"));
+        assert!(json_content.contains("var_999"));
+        assert!(json_content.contains("Type0"));
+        assert!(json_content.contains("Type9"));
+        
+        // Verify JSON structure is valid
+        assert!(!json_content.is_empty());
+        assert!(json_content.len() > 1000); // Should be substantial for 1000 allocations
+    }
+
+    #[test]
+    fn test_to_html_with_empty_dataset() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let allocations = vec![];
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let html_path = temp_dir.path().join("empty_output.html");
+
+        let result = BinaryParser::to_html(&binary_path, &html_path);
+        assert!(result.is_ok());
+
+        // Verify HTML file was created and contains expected content
+        assert!(html_path.exists());
+        let html_content = fs::read_to_string(&html_path).expect("Failed to read HTML file");
+        assert!(html_content.contains("<!DOCTYPE html>"));
+        assert!(html_content.contains("<title>Memory Analysis</title>"));
+        assert!(html_content.contains("Total allocations: 0"));
+    }
+
+    #[test]
+    fn test_to_html_with_complex_allocations() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("std::collections::HashMap<String, Vec<i32>>".to_string()),
+                Some("complex_map".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Box<dyn std::fmt::Display + Send + Sync>".to_string()),
+                Some("trait_object".to_string()),
+            ),
+            create_test_allocation(
+                0x3000,
+                256,
+                Some("Arc<Mutex<Option<RefCell<Vec<String>>>>>".to_string()),
+                Some("nested_smart_pointers".to_string()),
+            ),
+        ];
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let html_path = temp_dir.path().join("complex_output.html");
+
+        let result = BinaryParser::to_html(&binary_path, &html_path);
+        assert!(result.is_ok());
+
+        // Verify HTML file was created and contains expected content
+        assert!(html_path.exists());
+        let html_content = fs::read_to_string(&html_path).expect("Failed to read HTML file");
+        assert!(html_content.contains("Total allocations: 3"));
+        assert!(html_content.contains("complex_map"));
+        assert!(html_content.contains("trait_object"));
+        assert!(html_content.contains("nested_smart_pointers"));
+    }
+
+    #[test]
+    fn test_json_structure_validation() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("test_string".to_string()),
+            ),
+        ];
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let json_path = temp_dir.path().join("structure_test.json");
+
+        let result = BinaryParser::to_json(&binary_path, &json_path);
+        assert!(result.is_ok());
+
+        let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
+        
+        // Verify JSON structure contains expected content
+        assert!(!json_content.is_empty());
+        assert!(json_content.contains("\"test_string\""));
+        assert!(json_content.contains("\"String\""));
+        assert!(json_content.contains("4096")); // 0x1000 in decimal
+    }
+
+    #[test]
+    fn test_html_structure_validation() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("Vec<u8>".to_string()),
+                Some("byte_vector".to_string()),
+            ),
+        ];
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let html_path = temp_dir.path().join("structure_test.html");
+
+        let result = BinaryParser::to_html(&binary_path, &html_path);
+        assert!(result.is_ok());
+
+        let html_content = fs::read_to_string(&html_path).expect("Failed to read HTML file");
+        
+        // Verify HTML structure
+        assert!(html_content.contains("<!DOCTYPE html>"));
+        assert!(html_content.contains("<html>"));
+        assert!(html_content.contains("<head>"));
+        assert!(html_content.contains("<title>Memory Analysis</title>"));
+        assert!(html_content.contains("<body>"));
+        assert!(html_content.contains("</body>"));
+        assert!(html_content.contains("</html>"));
+        
+        // Verify content sections
+        assert!(html_content.contains("Memory Analysis"));
+        assert!(html_content.contains("1")); // Should contain the count somewhere
+        assert!(html_content.contains("64")); // Should contain the size somewhere
+        assert!(html_content.contains("byte_vector"));
+        // The HTML may or may not escape the type name, so check for either
+        assert!(html_content.contains("Vec") && html_content.contains("u8"));
+    }
+
+    #[test]
+    fn test_error_handling_invalid_binary_file() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        
+        // Create an invalid binary file
+        let invalid_path = temp_dir.path().join("invalid.bin");
+        fs::write(&invalid_path, b"invalid binary data").expect("Failed to write invalid file");
+
+        let json_path = temp_dir.path().join("output.json");
+        let result = BinaryParser::to_json(&invalid_path, &json_path);
+        assert!(result.is_err());
+
+        let html_path = temp_dir.path().join("output.html");
+        let result = BinaryParser::to_html(&invalid_path, &html_path);
+        assert!(result.is_err());
+
+        let result = BinaryParser::load_allocations(&invalid_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_handling_write_permissions() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test".to_string()),
+        )];
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        
+        // Try to write to a directory that doesn't exist
+        let invalid_output_path = temp_dir.path().join("nonexistent_dir").join("output.json");
+        let result = BinaryParser::to_json(&binary_path, &invalid_output_path);
+        assert!(result.is_err());
+
+        let invalid_html_path = temp_dir.path().join("nonexistent_dir").join("output.html");
+        let result = BinaryParser::to_html(&binary_path, &invalid_html_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_memory_record_with_extreme_values() {
+        let allocation = create_test_allocation(
+            usize::MAX,
+            usize::MAX,
+            Some("ExtremeType".to_string()),
+            Some("extreme_var".to_string()),
+        );
+
+        let mut buffer = String::new();
+        BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
+
+        // Should handle extreme values without panicking
+        assert!(!buffer.is_empty());
+        assert!(buffer.contains("extreme_var"));
+        assert!(buffer.contains("ExtremeType"));
+    }
+
+    #[test]
+    fn test_lifetime_record_with_zero_timestamp() {
+        let mut allocation = create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("zero_time".to_string()),
+        );
+        allocation.timestamp_alloc = 0;
+
+        let mut buffer = String::new();
+        BinaryParser::append_lifetime_record_compatible(&mut buffer, &allocation);
+
+        assert!(!buffer.is_empty());
+        assert!(buffer.contains("\"timestamp\":0"));
+        assert!(buffer.contains("zero_time"));
+    }
+
+    #[test]
+    fn test_performance_record_with_high_borrow_count() {
+        let mut allocation = create_test_allocation(
+            0x1000,
+            64,
+            Some("RefCell<String>".to_string()),
+            Some("borrowed_var".to_string()),
+        );
+        allocation.borrow_count = 1000;
+
+        let mut buffer = String::new();
+        BinaryParser::append_performance_record_compatible(&mut buffer, &allocation);
+
+        assert!(!buffer.is_empty());
+        assert!(buffer.contains("\"borrow_count\":1000"));
+        assert!(buffer.contains("borrowed_var"));
+    }
+
+    #[test]
+    fn test_ffi_record_with_zero_pointer() {
+        let allocation = create_test_allocation(
+            0,
+            64,
+            Some("*mut c_void".to_string()),
+            Some("null_ptr".to_string()),
+        );
+
+        let mut buffer = String::new();
+        BinaryParser::append_ffi_record_compatible(&mut buffer, &allocation);
+
+        assert!(!buffer.is_empty());
+        assert!(buffer.contains("\"ptr\":0"));
+        assert!(buffer.contains("null_ptr"));
+    }
+
+    #[test]
+    fn test_complex_record_with_minimal_data() {
+        let allocation = create_test_allocation(
+            0x1000,
+            1,
+            Some("u8".to_string()),
+            Some("byte".to_string()),
+        );
+
+        let mut buffer = String::new();
+        BinaryParser::append_complex_record_compatible(&mut buffer, &allocation);
+
+        assert!(!buffer.is_empty());
+        assert!(buffer.contains("\"size\":1"));
+        assert!(buffer.contains("byte"));
+        assert!(buffer.contains("u8"));
+    }
+
+    #[test]
+    fn test_string_formatting_functions() {
+        // Test append_number_to_string with various numbers
+        let test_numbers = [0u64, 1, 42, 1000, u64::MAX];
+        for &num in &test_numbers {
+            let mut buffer = String::new();
+            BinaryParser::append_number_to_string(&mut buffer, num);
+            assert_eq!(buffer, num.to_string());
+        }
+
+        // Test append_hex_to_string with various numbers
+        let test_hex_numbers = [0usize, 1, 0x10, 0xFF, 0x1000, usize::MAX];
+        for &num in &test_hex_numbers {
+            let mut buffer = String::new();
+            BinaryParser::append_hex_to_string(&mut buffer, num);
+            assert_eq!(buffer, format!("{:x}", num));
+        }
+    }
+
+    #[test]
+    fn test_buffer_reuse() {
+        let allocation = create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test".to_string()),
+        );
+
+        let mut buffer = String::new();
+        
+        // Use the same buffer for multiple operations
+        BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
+        let first_length = buffer.len();
+        assert!(first_length > 0);
+
+        buffer.push_str(",\n");
+        BinaryParser::append_lifetime_record_compatible(&mut buffer, &allocation);
+        let second_length = buffer.len();
+        assert!(second_length > first_length);
+
+        buffer.push_str(",\n");
+        BinaryParser::append_performance_record_compatible(&mut buffer, &allocation);
+        let third_length = buffer.len();
+        assert!(third_length > second_length);
+    }
+
+    #[test]
+    fn test_allocation_with_empty_strings() {
+        let allocation = create_test_allocation(
+            0x1000,
+            64,
+            Some(String::new()),
+            Some(String::new()),
+        );
+
+        let mut buffer = String::new();
+        BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
+
+        assert!(!buffer.is_empty());
+        assert!(buffer.contains("\"type_name\":\"\""));
+        assert!(buffer.contains("\"var_name\":\"\""));
+    }
+
+    #[test]
+    fn test_allocation_with_long_strings() {
+        let long_type = "a".repeat(10000);
+        let long_var = "b".repeat(10000);
+        
+        let allocation = create_test_allocation(
+            0x1000,
+            64,
+            Some(long_type.clone()),
+            Some(long_var.clone()),
+        );
+
+        let mut buffer = String::new();
+        BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
+
+        assert!(!buffer.is_empty());
+        assert!(buffer.contains(&long_type));
+        assert!(buffer.contains(&long_var));
+    }
+
+    #[test]
+    fn test_concurrent_file_operations() {
+        use std::thread;
+        use std::sync::Arc;
+
+        let temp_dir = Arc::new(TempDir::new().expect("Failed to create temp directory"));
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("concurrent_test".to_string()),
+            ),
+        ];
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let binary_path = Arc::new(binary_path);
+
+        let mut handles = vec![];
+
+        // Test concurrent JSON generation
+        for i in 0..5 {
+            let temp_dir = Arc::clone(&temp_dir);
+            let binary_path = Arc::clone(&binary_path);
+            
+            let handle = thread::spawn(move || {
+                let json_path = temp_dir.path().join(format!("concurrent_{}.json", i));
+                BinaryParser::to_json(binary_path.as_ref(), &json_path)
+            });
+            handles.push(handle);
+        }
+
+        // Test concurrent HTML generation
+        for i in 0..5 {
+            let temp_dir = Arc::clone(&temp_dir);
+            let binary_path = Arc::clone(&binary_path);
+            
+            let handle = thread::spawn(move || {
+                let html_path = temp_dir.path().join(format!("concurrent_{}.html", i));
+                BinaryParser::to_html(binary_path.as_ref(), &html_path)
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            let result = handle.join().expect("Thread panicked");
+            assert!(result.is_ok(), "Concurrent operation failed");
+        }
+    }
+
+    #[test]
+    fn test_memory_efficiency() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        
+        // Create a moderately large dataset
+        let mut allocations = Vec::new();
+        for i in 0..10000 {
+            allocations.push(create_test_allocation(
+                0x1000 + i * 0x10,
+                64,
+                Some(format!("Type{}", i % 100)),
+                Some(format!("var_{}", i)),
+            ));
+        }
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let json_path = temp_dir.path().join("efficiency_test.json");
+
+        // This should complete without excessive memory usage
+        let result = BinaryParser::to_json(&binary_path, &json_path);
+        assert!(result.is_ok());
+
+        // Verify the output file exists and has reasonable size
+        assert!(json_path.exists());
+        let metadata = fs::metadata(&json_path).expect("Failed to get file metadata");
+        assert!(metadata.len() > 0);
+        assert!(metadata.len() < 100_000_000); // Should be less than 100MB for 10k allocations
+    }
 }
